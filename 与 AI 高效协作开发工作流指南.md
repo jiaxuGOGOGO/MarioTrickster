@@ -11,27 +11,30 @@
 
 ## 快捷查询目录
 
-| 你遇到的情况        | 跳转章节                                          |
-| :------------ | :-------------------------------------------- |
-| 换了新对话框，需要快速衔接 | [1.1 新对话开启模板](#11-新对话开启模板)                    |
-| 当前对话快结束了，需要存档 | [1.2 上下文保存机制](#12-上下文保存机制对话结束前)               |
-| Unity 飘红报错了   | [2.1 报错提问模板](#21-报错提问模板)                      |
-| 游戏效果不对但没报错    | [2.2 逻辑错误](#22-逻辑错误没报错但效果不对)                  |
-| 想做一个全新的功能/系统  | [3.1 需求确认与计划](#31-步骤一需求确认与计划)                 |
-| 需要画新的怪物/场景素材  | [4.1 索要 ComfyUI/SD 提示词](#41-索要-comfyuisd-提示词) |
-| 需要批量生成动画帧     | [4.2 批量动画帧生成](#42-批量动画帧生成)                    |
-| 不知道 Git 命令怎么用 | [5. Git 命令速查](#5-git-命令速查)                    |
-| 不知道文件该放哪里     | [6. Unity 项目结构规范](#6-unity-项目结构规范)            |
-| 想让 AI 帮忙做关卡设计 | [7.1 关卡设计沟通](#71-关卡设计沟通)                      |
-| 想让 AI 帮忙调平衡性  | [7.2 平衡性调整沟通](#72-平衡性调整沟通)                    |
-| 联机/网络相关问题     | [7.3 网络联机问题沟通](#73-网络联机问题沟通)                  |
-| 性能出问题了        | [7.4 性能问题沟通](#74-性能问题沟通)                      |
+| 你遇到的情况 | 跳转章节 |
+| :--- | :--- |
+| 换了新对话框，需要快速衔接 | [1.1 新对话开启模板](#11-新对话开启模板) |
+| 当前对话快结束了，需要存档 | [1.2 上下文保存机制](#12-上下文保存机制对话结束前) |
+| 需要 AI 直接推送代码到 GitHub | [1.3 GitHub Token 配置与使用](#13-github-token-配置与使用) |
+| 积分快用完了，需要紧急存档 | [1.4 积分管理与紧急存档策略](#14-积分管理与紧急存档策略) |
+| Unity 飘红报错了 | [2.1 报错提问模板](#21-报错提问模板) |
+| 游戏效果不对但没报错 | [2.2 逻辑错误](#22-逻辑错误没报错但效果不对) |
+| 想做一个全新的功能/系统 | [3.1 需求确认与计划](#31-步骤一需求确认与计划) |
+| 需要 AI 帮我写代码并推送 | [3.5 让 AI 直接写代码并推送](#35-步骤五让-ai-直接写代码并推送) |
+| 需要画新的怪物/场景素材 | [4.1 索要 ComfyUI/SD 提示词](#41-索要-comfyuisd-提示词) |
+| 需要批量生成动画帧 | [4.2 批量动画帧生成](#42-批量动画帧生成) |
+| 不知道 Git 命令怎么用 | [5. Git 命令速查](#5-git-命令速查) |
+| 不知道文件该放哪里 | [6. Unity 项目结构规范](#6-unity-项目结构规范) |
+| 想让 AI 帮忙做关卡设计 | [7.1 关卡设计沟通](#71-关卡设计沟通) |
+| 想让 AI 帮忙调平衡性 | [7.2 平衡性调整沟通](#72-平衡性调整沟通) |
+| 联机/网络相关问题 | [7.3 网络联机问题沟通](#73-网络联机问题沟通) |
+| 性能出问题了 | [7.4 性能问题沟通](#74-性能问题沟通) |
 
 ---
 
 ## 1. 快速启动与上下文衔接
 
-每次开启新对话时，AI 会丢失之前所有记忆。以下两个机制配合使用：**1.2 负责"存档"，1.1 负责"读档"**。
+每次开启新对话时，AI 会丢失之前所有记忆。以下机制配合使用：**1.2 负责"存档"，1.1 负责"读档"，1.3 让 AI 能直接推送代码，1.4 确保积分耗尽前不丢失进度**。
 
 完整流程是：
 > 对话快结束 → 用 1.2 让 AI 生成进度总结 → 你保存这段总结 → 下次开新对话 → 把总结填进 1.1 的模板里发给 AI
@@ -43,22 +46,42 @@
 每次开新对话，直接复制以下内容，填入具体信息后发送：
 
 ```
-【项目背景】
-我正在开发一款名为 MarioTrickster 的 Unity 2D 游戏。
-这是一款非对称对抗平台跳跃游戏（类似马里奥+躲猫猫）。
-闯关者（Runner）目标是到达终点，捣蛋者（Trickster）可以伪装成任何障碍物阻止闯关者。
-代码托管在 GitHub: https://github.com/jiaxuGOGOGO/MarioTrickster
+## 项目上下文
+我正在开发 **MarioTrickster**，一款非对称双人本地对抗2D平台跳跃游戏。
+- 引擎：Unity 2022.3 LTS (2D Core)
+- IDE：JetBrains Rider
+- 仓库：https://github.com/jiaxuGOGOGO/MarioTrickster
+- 本地路径：E:\unity project\exercise1\MarioTrickster
 
-【当前状态】
-已完成的功能：[填写，例如：马里奥基础移动和跳跃、变身系统原型]
-已知的 Bug：[填写，例如：跳跃落地时偶尔穿地板]
-上次的进度总结：[粘贴上次对话结束时 AI 生成的总结]
+## GitHub 推送凭据
+GitHub Token: ghp_你的token（见1.3章节获取方式）
+请用这个 token 直接推送代码到我的仓库。
 
-【本次目标】
-本次对话我希望完成：[填写具体目标，例如：捣蛋者的变身机制代码]
+## 当前进度
+[粘贴上次对话结束时AI生成的进度总结，或手动填写]
+- 已完成：xxx
+- 已知Bug：xxx
+- 下一步：xxx
 
-【仓库最新链接】
-这是我刚 Push 的最新代码：https://github.com/jiaxuGOGOGO/MarioTrickster
+## 关键决策
+- 输入系统：Unity New Input System
+- 控制器架构：状态机模式
+- 伪装机制：Sprite替换 + Collider切换
+- 素材：itch.io CC0像素素材（Pixel Adventure为主）
+- 项目结构：Assets/Scripts/{Player, Enemy, Core, Camera, UI}
+
+## 参考项目（可直接借鉴代码）
+- Mario机制：https://github.com/zigurous/unity-super-mario-tutorial
+- 2D控制器：https://github.com/Matthew-J-Spencer/Ultimate-2D-Controller (MIT)
+- 状态机控制器：https://github.com/networkydev/Momentum (MIT)
+- 本地多人输入：https://github.com/UnityTechnologies/InputSystem_Warriors
+- 伪装者机制：https://github.com/FadrikAlexander/Among-Us-Imposter-Recreation
+
+## 本次任务
+[在这里写你要做的事情]
+
+## 积分提醒
+我的积分有限，请在积分消耗到300时暂停工作，优先生成进度总结文档并推送到GitHub。
 ```
 
 ### 1.2 上下文保存机制（对话结束前）
@@ -72,7 +95,66 @@
 3. 下一步开发计划
 4. 当前项目的关键技术决策记录
 格式要简洁，方便我下次直接粘贴到新对话的开场模板里。
+同时把这份总结推送到 GitHub 仓库根目录的 MarioTrickster_Progress_Summary.md。
 ```
+
+### 1.3 GitHub Token 配置与使用
+
+**为什么需要 Token？** AI 每次对话都在全新的沙盒环境中运行，没有你的 GitHub 登录凭据。提供 Token 后，AI 可以直接克隆仓库、写入代码、推送提交，省去你手动复制粘贴代码的麻烦。
+
+**生成步骤：**
+
+1. 打开 https://github.com/settings/tokens
+2. 点击 **Generate new token (classic)**（选 classic，不要选 fine-grained）
+3. **Note** 填写：`manus-push`
+4. **Expiration** 选择：`90 days`（到期后重新生成即可）
+5. **Select scopes** 只勾选 **repo**（勾父级，子项自动全选）
+6. 点击 **Generate token**
+7. 复制生成的 `ghp_xxxx` 字符串，**妥善保存**（只显示一次）
+
+**使用方式：** 每次新对话时，在开场模板中附上 Token，AI 会用以下方式推送：
+
+```bash
+git clone https://ghp_你的token@github.com/jiaxuGOGOGO/MarioTrickster.git
+# ... 写入代码 ...
+git add -A && git commit -m "描述" && git push
+```
+
+**安全提醒：**
+
+| 注意事项 | 说明 |
+| :--- | :--- |
+| Token 等同于密码 | 不要发到公开场所（公开聊天室、论坛等） |
+| 只给 repo 权限 | 不要勾选其他权限，最小化风险 |
+| 到期后重新生成 | 90天后需要重新走一遍生成流程 |
+| 可随时撤销 | 在 https://github.com/settings/tokens 删除即可立即失效 |
+
+### 1.4 积分管理与紧急存档策略
+
+Manus 对话有积分限制。为了避免积分耗尽导致工作丢失，建议遵循以下策略：
+
+**预防措施（每次对话开头就做）：**
+
+在开场模板中加入积分提醒（1.1 模板已包含），告诉 AI 在积分接近 300 时暂停工作。AI 无法实时查看你的积分余额，所以当你注意到积分快用完时，立即发送：
+
+```
+积分快用完了，请立刻：
+1. 把已写好的所有代码推送到 GitHub
+2. 生成进度总结文档并推送
+3. 停止其他工作
+```
+
+**紧急存档流程：**
+
+当积分紧张时，AI 会按以下优先级行动：
+
+| 优先级 | 动作 | 说明 |
+| :--- | :--- | :--- |
+| 1 | 生成进度总结文档 | 确保下次对话能无缝衔接 |
+| 2 | 推送已完成的代码到 GitHub | 确保代码不丢失 |
+| 3 | 列出未完成的任务清单 | 方便下次继续 |
+
+**如果来不及推送 GitHub：** AI 会把所有文件作为附件直接发给你，你手动放进 Unity 项目即可。
 
 ---
 
@@ -169,6 +251,24 @@ AI 会在代码中使用 `[SerializeField]` 暴露变量。粘贴代码后，务
 请帮我修复碰撞体的问题。
 ```
 
+### 3.5 步骤五：让 AI 直接写代码并推送
+
+如果你在开场模板中提供了 GitHub Token（见 1.3），可以直接让 AI 写代码并推送到仓库，省去手动复制粘贴的步骤：
+
+```
+请直接帮我实现 InputManager.cs（本地双人输入管理），写好后推送到 GitHub。
+放在 Assets/Scripts/Core/ 目录下。
+```
+
+AI 会执行以下流程：克隆仓库 → 创建/修改文件 → 提交 → 推送。你在本地只需要 `git pull` 就能拿到最新代码：
+
+```cmd
+cd /d "E:\unity project\exercise1\MarioTrickster"
+git pull
+```
+
+> **注意**：如果你本地有未提交的修改，先 `git stash` 暂存，pull 之后再 `git stash pop` 恢复。
+
 ---
 
 ## 4. 美术与素材生成的沟通
@@ -213,6 +313,18 @@ AI 会在代码中使用 `[SerializeField]` 暴露变量。粘贴代码后，务
 请帮我写提示词。
 ```
 
+### 4.4 推荐的免费素材来源
+
+以下是经过调研确认的高质量免费素材，可直接用于 MVP 阶段：
+
+| 素材包 | 许可证 | 内容 | 链接 |
+| :--- | :--- | :--- | :--- |
+| Pixel Frog - Pixel Adventure 1 & 2 | CC0 | 角色/物体/地块/道具/20种敌人 | https://pixelfrog-assets.itch.io/pixel-adventure-1 |
+| Block Land 16x16 | CC0 | Mario/Minecraft风格地块集 | itch.io 搜索 "Block Land" |
+| JuhoSprite Mario World风格 | -- | 角色/敌人/3个世界 | https://juhosprite.itch.io/ |
+| Brackeys' Platformer Bundle | -- | 角色/地块/音效/音乐 | https://brackeysgames.itch.io/brackeys-platformer-bundle |
+| Monsters Creatures Fantasy | -- | 怪物/敌人角色素材 | https://luizmelo.itch.io/monsters-creatures-fantasy |
+
 ---
 
 ## 5. Git 命令速查
@@ -230,7 +342,24 @@ git commit -m "简要描述改了什么"
 git push
 ```
 
-### 5.2 查看状态
+### 5.2 拉取 AI 推送的代码
+
+当 AI 通过 Token 推送了新代码到 GitHub 后，你在本地执行：
+
+```cmd
+cd /d "E:\unity project\exercise1\MarioTrickster"
+git pull
+```
+
+如果本地有未提交的修改导致冲突：
+
+```cmd
+git stash              # 暂存本地修改
+git pull               # 拉取远程代码
+git stash pop          # 恢复本地修改
+```
+
+### 5.3 查看状态
 
 不确定哪些文件改了：
 
@@ -238,7 +367,7 @@ git push
 git status
 ```
 
-### 5.3 查看历史记录
+### 5.4 查看历史记录
 
 看之前的提交记录：
 
@@ -246,7 +375,7 @@ git status
 git log --oneline -10
 ```
 
-### 5.4 撤销操作
+### 5.5 撤销操作
 
 | 场景 | 命令 | 说明 |
 | :--- | :--- | :--- |
@@ -255,7 +384,7 @@ git log --oneline -10
 | 已经 commit 但还没 push | `git reset --soft HEAD~1` | 撤销最近一次 commit，改动保留 |
 | 已经 push 了，想回退 | `git revert HEAD` | 创建一个新 commit 来撤销上一次的改动 |
 
-### 5.5 分支操作（后期用）
+### 5.6 分支操作（后期用）
 
 当你想尝试新功能又怕改坏主分支时：
 
@@ -266,7 +395,7 @@ git merge 新分支名                # 把新分支的改动合并到主分支
 git branch -d 新分支名            # 删除已合并的分支
 ```
 
-### 5.6 常见问题
+### 5.7 常见问题
 
 | 问题 | 解决方法 |
 | :--- | :--- |
@@ -279,52 +408,49 @@ git branch -d 新分支名            # 删除已合并的分支
 
 ## 6. Unity 项目结构规范
 
-保持项目目录整洁，方便 AI 快速定位文件。建议按以下结构组织 Assets 文件夹：
+保持项目目录整洁，方便 AI 快速定位文件。当前项目按以下结构组织 Assets 文件夹：
 
 ```
 Assets/
 ├── Scripts/                    # 所有 C# 脚本
 │   ├── Player/                 # 闯关者相关
-│   │   ├── PlayerController.cs
-│   │   ├── PlayerHealth.cs
-│   │   └── ScanAbility.cs
-│   ├── Trickster/              # 捣蛋者相关
-│   │   ├── TricksterController.cs
-│   │   ├── DisguiseSystem.cs
-│   │   └── TrapPlacer.cs
+│   │   ├── MarioController.cs      ✅ 已完成
+│   │   └── PlayerHealth.cs          ✅ 已完成
+│   ├── Enemy/                  # 捣蛋者相关
+│   │   ├── TricksterController.cs   ✅ 已完成
+│   │   ├── DisguiseSystem.cs        ✅ 已完成
+│   │   └── TricksterAbilities.cs    ⬜ 待开发
 │   ├── Core/                   # 核心系统
-│   │   ├── GameManager.cs
-│   │   ├── CameraController.cs
-│   │   └── EnergySystem.cs
+│   │   ├── GameManager.cs           ⬜ 待开发
+│   │   ├── InputManager.cs          ⬜ 待开发
+│   │   └── LevelManager.cs          ⬜ 待开发
+│   ├── Camera/                 # 相机
+│   │   └── CameraController.cs      ⬜ 待开发
 │   ├── UI/                     # UI 相关
-│   │   ├── HealthBar.cs
-│   │   └── EnergyBar.cs
+│   │   └── GameUI.cs                ⬜ 待开发
 │   └── Network/                # 联机相关（后期）
 │       └── NetworkManager.cs
 ├── Sprites/                    # 所有图片素材
 │   ├── Player/
 │   ├── Trickster/
-│   ├── Environment/            # 关卡地形图块
-│   ├── Effects/                # 特效
+│   ├── Environment/
+│   ├── Effects/
 │   └── UI/
 ├── Animations/                 # 动画文件
-│   ├── Player/
-│   └── Trickster/
 ├── Prefabs/                    # 预制体
-│   ├── Player/
-│   ├── Obstacles/              # 可变身的障碍物
-│   └── Effects/
-├── Scenes/                     # 场景文件
+│   ├── Mario.prefab
+│   ├── Trickster.prefab
+│   └── DisguiseObjects/
+├── Scenes/
 │   ├── MainMenu.unity
-│   ├── Level_01.unity
-│   └── TestScene.unity         # 测试用场景
-├── Tilemaps/                   # 瓦片地图资源
-│   ├── Tilesets/
-│   └── Palettes/
-├── Audio/                      # 音频
+│   └── Level_01.unity
+├── Tilemaps/
+├── Audio/
 │   ├── BGM/
 │   └── SFX/
-└── Resources/                  # 需要动态加载的资源
+├── InputActions/
+│   └── GameControls.inputactions    ⬜ 待配置
+└── Resources/
 ```
 
 **命名规范**：
@@ -396,6 +522,7 @@ Profiler 截图：[如果会用 Unity Profiler，截图发过来]
 | **提供完整上下文** | 自己改了代码一定要推送到 GitHub 或把改动后的完整代码发给 AI | AI 不知道你私下改了什么，基于旧代码的建议会导致更多 Bug |
 | **文本优先** | 报错信息和代码尽量复制文本，截图只作辅助 | 文本可以直接被 AI 读取分析，准确率远高于图片识别 |
 | **先计划后编码** | 新功能先让 AI 出计划，确认后再写代码 | 避免写了一堆代码发现方向不对，浪费时间和积分 |
+| **Token 常备** | 每次新对话都附上 GitHub Token | 让 AI 能直接推送代码，省去手动复制粘贴 |
 
 ### 8.2 省积分技巧
 
@@ -406,6 +533,8 @@ Profiler 截图：[如果会用 Unity Profiler，截图发过来]
 | 批量提问 | 如果有多个小问题，合成一条消息一起问 |
 | 明确说"只要代码" | 如果不需要解释，说"直接给我代码，不需要解释"，减少输出长度 |
 | 指定文件名 | 说"修改 PlayerController.cs 的第 45 行"比"帮我改一下跳跃代码"更精确 |
+| 提前设积分警戒线 | 开场就说"积分到300时暂停"，避免工作丢失 |
+| 让 AI 直接推送 | 提供 Token 后说"写好直接推送"，省去你手动操作的来回沟通 |
 
 ### 8.3 常见错误做法
 
@@ -416,6 +545,8 @@ Profiler 截图：[如果会用 Unity Profiler，截图发过来]
 | 只发截图不发文本 | 文本为主，截图为辅 |
 | 自己改了代码不告诉 AI | 改了就 push，或把改动后的代码发给 AI |
 | 一次对话聊太多不同的事 | 一次对话聚焦一个主题，做完存档再开新对话 |
+| 积分用完才想起存档 | 开场就设警戒线，提前存档 |
+| 每次新对话不带 Token | 开场模板里固定包含 Token |
 
 ---
 
@@ -424,11 +555,17 @@ Profiler 截图：[如果会用 Unity Profiler，截图发过来]
 用于追踪项目整体进度，每完成一项打勾：
 
 ### Phase 1：原型验证（2-3个月）
-- [ ] Unity 项目搭建 + GitHub 配置
-- [ ] 闯关者基础移动（行走/跳跃/冲刺）
+- [x] Unity 项目搭建 + GitHub 配置
+- [x] 综合调研报告 + AI协作工作流文档
+- [x] 开源参考资源调研（GitHub + itch.io）
+- [x] Mario 控制器脚本（MarioController.cs）
+- [x] 生命值系统（PlayerHealth.cs）
+- [x] Trickster 控制器脚本（TricksterController.cs）
+- [x] 伪装/变身系统（DisguiseSystem.cs）
+- [ ] 本地双人输入管理（InputManager.cs）
+- [ ] 游戏管理器（GameManager.cs）
+- [ ] 相机跟随系统（CameraController.cs）
 - [ ] 基础关卡搭建（Tilemap）
-- [ ] 捣蛋者基础变身（2-3种对象）
-- [ ] 本地双人分屏
 - [ ] 核心玩法验证：**"这好玩吗？"**
 
 ### Phase 2：功能完善（3-4个月）
@@ -454,4 +591,4 @@ Profiler 截图：[如果会用 Unity Profiler，截图发过来]
 
 ---
 
-> **核心理念**：把 AI 看作一位**有经验但看不见你屏幕的远程结对编程伙伴**。你提供的"情报"越精确，AI 输出的代码质量就越高，消耗的积分就越少。
+> **核心理念**：把 AI 看作一位**有经验但看不见你屏幕的远程结对编程伙伴**。你提供的"情报"越精确，AI 输出的代码质量就越高，消耗的积分就越少。每次新对话都是一次"交接班"，用好模板和 Token，让交接零损耗。

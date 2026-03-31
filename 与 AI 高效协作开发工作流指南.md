@@ -24,6 +24,9 @@
 | 需要画新的怪物/场景素材 | [4.1 索要 ComfyUI/SD 提示词](#41-索要-comfyuisd-提示词) |
 | 需要批量生成动画帧 | [4.2 批量动画帧生成](#42-批量动画帧生成) |
 | 不知道 Git 命令怎么用 | [5. Git 命令速查](#5-git-命令速查) |
+| 拉取远程代码时冲突了 | [5.2 同步操作三种场景](#52-同步操作三种场景) |
+| 换了新电脑，需要重新配置 | [5.8 换电脑后的衔接流程](#58-换电脑后的衔接流程) |
+| 梯子/代理配置问题 | [5.9 代理配置速查](#59-代理配置速查) |
 | 不知道文件该放哪里 | [6. Unity 项目结构规范](#6-unity-项目结构规范) |
 | 想让 AI 帮忙做关卡设计 | [7.1 关卡设计沟通](#71-关卡设计沟通) |
 | 想让 AI 帮忙调平衡性 | [7.2 平衡性调整沟通](#72-平衡性调整沟通) |
@@ -326,22 +329,52 @@ git commit -m "简要描述改了什么"
 git push
 ```
 
-### 5.2 拉取 AI 推送的代码
+### 5.2 同步操作三种场景
 
-当 AI 通过 Token 推送了新代码到 GitHub 后，你在本地执行：
+以下所有命令都先进入项目目录：
 
 ```cmd
 cd /d "E:\unity project\exercise1\MarioTrickster"
+```
+
+#### 场景 A：本地没改过东西，直接拉取远程更新
+
+最简单的情况，直接拉：
+
+```cmd
 git pull
 ```
 
-如果本地有未提交的修改导致冲突：
+#### 场景 B：本地有修改，想保留本地改动同时拉取远程
 
 ```cmd
-git stash              # 暂存本地修改
+git stash              # 把本地修改临时藏起来
 git pull               # 拉取远程代码
-git stash pop          # 恢复本地修改
+git stash pop          # 把之前藏的本地修改恢复回来
 ```
+
+如果 `git stash pop` 提示 **CONFLICT**（本地和远程改了同一个文件的同一处），根据情况选择：
+
+```cmd
+# 想用远程版本（AI推送的）覆盖冲突文件：
+git checkout --theirs "冲突文件名"
+git add .
+git commit -m "合并远程更新，保留远程版本"
+
+# 想用本地版本保留自己的修改：
+git checkout --ours "冲突文件名"
+git add .
+git commit -m "合并远程更新，保留本地版本"
+```
+
+#### 场景 C：不要本地修改，直接用远程覆盖本地
+
+```cmd
+git checkout -- .       # 丢弃所有未提交的本地修改
+git pull                # 拉取远程最新内容
+```
+
+> **快速判断用哪个：** 不确定本地有没有改过？先跑 `git status`。显示 `nothing to commit, working tree clean` 就用场景 A，否则根据是否想保留本地改动选 B 或 C。
 
 ### 5.3 查看状态
 
@@ -387,6 +420,71 @@ git branch -d 新分支名            # 删除已合并的分支
 | push 失败，提示 rejected | 先 `git pull --rebase` 再 `git push` |
 | 提示 dubious ownership | `git config --global --add safe.directory "E:/unity project/exercise1/MarioTrickster"` |
 | 不小心把 Library 文件夹传上去了 | `git rm -r --cached Library/` 然后 commit 并 push |
+
+### 5.8 换电脑后的衔接流程
+
+新电脑装好 Git 后，按以下顺序一次性配置完成：
+
+**第一步：配置 Git 身份**
+
+```cmd
+git config --global user.name "你的GitHub用户名"
+git config --global user.email "你的邮箱"
+```
+
+**第二步：配置代理（如果用梯子访问 GitHub）**
+
+```cmd
+# 设置 HTTP 代理（端口号换成你梯子的实际端口，常见的有 7890、1080、10808 等）
+git config --global http.proxy http://127.0.0.1:7890
+git config --global https.proxy http://127.0.0.1:7890
+```
+
+查看梯子端口号的方法：打开你的代理软件（Clash / V2rayN / Shadowsocks 等），在设置里找“本地 HTTP 代理端口”。
+
+如果不用梯子或不确定，跳过这步，等遇到 `Connection reset` 报错时再配。
+
+**第三步：克隆项目**
+
+```cmd
+cd /d "E:\unity project\exercise1"
+git clone https://github.com/jiaxuGOGOGO/MarioTrickster.git
+```
+
+克隆时会要求登录 GitHub，输入用户名和密码（或 Token）即可。
+
+**第四步：配置安全目录（避免报错）**
+
+```cmd
+git config --global --add safe.directory "E:/unity project/exercise1/MarioTrickster"
+```
+
+**第五步：用 Unity Hub 打开项目**
+
+Unity Hub → Open → 选择 `E:\unity project\exercise1\MarioTrickster` 文件夹 → 等待导入完成。
+
+> **一句话总结：** 新电脑只需要 Git + Unity，然后 `git clone` 拉代码，所有脚本和文档都在仓库里，零损耗衔接。
+
+### 5.9 代理配置速查
+
+| 操作 | 命令 |
+| :--- | :--- |
+| 设置代理 | `git config --global http.proxy http://127.0.0.1:端口号` |
+| 设置 HTTPS 代理 | `git config --global https.proxy http://127.0.0.1:端口号` |
+| 查看当前代理配置 | `git config --global --get http.proxy` |
+| 取消代理 | `git config --global --unset http.proxy` 和 `git config --global --unset https.proxy` |
+| 查看所有 Git 配置 | `git config --global --list` |
+
+**常见代理软件默认端口：**
+
+| 代理软件 | 默认 HTTP 端口 |
+| :--- | :--- |
+| Clash for Windows | 7890 |
+| V2rayN | 10808 |
+| Shadowsocks | 1080 |
+| Clash Verge | 7890 |
+
+> **注意：** 以上是默认值，实际端口以你代理软件设置页面显示的为准。换电脑后如果梯子软件也重装了，记得重新配置 Git 代理。
 
 ---
 

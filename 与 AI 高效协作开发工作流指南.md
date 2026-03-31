@@ -37,65 +37,49 @@
 每次开启新对话时，AI 会丢失之前所有记忆。以下机制配合使用：**1.2 负责"存档"，1.1 负责"读档"，1.3 让 AI 能直接推送代码，1.4 确保积分耗尽前不丢失进度**。
 
 完整流程是：
-> 对话快结束 → 用 1.2 让 AI 生成进度总结 → 你保存这段总结 → 下次开新对话 → 把总结填进 1.1 的模板里发给 AI
+> 对话快结束 → 用 1.2 让 AI 存档（自动推送到 GitHub） → 下次开新对话 → 用 1.1 模板（3行）让 AI 自己去仓库读档
 
-如果没有 1.2，你下次开新对话时，1.1 模板里的"当前状态"和"本次目标"你可能记不清该填什么。1.2 就是帮你自动生成这些内容的。
+**核心设计**：所有详细的进度、决策、文件结构、参考项目都维护在仓库的 `MarioTrickster_Progress_Summary.md` 里（单一真相源）。你开新对话时**不需要手动复制粘贴任何长内容**，只需要给 AI 三样东西：Token、仓库地址、本次任务。
 
 ### 1.1 新对话开启模板
 
-每次开新对话，直接复制以下内容，填入具体信息后发送：
+每次开新对话，**只需复制以下内容**（不到10行），填入本次任务后发送：
 
 ```
-## 项目上下文
-我正在开发 **MarioTrickster**，一款非对称双人本地对抗2D平台跳跃游戏。
-- 引擎：Unity 2022.3 LTS (2D Core)
-- IDE：JetBrains Rider
-- 仓库：https://github.com/jiaxuGOGOGO/MarioTrickster
-- 本地路径：E:\unity project\exercise1\MarioTrickster
+GitHub Token: ghp_你的token
+仓库：https://github.com/jiaxuGOGOGO/MarioTrickster
 
-## GitHub 推送凭据
-GitHub Token: ghp_你的token（见1.3章节获取方式）
-请用这个 token 直接推送代码到我的仓库。
+请先用 Token 克隆仓库，读取根目录的以下文件获取完整项目上下文：
+1. MarioTrickster_Progress_Summary.md（进度/决策/文件结构/参考项目/开发计划）
+2. 与 AI 高效协作开发工作流指南.md（协作规范/模板/Git流程）
 
-## 当前进度
-[粘贴上次对话结束时AI生成的进度总结，或手动填写]
-- 已完成：xxx
-- 已知Bug：xxx
-- 下一步：xxx
+本次任务：[在这里写你要做的事情]
 
-## 关键决策
-- 输入系统：Unity New Input System
-- 控制器架构：状态机模式
-- 伪装机制：Sprite替换 + Collider切换
-- 素材：itch.io CC0像素素材（Pixel Adventure为主）
-- 项目结构：Assets/Scripts/{Player, Enemy, Core, Camera, UI}
-
-## 参考项目（可直接借鉴代码）
-- Mario机制：https://github.com/zigurous/unity-super-mario-tutorial
-- 2D控制器：https://github.com/Matthew-J-Spencer/Ultimate-2D-Controller (MIT)
-- 状态机控制器：https://github.com/networkydev/Momentum (MIT)
-- 本地多人输入：https://github.com/UnityTechnologies/InputSystem_Warriors
-- 伪装者机制：https://github.com/FadrikAlexander/Among-Us-Imposter-Recreation
-
-## 本次任务
-[在这里写你要做的事情]
-
-## 积分提醒
-我的积分有限，请在积分消耗到300时暂停工作，优先生成进度总结文档并推送到GitHub。
+积分提醒：请在我积分接近300时暂停，优先存档推送。
 ```
+
+> **为什么这样最优？** AI 直接从仓库读取最新的 Progress Summary，里面包含了完整的已完成功能、Bug清单、技术决策、文件结构、参考项目、开发计划。你不需要手动维护任何长文本，每次对话结束时 AI 会自动更新这个文件并推送。
 
 ### 1.2 上下文保存机制（对话结束前）
 
-当对话即将结束或你感觉聊了很多内容时，发送以下请求让 AI 生成进度总结，保存下来供下次 1.1 使用：
+当对话即将结束或你感觉聊了很多内容时，发送以下请求。AI 会自动更新 `MarioTrickster_Progress_Summary.md` 并推送到 GitHub，**你不需要手动保存任何东西**：
 
 ```
-我们的对话快结束了，请帮我生成一份当前项目进度总结，包括：
-1. 已完成的功能清单
-2. 已知未修复的 Bug
-3. 下一步开发计划
-4. 当前项目的关键技术决策记录
-格式要简洁，方便我下次直接粘贴到新对话的开场模板里。
-同时把这份总结推送到 GitHub 仓库根目录的 MarioTrickster_Progress_Summary.md。
+请存档：更新 MarioTrickster_Progress_Summary.md 并推送到 GitHub。
+```
+
+AI 收到后会自动执行：
+1. 更新 Progress Summary 中的已完成功能、Bug清单、下一步计划、技术决策
+2. 提交并推送到 GitHub
+3. 确认推送成功
+
+如果你想更精确地控制存档内容，也可以用完整版：
+
+```
+请存档并推送，本次新增/变更：
+- 新完成：[列出本次完成的功能]
+- 新发现Bug：[列出新Bug]
+- 决策变更：[如有]
 ```
 
 ### 1.3 GitHub Token 配置与使用

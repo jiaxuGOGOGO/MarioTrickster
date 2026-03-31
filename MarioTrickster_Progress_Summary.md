@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-03-31 | 可直接粘贴到新对话开场模板
+> 更新时间：2026-04-01 | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 
 ---
 
@@ -77,9 +77,23 @@
 
 ---
 
+### 2.4 MVP 核心脚本（Sprint 1 进行中）
+
+| 脚本 | 路径 | 状态 | 说明 |
+|------|------|------|------|
+| MarioController.cs | Assets/Scripts/Player/ | ✅ | 完整移动/跳跃（coyote time + buffered jump）/地面检测 |
+| PlayerHealth.cs | Assets/Scripts/Player/ | ✅ | 通用生命值/无敌帧/受伤闪烁/死亡事件 |
+| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ | 伪装者基础控制（移动/跳跃/与DisguiseSystem协作） |
+| DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ | Sprite替换变身/冷却/场景融入/多形态切换 |
+| InputManager.cs | Assets/Scripts/Core/ | ⚬ 待开发 | 本地双人输入管理 |
+| GameManager.cs | Assets/Scripts/Core/ | ⚬ 待开发 | 游戏状态/胜负判定 |
+| CameraController.cs | Assets/Scripts/Camera/ | ⚬ 待开发 | 相机跟随逻辑 |
+
+---
+
 ## 三、已知未修复的 Bug
 
-当前项目为空白 Unity 项目，尚无代码，因此无 Bug。
+已完成的 4 个脚本尚未在 Unity 中实际测试，可能存在未发现的问题。待在 Unity 中挂载到 GameObject 并运行后确认。
 
 ---
 
@@ -168,33 +182,19 @@ Assets/
 
 ## 七、新对话开场模板
 
-```markdown
-## 项目上下文
-我正在开发 **MarioTrickster**，一款非对称双人本地对抗2D平台跳跃游戏。
-- 引擎：Unity 2022.3 LTS (2D Core)
-- IDE：JetBrains Rider
-- 仓库：https://github.com/jiaxuGOGOGO/MarioTrickster
-- 本地路径：E:\unity project\exercise1\MarioTrickster
+每次开新对话时，只需复制以下内容（不到10行），AI 会自动从仓库读取本文件获取完整上下文：
 
-## 当前进度
-- ✅ 项目初始化、Git连接、设计文档、开源调研全部完成
-- ❌ 尚未编写任何游戏代码
-- 📋 下一步：编写Sprint 1核心脚本（Mario控制器→双人输入→Trickster伪装→测试关卡→胜负判定）
-
-## 关键决策
-- 输入系统：Unity New Input System
-- 控制器架构：状态机模式
-- 伪装机制：Sprite替换 + Collider切换
-- 素材：itch.io CC0像素素材（Pixel Adventure为主）
-- 项目结构：Assets/Scripts/{Player, Enemy, Core, Camera, UI}
-
-## 参考项目（可直接借鉴代码）
-- Mario机制：https://github.com/zigurous/unity-super-mario-tutorial
-- 2D控制器：https://github.com/Matthew-J-Spencer/Ultimate-2D-Controller (MIT)
-- 状态机控制器：https://github.com/networkydev/Momentum (MIT)
-- 本地多人输入：https://github.com/UnityTechnologies/InputSystem_Warriors
-- 伪装者机制：https://github.com/FadrikAlexander/Among-Us-Imposter-Recreation
-
-## 本次任务
-[在这里写你要做的事情]
 ```
+GitHub Token: ghp_你的token
+仓库：https://github.com/jiaxuGOGOGO/MarioTrickster
+
+请先用 Token 克隆仓库，读取根目录的以下文件获取完整项目上下文：
+1. MarioTrickster_Progress_Summary.md（进度/决策/文件结构/参考项目/开发计划）
+2. 与 AI 高效协作开发工作流指南.md（协作规范/模板/Git流程）
+
+本次任务：[在这里写你要做的事情]
+
+积分提醒：请在我积分接近300时暂停，优先存档推送。
+```
+
+> **说明**：详细的开场模板使用指南见「与 AI 高效协作开发工作流指南.md」的 1.1 章节。

@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-01 (Session 5) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-01 (Session 6) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 
 ---
 
@@ -83,9 +83,9 @@
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| MarioController.cs | Assets/Scripts/Player/ | ✅ **Session 5 重写** | Tarodev 帧速度架构：`_frameVelocity` 累积、重力自管、BoxCast 地面检测、Coyote Time(0.15s)、跳跃缓冲(0.2s)、OnValidate 警告 |
+| MarioController.cs | Assets/Scripts/Player/ | ✅ **Session 6 更新** | Tarodev 帧速度架构 + 平台速度注入法跟随 + 手感调优（acceleration=160, groundDeceleration=200） |
 | PlayerHealth.cs | Assets/Scripts/Player/ | ✅ | 通用生命值/无敌帧/受伤闪烁/死亡事件 |
-| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 5 重写** | 与 MarioController 完全一致的帧速度架构，支持 Coyote Time + 跳跃缓冲，伪装限制逻辑保留 |
+| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 6 更新** | 与 MarioController 一致的帧速度架构 + 平台速度注入 + 手感调优（acceleration=140, groundDeceleration=200） |
 | DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ | Sprite替换变身/冷却/场景融入/多形态切换（已修复类型转换Bug） |
 | InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 5 重写** | 修复 OnJumpReleased 每帧触发问题，用 wasJumpHeld 状态机精确检测按下/松开事件，精简代码 |
 | GameManager.cs | Assets/Scripts/Core/ | ✅ | 游戏状态/胜负判定/暂停/重启/计时器/单例模式 |
@@ -100,7 +100,7 @@
 | DamageDealer.cs | Assets/Scripts/Core/ | ✅ | 通用伤害触发器（尖刺/怪物/Hazard伪装），支持击退 |
 | Collectible.cs | Assets/Scripts/Core/ | ✅ | 可收集物品（金币/回血/加速），带浮动动画 |
 | Breakable.cs | Assets/Scripts/Core/ | ✅ | 可破坏方块（砖块/问号砖块），从下方顶撞触发 |
-| MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **Session 5 升级** | 增加 OnCollisionStay2D 补充注册，防止物理帧对齐漏掉跟随；精简代码结构 |
+| MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **Session 6 重写** | Kinematic Rigidbody2D + MovePosition() + 速度注入法跟随角色（不使用 SetParent） |
 | SimpleEnemy.cs | Assets/Scripts/Enemy/ | ✅ | 简单巡逻敌人，边缘/墙壁检测自动转向，可被踩消灭 |
 | GameUI.cs | Assets/Scripts/UI/ | ✅ | 基础HUD（生命值/计时器/回合信息/胜负画面），OnGUI后备显示 |
 | LevelManager.cs | Assets/Scripts/Core/ | ✅ | 关卡管理（出生点/边界/可伪装对象列表） |
@@ -111,12 +111,12 @@
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| IControllableProp.cs | Assets/Scripts/Ability/ | ✅ **新增** | 可操控道具接口（PropName/CanBeControlled/OnTricksterActivate/状态查询） |
-| ControllablePropBase.cs | Assets/Scripts/Ability/ | ✅ **新增** | 抽象基类，封装 Telegraph→Active→Cooldown 状态机、预警闪烁/震动视觉效果、次数限制、回合重置 |
-| TricksterAbilitySystem.cs | Assets/Scripts/Ability/ | ✅ **新增** | 核心能力管理器，检测伪装状态、绑定/检测附近道具、处理操控输入、管理操控次数/时间限制 |
-| ControllablePlatform.cs | Assets/Scripts/Ability/ | ✅ **新增** | 可操控移动平台，4种模式：Rush（方向冲刺）/Drop（突然坠落）/Reverse（反向移动）/Stop（突然停止） |
-| ControllableHazard.cs | Assets/Scripts/Ability/ | ✅ **新增** | 可操控危险道具，4种模式：Spike（地刺伸出）/Expand（范围扩大）/Burst（爆发伤害）/Directional（方向发射） |
-| ControllableBlock.cs | Assets/Scripts/Ability/ | ✅ **新增** | 可操控方块，3种模式：Vanish（暂时消失）/Slide（方向滑动）/Bounce（变弹跳板） |
+| IControllableProp.cs | Assets/Scripts/Ability/ | ✅ | 可操控道具接口（PropName/CanBeControlled/OnTricksterActivate/状态查询） |
+| ControllablePropBase.cs | Assets/Scripts/Ability/ | ✅ | 抽象基类，封装 Telegraph→Active→Cooldown 状态机、预警闪烁/震动视觉效果、次数限制、回合重置 |
+| TricksterAbilitySystem.cs | Assets/Scripts/Ability/ | ✅ | 核心能力管理器，检测伪装状态、绑定/检测附近道具、处理操控输入、管理操控次数/时间限制 |
+| ControllablePlatform.cs | Assets/Scripts/Ability/ | ✅ **Session 6 更新** | 可操控移动平台，4种模式：Rush/Drop/Reverse/Stop + 速度注入法跟随 |
+| ControllableHazard.cs | Assets/Scripts/Ability/ | ✅ | 可操控危险道具，4种模式：Spike/Expand/Burst/Directional |
+| ControllableBlock.cs | Assets/Scripts/Ability/ | ✅ | 可操控方块，3种模式：Vanish/Slide/Bounce |
 
 **能力系统调用关系**:
 ```
@@ -154,26 +154,18 @@ InputManager (右Alt/手柄Y)
 |------|------|--------|------|
 | B001 | ✅ **已解决 (Session 5)** 实际运行测试已完成，基础移动/跳跃/平台跟随均验证通过 | — | — |
 | B002 | ✅ **已修复 (Session 4)** 全局替换 `linearVelocity` → `velocity`，适配 Unity 2022.3 | — | — |
-| B003 | InputManager.cs 中 Player1 使用 WASD，Player2 使用方向键，但 MarioController 原代码中也绑定了方向键 | 中 | InputManager 已接管输入分发，MarioController 不直接读取键盘，所以不冲突 |
+| B003 | InputManager.cs 中 Player1 使用 WASD，Player2 使用方向键，但 MarioController 原代码中也绑定了方向键 | 低 | InputManager 已接管输入分发，MarioController 不直接读取键盘，所以不冲突。可关闭。 |
 | B004 | 场景 SampleScene.unity 是空白模板，需要手动搭建测试场景 | 高 | 见下方"下一步计划" |
-| B005 | ✅ **已修复 (Session 4)** Mario/Trickster 无法移动 | — | 根因：Managers → InputManager 组件的 marioController / tricksterController 槽位未拖入引用。**修复方法：在 Inspector 中拖入对应引用即可，无需改代码。** |
-| B006 | ✅ **已修复 (Session 4)** ControllablePlatform 吸附 Trickster 并导致掉落 | — | 根因1：SetParent 导致 Rigidbody2D 物理异常；根因2：未排除伪装中的 Trickster。已改为位移跟随方案 + ShouldRide() 排除伪装状态的 Trickster。MovingPlatform.cs 和 ControllablePlatform.cs 均已更新。 |
+| B005 | ✅ **已修复 (Session 4)** Mario/Trickster 无法移动 | — | 根因：Inspector 中未拖入引用 |
+| B006 | ✅ **已修复 (Session 6)** 平台跟随问题 | — | 根因：SetParent 与 Dynamic Rigidbody2D 冲突。已改为速度注入法。 |
+| B007 | ✅ **已修复 (Session 6)** 站上平台后角色被甩飞 | — | 根因：平台速度每帧累积。修复：读回 rb.velocity 时减去上一帧平台速度 `_lastPlatformVelocity`。 |
+| B008 | ✅ **已修复 (Session 6)** 角色移动有打滑感 | — | 根因：groundDeceleration 过低(60)。修复：Mario 调至 200，Trickster 调至 200。 |
 
 ### 关于 B002 的修复方法
 
-如果你使用的是 **Unity 2022.3 LTS**，`Rigidbody2D` 的属性名是 `velocity` 而非 `linearVelocity`。需要在以下文件中全局替换：
+如果你使用的是 **Unity 2022.3 LTS**，`Rigidbody2D` 的属性名是 `velocity` 而非 `linearVelocity`。当前仓库中所有文件已使用 `velocity`，无需手动替换。
 
-```
-MarioController.cs         → rb.linearVelocity → rb.velocity
-TricksterController.cs     → rb.linearVelocity → rb.velocity
-ControllableHazard.cs      → rb.linearVelocity → rb.velocity (投射物)
-ControllableBlock.cs       → rb.linearVelocity → rb.velocity (弹跳)
-SimpleEnemy.cs             → rb.velocity（已使用正确的API）
-```
-
-在 Rider 中操作：`Ctrl+Shift+R` → 查找 `rb.linearVelocity` → 替换为 `rb.velocity` → 全部替换。
-
-如果你使用的是 **Unity 6.x**，则 `linearVelocity` 是正确的，无需修改。
+如果你使用的是 **Unity 6.x**，则需要将 `velocity` 替换为 `linearVelocity`。
 
 ---
 
@@ -204,37 +196,52 @@ git pull
 
 **B. 玩家角色**
 - **Mario**: 挂载 `MarioController.cs` + `PlayerHealth.cs` + `Rigidbody2D` + `BoxCollider2D`
+  - Rigidbody2D: Body Type = Dynamic, Gravity Scale = 0（重力由代码自管）, Freeze Rotation Z = ✅
+  - MarioController Inspector: 设置 groundLayer（必须！否则跳跃不工作）
 - **Trickster**: 挂载 `TricksterController.cs` + `DisguiseSystem.cs` + **`TricksterAbilitySystem.cs`** + `Rigidbody2D` + `BoxCollider2D`
+  - Rigidbody2D 配置同 Mario
 
 **C. 关卡元素**
 - **终点**: 挂载 `GoalZone.cs` + `BoxCollider2D` (勾选 IsTrigger)
 - **深渊**: 挂载 `KillZone.cs` + `BoxCollider2D` (勾选 IsTrigger)
-- **可操控平台**: 挂载 `ControllablePlatform.cs` + `BoxCollider2D`
+- **移动平台**: 挂载 `MovingPlatform.cs`（自动添加 Rigidbody2D + BoxCollider2D，自动配置为 Kinematic）
+- **可操控平台**: 挂载 `ControllablePlatform.cs`（同上）
 - **可操控陷阱**: 挂载 `ControllableHazard.cs` + `BoxCollider2D`
+- **可操控方块**: 挂载 `ControllableBlock.cs` + `BoxCollider2D`
 
 **D. 相机**
 - 在 Main Camera 上挂载 `CameraController.cs`，并将 Mario 拖入其 Target 槽位。
+
+**E. Inspector 引用连线（关键！）**
+- `InputManager` → 拖入 Mario 和 Trickster 引用
+- `GameManager` → 拖入 Mario、Trickster、PlayerHealth 引用
+- `LevelManager` → 设置出生点 Transform 和关卡边界
 
 ### 4. 玩法测试流程（请按以下顺序测试）
 
 **第一步：基础移动与跳跃测试**
 1. 运行游戏。
-2. **P1 (Mario)**: 使用 `WASD` 移动，`Space` 跳跃。确认移动流畅，跳跃手感正常。
+2. **P1 (Mario)**: 使用 `WASD` 移动，`Space` 跳跃。确认移动流畅、停止果断（无打滑）。
 3. **P2 (Trickster)**: 使用 `方向键` 移动。确认移动正常。
 
-**第二步：伪装变身系统测试**
+**第二步：移动平台跟随测试**
+1. 让 Mario 站上移动平台，确认角色随平台平稳移动（不被甩飞、不打滑）。
+2. 在平台上按 A/D，确认可以在平台上自由走动。
+3. 跳离平台，确认恢复正常重力。
+
+**第三步：伪装变身系统测试**
 1. 控制 Trickster 走到一个可伪装对象（如平台或陷阱）附近。
 2. 按下 `右Shift` 键，确认 Trickster 成功变身为该对象的外观。
-3. 停止移动，等待几秒钟，确认 Trickster "完全融入场景"（通常会有视觉提示或状态改变）。
+3. 停止移动，等待几秒钟，确认 Trickster "完全融入场景"。
 
-**第三步：道具操控能力测试（本次新增核心功能）**
+**第四步：道具操控能力测试**
 1. 在 Trickster 处于"完全融入场景"的伪装状态下。
 2. 按下 `右Alt` 键触发操控能力。
 3. **观察预警阶段**：确认道具是否出现闪烁变红和震动效果（持续约0.8秒）。
-4. **观察爆发阶段**：预警结束后，确认道具是否执行了对应的阻碍动作（如平台突然坠落、尖刺伸出等）。
+4. **观察爆发阶段**：预警结束后，确认道具是否执行了对应的阻碍动作。
 5. **观察冷却阶段**：确认触发后是否进入冷却，短时间内无法再次触发。
 
-**第四步：胜负判定测试**
+**第五步：胜负判定测试**
 1. 控制 Mario 碰到深渊 (KillZone) 或危险陷阱 (DamageDealer)，确认是否触发死亡和回合重置。
 2. 控制 Mario 走到终点旗帜 (GoalZone)，确认是否触发胜利画面。
 
@@ -248,13 +255,13 @@ git pull
 |------|------|------|------|
 | 1 | 在Unity中创建测试场景 | ⚬ 待做 | 用Tilemap搭建一个简单的测试关卡（地面+平台+终点+深渊） |
 | 2 | 下载并导入像素素材 | ⚬ 待做 | 从 Pixel Adventure 或 Block Land 下载素材包 |
-| 3 | 创建Mario预制体 | ⚬ 待做 | 挂载 MarioController + PlayerHealth + Rigidbody2D + BoxCollider2D |
-| 4 | 创建Trickster预制体 | ⚬ 待做 | 挂载 TricksterController + DisguiseSystem + **TricksterAbilitySystem** + Rigidbody2D + BoxCollider2D |
-| 5 | 创建管理器对象 | ⚬ 待做 | 空GameObject挂载 GameManager + InputManager + LevelManager |
-| 6 | 配置相机 | ⚬ 待做 | Main Camera挂载 CameraController，设置跟随Mario |
+| 3 | 创建Mario预制体 | ✅ 已有场景对象 | 挂载 MarioController + PlayerHealth + Rigidbody2D + BoxCollider2D（已在场景中配置） |
+| 4 | 创建Trickster预制体 | ✅ 已有场景对象 | 挂载 TricksterController + DisguiseSystem + TricksterAbilitySystem + Rigidbody2D + BoxCollider2D |
+| 5 | 创建管理器对象 | ✅ 已有场景对象 | 空GameObject挂载 GameManager + InputManager + LevelManager |
+| 6 | 配置相机 | ✅ 已有场景对象 | Main Camera挂载 CameraController，设置跟随Mario |
 | 7 | 放置GoalZone和KillZone | ⚬ 待做 | 终点旗帜 + 关卡底部死亡区域 |
 | 8 | 放置可操控道具 | ⚬ 待做 | 在关卡中放置 ControllablePlatform/Hazard/Block，配置操控模式 |
-| 9 | **核心玩法验证** | ⚬ 待做 | 两人操作测试：Mario能跑能跳，Trickster能变身+操控道具，胜负判定正常 |
+| 9 | **核心玩法验证** | 🔄 进行中 | 基础移动/跳跃/平台跟随已验证通过；伪装+操控道具+胜负判定待测 |
 
 ### 第二优先级：游戏体验（Sprint 2，预计 1-2 周）
 
@@ -274,19 +281,50 @@ git pull
 
 ---
 
-## 六、Session 5 升级记录（2026-04-01）
+## 六、Session 历史记录
 
-### 系统性改造：对照参考项目全面升级核心控制器
+### Session 6 修复记录（2026-04-01）
 
-**背景**：Session 4 修复了多个运行时 Bug 后，发现根本原因是代码未严格参照参考项目实现。本次对照 Ultimate-2D-Controller（Tarodev）和 zigurous Mario 教程源码，系统性重写了 5 个核心文件。
+**平台跟随系统彻底重写（速度注入法）：**
+
+| 修复项 | 说明 |
+|--------|------|
+| B006 平台跟随 | 废弃 SetParent 方案，改用速度注入法。平台每帧计算 `_currentVelocity`，通过 `SetPlatformVelocity()` 注入站在上面的角色。角色在 FixedUpdate 最后叠加平台速度。 |
+| B007 被甩飞 | 读回 `rb.velocity` 时减去 `_lastPlatformVelocity`（上一帧注入的平台速度），避免每帧累积。 |
+| B008 打滑感 | `groundDeceleration` 从 60 调至 200，`acceleration` 从 120 调至 160（Mario）/ 140（Trickster）。空中减速度保持 30 不变。 |
+
+**平台跟随架构（速度注入法）：**
+```
+// 平台端（MovingPlatform / ControllablePlatform）
+[DefaultExecutionOrder(-10)]  // 先于角色控制器执行
+FixedUpdate() {
+    prevPos = rb.position;
+    rb.MovePosition(newPos);
+    _currentVelocity = (newPos - prevPos) / Time.fixedDeltaTime;
+    foreach rider: rider.SetPlatformVelocity(_currentVelocity);
+}
+
+// 角色端（MarioController / TricksterController）
+FixedUpdate() {
+    _frameVelocity = rb.velocity - _lastPlatformVelocity;  // 扣除上帧平台速度
+    HandleDirection / HandleJump / HandleGravity;
+    platformVelThisFrame = _onPlatform ? _platformVelocity : Vector2.zero;
+    _frameVelocity += platformVelThisFrame;
+    rb.velocity = _frameVelocity;
+    _lastPlatformVelocity = platformVelThisFrame;  // 记录供下帧扣除
+    _onPlatform = false;
+}
+```
+
+### Session 5 升级记录（2026-04-01）
+
+**系统性改造：对照参考项目全面升级核心控制器**
 
 | 文件 | 升级内容 |
 |------|----------|
 | `MarioController.cs` | 引入 Tarodev 帧速度累积架构；重力自管；BoxCast 地面检测；Coyote Time(0.15s)；跳跃缓冲(0.2s)；OnValidate 警告 |
 | `TricksterController.cs` | 与 MarioController 完全一致的帧速度架构；同样支持 Coyote Time + 跳跃缓冲 |
 | `InputManager.cs` | 修复 OnJumpReleased 每帧触发问题；用 `wasJumpHeld` 状态机精确检测事件；精简代码 |
-| `MovingPlatform.cs` | **Session 5 彻底重写**：改用 Kinematic Rigidbody2D + `MovePosition()` 移动平台，Unity 物理引擎自动处理角色跟随，移除速度注入代码，TD001 技术债已解决 |
-| `ControllablePlatform.cs` | 修复 `worldPointA` 双重赋值 Bug；移除冗余 `useLocalSpace` 参数；同步改用 Kinematic Rigidbody2D + `MovePosition()` |
 
 **核心架构变化（帧速度累积）**：
 ```
@@ -310,8 +348,9 @@ rb.velocity = _frameVelocity;  // 只写一次
 |--------|------|------|
 | 引擎 | Unity 2022.3 LTS | 稳定性最佳，2D支持成熟，教程资源丰富 |
 | 输入系统 | Unity New Input System + 自定义InputManager | 原生支持本地多人、设备热插拔；InputManager统一分发输入给两个玩家 |
-| 玩家控制器架构 | 状态机模式 | 参考Momentum项目，便于扩展变身/伪装状态 |
+| 玩家控制器架构 | Tarodev 帧速度累积 | 参考 Ultimate-2D-Controller，一帧内累积所有速度变化，最后一次写入 rb.velocity |
 | 伪装机制实现 | Sprite替换 + Collider切换 | 变身时替换SpriteRenderer的sprite，同时切换碰撞体形状匹配伪装对象 |
+| **平台跟随方案** | **速度注入法（不使用 SetParent）** | **Dynamic Rigidbody2D 的 rb.velocity 是世界坐标系绝对速度，SetParent 改变 Transform 层级但物理引擎不理解层级关系。正确做法：平台每帧把速度注入角色，角色在 FixedUpdate 叠加。** |
 | **道具操控机制** | **接口(IControllableProp) + 抽象基类(ControllablePropBase) + 三阶段状态机** | **参考 Crawl 游戏的 Ghost Possess Trap。Telegraph→Active→Cooldown 三阶段设计，预警给 Mario 反应窗口，提高博弈深度。接口+基类架构便于扩展新道具类型** |
 | 关卡构建 | Unity Tilemap | 参考zigurous教程，快速搭建2D关卡 |
 | 相机方案 | 自定义CameraController（后期升级Cinemachine） | MVP阶段用简单脚本，已预装Cinemachine包 |
@@ -327,40 +366,40 @@ rb.velocity = _frameVelocity;  // 只写一次
 
 | 编号 | 位置 | 描述 | 影响 | 建议处理时机 |
 |------|------|------|------|-------------|
-| TD001 ✅ | `MovingPlatform.cs` | ~~平台用 `transform.position` 直接移动，无 Rigidbody2D~~。**已解决（Session 5）**：改用 Kinematic Rigidbody2D + `MovePosition()` 方案，Unity 物理引擎自动处理角色跟随，平台跟随问题从根本上解决。 | — | 已完成 |
-| TD002 | `MarioController.Die()` / `TricksterController.Die()` | `Die()` 调用后立即 `enabled = false`，没有死亡动画播放窗口。`OnDeath` 事件虽存在，但脚本已禁用，无法在禁用后继续播放动画。 | 以后加死亡动画（如角色翻倒后 1 秒消失）时，需改为协程或状态机控制禁用时机 | Sprint 2 添加动画系统时 |
+| TD001 ✅ | `MovingPlatform.cs` | **已解决（Session 6）**：改用 Kinematic Rigidbody2D + `MovePosition()` + 速度注入法。 | — | 已完成 |
+| TD002 | `MarioController.Die()` / `TricksterController.Die()` | `Die()` 调用后立即 `enabled = false`，没有死亡动画播放窗口。 | 以后加死亡动画时需改为协程或状态机控制禁用时机 | Sprint 2 添加动画系统时 |
 
 ---
 
-## 七、项目文件结构（当前实际状态）
+## 八、项目文件结构（当前实际状态）
 
 ```
 Assets/
 ├── Scripts/
 │   ├── Player/
-│   │   ├── MarioController.cs      ✅ Mario移动/跳跃控制
+│   │   ├── MarioController.cs      ✅ Mario移动/跳跃/平台跟随 (Session 6 更新)
 │   │   └── PlayerHealth.cs          ✅ 生命值管理
 │   ├── Enemy/
-│   │   ├── TricksterController.cs   ✅ Trickster基础控制 (Session 3 更新: +OnAbilityPressed)
+│   │   ├── TricksterController.cs   ✅ Trickster控制/平台跟随 (Session 6 更新)
 │   │   ├── DisguiseSystem.cs        ✅ 伪装/变身系统
 │   │   └── SimpleEnemy.cs           ✅ 简单巡逻敌人
 │   ├── Core/
 │   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定
-│   │   ├── InputManager.cs          ✅ 双人输入管理 (Session 3 更新: +右Alt操控道具)
+│   │   ├── InputManager.cs          ✅ 双人输入管理 (Session 5 重写)
 │   │   ├── LevelManager.cs          ✅ 关卡管理
 │   │   ├── GoalZone.cs              ✅ 终点触发器
 │   │   ├── KillZone.cs              ✅ 死亡区域
 │   │   ├── DamageDealer.cs          ✅ 通用伤害触发器
 │   │   ├── Collectible.cs           ✅ 可收集物品
 │   │   ├── Breakable.cs             ✅ 可破坏方块
-│   │   └── MovingPlatform.cs        ✅ 移动平台
-│   ├── Ability/                      ✅ **Session 3 新增目录**
+│   │   └── MovingPlatform.cs        ✅ 移动平台 (Session 6 重写: 速度注入法)
+│   ├── Ability/
 │   │   ├── IControllableProp.cs     ✅ 可操控道具接口
 │   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类
 │   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
-│   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Rush/Drop/Reverse/Stop)
-│   │   ├── ControllableHazard.cs    ✅ 可操控危险道具 (Spike/Expand/Burst/Directional)
-│   │   └── ControllableBlock.cs     ✅ 可操控方块 (Vanish/Slide/Bounce)
+│   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)
+│   │   ├── ControllableHazard.cs    ✅ 可操控危险道具
+│   │   └── ControllableBlock.cs     ✅ 可操控方块
 │   ├── Camera/
 │   │   └── CameraController.cs      ✅ 相机跟随逻辑
 │   └── UI/
@@ -368,7 +407,7 @@ Assets/
 ├── InputActions/
 │   └── GameControls.inputactions    ✅ Input System配置
 ├── Scenes/
-│   └── SampleScene.unity            （空白模板，需搭建）
+│   └── SampleScene.unity            （需要用 Tilemap 搭建正式关卡）
 ├── Prefabs/                          ⬜ 待创建
 ├── Sprites/                          ⬜ 待导入素材
 └── Tilemaps/                         ⬜ 待创建
@@ -376,7 +415,7 @@ Assets/
 
 ---
 
-## 八、操作键位参考
+## 九、操作键位参考
 
 | 操作 | Player1 (Mario) | Player2 (Trickster) |
 |------|-----------------|---------------------|
@@ -390,9 +429,21 @@ Assets/
 | 快速重启 | F5 | F5 |
 | 手柄支持 | 第1个手柄 | 第2个手柄 |
 
+### 移动手感参数（可在 Inspector 运行时调整）
+
+| 参数 | Mario | Trickster | 说明 |
+|------|-------|-----------|------|
+| maxSpeed | 9 | 8 | 最大水平速度 |
+| acceleration | 160 | 140 | 地面加速度（越大起步越快） |
+| groundDeceleration | 200 | 200 | 地面减速度（越大停止越果断，消除打滑） |
+| airDeceleration | 30 | 30 | 空中减速度（保持较小以保留空中滑行感） |
+| jumpPower | 20 | 18 | 跳跃初速度 |
+| coyoteTime | 0.15 | 0.15 | 离开平台边缘后仍可跳跃的宽限时间 |
+| jumpBuffer | 0.2 | 0.2 | 落地前提前按跳跃的缓冲时间 |
+
 ---
 
-## 九、新对话开场模板
+## 十、新对话开场模板
 
 每次开新对话时，只需复制以下内容（不到10行），AI 会自动从仓库读取本文件获取完整上下文：
 

@@ -137,6 +137,29 @@ public class ControllablePlatform : ControllablePropBase
         }
     }
 
+    // ── 角色跟随：从上方落到平台时 SetParent ──────────────────
+
+    private void OnCollisionEnter2D(Collision2D col)
+    {
+        if (!IsRidingFromAbove(col)) return;
+        col.transform.SetParent(transform);
+    }
+
+    private void OnCollisionExit2D(Collision2D col)
+    {
+        if (col.transform.parent == transform)
+            col.transform.SetParent(null);
+    }
+
+    private bool IsRidingFromAbove(Collision2D col)
+    {
+        foreach (ContactPoint2D contact in col.contacts)
+        {
+            if (contact.normal.y < -0.5f) return true;
+        }
+        return false;
+    }
+
     // ── ControllablePropBase 实现 ─────────────────────────
 
     protected override void OnTelegraphStart() => preControlPosition = rb.position;

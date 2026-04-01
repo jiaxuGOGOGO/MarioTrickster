@@ -3,18 +3,14 @@ using UnityEngine;
 /// <summary>
 /// 移动平台 - 在两个点之间来回移动，站在上面的角色跟随
 ///
-/// 跟随方案（Kinematic Rigidbody2D + MovePosition）：
-///   平台自身带 Kinematic Rigidbody2D，用 rb.MovePosition() 移动。
-///   Unity 物理引擎会自动把平台的运动传递给站在上面的 Dynamic Rigidbody2D 角色，
-///   不需要任何速度注入代码，角色既能随平台移动，也能在平台上自由走动。
-///
-///   参考：Unity 官方文档 Rigidbody2D.MovePosition + Kinematic 平台方案
-///   https://docs.unity3d.com/Manual/class-Rigidbody2D.html
+/// 跟随方案：Kinematic Rigidbody2D + MovePosition 移动平台
+///           角色从上方落到平台时 SetParent，离开时取消
+///           SetParent 保证跟随零延迟，角色自身 rb.velocity 控制相对走动
 ///
 /// 使用方式：
-///   1. 挂载到平台 GameObject（会自动添加 Rigidbody2D 和 BoxCollider2D）
-///   2. 在 Inspector 设置 Point B（相对于起点的偏移），平台在起点 ↔ B 间来回移动
-///   3. 无需手动配置 Rigidbody2D，脚本会在 Awake 中自动设置为 Kinematic
+///   1. 挂载到平台 GameObject（自动添加 Rigidbody2D 和 BoxCollider2D）
+///   2. Inspector 设置 Point B（相对起点的偏移），平台在起点 ↔ B 间来回
+///   3. 无需手动配置 Rigidbody2D，脚本自动设为 Kinematic
 /// </summary>
 [DefaultExecutionOrder(-10)]
 [RequireComponent(typeof(Rigidbody2D))]
@@ -52,13 +48,9 @@ public class MovingPlatform : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-
-        // 设置为 Kinematic：平台不受重力/碰撞力影响，但能推动 Dynamic 物体
         rb.bodyType = RigidbodyType2D.Kinematic;
-        rb.interpolation = RigidbodyInterpolation2D.Interpolate; // 平滑插值，避免抖动
+        rb.interpolation = RigidbodyInterpolation2D.Interpolate;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-
-        // 平台自身零摩擦，防止角色贴侧面卡住
         GetComponent<BoxCollider2D>().sharedMaterial = ZeroFriction;
     }
 
@@ -87,7 +79,6 @@ public class MovingPlatform : MonoBehaviour
             return;
         }
 
-        // 用 MovePosition 移动平台：Unity 物理引擎会自动处理对 Dynamic Rigidbody2D 的推力
         Vector2 newPos = Vector2.MoveTowards(rb.position, targetPoint, moveSpeed * Time.fixedDeltaTime);
         rb.MovePosition(newPos);
 
@@ -97,6 +88,31 @@ public class MovingPlatform : MonoBehaviour
             isWaiting = true;
             waitTimer = waitTime;
         }
+    }
+
+    // ── 角色跟随：从上方落到平台时 SetParent ──────────────────
+
+    private void OnCollisionEnter2D(Collision2D col)
+    {
+        if (!IsRidingFromAbove(col)) return;
+        col.transform.SetParent(transform);
+    }
+
+    private void OnCollisionExit2D(Collision2D col)
+    {
+        if (col.transform.parent == transform)
+            col.transform.SetParent(null);
+    }
+
+    /// <summary>角色是否从平台上方落下（避免侧面碰撞也触发跟随）</summary>
+    private bool IsRidingFromAbove(Collision2D col)
+    {
+        // 碰撞点的法线朝上（角色在平台上方）
+        foreach (ContactPoint2D contact in col.contacts)
+        {
+            if (contact.normal.y < -0.5f) return true;
+        }
+        return false;
     }
 
     // ── 编辑器可视化 ──────────────────────────────────────

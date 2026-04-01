@@ -7,7 +7,7 @@ using UnityEngine.InputSystem;
 /// 键盘方案：
 ///   P1 (Mario)    : WASD 移动 | Space 跳跃
 ///   P2 (Trickster): 左右方向键 移动 | 上方向键/右Ctrl 跳跃
-///                   右Shift 伪装 | Enter/Backspace 切换形态 | 右Alt 操控道具
+///                   P 伪装 | O/I 切换形态 | L 操控道具
 ///
 /// 手柄方案：
 ///   第一个手柄 → Mario，第二个手柄 → Trickster
@@ -123,22 +123,22 @@ public class InputManager : MonoBehaviour
         p2JumpDown = jumpKey && !p2WasJumpHeld;
         p2JumpHeld = jumpKey;
 
-        // 伪装
-        if (Input.GetKeyDown(KeyCode.RightShift)
+        // 伪装（P 键）
+        if (Input.GetKeyDown(KeyCode.P)
             || (gamepad2 != null && gamepad2.buttonWest.wasPressedThisFrame))
             p2DisguiseDown = true;
 
-        // 切换形态
-        if (Input.GetKeyDown(KeyCode.Return)
+        // 切换形态（O = 下一个, I = 上一个）
+        if (Input.GetKeyDown(KeyCode.O)
             || (gamepad2 != null && gamepad2.rightShoulder.wasPressedThisFrame))
         { p2SwitchDown = true; p2SwitchDir = 1f; }
 
-        if (Input.GetKeyDown(KeyCode.Backspace)
+        if (Input.GetKeyDown(KeyCode.I)
             || (gamepad2 != null && gamepad2.leftShoulder.wasPressedThisFrame))
         { p2SwitchDown = true; p2SwitchDir = -1f; }
 
-        // 操控道具
-        if (Input.GetKeyDown(KeyCode.RightAlt)
+        // 操控道具（L 键）
+        if (Input.GetKeyDown(KeyCode.L)
             || (gamepad2 != null && gamepad2.buttonNorth.wasPressedThisFrame))
             p2AbilityDown = true;
     }

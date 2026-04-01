@@ -338,4 +338,18 @@ public class TricksterController : MonoBehaviour
             Debug.LogWarning("[TricksterController] groundLayer 未设置，跳跃将无法工作！", this);
     }
 #endif
+
+    // 调试显示：在屏幕右上角显示伪装系统状态
+    private void OnGUI()
+    {
+        if (disguiseSystem == null) return;
+        GUIStyle style = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = 16,
+            fontStyle = FontStyle.Bold,
+            normal = { textColor = Color.yellow }
+        };
+        string status = disguiseSystem.GetDebugStatus();
+        GUI.Label(new Rect(Screen.width - 520, 10, 500, 30), $"[Trickster] {status}", style);
+    }
 }

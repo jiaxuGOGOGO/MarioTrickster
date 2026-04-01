@@ -125,6 +125,21 @@ public class DisguiseSystem : MonoBehaviour
         }
     }
 
+    /// <summary>调试用：检查伪装系统状态</summary>
+    public string GetDebugStatus()
+    {
+        if (availableDisguises.Count == 0)
+            return "❌ 未配置伪装形态！请在 Inspector 的 Available Disguises 列表中添加至少一个形态";
+        var data = availableDisguises[currentDisguiseIndex];
+        if (data == null || data.disguiseSprite == null)
+            return $"❌ 伪装形态[{currentDisguiseIndex}]的 Disguise Sprite 未设置！";
+        if (cooldownTimer > 0)
+            return $"⏳ 伪装冷却中: {cooldownTimer:F1}s";
+        if (isDisguised)
+            return $"✅ 已伪装为: {data.disguiseName}" + (isFullyBlended ? " (已融入)" : " (未融入)");
+        return $"✅ 就绪: 当前选中 [{data.disguiseName}]，按 P 伪装";
+    }
+
     /// <summary>执行变身</summary>
     public void Disguise()
     {

@@ -1,24 +1,27 @@
 using UnityEngine;
 
 /// <summary>
-/// 移动平台
-/// 功能: 在两个点之间来回移动的平台，站在上面的角色跟随移动
-/// 使用方式: 挂载到平台GameObject上，设置起点和终点
+/// 移动平台 - 在两个点之间来回移动，站在上面的角色跟随
 /// 
-/// 修复说明 (Session 4):
-///   - 改用位移跟随替代 SetParent，避免 Rigidbody2D 被 parent 影响导致物理异常
-///   - 排除处于伪装状态的 Trickster，防止平台吸附变身后的 Trickster
+/// 使用方式:
+///   1. 挂载到平台 GameObject，需要 BoxCollider2D
+///   2. 设置 Point B（终点偏移），平台会在 A↔B 间来回移动
+///   3. 在平台的 BoxCollider2D 上挂一个 PhysicsMaterial2D（Friction=0）防止边缘卡住
+/// 
+/// 边缘卡住修复 (Session 4):
+///   - 根因：角色 Rigidbody2D 与平台侧面碰撞时，水平速度被物理引擎清零，
+///     导致角色贴着平台侧面无法移动（即"卡住"现象）
+///   - 修复：通过代码在运行时自动给平台 Collider 设置零摩擦材质，
+///     同时给角色 Collider 也设置零摩擦材质，彻底消除侧面摩擦力
+///   - 角色跟随改用位移推动（非 SetParent），避免 Rigidbody2D 物理异常
 /// </summary>
+[RequireComponent(typeof(BoxCollider2D))]
 public class MovingPlatform : MonoBehaviour
 {
-    [Header("=== 移动设置 ===")]
-    [SerializeField] private Vector3 pointA = Vector3.zero;
+    [Header("移动设置")]
     [SerializeField] private Vector3 pointB = new Vector3(5f, 0f, 0f);
     [SerializeField] private float moveSpeed = 2f;
     [SerializeField] private float waitTime = 0.5f;
-
-    [Header("=== 选项 ===")]
-    [SerializeField] private bool useLocalSpace = true; // 使用相对坐标
     [SerializeField] private bool startFromB = false;
 
     private Vector3 worldPointA;
@@ -27,25 +30,30 @@ public class MovingPlatform : MonoBehaviour
     private float waitTimer;
     private bool isWaiting;
 
-    // 上一帧位置，用于计算平台位移
-    private Vector3 lastPosition;
-
-    // 当前站在平台上的角色（最多同时支持两个玩家）
     private Transform ridingMario;
     private Transform ridingTrickster;
 
+    // 零摩擦材质（运行时自动创建）
+    private static PhysicsMaterial2D s_zeroFriction;
+
+    private static PhysicsMaterial2D ZeroFriction
+    {
+        get
+        {
+            if (s_zeroFriction == null)
+            {
+                s_zeroFriction = new PhysicsMaterial2D("ZeroFriction");
+                s_zeroFriction.friction = 0f;
+                s_zeroFriction.bounciness = 0f;
+            }
+            return s_zeroFriction;
+        }
+    }
+
     private void Start()
     {
-        if (useLocalSpace)
-        {
-            worldPointA = transform.position + pointA;
-            worldPointB = transform.position + pointB;
-        }
-        else
-        {
-            worldPointA = pointA;
-            worldPointB = pointB;
-        }
+        worldPointA = transform.position;
+        worldPointB = transform.position + pointB;
 
         if (startFromB)
         {
@@ -54,11 +62,11 @@ public class MovingPlatform : MonoBehaviour
         }
         else
         {
-            transform.position = worldPointA;
             targetPoint = worldPointB;
         }
 
-        lastPosition = transform.position;
+        // 给平台自身设置零摩擦，防止角色贴着侧面卡住
+        GetComponent<BoxCollider2D>().sharedMaterial = ZeroFriction;
     }
 
     private void FixedUpdate()
@@ -66,121 +74,86 @@ public class MovingPlatform : MonoBehaviour
         if (isWaiting)
         {
             waitTimer -= Time.fixedDeltaTime;
-            if (waitTimer <= 0)
-            {
-                isWaiting = false;
-            }
+            if (waitTimer <= 0) isWaiting = false;
             return;
         }
 
-        // 移动
+        Vector3 prev = transform.position;
         transform.position = Vector3.MoveTowards(transform.position, targetPoint, moveSpeed * Time.fixedDeltaTime);
 
-        // 计算本帧位移，推动站在平台上的角色
-        Vector3 delta = transform.position - lastPosition;
-        if (delta.sqrMagnitude > 0.000001f)
+        // 推动站在平台上的角色
+        Vector3 delta = transform.position - prev;
+        if (delta.sqrMagnitude > 0f)
         {
-            if (ridingMario != null)
-                ridingMario.position += delta;
-
-            if (ridingTrickster != null)
-                ridingTrickster.position += delta;
+            if (ridingMario != null)    ridingMario.position    += delta;
+            if (ridingTrickster != null) ridingTrickster.position += delta;
         }
-        lastPosition = transform.position;
 
-        // 到达目标点
         if (Vector3.Distance(transform.position, targetPoint) < 0.01f)
         {
-            targetPoint = (targetPoint == worldPointA) ? worldPointB : worldPointA;
+            targetPoint = targetPoint == worldPointA ? worldPointB : worldPointA;
             isWaiting = true;
             waitTimer = waitTime;
         }
     }
 
-    // 判断是否应该让该角色站上平台
-    // 关键修复：Trickster 处于伪装状态时不应被平台吸附
-    private bool ShouldRide(GameObject obj, out bool isMario, out bool isTrickster)
+    private void OnCollisionEnter2D(Collision2D col)
     {
-        isMario = false;
-        isTrickster = false;
-
-        MarioController mario = obj.GetComponent<MarioController>();
-        if (mario != null)
+        // 只响应从上方落下的碰撞
+        foreach (ContactPoint2D c in col.contacts)
         {
-            isMario = true;
-            return true;
-        }
-
-        TricksterController trickster = obj.GetComponent<TricksterController>();
-        if (trickster != null)
-        {
-            // 如果 Trickster 正处于伪装状态，不让它被平台吸附
-            DisguiseSystem disguise = obj.GetComponent<DisguiseSystem>();
-            if (disguise != null && disguise.IsDisguised)
+            if (c.normal.y >= 0.5f)
             {
-                // 伪装中的 Trickster 不应被平台携带
-                return false;
-            }
-            isTrickster = true;
-            return true;
-        }
-
-        return false;
-    }
-
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        // 只处理从上方站上平台的情况（碰撞法线朝上）
-        bool fromAbove = false;
-        foreach (ContactPoint2D contact in collision.contacts)
-        {
-            if (contact.normal.y < -0.5f) // 平台法线向下 = 角色在平台上方
-            {
-                fromAbove = true;
-                break;
+                TryRegisterRider(col);
+                return;
             }
         }
-        if (!fromAbove) return;
+    }
 
-        bool isMario, isTrickster;
-        if (ShouldRide(collision.gameObject, out isMario, out isTrickster))
+    private void OnCollisionExit2D(Collision2D col)
+    {
+        if (col.transform == ridingMario)    ridingMario    = null;
+        if (col.transform == ridingTrickster) ridingTrickster = null;
+    }
+
+    private void TryRegisterRider(Collision2D col)
+    {
+        GameObject obj = col.gameObject;
+
+        if (obj.GetComponent<MarioController>() != null)
         {
-            if (isMario)
-                ridingMario = collision.transform;
-            else if (isTrickster)
-                ridingTrickster = collision.transform;
+            // 给角色 Collider 也设置零摩擦，防止贴墙卡住
+            ApplyZeroFriction(obj);
+            ridingMario = col.transform;
+            return;
+        }
+
+        TricksterController tc = obj.GetComponent<TricksterController>();
+        if (tc != null)
+        {
+            // 伪装中的 Trickster 不被平台携带
+            DisguiseSystem ds = obj.GetComponent<DisguiseSystem>();
+            if (ds != null && ds.IsDisguised) return;
+
+            ApplyZeroFriction(obj);
+            ridingTrickster = col.transform;
         }
     }
 
-    private void OnCollisionExit2D(Collision2D collision)
+    private static void ApplyZeroFriction(GameObject obj)
     {
-        if (collision.transform == ridingMario)
-            ridingMario = null;
-        else if (collision.transform == ridingTrickster)
-            ridingTrickster = null;
+        Collider2D col = obj.GetComponent<Collider2D>();
+        if (col != null && col.sharedMaterial == null)
+            col.sharedMaterial = ZeroFriction;
     }
-
-    #region 调试可视化
 
     private void OnDrawGizmos()
     {
-        Vector3 a, b;
-        if (Application.isPlaying)
-        {
-            a = worldPointA;
-            b = worldPointB;
-        }
-        else
-        {
-            a = useLocalSpace ? transform.position + pointA : pointA;
-            b = useLocalSpace ? transform.position + pointB : pointB;
-        }
-
+        Vector3 a = Application.isPlaying ? worldPointA : transform.position;
+        Vector3 b = Application.isPlaying ? worldPointB : transform.position + pointB;
         Gizmos.color = Color.cyan;
         Gizmos.DrawLine(a, b);
         Gizmos.DrawWireSphere(a, 0.2f);
         Gizmos.DrawWireSphere(b, 0.2f);
     }
-
-    #endregion
 }

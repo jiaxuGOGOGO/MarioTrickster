@@ -55,6 +55,13 @@ public class TricksterController : MonoBehaviour
 
         rb.gravityScale = gravityScale;
         rb.freezeRotation = true;
+
+        // 防止贴平台侧面时被摸擦力带住
+        if (boxCollider.sharedMaterial == null)
+        {
+            var mat = new PhysicsMaterial2D("ZeroFriction") { friction = 0f, bounciness = 0f };
+            boxCollider.sharedMaterial = mat;
+        }
     }
 
     private void Update()

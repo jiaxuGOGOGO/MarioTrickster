@@ -75,6 +75,13 @@ public class MarioController : MonoBehaviour
         rb.gravityScale = gravityScale;
         rb.freezeRotation = true;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+        // 防止角色贴墙/贴平台侧面时被摩擦力带住（卡住问题）
+        if (boxCollider.sharedMaterial == null)
+        {
+            var mat = new PhysicsMaterial2D("ZeroFriction") { friction = 0f, bounciness = 0f };
+            boxCollider.sharedMaterial = mat;
+        }
     }
 
     private void Update()

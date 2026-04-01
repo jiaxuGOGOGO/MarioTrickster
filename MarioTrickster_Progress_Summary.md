@@ -323,6 +323,15 @@ rb.velocity = _frameVelocity;  // 只写一次
 
 ---
 
+## 七-A、已知技术债（MVP 阶段可接受，后期需处理）
+
+| 编号 | 位置 | 描述 | 影响 | 建议处理时机 |
+|------|------|------|------|-------------|
+| TD001 | `MovingPlatform.cs` | 平台用 `transform.position` 直接移动，而非 `Rigidbody2D.MovePosition()`。当前平台无 Rigidbody2D，物理交互有限。 | 若以后平台需要被炸飞/受力，需改为 Rigidbody2D + `MovePosition()` 方案 | Sprint 2 添加平台物理交互时 |
+| TD002 | `MarioController.Die()` / `TricksterController.Die()` | `Die()` 调用后立即 `enabled = false`，没有死亡动画播放窗口。`OnDeath` 事件虽存在，但脚本已禁用，无法在禁用后继续播放动画。 | 以后加死亡动画（如角色翻倒后 1 秒消失）时，需改为协程或状态机控制禁用时机 | Sprint 2 添加动画系统时 |
+
+---
+
 ## 七、项目文件结构（当前实际状态）
 
 ```

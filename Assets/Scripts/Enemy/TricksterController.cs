@@ -80,14 +80,14 @@ public class TricksterController : MonoBehaviour
         bool canJump = isGrounded && (!IsDisguised || canJumpWhileDisguised);
         if (jumpPressed && canJump)
         {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
         }
         // 无论是否跳跃成功，都在本帧清除，避免连续触发
         jumpPressed = false;
 
         float speedMultiplier = IsDisguised ? disguisedMoveMultiplier : 1f;
         float targetSpeed = moveInput.x * moveSpeed * speedMultiplier;
-        rb.linearVelocity = new Vector2(targetSpeed, rb.linearVelocity.y);
+        rb.velocity = new Vector2(targetSpeed, rb.velocity.y);
     }
 
     #region 输入回调（由InputManager调用）

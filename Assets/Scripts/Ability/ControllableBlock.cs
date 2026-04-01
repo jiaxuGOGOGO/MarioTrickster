@@ -237,7 +237,7 @@ public class ControllableBlock : ControllablePropBase
                 Rigidbody2D marioRb = collision.gameObject.GetComponent<Rigidbody2D>();
                 if (marioRb != null)
                 {
-                    marioRb.linearVelocity = new Vector2(marioRb.linearVelocity.x, 0f);
+                    marioRb.velocity = new Vector2(marioRb.velocity.x, 0f);
                     marioRb.AddForce(Vector2.up * bounceForce, ForceMode2D.Impulse);
                 }
                 break;

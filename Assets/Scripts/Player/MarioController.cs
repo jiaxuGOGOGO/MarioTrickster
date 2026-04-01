@@ -56,9 +56,9 @@ public class MarioController : MonoBehaviour
 
     // 公共属性（供其他脚本读取）
     public bool IsGrounded => isGrounded;
-    public bool IsMoving => Mathf.Abs(rb.linearVelocity.x) > 0.1f;
+    public bool IsMoving => Mathf.Abs(rb.velocity.x) > 0.1f;
     public bool IsFacingRight => isFacingRight;
-    public Vector2 Velocity => rb.linearVelocity;
+    public Vector2 Velocity => rb.velocity;
 
     // 事件
     public System.Action OnJump;
@@ -114,9 +114,9 @@ public class MarioController : MonoBehaviour
         }
 
         // 跳跃高度控制（松开跳跃键时削减上升速度）
-        if (!jumpHeld && rb.linearVelocity.y > 0 && isJumping)
+        if (!jumpHeld && rb.velocity.y > 0 && isJumping)
         {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y * jumpCutMultiplier);
+            rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * jumpCutMultiplier);
             isJumping = false;
         }
 
@@ -136,9 +136,9 @@ public class MarioController : MonoBehaviour
         ApplyFallGravity();
 
         // 限制下落速度
-        if (rb.linearVelocity.y < -maxFallSpeed)
+        if (rb.velocity.y < -maxFallSpeed)
         {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, -maxFallSpeed);
+            rb.velocity = new Vector2(rb.velocity.x, -maxFallSpeed);
         }
     }
 
@@ -170,7 +170,7 @@ public class MarioController : MonoBehaviour
     private void ApplyMovement()
     {
         float targetSpeed = moveInput.x * moveSpeed;
-        float currentSpeed = rb.linearVelocity.x;
+        float currentSpeed = rb.velocity.x;
         float accel = isGrounded ? acceleration : airAcceleration;
 
         // 判断加速还是减速
@@ -178,19 +178,19 @@ public class MarioController : MonoBehaviour
         {
             // 加速
             float newSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, accel * Time.fixedDeltaTime);
-            rb.linearVelocity = new Vector2(newSpeed, rb.linearVelocity.y);
+            rb.velocity = new Vector2(newSpeed, rb.velocity.y);
         }
         else
         {
             // 减速
             float newSpeed = Mathf.MoveTowards(currentSpeed, 0, deceleration * Time.fixedDeltaTime);
-            rb.linearVelocity = new Vector2(newSpeed, rb.linearVelocity.y);
+            rb.velocity = new Vector2(newSpeed, rb.velocity.y);
         }
     }
 
     private void ExecuteJump()
     {
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+        rb.velocity = new Vector2(rb.velocity.x, jumpForce);
         isJumping = true;
         coyoteTimer = 0;
         jumpBufferTimer = 0;
@@ -199,7 +199,7 @@ public class MarioController : MonoBehaviour
 
     private void ApplyFallGravity()
     {
-        if (rb.linearVelocity.y < 0)
+        if (rb.velocity.y < 0)
         {
             rb.gravityScale = gravityScale * fallGravityMultiplier;
         }
@@ -242,8 +242,8 @@ public class MarioController : MonoBehaviour
         if (animator == null) return;
 
         animator.SetBool("IsGrounded", isGrounded);
-        animator.SetFloat("Speed", Mathf.Abs(rb.linearVelocity.x));
-        animator.SetFloat("VerticalSpeed", rb.linearVelocity.y);
+        animator.SetFloat("Speed", Mathf.Abs(rb.velocity.x));
+        animator.SetFloat("VerticalSpeed", rb.velocity.y);
     }
 
     #endregion
@@ -254,7 +254,7 @@ public class MarioController : MonoBehaviour
     public void Die()
     {
         OnDeath?.Invoke();
-        rb.linearVelocity = Vector2.zero;
+        rb.velocity = Vector2.zero;
         rb.AddForce(Vector2.up * jumpForce * 0.5f, ForceMode2D.Impulse);
         enabled = false; // 禁用控制
     }
@@ -262,7 +262,7 @@ public class MarioController : MonoBehaviour
     /// <summary>被踩弹跳（踩敌人后的小跳）</summary>
     public void Bounce(float bounceForce = 10f)
     {
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, bounceForce);
+        rb.velocity = new Vector2(rb.velocity.x, bounceForce);
     }
 
     #endregion

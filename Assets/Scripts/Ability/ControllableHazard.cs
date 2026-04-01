@@ -250,7 +250,7 @@ public class ControllableHazard : ControllablePropBase
             Rigidbody2D projRb = proj.GetComponent<Rigidbody2D>();
             if (projRb != null)
             {
-                projRb.linearVelocity = direction.normalized * projectileSpeed;
+                projRb.velocity = direction.normalized * projectileSpeed;
             }
             // 自动销毁
             Destroy(proj, 5f);
@@ -315,7 +315,7 @@ public class ControllableHazard : ControllablePropBase
         if (targetRb != null && knockbackForce > 0)
         {
             Vector2 knockDir = (target.transform.position - transform.position).normalized;
-            targetRb.linearVelocity = Vector2.zero;
+            targetRb.velocity = Vector2.zero;
             targetRb.AddForce(new Vector2(knockDir.x * knockbackForce, knockbackUpForce), ForceMode2D.Impulse);
         }
     }

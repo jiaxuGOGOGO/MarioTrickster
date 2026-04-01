@@ -152,8 +152,8 @@ public class TestSceneBuilder : Editor
         SetSerializedField(gameManager, "tricksterSpawnPoint", tricksterSpawn.transform);
 
         // LevelManager 出生点
-        SetSerializedField(levelManager, "marioSpawn", marioSpawn.transform);
-        SetSerializedField(levelManager, "tricksterSpawn", tricksterSpawn.transform);
+        SetSerializedField(levelManager, "marioSpawnPoint", marioSpawn.transform);
+        SetSerializedField(levelManager, "tricksterSpawnPoint", tricksterSpawn.transform);
 
         // ═══════════════════════════════════════════════════
         // 5. 相机

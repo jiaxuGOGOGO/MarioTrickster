@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -10,10 +11,10 @@ using UnityEngine;
 ///   Reverse - 反向移动
 ///   Stop    - 突然停止（让 Mario 跳空）
 ///
-/// 跟随方案（Kinematic Rigidbody2D + MovePosition）：
+/// 跟随方案（速度注入法，不使用 SetParent）：
 ///   与 MovingPlatform 相同，平台带 Kinematic Rigidbody2D，
-///   用 rb.MovePosition() 移动，Unity 物理引擎自动处理角色跟随。
-///   不需要速度注入代码，角色既能随平台移动，也能在平台上自由走动。
+///   用 rb.MovePosition() 移动，每帧把平台速度注入站在上面的角色。
+///   不使用 SetParent（避免 Transform 层级与 Rigidbody2D 世界坐标冲突）。
 /// </summary>
 [DefaultExecutionOrder(-10)]
 [RequireComponent(typeof(Rigidbody2D))]
@@ -54,6 +55,10 @@ public class ControllablePlatform : ControllablePropBase
     private Vector2 rushDirection;
     private Vector2 preControlPosition;
 
+    // ── 平台速度与乘客 ────────────────────────────────────
+    private Vector2 _currentVelocity;
+    private readonly HashSet<GameObject> _riders = new HashSet<GameObject>();
+
     // ── 零摩擦材质 ────────────────────────────────────────
     private static PhysicsMaterial2D s_zeroFriction;
     private static PhysicsMaterial2D ZeroFriction
@@ -91,8 +96,16 @@ public class ControllablePlatform : ControllablePropBase
 
     private void FixedUpdate()
     {
+        Vector2 prevPos = rb.position;
+
         if (isControlled) UpdateControlledMovement();
         else              UpdateNormalMovement();
+
+        // 计算本帧实际速度
+        _currentVelocity = (rb.position - prevPos) / Time.fixedDeltaTime;
+
+        // 将平台速度注入所有站在上面的角色
+        InjectVelocityToRiders();
     }
 
     // ── 移动逻辑 ──────────────────────────────────────────
@@ -103,6 +116,7 @@ public class ControllablePlatform : ControllablePropBase
         {
             waitTimer -= Time.fixedDeltaTime;
             if (waitTimer <= 0f) isWaiting = false;
+            _currentVelocity = Vector2.zero;
             return;
         }
 
@@ -137,18 +151,37 @@ public class ControllablePlatform : ControllablePropBase
         }
     }
 
-    // ── 角色跟随：从上方落到平台时 SetParent ──────────────────
+    // ── 速度注入 ────────────────────────────────────────────
+
+    private void InjectVelocityToRiders()
+    {
+        if (_currentVelocity.sqrMagnitude < 0.0001f) return;
+
+        foreach (GameObject rider in _riders)
+        {
+            if (rider == null) continue;
+
+            MarioController mario = rider.GetComponent<MarioController>();
+            if (mario != null) { mario.SetPlatformVelocity(_currentVelocity); continue; }
+
+            TricksterController trickster = rider.GetComponent<TricksterController>();
+            if (trickster != null) trickster.SetPlatformVelocity(_currentVelocity);
+        }
+    }
 
     private void OnCollisionEnter2D(Collision2D col)
     {
-        if (!IsRidingFromAbove(col)) return;
-        col.transform.SetParent(transform);
+        if (IsRidingFromAbove(col)) _riders.Add(col.gameObject);
+    }
+
+    private void OnCollisionStay2D(Collision2D col)
+    {
+        if (IsRidingFromAbove(col)) _riders.Add(col.gameObject);
     }
 
     private void OnCollisionExit2D(Collision2D col)
     {
-        if (col.transform.parent == transform)
-            col.transform.SetParent(null);
+        _riders.Remove(col.gameObject);
     }
 
     private bool IsRidingFromAbove(Collision2D col)

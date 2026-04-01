@@ -13,8 +13,9 @@ using UnityEngine;
 ///   最后一次性写入 rb.velocity，避免多处赋值互相覆盖。
 ///   重力由代码自管，不依赖 Unity gravityScale，可精确控制手感。
 ///
-///   平台跟随：移动平台使用 Kinematic Rigidbody2D + MovePosition，
-///   Unity 物理引擎自动处理角色跟随，本控制器无需任何平台相关代码。
+///   平台跟随：移动平台每帧调用 SetPlatformVelocity() 注入平台速度，
+///   FixedUpdate 最后将平台速度叠加到 _frameVelocity 再写入 rb。
+///   不使用 SetParent（避免 Transform 层级与 Rigidbody2D 世界坐标冲突）。
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -68,6 +69,16 @@ public class MarioController : MonoBehaviour
 
     // ── 帧速度（本帧所有速度变化的累积量）───────────────────
     private Vector2 _frameVelocity;
+
+    // ── 平台速度注入（由 MovingPlatform / ControllablePlatform 每帧写入）──
+    // 方案说明：
+    //   Dynamic Rigidbody2D 的 rb.velocity 是世界坐标系绝对速度，
+    //   SetParent 改变 Transform 层级但物理引擎不理解层级关系，
+    //   所以 SetParent 无法让角色跟随 Kinematic 平台移动。
+    //   正确做法：平台每帧把自己的速度注入角色，角色在 FixedUpdate
+    //   最后将平台速度叠加到 _frameVelocity，实现跟随效果。
+    private Vector2 _platformVelocity;
+    private bool _onPlatform;
 
     // ── 地面状态 ──────────────────────────────────────────
     private bool _grounded;
@@ -161,8 +172,18 @@ public class MarioController : MonoBehaviour
         // 5. 重力
         HandleGravity();
 
-        // 6. 一次性写入 rb
+        // 6. 叠加平台速度（在所有自身速度计算完成后叠加）
+        if (_onPlatform)
+        {
+            _frameVelocity += _platformVelocity;
+        }
+
+        // 7. 一次性写入 rb
         rb.velocity = _frameVelocity;
+
+        // 8. 每帧重置平台状态（平台脚本每帧重新设置，若未设置则视为不在平台上）
+        _onPlatform = false;
+        _platformVelocity = Vector2.zero;
     }
 
     #endregion
@@ -303,6 +324,21 @@ public class MarioController : MonoBehaviour
     public void SetMoveInput(Vector2 input)  => moveInput = input;
     public void OnJumpPressed()  { jumpPressedThisFrame = true; jumpHeld = true; }
     public void OnJumpReleased() { jumpHeld = false; }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 平台速度注入（由 MovingPlatform / ControllablePlatform 调用）
+
+    /// <summary>
+    /// 移动平台每帧调用此方法，将平台速度注入角色。
+    /// 必须在角色 FixedUpdate 之前调用（平台使用 [DefaultExecutionOrder(-10)]）。
+    /// </summary>
+    public void SetPlatformVelocity(Vector2 velocity)
+    {
+        _platformVelocity = velocity;
+        _onPlatform = true;
+    }
 
     #endregion
 

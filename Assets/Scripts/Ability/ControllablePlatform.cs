@@ -20,6 +20,10 @@ using UnityEngine;
 ///   2. 挂载此脚本（替代 MovingPlatform）
 ///   3. 配置移动路径和操控模式
 ///   4. Trickster 变身后按操控键即可触发
+/// 
+/// 修复说明 (Session 4):
+///   - 改用位移跟随替代 SetParent，避免 Rigidbody2D 被 parent 影响导致物理异常
+///   - 排除处于伪装状态的 Trickster，防止平台吸附变身后的 Trickster
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 [RequireComponent(typeof(SpriteRenderer))]
@@ -60,10 +64,17 @@ public class ControllablePlatform : ControllablePropBase
     private bool isWaiting;
 
     // 操控状态
-    private bool isControlled;      // 是否正在被操控（激活阶段）
-    private Vector3 rushDirection;   // Rush 模式的冲刺方向
-    private Vector3 preControlPosition; // 操控前的位置（用于恢复）
-    private float dropOriginalY;     // Drop 模式的原始 Y 坐标
+    private bool isControlled;
+    private Vector3 rushDirection;
+    private Vector3 preControlPosition;
+    private float dropOriginalY;
+
+    // 上一帧位置，用于计算平台位移
+    private Vector3 lastPosition;
+
+    // 当前站在平台上的角色
+    private Transform ridingMario;
+    private Transform ridingTrickster;
 
     protected override void Awake()
     {
@@ -73,7 +84,6 @@ public class ControllablePlatform : ControllablePropBase
 
     private void Start()
     {
-        // 初始化路径点（与 MovingPlatform 相同逻辑）
         if (useLocalSpace)
         {
             worldPointA = transform.position + pointA;
@@ -95,23 +105,38 @@ public class ControllablePlatform : ControllablePropBase
             transform.position = worldPointA;
             targetPoint = worldPointB;
         }
+
+        lastPosition = transform.position;
     }
 
     private void FixedUpdate()
     {
+        Vector3 prevPos = transform.position;
+
         if (isControlled)
         {
-            // 操控中：执行操控移动
             UpdateControlledMovement();
         }
         else
         {
-            // 正常移动
             UpdateNormalMovement();
         }
+
+        // 计算本帧位移，推动站在平台上的角色
+        Vector3 delta = transform.position - prevPos;
+        if (delta.sqrMagnitude > 0.000001f)
+        {
+            if (ridingMario != null)
+                ridingMario.position += delta;
+
+            if (ridingTrickster != null)
+                ridingTrickster.position += delta;
+        }
+
+        lastPosition = transform.position;
     }
 
-    #region 正常移动（与 MovingPlatform 相同）
+    #region 正常移动
 
     private void UpdateNormalMovement()
     {
@@ -144,17 +169,14 @@ public class ControllablePlatform : ControllablePropBase
         switch (controlMode)
         {
             case PlatformControlMode.Rush:
-                // 朝指定方向冲刺
                 transform.position += rushDirection * rushSpeedMultiplier * normalMoveSpeed * Time.fixedDeltaTime;
                 break;
 
             case PlatformControlMode.Drop:
-                // 向下坠落
                 transform.position += Vector3.down * dropSpeed * Time.fixedDeltaTime;
                 break;
 
             case PlatformControlMode.Reverse:
-                // 反向移动（朝远离当前目标点的方向）
                 Vector3 reverseTarget = (targetPoint == worldPointA) ? worldPointB : worldPointA;
                 transform.position = Vector3.MoveTowards(
                     transform.position, reverseTarget,
@@ -163,7 +185,6 @@ public class ControllablePlatform : ControllablePropBase
                 break;
 
             case PlatformControlMode.Stop:
-                // 完全停止（什么都不做）
                 break;
         }
     }
@@ -174,16 +195,11 @@ public class ControllablePlatform : ControllablePropBase
 
     protected override void OnTelegraphStart()
     {
-        // 预警开始：记录当前位置
         preControlPosition = transform.position;
-
-        // 可以在这里播放预警音效
-        // AudioManager.Instance?.PlaySFX("platform_warning");
     }
 
     protected override void OnTelegraphEnd()
     {
-        // 预警结束，准备激活
     }
 
     protected override void OnActivate(Vector2 direction)
@@ -193,16 +209,10 @@ public class ControllablePlatform : ControllablePropBase
         switch (controlMode)
         {
             case PlatformControlMode.Rush:
-                // 计算冲刺方向
                 if (direction.magnitude > 0.1f)
-                {
                     rushDirection = new Vector3(direction.x, direction.y, 0f).normalized;
-                }
                 else
-                {
-                    // 没有输入方向时，朝远离当前目标的方向冲
                     rushDirection = (transform.position - targetPoint).normalized;
-                }
                 break;
 
             case PlatformControlMode.Drop:
@@ -210,12 +220,10 @@ public class ControllablePlatform : ControllablePropBase
                 break;
 
             case PlatformControlMode.Reverse:
-                // 切换目标点
                 targetPoint = (targetPoint == worldPointA) ? worldPointB : worldPointA;
                 break;
 
             case PlatformControlMode.Stop:
-                // 停止模式不需要额外设置
                 break;
         }
     }
@@ -224,16 +232,13 @@ public class ControllablePlatform : ControllablePropBase
     {
         isControlled = false;
 
-        // 激活结束后的恢复逻辑
         switch (controlMode)
         {
             case PlatformControlMode.Drop:
-                // 坠落后回到原始高度（平滑过渡由 Update 处理）
                 StartCoroutine(RecoverFromDrop());
                 break;
 
             case PlatformControlMode.Rush:
-                // 冲刺结束后，重新计算最近的路径点继续正常移动
                 float distToA = Vector3.Distance(transform.position, worldPointA);
                 float distToB = Vector3.Distance(transform.position, worldPointB);
                 targetPoint = distToA < distToB ? worldPointB : worldPointA;
@@ -243,10 +248,8 @@ public class ControllablePlatform : ControllablePropBase
 
     private System.Collections.IEnumerator RecoverFromDrop()
     {
-        // 等待恢复时间
         yield return new WaitForSeconds(dropRecoverTime);
 
-        // 平滑回到操控前的位置
         Vector3 startPos = transform.position;
         float elapsed = 0f;
         float recoverDuration = 1f;
@@ -255,39 +258,82 @@ public class ControllablePlatform : ControllablePropBase
         {
             elapsed += Time.deltaTime;
             float t = elapsed / recoverDuration;
-            t = t * t * (3f - 2f * t); // SmoothStep
+            t = t * t * (3f - 2f * t);
             transform.position = Vector3.Lerp(startPos, preControlPosition, t);
             yield return null;
         }
 
         transform.position = preControlPosition;
 
-        // 恢复正常移动
-        float distToA = Vector3.Distance(transform.position, worldPointA);
-        float distToB = Vector3.Distance(transform.position, worldPointB);
-        targetPoint = distToA < distToB ? worldPointB : worldPointA;
+        float distToA2 = Vector3.Distance(transform.position, worldPointA);
+        float distToB2 = Vector3.Distance(transform.position, worldPointB);
+        targetPoint = distToA2 < distToB2 ? worldPointB : worldPointA;
     }
 
     #endregion
 
-    #region 角色跟随（与 MovingPlatform 相同）
+    #region 角色跟随（位移跟随，替代 SetParent）
+
+    // 判断是否应该让该角色站上平台
+    // 关键修复：Trickster 处于伪装状态时不应被平台吸附
+    private bool ShouldRide(GameObject obj, out bool isMario, out bool isTrickster)
+    {
+        isMario = false;
+        isTrickster = false;
+
+        MarioController mario = obj.GetComponent<MarioController>();
+        if (mario != null)
+        {
+            isMario = true;
+            return true;
+        }
+
+        TricksterController trickster = obj.GetComponent<TricksterController>();
+        if (trickster != null)
+        {
+            DisguiseSystem disguise = obj.GetComponent<DisguiseSystem>();
+            if (disguise != null && disguise.IsDisguised)
+            {
+                // 伪装中的 Trickster 不应被平台携带
+                return false;
+            }
+            isTrickster = true;
+            return true;
+        }
+
+        return false;
+    }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.gameObject.GetComponent<MarioController>() != null ||
-            collision.gameObject.GetComponent<TricksterController>() != null)
+        // 只处理从上方站上平台的情况
+        bool fromAbove = false;
+        foreach (ContactPoint2D contact in collision.contacts)
         {
-            collision.transform.SetParent(transform);
+            if (contact.normal.y < -0.5f)
+            {
+                fromAbove = true;
+                break;
+            }
+        }
+        if (!fromAbove) return;
+
+        bool isMario, isTrickster;
+        if (ShouldRide(collision.gameObject, out isMario, out isTrickster))
+        {
+            if (isMario)
+                ridingMario = collision.transform;
+            else if (isTrickster)
+                ridingTrickster = collision.transform;
         }
     }
 
     private void OnCollisionExit2D(Collision2D collision)
     {
-        if (collision.gameObject.GetComponent<MarioController>() != null ||
-            collision.gameObject.GetComponent<TricksterController>() != null)
-        {
-            collision.transform.SetParent(null);
-        }
+        if (collision.transform == ridingMario)
+            ridingMario = null;
+        else if (collision.transform == ridingTrickster)
+            ridingTrickster = null;
     }
 
     #endregion
@@ -298,7 +344,6 @@ public class ControllablePlatform : ControllablePropBase
     {
         base.OnDrawGizmosSelected();
 
-        // 显示路径
         Vector3 a, b;
         if (Application.isPlaying)
         {

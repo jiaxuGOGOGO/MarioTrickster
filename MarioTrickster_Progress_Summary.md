@@ -175,7 +175,53 @@ SimpleEnemy.cs             → rb.velocity（已使用正确的API）
 
 ---
 
-## 四、下一步开发计划（MVP 优先级排序）
+## 四、本地操作指南（每次 AI 提交后必看）
+
+每次 AI 完成代码编写并推送到 GitHub 后，请在本地执行以下步骤进行测试和验证：
+
+### 1. 拉取最新代码
+打开命令行工具（CMD/PowerShell/Git Bash），执行：
+```cmd
+cd /d "E:\unity project\exercise1\MarioTrickster"
+git pull
+```
+
+### 2. Unity 环境配置（首次拉取时）
+1. 打开 Unity 项目，等待 Input System 和 Cinemachine 包自动安装。
+2. 如果弹出 "Enable New Input System" 提示，点击 **Yes** 并重启 Unity。
+3. 如果控制台出现 `linearVelocity` 相关的编译错误，请参考上方 **B002 修复方法** 进行全局替换。
+
+### 3. 场景搭建与组件挂载（当前阶段核心任务）
+由于 AI 无法直接编辑 Unity 场景文件（`.unity`），你需要手动完成以下挂载：
+
+**A. 核心管理器（空 GameObject）**
+- 创建空 GameObject 命名为 `Managers`
+- 挂载 `GameManager.cs`
+- 挂载 `InputManager.cs`
+- 挂载 `LevelManager.cs`
+
+**B. 玩家角色**
+- **Mario**: 挂载 `MarioController.cs` + `PlayerHealth.cs` + `Rigidbody2D` + `BoxCollider2D`
+- **Trickster**: 挂载 `TricksterController.cs` + `DisguiseSystem.cs` + **`TricksterAbilitySystem.cs`** + `Rigidbody2D` + `BoxCollider2D`
+
+**C. 关卡元素**
+- **终点**: 挂载 `GoalZone.cs` + `BoxCollider2D` (勾选 IsTrigger)
+- **深渊**: 挂载 `KillZone.cs` + `BoxCollider2D` (勾选 IsTrigger)
+- **可操控平台**: 挂载 `ControllablePlatform.cs` + `BoxCollider2D`
+- **可操控陷阱**: 挂载 `ControllableHazard.cs` + `BoxCollider2D`
+
+**D. 相机**
+- 在 Main Camera 上挂载 `CameraController.cs`，并将 Mario 拖入其 Target 槽位。
+
+### 4. 玩法测试流程
+1. 运行游戏。
+2. **P1 (Mario)**: 使用 WASD 移动，Space 跳跃。
+3. **P2 (Trickster)**: 使用方向键移动，右Shift 变身。
+4. **测试能力系统**: Trickster 变身为平台/陷阱后，静止等待融入场景，然后按 **右Alt** 触发操控能力，观察预警闪烁和后续效果。
+
+---
+
+## 五、下一步开发计划（MVP 优先级排序）
 
 ### 第一优先级：场景搭建与核心验证（Sprint 1 收尾）
 
@@ -209,7 +255,7 @@ SimpleEnemy.cs             → rb.velocity（已使用正确的API）
 
 ---
 
-## 五、关键技术决策记录
+## 六、关键技术决策记录
 
 | 决策项 | 选择 | 理由 |
 |--------|------|------|
@@ -228,7 +274,7 @@ SimpleEnemy.cs             → rb.velocity（已使用正确的API）
 
 ---
 
-## 六、项目文件结构（当前实际状态）
+## 七、项目文件结构（当前实际状态）
 
 ```
 Assets/
@@ -272,7 +318,7 @@ Assets/
 
 ---
 
-## 七、操作键位参考
+## 八、操作键位参考
 
 | 操作 | Player1 (Mario) | Player2 (Trickster) |
 |------|-----------------|---------------------|
@@ -288,7 +334,7 @@ Assets/
 
 ---
 
-## 八、新对话开场模板
+## 九、新对话开场模板
 
 每次开新对话时，只需复制以下内容（不到10行），AI 会自动从仓库读取本文件获取完整上下文：
 

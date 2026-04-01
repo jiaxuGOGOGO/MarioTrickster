@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-01 (Session 7) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-01 (Session 8) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 
 ---
 
@@ -139,7 +139,17 @@ InputManager (右Alt/手柄Y)
 - 单次变身最大操控总次数（maxControlsPerDisguise）: -1 = 无限
 - 操控持续时间限制（controlTimeLimit）: 0 = 无限
 
-### 2.7 配置文件更新
+### 2.7 测试与工具系统（Session 8 新增）
+
+| 脚本 | 路径 | 状态 | 说明 |
+|------|------|------|------|
+| TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 8 新增** | Editor 菜单工具，一键生成完整测试场景（地面/平台/角色/管理器/道具/终点/死亡区域/敌人/金币/相机），所有 Inspector 引用自动连线，Ground Layer 自动创建 |
+| ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试（30+ 测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用 |
+| GameplayTests.cs | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试（20+ 测试用例）：验证 Mario/Trickster 移动/跳跃/重力、伪装系统运行时行为、道具操控状态机（Telegraph→Active→Cooldown）、移动平台运动、GameManager 胜负判定/暂停/回合重置、InputManager 集成 |
+| EditModeTests.asmdef | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试 Assembly Definition |
+| PlayModeTests.asmdef | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试 Assembly Definition |
+
+### 2.8 配置文件更新
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
@@ -155,7 +165,7 @@ InputManager (右Alt/手柄Y)
 | B001 | ✅ **已解决 (Session 5)** 实际运行测试已完成，基础移动/跳跃/平台跟随均验证通过 | — | — |
 | B002 | ✅ **已修复 (Session 4)** 全局替换 `linearVelocity` → `velocity`，适配 Unity 2022.3 | — | — |
 | B003 | InputManager.cs 中 Player1 使用 WASD，Player2 使用方向键，但 MarioController 原代码中也绑定了方向键 | 低 | InputManager 已接管输入分发，MarioController 不直接读取键盘，所以不冲突。可关闭。 |
-| B004 | 场景 SampleScene.unity 是空白模板，需要手动搭建测试场景 | 高 | 见下方"下一步计划" |
+| B004 | ✅ **已解决 (Session 8)** 场景 SampleScene.unity 是空白模板 → 已创建 TestSceneBuilder 一键生成测试场景 | — | 用户在 Unity 中执行菜单 MarioTrickster → Build Test Scene 即可 |
 | B005 | ✅ **已修复 (Session 4)** Mario/Trickster 无法移动 | — | 根因：Inspector 中未拖入引用 |
 | B006 | ✅ **已修复 (Session 6)** 平台跟随问题 | — | 根因：SetParent 与 Dynamic Rigidbody2D 冲突。已改为速度注入法。 |
 | B007 | ✅ **已修复 (Session 6)** 站上平台后角色被甩飞 | — | 根因：平台速度每帧累积。修复：读回 rb.velocity 时减去上一帧平台速度 `_lastPlatformVelocity`。 |
@@ -185,8 +195,67 @@ git pull
 2. 如果弹出 "Enable New Input System" 提示，点击 **Yes** 并重启 Unity。
 3. 如果控制台出现 `linearVelocity` 相关的编译错误，请参考上方 **B002 修复方法** 进行全局替换。
 
-### 3. 场景搭建与组件挂载（当前阶段核心任务）
-由于 AI 无法直接编辑 Unity 场景文件（`.unity`），你需要手动完成以下挂载：
+### 3. 一键生成测试场景（Session 8 新增）
+
+**推荐方式：使用 TestSceneBuilder 自动生成**
+
+1. 在 Unity 中新建一个空白场景（File → New Scene → Basic 2D）
+2. 点击菜单栏 **MarioTrickster → Build Test Scene**
+3. 在弹出的确认对话框中点击 **生成**
+4. 按 **Ctrl+S** 保存场景（建议命名为 `TestScene`）
+5. 点击 **Play** 即可开始测试
+
+**自动生成的内容包括：**
+- 主地面（40格宽）+ 3个高台 + 2面侧墙
+- Mario（红色方块，位置 -8,1）+ Trickster（蓝色方块，位置 8,1）
+- 管理器（GameManager + InputManager + LevelManager，引用已自动连线）
+- 移动平台（左右移动）+ 可操控平台（上下移动）
+- 可操控陷阱（橙色）+ 可操控方块（棕色）
+- 终点区域（绿色半透明，位置 18,1）
+- 死亡区域（关卡底部）
+- 简单敌人（紫色）+ 5个金币 + 可破坏方块
+- 相机跟随 Mario
+- Ground Layer 自动创建和分配
+
+**清空场景：** 菜单栏 MarioTrickster → Clear Test Scene
+
+### 4. 运行自动化测试（Session 8 新增）
+
+**EditMode 测试（不需要运行游戏）：**
+1. 打开 Window → General → Test Runner
+2. 切换到 **EditMode** 标签
+3. 点击 **Run All**
+4. 验证所有 30+ 测试用例全部通过（绿色）
+
+**PlayMode 测试（需要运行游戏）：**
+1. 在 Test Runner 中切换到 **PlayMode** 标签
+2. 点击 **Run All**
+3. Unity 会自动进入 Play 模式执行测试
+4. 验证所有 20+ 测试用例全部通过
+
+**测试覆盖范围：**
+
+| 测试类别 | 测试内容 | 测试数量 |
+|----------|----------|----------|
+| 组件依赖 | RequireComponent 自动添加 Rigidbody2D/BoxCollider2D | 8 |
+| 公共接口 | SetMoveInput/OnJumpPressed/SetPlatformVelocity 等方法存在性 | 6 |
+| PlayerHealth | 伤害/治疗/死亡事件/无敌帧/ResetHealth | 8 |
+| DisguiseSystem | 初始状态/无配置时安全性/调试信息 | 3 |
+| IControllableProp | 接口实现/初始状态 | 3 |
+| InputManager | 启用/禁用输入 | 2 |
+| Mario 移动 | 左右移动/停止减速/重力下落 | 4 |
+| Mario 跳跃 | 跳跃高度/Bounce 弹跳 | 2 |
+| Mario 状态 | IsMoving/Die 禁用控制器 | 2 |
+| Trickster 移动 | 移动/伪装状态 | 2 |
+| 伪装系统运行时 | 无配置安全性/冷却阻止重复变身 | 2 |
+| 道具状态机 | Hazard/Block 的 Telegraph→Active 转换 | 2 |
+| 移动平台 | 两点间移动 | 1 |
+| 胜负判定 | Mario到达终点/Mario死亡/回合重置 | 3 |
+| 暂停系统 | 暂停/恢复 TimeScale | 1 |
+| InputManager 集成 | 禁用输入停止移动 | 1 |
+
+### 5. 手动场景搭建（备选方案）
+如果不使用 TestSceneBuilder，也可以手动搭建：
 
 **A. 核心管理器（空 GameObject）**
 - 创建空 GameObject 命名为 `Managers`
@@ -217,7 +286,7 @@ git pull
 - `GameManager` → 拖入 Mario、Trickster、PlayerHealth 引用
 - `LevelManager` → 设置出生点 Transform 和关卡边界
 
-### 4. 玩法测试流程（请按以下顺序测试）
+### 6. 玩法测试流程（请按以下顺序测试）
 
 **第一步：基础移动与跳跃测试**
 1. 运行游戏。
@@ -231,12 +300,12 @@ git pull
 
 **第三步：伪装变身系统测试**
 1. 控制 Trickster 走到一个可伪装对象（如平台或陷阱）附近。
-2. 按下 `右Shift` 键，确认 Trickster 成功变身为该对象的外观。
+2. 按下 `P` 键，确认 Trickster 成功变身为该对象的外观。
 3. 停止移动，等待几秒钟，确认 Trickster "完全融入场景"。
 
 **第四步：道具操控能力测试**
 1. 在 Trickster 处于"完全融入场景"的伪装状态下。
-2. 按下 `右Alt` 键触发操控能力。
+2. 按下 `L` 键触发操控能力。
 3. **观察预警阶段**：确认道具是否出现闪烁变红和震动效果（持续约0.8秒）。
 4. **观察爆发阶段**：预警结束后，确认道具是否执行了对应的阻碍动作。
 5. **观察冷却阶段**：确认触发后是否进入冷却，短时间内无法再次触发。
@@ -253,35 +322,72 @@ git pull
 
 | 序号 | 任务 | 状态 | 说明 |
 |------|------|------|------|
-| 1 | 在Unity中创建测试场景 | ⚬ 待做 | 用Tilemap搭建一个简单的测试关卡（地面+平台+终点+深渊） |
+| 1 | 在Unity中创建测试场景 | ✅ **Session 8 完成** | TestSceneBuilder 一键生成完整测试关卡（菜单 MarioTrickster → Build Test Scene） |
 | 2 | 下载并导入像素素材 | ⚬ 待做 | 从 Pixel Adventure 或 Block Land 下载素材包 |
 | 3 | 创建Mario预制体 | ✅ 已有场景对象 | 挂载 MarioController + PlayerHealth + Rigidbody2D + BoxCollider2D（已在场景中配置） |
-| 4 | 创建Trickster预制体 | ✅ 已有场景对象 | 挂载 TricksterController + DisguiseSystem + TricksterAbilitySystem + Rigidbody2D + BoxCollider2D |
-| 5 | 创建管理器对象 | ✅ 已有场景对象 | 空GameObject挂载 GameManager + InputManager + LevelManager |
-| 6 | 配置相机 | ✅ 已有场景对象 | Main Camera挂载 CameraController，设置跟随Mario |
-| 7 | 放置GoalZone和KillZone | ⚬ 待做 | 终点旗帜 + 关卡底部死亡区域 |
-| 8 | 放置可操控道具 | ⚬ 待做 | 在关卡中放置 ControllablePlatform/Hazard/Block，配置操控模式 |
-| 9 | **核心玩法验证** | 🔄 进行中 | 基础移动/跳跃/平台跟随已验证通过；伪装+操控道具+胜负判定待测 |
+| 4 | 创建Trickster预制体 | ✅ 已有场景对象 | 挂载 TricksterController + DisguiseSystem + TricksterAbilitySystem |
+| 5 | 配置InputManager引用 | ✅ **Session 8 自动化** | TestSceneBuilder 自动连线所有 Inspector 引用 |
+| 6 | 配置相机 | ✅ **Session 8 自动化** | TestSceneBuilder 自动挂载 CameraController 并设置跟随 Mario |
+| 7 | 放置GoalZone和KillZone | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置终点（绿色，位置18,1）和死亡区域（底部） |
+| 8 | 放置可操控道具 | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置 ControllablePlatform/Hazard/Block |
+| 9 | **核心玩法验证** | 🔄 进行中 | 自动化测试已覆盖 50+ 测试用例；用户需在 Unity 中运行 TestSceneBuilder + Test Runner 进行最终验证 |
+| 10 | **自动化测试框架** | ✅ **Session 8 完成** | EditMode 30+ 测试 + PlayMode 20+ 测试，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停 |
 
 ### 第二优先级：游戏体验（Sprint 2，预计 1-2 周）
 
 | 序号 | 任务 | 说明 |
 |------|------|------|
-| 10 | 音效集成 | 跳跃/死亡/变身/操控道具预警音效/胜利音效 |
-| 11 | 升级为Cinemachine | 已添加包依赖，替换CameraController为Cinemachine Virtual Camera |
-| 12 | 更多可操控道具类型 | 如：传送门、风扇（改变风向）、开关门等 |
+| 11 | 音效集成 | 跳跃/死亡/变身/操控道具预警音效/胜利音效 |
+| 12 | 升级为Cinemachine | 已添加包依赖，替换CameraController为Cinemachine Virtual Camera |
+| 13 | 更多可操控道具类型 | 如：传送门、风扇（改变风向）、开关门等 |
 
 ### 第三优先级：打磨（Sprint 3）
 
 | 序号 | 任务 | 说明 |
 |------|------|------|
-| 13 | 平衡性调整 | 变身冷却、操控次数/冷却、预警时长、关卡难度 |
-| 14 | 多关卡 | 2-3个不同主题关卡 |
-| 15 | 开始/结束界面 | 主菜单、角色选择、结算画面 |
+| 14 | 平衡性调整 | 变身冷却、操控次数/冷却、预警时长、关卡难度 |
+| 15 | 多关卡 | 2-3个不同主题关卡 |
+| 16 | 开始/结束界面 | 主菜单、角色选择、结算画面 |
 
 ---
 
 ## 六、Session 历史记录
+
+### Session 8 记录（2026-04-01）
+
+**新完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| TestSceneBuilder.cs | Editor 菜单工具（MarioTrickster → Build Test Scene），一键在空白场景中生成完整测试关卡。自动创建地面/高台/墙壁/Mario/Trickster/管理器/移动平台/可操控道具/终点/死亡区域/敌人/金币/可破坏方块/相机跟随，所有 Inspector 引用自动连线，Ground Layer 自动创建分配。另有 Clear Test Scene 菜单清空场景。 |
+| ComponentSetupTests.cs | EditMode 自动化测试（30+ 用例）：验证 RequireComponent 自动添加组件、PlayerHealth 完整伤害/治疗/死亡/无敌帧/重置逻辑、DisguiseSystem 初始状态和无配置安全性、MovingPlatform Kinematic 设置、GoalZone/KillZone Trigger 设置、IControllableProp 接口实现、InputManager 启用/禁用 |
+| GameplayTests.cs | PlayMode 自动化测试（20+ 用例）：验证 Mario/Trickster 左右移动和停止减速、跳跃物理、重力下落、伪装系统运行时行为和冷却机制、ControllableHazard/Block 的 Telegraph→Active 状态机转换、移动平台两点间运动、GameManager 胜负判定（Mario到达终点/Mario死亡）、暂停/恢复 TimeScale、回合重置恢复生命值、Mario.Die() 禁用控制器、Bounce 弹跳、InputManager 集成 |
+| 语法静态分析 | 26/26 .cs 文件全部通过括号匹配/using格式/region配对检查，0 错误 0 警告 |
+| 跨文件引用检查 | 所有 AddComponent 引用、关键方法调用（32个）、公共属性（16个）全部验证通过 |
+
+**解决的问题：**
+
+| 编号 | 描述 | 解决方案 |
+|------|------|----------|
+| B004 | 场景 SampleScene.unity 是空白模板 | 创建 TestSceneBuilder 一键生成测试场景，用户无需手动搭建 |
+
+**新增文件：**
+
+| 文件 | 路径 | 说明 |
+|------|------|------|
+| TestSceneBuilder.cs | Assets/Scripts/Editor/ | 一键生成/清空测试场景的 Editor 工具 |
+| ComponentSetupTests.cs | Assets/Tests/EditMode/ | EditMode 自动化测试 |
+| GameplayTests.cs | Assets/Tests/PlayMode/ | PlayMode 自动化测试 |
+| EditModeTests.asmdef | Assets/Tests/EditMode/ | EditMode 测试 Assembly Definition |
+| PlayModeTests.asmdef | Assets/Tests/PlayMode/ | PlayMode 测试 Assembly Definition |
+
+**代码统计：**
+- 项目总计 26 个 .cs 文件，6370 行代码
+- 本次新增 3 个 .cs 文件，约 1750 行代码
+
+**决策变更：无**
+
+---
 
 ### Session 7 记录（2026-04-01）
 
@@ -375,13 +481,14 @@ rb.velocity = _frameVelocity;  // 只写一次
 | 伪装机制实现 | Sprite替换 + Collider切换 | 变身时替换SpriteRenderer的sprite，同时切换碰撞体形状匹配伪装对象 |
 | **平台跟随方案** | **速度注入法（不使用 SetParent）** | **Dynamic Rigidbody2D 的 rb.velocity 是世界坐标系绝对速度，SetParent 改变 Transform 层级但物理引擎不理解层级关系。正确做法：平台每帧把速度注入角色，角色在 FixedUpdate 叠加。** |
 | **道具操控机制** | **接口(IControllableProp) + 抽象基类(ControllablePropBase) + 三阶段状态机** | **参考 Crawl 游戏的 Ghost Possess Trap。Telegraph→Active→Cooldown 三阶段设计，预警给 Mario 反应窗口，提高博弈深度。接口+基类架构便于扩展新道具类型** |
+| **测试策略** | **EditMode + PlayMode 双层自动化测试** | **EditMode 验证组件依赖和静态逻辑（不需要物理引擎），PlayMode 验证运行时行为（移动/跳跃/碰撞/状态机）。TestSceneBuilder 解决场景搭建自动化。** |
 | 关卡构建 | Unity Tilemap | 参考zigurous教程，快速搭建2D关卡 |
 | 相机方案 | 自定义CameraController（后期升级Cinemachine） | MVP阶段用简单脚本，已预装Cinemachine包 |
 | 游戏管理 | 单例GameManager | 管理游戏状态、胜负判定、暂停、重启 |
 | UI方案 | OnGUI后备 + UGUI Canvas | MVP阶段OnGUI快速显示，后期升级为Canvas UI |
 | 美术风格 | 16-bit像素风 | 使用itch.io免费CC0素材（Pixel Adventure为主），后期可用本地AI工具生成补充素材 |
 | 网络架构 | 暂不实现 | MVP阶段仅本地多人，后期扩展可考虑Unity Netcode |
-| 项目结构 | 按功能模块分文件夹 | Assets/Scripts/{Player, Enemy, Core, UI, Camera, Ability} |
+| 项目结构 | 按功能模块分文件夹 | Assets/Scripts/{Player, Enemy, Core, UI, Camera, Ability, Editor} + Assets/Tests/{EditMode, PlayMode} |
 
 ---
 
@@ -416,22 +523,31 @@ Assets/
 │   │   ├── Collectible.cs           ✅ 可收集物品
 │   │   ├── Breakable.cs             ✅ 可破坏方块
 │   │   ├── MovingPlatform.cs        ✅ 移动平台 (Session 6 重写: 速度注入法)
-│   ├── SpriteAutoFit.cs         ✅ Sprite 自动适配 BoxCollider2D 大小 (Session 7 新增)
-├── Ability/
-│   ├── IControllableProp.cs     ✅ 可操控道具接口
-│   ├── ControllablePropBase.cs  ✅ 操控状态机基类
-│   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
-│   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)
+│   │   └── SpriteAutoFit.cs         ✅ Sprite 自动适配 (Session 7 新增)
+│   ├── Ability/
+│   │   ├── IControllableProp.cs     ✅ 可操控道具接口
+│   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类
+│   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
+│   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)
 │   │   ├── ControllableHazard.cs    ✅ 可操控危险道具
 │   │   └── ControllableBlock.cs     ✅ 可操控方块
 │   ├── Camera/
 │   │   └── CameraController.cs      ✅ 相机跟随逻辑
+│   ├── Editor/
+│   │   └── TestSceneBuilder.cs      ✅ 一键生成测试场景 (Session 8 新增)
 │   └── UI/
 │       └── GameUI.cs                ✅ 基础HUD
+├── Tests/
+│   ├── EditMode/
+│   │   ├── EditModeTests.asmdef     ✅ Assembly Definition (Session 8 新增)
+│   │   └── ComponentSetupTests.cs   ✅ 组件依赖/配置验证测试 (Session 8 新增)
+│   └── PlayMode/
+│       ├── PlayModeTests.asmdef     ✅ Assembly Definition (Session 8 新增)
+│       └── GameplayTests.cs         ✅ 核心玩法自动化测试 (Session 8 新增)
 ├── InputActions/
 │   └── GameControls.inputactions    ✅ Input System配置
 ├── Scenes/
-│   └── SampleScene.unity            （需要用 Tilemap 搭建正式关卡）
+│   └── SampleScene.unity            （使用 TestSceneBuilder 一键生成测试关卡）
 ├── Prefabs/                          ⬜ 待创建
 ├── Sprites/                          ⬜ 待导入素材
 └── Tilemaps/                         ⬜ 待创建

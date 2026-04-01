@@ -228,7 +228,7 @@ public class DisguiseSystem : MonoBehaviour
     {
         if (transformVFXPrefab != null)
         {
-            GameObject vfx = Instantiate(transformVFXPrefab, transform.position, Quaternion.identity);
+            GameObject vfx = (GameObject)Instantiate(transformVFXPrefab, transform.position, Quaternion.identity);
             Destroy(vfx, 1f);
         }
     }

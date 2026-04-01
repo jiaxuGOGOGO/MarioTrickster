@@ -503,13 +503,19 @@ Assets/
 │   │   ├── DisguiseSystem.cs        ✅ 已完成
 │   │   └── TricksterAbilities.cs    ⬜ 待开发
 │   ├── Core/                   # 核心系统
-│   │   ├── GameManager.cs           ⬜ 待开发
-│   │   ├── InputManager.cs          ⬜ 待开发
-│   │   └── LevelManager.cs          ⬜ 待开发
+│   │   ├── GameManager.cs           ✅ 已完成
+│   │   ├── InputManager.cs          ✅ 已完成
+│   │   ├── LevelManager.cs          ✅ 已完成
+│   │   ├── GoalZone.cs              ✅ 已完成
+│   │   ├── KillZone.cs              ✅ 已完成
+│   │   ├── DamageDealer.cs          ✅ 已完成
+│   │   ├── Collectible.cs           ✅ 已完成
+│   │   ├── Breakable.cs             ✅ 已完成
+│   │   └── MovingPlatform.cs        ✅ 已完成
 │   ├── Camera/                 # 相机
-│   │   └── CameraController.cs      ⬜ 待开发
+│   │   └── CameraController.cs      ✅ 已完成
 │   ├── UI/                     # UI 相关
-│   │   └── GameUI.cs                ⬜ 待开发
+│   │   └── GameUI.cs                ✅ 已完成
 │   └── Network/                # 联机相关（后期）
 │       └── NetworkManager.cs
 ├── Sprites/                    # 所有图片素材
@@ -531,7 +537,7 @@ Assets/
 │   ├── BGM/
 │   └── SFX/
 ├── InputActions/
-│   └── GameControls.inputactions    ⬜ 待配置
+│   └── GameControls.inputactions    ✅ 已配置
 └── Resources/
 ```
 
@@ -644,9 +650,9 @@ Profiler 截图：[如果会用 Unity Profiler，截图发过来]
 - [x] 生命值系统（PlayerHealth.cs）
 - [x] Trickster 控制器脚本（TricksterController.cs）
 - [x] 伪装/变身系统（DisguiseSystem.cs）
-- [ ] 本地双人输入管理（InputManager.cs）
-- [ ] 游戏管理器（GameManager.cs）
-- [ ] 相机跟随系统（CameraController.cs）
+- [x] 本地双人输入管理（InputManager.cs）
+- [x] 游戏管理器（GameManager.cs）
+- [x] 相机跟随系统（CameraController.cs）
 - [ ] 基础关卡搭建（Tilemap）
 - [ ] 核心玩法验证：**"这好玩吗？"**
 

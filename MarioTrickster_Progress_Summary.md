@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-01 (Session 6) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-01 (Session 7) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 
 ---
 
@@ -85,9 +85,9 @@
 |------|------|------|------|
 | MarioController.cs | Assets/Scripts/Player/ | ✅ **Session 6 更新** | Tarodev 帧速度架构 + 平台速度注入法跟随 + 手感调优（acceleration=160, groundDeceleration=200） |
 | PlayerHealth.cs | Assets/Scripts/Player/ | ✅ | 通用生命值/无敌帧/受伤闪烁/死亡事件 |
-| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 6 更新** | 与 MarioController 一致的帧速度架构 + 平台速度注入 + 手感调优（acceleration=140, groundDeceleration=200） |
-| DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ | Sprite替换变身/冷却/场景融入/多形态切换（已修复类型转换Bug） |
-| InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 5 重写** | 修复 OnJumpReleased 每帧触发问题，用 wasJumpHeld 状态机精确检测按下/松开事件，精简代码 |
+| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | 与 MarioController 一致的帧速度架构 + 平台速度注入 + 手感调优；OnGUI 显示伪装系统实时状态 |
+| DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | Sprite替换变身/冷却/场景融入/多形态切换；新增 GetDebugStatus() 调试方法 |
+| InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 7 更新** | 修复 OnJumpReleased 每帧触发问题，用 wasJumpHeld 状态机精确检测按下/松开事件；P2 键位改为 POIL 方案 |
 | GameManager.cs | Assets/Scripts/Core/ | ✅ | 游戏状态/胜负判定/暂停/重启/计时器/单例模式 |
 | CameraController.cs | Assets/Scripts/Camera/ | ✅ | 平滑跟随Mario/前瞻偏移/死区/关卡边界限制/相机震动 |
 
@@ -283,6 +283,29 @@ git pull
 
 ## 六、Session 历史记录
 
+### Session 7 记录（2026-04-01）
+
+**新完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| P2 键位优化 | 伪装键 右Shift→**P**，切换形态 Enter/Backspace→**O/I**，操控道具 右Alt→**L**。新键位全部集中在右手字母区，与方向键操作更协调 |
+| 伪装调试显示 | TricksterController 新增 `OnGUI`，运行时屏幕右上角实时显示伪装系统状态（未配置/就绪/已伪装/冷却中），方便排查配置问题 |
+| DisguiseSystem 调试接口 | 新增 `GetDebugStatus()` 方法，返回人类可读的伪装状态字符串，供 OnGUI 调用 |
+| SpriteAutoFit 脚本 | 新增通用工具脚本，挂到有 SpriteRenderer + BoxCollider2D 的物体上，自动将 Sprite 缩放填满 Collider 大小。支持编辑器实时预览（`[ExecuteInEditMode]`） |
+| 场景搭建指导 | 完成了 ControllablePlatform/Hazard 的 Sprite 配置、Tiled 模式、Scale 调整等场景搭建实操指导 |
+
+**新发现问题：**
+
+| 编号 | 描述 | 状态 |
+|------|------|------|
+| B009 | DisguiseSystem 的 Available Disguises 列表为空时按 P 无任何反应，用户不知道原因 | ✅ 已通过调试显示解决（屏幕右上角会提示"未配置伪装形态"） |
+| B010 | SpriteAutoFit 脚本使用 `[ExecuteInEditMode]` 持续修改 Scale，与手动调整 Scale 冲突 | ✅ 已告知用户：使用 SpriteAutoFit 时不要手动改 Scale；或改用 Tiled 模式 + 手动设置 Size |
+
+**决策变更：无**
+
+---
+
 ### Session 6 修复记录（2026-04-01）
 
 **平台跟随系统彻底重写（速度注入法）：**
@@ -392,12 +415,13 @@ Assets/
 │   │   ├── DamageDealer.cs          ✅ 通用伤害触发器
 │   │   ├── Collectible.cs           ✅ 可收集物品
 │   │   ├── Breakable.cs             ✅ 可破坏方块
-│   │   └── MovingPlatform.cs        ✅ 移动平台 (Session 6 重写: 速度注入法)
-│   ├── Ability/
-│   │   ├── IControllableProp.cs     ✅ 可操控道具接口
-│   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类
-│   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
-│   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)
+│   │   ├── MovingPlatform.cs        ✅ 移动平台 (Session 6 重写: 速度注入法)
+│   ├── SpriteAutoFit.cs         ✅ Sprite 自动适配 BoxCollider2D 大小 (Session 7 新增)
+├── Ability/
+│   ├── IControllableProp.cs     ✅ 可操控道具接口
+│   ├── ControllablePropBase.cs  ✅ 操控状态机基类
+│   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
+│   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)
 │   │   ├── ControllableHazard.cs    ✅ 可操控危险道具
 │   │   └── ControllableBlock.cs     ✅ 可操控方块
 │   ├── Camera/
@@ -421,10 +445,10 @@ Assets/
 |------|-----------------|---------------------|
 | 移动 | WASD | 方向键 |
 | 跳跃 | Space | 上方向键 / 右Ctrl / 小键盘0 |
-| 伪装/取消伪装 | — | 右Shift |
-| 切换伪装形态（下一个） | — | Enter |
-| 切换伪装形态（上一个） | — | Backspace |
-| **操控道具** | — | **右Alt / 手柄Y** |
+| 伪装/取消伪装 | — | **P** |
+| 切换伪装形态（下一个） | — | **O** |
+| 切换伪装形态（上一个） | — | **I** |
+| **操控道具** | — | **L / 手柄Y** |
 | 暂停 | ESC | ESC |
 | 快速重启 | F5 | F5 |
 | 手柄支持 | 第1个手柄 | 第2个手柄 |

@@ -3,17 +3,14 @@ using UnityEngine;
 /// <summary>
 /// 移动平台 - 在两个点之间来回移动，站在上面的角色跟随
 /// 
+/// 跟随方案（速度注入）:
+///   每帧把平台速度通过 SetPlatformVelocity() 注入到角色控制器，
+///   角色控制器在 FixedUpdate 里把平台速度叠加到自身速度上。
+///   这样角色既能随平台移动，也能在平台上自由走动（两者不冲突）。
+/// 
 /// 使用方式:
 ///   1. 挂载到平台 GameObject，需要 BoxCollider2D
-///   2. 设置 Point B（终点偏移），平台会在 A↔B 间来回移动
-///   3. 在平台的 BoxCollider2D 上挂一个 PhysicsMaterial2D（Friction=0）防止边缘卡住
-/// 
-/// 边缘卡住修复 (Session 4):
-///   - 根因：角色 Rigidbody2D 与平台侧面碰撞时，水平速度被物理引擎清零，
-///     导致角色贴着平台侧面无法移动（即"卡住"现象）
-///   - 修复：通过代码在运行时自动给平台 Collider 设置零摩擦材质，
-///     同时给角色 Collider 也设置零摩擦材质，彻底消除侧面摩擦力
-///   - 角色跟随改用位移推动（非 SetParent），避免 Rigidbody2D 物理异常
+///   2. 设置 Point B（终点偏移），平台会在起点↔B 间来回移动
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class MovingPlatform : MonoBehaviour
@@ -30,22 +27,19 @@ public class MovingPlatform : MonoBehaviour
     private float waitTimer;
     private bool isWaiting;
 
-    private Transform ridingMario;
-    private Transform ridingTrickster;
+    // 本帧平台速度（由 FixedUpdate 计算后注入角色）
+    private Vector2 currentPlatformVelocity;
 
-    // 零摩擦材质（运行时自动创建）
+    private MarioController ridingMario;
+    private TricksterController ridingTrickster;
+
     private static PhysicsMaterial2D s_zeroFriction;
-
     private static PhysicsMaterial2D ZeroFriction
     {
         get
         {
             if (s_zeroFriction == null)
-            {
-                s_zeroFriction = new PhysicsMaterial2D("ZeroFriction");
-                s_zeroFriction.friction = 0f;
-                s_zeroFriction.bounciness = 0f;
-            }
+                s_zeroFriction = new PhysicsMaterial2D("ZeroFriction") { friction = 0f, bounciness = 0f };
             return s_zeroFriction;
         }
     }
@@ -54,18 +48,9 @@ public class MovingPlatform : MonoBehaviour
     {
         worldPointA = transform.position;
         worldPointB = transform.position + pointB;
+        targetPoint = startFromB ? worldPointA : worldPointB;
+        if (startFromB) transform.position = worldPointB;
 
-        if (startFromB)
-        {
-            transform.position = worldPointB;
-            targetPoint = worldPointA;
-        }
-        else
-        {
-            targetPoint = worldPointB;
-        }
-
-        // 给平台自身设置零摩擦，防止角色贴着侧面卡住
         GetComponent<BoxCollider2D>().sharedMaterial = ZeroFriction;
     }
 
@@ -75,19 +60,21 @@ public class MovingPlatform : MonoBehaviour
         {
             waitTimer -= Time.fixedDeltaTime;
             if (waitTimer <= 0) isWaiting = false;
+            currentPlatformVelocity = Vector2.zero;
             return;
         }
 
         Vector3 prev = transform.position;
         transform.position = Vector3.MoveTowards(transform.position, targetPoint, moveSpeed * Time.fixedDeltaTime);
 
-        // 推动站在平台上的角色
+        // 计算本帧实际速度，注入到站在平台上的角色
         Vector3 delta = transform.position - prev;
-        if (delta.sqrMagnitude > 0f)
-        {
-            if (ridingMario != null)    ridingMario.position    += delta;
-            if (ridingTrickster != null) ridingTrickster.position += delta;
-        }
+        currentPlatformVelocity = new Vector2(delta.x, delta.y) / Time.fixedDeltaTime;
+
+        if (ridingMario != null)
+            ridingMario.SetPlatformVelocity(currentPlatformVelocity);
+        if (ridingTrickster != null)
+            ridingTrickster.SetPlatformVelocity(currentPlatformVelocity);
 
         if (Vector3.Distance(transform.position, targetPoint) < 0.01f)
         {
@@ -99,9 +86,9 @@ public class MovingPlatform : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D col)
     {
-        // 只响应从上方落下的碰撞
         foreach (ContactPoint2D c in col.contacts)
         {
+            // 接触法线朝上 = 角色在平台顶部
             if (c.normal.y >= 0.5f)
             {
                 TryRegisterRider(col);
@@ -112,31 +99,29 @@ public class MovingPlatform : MonoBehaviour
 
     private void OnCollisionExit2D(Collision2D col)
     {
-        if (col.transform == ridingMario)    ridingMario    = null;
-        if (col.transform == ridingTrickster) ridingTrickster = null;
+        if (col.gameObject.GetComponent<MarioController>() == ridingMario)
+            ridingMario = null;
+        if (col.gameObject.GetComponent<TricksterController>() == ridingTrickster)
+            ridingTrickster = null;
     }
 
     private void TryRegisterRider(Collision2D col)
     {
-        GameObject obj = col.gameObject;
-
-        if (obj.GetComponent<MarioController>() != null)
+        MarioController mario = col.gameObject.GetComponent<MarioController>();
+        if (mario != null)
         {
-            // 给角色 Collider 也设置零摩擦，防止贴墙卡住
-            ApplyZeroFriction(obj);
-            ridingMario = col.transform;
+            ApplyZeroFriction(col.gameObject);
+            ridingMario = mario;
             return;
         }
 
-        TricksterController tc = obj.GetComponent<TricksterController>();
+        TricksterController tc = col.gameObject.GetComponent<TricksterController>();
         if (tc != null)
         {
-            // 伪装中的 Trickster 不被平台携带
-            DisguiseSystem ds = obj.GetComponent<DisguiseSystem>();
+            DisguiseSystem ds = col.gameObject.GetComponent<DisguiseSystem>();
             if (ds != null && ds.IsDisguised) return;
-
-            ApplyZeroFriction(obj);
-            ridingTrickster = col.transform;
+            ApplyZeroFriction(col.gameObject);
+            ridingTrickster = tc;
         }
     }
 

@@ -48,8 +48,8 @@ public class ControllablePlatform : ControllablePropBase
     private Vector3 rushDirection;
     private Vector3 preControlPosition;
 
-    private Transform ridingMario;
-    private Transform ridingTrickster;
+    private MarioController ridingMario;
+    private TricksterController ridingTrickster;
 
     // 零摩擦材质（运行时自动创建，全局共享）
     private static PhysicsMaterial2D s_zeroFriction;
@@ -101,11 +101,13 @@ public class ControllablePlatform : ControllablePropBase
         else
             UpdateNormalMovement();
 
+        // 计算平台速度，注入到角色控制器（角色自己叠加输入）
         Vector3 delta = transform.position - prev;
         if (delta.sqrMagnitude > 0f)
         {
-            if (ridingMario != null)     ridingMario.position     += delta;
-            if (ridingTrickster != null) ridingTrickster.position += delta;
+            Vector2 platVel = new Vector2(delta.x, delta.y) / Time.fixedDeltaTime;
+            if (ridingMario != null)     ridingMario.SetPlatformVelocity(platVel);
+            if (ridingTrickster != null) ridingTrickster.SetPlatformVelocity(platVel);
         }
     }
 
@@ -220,18 +222,19 @@ public class ControllablePlatform : ControllablePropBase
 
     private void OnCollisionExit2D(Collision2D col)
     {
-        if (col.transform == ridingMario)     ridingMario     = null;
-        if (col.transform == ridingTrickster) ridingTrickster = null;
+        if (col.gameObject.GetComponent<MarioController>() == ridingMario)         ridingMario     = null;
+        if (col.gameObject.GetComponent<TricksterController>() == ridingTrickster) ridingTrickster = null;
     }
 
     private void TryRegisterRider(Collision2D col)
     {
         GameObject obj = col.gameObject;
 
-        if (obj.GetComponent<MarioController>() != null)
+        MarioController mario = obj.GetComponent<MarioController>();
+        if (mario != null)
         {
             ApplyZeroFriction(obj);
-            ridingMario = col.transform;
+            ridingMario = mario;
             return;
         }
 
@@ -241,7 +244,7 @@ public class ControllablePlatform : ControllablePropBase
             DisguiseSystem ds = obj.GetComponent<DisguiseSystem>();
             if (ds != null && ds.IsDisguised) return;
             ApplyZeroFriction(obj);
-            ridingTrickster = col.transform;
+            ridingTrickster = tc;
         }
     }
 

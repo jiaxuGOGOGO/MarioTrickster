@@ -36,6 +36,9 @@ public class TricksterController : MonoBehaviour
     private Vector2 moveInput;
     private bool jumpPressed;
 
+    // 平台速度
+    private Vector2 platformVelocity;
+
     // 状态
     private bool isGrounded;
     private bool isFacingRight = true;
@@ -93,8 +96,10 @@ public class TricksterController : MonoBehaviour
         jumpPressed = false;
 
         float speedMultiplier = IsDisguised ? disguisedMoveMultiplier : 1f;
-        float targetSpeed = moveInput.x * moveSpeed * speedMultiplier;
+        float inputSpeed = moveInput.x * moveSpeed * speedMultiplier;
+        float targetSpeed = inputSpeed + platformVelocity.x;
         rb.velocity = new Vector2(targetSpeed, rb.velocity.y);
+        platformVelocity = Vector2.zero;
     }
 
     #region 输入回调（由InputManager调用）
@@ -112,6 +117,12 @@ public class TricksterController : MonoBehaviour
     public void OnJumpReleased()
     {
         // Trickster暂不需要变高跳跃
+    }
+
+    /// <summary>由 MovingPlatform 调用，设置本帧平台速度</summary>
+    public void SetPlatformVelocity(Vector2 velocity)
+    {
+        platformVelocity = velocity;
     }
 
     /// <summary>伪装键按下</summary>

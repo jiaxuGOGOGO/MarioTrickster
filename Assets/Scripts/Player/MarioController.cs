@@ -46,6 +46,9 @@ public class MarioController : MonoBehaviour
     private bool jumpPressed;
     private bool jumpHeld;
 
+    // 平台速度（由 MovingPlatform 每帧写入，FixedUpdate 后自动清零）
+    private Vector2 platformVelocity;
+
     // 状态
     private bool isGrounded;
     private bool wasGrounded;
@@ -176,23 +179,25 @@ public class MarioController : MonoBehaviour
 
     private void ApplyMovement()
     {
-        float targetSpeed = moveInput.x * moveSpeed;
+        // 目标速度 = 玩家输入速度 + 平台速度（叠加，使角色在平台上可自由走动）
+        float targetSpeed = moveInput.x * moveSpeed + platformVelocity.x;
         float currentSpeed = rb.velocity.x;
         float accel = isGrounded ? acceleration : airAcceleration;
 
-        // 判断加速还是减速
-        if (Mathf.Abs(targetSpeed) > 0.01f)
+        if (Mathf.Abs(moveInput.x) > 0.01f)
         {
-            // 加速
             float newSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, accel * Time.fixedDeltaTime);
             rb.velocity = new Vector2(newSpeed, rb.velocity.y);
         }
         else
         {
-            // 减速
-            float newSpeed = Mathf.MoveTowards(currentSpeed, 0, deceleration * Time.fixedDeltaTime);
+            // 无输入时趋向平台速度（而非0），保证跟随
+            float newSpeed = Mathf.MoveTowards(currentSpeed, platformVelocity.x, deceleration * Time.fixedDeltaTime);
             rb.velocity = new Vector2(newSpeed, rb.velocity.y);
         }
+
+        // 平台速度用完即清，由平台每帧重新写入
+        platformVelocity = Vector2.zero;
     }
 
     private void ExecuteJump()
@@ -256,6 +261,12 @@ public class MarioController : MonoBehaviour
     #endregion
 
     #region 公共方法
+
+    /// <summary>由 MovingPlatform 调用，设置本帧平台速度（在 FixedUpdate 前调用）</summary>
+    public void SetPlatformVelocity(Vector2 velocity)
+    {
+        platformVelocity = velocity;
+    }
 
     /// <summary>Mario死亡</summary>
     public void Die()

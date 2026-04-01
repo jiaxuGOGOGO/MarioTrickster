@@ -173,8 +173,9 @@ InputManager (右Alt/手柄Y)
 | B007 | ✅ **已修复 (Session 6)** 站上平台后角色被甩飞 | — | 根因：平台速度每帧累积。修复：读回 rb.velocity 时减去上一帧平台速度 `_lastPlatformVelocity`。 |
 | B008 | ✅ **已修复 (Session 6)** 角色移动有打滑感 | — | 根因：groundDeceleration 过低(60)。修复：Mario 调至 200，Trickster 调至 200。 |
 | B011 | 游戏结束后（Mario 死亡/到达终点）缺少明显的屏幕提示和重启引导，玩家不知道游戏已结束，以为角色卡住了 | 高 | GameUI.cs 的 OnGUI 有 game-over 覆盖层（显示 R 重启 / N 下一回合），但可能未正确触发或不够醒目。下次 Session 修复 |
-| B012 | 道具操控（按 L）缺少视觉/日志反馈，按 L 后无任何提示，玩家不知道是否成功触发、是否在范围内、是否满足前置条件 | 高 | TricksterAbilitySystem 的失败分支只在 showDebugInfo=true 时输出日志，默认关闭。下次 Session 修复：默认开启调试信息或添加始终可见的状态提示 |
+| B012 | 道具操控（按 L）反馈不足 | 中 | 用户手动测试确认：靠近陷阱按 L **有反馈**（预警闪烁+爆发效果正常）。但失败时（不在范围/未满足前置条件）无提示，需开启 showDebugInfo 或添加始终可见的失败提示 |
 | B013 | TestSceneBuilder 中 LevelManager 字段名错误（marioSpawn→marioSpawnPoint, tricksterSpawn→tricksterSpawnPoint） | — | ✅ 已修复 (Session 9) |
+| B014 | ESC 暂停后再按 ESC 恢复，无任何视觉反馈（没有“已恢复”提示，不确定是否成功恢复） | 中 | GameManager 暂停时 GameUI 显示“PAUSED”横幅，但恢复时横幅消失不够明显，缺少过渡效果或短暂的“已恢复”提示 |
 
 ### 关于 B002 的修复方法
 
@@ -335,7 +336,7 @@ git pull
 | 6 | 配置相机 | ✅ **Session 8 自动化** | TestSceneBuilder 自动挂载 CameraController 并设置跟随 Mario |
 | 7 | 放置GoalZone和KillZone | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置终点（绿色，位置18,1）和死亡区域（底部） |
 | 8 | 放置可操控道具 | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置 ControllablePlatform/Hazard/Block |
-| 9 | **核心玩法验证** | 🔄 进行中 | 自动化测试已覆盖 50+ 测试用例；用户需在 Unity 中运行 TestSceneBuilder + Test Runner 进行最终验证 |
+| 9 | **核心玩法验证** | 🔄 进行中 | 手动 Play 测试已完成（见下方测试结果），待运行 Test Runner 自动化测试 |
 | 10 | **自动化测试框架** | ✅ **Session 8 完成** | EditMode 30+ 测试 + PlayMode 20+ 测试，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停 |
 
 ### 第二优先级：游戏体验（Sprint 2，预计 1-2 周）
@@ -360,6 +361,18 @@ git pull
 
 ### Session 9 记录（2026-04-01）
 
+**手动 Play 测试结果（用户在 Unity 中实际测试）：**
+
+| 测试项 | 结果 | 备注 |
+|----------|------|------|
+| Mario 移动/跳跃 | ✅ 正常 | WASD 移动流畅，Space 跳跃正常 |
+| Trickster 移动 | ✅ 正常 | 方向键移动正常 |
+| 移动平台跟随 | ✅ 正常 | 站上平台不会被甩飞 |
+| 伪装变身 | ✅ 正常 | P 伪装/解除，O/I 切换形态，静止后融入 |
+| 道具操控（L 键） | ✅ 基本正常 | 靠近陷阱按 L 有反馈（预警+爆发），但失败时无提示（B012） |
+| 胜负判定 | ✅ 正常 | Mario 死亡触发 Trickster 胜利，但结束提示不够明显（B011） |
+| ESC 暂停 | ⚠️ 部分问题 | 暂停有效，但恢复时无视觉反馈（B014） |
+
 **本次完成功能：**
 
 | 项目 | 说明 |
@@ -381,7 +394,8 @@ git pull
 | 编号 | 描述 | 优先级 |
 |------|------|--------|
 | B011 | 游戏结束后缺少明显提示，玩家以为角色卡住（实际是游戏已结束，输入被禁用） | 高 |
-| B012 | 道具操控（L 键）缺少反馈，按 L 后无任何提示，不知道是否成功/是否在范围内/是否满足前置条件 | 高 |
+| B012 | 道具操控（L 键）成功时有反馈，但失败时无提示（不在范围/未满足前置条件） | 中 |
+| B014 | ESC 暂停后恢复无视觉反馈，玩家不确定是否已恢复 | 中 |
 
 **新增文件：**
 

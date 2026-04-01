@@ -285,8 +285,8 @@ git pull
 | `MarioController.cs` | 引入 Tarodev 帧速度累积架构；重力自管；BoxCast 地面检测；Coyote Time(0.15s)；跳跃缓冲(0.2s)；OnValidate 警告 |
 | `TricksterController.cs` | 与 MarioController 完全一致的帧速度架构；同样支持 Coyote Time + 跳跃缓冲 |
 | `InputManager.cs` | 修复 OnJumpReleased 每帧触发问题；用 `wasJumpHeld` 状态机精确检测事件；精简代码 |
-| `MovingPlatform.cs` | 增加 `OnCollisionStay2D` 补充注册，防止物理帧漏掉跟随 |
-| `ControllablePlatform.cs` | 修复 `worldPointA` 双重赋值 Bug；移除冗余 `useLocalSpace` 参数；增加 `OnCollisionStay2D` |
+| `MovingPlatform.cs` | **Session 5 彻底重写**：改用 Kinematic Rigidbody2D + `MovePosition()` 移动平台，Unity 物理引擎自动处理角色跟随，移除速度注入代码，TD001 技术债已解决 |
+| `ControllablePlatform.cs` | 修复 `worldPointA` 双重赋值 Bug；移除冗余 `useLocalSpace` 参数；同步改用 Kinematic Rigidbody2D + `MovePosition()` |
 
 **核心架构变化（帧速度累积）**：
 ```
@@ -327,7 +327,7 @@ rb.velocity = _frameVelocity;  // 只写一次
 
 | 编号 | 位置 | 描述 | 影响 | 建议处理时机 |
 |------|------|------|------|-------------|
-| TD001 | `MovingPlatform.cs` | 平台用 `transform.position` 直接移动，而非 `Rigidbody2D.MovePosition()`。当前平台无 Rigidbody2D，物理交互有限。 | 若以后平台需要被炸飞/受力，需改为 Rigidbody2D + `MovePosition()` 方案 | Sprint 2 添加平台物理交互时 |
+| TD001 ✅ | `MovingPlatform.cs` | ~~平台用 `transform.position` 直接移动，无 Rigidbody2D~~。**已解决（Session 5）**：改用 Kinematic Rigidbody2D + `MovePosition()` 方案，Unity 物理引擎自动处理角色跟随，平台跟随问题从根本上解决。 | — | 已完成 |
 | TD002 | `MarioController.Die()` / `TricksterController.Die()` | `Die()` 调用后立即 `enabled = false`，没有死亡动画播放窗口。`OnDeath` 事件虽存在，但脚本已禁用，无法在禁用后继续播放动画。 | 以后加死亡动画（如角色翻倒后 1 秒消失）时，需改为协程或状态机控制禁用时机 | Sprint 2 添加动画系统时 |
 
 ---

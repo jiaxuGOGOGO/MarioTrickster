@@ -35,6 +35,37 @@
 
 ---
 
+## ⚡ Git 拉取速查（每次 AI 推送后必看）
+
+> **规律：有本地改动就先 commit，再 pull。**
+
+### 场景 1：只拉取 AI 的新代码，本地没有任何改动
+
+```cmd
+git pull
+```
+
+### 场景 2：本地有新场景 / 有改动，同时要拉取 AI 的新代码
+
+```cmd
+git add -A
+git commit -m "本地进度"
+git pull --rebase
+git push
+```
+
+> **常见报错速查**
+>
+> | 报错信息 | 原因 | 解决方法 |
+> |----------|------|----------|
+> | `Your local changes would be overwritten` | 本地有未提交修改 | 先 `git add -A` → `git commit` |
+> | `cannot pull with rebase: You have unstaged changes` | 同上 | 同上 |
+> | `Updates were rejected (fetch first)` | 没拉取就直接 push | 先 `git pull --rebase` 再 push |
+> | `Failed to connect to github.com port 443` | 网络/梯子问题 | 开梯子，或配置代理（见 5.9 节） |
+> | `Author identity unknown` | 未配置 Git 用户信息 | `git config --global user.email "你的邮箱"` 和 `git config --global user.name "你的名字"` |
+
+---
+
 ## 1. 快速启动与上下文衔接
 
 每次开启新对话时，AI 会丢失之前所有记忆。以下机制配合使用：**1.2 负责"存档"，1.1 负责"读档"，1.3 让 AI 能直接推送代码，1.4 确保积分耗尽前不丢失进度**。

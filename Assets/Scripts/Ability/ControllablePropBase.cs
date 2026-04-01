@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// 可操控道具抽象基类 - 封装 Telegraph→Active→Cooldown 三阶段状态机

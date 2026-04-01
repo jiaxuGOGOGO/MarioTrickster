@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 /// <summary>
 /// 玩家生命值管理 - 通用脚本，Mario和Trickster都可使用

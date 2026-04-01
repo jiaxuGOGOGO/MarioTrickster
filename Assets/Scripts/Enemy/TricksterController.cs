@@ -23,8 +23,11 @@ public class TricksterController : MonoBehaviour
     // ── 移动 ──────────────────────────────────────────────
     [Header("移动")]
     [SerializeField] private float maxSpeed = 8f;
-    [SerializeField] private float acceleration = 100f;
-    [SerializeField] private float groundDeceleration = 60f;
+    [Tooltip("地面加速度（越大起步越快）")]
+    [SerializeField] private float acceleration = 140f;
+    [Tooltip("地面减速度（越大停止越果断，调大可消除打滑感）")]
+    [SerializeField] private float groundDeceleration = 200f;
+    [Tooltip("空中减速度（松开输入后，建议保持较小以保留空中滑行感）")]
     [SerializeField] private float airDeceleration = 30f;
     [SerializeField] private float groundingForce = -1.5f;
 

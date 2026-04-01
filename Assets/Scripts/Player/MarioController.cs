@@ -25,11 +25,11 @@ public class MarioController : MonoBehaviour
     [Header("移动")]
     [Tooltip("最大水平速度")]
     [SerializeField] private float maxSpeed = 9f;
-    [Tooltip("地面加速度")]
-    [SerializeField] private float acceleration = 120f;
-    [Tooltip("地面减速度")]
-    [SerializeField] private float groundDeceleration = 60f;
-    [Tooltip("空中减速度（松开输入后）")]
+    [Tooltip("地面加速度（越大起步越快）")]
+    [SerializeField] private float acceleration = 160f;
+    [Tooltip("地面减速度（越大停止越果断，调大可消除打滑感）")]
+    [SerializeField] private float groundDeceleration = 200f;
+    [Tooltip("空中减速度（松开输入后，建议保持较小以保留空中滑行感）")]
     [SerializeField] private float airDeceleration = 30f;
     [Tooltip("落地时施加的微小向下力，防止在斜面上抖动")]
     [SerializeField] private float groundingForce = -1.5f;

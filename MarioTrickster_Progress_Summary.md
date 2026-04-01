@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-01 (Session 8) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-01 (Session 9) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 
 ---
 
@@ -144,6 +144,8 @@ InputManager (右Alt/手柄Y)
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
 | TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 8 新增** | Editor 菜单工具，一键生成完整测试场景（地面/平台/角色/管理器/道具/终点/死亡区域/敌人/金币/相机），所有 Inspector 引用自动连线，Ground Layer 自动创建 |
+| MarioTrickster.asmdef | Assets/Scripts/ | ✅ **Session 9 新增** | 主项目 Assembly Definition，引用 Unity.InputSystem |
+| MarioTrickster.Editor.asmdef | Assets/Scripts/Editor/ | ✅ **Session 9 新增** | Editor 脚本 Assembly Definition |
 | ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试（30+ 测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用 |
 | GameplayTests.cs | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试（20+ 测试用例）：验证 Mario/Trickster 移动/跳跃/重力、伪装系统运行时行为、道具操控状态机（Telegraph→Active→Cooldown）、移动平台运动、GameManager 胜负判定/暂停/回合重置、InputManager 集成 |
 | EditModeTests.asmdef | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试 Assembly Definition |
@@ -170,6 +172,9 @@ InputManager (右Alt/手柄Y)
 | B006 | ✅ **已修复 (Session 6)** 平台跟随问题 | — | 根因：SetParent 与 Dynamic Rigidbody2D 冲突。已改为速度注入法。 |
 | B007 | ✅ **已修复 (Session 6)** 站上平台后角色被甩飞 | — | 根因：平台速度每帧累积。修复：读回 rb.velocity 时减去上一帧平台速度 `_lastPlatformVelocity`。 |
 | B008 | ✅ **已修复 (Session 6)** 角色移动有打滑感 | — | 根因：groundDeceleration 过低(60)。修复：Mario 调至 200，Trickster 调至 200。 |
+| B011 | 游戏结束后（Mario 死亡/到达终点）缺少明显的屏幕提示和重启引导，玩家不知道游戏已结束，以为角色卡住了 | 高 | GameUI.cs 的 OnGUI 有 game-over 覆盖层（显示 R 重启 / N 下一回合），但可能未正确触发或不够醒目。下次 Session 修复 |
+| B012 | 道具操控（按 L）缺少视觉/日志反馈，按 L 后无任何提示，玩家不知道是否成功触发、是否在范围内、是否满足前置条件 | 高 | TricksterAbilitySystem 的失败分支只在 showDebugInfo=true 时输出日志，默认关闭。下次 Session 修复：默认开启调试信息或添加始终可见的状态提示 |
+| B013 | TestSceneBuilder 中 LevelManager 字段名错误（marioSpawn→marioSpawnPoint, tricksterSpawn→tricksterSpawnPoint） | — | ✅ 已修复 (Session 9) |
 
 ### 关于 B002 的修复方法
 
@@ -353,6 +358,47 @@ git pull
 
 ## 六、Session 历史记录
 
+### Session 9 记录（2026-04-01）
+
+**本次完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| Assembly Definition 体系建立 | 创建 MarioTrickster.asmdef（主项目）+ MarioTrickster.Editor.asmdef（Editor），修复 EditMode/PlayMode 测试 asmdef 引用，添加 Unity.InputSystem 包引用。解决了 136+4 个编译错误 |
+| TestSceneBuilder 字段名修复 | 修复 LevelManager 出生点字段名错误（marioSpawn→marioSpawnPoint, tricksterSpawn→tricksterSpawnPoint） |
+| 完整测试指南文档 | 新增 MarioTrickster_Testing_Guide.md：手动 Play 测试 7 项操作步骤、EditMode/PlayMode 自动化测试说明、伪装系统 Sprite 配置指引（3 种获取方式）、操作键位速查表、调试信息说明 |
+
+**解决的问题：**
+
+| 编号 | 描述 | 解决方案 |
+|------|------|----------|
+| — | 测试脚本编译错误 CS0246（136 个错误） | 创建 MarioTrickster.asmdef + MarioTrickster.Editor.asmdef，测试 asmdef 添加主项目引用 |
+| — | InputManager 编译错误 CS0234/CS0246（4 个错误） | MarioTrickster.asmdef 添加 Unity.InputSystem 引用 |
+| B013 | TestSceneBuilder LevelManager 字段名错误 | marioSpawn→marioSpawnPoint, tricksterSpawn→tricksterSpawnPoint |
+
+**新发现 Bug：**
+
+| 编号 | 描述 | 优先级 |
+|------|------|--------|
+| B011 | 游戏结束后缺少明显提示，玩家以为角色卡住（实际是游戏已结束，输入被禁用） | 高 |
+| B012 | 道具操控（L 键）缺少反馈，按 L 后无任何提示，不知道是否成功/是否在范围内/是否满足前置条件 | 高 |
+
+**新增文件：**
+
+| 文件 | 路径 | 说明 |
+|------|------|------|
+| MarioTrickster.asmdef | Assets/Scripts/ | 主项目 Assembly Definition |
+| MarioTrickster.Editor.asmdef | Assets/Scripts/Editor/ | Editor 脚本 Assembly Definition |
+| MarioTrickster_Testing_Guide.md | 仓库根目录 | 完整测试指南文档 |
+
+**代码统计：**
+- 项目总计 26 个 .cs 文件 + 4 个 .asmdef 文件
+- 本次新增 2 个 .asmdef + 1 个 .md 文档，修改 2 个 .asmdef + 1 个 .cs
+
+**决策变更：无**
+
+---
+
 ### Session 8 记录（2026-04-01）
 
 **新完成功能：**
@@ -534,7 +580,9 @@ Assets/
 │   ├── Camera/
 │   │   └── CameraController.cs      ✅ 相机跟随逻辑
 │   ├── Editor/
-│   │   └── TestSceneBuilder.cs      ✅ 一键生成测试场景 (Session 8 新增)
+│   │   ├── TestSceneBuilder.cs      ✅ 一键生成测试场景 (Session 8 新增)
+│   │   └── MarioTrickster.Editor.asmdef ✅ Editor Assembly Definition (Session 9 新增)
+│   ├── MarioTrickster.asmdef        ✅ 主项目 Assembly Definition (Session 9 新增)
 │   └── UI/
 │       └── GameUI.cs                ✅ 基础HUD
 ├── Tests/

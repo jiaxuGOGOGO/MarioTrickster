@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-01 (Session 2) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-01 (Session 3) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 
 ---
 
@@ -53,6 +53,7 @@
 | molleindustria/local-multiplayer-unity | 2 | MIT | 简洁本地多人模板（输入/玩家/分屏管理） | https://github.com/molleindustria/local-multiplayer-unity |
 | FadrikAlexander/Among-Us-Imposter-Recreation | 32 | — | 伪装者机制复刻（移动/击杀/碰撞/通风管/破坏） | https://github.com/FadrikAlexander/Among-Us-Imposter-Recreation |
 | nicholas-maltbie/PropHunt | 12 | MIT | PropHunt变身为道具的机制参考 | https://github.com/nicholas-maltbie/PropHunt |
+| Naphann/Trap-Master | — | — | Trap Master: 陷阱操控机制参考（Session 3 新增调研） | https://github.com/Naphann/Trap-Master |
 
 **itch.io 免费像素素材（可直接使用）：**
 
@@ -74,36 +75,71 @@
 | Monica and the Monster Cloak | 变身为怪物平台跳跃 | 最接近"伪装为怪物"的核心机制 |
 | MechShift | 变形机甲平台跳跃 | 变形机制在平台跳跃中的应用 |
 | Run like Hell | 非对称合作跑酷 | 平台跳跃+非对称 |
+| Crawl | 非对称地牢 | Ghost 操控陷阱/怪物阻碍英雄（Session 3 新增参考） |
 
 ---
 
-### 2.4 MVP 核心脚本（Sprint 1 大部分完成）
+### 2.4 MVP 核心脚本（Sprint 1 全部完成）
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
 | MarioController.cs | Assets/Scripts/Player/ | ✅ | 完整移动/跳跃（coyote time + buffered jump）/地面检测 |
 | PlayerHealth.cs | Assets/Scripts/Player/ | ✅ | 通用生命值/无敌帧/受伤闪烁/死亡事件 |
-| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ | 伪装者基础控制（移动/跳跃/与DisguiseSystem协作） |
+| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 3 更新** | 伪装者基础控制 + 新增 OnAbilityPressed() 操控道具输入回调 |
 | DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ | Sprite替换变身/冷却/场景融入/多形态切换（已修复类型转换Bug） |
-| InputManager.cs | Assets/Scripts/Core/ | ✅ **新增** | 本地双人输入管理（P1:WASD+Space, P2:方向键+RCtrl+RShift+Enter, 支持手柄） |
-| GameManager.cs | Assets/Scripts/Core/ | ✅ **新增** | 游戏状态/胜负判定/暂停/重启/计时器/单例模式 |
-| CameraController.cs | Assets/Scripts/Camera/ | ✅ **新增** | 平滑跟随Mario/前瞻偏移/死区/关卡边界限制/相机震动 |
+| InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 3 更新** | 双人输入管理，新增 P2 操控道具按键（右Alt / 手柄北键Y） |
+| GameManager.cs | Assets/Scripts/Core/ | ✅ | 游戏状态/胜负判定/暂停/重启/计时器/单例模式 |
+| CameraController.cs | Assets/Scripts/Camera/ | ✅ | 平滑跟随Mario/前瞻偏移/死区/关卡边界限制/相机震动 |
 
-### 2.5 辅助脚本（Sprint 1 新增）
+### 2.5 辅助脚本（Sprint 1）
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| GoalZone.cs | Assets/Scripts/Core/ | ✅ **新增** | 终点触发器，Mario碰触后触发胜利 |
-| KillZone.cs | Assets/Scripts/Core/ | ✅ **新增** | 死亡区域（掉落深渊），碰触即死 |
-| DamageDealer.cs | Assets/Scripts/Core/ | ✅ **新增** | 通用伤害触发器（尖刺/怪物/Hazard伪装），支持击退 |
-| Collectible.cs | Assets/Scripts/Core/ | ✅ **新增** | 可收集物品（金币/回血/加速），带浮动动画 |
-| Breakable.cs | Assets/Scripts/Core/ | ✅ **新增** | 可破坏方块（砖块/问号砖块），从下方顶撞触发 |
-| MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **新增** | 移动平台，两点间来回移动，角色站上跟随 |
-| SimpleEnemy.cs | Assets/Scripts/Enemy/ | ✅ **新增** | 简单巡逻敌人，边缘/墙壁检测自动转向，可被踩消灭 |
-| GameUI.cs | Assets/Scripts/UI/ | ✅ **新增** | 基础HUD（生命值/计时器/回合信息/胜负画面），OnGUI后备显示 |
-| LevelManager.cs | Assets/Scripts/Core/ | ✅ **新增** | 关卡管理（出生点/边界/可伪装对象列表） |
+| GoalZone.cs | Assets/Scripts/Core/ | ✅ | 终点触发器，Mario碰触后触发胜利 |
+| KillZone.cs | Assets/Scripts/Core/ | ✅ | 死亡区域（掉落深渊），碰触即死 |
+| DamageDealer.cs | Assets/Scripts/Core/ | ✅ | 通用伤害触发器（尖刺/怪物/Hazard伪装），支持击退 |
+| Collectible.cs | Assets/Scripts/Core/ | ✅ | 可收集物品（金币/回血/加速），带浮动动画 |
+| Breakable.cs | Assets/Scripts/Core/ | ✅ | 可破坏方块（砖块/问号砖块），从下方顶撞触发 |
+| MovingPlatform.cs | Assets/Scripts/Core/ | ✅ | 移动平台，两点间来回移动，角色站上跟随 |
+| SimpleEnemy.cs | Assets/Scripts/Enemy/ | ✅ | 简单巡逻敌人，边缘/墙壁检测自动转向，可被踩消灭 |
+| GameUI.cs | Assets/Scripts/UI/ | ✅ | 基础HUD（生命值/计时器/回合信息/胜负画面），OnGUI后备显示 |
+| LevelManager.cs | Assets/Scripts/Core/ | ✅ | 关卡管理（出生点/边界/可伪装对象列表） |
 
-### 2.6 配置文件更新
+### 2.6 Trickster 能力系统（Sprint 2 - Session 3 新增）
+
+**核心机制**: Trickster 变身为关卡道具后，可以操控该道具阻碍 Mario。操控采用 **Telegraph（预警）→ Active（爆发）→ Cooldown（冷却）** 三阶段设计，预警阶段给 Mario 反应窗口，Trickster 需要预判操控时机。参考 Crawl 游戏的 Ghost Possess Trap 机制。
+
+| 脚本 | 路径 | 状态 | 说明 |
+|------|------|------|------|
+| IControllableProp.cs | Assets/Scripts/Ability/ | ✅ **新增** | 可操控道具接口（PropName/CanBeControlled/OnTricksterActivate/状态查询） |
+| ControllablePropBase.cs | Assets/Scripts/Ability/ | ✅ **新增** | 抽象基类，封装 Telegraph→Active→Cooldown 状态机、预警闪烁/震动视觉效果、次数限制、回合重置 |
+| TricksterAbilitySystem.cs | Assets/Scripts/Ability/ | ✅ **新增** | 核心能力管理器，检测伪装状态、绑定/检测附近道具、处理操控输入、管理操控次数/时间限制 |
+| ControllablePlatform.cs | Assets/Scripts/Ability/ | ✅ **新增** | 可操控移动平台，4种模式：Rush（方向冲刺）/Drop（突然坠落）/Reverse（反向移动）/Stop（突然停止） |
+| ControllableHazard.cs | Assets/Scripts/Ability/ | ✅ **新增** | 可操控危险道具，4种模式：Spike（地刺伸出）/Expand（范围扩大）/Burst（爆发伤害）/Directional（方向发射） |
+| ControllableBlock.cs | Assets/Scripts/Ability/ | ✅ **新增** | 可操控方块，3种模式：Vanish（暂时消失）/Slide（方向滑动）/Bounce（变弹跳板） |
+
+**能力系统调用关系**:
+```
+InputManager (右Alt/手柄Y)
+  → TricksterController.OnAbilityPressed()
+    → TricksterAbilitySystem.OnAbilityPressed()
+      → 检查 DisguiseSystem.IsDisguised && IsFullyBlended
+      → 查找 IControllableProp (绑定/就近模式)
+      → IControllableProp.OnTricksterActivate(direction)
+        → ControllablePropBase 状态机: Telegraph → Active → Cooldown
+          → 子类实现具体效果 (ControllablePlatform/Hazard/Block)
+```
+
+**可配置参数（全部通过 Inspector 暴露）**:
+- 预警时长（telegraphDuration）: 默认 0.8 秒
+- 激活持续时长（activeDuration）: 默认 1.5 秒
+- 冷却时间（cooldownDuration）: 默认 3 秒
+- 最大操控次数（maxUses）: -1 = 无限
+- 操控检测半径（controlRange）: 默认 2
+- 单次变身最大操控总次数（maxControlsPerDisguise）: -1 = 无限
+- 操控持续时间限制（controlTimeLimit）: 0 = 无限
+
+### 2.7 配置文件更新
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
@@ -117,7 +153,7 @@
 | 编号 | 描述 | 优先级 | 备注 |
 |------|------|--------|------|
 | B001 | 所有脚本已通过离线语法验证（dotnet build），但尚未在Unity中实际运行测试 | 中 | 需要在Unity中挂载到GameObject并运行 |
-| B002 | MarioController.cs 使用 `rb.linearVelocity`，这是 Unity 6 的 API。Unity 2022.3 使用 `rb.velocity` | 高 | **如果在 Unity 2022.3 中编译报错，需要全局替换 `linearVelocity` → `velocity`** |
+| B002 | MarioController.cs / TricksterController.cs / ControllablePlatform.cs / ControllableHazard.cs / ControllableBlock.cs 使用 `rb.linearVelocity`，这是 Unity 6 的 API。Unity 2022.3 使用 `rb.velocity` | 高 | **如果在 Unity 2022.3 中编译报错，需要全局替换 `linearVelocity` → `velocity`** |
 | B003 | InputManager.cs 中 Player1 使用 WASD，Player2 使用方向键，但 MarioController 原代码中也绑定了方向键 | 中 | InputManager 已接管输入分发，MarioController 不直接读取键盘，所以不冲突 |
 | B004 | 场景 SampleScene.unity 是空白模板，需要手动搭建测试场景 | 高 | 见下方"下一步计划" |
 
@@ -126,9 +162,11 @@
 如果你使用的是 **Unity 2022.3 LTS**，`Rigidbody2D` 的属性名是 `velocity` 而非 `linearVelocity`。需要在以下文件中全局替换：
 
 ```
-MarioController.cs     → rb.linearVelocity → rb.velocity
-TricksterController.cs → rb.linearVelocity → rb.velocity
-SimpleEnemy.cs         → rb.velocity（已使用正确的API）
+MarioController.cs         → rb.linearVelocity → rb.velocity
+TricksterController.cs     → rb.linearVelocity → rb.velocity
+ControllableHazard.cs      → rb.linearVelocity → rb.velocity (投射物)
+ControllableBlock.cs       → rb.linearVelocity → rb.velocity (弹跳)
+SimpleEnemy.cs             → rb.velocity（已使用正确的API）
 ```
 
 在 Rider 中操作：`Ctrl+Shift+R` → 查找 `rb.linearVelocity` → 替换为 `rb.velocity` → 全部替换。
@@ -146,27 +184,28 @@ SimpleEnemy.cs         → rb.velocity（已使用正确的API）
 | 1 | 在Unity中创建测试场景 | ⚬ 待做 | 用Tilemap搭建一个简单的测试关卡（地面+平台+终点+深渊） |
 | 2 | 下载并导入像素素材 | ⚬ 待做 | 从 Pixel Adventure 或 Block Land 下载素材包 |
 | 3 | 创建Mario预制体 | ⚬ 待做 | 挂载 MarioController + PlayerHealth + Rigidbody2D + BoxCollider2D |
-| 4 | 创建Trickster预制体 | ⚬ 待做 | 挂载 TricksterController + DisguiseSystem + Rigidbody2D + BoxCollider2D |
+| 4 | 创建Trickster预制体 | ⚬ 待做 | 挂载 TricksterController + DisguiseSystem + **TricksterAbilitySystem** + Rigidbody2D + BoxCollider2D |
 | 5 | 创建管理器对象 | ⚬ 待做 | 空GameObject挂载 GameManager + InputManager + LevelManager |
 | 6 | 配置相机 | ⚬ 待做 | Main Camera挂载 CameraController，设置跟随Mario |
 | 7 | 放置GoalZone和KillZone | ⚬ 待做 | 终点旗帜 + 关卡底部死亡区域 |
-| 8 | **核心玩法验证** | ⚬ 待做 | 两人操作测试：Mario能跑能跳，Trickster能变身，胜负判定正常 |
+| 8 | 放置可操控道具 | ⚬ 待做 | 在关卡中放置 ControllablePlatform/Hazard/Block，配置操控模式 |
+| 9 | **核心玩法验证** | ⚬ 待做 | 两人操作测试：Mario能跑能跳，Trickster能变身+操控道具，胜负判定正常 |
 
 ### 第二优先级：游戏体验（Sprint 2，预计 1-2 周）
 
 | 序号 | 任务 | 说明 |
 |------|------|------|
-| 9 | Trickster特殊能力 | 放置假障碍物、触发陷阱、召唤AI怪物 |
-| 10 | 音效集成 | 跳跃/死亡/变身/胜利音效 |
+| 10 | 音效集成 | 跳跃/死亡/变身/操控道具预警音效/胜利音效 |
 | 11 | 升级为Cinemachine | 已添加包依赖，替换CameraController为Cinemachine Virtual Camera |
+| 12 | 更多可操控道具类型 | 如：传送门、风扇（改变风向）、开关门等 |
 
 ### 第三优先级：打磨（Sprint 3）
 
 | 序号 | 任务 | 说明 |
 |------|------|------|
-| 12 | 平衡性调整 | 变身冷却、能力限制、关卡难度 |
-| 13 | 多关卡 | 2-3个不同主题关卡 |
-| 14 | 开始/结束界面 | 主菜单、角色选择、结算画面 |
+| 13 | 平衡性调整 | 变身冷却、操控次数/冷却、预警时长、关卡难度 |
+| 14 | 多关卡 | 2-3个不同主题关卡 |
+| 15 | 开始/结束界面 | 主菜单、角色选择、结算画面 |
 
 ---
 
@@ -178,13 +217,14 @@ SimpleEnemy.cs         → rb.velocity（已使用正确的API）
 | 输入系统 | Unity New Input System + 自定义InputManager | 原生支持本地多人、设备热插拔；InputManager统一分发输入给两个玩家 |
 | 玩家控制器架构 | 状态机模式 | 参考Momentum项目，便于扩展变身/伪装状态 |
 | 伪装机制实现 | Sprite替换 + Collider切换 | 变身时替换SpriteRenderer的sprite，同时切换碰撞体形状匹配伪装对象 |
+| **道具操控机制** | **接口(IControllableProp) + 抽象基类(ControllablePropBase) + 三阶段状态机** | **参考 Crawl 游戏的 Ghost Possess Trap。Telegraph→Active→Cooldown 三阶段设计，预警给 Mario 反应窗口，提高博弈深度。接口+基类架构便于扩展新道具类型** |
 | 关卡构建 | Unity Tilemap | 参考zigurous教程，快速搭建2D关卡 |
 | 相机方案 | 自定义CameraController（后期升级Cinemachine） | MVP阶段用简单脚本，已预装Cinemachine包 |
 | 游戏管理 | 单例GameManager | 管理游戏状态、胜负判定、暂停、重启 |
 | UI方案 | OnGUI后备 + UGUI Canvas | MVP阶段OnGUI快速显示，后期升级为Canvas UI |
 | 美术风格 | 16-bit像素风 | 使用itch.io免费CC0素材（Pixel Adventure为主），后期可用本地AI工具生成补充素材 |
 | 网络架构 | 暂不实现 | MVP阶段仅本地多人，后期扩展可考虑Unity Netcode |
-| 项目结构 | 按功能模块分文件夹 | Assets/Scripts/{Player, Enemy, Core, UI, Camera} |
+| 项目结构 | 按功能模块分文件夹 | Assets/Scripts/{Player, Enemy, Core, UI, Camera, Ability} |
 
 ---
 
@@ -197,13 +237,12 @@ Assets/
 │   │   ├── MarioController.cs      ✅ Mario移动/跳跃控制
 │   │   └── PlayerHealth.cs          ✅ 生命值管理
 │   ├── Enemy/
-│   │   ├── TricksterController.cs   ✅ Trickster基础控制
+│   │   ├── TricksterController.cs   ✅ Trickster基础控制 (Session 3 更新: +OnAbilityPressed)
 │   │   ├── DisguiseSystem.cs        ✅ 伪装/变身系统
-│   │   ├── SimpleEnemy.cs           ✅ 简单巡逻敌人
-│   │   └── TricksterAbilities.cs    ⬜ 待开发（特殊能力）
+│   │   └── SimpleEnemy.cs           ✅ 简单巡逻敌人
 │   ├── Core/
 │   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定
-│   │   ├── InputManager.cs          ✅ 双人输入管理
+│   │   ├── InputManager.cs          ✅ 双人输入管理 (Session 3 更新: +右Alt操控道具)
 │   │   ├── LevelManager.cs          ✅ 关卡管理
 │   │   ├── GoalZone.cs              ✅ 终点触发器
 │   │   ├── KillZone.cs              ✅ 死亡区域
@@ -211,6 +250,13 @@ Assets/
 │   │   ├── Collectible.cs           ✅ 可收集物品
 │   │   ├── Breakable.cs             ✅ 可破坏方块
 │   │   └── MovingPlatform.cs        ✅ 移动平台
+│   ├── Ability/                      ✅ **Session 3 新增目录**
+│   │   ├── IControllableProp.cs     ✅ 可操控道具接口
+│   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类
+│   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
+│   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Rush/Drop/Reverse/Stop)
+│   │   ├── ControllableHazard.cs    ✅ 可操控危险道具 (Spike/Expand/Burst/Directional)
+│   │   └── ControllableBlock.cs     ✅ 可操控方块 (Vanish/Slide/Bounce)
 │   ├── Camera/
 │   │   └── CameraController.cs      ✅ 相机跟随逻辑
 │   └── UI/
@@ -235,6 +281,7 @@ Assets/
 | 伪装/取消伪装 | — | 右Shift |
 | 切换伪装形态（下一个） | — | Enter |
 | 切换伪装形态（上一个） | — | Backspace |
+| **操控道具** | — | **右Alt / 手柄Y** |
 | 暂停 | ESC | ESC |
 | 快速重启 | F5 | F5 |
 | 手柄支持 | 第1个手柄 | 第2个手柄 |
@@ -257,5 +304,3 @@ GitHub Token: ghp_你的token
 
 积分提醒：请在我积分接近300时暂停，优先存档推送。
 ```
-
-> **说明**：详细的开场模板使用指南见「与 AI 高效协作开发工作流指南.md」的 1.1 章节。

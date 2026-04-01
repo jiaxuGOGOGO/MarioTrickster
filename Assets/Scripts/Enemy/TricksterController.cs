@@ -2,8 +2,9 @@ using UnityEngine;
 
 /// <summary>
 /// Trickster（伪装者）控制器 - MVP核心脚本
-/// 功能: 基础移动、跳跃、触发伪装、与DisguiseSystem协作
+/// 功能: 基础移动、跳跃、触发伪装、与DisguiseSystem和TricksterAbilitySystem协作
 /// 伪装者可以自由移动，按下伪装键后变身为场景物体
+/// 变身并融入场景后，可以操控附近的关卡道具阻碍 Mario
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -29,6 +30,7 @@ public class TricksterController : MonoBehaviour
     private BoxCollider2D boxCollider;
     private SpriteRenderer spriteRenderer;
     private DisguiseSystem disguiseSystem;
+    private TricksterAbilitySystem abilitySystem;
 
     // 输入
     private Vector2 moveInput;
@@ -41,6 +43,7 @@ public class TricksterController : MonoBehaviour
     // 公共属性
     public bool IsGrounded => isGrounded;
     public bool IsDisguised => disguiseSystem != null && disguiseSystem.IsDisguised;
+    public TricksterAbilitySystem AbilitySystem => abilitySystem;
 
     private void Awake()
     {
@@ -48,6 +51,7 @@ public class TricksterController : MonoBehaviour
         boxCollider = GetComponent<BoxCollider2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
         disguiseSystem = GetComponent<DisguiseSystem>();
+        abilitySystem = GetComponent<TricksterAbilitySystem>();
 
         rb.gravityScale = gravityScale;
         rb.freezeRotation = true;
@@ -69,6 +73,12 @@ public class TricksterController : MonoBehaviour
         if (!IsDisguised)
         {
             UpdateFacing();
+        }
+
+        // 持续更新能力系统的方向输入
+        if (abilitySystem != null)
+        {
+            abilitySystem.SetAbilityDirection(moveInput);
         }
     }
 
@@ -114,6 +124,15 @@ public class TricksterController : MonoBehaviour
                 disguiseSystem.NextDisguise();
             else
                 disguiseSystem.PreviousDisguise();
+        }
+    }
+
+    /// <summary>操控道具键按下 - 触发 Trickster 的道具操控能力</summary>
+    public void OnAbilityPressed()
+    {
+        if (abilitySystem != null)
+        {
+            abilitySystem.OnAbilityPressed();
         }
     }
 

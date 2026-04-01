@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 /// 
 /// 输入方案（键盘双人）:
 ///   Player1 (Mario):     WASD移动, Space跳跃
-///   Player2 (Trickster): 方向键移动, 右Ctrl跳跃, 右Shift伪装, Enter切换形态
+///   Player2 (Trickster): 方向键移动, 右Ctrl跳跃, 右Shift伪装, Enter切换形态, 右Alt操控道具
 /// 
 /// 也支持手柄: 第一个手柄→Mario, 第二个手柄→Trickster
 /// 
@@ -35,6 +35,7 @@ public class InputManager : MonoBehaviour
     private bool p2DisguisePressed;
     private bool p2SwitchDisguisePressed;
     private float p2SwitchDirection;
+    private bool p2AbilityPressed; // 操控道具
 
     // 手柄支持
     private Gamepad gamepad1;
@@ -109,7 +110,7 @@ public class InputManager : MonoBehaviour
 
     #endregion
 
-    #region Player2 (Trickster) 输入 - 方向键 + RCtrl/RShift/Enter
+    #region Player2 (Trickster) 输入 - 方向键 + RCtrl/RShift/Enter/RAlt
 
     private void ReadPlayer2Input()
     {
@@ -177,6 +178,12 @@ public class InputManager : MonoBehaviour
             p2SwitchDisguisePressed = true;
             p2SwitchDirection = -1f;
         }
+
+        // 操控道具 - 右Alt 或 手柄北键(Y/Triangle)
+        if (Input.GetKeyDown(KeyCode.RightAlt) || (gamepad2 != null && gamepad2.buttonNorth.wasPressedThisFrame))
+        {
+            p2AbilityPressed = true;
+        }
     }
 
     #endregion
@@ -225,6 +232,12 @@ public class InputManager : MonoBehaviour
         {
             tricksterController.OnSwitchDisguise(p2SwitchDirection);
         }
+
+        // 操控道具
+        if (p2AbilityPressed)
+        {
+            tricksterController.OnAbilityPressed();
+        }
     }
 
     #endregion
@@ -237,6 +250,7 @@ public class InputManager : MonoBehaviour
         p2JumpPressed = false;
         p2DisguisePressed = false;
         p2SwitchDisguisePressed = false;
+        p2AbilityPressed = false;
     }
 
     #endregion
@@ -279,11 +293,12 @@ public class InputManager : MonoBehaviour
     {
         if (!showDebugInput) return;
 
-        GUILayout.BeginArea(new Rect(10, 10, 300, 200));
+        GUILayout.BeginArea(new Rect(10, 10, 300, 220));
         GUILayout.Label($"P1 Move: {p1MoveInput}");
         GUILayout.Label($"P1 Jump Held: {p1JumpHeld}");
         GUILayout.Label($"P2 Move: {p2MoveInput}");
         GUILayout.Label($"P2 Jump Held: {p2JumpHeld}");
+        GUILayout.Label($"P2 Ability: {p2AbilityPressed}");
         GUILayout.Label($"Gamepad1: {(gamepad1 != null ? gamepad1.displayName : "None")}");
         GUILayout.Label($"Gamepad2: {(gamepad2 != null ? gamepad2.displayName : "None")}");
         GUILayout.EndArea();

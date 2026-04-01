@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-01 (Session 4) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-01 (Session 5) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 
 ---
 
@@ -83,11 +83,11 @@
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| MarioController.cs | Assets/Scripts/Player/ | ✅ | 完整移动/跳跃（coyote time + buffered jump）/地面检测 |
+| MarioController.cs | Assets/Scripts/Player/ | ✅ **Session 5 重写** | Tarodev 帧速度架构：`_frameVelocity` 累积、重力自管、BoxCast 地面检测、Coyote Time(0.15s)、跳跃缓冲(0.2s)、OnValidate 警告 |
 | PlayerHealth.cs | Assets/Scripts/Player/ | ✅ | 通用生命值/无敌帧/受伤闪烁/死亡事件 |
-| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 3 更新** | 伪装者基础控制 + 新增 OnAbilityPressed() 操控道具输入回调 |
+| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 5 重写** | 与 MarioController 完全一致的帧速度架构，支持 Coyote Time + 跳跃缓冲，伪装限制逻辑保留 |
 | DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ | Sprite替换变身/冷却/场景融入/多形态切换（已修复类型转换Bug） |
-| InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 3 更新** | 双人输入管理，新增 P2 操控道具按键（右Alt / 手柄北键Y） |
+| InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 5 重写** | 修复 OnJumpReleased 每帧触发问题，用 wasJumpHeld 状态机精确检测按下/松开事件，精简代码 |
 | GameManager.cs | Assets/Scripts/Core/ | ✅ | 游戏状态/胜负判定/暂停/重启/计时器/单例模式 |
 | CameraController.cs | Assets/Scripts/Camera/ | ✅ | 平滑跟随Mario/前瞻偏移/死区/关卡边界限制/相机震动 |
 
@@ -100,7 +100,7 @@
 | DamageDealer.cs | Assets/Scripts/Core/ | ✅ | 通用伤害触发器（尖刺/怪物/Hazard伪装），支持击退 |
 | Collectible.cs | Assets/Scripts/Core/ | ✅ | 可收集物品（金币/回血/加速），带浮动动画 |
 | Breakable.cs | Assets/Scripts/Core/ | ✅ | 可破坏方块（砖块/问号砖块），从下方顶撞触发 |
-| MovingPlatform.cs | Assets/Scripts/Core/ | ✅ | 移动平台，两点间来回移动，角色站上跟随 |
+| MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **Session 5 升级** | 增加 OnCollisionStay2D 补充注册，防止物理帧对齐漏掉跟随；精简代码结构 |
 | SimpleEnemy.cs | Assets/Scripts/Enemy/ | ✅ | 简单巡逻敌人，边缘/墙壁检测自动转向，可被踩消灭 |
 | GameUI.cs | Assets/Scripts/UI/ | ✅ | 基础HUD（生命值/计时器/回合信息/胜负画面），OnGUI后备显示 |
 | LevelManager.cs | Assets/Scripts/Core/ | ✅ | 关卡管理（出生点/边界/可伪装对象列表） |
@@ -152,8 +152,8 @@ InputManager (右Alt/手柄Y)
 
 | 编号 | 描述 | 优先级 | 备注 |
 |------|------|--------|------|
-| B001 | 所有脚本已通过离线语法验证（dotnet build），但尚未在Unity中实际运行测试 | 中 | 需要在Unity中挂载到GameObject并运行 |
-| B002 | MarioController.cs / TricksterController.cs / ControllablePlatform.cs / ControllableHazard.cs / ControllableBlock.cs 使用 `rb.linearVelocity`，这是 Unity 6 的 API。Unity 2022.3 使用 `rb.velocity` | 高 | **如果在 Unity 2022.3 中编译报错，需要全局替换 `linearVelocity` → `velocity`** |
+| B001 | ✅ **已解决 (Session 5)** 实际运行测试已完成，基础移动/跳跃/平台跟随均验证通过 | — | — |
+| B002 | ✅ **已修复 (Session 4)** 全局替换 `linearVelocity` → `velocity`，适配 Unity 2022.3 | — | — |
 | B003 | InputManager.cs 中 Player1 使用 WASD，Player2 使用方向键，但 MarioController 原代码中也绑定了方向键 | 中 | InputManager 已接管输入分发，MarioController 不直接读取键盘，所以不冲突 |
 | B004 | 场景 SampleScene.unity 是空白模板，需要手动搭建测试场景 | 高 | 见下方"下一步计划" |
 | B005 | ✅ **已修复 (Session 4)** Mario/Trickster 无法移动 | — | 根因：Managers → InputManager 组件的 marioController / tricksterController 槽位未拖入引用。**修复方法：在 Inspector 中拖入对应引用即可，无需改代码。** |
@@ -274,7 +274,37 @@ git pull
 
 ---
 
-## 六、关键技术决策记录
+## 六、Session 5 升级记录（2026-04-01）
+
+### 系统性改造：对照参考项目全面升级核心控制器
+
+**背景**：Session 4 修复了多个运行时 Bug 后，发现根本原因是代码未严格参照参考项目实现。本次对照 Ultimate-2D-Controller（Tarodev）和 zigurous Mario 教程源码，系统性重写了 5 个核心文件。
+
+| 文件 | 升级内容 |
+|------|----------|
+| `MarioController.cs` | 引入 Tarodev 帧速度累积架构；重力自管；BoxCast 地面检测；Coyote Time(0.15s)；跳跃缓冲(0.2s)；OnValidate 警告 |
+| `TricksterController.cs` | 与 MarioController 完全一致的帧速度架构；同样支持 Coyote Time + 跳跃缓冲 |
+| `InputManager.cs` | 修复 OnJumpReleased 每帧触发问题；用 `wasJumpHeld` 状态机精确检测事件；精简代码 |
+| `MovingPlatform.cs` | 增加 `OnCollisionStay2D` 补充注册，防止物理帧漏掉跟随 |
+| `ControllablePlatform.cs` | 修复 `worldPointA` 双重赋值 Bug；移除冗余 `useLocalSpace` 参数；增加 `OnCollisionStay2D` |
+
+**核心架构变化（帧速度累积）**：
+```
+// 旧方案（多处赋值冲突）
+rb.velocity = new Vector2(inputSpeed, rb.velocity.y);  // 移动
+rb.velocity = new Vector2(rb.velocity.x, jumpForce);  // 跳跃
+
+// 新方案（Tarodev 架构，一帧内累积，最后一次写入）
+_frameVelocity = rb.velocity;
+HandleDirection();   // 修改 _frameVelocity.x
+HandleJump();        // 修改 _frameVelocity.y
+HandleGravity();     // 修改 _frameVelocity.y
+rb.velocity = _frameVelocity;  // 只写一次
+```
+
+---
+
+## 七、关键技术决策记录
 
 | 决策项 | 选择 | 理由 |
 |--------|------|------|
@@ -342,7 +372,7 @@ Assets/
 | 操作 | Player1 (Mario) | Player2 (Trickster) |
 |------|-----------------|---------------------|
 | 移动 | WASD | 方向键 |
-| 跳跃 | Space | 右Ctrl |
+| 跳跃 | Space | 上方向键 / 右Ctrl / 小键盘0 |
 | 伪装/取消伪装 | — | 右Shift |
 | 切换伪装形态（下一个） | — | Enter |
 | 切换伪装形态（上一个） | — | Backspace |

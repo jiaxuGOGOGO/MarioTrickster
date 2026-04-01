@@ -1,52 +1,94 @@
 using UnityEngine;
 
 /// <summary>
-/// Trickster（伪装者）控制器 - MVP核心脚本
-/// 功能: 基础移动、跳跃、触发伪装、与DisguiseSystem和TricksterAbilitySystem协作
-/// 伪装者可以自由移动，按下伪装键后变身为场景物体
-/// 变身并融入场景后，可以操控附近的关卡道具阻碍 Mario
+/// Trickster（伪装者）控制器
+///
+/// 架构与 MarioController 保持一致（Tarodev 帧速度累积方案）：
+///   所有速度变化在一帧内累积到 _frameVelocity，最后一次性写入 rb.velocity。
+///   重力由代码自管，不依赖 Unity gravityScale。
+///
+/// 特殊逻辑：
+///   - 伪装状态下移动速度受 disguisedMoveMultiplier 限制
+///   - 伪装状态下默认不可跳跃（可在 Inspector 开启）
+///   - 支持 Coyote Time 和跳跃缓冲，与 Mario 手感一致
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
 public class TricksterController : MonoBehaviour
 {
-    [Header("=== 移动参数 ===")]
-    [SerializeField] private float moveSpeed = 7f;
-    [SerializeField] private float jumpForce = 12f;
-    [SerializeField] private float gravityScale = 3f;
+    // ── 移动 ──────────────────────────────────────────────
+    [Header("移动")]
+    [SerializeField] private float maxSpeed = 8f;
+    [SerializeField] private float acceleration = 100f;
+    [SerializeField] private float groundDeceleration = 60f;
+    [SerializeField] private float airDeceleration = 30f;
+    [SerializeField] private float groundingForce = -1.5f;
 
-    [Header("=== 地面检测 ===")]
+    // ── 跳跃 ──────────────────────────────────────────────
+    [Header("跳跃")]
+    [SerializeField] private float jumpPower = 18f;
+    [SerializeField] private float maxFallSpeed = 40f;
+    [SerializeField] private float fallAcceleration = 80f;
+    [SerializeField] private float jumpEndEarlyGravityModifier = 3f;
+    [SerializeField] private float coyoteTime = 0.15f;
+    [SerializeField] private float jumpBuffer = 0.2f;
+
+    // ── 地面检测 ──────────────────────────────────────────
+    [Header("地面检测")]
+    [Tooltip("地面所在的 Layer（必须设置，否则无法跳跃）")]
     [SerializeField] private LayerMask groundLayer;
-    [SerializeField] private float groundCheckDistance = 0.1f;
+    [SerializeField] private float grounderDistance = 0.05f;
 
-    [Header("=== 伪装状态下的移动限制 ===")]
+    // ── 伪装限制 ──────────────────────────────────────────
+    [Header("伪装状态限制")]
     [Tooltip("伪装状态下的移动速度倍率（0=完全不能动，1=正常速度）")]
     [SerializeField] private float disguisedMoveMultiplier = 0.15f;
     [Tooltip("伪装状态下能否跳跃")]
     [SerializeField] private bool canJumpWhileDisguised = false;
 
-    // 组件
+    // ── 组件 ──────────────────────────────────────────────
     private Rigidbody2D rb;
     private BoxCollider2D boxCollider;
     private SpriteRenderer spriteRenderer;
     private DisguiseSystem disguiseSystem;
     private TricksterAbilitySystem abilitySystem;
 
-    // 输入
+    // ── 输入（由 InputManager 每帧写入）─────────────────────
     private Vector2 moveInput;
-    private bool jumpPressed;
+    private bool jumpPressedThisFrame;
+    private bool jumpHeld;
 
-    // 平台速度
+    // ── 平台速度（由 MovingPlatform 每帧写入）────────────────
     private Vector2 platformVelocity;
 
-    // 状态
-    private bool isGrounded;
+    // ── 帧速度 ────────────────────────────────────────────
+    private Vector2 _frameVelocity;
+
+    // ── 地面状态 ──────────────────────────────────────────
+    private bool _grounded;
+    private float _timeLeftGrounded = float.MinValue;
+    private float _time;
+
+    // ── 跳跃状态 ──────────────────────────────────────────
+    private bool _jumpToConsume;
+    private bool _bufferedJumpUsable;
+    private bool _endedJumpEarly;
+    private bool _coyoteUsable;
+    private float _timeJumpWasPressed;
+
+    private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + jumpBuffer;
+    private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + coyoteTime;
+
+    // ── 朝向 ──────────────────────────────────────────────
     private bool isFacingRight = true;
 
-    // 公共属性
-    public bool IsGrounded => isGrounded;
+    // ── 公共属性 ──────────────────────────────────────────
+    public bool IsGrounded  => _grounded;
     public bool IsDisguised => disguiseSystem != null && disguiseSystem.IsDisguised;
     public TricksterAbilitySystem AbilitySystem => abilitySystem;
+
+    // ─────────────────────────────────────────────────────
+    #region 初始化
 
     private void Awake()
     {
@@ -56,132 +98,220 @@ public class TricksterController : MonoBehaviour
         disguiseSystem = GetComponent<DisguiseSystem>();
         abilitySystem = GetComponent<TricksterAbilitySystem>();
 
-        rb.gravityScale = gravityScale;
+        rb.gravityScale = 0f;  // 重力由代码自管
         rb.freezeRotation = true;
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
-        // 防止贴平台侧面时被摸擦力带住
         if (boxCollider.sharedMaterial == null)
         {
-            var mat = new PhysicsMaterial2D("ZeroFriction") { friction = 0f, bounciness = 0f };
-            boxCollider.sharedMaterial = mat;
+            boxCollider.sharedMaterial = new PhysicsMaterial2D("ZeroFriction")
+                { friction = 0f, bounciness = 0f };
         }
     }
 
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region Update / FixedUpdate
+
     private void Update()
     {
-        isGrounded = CheckGrounded();
+        _time += Time.deltaTime;
 
-        // 朝向（仅非伪装状态）
-        if (!IsDisguised)
+        if (jumpPressedThisFrame)
         {
-            UpdateFacing();
+            _jumpToConsume = true;
+            _timeJumpWasPressed = _time;
+            jumpPressedThisFrame = false;
         }
 
-        // 持续更新能力系统的方向输入
+        if (!IsDisguised) UpdateFacing();
+
         if (abilitySystem != null)
-        {
             abilitySystem.SetAbilityDirection(moveInput);
-        }
     }
 
     private void FixedUpdate()
     {
-        // 跳跃（在 FixedUpdate 中执行，与物理引擎同步）
-        bool canJump = isGrounded && (!IsDisguised || canJumpWhileDisguised);
-        if (jumpPressed && canJump)
-        {
-            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
-        }
-        // 无论是否跳跃成功，都在本帧清除，避免连续触发
-        jumpPressed = false;
+        _frameVelocity = rb.velocity;
 
-        float speedMultiplier = IsDisguised ? disguisedMoveMultiplier : 1f;
-        float inputSpeed = moveInput.x * moveSpeed * speedMultiplier;
-        float targetSpeed = inputSpeed + platformVelocity.x;
-        rb.velocity = new Vector2(targetSpeed, rb.velocity.y);
+        CheckCollisions();
+        HandleJump();
+        HandleDirection();
+        HandleGravity();
+
+        rb.velocity = _frameVelocity;
         platformVelocity = Vector2.zero;
     }
 
-    #region 输入回调（由InputManager调用）
+    #endregion
 
-    public void SetMoveInput(Vector2 input)
-    {
-        moveInput = input;
-    }
+    // ─────────────────────────────────────────────────────
+    #region 碰撞检测
 
-    public void OnJumpPressed()
+    private void CheckCollisions()
     {
-        jumpPressed = true;
-    }
+        bool prev = Physics2D.queriesStartInColliders;
+        Physics2D.queriesStartInColliders = false;
 
-    public void OnJumpReleased()
-    {
-        // Trickster暂不需要变高跳跃
-    }
+        bool groundHit = Physics2D.BoxCast(
+            boxCollider.bounds.center,
+            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
+            0f, Vector2.down, grounderDistance, groundLayer);
 
-    /// <summary>由 MovingPlatform 调用，设置本帧平台速度</summary>
-    public void SetPlatformVelocity(Vector2 velocity)
-    {
-        platformVelocity = velocity;
-    }
+        bool ceilingHit = Physics2D.BoxCast(
+            boxCollider.bounds.center,
+            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
+            0f, Vector2.up, grounderDistance, groundLayer);
 
-    /// <summary>伪装键按下</summary>
-    public void OnDisguisePressed()
-    {
-        if (disguiseSystem != null)
+        Physics2D.queriesStartInColliders = prev;
+
+        if (ceilingHit) _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
+
+        if (!_grounded && groundHit)
         {
-            disguiseSystem.ToggleDisguise();
+            _grounded = true;
+            _coyoteUsable = true;
+            _bufferedJumpUsable = true;
+            _endedJumpEarly = false;
         }
-    }
-
-    /// <summary>切换伪装形态（下一个/上一个）</summary>
-    public void OnSwitchDisguise(float direction)
-    {
-        if (disguiseSystem != null && !disguiseSystem.IsDisguised)
+        else if (_grounded && !groundHit)
         {
-            if (direction > 0)
-                disguiseSystem.NextDisguise();
-            else
-                disguiseSystem.PreviousDisguise();
-        }
-    }
-
-    /// <summary>操控道具键按下 - 触发 Trickster 的道具操控能力</summary>
-    public void OnAbilityPressed()
-    {
-        if (abilitySystem != null)
-        {
-            abilitySystem.OnAbilityPressed();
+            _grounded = false;
+            _timeLeftGrounded = _time;
         }
     }
 
     #endregion
 
-    #region 内部方法
+    // ─────────────────────────────────────────────────────
+    #region 跳跃
 
-    private bool CheckGrounded()
+    private void HandleJump()
     {
-        Vector2 boxCenter = (Vector2)boxCollider.bounds.center;
-        Vector2 boxSize = new Vector2(boxCollider.bounds.size.x * 0.9f, groundCheckDistance);
-        Vector2 origin = new Vector2(boxCenter.x, boxCollider.bounds.min.y);
+        // 伪装状态下不可跳跃（除非开启 canJumpWhileDisguised）
+        if (IsDisguised && !canJumpWhileDisguised)
+        {
+            _jumpToConsume = false;
+            return;
+        }
 
-        RaycastHit2D hit = Physics2D.BoxCast(origin, boxSize, 0f, Vector2.down, groundCheckDistance, groundLayer);
-        return hit.collider != null;
+        if (!_endedJumpEarly && !_grounded && !jumpHeld && _frameVelocity.y > 0)
+            _endedJumpEarly = true;
+
+        if (!_jumpToConsume && !HasBufferedJump) return;
+
+        if (_grounded || CanUseCoyote) ExecuteJump();
+
+        _jumpToConsume = false;
     }
+
+    private void ExecuteJump()
+    {
+        _endedJumpEarly = false;
+        _timeJumpWasPressed = 0;
+        _bufferedJumpUsable = false;
+        _coyoteUsable = false;
+        _frameVelocity.y = jumpPower;
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 水平移动
+
+    private void HandleDirection()
+    {
+        float speedMult = IsDisguised ? disguisedMoveMultiplier : 1f;
+        float inputTarget = moveInput.x * maxSpeed * speedMult;
+        float target = inputTarget + platformVelocity.x;
+
+        if (Mathf.Abs(moveInput.x) > 0.01f)
+        {
+            _frameVelocity.x = Mathf.MoveTowards(
+                _frameVelocity.x, target, acceleration * Time.fixedDeltaTime);
+        }
+        else
+        {
+            float decel = _grounded ? groundDeceleration : airDeceleration;
+            _frameVelocity.x = Mathf.MoveTowards(
+                _frameVelocity.x, platformVelocity.x, decel * Time.fixedDeltaTime);
+        }
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 重力
+
+    private void HandleGravity()
+    {
+        if (_grounded && _frameVelocity.y <= 0f)
+        {
+            _frameVelocity.y = groundingForce;
+        }
+        else
+        {
+            float gravity = fallAcceleration;
+            if (_endedJumpEarly && _frameVelocity.y > 0)
+                gravity *= jumpEndEarlyGravityModifier;
+
+            _frameVelocity.y = Mathf.MoveTowards(
+                _frameVelocity.y, -maxFallSpeed, gravity * Time.fixedDeltaTime);
+        }
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 辅助
 
     private void UpdateFacing()
     {
-        if (moveInput.x > 0.01f && !isFacingRight)
-        {
-            isFacingRight = true;
-            spriteRenderer.flipX = false;
-        }
-        else if (moveInput.x < -0.01f && isFacingRight)
-        {
-            isFacingRight = false;
-            spriteRenderer.flipX = true;
-        }
+        if (moveInput.x > 0.01f && !isFacingRight)       { isFacingRight = true;  spriteRenderer.flipX = false; }
+        else if (moveInput.x < -0.01f && isFacingRight)  { isFacingRight = false; spriteRenderer.flipX = true;  }
     }
 
     #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 输入回调（由 InputManager 调用）
+
+    public void SetMoveInput(Vector2 input)  => moveInput = input;
+    public void OnJumpPressed()  { jumpPressedThisFrame = true; jumpHeld = true; }
+    public void OnJumpReleased() { jumpHeld = false; }
+
+    public void OnDisguisePressed()
+    {
+        disguiseSystem?.ToggleDisguise();
+    }
+
+    public void OnSwitchDisguise(float direction)
+    {
+        if (disguiseSystem == null || disguiseSystem.IsDisguised) return;
+        if (direction > 0) disguiseSystem.NextDisguise();
+        else               disguiseSystem.PreviousDisguise();
+    }
+
+    public void OnAbilityPressed()
+    {
+        abilitySystem?.OnAbilityPressed();
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 平台接口（由 MovingPlatform 调用）
+
+    public void SetPlatformVelocity(Vector2 velocity) => platformVelocity = velocity;
+
+    #endregion
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        if (groundLayer == 0)
+            Debug.LogWarning("[TricksterController] groundLayer 未设置，跳跃将无法工作！", this);
+    }
+#endif
 }

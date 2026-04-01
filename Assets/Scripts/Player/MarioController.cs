@@ -1,287 +1,362 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 /// <summary>
-/// Mario 玩家控制器 - MVP核心脚本
-/// 参考: Ultimate-2D-Controller (Tarodev) + zigurous Super Mario Tutorial
-/// 功能: 水平移动、跳跃（含coyote time和buffered jump）、地面检测、死亡
-/// 使用方式: 挂载到Mario预制体，需要 Rigidbody2D + BoxCollider2D + SpriteRenderer
+/// Mario 玩家控制器
+///
+/// 架构参考: Ultimate-2D-Controller (Tarodev, MIT)
+///   https://github.com/Matthew-J-Spencer/Ultimate-2D-Controller
+/// 手感参考: zigurous/unity-super-mario-tutorial
+///   https://github.com/zigurous/unity-super-mario-tutorial
+///
+/// 核心设计:
+///   所有速度变化（移动、重力、跳跃、平台）在一帧内累积到 _frameVelocity，
+///   最后一次性写入 rb.velocity，避免多处赋值互相覆盖。
+///   重力由代码自管，不依赖 Unity gravityScale，可精确控制手感。
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
 public class MarioController : MonoBehaviour
 {
-    [Header("=== 移动参数 ===")]
-    [SerializeField] private float moveSpeed = 8f;
-    [SerializeField] private float acceleration = 50f;
-    [SerializeField] private float deceleration = 50f;
-    [SerializeField] private float airAcceleration = 30f;
+    // ── 移动 ──────────────────────────────────────────────
+    [Header("移动")]
+    [Tooltip("最大水平速度")]
+    [SerializeField] private float maxSpeed = 9f;
+    [Tooltip("地面加速度")]
+    [SerializeField] private float acceleration = 120f;
+    [Tooltip("地面减速度")]
+    [SerializeField] private float groundDeceleration = 60f;
+    [Tooltip("空中减速度（松开输入后）")]
+    [SerializeField] private float airDeceleration = 30f;
+    [Tooltip("落地时施加的微小向下力，防止在斜面上抖动")]
+    [SerializeField] private float groundingForce = -1.5f;
 
-    [Header("=== 跳跃参数 ===")]
-    [SerializeField] private float jumpForce = 14f;
-    [SerializeField] private float gravityScale = 3f;
-    [SerializeField] private float fallGravityMultiplier = 1.5f;
-    [SerializeField] private float maxFallSpeed = 20f;
+    // ── 跳跃 ──────────────────────────────────────────────
+    [Header("跳跃")]
+    [Tooltip("跳跃初速度")]
+    [SerializeField] private float jumpPower = 20f;
+    [Tooltip("最大下落速度")]
+    [SerializeField] private float maxFallSpeed = 40f;
+    [Tooltip("下落重力加速度（越大越快坠落）")]
+    [SerializeField] private float fallAcceleration = 80f;
+    [Tooltip("提前松开跳跃键时的重力倍率（越大跳跃弧度越短）")]
+    [SerializeField] private float jumpEndEarlyGravityModifier = 3f;
+    [Tooltip("离开平台边缘后仍可跳跃的宽限时间（秒）")]
+    [SerializeField] private float coyoteTime = 0.15f;
+    [Tooltip("落地前提前按跳跃的缓冲时间（秒）")]
+    [SerializeField] private float jumpBuffer = 0.2f;
 
-    [Header("=== 高级跳跃手感 ===")]
-    [Tooltip("离开地面后仍可跳跃的宽限时间")]
-    [SerializeField] private float coyoteTime = 0.12f;
-    [Tooltip("落地前提前按跳跃的缓冲时间")]
-    [SerializeField] private float jumpBufferTime = 0.15f;
-    [Tooltip("松开跳跃键时的速度衰减系数")]
-    [SerializeField] private float jumpCutMultiplier = 0.4f;
-
-    [Header("=== 地面检测 ===")]
+    // ── 地面检测 ──────────────────────────────────────────
+    [Header("地面检测")]
+    [Tooltip("地面所在的 Layer（必须设置，否则无法跳跃）")]
     [SerializeField] private LayerMask groundLayer;
-    [SerializeField] private float groundCheckDistance = 0.1f;
+    [Tooltip("地面检测射线长度")]
+    [SerializeField] private float grounderDistance = 0.05f;
 
-    // 组件引用
+    // ── 组件 ──────────────────────────────────────────────
     private Rigidbody2D rb;
     private BoxCollider2D boxCollider;
     private SpriteRenderer spriteRenderer;
     private Animator animator;
 
-    // 输入
+    // ── 输入（由 InputManager 每帧写入）─────────────────────
     private Vector2 moveInput;
-    private bool jumpPressed;
+    private bool jumpPressedThisFrame;
     private bool jumpHeld;
 
-    // 平台速度（由 MovingPlatform 每帧写入，FixedUpdate 后自动清零）
+    // ── 平台速度（由 MovingPlatform 每帧写入）────────────────
     private Vector2 platformVelocity;
 
-    // 状态
-    private bool isGrounded;
-    private bool wasGrounded;
-    private float coyoteTimer;
-    private float jumpBufferTimer;
-    private bool isJumping;
+    // ── 帧速度（本帧所有速度变化的累积量）───────────────────
+    private Vector2 _frameVelocity;
+
+    // ── 地面状态 ──────────────────────────────────────────
+    private bool _grounded;
+    private float _timeLeftGrounded = float.MinValue;
+    private float _time;
+
+    // ── 跳跃状态 ──────────────────────────────────────────
+    private bool _jumpToConsume;
+    private bool _bufferedJumpUsable;
+    private bool _endedJumpEarly;
+    private bool _coyoteUsable;
+    private float _timeJumpWasPressed;
+
+    private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + jumpBuffer;
+    private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + coyoteTime;
+
+    // ── 朝向 ──────────────────────────────────────────────
     private bool isFacingRight = true;
 
-    // 公共属性（供其他脚本读取）
-    public bool IsGrounded => isGrounded;
-    public bool IsMoving => Mathf.Abs(rb.velocity.x) > 0.1f;
+    // ── 公共属性 ──────────────────────────────────────────
+    public bool IsGrounded   => _grounded;
+    public bool IsMoving     => Mathf.Abs(_frameVelocity.x) > 0.1f;
     public bool IsFacingRight => isFacingRight;
-    public Vector2 Velocity => rb.velocity;
+    public Vector2 Velocity  => _frameVelocity;
 
-    // 事件
+    // ── 事件 ──────────────────────────────────────────────
     public System.Action OnJump;
-    public System.Action OnLand;
+    public System.Action<bool, float> OnGroundedChanged; // (isGrounded, impactSpeed)
     public System.Action OnDeath;
+
+    // ─────────────────────────────────────────────────────
+    #region 初始化
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         boxCollider = GetComponent<BoxCollider2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        animator = GetComponent<Animator>(); // 可选，没有也不报错
+        animator = GetComponent<Animator>(); // 可选
 
-        rb.gravityScale = gravityScale;
+        // 重力由代码自管，关闭 Unity 内置重力
+        rb.gravityScale = 0f;
         rb.freezeRotation = true;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
-        // 防止角色贴墙/贴平台侧面时被摩擦力带住（卡住问题）
+        // 零摩擦材质：防止贴墙/贴平台侧面时被摩擦力卡住
         if (boxCollider.sharedMaterial == null)
         {
-            var mat = new PhysicsMaterial2D("ZeroFriction") { friction = 0f, bounciness = 0f };
-            boxCollider.sharedMaterial = mat;
+            boxCollider.sharedMaterial = new PhysicsMaterial2D("ZeroFriction")
+                { friction = 0f, bounciness = 0f };
         }
     }
 
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region Update / FixedUpdate
+
     private void Update()
     {
-        // 计时器递减
-        coyoteTimer -= Time.deltaTime;
-        jumpBufferTimer -= Time.deltaTime;
+        _time += Time.deltaTime;
 
-        // 地面检测
-        wasGrounded = isGrounded;
-        isGrounded = CheckGrounded();
-
-        // 刚着地
-        if (isGrounded && !wasGrounded)
+        // 跳跃输入缓冲
+        if (jumpPressedThisFrame)
         {
-            OnLand?.Invoke();
-            isJumping = false;
+            _jumpToConsume = true;
+            _timeJumpWasPressed = _time;
+            jumpPressedThisFrame = false;
         }
 
-        // 刚离地（非跳跃导致）→ 启动coyote timer
-        if (!isGrounded && wasGrounded && !isJumping)
-        {
-            coyoteTimer = coyoteTime;
-        }
-
-        // 跳跃缓冲
-        if (jumpPressed)
-        {
-            jumpBufferTimer = jumpBufferTime;
-            jumpPressed = false;
-        }
-
-        // 执行跳跃
-        if (jumpBufferTimer > 0 && (isGrounded || coyoteTimer > 0))
-        {
-            ExecuteJump();
-        }
-
-        // 跳跃高度控制（松开跳跃键时削减上升速度）
-        if (!jumpHeld && rb.velocity.y > 0 && isJumping)
-        {
-            rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * jumpCutMultiplier);
-            isJumping = false;
-        }
-
-        // 翻转朝向
+        // 朝向
         UpdateFacing();
-
-        // 更新动画
+        // 动画
         UpdateAnimator();
     }
 
     private void FixedUpdate()
     {
-        // 水平移动
-        ApplyMovement();
+        // 1. 从 rb 同步当前速度到帧速度
+        _frameVelocity = rb.velocity;
 
-        // 下落加速
-        ApplyFallGravity();
+        // 2. 碰撞检测（更新 _grounded）
+        CheckCollisions();
 
-        // 限制下落速度
-        if (rb.velocity.y < -maxFallSpeed)
-        {
-            rb.velocity = new Vector2(rb.velocity.x, -maxFallSpeed);
-        }
-    }
+        // 3. 跳跃
+        HandleJump();
 
-    #region 输入回调（由InputManager调用）
+        // 4. 水平移动（含平台速度叠加）
+        HandleDirection();
 
-    /// <summary>由InputManager调用，传入移动输入</summary>
-    public void SetMoveInput(Vector2 input)
-    {
-        moveInput = input;
-    }
+        // 5. 重力
+        HandleGravity();
 
-    /// <summary>由InputManager调用，跳跃键按下</summary>
-    public void OnJumpPressed()
-    {
-        jumpPressed = true;
-        jumpHeld = true;
-    }
+        // 6. 一次性写入 rb
+        rb.velocity = _frameVelocity;
 
-    /// <summary>由InputManager调用，跳跃键松开</summary>
-    public void OnJumpReleased()
-    {
-        jumpHeld = false;
+        // 7. 平台速度用完即清（由平台每帧重新写入）
+        platformVelocity = Vector2.zero;
     }
 
     #endregion
 
-    #region 核心逻辑
+    // ─────────────────────────────────────────────────────
+    #region 碰撞检测
 
-    private void ApplyMovement()
+    private void CheckCollisions()
     {
-        // 目标速度 = 玩家输入速度 + 平台速度（叠加，使角色在平台上可自由走动）
-        float targetSpeed = moveInput.x * moveSpeed + platformVelocity.x;
-        float currentSpeed = rb.velocity.x;
-        float accel = isGrounded ? acceleration : airAcceleration;
+        // 临时关闭"从碰撞体内部开始的查询"，避免自身碰撞体干扰
+        bool prev = Physics2D.queriesStartInColliders;
+        Physics2D.queriesStartInColliders = false;
 
-        if (Mathf.Abs(moveInput.x) > 0.01f)
-        {
-            float newSpeed = Mathf.MoveTowards(currentSpeed, targetSpeed, accel * Time.fixedDeltaTime);
-            rb.velocity = new Vector2(newSpeed, rb.velocity.y);
-        }
-        else
-        {
-            // 无输入时趋向平台速度（而非0），保证跟随
-            float newSpeed = Mathf.MoveTowards(currentSpeed, platformVelocity.x, deceleration * Time.fixedDeltaTime);
-            rb.velocity = new Vector2(newSpeed, rb.velocity.y);
-        }
+        // 地面检测（BoxCast 比 Raycast 更稳定，不会卡在边角）
+        bool groundHit = Physics2D.BoxCast(
+            boxCollider.bounds.center,
+            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
+            0f, Vector2.down, grounderDistance, groundLayer);
 
-        // 平台速度用完即清，由平台每帧重新写入
-        platformVelocity = Vector2.zero;
+        // 天花板检测（撞头时清除向上速度）
+        bool ceilingHit = Physics2D.BoxCast(
+            boxCollider.bounds.center,
+            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
+            0f, Vector2.up, grounderDistance, groundLayer);
+
+        Physics2D.queriesStartInColliders = prev;
+
+        // 撞到天花板：清除向上速度
+        if (ceilingHit) _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
+
+        // 刚落地
+        if (!_grounded && groundHit)
+        {
+            _grounded = true;
+            _coyoteUsable = true;
+            _bufferedJumpUsable = true;
+            _endedJumpEarly = false;
+            OnGroundedChanged?.Invoke(true, Mathf.Abs(_frameVelocity.y));
+        }
+        // 刚离地
+        else if (_grounded && !groundHit)
+        {
+            _grounded = false;
+            _timeLeftGrounded = _time;
+            OnGroundedChanged?.Invoke(false, 0);
+        }
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 跳跃
+
+    private void HandleJump()
+    {
+        // 松开跳跃键时提前结束上升（短按 = 低跳，长按 = 高跳）
+        if (!_endedJumpEarly && !_grounded && !jumpHeld && _frameVelocity.y > 0)
+            _endedJumpEarly = true;
+
+        if (!_jumpToConsume && !HasBufferedJump) return;
+
+        if (_grounded || CanUseCoyote) ExecuteJump();
+
+        _jumpToConsume = false;
     }
 
     private void ExecuteJump()
     {
-        rb.velocity = new Vector2(rb.velocity.x, jumpForce);
-        isJumping = true;
-        coyoteTimer = 0;
-        jumpBufferTimer = 0;
+        _endedJumpEarly = false;
+        _timeJumpWasPressed = 0;
+        _bufferedJumpUsable = false;
+        _coyoteUsable = false;
+        _frameVelocity.y = jumpPower;
         OnJump?.Invoke();
     }
 
-    private void ApplyFallGravity()
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 水平移动
+
+    private void HandleDirection()
     {
-        if (rb.velocity.y < 0)
+        // 目标速度 = 玩家输入 + 平台速度（叠加，在平台上可自由走动）
+        float inputTarget = moveInput.x * maxSpeed;
+        float platformTarget = platformVelocity.x;
+        float target = inputTarget + platformTarget;
+
+        if (Mathf.Abs(moveInput.x) > 0.01f)
         {
-            rb.gravityScale = gravityScale * fallGravityMultiplier;
+            // 有输入：加速到目标速度
+            _frameVelocity.x = Mathf.MoveTowards(
+                _frameVelocity.x, target, acceleration * Time.fixedDeltaTime);
         }
         else
         {
-            rb.gravityScale = gravityScale;
+            // 无输入：减速到平台速度（而非0，保证跟随平台）
+            float decel = _grounded ? groundDeceleration : airDeceleration;
+            _frameVelocity.x = Mathf.MoveTowards(
+                _frameVelocity.x, platformTarget, decel * Time.fixedDeltaTime);
         }
     }
 
-    private bool CheckGrounded()
-    {
-        Vector2 boxCenter = (Vector2)boxCollider.bounds.center;
-        Vector2 boxSize = new Vector2(boxCollider.bounds.size.x * 0.9f, groundCheckDistance);
-        Vector2 origin = new Vector2(boxCenter.x, boxCollider.bounds.min.y);
+    #endregion
 
-        RaycastHit2D hit = Physics2D.BoxCast(origin, boxSize, 0f, Vector2.down, groundCheckDistance, groundLayer);
-        return hit.collider != null;
+    // ─────────────────────────────────────────────────────
+    #region 重力
+
+    private void HandleGravity()
+    {
+        if (_grounded && _frameVelocity.y <= 0f)
+        {
+            // 落地时施加微小向下力，防止在斜面上抖动
+            _frameVelocity.y = groundingForce;
+        }
+        else
+        {
+            // 空中重力（松开跳跃键时加速下落，提升手感）
+            float gravity = fallAcceleration;
+            if (_endedJumpEarly && _frameVelocity.y > 0)
+                gravity *= jumpEndEarlyGravityModifier;
+
+            _frameVelocity.y = Mathf.MoveTowards(
+                _frameVelocity.y, -maxFallSpeed, gravity * Time.fixedDeltaTime);
+        }
     }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 辅助
 
     private void UpdateFacing()
     {
-        if (moveInput.x > 0.01f && !isFacingRight)
-        {
-            Flip();
-        }
-        else if (moveInput.x < -0.01f && isFacingRight)
-        {
-            Flip();
-        }
-    }
-
-    private void Flip()
-    {
-        isFacingRight = !isFacingRight;
-        spriteRenderer.flipX = !isFacingRight;
+        if (moveInput.x > 0.01f && !isFacingRight)       { isFacingRight = true;  spriteRenderer.flipX = false; }
+        else if (moveInput.x < -0.01f && isFacingRight)  { isFacingRight = false; spriteRenderer.flipX = true;  }
     }
 
     private void UpdateAnimator()
     {
         if (animator == null) return;
-
-        animator.SetBool("IsGrounded", isGrounded);
-        animator.SetFloat("Speed", Mathf.Abs(rb.velocity.x));
-        animator.SetFloat("VerticalSpeed", rb.velocity.y);
+        animator.SetBool("IsGrounded", _grounded);
+        animator.SetFloat("Speed", Mathf.Abs(_frameVelocity.x));
+        animator.SetFloat("VerticalSpeed", _frameVelocity.y);
     }
 
     #endregion
 
+    // ─────────────────────────────────────────────────────
+    #region 输入回调（由 InputManager 调用）
+
+    public void SetMoveInput(Vector2 input)  => moveInput = input;
+    public void OnJumpPressed()  { jumpPressedThisFrame = true; jumpHeld = true; }
+    public void OnJumpReleased() { jumpHeld = false; }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 平台接口（由 MovingPlatform 调用）
+
+    /// <summary>由 MovingPlatform 在 FixedUpdate 前写入本帧平台速度</summary>
+    public void SetPlatformVelocity(Vector2 velocity) => platformVelocity = velocity;
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
     #region 公共方法
 
-    /// <summary>由 MovingPlatform 调用，设置本帧平台速度（在 FixedUpdate 前调用）</summary>
-    public void SetPlatformVelocity(Vector2 velocity)
-    {
-        platformVelocity = velocity;
-    }
-
-    /// <summary>Mario死亡</summary>
+    /// <summary>Mario 死亡</summary>
     public void Die()
     {
         OnDeath?.Invoke();
         rb.velocity = Vector2.zero;
-        rb.AddForce(Vector2.up * jumpForce * 0.5f, ForceMode2D.Impulse);
-        enabled = false; // 禁用控制
+        rb.AddForce(Vector2.up * jumpPower * 0.5f, ForceMode2D.Impulse);
+        enabled = false;
     }
 
-    /// <summary>被踩弹跳（踩敌人后的小跳）</summary>
+    /// <summary>踩敌人后的弹跳</summary>
     public void Bounce(float bounceForce = 10f)
     {
-        rb.velocity = new Vector2(rb.velocity.x, bounceForce);
+        _frameVelocity.y = bounceForce;
+        rb.velocity = _frameVelocity;
     }
 
     #endregion
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        if (groundLayer == 0)
+            Debug.LogWarning("[MarioController] groundLayer 未设置，跳跃将无法工作！", this);
+    }
+#endif
 }

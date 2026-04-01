@@ -3,16 +3,21 @@ using UnityEngine;
 /// <summary>
 /// 移动平台 - 在两个点之间来回移动，站在上面的角色跟随
 ///
-/// 跟随方案（速度注入）：
-///   每帧把平台速度通过 SetPlatformVelocity() 注入到角色控制器，
-///   角色控制器在 FixedUpdate 里把平台速度叠加到自身速度上。
-///   角色既能随平台移动，也能在平台上自由走动，两者不冲突。
+/// 跟随方案（Kinematic Rigidbody2D + MovePosition）：
+///   平台自身带 Kinematic Rigidbody2D，用 rb.MovePosition() 移动。
+///   Unity 物理引擎会自动把平台的运动传递给站在上面的 Dynamic Rigidbody2D 角色，
+///   不需要任何速度注入代码，角色既能随平台移动，也能在平台上自由走动。
+///
+///   参考：Unity 官方文档 Rigidbody2D.MovePosition + Kinematic 平台方案
+///   https://docs.unity3d.com/Manual/class-Rigidbody2D.html
 ///
 /// 使用方式：
-///   1. 挂载到平台 GameObject，需要 BoxCollider2D
+///   1. 挂载到平台 GameObject（会自动添加 Rigidbody2D 和 BoxCollider2D）
 ///   2. 在 Inspector 设置 Point B（相对于起点的偏移），平台在起点 ↔ B 间来回移动
+///   3. 无需手动配置 Rigidbody2D，脚本会在 Awake 中自动设置为 Kinematic
 /// </summary>
-[DefaultExecutionOrder(-10)]  // 平台先于角色控制器执行，确保速度注入不被清零
+[DefaultExecutionOrder(-10)]
+[RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
 public class MovingPlatform : MonoBehaviour
 {
@@ -25,18 +30,14 @@ public class MovingPlatform : MonoBehaviour
     [Tooltip("是否从 B 点出发（默认从起点出发）")]
     [SerializeField] private bool startFromB = false;
 
-    private Vector3 worldPointA;
-    private Vector3 worldPointB;
-    private Vector3 targetPoint;
+    private Rigidbody2D rb;
+    private Vector2 worldPointA;
+    private Vector2 worldPointB;
+    private Vector2 targetPoint;
     private float waitTimer;
     private bool isWaiting;
 
-    private Vector2 currentPlatformVelocity;
-
-    private MarioController ridingMario;
-    private TricksterController ridingTrickster;
-
-    // 全局共享的零摩擦材质
+    // 全局共享的零摩擦材质（防止角色贴平台侧面卡住）
     private static PhysicsMaterial2D s_zeroFriction;
     private static PhysicsMaterial2D ZeroFriction
     {
@@ -48,22 +49,33 @@ public class MovingPlatform : MonoBehaviour
         }
     }
 
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody2D>();
+
+        // 设置为 Kinematic：平台不受重力/碰撞力影响，但能推动 Dynamic 物体
+        rb.bodyType = RigidbodyType2D.Kinematic;
+        rb.interpolation = RigidbodyInterpolation2D.Interpolate; // 平滑插值，避免抖动
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+        // 平台自身零摩擦，防止角色贴侧面卡住
+        GetComponent<BoxCollider2D>().sharedMaterial = ZeroFriction;
+    }
+
     private void Start()
     {
         worldPointA = transform.position;
-        worldPointB = transform.position + pointB;
+        worldPointB = (Vector2)transform.position + (Vector2)pointB;
 
         if (startFromB)
         {
-            transform.position = worldPointB;
+            rb.position = worldPointB;
             targetPoint = worldPointA;
         }
         else
         {
             targetPoint = worldPointB;
         }
-
-        GetComponent<BoxCollider2D>().sharedMaterial = ZeroFriction;
     }
 
     private void FixedUpdate()
@@ -71,27 +83,15 @@ public class MovingPlatform : MonoBehaviour
         if (isWaiting)
         {
             waitTimer -= Time.fixedDeltaTime;
-            if (waitTimer <= 0) isWaiting = false;
-            currentPlatformVelocity = Vector2.zero;
-            // 等待时也要注入零速度，确保角色不会漂移
-            if (ridingMario != null)     ridingMario.SetPlatformVelocity(Vector2.zero);
-            if (ridingTrickster != null) ridingTrickster.SetPlatformVelocity(Vector2.zero);
+            if (waitTimer <= 0f) isWaiting = false;
             return;
         }
 
-        Vector3 prev = transform.position;
-        transform.position = Vector3.MoveTowards(transform.position, targetPoint, moveSpeed * Time.fixedDeltaTime);
+        // 用 MovePosition 移动平台：Unity 物理引擎会自动处理对 Dynamic Rigidbody2D 的推力
+        Vector2 newPos = Vector2.MoveTowards(rb.position, targetPoint, moveSpeed * Time.fixedDeltaTime);
+        rb.MovePosition(newPos);
 
-        Vector3 delta = transform.position - prev;
-        currentPlatformVelocity = delta.sqrMagnitude > 0f
-            ? new Vector2(delta.x, delta.y) / Time.fixedDeltaTime
-            : Vector2.zero;
-
-        // 注入平台速度到站在上面的角色
-        if (ridingMario != null)     ridingMario.SetPlatformVelocity(currentPlatformVelocity);
-        if (ridingTrickster != null) ridingTrickster.SetPlatformVelocity(currentPlatformVelocity);
-
-        if (Vector3.Distance(transform.position, targetPoint) < 0.01f)
+        if (Vector2.Distance(newPos, targetPoint) < 0.01f)
         {
             targetPoint = targetPoint == worldPointA ? worldPointB : worldPointA;
             isWaiting = true;
@@ -99,64 +99,12 @@ public class MovingPlatform : MonoBehaviour
         }
     }
 
-    // ── 碰撞注册 ──────────────────────────────────────────
-    // 同时监听 Enter 和 Stay，防止物理帧对齐不好时漏掉注册
-
-    private void OnCollisionEnter2D(Collision2D col) => TryRegisterRider(col);
-    private void OnCollisionStay2D(Collision2D col)  => TryRegisterRider(col);
-
-    private void OnCollisionExit2D(Collision2D col)
-    {
-        if (col.gameObject.GetComponent<MarioController>() == ridingMario)
-            ridingMario = null;
-        if (col.gameObject.GetComponent<TricksterController>() == ridingTrickster)
-            ridingTrickster = null;
-    }
-
-    private void TryRegisterRider(Collision2D col)
-    {
-        // 只响应从上方落下的碰撞（接触法线朝上）
-        bool fromAbove = false;
-        foreach (ContactPoint2D c in col.contacts)
-        {
-            if (c.normal.y >= 0.5f) { fromAbove = true; break; }
-        }
-        if (!fromAbove) return;
-
-        GameObject obj = col.gameObject;
-
-        MarioController mario = obj.GetComponent<MarioController>();
-        if (mario != null)
-        {
-            EnsureZeroFriction(obj);
-            ridingMario = mario;
-            return;
-        }
-
-        TricksterController tc = obj.GetComponent<TricksterController>();
-        if (tc != null)
-        {
-            // 伪装状态下的 Trickster 不被平台携带
-            DisguiseSystem ds = obj.GetComponent<DisguiseSystem>();
-            if (ds != null && ds.IsDisguised) return;
-            EnsureZeroFriction(obj);
-            ridingTrickster = tc;
-        }
-    }
-
-    private static void EnsureZeroFriction(GameObject obj)
-    {
-        Collider2D col = obj.GetComponent<Collider2D>();
-        if (col != null && col.sharedMaterial == null)
-            col.sharedMaterial = ZeroFriction;
-    }
-
     // ── 编辑器可视化 ──────────────────────────────────────
 
     private void OnDrawGizmos()
     {
-        Vector3 a = Application.isPlaying ? worldPointA : transform.position;
-        Vector3 b = Application.isPlaying ? worldPointB : transform.position + pointB;
+        Vector3 a = Application.isPlaying ? (Vector3)worldPointA : transform.position;
+        Vector3 b = Application.isPlaying ? (Vector3)worldPointB : transform.position + pointB;
         Gizmos.color = Color.cyan;
         Gizmos.DrawLine(a, b);
         Gizmos.DrawWireSphere(a, 0.2f);

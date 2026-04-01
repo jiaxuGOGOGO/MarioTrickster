@@ -7,6 +7,9 @@ using UnityEngine;
 ///   所有速度变化在一帧内累积到 _frameVelocity，最后一次性写入 rb.velocity。
 ///   重力由代码自管，不依赖 Unity gravityScale。
 ///
+///   平台跟随：移动平台使用 Kinematic Rigidbody2D + MovePosition，
+///   Unity 物理引擎自动处理角色跟随，本控制器无需任何平台相关代码。
+///
 /// 特殊逻辑：
 ///   - 伪装状态下移动速度受 disguisedMoveMultiplier 限制
 ///   - 伪装状态下默认不可跳跃（可在 Inspector 开启）
@@ -57,9 +60,6 @@ public class TricksterController : MonoBehaviour
     private Vector2 moveInput;
     private bool jumpPressedThisFrame;
     private bool jumpHeld;
-
-    // ── 平台速度（由 MovingPlatform 每帧写入）────────────────
-    private Vector2 platformVelocity;
 
     // ── 帧速度 ────────────────────────────────────────────
     private Vector2 _frameVelocity;
@@ -141,7 +141,6 @@ public class TricksterController : MonoBehaviour
         HandleGravity();
 
         rb.velocity = _frameVelocity;
-        platformVelocity = Vector2.zero;
     }
 
     #endregion
@@ -223,8 +222,7 @@ public class TricksterController : MonoBehaviour
     private void HandleDirection()
     {
         float speedMult = IsDisguised ? disguisedMoveMultiplier : 1f;
-        float inputTarget = moveInput.x * maxSpeed * speedMult;
-        float target = inputTarget + platformVelocity.x;
+        float target = moveInput.x * maxSpeed * speedMult;
 
         if (Mathf.Abs(moveInput.x) > 0.01f)
         {
@@ -235,7 +233,7 @@ public class TricksterController : MonoBehaviour
         {
             float decel = _grounded ? groundDeceleration : airDeceleration;
             _frameVelocity.x = Mathf.MoveTowards(
-                _frameVelocity.x, platformVelocity.x, decel * Time.fixedDeltaTime);
+                _frameVelocity.x, 0f, decel * Time.fixedDeltaTime);
         }
     }
 
@@ -297,13 +295,6 @@ public class TricksterController : MonoBehaviour
     {
         abilitySystem?.OnAbilityPressed();
     }
-
-    #endregion
-
-    // ─────────────────────────────────────────────────────
-    #region 平台接口（由 MovingPlatform 调用）
-
-    public void SetPlatformVelocity(Vector2 velocity) => platformVelocity = velocity;
 
     #endregion
 

@@ -9,9 +9,12 @@ using UnityEngine;
 ///   https://github.com/zigurous/unity-super-mario-tutorial
 ///
 /// 核心设计:
-///   所有速度变化（移动、重力、跳跃、平台）在一帧内累积到 _frameVelocity，
+///   所有速度变化（移动、重力、跳跃）在一帧内累积到 _frameVelocity，
 ///   最后一次性写入 rb.velocity，避免多处赋值互相覆盖。
 ///   重力由代码自管，不依赖 Unity gravityScale，可精确控制手感。
+///
+///   平台跟随：移动平台使用 Kinematic Rigidbody2D + MovePosition，
+///   Unity 物理引擎自动处理角色跟随，本控制器无需任何平台相关代码。
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -63,9 +66,6 @@ public class MarioController : MonoBehaviour
     private bool jumpPressedThisFrame;
     private bool jumpHeld;
 
-    // ── 平台速度（由 MovingPlatform 每帧写入）────────────────
-    private Vector2 platformVelocity;
-
     // ── 帧速度（本帧所有速度变化的累积量）───────────────────
     private Vector2 _frameVelocity;
 
@@ -88,10 +88,10 @@ public class MarioController : MonoBehaviour
     private bool isFacingRight = true;
 
     // ── 公共属性 ──────────────────────────────────────────
-    public bool IsGrounded   => _grounded;
-    public bool IsMoving     => Mathf.Abs(_frameVelocity.x) > 0.1f;
+    public bool IsGrounded    => _grounded;
+    public bool IsMoving      => Mathf.Abs(_frameVelocity.x) > 0.1f;
     public bool IsFacingRight => isFacingRight;
-    public Vector2 Velocity  => _frameVelocity;
+    public Vector2 Velocity   => _frameVelocity;
 
     // ── 事件 ──────────────────────────────────────────────
     public System.Action OnJump;
@@ -155,7 +155,7 @@ public class MarioController : MonoBehaviour
         // 3. 跳跃
         HandleJump();
 
-        // 4. 水平移动（含平台速度叠加）
+        // 4. 水平移动
         HandleDirection();
 
         // 5. 重力
@@ -163,9 +163,6 @@ public class MarioController : MonoBehaviour
 
         // 6. 一次性写入 rb
         rb.velocity = _frameVelocity;
-
-        // 7. 平台速度用完即清（由平台每帧重新写入）
-        platformVelocity = Vector2.zero;
     }
 
     #endregion
@@ -175,7 +172,6 @@ public class MarioController : MonoBehaviour
 
     private void CheckCollisions()
     {
-        // 临时关闭"从碰撞体内部开始的查询"，避免自身碰撞体干扰
         bool prev = Physics2D.queriesStartInColliders;
         Physics2D.queriesStartInColliders = false;
 
@@ -193,10 +189,8 @@ public class MarioController : MonoBehaviour
 
         Physics2D.queriesStartInColliders = prev;
 
-        // 撞到天花板：清除向上速度
         if (ceilingHit) _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
 
-        // 刚落地
         if (!_grounded && groundHit)
         {
             _grounded = true;
@@ -205,7 +199,6 @@ public class MarioController : MonoBehaviour
             _endedJumpEarly = false;
             OnGroundedChanged?.Invoke(true, Mathf.Abs(_frameVelocity.y));
         }
-        // 刚离地
         else if (_grounded && !groundHit)
         {
             _grounded = false;
@@ -221,7 +214,6 @@ public class MarioController : MonoBehaviour
 
     private void HandleJump()
     {
-        // 松开跳跃键时提前结束上升（短按 = 低跳，长按 = 高跳）
         if (!_endedJumpEarly && !_grounded && !jumpHeld && _frameVelocity.y > 0)
             _endedJumpEarly = true;
 
@@ -249,23 +241,16 @@ public class MarioController : MonoBehaviour
 
     private void HandleDirection()
     {
-        // 目标速度 = 玩家输入 + 平台速度（叠加，在平台上可自由走动）
-        float inputTarget = moveInput.x * maxSpeed;
-        float platformTarget = platformVelocity.x;
-        float target = inputTarget + platformTarget;
-
         if (Mathf.Abs(moveInput.x) > 0.01f)
         {
-            // 有输入：加速到目标速度
             _frameVelocity.x = Mathf.MoveTowards(
-                _frameVelocity.x, target, acceleration * Time.fixedDeltaTime);
+                _frameVelocity.x, moveInput.x * maxSpeed, acceleration * Time.fixedDeltaTime);
         }
         else
         {
-            // 无输入：减速到平台速度（而非0，保证跟随平台）
             float decel = _grounded ? groundDeceleration : airDeceleration;
             _frameVelocity.x = Mathf.MoveTowards(
-                _frameVelocity.x, platformTarget, decel * Time.fixedDeltaTime);
+                _frameVelocity.x, 0f, decel * Time.fixedDeltaTime);
         }
     }
 
@@ -278,12 +263,10 @@ public class MarioController : MonoBehaviour
     {
         if (_grounded && _frameVelocity.y <= 0f)
         {
-            // 落地时施加微小向下力，防止在斜面上抖动
             _frameVelocity.y = groundingForce;
         }
         else
         {
-            // 空中重力（松开跳跃键时加速下落，提升手感）
             float gravity = fallAcceleration;
             if (_endedJumpEarly && _frameVelocity.y > 0)
                 gravity *= jumpEndEarlyGravityModifier;
@@ -320,14 +303,6 @@ public class MarioController : MonoBehaviour
     public void SetMoveInput(Vector2 input)  => moveInput = input;
     public void OnJumpPressed()  { jumpPressedThisFrame = true; jumpHeld = true; }
     public void OnJumpReleased() { jumpHeld = false; }
-
-    #endregion
-
-    // ─────────────────────────────────────────────────────
-    #region 平台接口（由 MovingPlatform 调用）
-
-    /// <summary>由 MovingPlatform 在 FixedUpdate 前写入本帧平台速度</summary>
-    public void SetPlatformVelocity(Vector2 velocity) => platformVelocity = velocity;
 
     #endregion
 

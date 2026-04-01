@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -9,9 +10,13 @@ using UnityEngine;
 ///   Reverse - 反向移动
 ///   Stop    - 突然停止（让 Mario 跳空）
 ///
-/// 跟随方案：与 MovingPlatform 相同，使用速度注入。
+/// 跟随方案（Kinematic Rigidbody2D + MovePosition）：
+///   与 MovingPlatform 相同，平台带 Kinematic Rigidbody2D，
+///   用 rb.MovePosition() 移动，Unity 物理引擎自动处理角色跟随。
+///   不需要速度注入代码，角色既能随平台移动，也能在平台上自由走动。
 /// </summary>
-[DefaultExecutionOrder(-10)]  // 平台先于角色控制器执行，确保速度注入不被清零
+[DefaultExecutionOrder(-10)]
+[RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
 [RequireComponent(typeof(SpriteRenderer))]
 public class ControllablePlatform : ControllablePropBase
@@ -37,20 +42,17 @@ public class ControllablePlatform : ControllablePropBase
     [SerializeField] private float reverseSpeedMultiplier = 2f;
 
     // ── 路径 ──────────────────────────────────────────────
-    private Vector3 worldPointA;
-    private Vector3 worldPointB;
-    private Vector3 targetPoint;
+    private Rigidbody2D rb;
+    private Vector2 worldPointA;
+    private Vector2 worldPointB;
+    private Vector2 targetPoint;
     private float waitTimer;
     private bool isWaiting;
 
     // ── 操控状态 ──────────────────────────────────────────
     private bool isControlled;
-    private Vector3 rushDirection;
-    private Vector3 preControlPosition;
-
-    // ── 角色跟随 ──────────────────────────────────────────
-    private MarioController ridingMario;
-    private TricksterController ridingTrickster;
+    private Vector2 rushDirection;
+    private Vector2 preControlPosition;
 
     // ── 零摩擦材质 ────────────────────────────────────────
     private static PhysicsMaterial2D s_zeroFriction;
@@ -69,32 +71,28 @@ public class ControllablePlatform : ControllablePropBase
     {
         base.Awake();
         propName = "移动平台";
+
+        rb = GetComponent<Rigidbody2D>();
+        // Kinematic：平台不受重力/碰撞力影响，但能推动 Dynamic 物体
+        rb.bodyType = RigidbodyType2D.Kinematic;
+        rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+        GetComponent<BoxCollider2D>().sharedMaterial = ZeroFriction;
     }
 
     private void Start()
     {
         worldPointA = transform.position;
-        worldPointB = transform.position + pointB;
+        worldPointB = (Vector2)transform.position + (Vector2)pointB;
         targetPoint = startFromB ? worldPointA : worldPointB;
-        if (startFromB) transform.position = worldPointB;
-
-        GetComponent<BoxCollider2D>().sharedMaterial = ZeroFriction;
+        if (startFromB) rb.position = worldPointB;
     }
 
     private void FixedUpdate()
     {
-        Vector3 prev = transform.position;
-
         if (isControlled) UpdateControlledMovement();
         else              UpdateNormalMovement();
-
-        Vector3 delta = transform.position - prev;
-        Vector2 platVel = delta.sqrMagnitude > 0f
-            ? new Vector2(delta.x, delta.y) / Time.fixedDeltaTime
-            : Vector2.zero;
-        // 每帧都注入（包括静止时的零速度），确保角色不会漂移
-        if (ridingMario != null)     ridingMario.SetPlatformVelocity(platVel);
-        if (ridingTrickster != null) ridingTrickster.SetPlatformVelocity(platVel);
     }
 
     // ── 移动逻辑 ──────────────────────────────────────────
@@ -104,14 +102,14 @@ public class ControllablePlatform : ControllablePropBase
         if (isWaiting)
         {
             waitTimer -= Time.fixedDeltaTime;
-            if (waitTimer <= 0) isWaiting = false;
+            if (waitTimer <= 0f) isWaiting = false;
             return;
         }
 
-        transform.position = Vector3.MoveTowards(
-            transform.position, targetPoint, normalMoveSpeed * Time.fixedDeltaTime);
+        Vector2 newPos = Vector2.MoveTowards(rb.position, targetPoint, normalMoveSpeed * Time.fixedDeltaTime);
+        rb.MovePosition(newPos);
 
-        if (Vector3.Distance(transform.position, targetPoint) < 0.01f)
+        if (Vector2.Distance(newPos, targetPoint) < 0.01f)
         {
             targetPoint = targetPoint == worldPointA ? worldPointB : worldPointA;
             isWaiting = true;
@@ -124,16 +122,15 @@ public class ControllablePlatform : ControllablePropBase
         switch (controlMode)
         {
             case PlatformControlMode.Rush:
-                transform.position += rushDirection * rushSpeedMultiplier * normalMoveSpeed * Time.fixedDeltaTime;
+                rb.MovePosition(rb.position + rushDirection * rushSpeedMultiplier * normalMoveSpeed * Time.fixedDeltaTime);
                 break;
             case PlatformControlMode.Drop:
-                transform.position += Vector3.down * dropSpeed * Time.fixedDeltaTime;
+                rb.MovePosition(rb.position + Vector2.down * dropSpeed * Time.fixedDeltaTime);
                 break;
             case PlatformControlMode.Reverse:
-                Vector3 reverseTarget = targetPoint == worldPointA ? worldPointB : worldPointA;
-                transform.position = Vector3.MoveTowards(
-                    transform.position, reverseTarget,
-                    normalMoveSpeed * reverseSpeedMultiplier * Time.fixedDeltaTime);
+                Vector2 reverseTarget = targetPoint == worldPointA ? worldPointB : worldPointA;
+                rb.MovePosition(Vector2.MoveTowards(rb.position, reverseTarget,
+                    normalMoveSpeed * reverseSpeedMultiplier * Time.fixedDeltaTime));
                 break;
             case PlatformControlMode.Stop:
                 break;
@@ -142,7 +139,7 @@ public class ControllablePlatform : ControllablePropBase
 
     // ── ControllablePropBase 实现 ─────────────────────────
 
-    protected override void OnTelegraphStart() => preControlPosition = transform.position;
+    protected override void OnTelegraphStart() => preControlPosition = rb.position;
     protected override void OnTelegraphEnd()   { }
 
     protected override void OnActivate(Vector2 direction)
@@ -151,8 +148,8 @@ public class ControllablePlatform : ControllablePropBase
         if (controlMode == PlatformControlMode.Rush)
         {
             rushDirection = direction.magnitude > 0.1f
-                ? new Vector3(direction.x, direction.y, 0f).normalized
-                : (transform.position - targetPoint).normalized;
+                ? direction.normalized
+                : ((Vector2)transform.position - targetPoint).normalized;
         }
         else if (controlMode == PlatformControlMode.Reverse)
         {
@@ -169,76 +166,29 @@ public class ControllablePlatform : ControllablePropBase
         }
         else if (controlMode == PlatformControlMode.Rush)
         {
-            float dA = Vector3.Distance(transform.position, worldPointA);
-            float dB = Vector3.Distance(transform.position, worldPointB);
+            float dA = Vector2.Distance(rb.position, worldPointA);
+            float dB = Vector2.Distance(rb.position, worldPointB);
             targetPoint = dA < dB ? worldPointB : worldPointA;
         }
     }
 
-    private System.Collections.IEnumerator RecoverFromDrop()
+    private IEnumerator RecoverFromDrop()
     {
         yield return new WaitForSeconds(dropRecoverTime);
-        Vector3 start = transform.position;
+        Vector2 start = rb.position;
         float elapsed = 0f, duration = 1f;
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
             float t = elapsed / duration;
             t = t * t * (3f - 2f * t); // smoothstep
-            transform.position = Vector3.Lerp(start, preControlPosition, t);
-            yield return null;
+            rb.MovePosition(Vector2.Lerp(start, preControlPosition, t));
+            yield return new WaitForFixedUpdate();
         }
-        transform.position = preControlPosition;
-        float dA2 = Vector3.Distance(transform.position, worldPointA);
-        float dB2 = Vector3.Distance(transform.position, worldPointB);
+        rb.MovePosition(preControlPosition);
+        float dA2 = Vector2.Distance(rb.position, worldPointA);
+        float dB2 = Vector2.Distance(rb.position, worldPointB);
         targetPoint = dA2 < dB2 ? worldPointB : worldPointA;
-    }
-
-    // ── 角色跟随 ──────────────────────────────────────────
-
-    private void OnCollisionEnter2D(Collision2D col) => TryRegisterRider(col);
-    private void OnCollisionStay2D(Collision2D col)  => TryRegisterRider(col);
-
-    private void OnCollisionExit2D(Collision2D col)
-    {
-        if (col.gameObject.GetComponent<MarioController>() == ridingMario)         ridingMario     = null;
-        if (col.gameObject.GetComponent<TricksterController>() == ridingTrickster) ridingTrickster = null;
-    }
-
-    private void TryRegisterRider(Collision2D col)
-    {
-        bool fromAbove = false;
-        foreach (ContactPoint2D c in col.contacts)
-        {
-            if (c.normal.y >= 0.5f) { fromAbove = true; break; }
-        }
-        if (!fromAbove) return;
-
-        GameObject obj = col.gameObject;
-
-        MarioController mario = obj.GetComponent<MarioController>();
-        if (mario != null)
-        {
-            EnsureZeroFriction(obj);
-            ridingMario = mario;
-            return;
-        }
-
-        TricksterController tc = obj.GetComponent<TricksterController>();
-        if (tc != null)
-        {
-            DisguiseSystem ds = obj.GetComponent<DisguiseSystem>();
-            if (ds != null && ds.IsDisguised) return;
-            EnsureZeroFriction(obj);
-            ridingTrickster = tc;
-        }
-    }
-
-    private static void EnsureZeroFriction(GameObject obj)
-    {
-        Collider2D col = obj.GetComponent<Collider2D>();
-        if (col != null && col.sharedMaterial == null)
-            col.sharedMaterial = ZeroFriction;
     }
 
     // ── 编辑器可视化 ──────────────────────────────────────
@@ -246,8 +196,8 @@ public class ControllablePlatform : ControllablePropBase
     protected override void OnDrawGizmosSelected()
     {
         base.OnDrawGizmosSelected();
-        Vector3 a = Application.isPlaying ? worldPointA : transform.position;
-        Vector3 b = Application.isPlaying ? worldPointB : transform.position + pointB;
+        Vector3 a = Application.isPlaying ? (Vector3)worldPointA : transform.position;
+        Vector3 b = Application.isPlaying ? (Vector3)worldPointB : transform.position + pointB;
         Gizmos.color = Color.cyan;
         Gizmos.DrawLine(a, b);
         Gizmos.DrawWireSphere(a, 0.15f);

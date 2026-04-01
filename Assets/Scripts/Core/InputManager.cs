@@ -129,15 +129,11 @@ public class InputManager : MonoBehaviour
         float horizontal = 0f;
         float vertical = 0f;
 
-        // P2 使用方向键移动
+        // P2 使用左右方向键移动（上键已用于跳跃，不再用于移动）
         if (Input.GetKey(KeyCode.RightArrow))
             horizontal += 1f;
         if (Input.GetKey(KeyCode.LeftArrow))
             horizontal -= 1f;
-        if (Input.GetKey(KeyCode.UpArrow))
-            vertical += 1f;
-        if (Input.GetKey(KeyCode.DownArrow))
-            vertical -= 1f;
 
         // 手柄输入
         if (gamepad2 != null)
@@ -152,13 +148,13 @@ public class InputManager : MonoBehaviour
 
         p2MoveInput = new Vector2(Mathf.Clamp(horizontal, -1f, 1f), Mathf.Clamp(vertical, -1f, 1f));
 
-        // 跳跃 - 右Ctrl 或 小键盘0（备用）或 手柄南键
-        // 注意：Unity New Input System 启用后，RightControl 可能被系统拦截
-        // 如果右Ctrl无效，可在 Inspector 勾选 useNumpad0AsJump 改用小键盘0
-        bool jumpKeyDown = Input.GetKeyDown(KeyCode.RightControl)
+        // 跳跃 - 上方向键 或 右Ctrl 或 小键盘0 或 手柄南键
+        bool jumpKeyDown = Input.GetKeyDown(KeyCode.UpArrow)
+                        || Input.GetKeyDown(KeyCode.RightControl)
                         || Input.GetKeyDown(KeyCode.Keypad0)
                         || (gamepad2 != null && gamepad2.buttonSouth.wasPressedThisFrame);
-        bool jumpKeyHeld = Input.GetKey(KeyCode.RightControl)
+        bool jumpKeyHeld = Input.GetKey(KeyCode.UpArrow)
+                        || Input.GetKey(KeyCode.RightControl)
                         || Input.GetKey(KeyCode.Keypad0)
                         || (gamepad2 != null && gamepad2.buttonSouth.isPressed);
 

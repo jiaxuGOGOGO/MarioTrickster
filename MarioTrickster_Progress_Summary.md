@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-01 (Session 3) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-01 (Session 4) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 
 ---
 
@@ -156,6 +156,8 @@ InputManager (右Alt/手柄Y)
 | B002 | MarioController.cs / TricksterController.cs / ControllablePlatform.cs / ControllableHazard.cs / ControllableBlock.cs 使用 `rb.linearVelocity`，这是 Unity 6 的 API。Unity 2022.3 使用 `rb.velocity` | 高 | **如果在 Unity 2022.3 中编译报错，需要全局替换 `linearVelocity` → `velocity`** |
 | B003 | InputManager.cs 中 Player1 使用 WASD，Player2 使用方向键，但 MarioController 原代码中也绑定了方向键 | 中 | InputManager 已接管输入分发，MarioController 不直接读取键盘，所以不冲突 |
 | B004 | 场景 SampleScene.unity 是空白模板，需要手动搭建测试场景 | 高 | 见下方"下一步计划" |
+| B005 | ✅ **已修复 (Session 4)** Mario/Trickster 无法移动 | — | 根因：Managers → InputManager 组件的 marioController / tricksterController 槽位未拖入引用。**修复方法：在 Inspector 中拖入对应引用即可，无需改代码。** |
+| B006 | ✅ **已修复 (Session 4)** ControllablePlatform 吸附 Trickster 并导致掉落 | — | 根因1：SetParent 导致 Rigidbody2D 物理异常；根因2：未排除伪装中的 Trickster。已改为位移跟随方案 + ShouldRide() 排除伪装状态的 Trickster。MovingPlatform.cs 和 ControllablePlatform.cs 均已更新。 |
 
 ### 关于 B002 的修复方法
 

@@ -66,7 +66,10 @@ public class TricksterController : MonoBehaviour
     private Vector2 _frameVelocity;
 
     // ── 平台速度注入（由 MovingPlatform / ControllablePlatform 每帧写入）──
-    private Vector2 _platformVelocity;
+    // 重要：读回 rb.velocity 时必须减去上一帧的平台速度，
+    // 否则平台速度会每帧累积，导致角色被甩飞。
+    private Vector2 _platformVelocity;      // 本帧平台注入的速度
+    private Vector2 _lastPlatformVelocity;  // 上一帧平台注入的速度（用于下帧读回时扣除）
     private bool _onPlatform;
 
     // ── 地面状态面状态 ──────────────────────────────────────────
@@ -138,7 +141,8 @@ public class TricksterController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        _frameVelocity = rb.velocity;
+        // 读回 rb.velocity 并减去上一帧平台速度，得到角色自身速度
+        _frameVelocity = rb.velocity - _lastPlatformVelocity;
 
         CheckCollisions();
         HandleJump();
@@ -146,12 +150,13 @@ public class TricksterController : MonoBehaviour
         HandleGravity();
 
         // 叠加平台速度（在所有自身速度计算完成后叠加）
-        if (_onPlatform)
-        {
-            _frameVelocity += _platformVelocity;
-        }
+        Vector2 platformVelThisFrame = _onPlatform ? _platformVelocity : Vector2.zero;
+        _frameVelocity += platformVelThisFrame;
 
         rb.velocity = _frameVelocity;
+
+        // 保存本帧平台速度，下帧读回时用于扣除
+        _lastPlatformVelocity = platformVelThisFrame;
 
         // 每帧重置平台状态（平台脚本每帧重新设置，若未设置则视为不在平台上）
         _onPlatform = false;

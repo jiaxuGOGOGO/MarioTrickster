@@ -77,7 +77,11 @@ public class MarioController : MonoBehaviour
     //   所以 SetParent 无法让角色跟随 Kinematic 平台移动。
     //   正确做法：平台每帧把自己的速度注入角色，角色在 FixedUpdate
     //   最后将平台速度叠加到 _frameVelocity，实现跟随效果。
-    private Vector2 _platformVelocity;
+    //
+    //   重要：读回 rb.velocity 时必须减去上一帧的平台速度，
+    //   否则平台速度会每帧累积，导致角色被甩飞。
+    private Vector2 _platformVelocity;      // 本帧平台注入的速度
+    private Vector2 _lastPlatformVelocity;  // 上一帧平台注入的速度（用于下帧读回时扣除）
     private bool _onPlatform;
 
     // ── 地面状态 ──────────────────────────────────────────
@@ -157,8 +161,11 @@ public class MarioController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // 1. 从 rb 同步当前速度到帧速度
-        _frameVelocity = rb.velocity;
+        // 1. 从 rb 读回速度，并减去上一帧注入的平台速度
+        //    原理：rb.velocity = 角色自身速度 + 上帧平台速度
+        //    所以角色自身速度 = rb.velocity - 上帧平台速度
+        //    不这样做的话，平台速度会每帧累积，角色被甩飞。
+        _frameVelocity = rb.velocity - _lastPlatformVelocity;
 
         // 2. 碰撞检测（更新 _grounded）
         CheckCollisions();
@@ -173,15 +180,16 @@ public class MarioController : MonoBehaviour
         HandleGravity();
 
         // 6. 叠加平台速度（在所有自身速度计算完成后叠加）
-        if (_onPlatform)
-        {
-            _frameVelocity += _platformVelocity;
-        }
+        Vector2 platformVelThisFrame = _onPlatform ? _platformVelocity : Vector2.zero;
+        _frameVelocity += platformVelThisFrame;
 
         // 7. 一次性写入 rb
         rb.velocity = _frameVelocity;
 
-        // 8. 每帧重置平台状态（平台脚本每帧重新设置，若未设置则视为不在平台上）
+        // 8. 保存本帧平台速度，下帧读回时用于扣除
+        _lastPlatformVelocity = platformVelThisFrame;
+
+        // 9. 每帧重置平台状态（平台脚本每帧重新设置，若未设置则视为不在平台上）
         _onPlatform = false;
         _platformVelocity = Vector2.zero;
     }

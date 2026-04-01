@@ -339,7 +339,7 @@ public class MarioController : MonoBehaviour
     {
         OnDeath?.Invoke();
         rb.velocity = Vector2.zero;
-        rb.AddForce(Vector2.up * jumpPower * 0.5f, ForceMode2D.Impulse);
+        _frameVelocity = Vector2.zero;
         enabled = false;
     }
 

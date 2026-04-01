@@ -12,6 +12,7 @@ using UnityEngine;
 ///   1. 挂载到平台 GameObject，需要 BoxCollider2D
 ///   2. 在 Inspector 设置 Point B（相对于起点的偏移），平台在起点 ↔ B 间来回移动
 /// </summary>
+[DefaultExecutionOrder(-10)]  // 平台先于角色控制器执行，确保速度注入不被清零
 [RequireComponent(typeof(BoxCollider2D))]
 public class MovingPlatform : MonoBehaviour
 {
@@ -72,6 +73,9 @@ public class MovingPlatform : MonoBehaviour
             waitTimer -= Time.fixedDeltaTime;
             if (waitTimer <= 0) isWaiting = false;
             currentPlatformVelocity = Vector2.zero;
+            // 等待时也要注入零速度，确保角色不会漂移
+            if (ridingMario != null)     ridingMario.SetPlatformVelocity(Vector2.zero);
+            if (ridingTrickster != null) ridingTrickster.SetPlatformVelocity(Vector2.zero);
             return;
         }
 
@@ -79,7 +83,9 @@ public class MovingPlatform : MonoBehaviour
         transform.position = Vector3.MoveTowards(transform.position, targetPoint, moveSpeed * Time.fixedDeltaTime);
 
         Vector3 delta = transform.position - prev;
-        currentPlatformVelocity = new Vector2(delta.x, delta.y) / Time.fixedDeltaTime;
+        currentPlatformVelocity = delta.sqrMagnitude > 0f
+            ? new Vector2(delta.x, delta.y) / Time.fixedDeltaTime
+            : Vector2.zero;
 
         // 注入平台速度到站在上面的角色
         if (ridingMario != null)     ridingMario.SetPlatformVelocity(currentPlatformVelocity);

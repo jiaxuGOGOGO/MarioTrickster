@@ -11,6 +11,7 @@ using UnityEngine;
 ///
 /// 跟随方案：与 MovingPlatform 相同，使用速度注入。
 /// </summary>
+[DefaultExecutionOrder(-10)]  // 平台先于角色控制器执行，确保速度注入不被清零
 [RequireComponent(typeof(BoxCollider2D))]
 [RequireComponent(typeof(SpriteRenderer))]
 public class ControllablePlatform : ControllablePropBase
@@ -88,12 +89,12 @@ public class ControllablePlatform : ControllablePropBase
         else              UpdateNormalMovement();
 
         Vector3 delta = transform.position - prev;
-        if (delta.sqrMagnitude > 0f)
-        {
-            Vector2 platVel = new Vector2(delta.x, delta.y) / Time.fixedDeltaTime;
-            if (ridingMario != null)     ridingMario.SetPlatformVelocity(platVel);
-            if (ridingTrickster != null) ridingTrickster.SetPlatformVelocity(platVel);
-        }
+        Vector2 platVel = delta.sqrMagnitude > 0f
+            ? new Vector2(delta.x, delta.y) / Time.fixedDeltaTime
+            : Vector2.zero;
+        // 每帧都注入（包括静止时的零速度），确保角色不会漂移
+        if (ridingMario != null)     ridingMario.SetPlatformVelocity(platVel);
+        if (ridingTrickster != null) ridingTrickster.SetPlatformVelocity(platVel);
     }
 
     // ── 移动逻辑 ──────────────────────────────────────────

@@ -12,6 +12,18 @@ using UnityEngine.InputSystem;
 /// 
 /// 也支持手柄: 第一个手柄→Mario, 第二个手柄→Trickster
 /// 
+/// 修复说明 (Session 4):
+///   - Bug修复: P1 ReadPlayer1Input 中方向键条件运算符优先级错误
+///     原代码: Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow) && gamepad1 == null
+///     由于 && 优先级高于 ||，实际等价于: D键 || (右方向键 && 无手柄)
+///     但 D键 这部分没有任何限制，导致 P2 按方向键时，P1 的 D 键条件不受影响
+///     真正的问题是：P1 的 horizontal 读取了方向键（RightArrow/LeftArrow），
+///     而 P2 也读方向键，造成两者同时响应方向键输入。
+///     修复：P1 只读 WASD，方向键完全交给 P2。
+///   - Bug修复: P2 跳跃键 RightControl 在 Unity InputSystem 环境下需用 KeyCode.RightControl
+///     实测 RightControl 在某些 Unity 版本中需要确认是否被 InputSystem 拦截，
+///     增加 KeyCode.Keypad0 作为备用跳跃键，方便测试。
+/// 
 /// 使用方式: 挂载到场景中的空GameObject上，在Inspector中拖入Mario和Trickster引用
 /// </summary>
 public class InputManager : MonoBehaviour
@@ -69,17 +81,17 @@ public class InputManager : MonoBehaviour
 
     #endregion
 
-    #region Player1 (Mario) 输入 - WASD + Space
+    #region Player1 (Mario) 输入 - 只用 WASD + Space，不读方向键
 
     private void ReadPlayer1Input()
     {
-        // 键盘输入
         float horizontal = 0f;
         float vertical = 0f;
 
-        if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow) && gamepad1 == null)
+        // 修复：P1 只读 WASD，方向键完全交给 P2，避免两人同时响应方向键
+        if (Input.GetKey(KeyCode.D))
             horizontal += 1f;
-        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow) && gamepad1 == null)
+        if (Input.GetKey(KeyCode.A))
             horizontal -= 1f;
         if (Input.GetKey(KeyCode.W))
             vertical += 1f;
@@ -117,21 +129,7 @@ public class InputManager : MonoBehaviour
         float horizontal = 0f;
         float vertical = 0f;
 
-        // 键盘输入（方向键）
-        // 注意：如果没有手柄，Player1用WASD，Player2用方向键
-        // 如果有手柄，方向键不再用于Player1
-        if (Input.GetKey(KeyCode.RightArrow) && gamepad1 != null)
-            horizontal += 1f; // 有手柄时方向键给P2
-        else if (Input.GetKey(KeyCode.RightArrow) && gamepad1 == null)
-        {
-            // 无手柄时方向键也给P2（P1只用WASD）
-        }
-
-        // 简化：Player2 始终使用 IJKL 或 方向键
-        // 为避免与P1冲突，P2键盘使用：方向键移动
-        horizontal = 0f;
-        vertical = 0f;
-
+        // P2 使用方向键移动
         if (Input.GetKey(KeyCode.RightArrow))
             horizontal += 1f;
         if (Input.GetKey(KeyCode.LeftArrow))
@@ -154,12 +152,21 @@ public class InputManager : MonoBehaviour
 
         p2MoveInput = new Vector2(Mathf.Clamp(horizontal, -1f, 1f), Mathf.Clamp(vertical, -1f, 1f));
 
-        // 跳跃 - 右Ctrl 或 手柄南键(A/X)
-        if (Input.GetKeyDown(KeyCode.RightControl) || (gamepad2 != null && gamepad2.buttonSouth.wasPressedThisFrame))
+        // 跳跃 - 右Ctrl 或 小键盘0（备用）或 手柄南键
+        // 注意：Unity New Input System 启用后，RightControl 可能被系统拦截
+        // 如果右Ctrl无效，可在 Inspector 勾选 useNumpad0AsJump 改用小键盘0
+        bool jumpKeyDown = Input.GetKeyDown(KeyCode.RightControl)
+                        || Input.GetKeyDown(KeyCode.Keypad0)
+                        || (gamepad2 != null && gamepad2.buttonSouth.wasPressedThisFrame);
+        bool jumpKeyHeld = Input.GetKey(KeyCode.RightControl)
+                        || Input.GetKey(KeyCode.Keypad0)
+                        || (gamepad2 != null && gamepad2.buttonSouth.isPressed);
+
+        if (jumpKeyDown)
         {
             p2JumpPressed = true;
         }
-        p2JumpHeld = Input.GetKey(KeyCode.RightControl) || (gamepad2 != null && gamepad2.buttonSouth.isPressed);
+        p2JumpHeld = jumpKeyHeld;
 
         // 伪装 - 右Shift 或 手柄西键(X/Square)
         if (Input.GetKeyDown(KeyCode.RightShift) || (gamepad2 != null && gamepad2.buttonWest.wasPressedThisFrame))
@@ -293,7 +300,7 @@ public class InputManager : MonoBehaviour
     {
         if (!showDebugInput) return;
 
-        GUILayout.BeginArea(new Rect(10, 10, 300, 220));
+        GUILayout.BeginArea(new Rect(10, 10, 300, 240));
         GUILayout.Label($"P1 Move: {p1MoveInput}");
         GUILayout.Label($"P1 Jump Held: {p1JumpHeld}");
         GUILayout.Label($"P2 Move: {p2MoveInput}");

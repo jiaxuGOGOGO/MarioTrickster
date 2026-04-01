@@ -61,14 +61,6 @@ public class TricksterController : MonoBehaviour
     {
         isGrounded = CheckGrounded();
 
-        // 跳跃
-        bool canJump = isGrounded && (!IsDisguised || canJumpWhileDisguised);
-        if (jumpPressed && canJump)
-        {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-            jumpPressed = false;
-        }
-
         // 朝向（仅非伪装状态）
         if (!IsDisguised)
         {
@@ -84,6 +76,15 @@ public class TricksterController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // 跳跃（在 FixedUpdate 中执行，与物理引擎同步）
+        bool canJump = isGrounded && (!IsDisguised || canJumpWhileDisguised);
+        if (jumpPressed && canJump)
+        {
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+        }
+        // 无论是否跳跃成功，都在本帧清除，避免连续触发
+        jumpPressed = false;
+
         float speedMultiplier = IsDisguised ? disguisedMoveMultiplier : 1f;
         float targetSpeed = moveInput.x * moveSpeed * speedMultiplier;
         rb.linearVelocity = new Vector2(targetSpeed, rb.linearVelocity.y);

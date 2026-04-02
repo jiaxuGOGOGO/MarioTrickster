@@ -107,7 +107,26 @@
 | GameUI.cs | Assets/Scripts/UI/ | ✅ **Session 10 更新** | 基础HUD（生命值/计时器/回合信息/胜负画面/能量显示），增强了游戏结束/暂停/操控失败反馈。B018修复：TestSceneBuilder已自动创建GameUI实例 |
 | LevelManager.cs | Assets/Scripts/Core/ | ✅ | 关卡管理（出生点/边界/可伪装对象列表） |
 
-### 2.6 Trickster 能力系统（Sprint 2 - Session 3 新增）
+### 2.6 关卡设计系统（Sprint 2 - Session 15 新增）
+
+**核心机制**: 采用低耦合+高内聚的框架设计，所有关卡元素统一继承 `LevelElementBase` 或 `ControllableLevelElement`，通过 `LevelElementRegistry` 自动注册/注销。支持随时新增/删除元素而不影响其他代码。
+
+| 脚本 | 路径 | 状态 | 说明 |
+|------|------|------|------|
+| LevelElementBase.cs | Assets/Scripts/LevelElements/ | ✅ | 关卡元素统一抽象基类，定义分类(Category)和标签(Tags) |
+| LevelElementRegistry.cs | Assets/Scripts/LevelElements/ | ✅ | 自动注册中心，提供按分类/标签/距离等多维度查询 |
+| ControllableLevelElement.cs | Assets/Scripts/LevelElements/ | ✅ | 桥接基类，连接关卡框架与Trickster操控系统 |
+| SpikeTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ | 地刺陷阱（静态/周期伸缩，可操控） |
+| PendulumTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ | 摆锤绳索陷阱（物理摆动，可操控） |
+| FireTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ | 火焰陷阱（周期喷射，可操控） |
+| BouncingEnemy.cs | Assets/Scripts/LevelElements/Traps/ | ✅ | 弹跳小怪物（周期弹跳，可踩踏，可操控） |
+| BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ | 弹跳平台（带挤压动画，可操控） |
+| OneWayPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ | 单向平台（下蹲可落下，不可操控） |
+| CollapsingPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ | 崩塌平台（踩踏后抖动掉落，可操控） |
+| HiddenPassage.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ | 隐藏通道（地下管道传送，可操控） |
+| FakeWall.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ | 伪装墙壁（进入后变透明，可操控） |
+
+### 2.7 Trickster 能力系统（Sprint 2 - Session 3 新增）
 
 **核心机制**: Trickster 变身为关卡道具后，可以操控该道具阻碍 Mario。操控采用 **Telegraph（预警）→ Active（爆发）→ Cooldown（冷却）** 三阶段设计，预警阶段给 Mario 反应窗口，Trickster 需要预判操控时机。参考 Crawl 游戏的 Ghost Possess Trap 机制。
 
@@ -141,7 +160,7 @@ InputManager (右Alt/手柄Y)
 - 单次变身最大操控总次数（maxControlsPerDisguise）: -1 = 无限
 - 操控持续时间限制（controlTimeLimit）: 0 = 无限
 
-### 2.7 能量系统与扫描技能（Session 10 新增）
+### 2.8 能量系统与扫描技能（Session 10 新增）
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
@@ -171,19 +190,20 @@ InputManager (右Alt/手柄Y)
 | revealDuration | 2 | 揭示持续时间（秒） |
 | pulseExpandTime | 0.3 | 脉冲扩散时间（秒） |
 
-### 2.8 测试与工具系统（Session 8 新增）
+### 2.9 测试与工具系统（Session 8 新增）
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 12 更新** | Editor 菜单工具，一键生成完整测试场景（地面/平台/角色/管理器/道具/终点/死亡区域/敌人/金币/相机/GameUI），所有 Inspector 引用自动连线，Ground Layer 自动创建。B018修复：新增 GameUI 对象创建 |
+| TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 15 更新** | Editor 菜单工具，一键生成完整测试场景。Session 15 新增：自动集成关卡设计系统的所有新元素（地刺、摆锤、火焰、弹跳怪、弹跳平台、单向平台、崩塌平台、隐藏通道、伪装墙） |
 | MarioTrickster.asmdef | Assets/Scripts/ | ✅ **Session 9 新增** | 主项目 Assembly Definition，引用 Unity.InputSystem |
 | MarioTrickster.Editor.asmdef | Assets/Scripts/Editor/ | ✅ **Session 9 新增** | Editor 脚本 Assembly Definition |
 | ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 12 更新** | EditMode 测试（59 个测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用、EnergySystem、ScanAbility、CameraController、GameUI |
+| LevelElementTests.cs | Assets/Tests/EditMode/ | ✅ **Session 15 新增** | EditMode 测试（55 个测试用例）：验证关卡设计系统框架核心、所有9种关卡元素、枚举完整性和低耦合验证 |
 | GameplayTests.cs | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试（21 个测试用例）：验证 Mario/Trickster 移动/跳跃/重力、伪装系统运行时行为、道具操控状态机（Telegraph→Active→Cooldown）、移动平台运动、GameManager 胜负判定/暂停/回合重置、InputManager 集成 |
 | EditModeTests.asmdef | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试 Assembly Definition |
 | PlayModeTests.asmdef | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试 Assembly Definition |
 
-### 2.9 配置文件更新
+### 2.10 配置文件更新
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
@@ -490,6 +510,30 @@ InputManager (右Alt/手柄Y)
 
 ---
 
+### Session 14 升级记录（2026-04-02）
+
+**全局总览系统与文档联动体系升级**
+
+| 升级项 | 说明 |
+|--------|------|
+| MASTER_TRACKER | 新增全局项目总览文档，包含4张分类映射矩阵、模块完成度统计、双向追踪指南、演进路线图和AI自动扩展规则。 |
+| 联动矩阵升级 | `SESSION_TRACKER.md` 的联动矩阵从7行扩展到11行，覆盖架构重构、美术接入、网络联机等所有变更类型。 |
+| AI 防错规则 | 新增 "MASTER_TRACKER 自检" 强制规则，确保新功能自动收录。 |
+| 6文档体系 | 更新 `README.md` 和 `AI_WORKFLOW.md`，将5文档体系升级为6文档联动体系。 |
+
+### Session 15 升级记录（2026-04-02）
+
+**关卡设计系统 (Level Design Framework)**
+
+| 升级项 | 说明 |
+|--------|------|
+| 框架核心 | 设计低耦合+高内聚的关卡框架，包含 `LevelElementBase`、`LevelElementRegistry` 和 `ControllableLevelElement`。 |
+| 关卡元素 | 实现 9 种首批关卡元素：地刺、摆锤、火焰、弹跳怪、弹跳平台、单向平台、崩塌平台、隐藏通道、伪装墙。 |
+| 自动化集成 | 更新 `TestSceneBuilder`，自动集成所有新关卡元素。 |
+| 自动化测试 | 编写 `LevelElementTests.cs`，包含 55 个 EditMode 测试用例，覆盖框架核心和所有元素。 |
+
+---
+
 ### Session 6 修复记录（2026-04-01）
 
 **平台跟随系统彻底重写（速度注入法）：**
@@ -591,17 +635,34 @@ Assets/
 │   │   ├── TricksterController.cs   ✅ Trickster控制/平台跟随 (Session 10 更新: OnAbilityFailed 事件)
 │   │   ├── DisguiseSystem.cs        ✅ 伪装/变身系统 (Session 10 更新: 集成 EnergySystem)
 │   │   └── SimpleEnemy.cs           ✅ 简单巡逻敌人
+│ ├── Scripts/
 │   ├── Core/
-│   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定 (Session 12 更新: 回合重置GoalZone+移除RESUMED)
-│   │   ├── InputManager.cs          ✅ 双人输入管理 (Session 10 更新: 添加扫描按键)
-│   │   ├── LevelManager.cs          ✅ 关卡管理
-│   │   ├── GoalZone.cs              ✅ 终点触发器 (Session 12 更新: +ResetTrigger())
+│   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定 (Session 12 更新: 修复B020/B021)
+│   │   ├── InputManager.cs          ✅ 输入分发中心 (Session 7 更新: 修复B009)
+│   │   ├── LevelManager.cs          ✅ 关卡管理器
+│   │   ├── GoalZone.cs              ✅ 终点触发器 (Session 12 更新: +ResetTrigger)
 │   │   ├── KillZone.cs              ✅ 死亡区域
-│   │   ├── DamageDealer.cs          ✅ 通用伤害触发器
+│   │   ├── DamageDealer.cs          ✅ 伤害触发器
 │   │   ├── Collectible.cs           ✅ 可收集物品
 │   │   ├── Breakable.cs             ✅ 可破坏方块
 │   │   ├── MovingPlatform.cs        ✅ 移动平台 (Session 6 重写: 速度注入法)
 │   │   └── SpriteAutoFit.cs         ✅ Sprite 自动适配 (Session 7 新增)
+│   ├── LevelElements/               ✅ 关卡设计系统 (Session 15 新增)
+│   │   ├── LevelElementBase.cs      ✅ 关卡元素统一基类
+│   │   ├── LevelElementRegistry.cs  ✅ 自动注册中心
+│   │   ├── ControllableLevelElement.cs ✅ 桥接基类
+│   │   ├── Traps/                   ✅ 陷阱类
+│   │   │   ├── SpikeTrap.cs         ✅ 地刺陷阱
+│   │   │   ├── PendulumTrap.cs      ✅ 摆锤绳索陷阱
+│   │   │   ├── FireTrap.cs          ✅ 火焰陷阱
+│   │   │   └── BouncingEnemy.cs     ✅ 弹跳小怪物
+│   │   ├── Platforms/               ✅ 平台类
+│   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台
+│   │   │   ├── OneWayPlatform.cs    ✅ 单向平台
+│   │   │   └── CollapsingPlatform.cs ✅ 崩塌平台
+│   │   └── HiddenPassages/          ✅ 隐藏通道类
+│   │       ├── HiddenPassage.cs     ✅ 隐藏通道
+│   │       └── FakeWall.cs          ✅ 伪装墙壁
 │   ├── Ability/
 │   │   ├── IControllableProp.cs     ✅ 可操控道具接口
 │   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类 (Session 12 更新: originalColor→protected)

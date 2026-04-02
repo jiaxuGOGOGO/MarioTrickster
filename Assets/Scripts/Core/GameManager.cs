@@ -44,6 +44,11 @@ public class GameManager : MonoBehaviour
     private int tricksterWins;
     private int currentRound = 1;
 
+    // 恢复提示相关
+    private bool showResumedHint;
+    private float resumedHintTimer;
+    private const float ResumedHintDuration = 1.2f;
+
     // 公共属性
     public GameState CurrentState => currentState;
     public float GameTimer => gameTimer;
@@ -51,6 +56,7 @@ public class GameManager : MonoBehaviour
     public int MarioWins => marioWins;
     public int TricksterWins => tricksterWins;
     public int CurrentRound => currentRound;
+    public bool ShowResumedHint => showResumedHint;
 
     // 事件
     public System.Action<GameState> OnGameStateChanged;
@@ -89,6 +95,47 @@ public class GameManager : MonoBehaviour
 
     private void Update()
     {
+        // ===== 全局按键检测（不受游戏状态限制）=====
+
+        // 暂停/恢复键 - 在 Playing 和 Paused 状态下都可用
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (currentState == GameState.Playing || currentState == GameState.Paused)
+            {
+                TogglePause();
+            }
+        }
+
+        // 快速重启 - 任何状态下都可用
+        if (Input.GetKeyDown(KeyCode.F5))
+        {
+            RestartLevel();
+        }
+
+        // 回合结束后的按键检测
+        if (currentState == GameState.RoundOver)
+        {
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                RestartLevel();
+            }
+            else if (Input.GetKeyDown(KeyCode.N))
+            {
+                ResetRound();
+            }
+        }
+
+        // ===== 恢复提示倒计时（使用 unscaledDeltaTime 因为暂停时 timeScale=0）=====
+        if (showResumedHint)
+        {
+            resumedHintTimer -= Time.unscaledDeltaTime;
+            if (resumedHintTimer <= 0f)
+            {
+                showResumedHint = false;
+            }
+        }
+
+        // ===== 以下逻辑仅在 Playing 状态下执行 =====
         if (currentState != GameState.Playing) return;
 
         // 更新计时器
@@ -103,18 +150,6 @@ public class GameManager : MonoBehaviour
                 // 时间到，Trickster胜利
                 EndRound("Trickster");
             }
-        }
-
-        // 暂停键
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            TogglePause();
-        }
-
-        // 调试：快速重启
-        if (Input.GetKeyDown(KeyCode.F5))
-        {
-            RestartLevel();
         }
     }
 
@@ -216,6 +251,10 @@ public class GameManager : MonoBehaviour
 
             if (inputManager != null)
                 inputManager.EnableAllInput();
+
+            // 触发恢复提示
+            showResumedHint = true;
+            resumedHintTimer = ResumedHintDuration;
 
             Debug.Log("[GameManager] 游戏继续");
         }

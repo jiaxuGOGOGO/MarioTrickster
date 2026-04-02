@@ -10,6 +10,8 @@
 ///   3. 玩家按下"操控"键 → 检测附近的 IControllableProp → 触发操控
 ///   4. 道具进入 Telegraph→Active→Cooldown 流程
 /// 
+/// Session 10 更新：集成 EnergySystem，操控道具消耗能量
+/// 
 /// 操控模式:
 ///   - 就近操控: 操控距离 Trickster 最近的可操控道具
 ///   - 绑定操控: 变身时自动绑定最近的同类道具（推荐）
@@ -42,6 +44,7 @@ public class TricksterAbilitySystem : MonoBehaviour
     // 组件
     private DisguiseSystem disguiseSystem;
     private TricksterController tricksterController;
+    private EnergySystem energySystem; // 可选：能量系统
 
     // 状态
     private IControllableProp boundProp;          // 当前绑定的道具
@@ -66,6 +69,7 @@ public class TricksterAbilitySystem : MonoBehaviour
     {
         disguiseSystem = GetComponent<DisguiseSystem>();
         tricksterController = GetComponent<TricksterController>();
+        energySystem = GetComponent<EnergySystem>(); // 可选组件
     }
 
     private void OnEnable()
@@ -145,6 +149,16 @@ public class TricksterAbilitySystem : MonoBehaviour
             return;
         }
 
+        // 能量检查（如果有 EnergySystem）
+        if (energySystem != null)
+        {
+            if (!energySystem.TryConsumeControlCost())
+            {
+                if (showDebugInfo) Debug.Log("[TricksterAbility] 能量不足，无法操控道具");
+                return;
+            }
+        }
+
         // 触发操控
         prop.OnTricksterActivate(lastInputDirection);
         controlsUsedThisDisguise++;
@@ -153,8 +167,9 @@ public class TricksterAbilitySystem : MonoBehaviour
 
         if (showDebugInfo)
         {
+            string energyInfo = energySystem != null ? $", 剩余能量: {energySystem.CurrentEnergy:F0}" : "";
             Debug.Log($"[TricksterAbility] 操控 {prop.PropName}! 方向: {lastInputDirection}, " +
-                      $"剩余次数: {ControlsRemaining}");
+                      $"剩余次数: {ControlsRemaining}{energyInfo}");
         }
     }
 
@@ -309,13 +324,17 @@ public class TricksterAbilitySystem : MonoBehaviour
         float x = screenPos.x - 80;
         float y = Screen.height - screenPos.y - 60;
 
-        GUILayout.BeginArea(new Rect(x, y, 160, 80));
+        GUILayout.BeginArea(new Rect(x, y, 160, 100));
         GUILayout.Label($"Ability: {(isAbilityActive ? "ON" : "OFF")}");
         if (boundProp != null)
         {
             GUILayout.Label($"Prop: {boundProp.PropName}");
             GUILayout.Label($"State: {boundProp.GetControlState()}");
             GUILayout.Label($"Uses: {ControlsRemaining}");
+        }
+        if (energySystem != null)
+        {
+            GUILayout.Label($"Energy: {energySystem.CurrentEnergy:F0}/{energySystem.MaxEnergy:F0}");
         }
         GUILayout.EndArea();
     }

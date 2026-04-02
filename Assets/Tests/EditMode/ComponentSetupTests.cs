@@ -526,3 +526,295 @@ public class ComponentSetupTests
         Object.DestroyImmediate(go);
     }
 }
+
+/// <summary>
+/// Session 10 新增测试：EnergySystem + ScanAbility
+/// </summary>
+public class EnergySystemTests
+{
+    [Test]
+    public void EnergySystem_InitializesWithMaxEnergy()
+    {
+        GameObject go = new GameObject("TestEnergy");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        go.AddComponent<DisguiseSystem>();
+        EnergySystem energy = go.AddComponent<EnergySystem>();
+
+        Assert.AreEqual(energy.MaxEnergy, energy.CurrentEnergy,
+            "EnergySystem 初始化时 currentEnergy 应等于 maxEnergy");
+        Assert.AreEqual(1f, energy.EnergyPercent, 0.01f,
+            "EnergySystem 初始化时 EnergyPercent 应为 1.0");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void EnergySystem_HasEnoughForDisguise_InitiallyTrue()
+    {
+        GameObject go = new GameObject("TestEnergy");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        go.AddComponent<DisguiseSystem>();
+        EnergySystem energy = go.AddComponent<EnergySystem>();
+
+        Assert.IsTrue(energy.HasEnoughForDisguise,
+            "满能量时应该有足够能量变身");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void EnergySystem_HasEnoughForControl_InitiallyTrue()
+    {
+        GameObject go = new GameObject("TestEnergy");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        go.AddComponent<DisguiseSystem>();
+        EnergySystem energy = go.AddComponent<EnergySystem>();
+
+        Assert.IsTrue(energy.HasEnoughForControl,
+            "满能量时应该有足够能量操控道具");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void EnergySystem_TryConsumeDisguiseCost_ReducesEnergy()
+    {
+        GameObject go = new GameObject("TestEnergy");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        go.AddComponent<DisguiseSystem>();
+        EnergySystem energy = go.AddComponent<EnergySystem>();
+
+        float before = energy.CurrentEnergy;
+        bool result = energy.TryConsumeDisguiseCost();
+
+        Assert.IsTrue(result, "满能量时 TryConsumeDisguiseCost 应返回 true");
+        Assert.Less(energy.CurrentEnergy, before,
+            "TryConsumeDisguiseCost 后能量应减少");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void EnergySystem_TryConsumeControlCost_ReducesEnergy()
+    {
+        GameObject go = new GameObject("TestEnergy");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        go.AddComponent<DisguiseSystem>();
+        EnergySystem energy = go.AddComponent<EnergySystem>();
+
+        float before = energy.CurrentEnergy;
+        bool result = energy.TryConsumeControlCost();
+
+        Assert.IsTrue(result, "满能量时 TryConsumeControlCost 应返回 true");
+        Assert.Less(energy.CurrentEnergy, before,
+            "TryConsumeControlCost 后能量应减少");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void EnergySystem_ResetEnergy_RestoresMax()
+    {
+        GameObject go = new GameObject("TestEnergy");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        go.AddComponent<DisguiseSystem>();
+        EnergySystem energy = go.AddComponent<EnergySystem>();
+
+        // 消耗一些能量
+        energy.TryConsumeDisguiseCost();
+        energy.TryConsumeControlCost();
+
+        energy.ResetEnergy();
+
+        Assert.AreEqual(energy.MaxEnergy, energy.CurrentEnergy,
+            "ResetEnergy 后应恢复到满能量");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void EnergySystem_AddEnergy_IncreasesButCapsAtMax()
+    {
+        GameObject go = new GameObject("TestEnergy");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        go.AddComponent<DisguiseSystem>();
+        EnergySystem energy = go.AddComponent<EnergySystem>();
+
+        // 消耗一些能量
+        energy.TryConsumeDisguiseCost();
+        float afterConsume = energy.CurrentEnergy;
+
+        energy.AddEnergy(5f);
+        Assert.Greater(energy.CurrentEnergy, afterConsume,
+            "AddEnergy 应增加能量");
+
+        // 添加超过上限
+        energy.AddEnergy(9999f);
+        Assert.AreEqual(energy.MaxEnergy, energy.CurrentEnergy, 0.01f,
+            "AddEnergy 不应超过 MaxEnergy");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void EnergySystem_IsLowEnergy_WhenBelowThreshold()
+    {
+        GameObject go = new GameObject("TestEnergy");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        go.AddComponent<DisguiseSystem>();
+        EnergySystem energy = go.AddComponent<EnergySystem>();
+
+        Assert.IsFalse(energy.IsLowEnergy,
+            "满能量时不应处于低能量状态");
+
+        // 反复消耗能量直到低于阈值
+        for (int i = 0; i < 10; i++)
+        {
+            energy.TryConsumeDisguiseCost();
+        }
+
+        // 如果能量低于 25%，应该是低能量状态
+        if (energy.EnergyPercent <= 0.25f)
+        {
+            Assert.IsTrue(energy.IsLowEnergy,
+                "能量低于阈值时应处于低能量状态");
+        }
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void EnergySystem_OnEnergyChanged_EventFires()
+    {
+        GameObject go = new GameObject("TestEnergy");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        go.AddComponent<DisguiseSystem>();
+        EnergySystem energy = go.AddComponent<EnergySystem>();
+
+        bool eventFired = false;
+        energy.OnEnergyChanged += (current, max) => eventFired = true;
+
+        energy.TryConsumeDisguiseCost();
+
+        Assert.IsTrue(eventFired, "消耗能量后应触发 OnEnergyChanged 事件");
+
+        Object.DestroyImmediate(go);
+    }
+}
+
+public class ScanAbilityTests
+{
+    [Test]
+    public void ScanAbility_InitialState_IsReady()
+    {
+        GameObject go = new GameObject("TestScan");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        ScanAbility scan = go.AddComponent<ScanAbility>();
+
+        Assert.IsTrue(scan.IsReady, "ScanAbility 初始状态应该是就绪的");
+        Assert.IsFalse(scan.IsRevealing, "ScanAbility 初始状态不应在揭示中");
+        Assert.AreEqual(0f, scan.CooldownRemaining, 0.01f,
+            "ScanAbility 初始冷却应为 0");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void ScanAbility_ActivateScan_TriggersCooldown()
+    {
+        GameObject go = new GameObject("TestScan");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        ScanAbility scan = go.AddComponent<ScanAbility>();
+
+        scan.ActivateScan();
+
+        Assert.IsFalse(scan.IsReady, "扫描后应进入冷却");
+        Assert.Greater(scan.CooldownRemaining, 0f, "冷却时间应大于 0");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void ScanAbility_ActivateScan_FiresEvent()
+    {
+        GameObject go = new GameObject("TestScan");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        ScanAbility scan = go.AddComponent<ScanAbility>();
+
+        bool eventFired = false;
+        scan.OnScanActivated += () => eventFired = true;
+
+        scan.ActivateScan();
+
+        Assert.IsTrue(eventFired, "扫描应触发 OnScanActivated 事件");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void ScanAbility_ActivateScan_WhileOnCooldown_DoesNothing()
+    {
+        GameObject go = new GameObject("TestScan");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        ScanAbility scan = go.AddComponent<ScanAbility>();
+
+        scan.ActivateScan(); // 第一次
+        float cooldownAfterFirst = scan.CooldownRemaining;
+
+        int eventCount = 0;
+        scan.OnScanActivated += () => eventCount++;
+
+        scan.ActivateScan(); // 冷却中再次扫描
+
+        Assert.AreEqual(0, eventCount,
+            "冷却中扫描不应触发事件");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void ScanAbility_ScanRadius_IsPositive()
+    {
+        GameObject go = new GameObject("TestScan");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        ScanAbility scan = go.AddComponent<ScanAbility>();
+
+        Assert.Greater(scan.ScanRadius, 0f, "扫描半径应大于 0");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void ScanAbility_OnScanResult_FiresWithFalse_WhenNoTrickster()
+    {
+        GameObject go = new GameObject("TestScan");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        ScanAbility scan = go.AddComponent<ScanAbility>();
+
+        bool? scanResult = null;
+        scan.OnScanResult += (found) => scanResult = found;
+
+        scan.ActivateScan();
+
+        Assert.IsNotNull(scanResult, "扫描应触发 OnScanResult 事件");
+        Assert.IsFalse(scanResult.Value,
+            "场景中没有 Trickster 时扫描结果应为 false");
+
+        Object.DestroyImmediate(go);
+    }
+}

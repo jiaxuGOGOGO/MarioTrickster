@@ -5,14 +5,16 @@ using UnityEngine.InputSystem;
 /// 本地双人输入管理器
 ///
 /// 键盘方案：
-///   P1 (Mario)    : WASD 移动 | Space 跳跃
+///   P1 (Mario)    : WASD 移动 | Space 跳跃 | Q 扫描
 ///   P2 (Trickster): 左右方向键 移动 | 上方向键/右Ctrl 跳跃
 ///                   P 伪装 | O/I 切换形态 | L 操控道具
 ///
 /// 手柄方案：
 ///   第一个手柄 → Mario，第二个手柄 → Trickster
-///   左摇杆移动 | 南键(A/×) 跳跃 | 西键(X/□) 伪装
+///   左摇杆移动 | 南键(A/×) 跳跃 | 东键(B/○) 扫描
 ///   右肩键 下一形态 | 左肩键 上一形态 | 北键(Y/△) 操控道具
+///
+/// Session 10 更新：添加 P1 扫描技能按键
 ///
 /// 使用方式：挂载到 Managers 对象，在 Inspector 中拖入 Mario 和 Trickster 引用
 /// </summary>
@@ -34,6 +36,7 @@ public class InputManager : MonoBehaviour
     private bool p1JumpDown;
     private bool p1JumpHeld;
     private bool p1WasJumpHeld;
+    private bool p1ScanDown;
 
     // ── P2 输入状态 ────────────────────────────────────────
     private Vector2 p2Move;
@@ -44,6 +47,18 @@ public class InputManager : MonoBehaviour
     private bool p2SwitchDown;
     private float p2SwitchDir;
     private bool p2AbilityDown;
+
+    // ── Mario 扫描技能引用（自动查找）────────────────────────
+    private ScanAbility marioScanAbility;
+
+    private void Start()
+    {
+        // 自动查找 Mario 的扫描技能
+        if (marioController != null)
+        {
+            marioScanAbility = marioController.GetComponent<ScanAbility>();
+        }
+    }
 
     // ─────────────────────────────────────────────────────
     private void Update()
@@ -93,6 +108,11 @@ public class InputManager : MonoBehaviour
 
         p1JumpDown = jumpKey && !p1WasJumpHeld;
         p1JumpHeld = jumpKey;
+
+        // 扫描（Q 键 / 手柄东键 B/○）
+        if (Input.GetKeyDown(KeyCode.Q)
+            || (gamepad1 != null && gamepad1.buttonEast.wasPressedThisFrame))
+            p1ScanDown = true;
     }
 
     #endregion
@@ -156,6 +176,12 @@ public class InputManager : MonoBehaviour
 
         if (p1JumpDown)              marioController.OnJumpPressed();
         if (!p1JumpHeld && p1WasJumpHeld) marioController.OnJumpReleased();
+
+        // 扫描技能
+        if (p1ScanDown && marioScanAbility != null)
+        {
+            marioScanAbility.ActivateScan();
+        }
     }
 
     private void DispatchP2()
@@ -184,6 +210,7 @@ public class InputManager : MonoBehaviour
 
         // 单帧事件清零
         p1JumpDown = false;
+        p1ScanDown = false;
         p2JumpDown = false;
         p2DisguiseDown = false;
         p2SwitchDown = false;
@@ -204,7 +231,13 @@ public class InputManager : MonoBehaviour
 
     public void EnableAllInput() => enabled = true;
 
-    public void SetMarioController(MarioController c)     => marioController = c;
+    public void SetMarioController(MarioController c)
+    {
+        marioController = c;
+        // 重新查找扫描技能
+        marioScanAbility = c != null ? c.GetComponent<ScanAbility>() : null;
+    }
+
     public void SetTricksterController(TricksterController c) => tricksterController = c;
 
     #endregion
@@ -215,8 +248,8 @@ public class InputManager : MonoBehaviour
     private void OnGUI()
     {
         if (!showDebugInput) return;
-        GUILayout.BeginArea(new Rect(10, 10, 280, 180));
-        GUILayout.Label($"P1 Move: {p1Move}  JumpHeld: {p1JumpHeld}");
+        GUILayout.BeginArea(new Rect(10, 10, 280, 200));
+        GUILayout.Label($"P1 Move: {p1Move}  JumpHeld: {p1JumpHeld}  Scan: {p1ScanDown}");
         GUILayout.Label($"P2 Move: {p2Move}  JumpHeld: {p2JumpHeld}");
         GUILayout.Label($"P2 Disguise: {p2DisguiseDown}  Ability: {p2AbilityDown}");
         GUILayout.Label($"Pad1: {(gamepad1 != null ? gamepad1.displayName : "None")}");

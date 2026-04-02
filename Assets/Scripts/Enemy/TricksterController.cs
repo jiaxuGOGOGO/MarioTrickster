@@ -98,6 +98,10 @@ public class TricksterController : MonoBehaviour
     public bool IsDisguised => disguiseSystem != null && disguiseSystem.IsDisguised;
     public TricksterAbilitySystem AbilitySystem => abilitySystem;
 
+    // ── 事件 ──────────────────────────────────────────────
+    /// <summary>道具操控失败时触发，参数为失败原因（用于 UI 显示）</summary>
+    public System.Action<string> OnAbilityFailed;
+
     // ─────────────────────────────────────────────────────
     #region 初始化
 
@@ -293,6 +297,12 @@ public class TricksterController : MonoBehaviour
         else if (moveInput.x < -0.01f && isFacingRight)  { isFacingRight = false; spriteRenderer.flipX = true;  }
     }
 
+    /// <summary>死亡处理</summary>
+    public void Die()
+    {
+        enabled = false;
+    }
+
     #endregion
 
     // ─────────────────────────────────────────────────────
@@ -326,7 +336,53 @@ public class TricksterController : MonoBehaviour
 
     public void OnAbilityPressed()
     {
-        abilitySystem?.OnAbilityPressed();
+        if (abilitySystem == null) return;
+
+        // 在调用能力系统之前，检查各种失败条件并触发反馈事件
+        string failReason = GetAbilityFailReason();
+        if (failReason != null)
+        {
+            OnAbilityFailed?.Invoke(failReason);
+            return;
+        }
+
+        abilitySystem.OnAbilityPressed();
+    }
+
+    /// <summary>
+    /// 检查道具操控的失败原因，返回 null 表示可以操控
+    /// </summary>
+    private string GetAbilityFailReason()
+    {
+        if (disguiseSystem == null || !disguiseSystem.IsDisguised)
+            return "Must be disguised to control props!";
+
+        if (!abilitySystem.IsAbilityActive)
+        {
+            if (disguiseSystem.IsDisguised && !disguiseSystem.IsFullyBlended)
+                return "Stay still to blend in first!";
+            return "Ability not ready!";
+        }
+
+        if (abilitySystem.ControlsRemaining == 0)
+            return "No controls remaining!";
+
+        if (abilitySystem.BoundProp == null)
+            return "No controllable prop nearby!";
+
+        if (!abilitySystem.BoundProp.CanBeControlled())
+        {
+            var state = abilitySystem.BoundProp.GetControlState();
+            if (state == PropControlState.Cooldown)
+                return $"Prop on cooldown!";
+            if (state == PropControlState.Active || state == PropControlState.Telegraph)
+                return "Prop already active!";
+            if (state == PropControlState.Exhausted)
+                return "Prop uses exhausted!";
+            return "Prop not ready!";
+        }
+
+        return null; // 可以操控
     }
 
     #endregion

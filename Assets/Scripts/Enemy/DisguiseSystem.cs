@@ -6,6 +6,8 @@ using System.Collections.Generic;
 /// 参考: Among-Us-Imposter + PropHunt概念
 /// 功能: Trickster可变身为预设的场景物体（砖块、管道、怪物等）
 /// 实现: 切换SpriteRenderer的sprite + 调整Collider尺寸 + 可选行为
+/// 
+/// Session 10 更新：集成 EnergySystem，变身前检查能量是否充足
 /// </summary>
 public class DisguiseSystem : MonoBehaviour
 {
@@ -27,6 +29,7 @@ public class DisguiseSystem : MonoBehaviour
     // 组件
     private SpriteRenderer spriteRenderer;
     private BoxCollider2D boxCollider;
+    private EnergySystem energySystem; // 可选：能量系统
 
     // 原始数据（用于还原）
     private Sprite originalSprite;
@@ -52,11 +55,13 @@ public class DisguiseSystem : MonoBehaviour
     // 事件
     public System.Action<bool> OnDisguiseChanged; // true=变身, false=还原
     public System.Action<DisguiseData> OnDisguiseSelected; // 切换选中的伪装
+    public System.Action<string> OnDisguiseFailed; // 变身失败原因（供 UI 显示）
 
     private void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
         boxCollider = GetComponent<BoxCollider2D>();
+        energySystem = GetComponent<EnergySystem>(); // 可选组件
 
         // 保存原始数据
         originalSprite = spriteRenderer.sprite;
@@ -136,8 +141,13 @@ public class DisguiseSystem : MonoBehaviour
         if (cooldownTimer > 0)
             return $"⏳ 伪装冷却中: {cooldownTimer:F1}s";
         if (isDisguised)
-            return $"✅ 已伪装为: {data.disguiseName}" + (isFullyBlended ? " (已融入)" : " (未融入)");
-        return $"✅ 就绪: 当前选中 [{data.disguiseName}]，按 P 伪装";
+        {
+            string energyInfo = energySystem != null ? $" | Energy: {energySystem.EnergyPercent * 100:F0}%" : "";
+            return $"✅ 已伪装为: {data.disguiseName}" + (isFullyBlended ? " (已融入)" : " (未融入)") + energyInfo;
+        }
+
+        string readyEnergy = energySystem != null ? $" | Energy: {energySystem.EnergyPercent * 100:F0}%" : "";
+        return $"✅ 就绪: 当前选中 [{data.disguiseName}]，按 P 伪装" + readyEnergy;
     }
 
     /// <summary>执行变身</summary>
@@ -148,6 +158,16 @@ public class DisguiseSystem : MonoBehaviour
 
         DisguiseData data = availableDisguises[currentDisguiseIndex];
         if (data == null || data.disguiseSprite == null) return;
+
+        // 能量检查（如果有 EnergySystem）
+        if (energySystem != null)
+        {
+            if (!energySystem.TryConsumeDisguiseCost())
+            {
+                OnDisguiseFailed?.Invoke("Not enough energy to disguise!");
+                return;
+            }
+        }
 
         isDisguised = true;
         durationTimer = disguiseDuration;

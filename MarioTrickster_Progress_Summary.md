@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-01 (Session 9) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-02 (Session 10) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 
 ---
 
@@ -172,10 +172,10 @@ InputManager (右Alt/手柄Y)
 | B006 | ✅ **已修复 (Session 6)** 平台跟随问题 | — | 根因：SetParent 与 Dynamic Rigidbody2D 冲突。已改为速度注入法。 |
 | B007 | ✅ **已修复 (Session 6)** 站上平台后角色被甩飞 | — | 根因：平台速度每帧累积。修复：读回 rb.velocity 时减去上一帧平台速度 `_lastPlatformVelocity`。 |
 | B008 | ✅ **已修复 (Session 6)** 角色移动有打滑感 | — | 根因：groundDeceleration 过低(60)。修复：Mario 调至 200，Trickster 调至 200。 |
-| B011 | 游戏结束后（Mario 死亡/到达终点）缺少明显的屏幕提示和重启引导，玩家不知道游戏已结束，以为角色卡住了 | 高 | GameUI.cs 的 OnGUI 有 game-over 覆盖层（显示 R 重启 / N 下一回合），但可能未正确触发或不够醒目。下次 Session 修复 |
-| B012 | 道具操控（按 L）反馈不足 | 中 | 用户手动测试确认：靠近陷阱按 L **有反馈**（预警闪烁+爆发效果正常）。但失败时（不在范围/未满足前置条件）无提示，需开启 showDebugInfo 或添加始终可见的失败提示 |
-| B013 | TestSceneBuilder 中 LevelManager 字段名错误（marioSpawn→marioSpawnPoint, tricksterSpawn→tricksterSpawnPoint） | — | ✅ 已修复 (Session 9) |
-| B014 | ESC 暂停后再按 ESC 恢复，无任何视觉反馈（没有“已恢复”提示，不确定是否成功恢复） | 中 | GameManager 暂停时 GameUI 显示“PAUSED”横幅，但恢复时横幅消失不够明显，缺少过渡效果或短暂的“已恢复”提示 |
+| B011 | ✅ **已修复 (Session 10)** 游戏结束后缺少明显的屏幕提示和重启引导 | — | 根因：GameManager.Update() 第一行直接 return 导致无法检测按键。已将按键检测移至状态检查之前，并增强了 GameUI 的结束画面。 |
+| B012 | ✅ **已修复 (Session 10)** 道具操控失败时无提示 | — | 根因：操控失败仅有 Debug.Log。已在 TricksterController 添加 OnAbilityFailed 事件，GameUI 接收并显示失败原因（如"不在范围内"、"能量不足"）。 |
+| B013 | ✅ **已修复 (Session 9)** TestSceneBuilder 中 LevelManager 字段名错误 | — | — |
+| B014 | ✅ **已修复 (Session 10)** ESC 暂停后再按 ESC 恢复无反馈 | — | 根因：同 B011，暂停状态下 ESC 按键检测被跳过。已修复逻辑，并在 GameUI 添加了"已恢复"的短暂提示。 |
 
 ### 关于 B002 的修复方法
 
@@ -358,6 +358,24 @@ git pull
 ---
 
 ## 六、Session 历史记录
+
+### Session 10 记录（2026-04-02）
+
+**本次完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| Bug 修复 | 修复了 B011（游戏结束按键失效/提示不明显）、B012（道具操控失败无反馈）、B014（暂停恢复按键失效/无反馈） |
+| 能量系统 (EnergySystem) | 为 Trickster 引入能量系统。变身和操控道具需要消耗能量，能量会随时间自然恢复。增加了资源管理的博弈深度。 |
+| 扫描技能 (ScanAbility) | 为 Mario 引入主动扫描技能（Q键/手柄东键）。使用后短暂暴露范围内的伪装 Trickster（红色闪烁+头顶警告标记），有冷却时间。 |
+| 测试用例更新 | 在 ComponentSetupTests.cs 中新增了 EnergySystem 和 ScanAbility 的 EditMode 测试用例（14个新用例）。 |
+| TestSceneBuilder 更新 | 更新了一键生成测试场景工具，自动为 Trickster 挂载 EnergySystem，为 Mario 挂载 ScanAbility。 |
+
+**代码统计：**
+- 修改了 GameManager.cs, GameUI.cs, TricksterController.cs, DisguiseSystem.cs, TricksterAbilitySystem.cs, InputManager.cs, TestSceneBuilder.cs, ComponentSetupTests.cs
+- 新增了 EnergySystem.cs, ScanAbility.cs
+
+---
 
 ### Session 9 记录（2026-04-01）
 

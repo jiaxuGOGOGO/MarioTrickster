@@ -86,6 +86,7 @@ public class TestSceneBuilder : Editor
 
         MarioController marioCtrl = mario.AddComponent<MarioController>();
         PlayerHealth marioHealth = mario.AddComponent<PlayerHealth>();
+        ScanAbility scanAbility = mario.AddComponent<ScanAbility>(); // Session 10: 扫描技能
 
         // 设置 groundLayer（通过 SerializedObject）
         SetSerializedField(marioCtrl, "groundLayer", groundLayerMask);
@@ -115,6 +116,7 @@ public class TestSceneBuilder : Editor
         TricksterController tricksterCtrl = trickster.AddComponent<TricksterController>();
         DisguiseSystem disguiseSystem = trickster.AddComponent<DisguiseSystem>();
         TricksterAbilitySystem abilitySystem = trickster.AddComponent<TricksterAbilitySystem>();
+        EnergySystem energySystem = trickster.AddComponent<EnergySystem>(); // Session 10: 能量系统
 
         SetSerializedField(tricksterCtrl, "groundLayer", groundLayerMask);
 
@@ -347,7 +349,9 @@ public class TestSceneBuilder : Editor
                   "  - 终点 (绿色, 位置: 18,1)\n" +
                   "  - 死亡区域 (底部)\n" +
                   "  - 敌人 (紫色) + 5个金币 + 可破坏方块\n" +
-                  "  - 相机跟随 Mario\n\n" +
+                  "  - 相机跟随 Mario\n" +
+                  "  - [NEW] Trickster 能量系统 (EnergySystem)\n" +
+                  "  - [NEW] Mario 扫描技能 (Q键, ScanAbility)\n\n" +
                   "  ⚠️ 请保存场景：Ctrl+S");
 
         EditorUtility.DisplayDialog(
@@ -356,7 +360,7 @@ public class TestSceneBuilder : Editor
             "接下来请：\n" +
             "1. Ctrl+S 保存场景\n" +
             "2. 点击 Play 运行测试\n" +
-            "3. P1: WASD 移动 + Space 跳跃\n" +
+            "3. P1: WASD 移动 + Space 跳跃 + Q 扫描\n" +
             "4. P2: 方向键移动 + P 伪装 + L 操控\n\n" +
             "提示：角色目前使用纯色方块，导入素材后替换 Sprite 即可。",
             "好的");

@@ -274,11 +274,16 @@ InputManager (右Alt/手柄Y)
 | TestReportRunner 测试报告工具 | 新增 Editor 工具脚本 `TestReportRunner.cs`，解决 Unity Test Runner 需要逐个点击才能查看错误详情的问题。提供三个菜单入口（EditMode/PlayMode/All），一键运行所有测试并将完整错误信息（包括堆栈跟踪）导出到 `TestReport.txt`，同时在 Console 中完整打印。报告包含“快速复制区”方便用户直接发给 AI 统一修复。 |
 | Editor asmdef 更新 | `MarioTrickster.Editor.asmdef` 添加 `UnityEditor.TestRunner` 和 `UnityEngine.TestRunner` 引用，启用 `overrideReferences` 并添加 `nunit.framework.dll`，以支持 TestRunnerApi 编程调用。 |
 | EditMode 测试修复 (16个) | 根因：EditMode 测试中 `AddComponent<T>()` 不会自动调用 `Awake()`，导致依赖 Awake 初始化的组件状态全为默认值。修复：在测试代码中添加 `ForceAwake()` 辅助方法（通过反射调用私有 Awake 方法），在每个需要初始化的测试中统一调用。修复涉及 PlayerHealth(6个)、EnergySystem(7个)、GoalZone/KillZone/MovingPlatform(3个)。 |
+| DisguiseSystem 测试修复 (1个) | `GetDebugStatus()` 返回中文“未配置伪装形态”不包含数字 "0"，但测试断言检查的是 `Contains("0")`。修复为 `Contains("未配置") \|\| Contains("0")`。 |
+| Testing Guide 章节重组 | 原第三章有 3.1（TestReportRunner）+ 3.2（内置 Test Runner）+ 3.3（EditMode）+ 3.3（PlayMode）结构混乱。重组为 3.1（统一运行方式说明）+ 3.2（EditMode）+ 3.3（PlayMode）+ 3.4（故障排除），消除两种运行方式的误导。 |
+| 联动矩阵补强 (3层防护) | §0.3 联动矩阵新增第 7 行“重编号/重组文档章节”，第 4 行“修改文档体系”加 ❗ 提醒。§0.4 防错规则新增第 5 条“章节引用同步检查”，给出 2 条具体 grep 命令覆盖 § 和“第X章”两种引用格式。确保新对话 AI 也能可靠执行跨文档引用同步。 |
 
 **代码统计：**
 - 新增了 TestReportRunner.cs（约 320 行）
 - 修改了 MarioTrickster.Editor.asmdef
-- 重写了 ComponentSetupTests.cs（添加 ForceAwake 辅助方法，修复 16 个失败测试）
+- 重写了 ComponentSetupTests.cs（添加 ForceAwake 辅助方法，修复 16+1 个失败测试）
+- 重组了 MarioTrickster_Testing_Guide.md 第三章章节结构
+- 补强了 SESSION_TRACKER.md §0.3 联动矩阵 + §0.4 防错规则
 - 更新了 SESSION_TRACKER.md, MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
 
 ---

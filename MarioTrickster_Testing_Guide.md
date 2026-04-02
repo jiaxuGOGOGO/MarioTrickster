@@ -1,7 +1,7 @@
 # MarioTrickster 测试指南
 
 > 本文档覆盖五部内容：手动 Play 测试、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明、**回归影响矩阵与修复流程**。
-> 更新时间：2026-04-02 (Session 12)
+> 更新时间：2026-04-02 (Session 13)
 
 ---
 
@@ -193,11 +193,15 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 
 ## 三、自动化 Test Runner 测试
 
-### 3.1 推荐方式：TestReportRunner（一键导出完整报告）
+### 3.1 运行方式说明
 
-> **Session 13 新增**：解决 Unity Test Runner 需要逐个点击才能查看错误详情的问题。
+所有自动化测试都通过 **Unity 内置 Test Runner** 运行：
 
-**使用方式：**
+> **打开方式**：`Window → General → Test Runner`
+
+内置 Test Runner 分为两个标签：**EditMode**（不需要运行游戏）和 **PlayMode**（自动进入 Play 模式）。切换到对应标签后点击 **Run All** 即可。
+
+**需要导出完整报告给 AI 修复时**，使用 TestReportRunner 工具（Session 13 新增）：
 
 | 菜单路径 | 功能 |
 |---------|------|
@@ -206,27 +210,9 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 | `MarioTrickster → Run Tests → Export Full Report (All)` | 运行所有测试并导出合并报告 |
 | `MarioTrickster → Open Last Test Report` | 打开上次生成的报告文件 |
 
-**输出文件：** 项目根目录/`TestReport.txt`
+TestReportRunner 与内置 Test Runner 运行的是**同一套测试**，区别仅在于它会将所有错误一次性导出到 `TestReport.txt`（项目根目录），包含“快速复制区”方便直接发给 AI 统一修复。
 
-**报告内容包括：**
-- 统计摘要（通过/失败/跳过数量）
-- 失败测试完整详情（错误信息 + 堆栈跟踪 + 输出）
-- 通过测试列表
-- **快速复制区**：精简版错误摘要，直接复制发给 AI 统一修复
-
-**工作流程：**
-1. 点击菜单运行测试
-2. 等待测试完成（会弹出结果对话框）
-3. 打开 `TestReport.txt`（或在 Console 中查看）
-4. 将“快速复制区”内容发给 AI
-
-### 3.2 备选方式：Unity 内置 Test Runner
-
-**Window → General → Test Runner**
-
-### 3.3 EditMode 测试（不需要运行游戏）
-
-切换到 **EditMode** 标签 → 点击 **Run All**
+### 3.2 EditMode 测试（不需要运行游戏）
 
 这些测试在编辑器中直接执行，验证代码结构和静态逻辑：
 
@@ -470,7 +456,7 @@ AI 每次修复 Bug 时，**必须**执行以下流程：
 
 ## 七、测试进度总览
 
-> 更新时间：2026-04-02 (Session 12)
+> 更新时间：2026-04-02 (Session 13)
 
 | 测试项 | 状态 | 备注 |
 |----------|------|------|

@@ -44,8 +44,7 @@ public class ControllableBlock : ControllablePropBase
     // 组件
     private BoxCollider2D boxCollider;
 
-    // 原始状态
-    private Color originalColor;
+    // 原始状态（注意：originalColor 已在父类 ControllablePropBase 中定义为 protected）
     private Vector3 originalPosition;
     private bool originalColliderEnabled;
 
@@ -64,10 +63,7 @@ public class ControllableBlock : ControllablePropBase
         boxCollider = GetComponent<BoxCollider2D>();
         originalColliderEnabled = boxCollider.enabled;
 
-        if (spriteRenderer != null)
-        {
-            originalColor = spriteRenderer.color;
-        }
+        // originalColor 已在父类 base.Awake() 中赋值，无需重复赋值
         originalPosition = transform.localPosition;
     }
 

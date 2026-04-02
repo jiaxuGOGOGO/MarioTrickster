@@ -55,7 +55,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
 
     // 组件缓存
     protected SpriteRenderer spriteRenderer;
-    private Color originalColor;
+    protected Color originalColor;
     private Vector3 originalLocalPosition;
 
     // 公共属性

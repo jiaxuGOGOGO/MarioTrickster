@@ -35,6 +35,8 @@
 - TestSceneBuilder.cs：修复 B016 源头问题，Build Test Scene 前先清理已有 CameraController，避免重复叠加导致镜头晃动
 - TestSceneBuilder.cs：同样对 GameUI 添加重复清理保护
 - Clear Test Scene：优化清理逻辑，先清理相机上所有 CameraController 再删除其他对象
+- ControllablePropBase.cs：originalColor 从 private 改为 protected，供子类复用
+- ControllableBlock.cs：移除重复的 originalColor 声明，消除序列化冲突错误
 - ComponentSetupTests.cs：新增 5 个 GameUI EditMode 测试用例
 - MarioTrickster_Testing_Guide.md：更新测试 7 为胜负判定+UI显示，新增 B018 修复说明
 ```

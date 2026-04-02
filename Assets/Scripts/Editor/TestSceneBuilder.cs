@@ -159,15 +159,23 @@ public class TestSceneBuilder : Editor
         SetSerializedField(levelManager, "tricksterSpawnPoint", tricksterSpawn.transform);
 
         // ═══════════════════════════════════════════════════
-        // 5. 相机
+        // 5. 相机（B016修复：先清理已有的 CameraController，避免重复添加导致镜头晃动）
         // ═══════════════════════════════════════════════════
         Camera mainCam = Camera.main;
         if (mainCam != null)
         {
+            // 先移除所有已有的 CameraController，避免多次 Build 后重复叠加
+            CameraController[] existingCamCtrls = mainCam.GetComponents<CameraController>();
+            for (int i = 0; i < existingCamCtrls.Length; i++)
+            {
+                DestroyImmediate(existingCamCtrls[i]);
+            }
+
             CameraController camCtrl = mainCam.gameObject.AddComponent<CameraController>();
             SetSerializedField(camCtrl, "target", mario.transform);
             mainCam.transform.position = new Vector3(0, 2, -10);
             mainCam.orthographicSize = 7;
+            Debug.Log("[TestSceneBuilder] CameraController 已添加到 Main Camera（已清理旧实例）");
         }
 
         // ═══════════════════════════════════════════════════
@@ -311,6 +319,13 @@ public class TestSceneBuilder : Editor
         // ═══════════════════════════════════════════════════
         // 15. 游戏UI（B018修复：场景中必须有 GameUI 实例才能显示胜利/暂停画面）
         // ═══════════════════════════════════════════════════
+        // 先清理场景中已有的 GameUI，避免多次 Build 后重复叠加
+        GameUI[] existingGameUIs = FindObjectsOfType<GameUI>();
+        foreach (GameUI existingUI in existingGameUIs)
+        {
+            DestroyImmediate(existingUI.gameObject);
+        }
+
         GameObject uiObject = new GameObject("GameUI");
         uiObject.transform.parent = managers.transform;
         GameUI gameUI = uiObject.AddComponent<GameUI>();
@@ -389,6 +404,21 @@ public class TestSceneBuilder : Editor
             return;
         }
 
+        // 先清理相机上的所有 CameraController 实例（可能有多个）
+        Camera mainCam = Camera.main;
+        if (mainCam != null)
+        {
+            CameraController[] camCtrls = mainCam.GetComponents<CameraController>();
+            for (int i = 0; i < camCtrls.Length; i++)
+            {
+                DestroyImmediate(camCtrls[i]);
+            }
+            if (camCtrls.Length > 0)
+            {
+                Debug.Log($"[TestSceneBuilder] 已清理 Main Camera 上的 {camCtrls.Length} 个 CameraController");
+            }
+        }
+
         GameObject[] allObjects = FindObjectsOfType<GameObject>();
         foreach (GameObject obj in allObjects)
         {
@@ -397,14 +427,7 @@ public class TestSceneBuilder : Editor
             if (obj.GetComponent<Light>() != null) continue;
             if (obj.transform.parent != null) continue; // 只删除根对象
 
-            // 移除相机上可能挂载的 CameraController
-            CameraController camCtrl = obj.GetComponent<CameraController>();
-            if (camCtrl != null) DestroyImmediate(camCtrl);
-
-            if (obj.GetComponent<Camera>() == null && obj.GetComponent<Light>() == null)
-            {
-                DestroyImmediate(obj);
-            }
+            DestroyImmediate(obj);
         }
 
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());

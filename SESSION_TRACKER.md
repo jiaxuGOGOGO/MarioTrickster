@@ -32,6 +32,9 @@
 - 状态：✅ 代码修复已完成，待用户在 Unity 中验证
 
 附带更新：
+- TestSceneBuilder.cs：修复 B016 源头问题，Build Test Scene 前先清理已有 CameraController，避免重复叠加导致镜头晃动
+- TestSceneBuilder.cs：同样对 GameUI 添加重复清理保护
+- Clear Test Scene：优化清理逻辑，先清理相机上所有 CameraController 再删除其他对象
 - ComponentSetupTests.cs：新增 5 个 GameUI EditMode 测试用例
 - MarioTrickster_Testing_Guide.md：更新测试 7 为胜负判定+UI显示，新增 B018 修复说明
 ```
@@ -104,7 +107,7 @@
 | 优先级 | ID | 描述 | 状态 |
 |--------|-----|------|------|
 | P0 | B018 | **游戏结束UI未显示** | ✅ 已修复（根因：TestSceneBuilder 未创建 GameUI），待用户验证 |
-| P0 | B016 | 镜头来回轻微晃动 | ✅ 已修复已验证（根因：5个组件重复） |
+| P0 | B016 | 镜头来回轻微晃动 | ✅ 已修复已验证（根因：CameraController重复添加，Session 12 从源头修复 TestSceneBuilder） |
 | P0 | B015 | 扫描提示矛盾 Bug | ✅ 已修复已验证 |
 | P0 | B017 | 终点无胜利判定 | ✅ 已修复已验证（逻辑通过，UI问题由B018解决） |
 | P0 | UI | Trickster状态文字被裁剪 | ✅ 已修复已验证 |

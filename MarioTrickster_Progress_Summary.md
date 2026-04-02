@@ -1,6 +1,7 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-02 (Session 10) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-02 (Session 11) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> **快速入口**：每次对话优先读取 `SESSION_TRACKER.md`（当前状态/测试项/反馈模板）
 
 ---
 
@@ -89,7 +90,7 @@
 | DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | Sprite替换变身/冷却/场景融入/多形态切换；新增 GetDebugStatus() 调试方法 |
 | InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 7 更新** | 修复 OnJumpReleased 每帧触发问题，用 wasJumpHeld 状态机精确检测按下/松开事件；P2 键位改为 POIL 方案 |
 | GameManager.cs | Assets/Scripts/Core/ | ✅ **Session 10 更新** | 游戏状态/胜负判定/暂停/重启/计时器/单例模式（修复按键检测逻辑） |
-| CameraController.cs | Assets/Scripts/Camera/ | ✅ | 平滑跟随Mario/前瞻偏移/死区/关卡边界限制/相机震动 |
+| CameraController.cs | Assets/Scripts/Camera/ | ✅ **Session 11 重写** | 平滑跟随Mario/前瞻偏移(滞后检测)/渐进式死区/关卡边界限制/相机震动(独立偏移量)。修复B016镜头晃动。 |
 
 ### 2.5 辅助脚本（Sprint 1）
 
@@ -144,7 +145,7 @@ InputManager (右Alt/手柄Y)
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
 | EnergySystem.cs | Assets/Scripts/Ability/ | ✅ **Session 10 新增** | Trickster 能量系统。变身消耗20、操控道具消耗15，满值100，未变身时恢复8/秒，变身时不恢复。变身期间每秒5点持续消耗（融入后减半）。支持低能量警告、回合重置。 |
-| ScanAbility.cs | Assets/Scripts/Ability/ | ✅ **Session 10 新增** | Mario 扫描技能。Q键/手柄东键触发，检测半径5格范围内的伪装Trickster，命中后红色闪烁2秒+头顶警告标记。冷却8秒。 |
+| ScanAbility.cs | Assets/Scripts/Ability/ | ✅ **Session 11 更新** | Mario 扫描技能。Q键/手柄东键触发，检测半径5格范围内的伪装Trickster，命中后红色闪烁2秒+头顶警告标记。冷却8秒。修复B015脉冲颜色时序+扫描结果文字提示。 |
 
 **能量系统参数（通过 Inspector 暴露）**:
 
@@ -176,7 +177,7 @@ InputManager (右Alt/手柄Y)
 | TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 8 新增** | Editor 菜单工具，一键生成完整测试场景（地面/平台/角色/管理器/道具/终点/死亡区域/敌人/金币/相机），所有 Inspector 引用自动连线，Ground Layer 自动创建 |
 | MarioTrickster.asmdef | Assets/Scripts/ | ✅ **Session 9 新增** | 主项目 Assembly Definition，引用 Unity.InputSystem |
 | MarioTrickster.Editor.asmdef | Assets/Scripts/Editor/ | ✅ **Session 9 新增** | Editor 脚本 Assembly Definition |
-| ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试（30+ 测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用 |
+| ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 11 更新** | EditMode 测试（45+ 测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用、EnergySystem、ScanAbility、CameraController(B016) |
 | GameplayTests.cs | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试（20+ 测试用例）：验证 Mario/Trickster 移动/跳跃/重力、伪装系统运行时行为、道具操控状态机（Telegraph→Active→Cooldown）、移动平台运动、GameManager 胜负判定/暂停/回合重置、InputManager 集成 |
 | EditModeTests.asmdef | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试 Assembly Definition |
 | PlayModeTests.asmdef | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试 Assembly Definition |
@@ -206,7 +207,8 @@ InputManager (右Alt/手柄Y)
 | B012 | ✅ **已修复 (Session 10)** 道具操控失败时无提示 | — | 根因：操控失败仅有 Debug.Log。已在 TricksterController 添加 OnAbilityFailed 事件，GameUI 接收并显示失败原因（如"不在范围内"、"能量不足"）。 |
 | B013 | ✅ **已修复 (Session 9)** TestSceneBuilder 中 LevelManager 字段名错误 | — | — |
 | B014 | ✅ **已修复 (Session 10)** ESC 暂停后再按 ESC 恢复无反馈 | — | 根因：同 B011，暂停状态下 ESC 按键检测被跳过。已修复逻辑，并在 GameUI 添加了"已恢复"的短暂提示。 |
-| B015 | ⚠️ **待修复 (Session 10)** 测试 6 扫描技能时，Trickster 在范围内且头顶出现警告标记，但屏幕下方错误提示"未在范围内" | 中 | 待排查 GameUI 或 ScanAbility 提示逻辑冲突 |
+| B015 | ✅ **已修复 (Session 11)** 扫描成功时脉冲颜色首帧错误 + 屏幕下方矛盾提示 | — | 根因：StartPulse() 在 CheckForTrickster() 之前调用，首帧脉冲颜色用上次 tricksterFound 值。修复：先检测再启动脉冲。新增 Mario 下方扫描结果文字提示（区分范围内/外/未伪装）。 |
+| B016 | ✅ **已修复 (Session 11)** 镜头来回轻微晃动 | — | 根因三重叠加：(1) LookAhead 依赖 IsMoving 属性在静止时频繁切换；(2) 死区边缘振荡；(3) Shake 协程永久偏移相机。修复：滞后移动检测 + 渐进式死区 + 独立震动偏移量 + SmoothDamp 替代 Lerp。 |
 
 ### 关于 B002 的修复方法
 
@@ -291,7 +293,8 @@ git pull
 | 暂停系统 | 暂停/恢复 TimeScale | 1 |
 | InputManager 集成 | 禁用输入停止移动 | 1 |
 | 能量系统 (Session 10) | 消耗/恢复/重置/低能量状态 | 9 |
-| 扫描技能 (Session 10) | 冷却/事件触发/范围检测 | 5 |
+| 扫描技能 (Session 10+11) | 冷却/事件触发/范围检测/OnScanPerformed | 6 |
+| 相机控制器 (Session 11) | 创建/SetTarget/SetBounds/SnapToTarget/Shake | 5 |
 
 ### 5. 手动场景搭建（备选方案）
 如果不使用 TestSceneBuilder，也可以手动搭建：
@@ -377,7 +380,7 @@ git pull
 | 7 | 放置GoalZone和KillZone | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置终点（绿色，位置18,1）和死亡区域（底部） |
 | 8 | 放置可操控道具 | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置 ControllablePlatform/Hazard/Block |
 | 9 | **核心玩法验证** | 🔄 进行中 | 手动 Play 测试已完成（见下方测试结果），待运行 Test Runner 自动化测试 |
-| 10 | **自动化测试框架** | ✅ **Session 10 更新** | EditMode 40+ 测试 + PlayMode 20+ 测试，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停/能量系统/扫描技能 |
+| 10 | 自动化测试框架 | ✅ **Session 11 更新** | EditMode 45+ 测试 + PlayMode 20+ 测试，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停/能量系统/扫描技能/相机控制器 |
 
 ### 第二优先级：游戏体验（Sprint 2，预计 1-2 周）
 
@@ -399,6 +402,28 @@ git pull
 ---
 
 ## 六、Session 历史记录
+
+### Session 11 记录（2026-04-02）
+
+**本次完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| B016 镜头晃动修复 | 重写 CameraController.cs。根因三重叠加：(1) LookAhead 依赖 IsMoving 属性在静止时频繁切换；(2) 死区边缘振荡；(3) Shake 协程永久偏移相机。修复：滞后(hysteresis)移动检测 + 渐进式死区(soft dead zone) + 独立震动偏移量 + SmoothDamp 替代 Lerp。 |
+| B015 扫描提示修复 | 修复 ScanAbility.cs 脉冲颜色时序问题（先检测再启动脉冲），新增扫描结果文字提示（区分范围内/外/未伪装），新增 OnScanPerformed 事件。 |
+| 测试用例更新 | 新增 CameraControllerTests（5个用例）+ ScanAbility_OnScanPerformed 测试。EditMode 测试总计 45+ 用例。 |
+| 协作文档体系优化 | 新增 SESSION_TRACKER.md 作为每次对话的快速入口，包含当前状态、本次测试清单、反馈模板、待办队列、协作工作流图。 |
+
+**代码统计：**
+- 修改了 CameraController.cs（重写）, ScanAbility.cs, ComponentSetupTests.cs
+- 新增了 SESSION_TRACKER.md
+- 更新了 MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
+
+**待测试项（详见 SESSION_TRACKER.md）：**
+- B016 镜头晃动修复：静止/移动→停止/方向切换/跳跃/边界
+- B015 扫描提示修复：范围内/外/未伪装扫描 + 矛盾提示消除
+
+---
 
 ### Session 10 记录（2026-04-02）
 
@@ -648,12 +673,12 @@ Assets/
 │   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类
 │   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
 │   │   ├── EnergySystem.cs          ✅ Trickster 能量系统 (Session 10 新增)
-│   │   ├── ScanAbility.cs           ✅ Mario 扫描技能 (Session 10 新增)
+│   │   ├── ScanAbility.cs           ✅ Mario 扫描技能 (Session 11 更新: 修复B015)
 │   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)
 │   │   ├── ControllableHazard.cs    ✅ 可操控危险道具
 │   │   └── ControllableBlock.cs     ✅ 可操控方块
 │   ├── Camera/
-│   │   └── CameraController.cs      ✅ 相机跟随逻辑
+│   │   └── CameraController.cs      ✅ 相机跟随逻辑 (Session 11 重写: 修复B016镜头晃动)
 │   ├── Editor/
 │   │   ├── TestSceneBuilder.cs      ✅ 一键生成测试场景 (Session 8 新增)
 │   │   └── MarioTrickster.Editor.asmdef ✅ Editor Assembly Definition (Session 9 新增)
@@ -663,7 +688,7 @@ Assets/
 ├── Tests/
 │   ├── EditMode/
 │   │   ├── EditModeTests.asmdef     ✅ Assembly Definition (Session 8 新增)
-│   │   └── ComponentSetupTests.cs   ✅ 组件依赖/配置验证测试 (Session 8 新增)
+│   │   └── ComponentSetupTests.cs   ✅ 组件依赖/配置验证测试 (Session 11 更新: +CameraController+ScanPerformed)
 │   └── PlayMode/
 │       ├── PlayModeTests.asmdef     ✅ Assembly Definition (Session 8 新增)
 │       └── GameplayTests.cs         ✅ 核心玩法自动化测试 (Session 8 新增)
@@ -725,11 +750,11 @@ Assets/
 GitHub Token: ghp_你的token
 仓库：https://github.com/jiaxuGOGOGO/MarioTrickster
 
-请先用 Token 克隆仓库，读取根目录的以下文件获取完整项目上下文：
-1. MarioTrickster_Progress_Summary.md（进度/决策/文件结构/参考项目/开发计划）
-2. 与 AI 高效协作开发工作流指南.md（协作规范/模板/Git流程）
+请先用 Token 克隆仓库，读取根目录的以下文件获取项目上下文：
+1. SESSION_TRACKER.md（快速入口：当前状态/测试项/反馈模板）
+2. MarioTrickster_Progress_Summary.md（完整记录：进度/决策/文件结构）
 
-本次任务：[在这里写你要做的事情]
+本次任务：[在这里写你要做的事情，或贴上测试反馈]
 
 积分提醒：请在我积分接近300时暂停，优先存档推送。
 ```

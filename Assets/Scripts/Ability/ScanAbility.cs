@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 /// <summary>
 /// Mario 扫描技能
@@ -18,6 +18,13 @@
 /// 扫描脉冲视觉效果：
 ///   - 按下扫描键后，以 Mario 为中心扩散一个半透明圆环
 ///   - 圆环颜色：扫描到 Trickster 时红色，否则蓝色
+///
+/// Session 11 修复：
+///   B015 - 扫描成功时屏幕下方错误提示"未在范围内"
+///     根因: StartPulse() 在 CheckForTrickster() 之前调用，
+///           导致首帧脉冲颜色使用上次的 tricksterFound 值。
+///     修复: 先执行检测再启动脉冲，确保颜色正确。
+///   新增: OnScanPerformed 事件（供 UI 区分扫描反馈和道具操控反馈）
 ///
 /// 使用方式：挂载在 Mario GameObject 上
 /// </summary>
@@ -54,6 +61,11 @@ public class ScanAbility : MonoBehaviour
     private float pulseRadius;
     private float pulseAlpha;
 
+    // 扫描结果文字提示
+    private string scanResultText = "";
+    private float scanResultTimer;
+    private const float ScanResultDisplayDuration = 1.5f;
+
     // 引用
     private TricksterController targetTrickster;
     private DisguiseSystem targetDisguise;
@@ -69,6 +81,8 @@ public class ScanAbility : MonoBehaviour
     // 事件
     public System.Action OnScanActivated;
     public System.Action<bool> OnScanResult; // true = 发现 Trickster
+    /// <summary>扫描执行事件（供测试验证）</summary>
+    public System.Action OnScanPerformed;
 
     private void Start()
     {
@@ -108,6 +122,12 @@ public class ScanAbility : MonoBehaviour
         {
             UpdatePulse();
         }
+
+        // 扫描结果文字倒计时
+        if (scanResultTimer > 0f)
+        {
+            scanResultTimer -= Time.deltaTime;
+        }
     }
 
     #region 扫描触发
@@ -122,25 +142,31 @@ public class ScanAbility : MonoBehaviour
         // 开始冷却
         cooldownTimer = scanCooldown;
 
-        // 开始脉冲效果
-        StartPulse();
-
         OnScanActivated?.Invoke();
 
-        // 检测 Trickster 是否在范围内且处于伪装状态
+        // 【B015 修复】先检测再启动脉冲，确保脉冲颜色正确
         tricksterFound = CheckForTrickster();
+
+        // 启动脉冲效果（此时 tricksterFound 已经是正确值）
+        StartPulse();
 
         if (tricksterFound)
         {
             StartReveal();
+            scanResultText = "Trickster Detected!";
             Debug.Log("[ScanAbility] Trickster detected! Revealing...");
         }
         else
         {
-            Debug.Log("[ScanAbility] Scan complete - no disguised Trickster in range.");
+            // 区分未伪装和不在范围内的情况，给出更精确的提示
+            scanResultText = GetScanMissReason();
+            Debug.Log($"[ScanAbility] Scan complete - {scanResultText}");
         }
 
+        scanResultTimer = ScanResultDisplayDuration;
+
         OnScanResult?.Invoke(tricksterFound);
+        OnScanPerformed?.Invoke();
     }
 
     /// <summary>检测 Trickster 是否在扫描范围内且处于伪装状态</summary>
@@ -151,6 +177,19 @@ public class ScanAbility : MonoBehaviour
 
         float distance = Vector2.Distance(transform.position, targetTrickster.transform.position);
         return distance <= scanRadius;
+    }
+
+    /// <summary>获取扫描未命中的具体原因（用于UI提示）</summary>
+    private string GetScanMissReason()
+    {
+        if (targetTrickster == null) return "No target found";
+        if (targetDisguise == null) return "No disguise system";
+        if (!targetDisguise.IsDisguised) return "Trickster not disguised";
+
+        float distance = Vector2.Distance(transform.position, targetTrickster.transform.position);
+        if (distance > scanRadius) return $"Out of range ({distance:F1}m)";
+
+        return "Scan clear";
     }
 
     #endregion
@@ -267,6 +306,12 @@ public class ScanAbility : MonoBehaviour
         {
             DrawRevealMarker();
         }
+
+        // 扫描结果文字提示（在 Mario 下方显示，与道具操控失败提示区分）
+        if (scanResultTimer > 0f)
+        {
+            DrawScanResultText();
+        }
     }
 
     /// <summary>绘制扫描脉冲圆环效果</summary>
@@ -289,7 +334,7 @@ public class ScanAbility : MonoBehaviour
         // 用多个矩形近似绘制圆环（OnGUI 的限制）
         int segments = 36;
         float angleStep = 360f / segments;
-        float lineWidthScreen = pulseLineWidth * (edgeScreen.x - center.x) / pulseRadius;
+        float lineWidthScreen = pulseLineWidth * (edgeScreen.x - center.x) / Mathf.Max(pulseRadius, 0.01f);
         lineWidthScreen = Mathf.Max(2f, lineWidthScreen);
 
         GUI.color = pulseColor;
@@ -322,6 +367,35 @@ public class ScanAbility : MonoBehaviour
         float mx = markerPos.x;
         float my = Screen.height - markerPos.y;
         GUI.Label(new Rect(mx - 20, my - 15, 40, 30), "!", markerStyle);
+    }
+
+    /// <summary>绘制扫描结果文字提示（Mario 附近，与道具操控提示区分位置）</summary>
+    private void DrawScanResultText()
+    {
+        if (Camera.main == null) return;
+
+        Vector3 textPos = Camera.main.WorldToScreenPoint(transform.position + Vector3.down * 1.5f);
+        if (textPos.z < 0) return;
+
+        float alpha = Mathf.Clamp01(scanResultTimer / 0.5f);
+
+        GUIStyle resultStyle = new GUIStyle(GUI.skin.label);
+        resultStyle.fontSize = 14;
+        resultStyle.fontStyle = FontStyle.Bold;
+        resultStyle.alignment = TextAnchor.MiddleCenter;
+
+        if (tricksterFound)
+        {
+            resultStyle.normal.textColor = new Color(1f, 0.2f, 0.2f, alpha);
+        }
+        else
+        {
+            resultStyle.normal.textColor = new Color(0.5f, 0.7f, 1f, alpha);
+        }
+
+        float tx = textPos.x;
+        float ty = Screen.height - textPos.y;
+        GUI.Label(new Rect(tx - 100, ty, 200, 25), scanResultText, resultStyle);
     }
 
     #endregion

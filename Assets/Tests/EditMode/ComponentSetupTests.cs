@@ -817,4 +817,97 @@ public class ScanAbilityTests
 
         Object.DestroyImmediate(go);
     }
+
+    [Test]
+    public void ScanAbility_OnScanPerformed_EventFires()
+    {
+        GameObject go = new GameObject("TestScan");
+        go.AddComponent<SpriteRenderer>();
+        go.AddComponent<BoxCollider2D>();
+        ScanAbility scan = go.AddComponent<ScanAbility>();
+
+        bool performed = false;
+        scan.OnScanPerformed += () => performed = true;
+
+        scan.ActivateScan();
+
+        Assert.IsTrue(performed,
+            "扫描应触发 OnScanPerformed 事件（B015 修复验证）");
+
+        Object.DestroyImmediate(go);
+    }
+}
+
+/// <summary>
+/// Session 11 新增测试：CameraController 镜头晃动修复验证 (B016)
+/// </summary>
+public class CameraControllerTests
+{
+    [Test]
+    public void CameraController_CanBeCreated()
+    {
+        GameObject go = new GameObject("TestCamera");
+        go.AddComponent<Camera>();
+        CameraController cam = go.AddComponent<CameraController>();
+
+        Assert.IsNotNull(cam,
+            "CameraController 应该能正常挂载");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void CameraController_SetTarget_DoesNotThrow()
+    {
+        GameObject camGo = new GameObject("TestCamera");
+        camGo.AddComponent<Camera>();
+        CameraController cam = camGo.AddComponent<CameraController>();
+
+        GameObject targetGo = new GameObject("TestTarget");
+
+        Assert.DoesNotThrow(() => cam.SetTarget(targetGo.transform),
+            "SetTarget 不应抛出异常");
+
+        Object.DestroyImmediate(camGo);
+        Object.DestroyImmediate(targetGo);
+    }
+
+    [Test]
+    public void CameraController_SetBounds_DoesNotThrow()
+    {
+        GameObject go = new GameObject("TestCamera");
+        go.AddComponent<Camera>();
+        CameraController cam = go.AddComponent<CameraController>();
+
+        Assert.DoesNotThrow(() => cam.SetBounds(-10, 100, -5, 20),
+            "SetBounds 不应抛出异常");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void CameraController_SnapToTarget_WithoutTarget_DoesNotThrow()
+    {
+        GameObject go = new GameObject("TestCamera");
+        go.AddComponent<Camera>();
+        CameraController cam = go.AddComponent<CameraController>();
+
+        Assert.DoesNotThrow(() => cam.SnapToTarget(),
+            "没有目标时 SnapToTarget 不应抛出异常");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void CameraController_Shake_DoesNotThrow()
+    {
+        GameObject go = new GameObject("TestCamera");
+        go.AddComponent<Camera>();
+        CameraController cam = go.AddComponent<CameraController>();
+
+        Assert.DoesNotThrow(() => cam.Shake(0.2f, 0.3f),
+            "Shake 不应抛出异常");
+
+        Object.DestroyImmediate(go);
+    }
 }

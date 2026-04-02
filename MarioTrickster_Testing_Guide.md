@@ -1,7 +1,7 @@
 # MarioTrickster 测试指南
 
-> 本文档覆盖四部分内容：手动 Play 测试（含能量系统、扫描技能）、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明。
-> 更新时间：2026-04-02 (Session 10)
+> 本文档覆盖四部分内容：手动 Play 测试（含能量系统、扫描技能、镜头系统）、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明。
+> 更新时间：2026-04-02 (Session 11)
 
 ---
 
@@ -139,16 +139,34 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 
 **通过标准**：Telegraph→Active→Cooldown 三阶段流程正常，能量消耗和提示正常。
 
-### 测试 6：扫描技能 (Session 10 新增) ✅ 已完成
+### 测试 6：扫描技能 (Session 11 修复 B015) ✅ 已修复，待重新测试
 
 | 操作 | 按键 | 预期结果 |
 |------|------|----------|
 | Mario 靠近伪装的 Trickster | WASD | 靠近至 5 格范围内 |
-| 发动扫描 | Q | Mario 身上发出蓝色/红色脉冲圆环 |
-| 观察扫描结果 | — | 范围内的 Trickster 闪烁红色，头顶出现 `!` 警告标记，持续 2 秒 |
+| 发动扫描（范围内） | Q | **红色**脉冲圆环（从第一帧就是红色），Mario 下方显示 "Trickster Detected!" |
+| 观察扫描结果 | — | Trickster 闪烁红色 + 头顶 `!` 警告标记，持续 2 秒 |
+| 发动扫描（范围外） | Q | **蓝色**脉冲圆环，Mario 下方显示 "Out of range (Xm)" |
+| Trickster 未伪装时扫描 | Q | 蓝色脉冲，显示 "Trickster not disguised" |
 | 观察冷却阶段 | 再按 Q | 技能处于冷却中（8秒），无法立即再次触发 |
+| **确认无矛盾提示** | — | 屏幕下方**不应再出现**"未在范围内"等旧的矛盾提示 |
 
-**通过标准**：扫描特效正常播放，能正确揭示范围内的伪装 Trickster。
+**通过标准**：脉冲颜色从第一帧就正确（红=检测到，蓝=未检测到），扫描结果文字清晰，无矛盾提示。
+
+### 测试 6.5：镜头系统 (Session 11 修复 B016) ⬜ 新增，待测试
+
+| 操作 | 预期结果 |
+|------|----------|
+| Mario 完全静止 | 镜头完全静止，无任何晃动 |
+| Mario 向右跑然后松开按键 | 镜头平滑减速停止，无回弹/抖动 |
+| Mario 左右快速切换方向 | 镜头平滑过渡，无突变/抽搐 |
+| Mario 跳跃落地 | 镜头平滑跟随，无突变 |
+| Mario 移动到关卡边界 | 镜头被限制在边界内，不会超出 |
+| 长时间挂机观察 | 镜头保持绝对静止，不会漂移 |
+
+**通过标准**：所有场景下镜头平滑跟随，无任何可见晃动/抖动/回弹。
+
+---
 
 ### 测试 7：胜负判定 ⬜ 待测试
 
@@ -223,8 +241,15 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 | | ScanAbility_ScanRadius_IsPositive | 扫描半径 > 0 |
 | | ScanAbility_OnScanPerformed_EventExists | OnScanPerformed 事件存在 |
 | | ScanAbility_OnTricksterRevealed_EventExists | OnTricksterRevealed 事件存在 |
+| | ScanAbility_OnScanResult_FiresWithFalse_WhenNoTrickster | 无 Trickster 时扫描结果为 false |
+| | **ScanAbility_OnScanPerformed_EventFires** | **扫描触发 OnScanPerformed 事件 (B015 修复验证)** |
+| **CameraController (Session 11)** | CameraController_CanBeCreated | CameraController 能正常挂载 |
+| | CameraController_SetTarget_DoesNotThrow | SetTarget 不抛异常 |
+| | CameraController_SetBounds_DoesNotThrow | SetBounds 不抛异常 |
+| | CameraController_SnapToTarget_WithoutTarget_DoesNotThrow | 无目标时 SnapToTarget 不崩溃 |
+| | CameraController_Shake_DoesNotThrow | Shake 不抛异常 |
 
-**预期结果**：全部绿色通过（约 44 个测试用例）。
+**预期结果**：全部绿色通过（约 50+ 个测试用例）。
 
 ### 3.3 PlayMode 测试（需要进入 Play 模式）
 
@@ -321,7 +346,7 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 
 ## 六、测试进度总览
 
-> 更新时间：2026-04-02 (Session 10)
+> 更新时间：2026-04-02 (Session 11)
 
 | 测试项 | 状态 | 备注 |
 |----------|------|------|
@@ -330,10 +355,11 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 | 测试 3：移动平台跟随 | ✅ 已完成 | 平台跟随平稳，无甩飞 |
 | 测试 4：伪装变身系统 | ✅ 已完成 | 伪装/解除/冷却/融入均正常 |
 | 测试 5：道具操控能力 | ✅ 已完成 | Telegraph→Active→Cooldown 流程正常 |
-| 测试 6：扫描技能 | ⚠️ 存在 Bug | 脉冲和头顶警告正常，但下方小字错误提示"未在范围内" |
+| 测试 6：扫描技能 | ✅ 已修复 (B015) | Session 11 修复脉冲颜色时序 + 扫描结果文字，待重新测试 |
+| **测试 6.5：镜头系统** | **⬜ 新增 (B016)** | **Session 11 修复镜头晃动，待测试** |
 | 测试 7：胜负判定 | ⬜ 待测试 | 需要测试终点/死亡/重启流程 |
 | 测试 8：暂停系统 | ⬜ 待测试 | 需要测试 ESC 暂停/恢复视觉反馈 |
-| EditMode 自动化测试 | ⬜ 待运行 | 预期 44 个用例全部通过 |
+| EditMode 自动化测试 | ⬜ 待运行 | 预期 50+ 个用例全部通过（Session 11 新增 CameraController + ScanPerformed 测试） |
 | PlayMode 自动化测试 | ⬜ 待运行 | 预期 20+ 个用例全部通过 |
 
-**当前进度：6/10 完成，剩余 4 项待验证。**
+**当前进度：6/11 完成，剩余 5 项待验证（含 2 项 Session 11 新修复）。**

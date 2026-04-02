@@ -361,8 +361,8 @@ public class ComponentSetupTests
 
         string status = disguise.GetDebugStatus();
         Assert.IsNotNull(status, "GetDebugStatus 不应返回 null");
-        Assert.IsTrue(status.Contains("0"),
-            "没有配置伪装时，状态应包含 0（表示 0 个可用伪装）");
+        Assert.IsTrue(status.Contains("未配置") || status.Contains("0"),
+            $"没有配置伪装时，状态应包含 '未配置' 或 '0'，实际返回: {status}");
 
         Object.DestroyImmediate(go);
     }

@@ -277,14 +277,16 @@ InputManager (右Alt/手柄Y)
 | DisguiseSystem 测试修复 (1个) | `GetDebugStatus()` 返回中文“未配置伪装形态”不包含数字 "0"，但测试断言检查的是 `Contains("0")`。修复为 `Contains("未配置") \|\| Contains("0")`。 |
 | Testing Guide 章节重组 | 原第三章有 3.1（TestReportRunner）+ 3.2（内置 Test Runner）+ 3.3（EditMode）+ 3.3（PlayMode）结构混乱。重组为 3.1（统一运行方式说明）+ 3.2（EditMode）+ 3.3（PlayMode）+ 3.4（故障排除），消除两种运行方式的误导。 |
 | 联动矩阵补强 (3层防护) | §0.3 联动矩阵新增第 7 行“重编号/重组文档章节”，第 4 行“修改文档体系”加 ❗ 提醒。§0.4 防错规则新增第 5 条“章节引用同步检查”，给出 2 条具体 grep 命令覆盖 § 和“第X章”两种引用格式。确保新对话 AI 也能可靠执行跨文档引用同步。 |
+| TestReportRunner PlayMode 修复 | 根因：PlayMode 测试触发域重载，非持久化回调实例被销毁，导致 `RunFinished` 不触发、报告不生成。修复：使用 `[InitializeOnLoad]` 静态构造函数注册持久化 `ICallbacks`，域重载后自动重新注册；用 `SessionState` 跟踪运行状态；用 `EditorApplication.delayCall` 延迟弹窗避免被吞。 |
+| 全部测试 89/89 通过 | 用户验证确认：手动 9/9 + EditMode 59/59 + PlayMode 21/21 + Testing Guide 3.4 故障排除全部通过。项目进入全绿状态。 |
 
 **代码统计：**
-- 新增了 TestReportRunner.cs（约 320 行）
-- 修改了 MarioTrickster.Editor.asmdef
-- 重写了 ComponentSetupTests.cs（添加 ForceAwake 辅助方法，修复 16+1 个失败测试）
-- 重组了 MarioTrickster_Testing_Guide.md 第三章章节结构
-- 补强了 SESSION_TRACKER.md §0.3 联动矩阵 + §0.4 防错规则
-- 更新了 SESSION_TRACKER.md, MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
+- 新增 TestReportRunner.cs（约 420 行，含 PlayMode 持久化修复）
+- 修改 MarioTrickster.Editor.asmdef
+- 重写 ComponentSetupTests.cs（添加 ForceAwake 辅助方法，修复 16+1 个失败测试）
+- 重组 MarioTrickster_Testing_Guide.md 第三章章节结构
+- 补强 SESSION_TRACKER.md §0.3 联动矩阵 + §0.4 防错规则
+- 更新 SESSION_TRACKER.md, MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
 
 ---
 

@@ -139,7 +139,7 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 
 **通过标准**：Telegraph→Active→Cooldown 三阶段流程正常，能量消耗和提示正常。
 
-### 测试 6：扫描技能 (Session 11 修复 B015) ✅ 已修复，待重新测试
+### 测试 6：扫描技能 (Session 11 修复 B015) ✅ 已通过
 
 | 操作 | 按键 | 预期结果 |
 |------|------|----------|
@@ -153,7 +153,7 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 
 **通过标准**：脉冲颜色从第一帧就正确（红=检测到，蓝=未检测到），扫描结果文字清晰，无矛盾提示。
 
-### 测试 6.5：镜头系统 (Session 11 修复 B016) ⬜ 新增，待测试
+### 测试 6.5：镜头系统 (Session 11 修复 B016) ✅ 已通过
 
 | 操作 | 预期结果 |
 |------|----------|
@@ -168,7 +168,7 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 
 ---
 
-### 测试 7：胜负判定与UI显示 (Session 12 修复 B018) ⬜ 待测试
+### 测试 7：胜负判定与UI显示 (Session 12 修复 B018) ✅ 已通过
 
 | 操作 | 预期结果 |
 |------|----------|
@@ -182,7 +182,7 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 
 > ℹ️ **B018 修复说明**：如果你之前用 TestSceneBuilder 生成的场景没有显示胜利画面，请重新执行 **MarioTrickster → Clear Test Scene** 然后 **MarioTrickster → Build Test Scene** 重新生成场景，新版本已自动包含 GameUI 组件。如果你使用的是手动搭建的场景（如 mario.unity），请手动在任意 GameObject 上添加 `GameUI` 组件。
 
-### 测试 8：暂停系统 ⬜ 待测试
+### 测试 8：暂停系统 ✅ 已通过
 
 | 操作 | 按键 | 预期结果 |
 |------|------|----------|

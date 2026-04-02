@@ -12,7 +12,7 @@
 | **日期** | 2026-04-02 |
 | **分支** | master |
 | **项目阶段** | MVP 核心开发 (Sprint 1) |
-| **编译状态** | 待验证 (多项修复已推送) |
+| **编译状态** | ✅ 编译通过，测试 1-8 全部通过 |
 | **阻塞问题** | 无 |
 
 ---
@@ -21,128 +21,77 @@
 
 ```text
 测试日期：2026-04-02
-测试人：AI (Manus) + 用户反馈
+测试人：用户
 
-=== 修复项 B018（游戏结束UI未显示）===
-- 根因：TestSceneBuilder 未创建 GameUI 对象
-- 修复：TestSceneBuilder 新增 GameUI 对象创建
-- 状态：✅ 代码修复已完成
+✅ 测试 1-8 全部通过！
 
-=== 修复项 B019（originalColor 序列化冲突）===
-- 根因：ControllableBlock 和父类 ControllablePropBase 都声明了 private Color originalColor
-- 修复：父类改为 protected，子类移除重复声明
-- 状态：✅ 已修复
+测试项 A（多回合终点判定 B020）：✅ 通过
+- 第一回合到终点：有胜利画面
+- 按 N 后第二回合到终点：有胜利画面
+- Trickster 胜利：有
 
-=== 修复项 B016 源头修复（CameraController 重复叠加）===
-- 根因：TestSceneBuilder 每次 Build 都 AddComponent 不检查已有
-- 修复：Build 前先清理已有的 CameraController 和 GameUI
-- 状态：✅ 已修复
+测试项 B（暂停功能 B021）：✅ 通过
+- ESC 暂停：有遮罩和 PAUSED
+- ESC 恢复：直接恢复无 RESUMED
 
-=== 修复项 B020（第二回合终点无反应）===
-- 根因：GoalZone.triggered 在第一回合设为 true 后，ResetRound 未重置
-- 修复：GoalZone 新增 ResetTrigger() 方法，GameManager.ResetRound() 调用它
-- 状态：✅ 代码修复已完成，待用户验证
+测试项 C（序列化错误 B019）：✅ 通过
+- Console 红色错误：已消除
 
-=== 修复项 B021（移除 RESUMED 恢复提示）===
-- 用户反馈：暂停恢复后显示 "RESUMED" 没必要
-- 修复：移除 GameManager 和 GameUI 中的恢复提示逻辑
-- 状态：✅ 已修复
+测试项 D（CameraController B016）：✅ 通过
+- 多次 Build 后只有 1 个
 
-附带更新：
-- GameManager.ResetRound()：新增 GoalZone 重置和 ControllablePropBase 重置
-- TestSceneBuilder.cs：Build 前清理已有 CameraController/GameUI
-- ControllablePropBase.cs：originalColor 改为 protected
-- ControllableBlock.cs：移除重复 originalColor
-- ComponentSetupTests.cs：新增 5 个 GameUI EditMode 测试用例
+Session 12 修复汇总：
+- B018 游戏结束UI修复：TestSceneBuilder 新增 GameUI 对象创建
+- B019 originalColor 序列化冲突：父类改 protected，子类移除重复声明
+- B020 第二回合终点无反应：GoalZone 新增 ResetTrigger()，GameManager.ResetRound() 调用
+- B021 移除 RESUMED 提示：移除 GameManager 和 GameUI 中的恢复提示逻辑
+- B016 源头修复：TestSceneBuilder Build 前清理已有 CameraController/GameUI
 ```
 
 ---
 
-## 3. 本次测试清单 (待用户测试)
+## 3. 手动测试进度总览
 
-> **请重新生成测试场景后测试以下项目。**
-> 操作：MarioTrickster → Clear Test Scene → MarioTrickster → Build Test Scene → Ctrl+S 保存
+| 测试项 | 状态 | 说明 |
+|--------|------|------|
+| 测试 1：Mario 基础移动 | ✅ 通过 | WASD 移动 + Space 跳跃 |
+| 测试 2：Trickster 基础移动 | ✅ 通过 | 方向键移动 + 跳跃 |
+| 测试 3：移动平台跟随 | ✅ 通过 | 站上平台不被甩飞 |
+| 测试 4：伪装系统 | ✅ 通过 | P 伪装/解除，O/I 切换形态 |
+| 测试 5：道具操控能力 | ✅ 通过 | Telegraph→Active→Cooldown 流程正常 |
+| 测试 6：扫描技能 | ✅ 通过 | Q 键扫描，脉冲+文字提示正常 |
+| 测试 6.5：镜头系统 | ✅ 通过 | 平滑跟随，无晃动 |
+| 测试 7：胜负判定与UI | ✅ 通过 | 多回合胜利/失败画面正常显示 |
+| 测试 8：暂停系统 | ✅ 通过 | ESC 暂停/恢复正常，无多余提示 |
+| EditMode 自动化测试 | ⬜ 待运行 | 预期 55+ 用例全部通过 |
+| PlayMode 自动化测试 | ⬜ 待运行 | 预期 20+ 用例全部通过 |
 
-### 测试项 A：多回合终点判定（B020 修复验证）
-
-| 步骤 | 操作 | 预期结果 |
-|------|------|----------|
-| 1 | 控制 Mario 走到右侧绿色方块 | "MARIO WINS!" 胜利画面 |
-| 2 | 按 N 进入下一回合 | 回合数变为 2，角色回到出生点 |
-| 3 | 再次控制 Mario 走到绿色方块 | **再次**显示 "MARIO WINS!" 胜利画面 |
-| 4 | 按 N 进入第三回合 | 回合数变为 3 |
-| 5 | 让 Mario 掉入深渊 | "TRICKSTER WINS!" 画面 |
-
-### 测试项 B：暂停功能（B021 验证）
-
-| 步骤 | 操作 | 预期结果 |
-|------|------|----------|
-| 1 | 按 ESC | 半透明遮罩 + "PAUSED" 大字 |
-| 2 | 再按 ESC | 直接恢复游戏，**不再显示** "RESUMED" |
-
-### 测试项 C：序列化错误消除（B019 验证）
-
-| 步骤 | 观察 | 预期结果 |
-|------|------|----------|
-| 1 | Console 面板 | **不再**出现 "The same field name is serialized multiple times" 红色错误 |
-
-### 测试项 D：CameraController 不重复（B016 验证）
-
-| 步骤 | 操作 | 预期结果 |
-|------|------|----------|
-| 1 | 连续运行 Build Test Scene 2次 | Main Camera Inspector 中始终只有 **1个** CameraController |
+**手动测试进度：9/9 全部通过！剩余自动化测试待运行。**
 
 ---
 
-## 4. 反馈模板（测试后填写）
+## 4. 待办队列 (Backlog)
 
-```text
-测试日期：
-测试人：
-
-测试项 A（多回合终点判定）：
-- 第一回合到终点：[ 有胜利画面 / 没有 ]
-- 按 N 后第二回合到终点：[ 有胜利画面 / 没有 ]
-- 第三回合 Trickster 胜利：[ 有 / 没有 ]
-
-测试项 B（暂停功能）：
-- ESC 暂停：[ 有遮罩和PAUSED / 没有 ]
-- ESC 恢复：[ 直接恢复无RESUMED / 仍有RESUMED ]
-
-测试项 C（序列化错误）：
-- Console 红色错误：[ 已消除 / 仍有 ]
-
-测试项 D（CameraController）：
-- 多次 Build 后只有1个：[ 是 / 否 ]
-
-新发现的问题/新需求：
-- （如有请描述）
-```
-
----
-
-## 5. 待办队列 (Backlog)
-
-> AI 每次对话从队首取任务。
+> AI 每次对话从队首取任务。所有 P0 Bug 已修复并验证通过。
 
 | 优先级 | ID | 描述 | 状态 |
 |--------|-----|------|------|
-| P0 | B020 | **第二回合终点无反应** | ✅ 已修复（GoalZone.triggered 未重置），待用户验证 |
-| P0 | B021 | **RESUMED 恢复提示多余** | ✅ 已修复（移除恢复提示逻辑） |
-| P0 | B019 | originalColor 序列化冲突 | ✅ 已修复（子类重复声明） |
-| P0 | B018 | 游戏结束UI未显示 | ✅ 已修复（TestSceneBuilder 未创建 GameUI） |
-| P0 | B016 | 镜头来回轻微晃动 | ✅ 已修复已验证（CameraController 重复添加，已从源头修复） |
-| P0 | B015 | 扫描提示矛盾 Bug | ✅ 已修复已验证 |
-| P0 | B017 | 终点无胜利判定 | ✅ 已修复已验证 |
-| P0 | UI | Trickster状态文字被裁剪 | ✅ 已修复已验证 |
-| P1 | — | 关卡设计系统 (Level Design) | 未开始 |
-| P1 | — | 音效系统 (Audio) | 未开始 |
+| ~~P0~~ | B020 | 第二回合终点无反应 | ✅ 已修复已验证 |
+| ~~P0~~ | B021 | RESUMED 恢复提示多余 | ✅ 已修复已验证 |
+| ~~P0~~ | B019 | originalColor 序列化冲突 | ✅ 已修复已验证 |
+| ~~P0~~ | B018 | 游戏结束UI未显示 | ✅ 已修复已验证 |
+| ~~P0~~ | B016 | 镜头来回轻微晃动 | ✅ 已修复已验证 |
+| ~~P0~~ | B015 | 扫描提示矛盾 Bug | ✅ 已修复已验证 |
+| ~~P0~~ | B017 | 终点无胜利判定 | ✅ 已修复已验证 |
+| ~~P0~~ | UI | Trickster状态文字被裁剪 | ✅ 已修复已验证 |
+| **P1** | — | **关卡设计系统 (Level Design)** | 未开始 |
+| **P1** | — | **音效系统 (Audio)** | 未开始 |
 | P2 | — | 动画系统完善 | 未开始 |
 | P2 | — | 主菜单 UI | 未开始 |
 
 ---
 
-## 6. 键位速查（避免混淆）
+## 5. 键位速查（避免混淆）
 
 | 角色 | 按键 | 功能 |
 |------|------|------|
@@ -161,11 +110,11 @@
 
 ---
 
-## 7. 文档职责导航（单一真相源）
+## 6. 文档职责导航（单一真相源）
 
 | 文档 | 职责 | 谁看 |
 |------|------|------|
-| `SESSION_TRACKER.md` | **入口**：当前状态、本次测试项、反馈模板、待办 | **AI 每次必读**，用户每次测试必填 |
+| `SESSION_TRACKER.md` | **入口**：当前状态、测试进度、待办 | **AI 每次必读**，用户每次测试必填 |
 | `MarioTrickster_Progress_Summary.md` | **存档**：功能清单、Bug 库、技术决策、文件结构 | AI 需要完整上下文时读 |
 | `MarioTrickster_Testing_Guide.md` | **手册**：全量测试用例、键位表、UI 调试信息说明 | 用户测试/排查问题时看 |
 | `AI_WORKFLOW.md` | **规范**：开场模板、Git 报错速查、协作流程 | 用户不知道怎么让 AI 干活时看 |
@@ -173,7 +122,7 @@
 
 ---
 
-## 8. AI 换号/新对话开场模板
+## 7. AI 换号/新对话开场模板
 
 > 用户每次开新对话，只需发送以下内容：
 

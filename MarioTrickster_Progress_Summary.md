@@ -210,10 +210,10 @@ InputManager (右Alt/手柄Y)
 | B015 | ✅ **已修复 (Session 11)** 扫描成功时脉冲颜色首帧错误 + 屏幕下方矛盾提示 | — | 根因：StartPulse() 在 CheckForTrickster() 之前调用，首帧脉冲颜色用上次 tricksterFound 值。修复：先检测再启动脉冲。新增 Mario 下方扫描结果文字提示（区分范围内/外/未伪装）。 |
 | B016 | ✅ **已修复已验证 (Session 11)** 镜头来回轻微晃动 | — | 根因：Main Camera 上被挂了 5 个 CameraController 组件，互相覆盖导致晃动。修复：用户手动删除多余 4 个组件。代码层面也重写了 CameraController（不再依赖 Velocity，改用帧间位置差值）。 |
 | B017 | ✅ **已修复已验证 (Session 11)** 到达终点无胜利判定 | — | Mario 走到绿色方块(GoalZone)后没有触发胜利画面。修复：增加 OnTriggerStay2D 双保险 + 4种Mario检测方式。Console日志确认判定已成功触发。 |
-| B018 | ✅ **已修复 (Session 12)** 游戏结束UI未显示 | P0 | 根因：TestSceneBuilder 未创建 GameUI 对象。修复：TestSceneBuilder 新增 GameUI 对象创建。 |
-| B019 | ✅ **已修复 (Session 12)** originalColor 序列化冲突 | P0 | 根因：ControllableBlock 和父类 ControllablePropBase 都声明了 private Color originalColor。修复：父类改为 protected，子类移除重复声明。 |
-| B020 | ✅ **已修复 (Session 12)** 第二回合终点无反应 | P0 | 根因：GoalZone.triggered 在第一回合设为 true 后，ResetRound 未重置。修复：GoalZone 新增 ResetTrigger() 方法，GameManager.ResetRound() 调用它。 |
-| B021 | ✅ **已修复 (Session 12)** RESUMED 恢复提示多余 | P1 | 用户反馈暂停恢复后显示 RESUMED 没必要。已移除 GameManager 和 GameUI 中的恢复提示逻辑。 |
+| B018 | ✅ **已修复已验证 (Session 12)** 游戏结束UI未显示 | P0 | 根因：TestSceneBuilder 未创建 GameUI 对象。修复：TestSceneBuilder 新增 GameUI 对象创建。 |
+| B019 | ✅ **已修复已验证 (Session 12)** originalColor 序列化冲突 | P0 | 根因：ControllableBlock 和父类 ControllablePropBase 都声明了 private Color originalColor。修复：父类改为 protected，子类移除重复声明。 |
+| B020 | ✅ **已修复已验证 (Session 12)** 第二回合终点无反应 | P0 | 根因：GoalZone.triggered 在第一回合设为 true 后，ResetRound 未重置。修复：GoalZone 新增 ResetTrigger() 方法，GameManager.ResetRound() 调用它。 |
+| B021 | ✅ **已修复已验证 (Session 12)** RESUMED 恢复提示多余 | P1 | 用户反馈暂停恢复后显示 RESUMED 没必要。已移除 GameManager 和 GameUI 中的恢复提示逻辑。 |
 
 ### 关于 B002 的修复方法
 
@@ -282,8 +282,8 @@ InputManager (右Alt/手柄Y)
 - 修改了 GameManager.cs, GameUI.cs, GoalZone.cs, ControllablePropBase.cs, ControllableBlock.cs, TestSceneBuilder.cs, ComponentSetupTests.cs
 - 更新了 SESSION_TRACKER.md, MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
 
-**待用户验证：**
-- B020 第二回合终点判定：需要用户验证多回合胜利画面是否正常触发
+**用户验证结果：**
+- ✅ 测试 1-8 全部通过，所有 P0 Bug 已修复并验证
 
 ---
 

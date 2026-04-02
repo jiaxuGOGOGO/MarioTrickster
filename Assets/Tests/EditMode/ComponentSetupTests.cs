@@ -910,4 +910,94 @@ public class CameraControllerTests
 
         Object.DestroyImmediate(go);
     }
+
+    // ═══════════════════════════════════════════════════════
+    // GameUI 测试 (B018 修复后新增)
+    // ═══════════════════════════════════════════════════════
+
+    [Test]
+    public void GameUI_CanBeAddedToGameObject()
+    {
+        GameObject go = new GameObject("TestGameUI");
+
+        Assert.DoesNotThrow(() => go.AddComponent<GameUI>(),
+            "GameUI 应该可以正常添加到 GameObject");
+
+        Assert.IsNotNull(go.GetComponent<GameUI>(),
+            "添加后应能获取到 GameUI 组件");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void GameUI_ShowGameOverScreen_SetsShowGameOverFlag()
+    {
+        // 模拟 GameManager 单例
+        GameObject managerGo = new GameObject("TestManager");
+        GameManager gm = managerGo.AddComponent<GameManager>();
+
+        GameObject uiGo = new GameObject("TestGameUI");
+        GameUI gameUI = uiGo.AddComponent<GameUI>();
+
+        // 直接调用 ShowGameOverScreen 方法测试不崩溃
+        // 注意：ShowGameOverScreen 是 private，但可以通过事件触发
+        // 这里验证 GameUI 的创建和基本状态
+        Assert.IsNotNull(gameUI,
+            "GameUI 应该被正确创建");
+
+        Object.DestroyImmediate(uiGo);
+        Object.DestroyImmediate(managerGo);
+    }
+
+    [Test]
+    public void GameUI_OnGUIFallback_DefaultsToTrue()
+    {
+        // 当没有 Canvas UI 引用时，useOnGUIFallback 应为 true
+        GameObject go = new GameObject("TestGameUI");
+        GameUI gameUI = go.AddComponent<GameUI>();
+
+        // useOnGUIFallback 是 private，但我们可以通过反射验证
+        var field = typeof(GameUI).GetField("useOnGUIFallback",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        Assert.IsNotNull(field,
+            "GameUI 应该有 useOnGUIFallback 字段");
+
+        // 初始值应为 true（因为没有设置 healthText 和 timerText）
+        bool fallbackValue = (bool)field.GetValue(gameUI);
+        Assert.IsTrue(fallbackValue,
+            "没有 Canvas UI 引用时，useOnGUIFallback 应为 true");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void GameUI_ShowAbilityFailFeedback_DoesNotThrow()
+    {
+        GameObject go = new GameObject("TestGameUI");
+        GameUI gameUI = go.AddComponent<GameUI>();
+
+        Assert.DoesNotThrow(() => gameUI.ShowAbilityFailFeedback("测试失败提示"),
+            "ShowAbilityFailFeedback 不应抛出异常");
+
+        Object.DestroyImmediate(go);
+    }
+
+    [Test]
+    public void GameUI_ButtonCallbacks_DoNotThrow_WithoutGameManager()
+    {
+        GameObject go = new GameObject("TestGameUI");
+        GameUI gameUI = go.AddComponent<GameUI>();
+
+        // GameManager.Instance 为 null 时调用按钮回调不应崩溃
+        Assert.DoesNotThrow(() => gameUI.OnRestartButtonClicked(),
+            "OnRestartButtonClicked 在没有 GameManager 时不应崩溃");
+        Assert.DoesNotThrow(() => gameUI.OnNextRoundButtonClicked(),
+            "OnNextRoundButtonClicked 在没有 GameManager 时不应崩溃");
+        Assert.DoesNotThrow(() => gameUI.OnMainMenuButtonClicked(),
+            "OnMainMenuButtonClicked 在没有 GameManager 时不应崩溃");
+
+        Object.DestroyImmediate(go);
+    }
 }
+

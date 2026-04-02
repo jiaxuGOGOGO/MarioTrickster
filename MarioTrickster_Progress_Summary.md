@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-02 (Session 11) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
+> 更新时间：2026-04-02 (Session 12) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
 > **快速入口**：每次对话优先读取 `SESSION_TRACKER.md`（当前状态/测试项/反馈模板）
 
 ---
@@ -103,7 +103,7 @@
 | Breakable.cs | Assets/Scripts/Core/ | ✅ | 可破坏方块（砖块/问号砖块），从下方顶撞触发 |
 | MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **Session 6 重写** | Kinematic Rigidbody2D + MovePosition() + 速度注入法跟随角色（不使用 SetParent） |
 | SimpleEnemy.cs | Assets/Scripts/Enemy/ | ✅ | 简单巡逻敌人，边缘/墙壁检测自动转向，可被踩消灭 |
-| GameUI.cs | Assets/Scripts/UI/ | ✅ **Session 10 更新** | 基础HUD（生命值/计时器/回合信息/胜负画面/能量显示），增强了游戏结束/暂停/操控失败反馈 |
+| GameUI.cs | Assets/Scripts/UI/ | ✅ **Session 10 更新** | 基础HUD（生命值/计时器/回合信息/胜负画面/能量显示），增强了游戏结束/暂停/操控失败反馈。B018修复：TestSceneBuilder已自动创建GameUI实例 |
 | LevelManager.cs | Assets/Scripts/Core/ | ✅ | 关卡管理（出生点/边界/可伪装对象列表） |
 
 ### 2.6 Trickster 能力系统（Sprint 2 - Session 3 新增）
@@ -174,10 +174,10 @@ InputManager (右Alt/手柄Y)
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 8 新增** | Editor 菜单工具，一键生成完整测试场景（地面/平台/角色/管理器/道具/终点/死亡区域/敌人/金币/相机），所有 Inspector 引用自动连线，Ground Layer 自动创建 |
+| TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 12 更新** | Editor 菜单工具，一键生成完整测试场景（地面/平台/角色/管理器/道具/终点/死亡区域/敌人/金币/相机/GameUI），所有 Inspector 引用自动连线，Ground Layer 自动创建。B018修复：新增 GameUI 对象创建 |
 | MarioTrickster.asmdef | Assets/Scripts/ | ✅ **Session 9 新增** | 主项目 Assembly Definition，引用 Unity.InputSystem |
 | MarioTrickster.Editor.asmdef | Assets/Scripts/Editor/ | ✅ **Session 9 新增** | Editor 脚本 Assembly Definition |
-| ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 11 更新** | EditMode 测试（45+ 测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用、EnergySystem、ScanAbility、CameraController(B016) |
+| ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 12 更新** | EditMode 测试（55+ 测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用、EnergySystem、ScanAbility、CameraController(B016)、GameUI(B018) |
 | GameplayTests.cs | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试（20+ 测试用例）：验证 Mario/Trickster 移动/跳跃/重力、伪装系统运行时行为、道具操控状态机（Telegraph→Active→Cooldown）、移动平台运动、GameManager 胜负判定/暂停/回合重置、InputManager 集成 |
 | EditModeTests.asmdef | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试 Assembly Definition |
 | PlayModeTests.asmdef | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试 Assembly Definition |
@@ -210,7 +210,7 @@ InputManager (右Alt/手柄Y)
 | B015 | ✅ **已修复 (Session 11)** 扫描成功时脉冲颜色首帧错误 + 屏幕下方矛盾提示 | — | 根因：StartPulse() 在 CheckForTrickster() 之前调用，首帧脉冲颜色用上次 tricksterFound 值。修复：先检测再启动脉冲。新增 Mario 下方扫描结果文字提示（区分范围内/外/未伪装）。 |
 | B016 | ✅ **已修复已验证 (Session 11)** 镜头来回轻微晃动 | — | 根因：Main Camera 上被挂了 5 个 CameraController 组件，互相覆盖导致晃动。修复：用户手动删除多余 4 个组件。代码层面也重写了 CameraController（不再依赖 Velocity，改用帧间位置差值）。 |
 | B017 | ✅ **已修复已验证 (Session 11)** 到达终点无胜利判定 | — | Mario 走到绿色方块(GoalZone)后没有触发胜利画面。修复：增加 OnTriggerStay2D 双保险 + 4种Mario检测方式。Console日志确认判定已成功触发。 |
-| B018 | 🚨 **待修复 (Session 12)** 游戏结束UI未显示 | P0 | 承接B017，GameManager.EndRound()已执行，但GameUI未显示胜利画面（半透明遮罩和"MARIO WINS!"大字）。可能是OnGUI渲染层级或事件订阅问题。 |
+| B018 | ✅ **已修复 (Session 12)** 游戏结束UI未显示 | P0 | 根因：TestSceneBuilder 未创建 GameUI 对象，场景中没有 GameUI 实例订阅 GameManager.OnGameOver 事件。修复：TestSceneBuilder 新增 GameUI 对象创建。待用户验证。 |
 
 ### 关于 B002 的修复方法
 
@@ -261,6 +261,25 @@ InputManager (右Alt/手柄Y)
 ---
 
 ## 六、Session 历史记录
+
+### Session 12 记录（2026-04-02）
+
+**本次完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| B018 游戏结束UI修复 | 根因：TestSceneBuilder 一键生成测试场景时未创建 GameUI 对象，导致场景中没有 GameUI 实例订阅 GameManager.OnGameOver 事件。mario.unity 手动场景中同样缺少 GameUI。修复：在 TestSceneBuilder 中新增 GameUI 对象创建（挂载到 Managers 对象下），GameUI.Start() 自动查找引用并订阅事件。 |
+| 测试用例更新 | 新增 5 个 GameUI EditMode 测试用例：CanBeAdded/ShowGameOver/OnGUIFallback/AbilityFailFeedback/ButtonCallbacks。EditMode 测试总计 55+ 用例。 |
+| 测试指南更新 | 更新测试 7 为“胜负判定与UI显示”，新增 B018 修复说明和重新生成场景指引。 |
+
+**代码统计：**
+- 修改了 TestSceneBuilder.cs（新增 GameUI 创建）, ComponentSetupTests.cs（新增 5 个测试）
+- 更新了 SESSION_TRACKER.md, MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
+
+**待用户验证：**
+- B018 游戏结束UI：需要用户重新生成测试场景后验证胜利/失败画面是否正常显示
+
+---
 
 ### Session 11 记录（2026-04-02）
 
@@ -542,7 +561,7 @@ Assets/
 │   ├── Camera/
 │   │   └── CameraController.cs      ✅ 相机跟随逻辑 (Session 11 重写: 修复B016镜头晃动)
 │   ├── Editor/
-│   │   ├── TestSceneBuilder.cs      ✅ 一键生成测试场景 (Session 8 新增)
+│   │   ├── TestSceneBuilder.cs      ✅ 一键生成测试场景 (Session 12 更新: +GameUI)
 │   │   └── MarioTrickster.Editor.asmdef ✅ Editor Assembly Definition (Session 9 新增)
 │   ├── MarioTrickster.asmdef        ✅ 主项目 Assembly Definition (Session 9 新增)
 │   └── UI/
@@ -550,7 +569,7 @@ Assets/
 ├── Tests/
 │   ├── EditMode/
 │   │   ├── EditModeTests.asmdef     ✅ Assembly Definition (Session 8 新增)
-│   │   └── ComponentSetupTests.cs   ✅ 组件依赖/配置验证测试 (Session 11 更新: +CameraController+ScanPerformed)
+│   │   └── ComponentSetupTests.cs   ✅ 组件依赖/配置验证测试 (Session 12 更新: +GameUI 5个测试)
 │   └── PlayMode/
 │       ├── PlayModeTests.asmdef     ✅ Assembly Definition (Session 8 新增)
 │       └── GameplayTests.cs         ✅ 核心玩法自动化测试 (Session 8 新增)

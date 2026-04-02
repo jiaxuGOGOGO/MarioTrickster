@@ -22,6 +22,7 @@ using UnityEditor.SceneManagement;
 ///   - 可收集物品（Collectible）
 ///   - 可破坏方块（Breakable）
 ///   - 相机跟随（CameraController）
+///   - 游戏UI（GameUI - HUD/胜负画面/暂停画面）
 ///   - 所有 Inspector 引用自动连线
 ///   - Ground Layer 自动创建和分配
 /// </summary>
@@ -308,7 +309,17 @@ public class TestSceneBuilder : Editor
         breakable.AddComponent<Breakable>();
 
         // ═══════════════════════════════════════════════════
-        // 15. 场景整理：创建父对象分组
+        // 15. 游戏UI（B018修复：场景中必须有 GameUI 实例才能显示胜利/暂停画面）
+        // ═══════════════════════════════════════════════════
+        GameObject uiObject = new GameObject("GameUI");
+        uiObject.transform.parent = managers.transform;
+        GameUI gameUI = uiObject.AddComponent<GameUI>();
+        // marioHealth 引用会在 GameUI.Start() 中自动查找（FindObjectOfType<MarioController>）
+        // GameManager 事件订阅也在 GameUI.Start() 中自动完成
+        Debug.Log("[TestSceneBuilder] GameUI 已添加到 Managers 对象");
+
+        // ═══════════════════════════════════════════════════
+        // 16. 场景整理：创建父对象分组
         // ═══════════════════════════════════════════════════
         GameObject levelGeometry = new GameObject("--- Level Geometry ---");
         ground.transform.parent = levelGeometry.transform;
@@ -350,8 +361,9 @@ public class TestSceneBuilder : Editor
                   "  - 死亡区域 (底部)\n" +
                   "  - 敌人 (紫色) + 5个金币 + 可破坏方块\n" +
                   "  - 相机跟随 Mario\n" +
-                  "  - [NEW] Trickster 能量系统 (EnergySystem)\n" +
-                  "  - [NEW] Mario 扫描技能 (Q键, ScanAbility)\n\n" +
+                  "  - GameUI (HUD/胜负画面/暂停画面)\n" +
+                  "  - Trickster 能量系统 (EnergySystem)\n" +
+                  "  - Mario 扫描技能 (Q键, ScanAbility)\n\n" +
                   "  ⚠️ 请保存场景：Ctrl+S");
 
         EditorUtility.DisplayDialog(

@@ -1,7 +1,7 @@
 # MarioTrickster 测试指南
 
-> 本文档覆盖四部分内容：手动 Play 测试（含能量系统、扫描技能、镜头系统）、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明。
-> 更新时间：2026-04-02 (Session 11)
+> 本文档覆盖四部分内容：手动 Play 测试（含能量系统、扫描技能、镜头系统、胜负UI）、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明。
+> 更新时间：2026-04-02 (Session 12)
 
 ---
 
@@ -168,15 +168,19 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 
 ---
 
-### 测试 7：胜负判定 ⬜ 待测试
+### 测试 7：胜负判定与UI显示 (Session 12 修复 B018) ⬜ 待测试
 
 | 操作 | 预期结果 |
 |------|----------|
-| 控制 Mario 走到右侧终点（绿色半透明区域） | 触发 Mario 胜利，GameUI 显示胜利信息 |
-| 按 F5 重启 | 场景重置 |
-| 控制 Mario 掉入底部深渊（跳出地面边缘向下掉） | 触发 Mario 死亡，Trickster 胜利 |
+| 控制 Mario 走到右侧终点（绿色半透明区域） | 触发 Mario 胜利，屏幕显示半透明黑色遮罩 + 红色横幅 + 黄色大字 "MARIO WINS!" + 比分 + 闪烁提示 "Press R to Restart \| Press N for Next Round" |
+| 按 R 重启 | 场景重置，胜利画面消失 |
+| 按 N 下一回合 | 回合数+1，位置重置，继续游戏 |
+| 控制 Mario 掉入底部深渊（跳出地面边缘向下掉） | 触发 Mario 死亡，屏幕显示蓝色横幅 + "TRICKSTER WINS!" |
+| 按 F5 快速重启 | 场景完全重置 |
 
-**通过标准**：胜负判定正确触发、重启功能正常。
+**通过标准**：胜负判定正确触发、胜利/失败画面正确显示（半透明遮罩+大字+比分+闪烁提示）、重启功能正常。
+
+> ℹ️ **B018 修复说明**：如果你之前用 TestSceneBuilder 生成的场景没有显示胜利画面，请重新执行 **MarioTrickster → Clear Test Scene** 然后 **MarioTrickster → Build Test Scene** 重新生成场景，新版本已自动包含 GameUI 组件。如果你使用的是手动搭建的场景（如 mario.unity），请手动在任意 GameObject 上添加 `GameUI` 组件。
 
 ### 测试 8：暂停系统 ⬜ 待测试
 
@@ -248,8 +252,13 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 | | CameraController_SetBounds_DoesNotThrow | SetBounds 不抛异常 |
 | | CameraController_SnapToTarget_WithoutTarget_DoesNotThrow | 无目标时 SnapToTarget 不崩溃 |
 | | CameraController_Shake_DoesNotThrow | Shake 不抛异常 |
+| **GameUI (Session 12 B018修复)** | GameUI_CanBeAddedToGameObject | GameUI 能正常添加到 GameObject |
+| | GameUI_ShowGameOverScreen_SetsShowGameOverFlag | GameUI 创建和基本状态正确 |
+| | GameUI_OnGUIFallback_DefaultsToTrue | 无 Canvas 时 OnGUI 后备默认启用 |
+| | GameUI_ShowAbilityFailFeedback_DoesNotThrow | 失败提示不抛异常 |
+| | GameUI_ButtonCallbacks_DoNotThrow_WithoutGameManager | 无 GameManager 时按钮回调不崩溃 |
 
-**预期结果**：全部绿色通过（约 50+ 个测试用例）。
+**预期结果**：全部绿色通过（约 55+ 个测试用例）。
 
 ### 3.3 PlayMode 测试（需要进入 Play 模式）
 
@@ -357,9 +366,9 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 | 测试 5：道具操控能力 | ✅ 已完成 | Telegraph→Active→Cooldown 流程正常 |
 | 测试 6：扫描技能 | ✅ 已修复 (B015) | Session 11 修复脉冲颜色时序 + 扫描结果文字，待重新测试 |
 | **测试 6.5：镜头系统** | **⬜ 新增 (B016)** | **Session 11 修复镜头晃动，待测试** |
-| 测试 7：胜负判定 | ⬜ 待测试 | 需要测试终点/死亡/重启流程 |
+| **测试 7：胜负判定与UI** | **⬜ 待测试 (B018修复)** | **Session 12 修复胜利画面不显示，需重新生成场景后测试** |
 | 测试 8：暂停系统 | ⬜ 待测试 | 需要测试 ESC 暂停/恢复视觉反馈 |
-| EditMode 自动化测试 | ⬜ 待运行 | 预期 50+ 个用例全部通过（Session 11 新增 CameraController + ScanPerformed 测试） |
+| EditMode 自动化测试 | ⬜ 待运行 | 预期 55+ 个用例全部通过（Session 12 新增 GameUI 5个测试用例） |
 | PlayMode 自动化测试 | ⬜ 待运行 | 预期 20+ 个用例全部通过 |
 
-**当前进度：6/11 完成，剩余 5 项待验证（含 2 项 Session 11 新修复）。**
+**当前进度：6/11 完成，剩余 5 项待验证（含 B018 胜利画面修复）。**

@@ -1,7 +1,7 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-02 (Session 12) | 单一真相源：AI 新对话时自动读取本文件获取完整上下文
-> **快速入口**：每次对话优先读取 `SESSION_TRACKER.md`（当前状态/测试项/反馈模板）
+> 更新时间：2026-04-02 (Session 12) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
+> **AI 入口**：每次新对话优先读取 `SESSION_TRACKER.md`（当前状态 + AI 行为规范 + 回归清单 + 待办队列），需要完整上下文时再读本文件
 
 ---
 
@@ -206,9 +206,9 @@ InputManager (右Alt/手柄Y)
 | B011 | ✅ **已修复 (Session 10)** 游戏结束后缺少明显的屏幕提示和重启引导 | — | 根因：GameManager.Update() 第一行直接 return 导致无法检测按键。已将按键检测移至状态检查之前，并增强了 GameUI 的结束画面。 |
 | B012 | ✅ **已修复 (Session 10)** 道具操控失败时无提示 | — | 根因：操控失败仅有 Debug.Log。已在 TricksterController 添加 OnAbilityFailed 事件，GameUI 接收并显示失败原因（如"不在范围内"、"能量不足"）。 |
 | B013 | ✅ **已修复 (Session 9)** TestSceneBuilder 中 LevelManager 字段名错误 | — | — |
-| B014 | ✅ **已修复 (Session 10)** ESC 暂停后再按 ESC 恢复无反馈 | — | 根因：同 B011，暂停状态下 ESC 按键检测被跳过。已修复逻辑，并在 GameUI 添加了"已恢复"的短暂提示。 |
+| B014 | ✅ **已修复 (Session 10, B021 更新于 Session 12)** ESC 暂停后再按 ESC 恢复无反馈 | — | 根因：同 B011，暂停状态下 ESC 按键检测被跳过。已修复逻辑。注：Session 10 曾添加"已恢复"提示，Session 12 经用户反馈后移除（B021）。 |
 | B015 | ✅ **已修复 (Session 11)** 扫描成功时脉冲颜色首帧错误 + 屏幕下方矛盾提示 | — | 根因：StartPulse() 在 CheckForTrickster() 之前调用，首帧脉冲颜色用上次 tricksterFound 值。修复：先检测再启动脉冲。新增 Mario 下方扫描结果文字提示（区分范围内/外/未伪装）。 |
-| B016 | ✅ **已修复已验证 (Session 11)** 镜头来回轻微晃动 | — | 根因：Main Camera 上被挂了 5 个 CameraController 组件，互相覆盖导致晃动。修复：用户手动删除多余 4 个组件。代码层面也重写了 CameraController（不再依赖 Velocity，改用帧间位置差值）。 |
+| B016 | ✅ **已修复已验证 (Session 11+12)** 镜头来回轻微晃动 | — | 根因：Main Camera 上被挂了多个 CameraController 组件，互相覆盖导致晃动。Session 11 修复：重写 CameraController（帧间位置差值）。Session 12 源头修复：TestSceneBuilder Build 前先 GetComponents 清理已有 CameraController，避免重复叠加。 |
 | B017 | ✅ **已修复已验证 (Session 11)** 到达终点无胜利判定 | — | Mario 走到绿色方块(GoalZone)后没有触发胜利画面。修复：增加 OnTriggerStay2D 双保险 + 4种Mario检测方式。Console日志确认判定已成功触发。 |
 | B018 | ✅ **已修复已验证 (Session 12)** 游戏结束UI未显示 | P0 | 根因：TestSceneBuilder 未创建 GameUI 对象。修复：TestSceneBuilder 新增 GameUI 对象创建。 |
 | B019 | ✅ **已修复已验证 (Session 12)** originalColor 序列化冲突 | P0 | 根因：ControllableBlock 和父类 ControllablePropBase 都声明了 private Color originalColor。修复：父类改为 protected，子类移除重复声明。 |
@@ -242,7 +242,7 @@ InputManager (右Alt/手柄Y)
 | 7 | 放置GoalZone和KillZone | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置终点（绿色，位置18,1）和死亡区域（底部） |
 | 8 | 放置可操控道具 | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置 ControllablePlatform/Hazard/Block |
 | 9 | **核心玩法验证** | 🔄 进行中 | 手动 Play 测试已完成（见下方测试结果），待运行 Test Runner 自动化测试 |
-| 10 | 自动化测试框架 | ✅ **Session 11 更新** | EditMode 45+ 测试 + PlayMode 20+ 测试，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停/能量系统/扫描技能/相机控制器 |
+| 10 | 自动化测试框架 | ✅ **Session 12 更新** | EditMode 59 测试 + PlayMode 21 测试，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停/能量系统/扫描技能/相机控制器/GameUI |
 
 ### 第二优先级：游戏体验（Sprint 2，预计 1-2 周）
 
@@ -276,7 +276,7 @@ InputManager (右Alt/手柄Y)
 | B020 第二回合终点无反应 | 根因：GoalZone.triggered 在第一回合设为 true 后，ResetRound 未重置。修复：GoalZone 新增 ResetTrigger()，GameManager.ResetRound() 调用它。同时重置所有 ControllablePropBase。 |
 | B021 移除 RESUMED 提示 | 用户反馈暂停恢复后显示 RESUMED 没必要。已移除 GameManager 和 GameUI 中的恢复提示逻辑。 |
 | B016 源头修复 | TestSceneBuilder Build 前先清理已有 CameraController，避免重复叠加。Clear 方法也优化。 |
-| 测试用例更新 | 新增 5 个 GameUI EditMode 测试用例。EditMode 测试总计 55+ 用例。 |
+| 测试用例更新 | 新增 5 个 GameUI EditMode 测试用例。EditMode 测试总计 59 用例。 |
 
 **代码统计：**
 - 修改了 GameManager.cs, GameUI.cs, GoalZone.cs, ControllablePropBase.cs, ControllableBlock.cs, TestSceneBuilder.cs, ComponentSetupTests.cs
@@ -391,8 +391,8 @@ InputManager (右Alt/手柄Y)
 | 项目 | 说明 |
 |------|------|
 | TestSceneBuilder.cs | Editor 菜单工具（MarioTrickster → Build Test Scene），一键在空白场景中生成完整测试关卡。自动创建地面/高台/墙壁/Mario/Trickster/管理器/移动平台/可操控道具/终点/死亡区域/敌人/金币/可破坏方块/相机跟随，所有 Inspector 引用自动连线，Ground Layer 自动创建分配。另有 Clear Test Scene 菜单清空场景。 |
-| ComponentSetupTests.cs | EditMode 自动化测试（30+ 用例）：验证 RequireComponent 自动添加组件、PlayerHealth 完整伤害/治疗/死亡/无敌帧/重置逻辑、DisguiseSystem 初始状态和无配置安全性、MovingPlatform Kinematic 设置、GoalZone/KillZone Trigger 设置、IControllableProp 接口实现、InputManager 启用/禁用 |
-| GameplayTests.cs | PlayMode 自动化测试（20+ 用例）：验证 Mario/Trickster 左右移动和停止减速、跳跃物理、重力下落、伪装系统运行时行为和冷却机制、ControllableHazard/Block 的 Telegraph→Active 状态机转换、移动平台两点间运动、GameManager 胜负判定（Mario到达终点/Mario死亡）、暂停/恢复 TimeScale、回合重置恢复生命值、Mario.Die() 禁用控制器、Bounce 弹跳、InputManager 集成 |
+| ComponentSetupTests.cs | EditMode 自动化测试（59 用例）：验证 RequireComponent 自动添加组件、PlayerHealth 完整伤害/治疗/死亡/无敌帧/重置逻辑、DisguiseSystem 初始状态和无配置安全性、MovingPlatform Kinematic 设置、GoalZone/KillZone Trigger 设置、IControllableProp 接口实现、InputManager 启用/禁用、EnergySystem、ScanAbility、CameraController、GameUI |
+| GameplayTests.cs | PlayMode 自动化测试（21 用例）：验证 Mario/Trickster 左右移动和停止减速、跳跃物理、重力下落、伪装系统运行时行为和冷却机制、ControllableHazard/Block 的 Telegraph→Active 状态机转换、移动平台两点间运动、GameManager 胜负判定（Mario到达终点/Mario死亡）、暂停/恢复 TimeScale、回合重置恢复生命值、Mario.Die() 禁用控制器、Bounce 弹跳、InputManager 集成 |
 | 语法静态分析 | 26/26 .cs 文件全部通过括号匹配/using格式/region配对检查，0 错误 0 警告 |
 | 跨文件引用检查 | 所有 AddComponent 引用、关键方法调用（32个）、公共属性（16个）全部验证通过 |
 
@@ -545,10 +545,10 @@ Assets/
 │   │   ├── DisguiseSystem.cs        ✅ 伪装/变身系统 (Session 10 更新: 集成 EnergySystem)
 │   │   └── SimpleEnemy.cs           ✅ 简单巡逻敌人
 │   ├── Core/
-│   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定 (Session 10 更新: 修复按键检测)
+│   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定 (Session 12 更新: 回合重置GoalZone+移除RESUMED)
 │   │   ├── InputManager.cs          ✅ 双人输入管理 (Session 10 更新: 添加扫描按键)
 │   │   ├── LevelManager.cs          ✅ 关卡管理
-│   │   ├── GoalZone.cs              ✅ 终点触发器
+│   │   ├── GoalZone.cs              ✅ 终点触发器 (Session 12 更新: +ResetTrigger())
 │   │   ├── KillZone.cs              ✅ 死亡区域
 │   │   ├── DamageDealer.cs          ✅ 通用伤害触发器
 │   │   ├── Collectible.cs           ✅ 可收集物品
@@ -557,13 +557,13 @@ Assets/
 │   │   └── SpriteAutoFit.cs         ✅ Sprite 自动适配 (Session 7 新增)
 │   ├── Ability/
 │   │   ├── IControllableProp.cs     ✅ 可操控道具接口
-│   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类
+│   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类 (Session 12 更新: originalColor→protected)
 │   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
 │   │   ├── EnergySystem.cs          ✅ Trickster 能量系统 (Session 10 新增)
 │   │   ├── ScanAbility.cs           ✅ Mario 扫描技能 (Session 11 更新: 修复B015)
 │   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)
 │   │   ├── ControllableHazard.cs    ✅ 可操控危险道具
-│   │   └── ControllableBlock.cs     ✅ 可操控方块
+│   │   └── ControllableBlock.cs     ✅ 可操控方块 (Session 12 更新: 移除重复originalColor)
 │   ├── Camera/
 │   │   └── CameraController.cs      ✅ 相机跟随逻辑 (Session 11 重写: 修复B016镜头晃动)
 │   ├── Editor/
@@ -571,11 +571,11 @@ Assets/
 │   │   └── MarioTrickster.Editor.asmdef ✅ Editor Assembly Definition (Session 9 新增)
 │   ├── MarioTrickster.asmdef        ✅ 主项目 Assembly Definition (Session 9 新增)
 │   └── UI/
-│       └── GameUI.cs                ✅ 基础HUD (Session 10 更新: 增强结束/暂停/失败反馈)
+│       └── GameUI.cs                ✅ 基础HUD (Session 12 更新: 增强结束/暂停/失败反馈, 移除RESUMED提示)
 ├── Tests/
 │   ├── EditMode/
 │   │   ├── EditModeTests.asmdef     ✅ Assembly Definition (Session 8 新增)
-│   │   └── ComponentSetupTests.cs   ✅ 组件依赖/配置验证测试 (Session 12 更新: +GameUI 5个测试)
+│   │   └── ComponentSetupTests.cs   ✅ 组件依赖/配置验证测试 (Session 12 更新: 59个用例, +GameUI)
 │   └── PlayMode/
 │       ├── PlayModeTests.asmdef     ✅ Assembly Definition (Session 8 新增)
 │       └── GameplayTests.cs         ✅ 核心玩法自动化测试 (Session 8 新增)

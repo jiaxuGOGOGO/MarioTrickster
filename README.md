@@ -8,11 +8,12 @@
 
 ## 📚 核心协作文档导航 (AI Collaboration Docs)
 
-本项目采用 **5 文档体系 + 联动更新矩阵**，每条信息只有一个“真相源”文档，其他文档只引用不重复。详见 `SESSION_TRACKER.md` §0.3 联动更新矩阵。
+本项目采用 **6 文档体系 + 联动更新矩阵**，每条信息只有一个“真相源”文档，其他文档只引用不重复。详见 `SESSION_TRACKER.md` §0.3 联动更新矩阵。
 
 | 🎯 你的目标 | 📄 应该看哪个文档？ | 🤖 AI 会看吗？ |
 |:---|:---|:---|
 | **开启新对话 / 提交测试反馈** | 👉 [**SESSION_TRACKER.md**](./SESSION_TRACKER.md) | **每次对话必读入口** |
+| **纵览全局：设计规划 vs 实现进度** | 👉 [**MASTER_TRACKER.md**](./MASTER_TRACKER.md) | AI 自动同步更新 |
 | 查阅所有历史Bug、功能清单、文件结构 | 👉 [**MarioTrickster_Progress_Summary.md**](./MarioTrickster_Progress_Summary.md) | AI 按需深度读取 |
 | 怎么在 Unity 里测试？键位是什么？ | 👉 [**MarioTrickster_Testing_Guide.md**](./MarioTrickster_Testing_Guide.md) | 用户测试手册 |
 | Git报错了？怎么提问最省积分？ | 👉 [**AI_WORKFLOW.md**](./AI_WORKFLOW.md) | 用户工作流指南 |
@@ -35,9 +36,9 @@ graph TD
     G --> H
     H -->|git push 前| I[查 SESSION_TRACKER §0.3 联动矩阵]
     I -->|按矩阵更新所有相关文档| J[AI 推送代码 + 文档]
-    J -->|你 pull 并测试| K(Testing_Guide.md)
-    K -->|填写反馈模板| L[下次对话发给 AI]
-    L --> A
+    J -->|包含 MASTER_TRACKER 全局同步| K(Testing_Guide.md)
+    K -->|你 pull 并测试| L[填写反馈模板]
+    L -->|下次对话发给 AI| A
 ```
 
 ---

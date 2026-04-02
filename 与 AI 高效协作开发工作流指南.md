@@ -5,6 +5,8 @@
 **仓库地址**：`https://github.com/jiaxuGOGOGO/MarioTrickster`
 **本地路径**：`E:\unity project\exercise1\MarioTrickster`
 
+> 更新时间：2026-04-02 (Session 10)
+
 本指南旨在帮助你以最低的沟通成本、最少的积分消耗，与 AI 进行最高效的协作开发。遇到特定情况时，直接按目录跳转到对应章节，复制模板使用即可。
 
 ---
@@ -54,6 +56,16 @@ git pull --rebase
 git push
 ```
 
+### 场景 3：放弃本地所有修改，强制使用 AI 的最新代码（最常用）
+
+如果你在本地测试时改乱了，或者想完全同步 AI 的最新进度：
+
+```cmd
+git fetch --all
+git reset --hard origin/main
+git pull
+```
+
 > **常见报错速查**
 >
 > | 报错信息 | 原因 | 解决方法 |
@@ -91,6 +103,8 @@ GitHub Token: ghp_你的token
 
 积分提醒：请在我积分接近300时暂停，优先存档推送。
 ```
+
+> **💡 进阶技巧**：如果遇到 Bug，可以在"本次任务"中直接附上截图或报错信息（参考 [2.1 报错提问模板](#21-报错提问模板)）。
 
 > **为什么这样最优？** AI 直接从仓库读取最新的 Progress Summary，里面包含了完整的已完成功能、Bug清单、技术决策、文件结构、参考项目、开发计划。你不需要手动维护任何长文本，每次对话结束时 AI 会自动更新这个文件并推送。
 
@@ -532,7 +546,16 @@ Assets/
 │   ├── Enemy/                  # 捣蛋者相关
 │   │   ├── TricksterController.cs   ✅ 已完成
 │   │   ├── DisguiseSystem.cs        ✅ 已完成
-│   │   └── TricksterAbilities.cs    ⬜ 待开发
+│   │   └── SimpleEnemy.cs           ✅ 已完成
+│   ├── Ability/                # Trickster 能力系统
+│   │   ├── IControllableProp.cs     ✅ 已完成
+│   │   ├── ControllablePropBase.cs  ✅ 已完成
+│   │   ├── TricksterAbilitySystem.cs ✅ 已完成
+│   │   ├── ControllablePlatform.cs  ✅ 已完成
+│   │   ├── ControllableHazard.cs    ✅ 已完成
+│   │   ├── ControllableBlock.cs     ✅ 已完成
+│   │   ├── EnergySystem.cs          ✅ 已完成 (Session 10)
+│   │   └── ScanAbility.cs           ✅ 已完成 (Session 10)
 │   ├── Core/                   # 核心系统
 │   │   ├── GameManager.cs           ✅ 已完成
 │   │   ├── InputManager.cs          ✅ 已完成
@@ -547,8 +570,15 @@ Assets/
 │   │   └── CameraController.cs      ✅ 已完成
 │   ├── UI/                     # UI 相关
 │   │   └── GameUI.cs                ✅ 已完成
+│   ├── Editor/                 # 编辑器工具
+│   │   └── TestSceneBuilder.cs      ✅ 已完成
 │   └── Network/                # 联机相关（后期）
 │       └── NetworkManager.cs
+├── Tests/                         # 自动化测试
+│   ├── EditMode/
+│   │   └── ComponentSetupTests.cs   ✅ 44 个测试用例
+│   └── PlayMode/
+│       └── GameplayTests.cs         ✅ 20+ 个测试用例
 ├── Sprites/                    # 所有图片素材
 │   ├── Player/
 │   ├── Trickster/
@@ -688,11 +718,12 @@ Profiler 截图：[如果会用 Unity Profiler，截图发过来]
 - [ ] 核心玩法验证：**"这好玩吗？"**
 
 ### Phase 2：功能完善（3-4个月）
-- [ ] 能量系统 + 冷却机制
-- [ ] 扫描技能
+- [x] 能量系统 + 冷却机制 ✅ Session 10
+- [x] 扫描技能 ✅ Session 10
+- [x] Bug 修复（B011/B012/B014） ✅ Session 10
 - [ ] 多层级预警系统
 - [ ] 扩展变身种类（5-8种）
-- [ ] 基础 UI（血条/能量条/计时器）
+- [ ] 基础 UI 升级（Canvas UI 替代 OnGUI）
 - [ ] 角色互换赛制
 
 ### Phase 3：内容制作（4-6个月）

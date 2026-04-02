@@ -143,7 +143,7 @@ InputManager (右Alt/手柄Y)
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| EnergySystem.cs | Assets/Scripts/Ability/ | ✅ **Session 10 新增** | Trickster 能量系统。变身消耗25、操控道具消耗20，满值100，自然恢复2/秒，伪装中恢复减半。支持低能量警告、回合重置。 |
+| EnergySystem.cs | Assets/Scripts/Ability/ | ✅ **Session 10 新增** | Trickster 能量系统。变身消耗20、操控道具消耗15，满值100，未变身时恢复8/秒，变身时不恢复。变身期间每秒5点持续消耗（融入后减半）。支持低能量警告、回合重置。 |
 | ScanAbility.cs | Assets/Scripts/Ability/ | ✅ **Session 10 新增** | Mario 扫描技能。Q键/手柄东键触发，检测半径5格范围内的伪装Trickster，命中后红色闪烁2秒+头顶警告标记。冷却8秒。 |
 
 **能量系统参数（通过 Inspector 暴露）**:
@@ -151,11 +151,14 @@ InputManager (右Alt/手柄Y)
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | maxEnergy | 100 | 最大能量值 |
-| regenRate | 2 | 每秒自然恢复量 |
-| disguiseRegenMultiplier | 0.5 | 伪装状态下恢复倍率 |
-| disguiseCost | 25 | 变身消耗 |
-| abilityCost | 20 | 操控道具消耗 |
-| lowEnergyThreshold | 20 | 低能量警告阈值 |
+| disguiseCost | 20 | 变身消耗的固定能量 |
+| controlCost | 15 | 操控道具消耗的固定能量 |
+| disguiseDrainPerSecond | 5 | 变身期间每秒持续消耗 |
+| blendedDrainMultiplier | 0.5 | 完全融入后维持消耗倍率 |
+| regenPerSecond | 8 | 未变身时每秒恢复量 |
+| disguisedRegenMultiplier | 0 | 变身时能量恢复倍率（0=不恢复） |
+| regenDelayAfterControl | 2 | 操控道具后恢复延迟（秒） |
+| lowEnergyThreshold | 0.25 | 低能量警告阈值（比例，即 25%） |
 
 **扫描技能参数（通过 Inspector 暴露）**:
 

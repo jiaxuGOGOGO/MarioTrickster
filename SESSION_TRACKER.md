@@ -32,15 +32,39 @@
 | 4 | **更新文档** | 更新 SESSION_TRACKER.md（本文件）和 Progress_Summary.md 中的相关记录 |
 | 5 | **通知用户** | 在修复报告中明确列出：修复内容 + 回归验证清单 + 验证步骤 |
 
-### 0.3 代码推送前必须更新的文档
+### 0.3 推送前文档联动更新矩阵
 
-每次 `git push` 前，检查以下文档是否需要更新：
+> **核心原则**：每条信息只有一个“真相源”文档，其他文档只引用不重复。修改时先更新真相源，再更新引用方。
 
-| 文档 | 更新条件 | 更新内容 |
-|------|----------|----------|
-| `SESSION_TRACKER.md` | **每次推送都更新** | 当前状态、测试进度、回归清单、待办队列 |
-| `MarioTrickster_Progress_Summary.md` | 修改了代码/修复了 Bug | Bug 库状态、脚本描述、Session 记录 |
-| `MarioTrickster_Testing_Guide.md` | 修改影响了测试行为 | 测试用例描述、预期结果、影响矩阵（新增脚本时） |
+**信息真相源分配表：**
+
+| 信息类型 | 真相源文档 | 引用方（只引用不重复） |
+|---------|-----------|-------------------|
+| 当前状态/Session号 | SESSION_TRACKER §1 | Progress_Summary 头部 |
+| AI 行为规范 | SESSION_TRACKER §0 | AI_WORKFLOW 引用此处 |
+| Bug 完整库 | Progress_Summary §3 | SESSION_TRACKER §5 只放未完成的 |
+| 测试用例全量列表 | Testing_Guide §3 | SESSION_TRACKER/Progress_Summary 只引用数量 |
+| 影响矩阵 | Testing_Guide §4 | SESSION_TRACKER §0.2 引用 |
+| 文档职责导航 | SESSION_TRACKER §7 | README + AI_WORKFLOW 引用 |
+| 开场模板 | SESSION_TRACKER §8 | AI_WORKFLOW §1.1 引用 |
+| 工作流图解 | README | AI_WORKFLOW 引用 |
+| 文件结构树 | Progress_Summary §8 | 无其他引用 |
+| 键位表 | SESSION_TRACKER §6 | Testing_Guide §5 引用 |
+
+**按修改类型触发的联动检查表：**
+
+AI 每次 `git push` 前，根据本次修改类型，按表逐行检查：
+
+| 修改类型 | SESSION_TRACKER | Progress_Summary | Testing_Guide | AI_WORKFLOW | README |
+|---------|:-:|:-:|:-:|:-:|:-:|
+| 修复 Bug | §1状态 + §3回归 + §4测试 + §5待办 | §3 Bug库 + §5 Session记录 | §4影响矩阵(新脚本时) | — | — |
+| 新增/修改测试用例 | §4测试进度 | §4测试数量 + §8文件描述 | §3测试表 + §7进度 | — | — |
+| 新增功能/脚本 | §1状态 + §5待办 | §2功能清单 + §5 Session + §8文件树 | §2手动测试(新测试项) + §4矩阵(新脚本) | — | — |
+| 修改文档体系/流程 | §0规范 + §7导航 | Progress_Summary 头部 | — | 相关章节 | 导航表 + 图解 |
+| 修改键位/操作 | §6键位表 | — | §5键位表 | — | — |
+| 用户测试反馈 | §2反馈 + §4测试状态 | Bug库(新Bug时) | — | — | — |
+
+> **使用方法**：推送前确定本次修改属于哪一行，然后横向检查每一列是否已更新。“—”表示无需更新。
 
 ### 0.4 积分管理规则
 

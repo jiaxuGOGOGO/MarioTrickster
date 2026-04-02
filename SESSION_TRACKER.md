@@ -100,7 +100,7 @@ AI 每次 `git push` 前，根据本次修改类型，按表逐行检查：
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 12 (B018/B019/B020/B021 修复) |
+| **最新 Session** | Session 13 (TestReportRunner 测试报告工具) |
 | **日期** | 2026-04-02 |
 | **分支** | master |
 | **项目阶段** | MVP 核心开发 (Sprint 1) |
@@ -173,10 +173,12 @@ AI 填写模板（修复 Bug 后取消注释并填写）：
 | 测试 6.5：镜头系统 | ✅ 通过 | 平滑跟随，无晃动 |
 | 测试 7：胜负判定与UI | ✅ 通过 | 多回合胜利/失败画面正常显示 |
 | 测试 8：暂停系统 | ✅ 通过 | ESC 暂停/恢复正常，无多余提示 |
-| EditMode 自动化测试 | ⬜ 待运行 | 预期 59 个用例全部通过 |
-| PlayMode 自动化测试 | ⬜ 待运行 | 预期 21 个用例全部通过 |
+| EditMode 自动化测试 | ⬜ 待运行 | 预期 59 个用例全部通过（使用 TestReportRunner 运行） |
+| PlayMode 自动化测试 | ⬜ 待运行 | 预期 21 个用例全部通过（使用 TestReportRunner 运行） |
 
 **手动测试进度：9/9 全部通过！剩余自动化测试待运行。**
+
+> **新工具**：Session 13 新增 TestReportRunner，可通过 `MarioTrickster → Run Tests → Export Full Report` 一键运行所有测试并导出完整错误报告到 `TestReport.txt`，无需逐个点击查看错误。
 
 ---
 

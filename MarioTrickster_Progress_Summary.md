@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-02 (Session 12) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
+> 更新时间：2026-04-02 (Session 13) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
 > **AI 入口**：每次新对话优先读取 `SESSION_TRACKER.md`（当前状态 + AI 行为规范 + 回归清单 + 待办队列），需要完整上下文时再读本文件
 
 ---
@@ -242,7 +242,7 @@ InputManager (右Alt/手柄Y)
 | 7 | 放置GoalZone和KillZone | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置终点（绿色，位置18,1）和死亡区域（底部） |
 | 8 | 放置可操控道具 | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置 ControllablePlatform/Hazard/Block |
 | 9 | **核心玩法验证** | 🔄 进行中 | 手动 Play 测试已完成（见下方测试结果），待运行 Test Runner 自动化测试 |
-| 10 | 自动化测试框架 | ✅ **Session 12 更新** | EditMode 59 测试 + PlayMode 21 测试，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停/能量系统/扫描技能/相机控制器/GameUI |
+| 10 | 自动化测试框架 | ✅ **Session 13 更新** | EditMode 59 测试 + PlayMode 21 测试 + TestReportRunner 一键报告工具，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停/能量系统/扫描技能/相机控制器/GameUI |
 
 ### 第二优先级：游戏体验（Sprint 2，预计 1-2 周）
 
@@ -264,6 +264,22 @@ InputManager (右Alt/手柄Y)
 ---
 
 ## 六、Session 历史记录
+
+### Session 13 记录（2026-04-02）
+
+**本次完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| TestReportRunner 测试报告工具 | 新增 Editor 工具脚本 `TestReportRunner.cs`，解决 Unity Test Runner 需要逐个点击才能查看错误详情的问题。提供三个菜单入口（EditMode/PlayMode/All），一键运行所有测试并将完整错误信息（包括堆栈跟踪）导出到 `TestReport.txt`，同时在 Console 中完整打印。报告包含“快速复制区”方便用户直接发给 AI 统一修复。 |
+| Editor asmdef 更新 | `MarioTrickster.Editor.asmdef` 添加 `UnityEditor.TestRunner` 和 `UnityEngine.TestRunner` 引用，启用 `overrideReferences` 并添加 `nunit.framework.dll`，以支持 TestRunnerApi 编程调用。 |
+
+**代码统计：**
+- 新增了 TestReportRunner.cs（约 320 行）
+- 修改了 MarioTrickster.Editor.asmdef
+- 更新了 SESSION_TRACKER.md, MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
+
+---
 
 ### Session 12 记录（2026-04-02）
 
@@ -568,7 +584,8 @@ Assets/
 │   │   └── CameraController.cs      ✅ 相机跟随逻辑 (Session 11 重写: 修复B016镜头晃动)
 │   ├── Editor/
 │   │   ├── TestSceneBuilder.cs      ✅ 一键生成测试场景 (Session 12 更新: +GameUI)
-│   │   └── MarioTrickster.Editor.asmdef ✅ Editor Assembly Definition (Session 9 新增)
+│   │   ├── TestReportRunner.cs      ✅ 一键测试报告工具 (Session 13 新增: 完整错误导出)
+│   │   └── MarioTrickster.Editor.asmdef ✅ Editor Assembly Definition (Session 13 更新: +TestRunner引用)
 │   ├── MarioTrickster.asmdef        ✅ 主项目 Assembly Definition (Session 9 新增)
 │   └── UI/
 │       └── GameUI.cs                ✅ 基础HUD (Session 12 更新: 增强结束/暂停/失败反馈, 移除RESUMED提示)

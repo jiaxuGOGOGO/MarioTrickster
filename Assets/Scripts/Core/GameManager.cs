@@ -44,10 +44,7 @@ public class GameManager : MonoBehaviour
     private int tricksterWins;
     private int currentRound = 1;
 
-    // 恢复提示相关
-    private bool showResumedHint;
-    private float resumedHintTimer;
-    private const float ResumedHintDuration = 1.2f;
+    // 恢复提示已移除（用户反馈不需要）
 
     // 公共属性
     public GameState CurrentState => currentState;
@@ -56,7 +53,7 @@ public class GameManager : MonoBehaviour
     public int MarioWins => marioWins;
     public int TricksterWins => tricksterWins;
     public int CurrentRound => currentRound;
-    public bool ShowResumedHint => showResumedHint;
+    public bool ShowResumedHint => false; // 已移除恢复提示功能
 
     // 事件
     public System.Action<GameState> OnGameStateChanged;
@@ -125,15 +122,7 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // ===== 恢复提示倒计时（使用 unscaledDeltaTime 因为暂停时 timeScale=0）=====
-        if (showResumedHint)
-        {
-            resumedHintTimer -= Time.unscaledDeltaTime;
-            if (resumedHintTimer <= 0f)
-            {
-                showResumedHint = false;
-            }
-        }
+        // 恢复提示已移除（用户反馈不需要）
 
         // ===== 以下逻辑仅在 Playing 状态下执行 =====
         if (currentState != GameState.Playing) return;
@@ -252,10 +241,6 @@ public class GameManager : MonoBehaviour
             if (inputManager != null)
                 inputManager.EnableAllInput();
 
-            // 触发恢复提示
-            showResumedHint = true;
-            resumedHintTimer = ResumedHintDuration;
-
             Debug.Log("[GameManager] 游戏继续");
         }
     }
@@ -315,6 +300,22 @@ public class GameManager : MonoBehaviour
         {
             trickster.transform.position = tricksterSpawnPoint.position;
         }
+
+        // 重置场景中的 GoalZone 触发状态（修复 B020：第二回合终点无反应）
+        GoalZone[] goalZones = FindObjectsOfType<GoalZone>();
+        foreach (GoalZone gz in goalZones)
+        {
+            gz.ResetTrigger();
+        }
+
+        // 重置可操控道具的使用次数
+        ControllablePropBase[] props = FindObjectsOfType<ControllablePropBase>();
+        foreach (ControllablePropBase prop in props)
+        {
+            prop.ResetUses();
+        }
+
+        Debug.Log($"[GameManager] 回合 {currentRound} 开始，所有状态已重置");
 
         // 重新开始
         StartGame();

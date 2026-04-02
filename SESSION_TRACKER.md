@@ -8,11 +8,11 @@
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 12 (B018 游戏结束UI修复) |
+| **最新 Session** | Session 12 (B018/B019/B020/B021 修复) |
 | **日期** | 2026-04-02 |
 | **分支** | master |
 | **项目阶段** | MVP 核心开发 (Sprint 1) |
-| **编译状态** | 待验证 (B018修复已推送) |
+| **编译状态** | 待验证 (多项修复已推送) |
 | **阻塞问题** | 无 |
 
 ---
@@ -21,24 +21,39 @@
 
 ```text
 测试日期：2026-04-02
-测试人：AI (Manus)
+测试人：AI (Manus) + 用户反馈
 
-修复项 B018（游戏结束UI未显示）：
-- 根因：TestSceneBuilder 一键生成测试场景时未创建 GameUI 对象，
-  导致场景中没有 GameUI 实例订阅 GameManager.OnGameOver 事件。
-  mario.unity 手动场景中同样没有 GameUI 组件。
-- 修复：在 TestSceneBuilder.cs 中新增 GameUI 对象创建（挂载到 Managers 对象下），
-  GameUI.Start() 会自动查找 MarioController 并订阅 GameManager 事件。
-- 状态：✅ 代码修复已完成，待用户在 Unity 中验证
+=== 修复项 B018（游戏结束UI未显示）===
+- 根因：TestSceneBuilder 未创建 GameUI 对象
+- 修复：TestSceneBuilder 新增 GameUI 对象创建
+- 状态：✅ 代码修复已完成
+
+=== 修复项 B019（originalColor 序列化冲突）===
+- 根因：ControllableBlock 和父类 ControllablePropBase 都声明了 private Color originalColor
+- 修复：父类改为 protected，子类移除重复声明
+- 状态：✅ 已修复
+
+=== 修复项 B016 源头修复（CameraController 重复叠加）===
+- 根因：TestSceneBuilder 每次 Build 都 AddComponent 不检查已有
+- 修复：Build 前先清理已有的 CameraController 和 GameUI
+- 状态：✅ 已修复
+
+=== 修复项 B020（第二回合终点无反应）===
+- 根因：GoalZone.triggered 在第一回合设为 true 后，ResetRound 未重置
+- 修复：GoalZone 新增 ResetTrigger() 方法，GameManager.ResetRound() 调用它
+- 状态：✅ 代码修复已完成，待用户验证
+
+=== 修复项 B021（移除 RESUMED 恢复提示）===
+- 用户反馈：暂停恢复后显示 "RESUMED" 没必要
+- 修复：移除 GameManager 和 GameUI 中的恢复提示逻辑
+- 状态：✅ 已修复
 
 附带更新：
-- TestSceneBuilder.cs：修复 B016 源头问题，Build Test Scene 前先清理已有 CameraController，避免重复叠加导致镜头晃动
-- TestSceneBuilder.cs：同样对 GameUI 添加重复清理保护
-- Clear Test Scene：优化清理逻辑，先清理相机上所有 CameraController 再删除其他对象
-- ControllablePropBase.cs：originalColor 从 private 改为 protected，供子类复用
-- ControllableBlock.cs：移除重复的 originalColor 声明，消除序列化冲突错误
+- GameManager.ResetRound()：新增 GoalZone 重置和 ControllablePropBase 重置
+- TestSceneBuilder.cs：Build 前清理已有 CameraController/GameUI
+- ControllablePropBase.cs：originalColor 改为 protected
+- ControllableBlock.cs：移除重复 originalColor
 - ComponentSetupTests.cs：新增 5 个 GameUI EditMode 测试用例
-- MarioTrickster_Testing_Guide.md：更新测试 7 为胜负判定+UI显示，新增 B018 修复说明
 ```
 
 ---
@@ -48,30 +63,34 @@
 > **请重新生成测试场景后测试以下项目。**
 > 操作：MarioTrickster → Clear Test Scene → MarioTrickster → Build Test Scene → Ctrl+S 保存
 
-### 测试项 A：B018 游戏结束UI显示
+### 测试项 A：多回合终点判定（B020 修复验证）
 
 | 步骤 | 操作 | 预期结果 |
 |------|------|----------|
-| 1 | 控制 Mario (WASD) 走到右侧绿色方块 | Console 输出 "Mario 到达终点！触发胜利判定" |
-| 2 | 观察屏幕 | 半透明黑色遮罩 + 红色横幅 + 黄色大字 "MARIO WINS!" + 比分 + 闪烁提示 |
-| 3 | 按 R | 场景重启，胜利画面消失 |
-| 4 | 按 F5 重启后，让 Mario 掉入深渊 | 蓝色横幅 + "TRICKSTER WINS!" |
-| 5 | 按 N | 下一回合开始，回合数+1 |
+| 1 | 控制 Mario 走到右侧绿色方块 | "MARIO WINS!" 胜利画面 |
+| 2 | 按 N 进入下一回合 | 回合数变为 2，角色回到出生点 |
+| 3 | 再次控制 Mario 走到绿色方块 | **再次**显示 "MARIO WINS!" 胜利画面 |
+| 4 | 按 N 进入第三回合 | 回合数变为 3 |
+| 5 | 让 Mario 掉入深渊 | "TRICKSTER WINS!" 画面 |
 
-### 测试项 B：暂停画面（附带验证）
+### 测试项 B：暂停功能（B021 验证）
 
 | 步骤 | 操作 | 预期结果 |
 |------|------|----------|
 | 1 | 按 ESC | 半透明遮罩 + "PAUSED" 大字 |
-| 2 | 再按 ESC | 恢复游戏，短暂显示 "RESUMED" |
+| 2 | 再按 ESC | 直接恢复游戏，**不再显示** "RESUMED" |
 
-### 测试项 C：HUD 显示（附带验证）
+### 测试项 C：序列化错误消除（B019 验证）
 
 | 步骤 | 观察 | 预期结果 |
 |------|------|----------|
-| 1 | 左上角 | Mario HP: ♥ ♥ ♥ |
-| 2 | 顶部居中 | 倒计时 02:00 |
-| 3 | 右上角 | Round 1 | Mario 0 - Trickster 0 |
+| 1 | Console 面板 | **不再**出现 "The same field name is serialized multiple times" 红色错误 |
+
+### 测试项 D：CameraController 不重复（B016 验证）
+
+| 步骤 | 操作 | 预期结果 |
+|------|------|----------|
+| 1 | 连续运行 Build Test Scene 2次 | Main Camera Inspector 中始终只有 **1个** CameraController |
 
 ---
 
@@ -81,20 +100,20 @@
 测试日期：
 测试人：
 
-测试项 A（B018 游戏结束UI）：
-- 走到绿色方块：[ 触发胜利判定 / 未触发 ]
-- 胜利画面显示：[ 有半透明遮罩和大字 / 没有 ]
-- 按 R 重启：[ 正常 / 异常 ]
-- Trickster 胜利画面：[ 有 / 没有 ]
+测试项 A（多回合终点判定）：
+- 第一回合到终点：[ 有胜利画面 / 没有 ]
+- 按 N 后第二回合到终点：[ 有胜利画面 / 没有 ]
+- 第三回合 Trickster 胜利：[ 有 / 没有 ]
 
-测试项 B（暂停画面）：
+测试项 B（暂停功能）：
 - ESC 暂停：[ 有遮罩和PAUSED / 没有 ]
-- ESC 恢复：[ 有RESUMED提示 / 没有 ]
+- ESC 恢复：[ 直接恢复无RESUMED / 仍有RESUMED ]
 
-测试项 C（HUD显示）：
-- 生命值：[ 正常显示 / 不显示 ]
-- 倒计时：[ 正常显示 / 不显示 ]
-- 回合信息：[ 正常显示 / 不显示 ]
+测试项 C（序列化错误）：
+- Console 红色错误：[ 已消除 / 仍有 ]
+
+测试项 D（CameraController）：
+- 多次 Build 后只有1个：[ 是 / 否 ]
 
 新发现的问题/新需求：
 - （如有请描述）
@@ -108,10 +127,13 @@
 
 | 优先级 | ID | 描述 | 状态 |
 |--------|-----|------|------|
-| P0 | B018 | **游戏结束UI未显示** | ✅ 已修复（根因：TestSceneBuilder 未创建 GameUI），待用户验证 |
-| P0 | B016 | 镜头来回轻微晃动 | ✅ 已修复已验证（根因：CameraController重复添加，Session 12 从源头修复 TestSceneBuilder） |
+| P0 | B020 | **第二回合终点无反应** | ✅ 已修复（GoalZone.triggered 未重置），待用户验证 |
+| P0 | B021 | **RESUMED 恢复提示多余** | ✅ 已修复（移除恢复提示逻辑） |
+| P0 | B019 | originalColor 序列化冲突 | ✅ 已修复（子类重复声明） |
+| P0 | B018 | 游戏结束UI未显示 | ✅ 已修复（TestSceneBuilder 未创建 GameUI） |
+| P0 | B016 | 镜头来回轻微晃动 | ✅ 已修复已验证（CameraController 重复添加，已从源头修复） |
 | P0 | B015 | 扫描提示矛盾 Bug | ✅ 已修复已验证 |
-| P0 | B017 | 终点无胜利判定 | ✅ 已修复已验证（逻辑通过，UI问题由B018解决） |
+| P0 | B017 | 终点无胜利判定 | ✅ 已修复已验证 |
 | P0 | UI | Trickster状态文字被裁剪 | ✅ 已修复已验证 |
 | P1 | — | 关卡设计系统 (Level Design) | 未开始 |
 | P1 | — | 音效系统 (Audio) | 未开始 |
@@ -134,6 +156,8 @@
 | Trickster (P2) | **L** | **操控道具**（不是伪装！） |
 | 全局 | ESC | 暂停/恢复 |
 | 全局 | F5 | 快速重启 |
+| 回合结束 | R | 重启关卡 |
+| 回合结束 | N | 下一回合 |
 
 ---
 

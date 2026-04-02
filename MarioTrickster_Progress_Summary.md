@@ -210,7 +210,10 @@ InputManager (右Alt/手柄Y)
 | B015 | ✅ **已修复 (Session 11)** 扫描成功时脉冲颜色首帧错误 + 屏幕下方矛盾提示 | — | 根因：StartPulse() 在 CheckForTrickster() 之前调用，首帧脉冲颜色用上次 tricksterFound 值。修复：先检测再启动脉冲。新增 Mario 下方扫描结果文字提示（区分范围内/外/未伪装）。 |
 | B016 | ✅ **已修复已验证 (Session 11)** 镜头来回轻微晃动 | — | 根因：Main Camera 上被挂了 5 个 CameraController 组件，互相覆盖导致晃动。修复：用户手动删除多余 4 个组件。代码层面也重写了 CameraController（不再依赖 Velocity，改用帧间位置差值）。 |
 | B017 | ✅ **已修复已验证 (Session 11)** 到达终点无胜利判定 | — | Mario 走到绿色方块(GoalZone)后没有触发胜利画面。修复：增加 OnTriggerStay2D 双保险 + 4种Mario检测方式。Console日志确认判定已成功触发。 |
-| B018 | ✅ **已修复 (Session 12)** 游戏结束UI未显示 | P0 | 根因：TestSceneBuilder 未创建 GameUI 对象，场景中没有 GameUI 实例订阅 GameManager.OnGameOver 事件。修复：TestSceneBuilder 新增 GameUI 对象创建。待用户验证。 |
+| B018 | ✅ **已修复 (Session 12)** 游戏结束UI未显示 | P0 | 根因：TestSceneBuilder 未创建 GameUI 对象。修复：TestSceneBuilder 新增 GameUI 对象创建。 |
+| B019 | ✅ **已修复 (Session 12)** originalColor 序列化冲突 | P0 | 根因：ControllableBlock 和父类 ControllablePropBase 都声明了 private Color originalColor。修复：父类改为 protected，子类移除重复声明。 |
+| B020 | ✅ **已修复 (Session 12)** 第二回合终点无反应 | P0 | 根因：GoalZone.triggered 在第一回合设为 true 后，ResetRound 未重置。修复：GoalZone 新增 ResetTrigger() 方法，GameManager.ResetRound() 调用它。 |
+| B021 | ✅ **已修复 (Session 12)** RESUMED 恢复提示多余 | P1 | 用户反馈暂停恢复后显示 RESUMED 没必要。已移除 GameManager 和 GameUI 中的恢复提示逻辑。 |
 
 ### 关于 B002 的修复方法
 
@@ -268,16 +271,19 @@ InputManager (右Alt/手柄Y)
 
 | 项目 | 说明 |
 |------|------|
-| B018 游戏结束UI修复 | 根因：TestSceneBuilder 一键生成测试场景时未创建 GameUI 对象，导致场景中没有 GameUI 实例订阅 GameManager.OnGameOver 事件。mario.unity 手动场景中同样缺少 GameUI。修复：在 TestSceneBuilder 中新增 GameUI 对象创建（挂载到 Managers 对象下），GameUI.Start() 自动查找引用并订阅事件。 |
-| 测试用例更新 | 新增 5 个 GameUI EditMode 测试用例：CanBeAdded/ShowGameOver/OnGUIFallback/AbilityFailFeedback/ButtonCallbacks。EditMode 测试总计 55+ 用例。 |
-| 测试指南更新 | 更新测试 7 为“胜负判定与UI显示”，新增 B018 修复说明和重新生成场景指引。 |
+| B018 游戏结束UI修复 | 根因：TestSceneBuilder 未创建 GameUI 对象。修复：TestSceneBuilder 新增 GameUI 对象创建（挂载到 Managers）。 |
+| B019 originalColor 序列化冲突 | 根因：ControllableBlock 和父类都声明了 private Color originalColor。修复：父类改 protected，子类移除重复声明。 |
+| B020 第二回合终点无反应 | 根因：GoalZone.triggered 在第一回合设为 true 后，ResetRound 未重置。修复：GoalZone 新增 ResetTrigger()，GameManager.ResetRound() 调用它。同时重置所有 ControllablePropBase。 |
+| B021 移除 RESUMED 提示 | 用户反馈暂停恢复后显示 RESUMED 没必要。已移除 GameManager 和 GameUI 中的恢复提示逻辑。 |
+| B016 源头修复 | TestSceneBuilder Build 前先清理已有 CameraController，避免重复叠加。Clear 方法也优化。 |
+| 测试用例更新 | 新增 5 个 GameUI EditMode 测试用例。EditMode 测试总计 55+ 用例。 |
 
 **代码统计：**
-- 修改了 TestSceneBuilder.cs（新增 GameUI 创建）, ComponentSetupTests.cs（新增 5 个测试）
+- 修改了 GameManager.cs, GameUI.cs, GoalZone.cs, ControllablePropBase.cs, ControllableBlock.cs, TestSceneBuilder.cs, ComponentSetupTests.cs
 - 更新了 SESSION_TRACKER.md, MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
 
 **待用户验证：**
-- B018 游戏结束UI：需要用户重新生成测试场景后验证胜利/失败画面是否正常显示
+- B020 第二回合终点判定：需要用户验证多回合胜利画面是否正常触发
 
 ---
 

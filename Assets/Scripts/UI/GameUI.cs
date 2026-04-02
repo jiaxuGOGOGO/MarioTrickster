@@ -10,7 +10,7 @@ using UnityEngine.UI;
 /// 
 /// Bug修复记录:
 ///   B011 - 游戏结束画面增强：全屏遮罩 + 大号胜利文字 + 闪烁提示 + Input.GetKeyDown 检测
-///   B014 - 暂停/恢复反馈：暂停时显示半透明遮罩 + 恢复时短暂显示"RESUMED"提示
+///   B014 - 暂停反馈：暂停时显示半透明遮罩（恢复提示已根据用户反馈移除）
 ///   B012 - 道具操控失败反馈：屏幕下方显示失败原因提示（自动消失）
 /// </summary>
 public class GameUI : MonoBehaviour
@@ -30,9 +30,6 @@ public class GameUI : MonoBehaviour
     private string gameOverMessage = "";
     private bool showGameOver = false;
     private string gameOverWinner = "";
-
-    // B014: 恢复提示
-    // （由 GameManager.ShowResumedHint 驱动，无需本地计时）
 
     // B012: 道具操控失败反馈
     private string abilityFailMessage = "";
@@ -250,12 +247,6 @@ public class GameUI : MonoBehaviour
             DrawPauseScreen(bigLabelStyle);
         }
 
-        // ===== 恢复提示 (B014 修复) =====
-        if (GameManager.Instance != null && GameManager.Instance.ShowResumedHint)
-        {
-            DrawResumedHint();
-        }
-
         // ===== 游戏结束画面 (B011 修复) =====
         if (showGameOver)
         {
@@ -297,19 +288,6 @@ public class GameUI : MonoBehaviour
         pauseHintStyle.alignment = TextAnchor.MiddleCenter;
         pauseHintStyle.normal.textColor = Color.white;
         GUI.Label(new Rect(0, Screen.height / 2 + 10, Screen.width, 40), "Press ESC to Resume  |  Press F5 to Restart", pauseHintStyle);
-    }
-
-    /// <summary>绘制恢复提示 - 短暂的绿色"RESUMED"文字 (B014)</summary>
-    private void DrawResumedHint()
-    {
-        GUIStyle resumeStyle = new GUIStyle(GUI.skin.label);
-        resumeStyle.fontSize = 32;
-        resumeStyle.fontStyle = FontStyle.Bold;
-        resumeStyle.alignment = TextAnchor.MiddleCenter;
-        resumeStyle.normal.textColor = new Color(0.2f, 1f, 0.2f, 0.9f);
-
-        // 从屏幕中央偏上显示
-        GUI.Label(new Rect(0, Screen.height / 2 - 80, Screen.width, 50), "▶ RESUMED", resumeStyle);
     }
 
     /// <summary>绘制游戏结束画面 - 全屏遮罩 + 醒目胜利信息 + 闪烁提示 (B011)</summary>

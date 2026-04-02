@@ -25,6 +25,13 @@ public class GoalZone : MonoBehaviour
     private bool triggered = false;
     private BoxCollider2D col;
 
+    /// <summary>重置触发状态（由 GameManager.ResetRound 在新回合开始时调用）</summary>
+    public void ResetTrigger()
+    {
+        triggered = false;
+        Debug.Log("[GoalZone] 触发状态已重置，等待新回合");
+    }
+
     private void Awake()
     {
         // 确保Collider是Trigger

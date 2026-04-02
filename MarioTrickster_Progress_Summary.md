@@ -206,6 +206,7 @@ InputManager (右Alt/手柄Y)
 | B012 | ✅ **已修复 (Session 10)** 道具操控失败时无提示 | — | 根因：操控失败仅有 Debug.Log。已在 TricksterController 添加 OnAbilityFailed 事件，GameUI 接收并显示失败原因（如"不在范围内"、"能量不足"）。 |
 | B013 | ✅ **已修复 (Session 9)** TestSceneBuilder 中 LevelManager 字段名错误 | — | — |
 | B014 | ✅ **已修复 (Session 10)** ESC 暂停后再按 ESC 恢复无反馈 | — | 根因：同 B011，暂停状态下 ESC 按键检测被跳过。已修复逻辑，并在 GameUI 添加了"已恢复"的短暂提示。 |
+| B015 | ⚠️ **待修复 (Session 10)** 测试 6 扫描技能时，Trickster 在范围内且头顶出现警告标记，但屏幕下方错误提示"未在范围内" | 中 | 待排查 GameUI 或 ScanAbility 提示逻辑冲突 |
 
 ### 关于 B002 的修复方法
 

@@ -88,7 +88,7 @@
 | TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | 与 MarioController 一致的帧速度架构 + 平台速度注入 + 手感调优；OnGUI 显示伪装系统实时状态 |
 | DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | Sprite替换变身/冷却/场景融入/多形态切换；新增 GetDebugStatus() 调试方法 |
 | InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 7 更新** | 修复 OnJumpReleased 每帧触发问题，用 wasJumpHeld 状态机精确检测按下/松开事件；P2 键位改为 POIL 方案 |
-| GameManager.cs | Assets/Scripts/Core/ | ✅ | 游戏状态/胜负判定/暂停/重启/计时器/单例模式 |
+| GameManager.cs | Assets/Scripts/Core/ | ✅ **Session 10 更新** | 游戏状态/胜负判定/暂停/重启/计时器/单例模式（修复按键检测逻辑） |
 | CameraController.cs | Assets/Scripts/Camera/ | ✅ | 平滑跟随Mario/前瞻偏移/死区/关卡边界限制/相机震动 |
 
 ### 2.5 辅助脚本（Sprint 1）
@@ -102,7 +102,7 @@
 | Breakable.cs | Assets/Scripts/Core/ | ✅ | 可破坏方块（砖块/问号砖块），从下方顶撞触发 |
 | MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **Session 6 重写** | Kinematic Rigidbody2D + MovePosition() + 速度注入法跟随角色（不使用 SetParent） |
 | SimpleEnemy.cs | Assets/Scripts/Enemy/ | ✅ | 简单巡逻敌人，边缘/墙壁检测自动转向，可被踩消灭 |
-| GameUI.cs | Assets/Scripts/UI/ | ✅ | 基础HUD（生命值/计时器/回合信息/胜负画面），OnGUI后备显示 |
+| GameUI.cs | Assets/Scripts/UI/ | ✅ **Session 10 更新** | 基础HUD（生命值/计时器/回合信息/胜负画面/能量显示），增强了游戏结束/暂停/操控失败反馈 |
 | LevelManager.cs | Assets/Scripts/Core/ | ✅ | 关卡管理（出生点/边界/可伪装对象列表） |
 
 ### 2.6 Trickster 能力系统（Sprint 2 - Session 3 新增）
@@ -139,7 +139,34 @@ InputManager (右Alt/手柄Y)
 - 单次变身最大操控总次数（maxControlsPerDisguise）: -1 = 无限
 - 操控持续时间限制（controlTimeLimit）: 0 = 无限
 
-### 2.7 测试与工具系统（Session 8 新增）
+### 2.7 能量系统与扫描技能（Session 10 新增）
+
+| 脚本 | 路径 | 状态 | 说明 |
+|------|------|------|------|
+| EnergySystem.cs | Assets/Scripts/Ability/ | ✅ **Session 10 新增** | Trickster 能量系统。变身消耗25、操控道具消耗20，满值100，自然恢复2/秒，伪装中恢复减半。支持低能量警告、回合重置。 |
+| ScanAbility.cs | Assets/Scripts/Ability/ | ✅ **Session 10 新增** | Mario 扫描技能。Q键/手柄东键触发，检测半径5格范围内的伪装Trickster，命中后红色闪烁2秒+头顶警告标记。冷却8秒。 |
+
+**能量系统参数（通过 Inspector 暴露）**:
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| maxEnergy | 100 | 最大能量值 |
+| regenRate | 2 | 每秒自然恢复量 |
+| disguiseRegenMultiplier | 0.5 | 伪装状态下恢复倍率 |
+| disguiseCost | 25 | 变身消耗 |
+| abilityCost | 20 | 操控道具消耗 |
+| lowEnergyThreshold | 20 | 低能量警告阈值 |
+
+**扫描技能参数（通过 Inspector 暴露）**:
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| scanRadius | 5 | 扫描检测半径（格） |
+| scanCooldown | 8 | 冷却时间（秒） |
+| revealDuration | 2 | 揭示持续时间（秒） |
+| pulseExpandTime | 0.3 | 脉冲扩散时间（秒） |
+
+### 2.8 测试与工具系统（Session 8 新增）
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
@@ -151,7 +178,7 @@ InputManager (右Alt/手柄Y)
 | EditModeTests.asmdef | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试 Assembly Definition |
 | PlayModeTests.asmdef | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试 Assembly Definition |
 
-### 2.8 配置文件更新
+### 2.9 配置文件更新
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
@@ -259,6 +286,8 @@ git pull
 | 胜负判定 | Mario到达终点/Mario死亡/回合重置 | 3 |
 | 暂停系统 | 暂停/恢复 TimeScale | 1 |
 | InputManager 集成 | 禁用输入停止移动 | 1 |
+| 能量系统 (Session 10) | 消耗/恢复/重置/低能量状态 | 9 |
+| 扫描技能 (Session 10) | 冷却/事件触发/范围检测 | 5 |
 
 ### 5. 手动场景搭建（备选方案）
 如果不使用 TestSceneBuilder，也可以手动搭建：
@@ -270,10 +299,10 @@ git pull
 - 挂载 `LevelManager.cs`
 
 **B. 玩家角色**
-- **Mario**: 挂载 `MarioController.cs` + `PlayerHealth.cs` + `Rigidbody2D` + `BoxCollider2D`
+- **Mario**: 挂载 `MarioController.cs` + `PlayerHealth.cs` + **`ScanAbility.cs`** + `Rigidbody2D` + `BoxCollider2D`
   - Rigidbody2D: Body Type = Dynamic, Gravity Scale = 0（重力由代码自管）, Freeze Rotation Z = ✅
   - MarioController Inspector: 设置 groundLayer（必须！否则跳跃不工作）
-- **Trickster**: 挂载 `TricksterController.cs` + `DisguiseSystem.cs` + **`TricksterAbilitySystem.cs`** + `Rigidbody2D` + `BoxCollider2D`
+- **Trickster**: 挂载 `TricksterController.cs` + `DisguiseSystem.cs` + **`TricksterAbilitySystem.cs`** + **`EnergySystem.cs`** + `Rigidbody2D` + `BoxCollider2D`
   - Rigidbody2D 配置同 Mario
 
 **C. 关卡元素**
@@ -316,9 +345,16 @@ git pull
 4. **观察爆发阶段**：预警结束后，确认道具是否执行了对应的阻碍动作。
 5. **观察冷却阶段**：确认触发后是否进入冷却，短时间内无法再次触发。
 
-**第五步：胜负判定测试**
+**第五步：能量系统与扫描技能测试 (Session 10 新增)**
+1. **Trickster 能量消耗**：变身（消耗25）和操控道具（消耗20），观察右上角调试信息中的能量值变化。
+2. **能量恢复**：静止不动，观察能量是否随时间自然恢复（2/秒）。
+3. **Mario 扫描技能**：控制 Mario 靠近伪装状态的 Trickster，按下 `Q` 键。
+4. **扫描效果**：确认是否出现蓝色/红色脉冲圆环，Trickster 是否闪烁红色并在头顶显示 `!` 警告标记。
+
+**第六步：胜负判定测试**
 1. 控制 Mario 碰到深渊 (KillZone) 或危险陷阱 (DamageDealer)，确认是否触发死亡和回合重置。
 2. 控制 Mario 走到终点旗帜 (GoalZone)，确认是否触发胜利画面。
+3. 确认游戏结束后屏幕是否有明显的"ROUND OVER"提示和重启引导。
 
 ---
 
@@ -337,23 +373,24 @@ git pull
 | 7 | 放置GoalZone和KillZone | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置终点（绿色，位置18,1）和死亡区域（底部） |
 | 8 | 放置可操控道具 | ✅ **Session 8 自动化** | TestSceneBuilder 自动放置 ControllablePlatform/Hazard/Block |
 | 9 | **核心玩法验证** | 🔄 进行中 | 手动 Play 测试已完成（见下方测试结果），待运行 Test Runner 自动化测试 |
-| 10 | **自动化测试框架** | ✅ **Session 8 完成** | EditMode 30+ 测试 + PlayMode 20+ 测试，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停 |
+| 10 | **自动化测试框架** | ✅ **Session 10 更新** | EditMode 40+ 测试 + PlayMode 20+ 测试，覆盖组件依赖/PlayerHealth/伪装系统/道具状态机/胜负判定/暂停/能量系统/扫描技能 |
 
 ### 第二优先级：游戏体验（Sprint 2，预计 1-2 周）
 
 | 序号 | 任务 | 说明 |
 |------|------|------|
-| 11 | 音效集成 | 跳跃/死亡/变身/操控道具预警音效/胜利音效 |
-| 12 | 升级为Cinemachine | 已添加包依赖，替换CameraController为Cinemachine Virtual Camera |
-| 13 | 更多可操控道具类型 | 如：传送门、风扇（改变风向）、开关门等 |
+| 11 | 基础 UI 系统升级 | 使用 Canvas UI 替代 OnGUI，提供更美观的 HUD 和提示 |
+| 12 | 音效集成 | 跳跃/死亡/变身/操控道具预警音效/胜利音效 |
+| 13 | 升级为Cinemachine | 已添加包依赖，替换CameraController为Cinemachine Virtual Camera |
+| 14 | 更多可操控道具类型 | 如：传送门、风扇（改变风向）、开关门等 |
 
 ### 第三优先级：打磨（Sprint 3）
 
 | 序号 | 任务 | 说明 |
 |------|------|------|
-| 14 | 平衡性调整 | 变身冷却、操控次数/冷却、预警时长、关卡难度 |
-| 15 | 多关卡 | 2-3个不同主题关卡 |
-| 16 | 开始/结束界面 | 主菜单、角色选择、结算画面 |
+| 15 | 平衡性调整 | 变身冷却、操控次数/冷却、预警时长、关卡难度 |
+| 16 | 多关卡 | 2-3个不同主题关卡 |
+| 17 | 开始/结束界面 | 主菜单、角色选择、结算画面 |
 
 ---
 
@@ -588,12 +625,12 @@ Assets/
 │   │   ├── MarioController.cs      ✅ Mario移动/跳跃/平台跟随 (Session 6 更新)
 │   │   └── PlayerHealth.cs          ✅ 生命值管理
 │   ├── Enemy/
-│   │   ├── TricksterController.cs   ✅ Trickster控制/平台跟随 (Session 6 更新)
-│   │   ├── DisguiseSystem.cs        ✅ 伪装/变身系统
+│   │   ├── TricksterController.cs   ✅ Trickster控制/平台跟随 (Session 10 更新: OnAbilityFailed 事件)
+│   │   ├── DisguiseSystem.cs        ✅ 伪装/变身系统 (Session 10 更新: 集成 EnergySystem)
 │   │   └── SimpleEnemy.cs           ✅ 简单巡逻敌人
 │   ├── Core/
-│   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定
-│   │   ├── InputManager.cs          ✅ 双人输入管理 (Session 5 重写)
+│   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定 (Session 10 更新: 修复按键检测)
+│   │   ├── InputManager.cs          ✅ 双人输入管理 (Session 10 更新: 添加扫描按键)
 │   │   ├── LevelManager.cs          ✅ 关卡管理
 │   │   ├── GoalZone.cs              ✅ 终点触发器
 │   │   ├── KillZone.cs              ✅ 死亡区域
@@ -606,6 +643,8 @@ Assets/
 │   │   ├── IControllableProp.cs     ✅ 可操控道具接口
 │   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类
 │   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
+│   │   ├── EnergySystem.cs          ✅ Trickster 能量系统 (Session 10 新增)
+│   │   ├── ScanAbility.cs           ✅ Mario 扫描技能 (Session 10 新增)
 │   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)
 │   │   ├── ControllableHazard.cs    ✅ 可操控危险道具
 │   │   └── ControllableBlock.cs     ✅ 可操控方块
@@ -616,7 +655,7 @@ Assets/
 │   │   └── MarioTrickster.Editor.asmdef ✅ Editor Assembly Definition (Session 9 新增)
 │   ├── MarioTrickster.asmdef        ✅ 主项目 Assembly Definition (Session 9 新增)
 │   └── UI/
-│       └── GameUI.cs                ✅ 基础HUD
+│       └── GameUI.cs                ✅ 基础HUD (Session 10 更新: 增强结束/暂停/失败反馈)
 ├── Tests/
 │   ├── EditMode/
 │   │   ├── EditModeTests.asmdef     ✅ Assembly Definition (Session 8 新增)
@@ -641,6 +680,7 @@ Assets/
 |------|-----------------|---------------------|
 | 移动 | WASD | 方向键 |
 | 跳跃 | Space | 上方向键 / 右Ctrl / 小键盘0 |
+| **扫描技能** | **Q / 手柄东键** | — |
 | 伪装/取消伪装 | — | **P** |
 | 切换伪装形态（下一个） | — | **O** |
 | 切换伪装形态（上一个） | — | **I** |
@@ -648,6 +688,16 @@ Assets/
 | 暂停 | ESC | ESC |
 | 快速重启 | F5 | F5 |
 | 手柄支持 | 第1个手柄 | 第2个手柄 |
+
+### 能量系统参数（可在 Inspector 运行时调整）
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| maxEnergy | 100 | 最大能量 |
+| regenRate | 2 | 每秒自然恢复量 |
+| disguiseCost | 25 | 变身能量消耗 |
+| abilityCost | 20 | 操控道具能量消耗 |
+| lowEnergyThreshold | 20 | 低能量警告阈值 |
 
 ### 移动手感参数（可在 Inspector 运行时调整）
 

@@ -1,6 +1,7 @@
 # MarioTrickster 测试指南
 
-> 本文档覆盖三部分内容：手动 Play 测试、自动化 Test Runner 测试、伪装系统 Sprite 配置指引。
+> 本文档覆盖四部分内容：手动 Play 测试（含能量系统、扫描技能）、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明。
+> 更新时间：2026-04-02 (Session 10)
 
 ---
 
@@ -130,14 +131,26 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 | 操作 | 按键 | 预期结果 |
 |------|------|----------|
 | 走到可操控道具附近（橙色陷阱或棕色方块） | 方向键 | 靠近道具（2 格范围内） |
-| 伪装并等待融入 | P → 等 1.5 秒 | 调试信息显示 `(已融入)` |
-| 触发操控 | L | 附近的道具进入 **预警阶段**（闪烁变红 + 震动，持续约 0.8 秒） |
+| 伪装并等待融入 | P → 等 1.5 秒 | 调试信息显示 `(已融入)`，消耗 25 能量 |
+| 触发操控 | L | 附近的道具进入 **预警阶段**（闪烁变红 + 震动，持续约 0.8 秒），消耗 20 能量 |
 | 观察爆发阶段 | — | 预警结束后，道具执行阻碍动作（陷阱伸出尖刺/方块消失等） |
 | 观察冷却阶段 | 再按 L | 道具处于冷却中，无法立即再次触发 |
+| 能量不足测试 | 连续多次操控 | 能量不足时按 L，屏幕提示"能量不足"，无法操控 |
 
-**通过标准**：Telegraph→Active→Cooldown 三阶段流程正常。
+**通过标准**：Telegraph→Active→Cooldown 三阶段流程正常，能量消耗和提示正常。
 
-### 测试 6：胜负判定
+### 测试 6：扫描技能 (Session 10 新增)
+
+| 操作 | 按键 | 预期结果 |
+|------|------|----------|
+| Mario 靠近伪装的 Trickster | WASD | 靠近至 5 格范围内 |
+| 发动扫描 | Q | Mario 身上发出蓝色/红色脉冲圆环 |
+| 观察扫描结果 | — | 范围内的 Trickster 闪烁红色，头顶出现 `!` 警告标记，持续 2 秒 |
+| 观察冷却阶段 | 再按 Q | 技能处于冷却中（8秒），无法立即再次触发 |
+
+**通过标准**：扫描特效正常播放，能正确揭示范围内的伪装 Trickster。
+
+### 测试 7：胜负判定
 
 | 操作 | 预期结果 |
 |------|----------|
@@ -147,12 +160,12 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 
 **通过标准**：胜负判定正确触发、重启功能正常。
 
-### 测试 7：暂停系统
+### 测试 8：暂停系统
 
 | 操作 | 按键 | 预期结果 |
 |------|------|----------|
-| 暂停 | ESC | 游戏暂停（Time.timeScale = 0），角色无法移动 |
-| 恢复 | 再按 ESC | 游戏恢复正常 |
+| 暂停 | ESC | 游戏暂停（Time.timeScale = 0），屏幕显示半透明遮罩和"PAUSED" |
+| 恢复 | 再按 ESC | 游戏恢复正常，屏幕短暂显示"RESUMED"提示 |
 
 ---
 
@@ -196,7 +209,22 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 | | ControllableBlock_ImplementsInterface | ControllableBlock 实现 IControllableProp 接口 |
 | | ControllablePlatform_ImplementsInterface | ControllablePlatform 实现 IControllableProp 接口 |
 
-**预期结果**：全部绿色通过（约 30 个测试用例）。
+| **EnergySystem** | EnergySystem_InitialEnergy_IsMax | 初始能量 = maxEnergy (100) |
+| | EnergySystem_ConsumeEnergy_ReducesEnergy | 消耗后能量减少 |
+| | EnergySystem_ConsumeEnergy_ReturnsFalse_WhenInsufficient | 能量不足时返回 false |
+| | EnergySystem_HasEnergy_ChecksThreshold | HasEnergy 正确检查能量阈值 |
+| | EnergySystem_ResetEnergy_RestoresToMax | 重置后能量恢复满值 |
+| | EnergySystem_IsLowEnergy_BelowThreshold | 低于阈值时 IsLowEnergy=true |
+| | EnergySystem_EnergyRatio_ReturnsCorrectValue | EnergyRatio 返回正确比例 |
+| | EnergySystem_OnEnergyChanged_EventFires | 能量变化时触发事件 |
+| | EnergySystem_OnLowEnergy_EventFires | 低能量时触发事件 |
+| **ScanAbility** | ScanAbility_InitialState_IsReady | 初始状态 IsReady=true |
+| | ScanAbility_Cooldown_IsPositive | 冷却时间 > 0 |
+| | ScanAbility_ScanRadius_IsPositive | 扫描半径 > 0 |
+| | ScanAbility_OnScanPerformed_EventExists | OnScanPerformed 事件存在 |
+| | ScanAbility_OnTricksterRevealed_EventExists | OnTricksterRevealed 事件存在 |
+
+**预期结果**：全部绿色通过（约 44 个测试用例）。
 
 ### 3.3 PlayMode 测试（需要进入 Play 模式）
 
@@ -246,6 +274,7 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 |------|-----------------|---------------------|
 | 移动 | WASD | 方向键 |
 | 跳跃 | Space | ↑ / 右Ctrl / 小键盘0 |
+| **扫描技能** | **Q / 手柄东键** | — |
 | 伪装/取消伪装 | — | **P** |
 | 切换伪装形态（下一个） | — | **O** |
 | 切换伪装形态（上一个） | — | **I** |
@@ -257,7 +286,9 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 
 ## 五、调试信息说明
 
-运行游戏后，屏幕右上角会显示 Trickster 的伪装系统状态：
+运行游戏后，屏幕右上角会显示 Trickster 的伪装系统状态和能量信息：
+
+### 5.1 伪装系统状态
 
 | 显示内容 | 含义 | 需要做什么 |
 |----------|------|------------|
@@ -267,3 +298,21 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 | `✅ 已伪装为: Brick Block (未融入)` | 已伪装但还在移动 | 停止移动等待 1.5 秒 |
 | `✅ 已伪装为: Brick Block (已融入)` | 已完全融入场景 | 可以按 L 操控道具 |
 | `⏳ 伪装冷却中: 1.5s` | 解除伪装后的冷却期 | 等待冷却结束 |
+
+### 5.2 能量系统状态 (Session 10 新增)
+
+| 显示内容 | 含义 |
+|----------|------|
+| `Energy: 100/100` | 当前能量值 / 最大能量值 |
+| `Energy: 55/100` | 变身或操控后能量减少，正在自然恢复 |
+| `⚠️ LOW ENERGY` | 能量低于 20，变身和操控可能受限 |
+| 屏幕中央“能量不足”提示 | 尝试操控或变身但能量不够 | 等待能量自然恢复后再试 |
+
+### 5.3 扫描技能状态 (Session 10 新增)
+
+| 视觉效果 | 含义 |
+|----------|------|
+| 蓝色脉冲圆环扩散 | Mario 发动扫描，未检测到 Trickster |
+| 红色脉冲圆环扩散 | Mario 发动扫描，检测到了伪装的 Trickster |
+| Trickster 红色闪烁 + 头顶 `!` | Trickster 被扫描揭示，持续 2 秒 |
+| 按 Q 无反应 | 扫描技能处于冷却中（8秒） |

@@ -89,14 +89,14 @@
 | TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | 与 MarioController 一致的帧速度架构 + 平台速度注入 + 手感调优；OnGUI 显示伪装系统实时状态 |
 | DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | Sprite替换变身/冷却/场景融入/多形态切换；新增 GetDebugStatus() 调试方法 |
 | InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 7 更新** | 修复 OnJumpReleased 每帧触发问题，用 wasJumpHeld 状态机精确检测按下/松开事件；P2 键位改为 POIL 方案 |
-| GameManager.cs | Assets/Scripts/Core/ | ✅ **Session 10 更新** | 游戏状态/胜负判定/暂停/重启/计时器/单例模式（修复按键检测逻辑） |
+| GameManager.cs | Assets/Scripts/Core/ | ✅ **Session 12 更新** | 游戏状态/胜负判定/暂停/重启/计时器/单例模式。B020修复：ResetRound 重置 GoalZone.triggered + ControllablePropBase 使用次数。B021修复：移除 RESUMED 提示 |
 | CameraController.cs | Assets/Scripts/Camera/ | ✅ **Session 11 重写** | 平滑跟随Mario/前瞻偏移(滞后检测)/渐进式死区/关卡边界限制/相机震动(独立偏移量)。修复B016镜头晃动。 |
 
 ### 2.5 辅助脚本（Sprint 1）
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| GoalZone.cs | Assets/Scripts/Core/ | ✅ | 终点触发器，Mario碰触后触发胜利 |
+| GoalZone.cs | Assets/Scripts/Core/ | ✅ **Session 12 更新** | 终点触发器，Mario碰触后触发胜利。B020修复：新增 ResetTrigger() 方法供多回合重置 |
 | KillZone.cs | Assets/Scripts/Core/ | ✅ | 死亡区域（掉落深渊），碰触即死 |
 | DamageDealer.cs | Assets/Scripts/Core/ | ✅ | 通用伤害触发器（尖刺/怪物/Hazard伪装），支持击退 |
 | Collectible.cs | Assets/Scripts/Core/ | ✅ | 可收集物品（金币/回血/加速），带浮动动画 |
@@ -113,7 +113,7 @@
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
 | IControllableProp.cs | Assets/Scripts/Ability/ | ✅ | 可操控道具接口（PropName/CanBeControlled/OnTricksterActivate/状态查询） |
-| ControllablePropBase.cs | Assets/Scripts/Ability/ | ✅ | 抽象基类，封装 Telegraph→Active→Cooldown 状态机、预警闪烁/震动视觉效果、次数限制、回合重置 |
+| ControllablePropBase.cs | Assets/Scripts/Ability/ | ✅ **Session 12 更新** | 抽象基类，封装 Telegraph→Active→Cooldown 状态机、预警闪烁/震动视觉效果、次数限制、回合重置。B019修复：originalColor 改为 protected 避免子类重复序列化 |
 | TricksterAbilitySystem.cs | Assets/Scripts/Ability/ | ✅ | 核心能力管理器，检测伪装状态、绑定/检测附近道具、处理操控输入、管理操控次数/时间限制 |
 | ControllablePlatform.cs | Assets/Scripts/Ability/ | ✅ **Session 6 更新** | 可操控移动平台，4种模式：Rush/Drop/Reverse/Stop + 速度注入法跟随 |
 | ControllableHazard.cs | Assets/Scripts/Ability/ | ✅ | 可操控危险道具，4种模式：Spike/Expand/Burst/Directional |
@@ -177,8 +177,8 @@ InputManager (右Alt/手柄Y)
 | TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 12 更新** | Editor 菜单工具，一键生成完整测试场景（地面/平台/角色/管理器/道具/终点/死亡区域/敌人/金币/相机/GameUI），所有 Inspector 引用自动连线，Ground Layer 自动创建。B018修复：新增 GameUI 对象创建 |
 | MarioTrickster.asmdef | Assets/Scripts/ | ✅ **Session 9 新增** | 主项目 Assembly Definition，引用 Unity.InputSystem |
 | MarioTrickster.Editor.asmdef | Assets/Scripts/Editor/ | ✅ **Session 9 新增** | Editor 脚本 Assembly Definition |
-| ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 12 更新** | EditMode 测试（55+ 测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用、EnergySystem、ScanAbility、CameraController(B016)、GameUI(B018) |
-| GameplayTests.cs | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试（20+ 测试用例）：验证 Mario/Trickster 移动/跳跃/重力、伪装系统运行时行为、道具操控状态机（Telegraph→Active→Cooldown）、移动平台运动、GameManager 胜负判定/暂停/回合重置、InputManager 集成 |
+| ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 12 更新** | EditMode 测试（59 个测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用、EnergySystem、ScanAbility、CameraController、GameUI |
+| GameplayTests.cs | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试（21 个测试用例）：验证 Mario/Trickster 移动/跳跃/重力、伪装系统运行时行为、道具操控状态机（Telegraph→Active→Cooldown）、移动平台运动、GameManager 胜负判定/暂停/回合重置、InputManager 集成 |
 | EditModeTests.asmdef | Assets/Tests/EditMode/ | ✅ **Session 8 新增** | EditMode 测试 Assembly Definition |
 | PlayModeTests.asmdef | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试 Assembly Definition |
 

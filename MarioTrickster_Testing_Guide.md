@@ -208,57 +208,64 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 | **MarioController** | MarioController_RequiresRigidbody2D | 挂载 MarioController 时自动添加 Rigidbody2D |
 | | MarioController_RequiresBoxCollider2D | 挂载时自动添加 BoxCollider2D |
 | | MarioController_HasPublicInputMethods | SetMoveInput/OnJumpPressed/OnJumpReleased 方法存在且可调用 |
+| | MarioController_HasPlatformVelocityMethod | SetPlatformVelocity/ClearPlatformVelocity 方法存在 |
 | **TricksterController** | TricksterController_RequiresRigidbody2D | 挂载时自动添加 Rigidbody2D |
 | | TricksterController_RequiresBoxCollider2D | 挂载时自动添加 BoxCollider2D |
-| | TricksterController_HasPublicInputMethods | SetMoveInput/OnJumpPressed/OnJumpReleased/OnDisguisePressed/OnAbilityPressed 方法存在 |
-| **PlayerHealth** | PlayerHealth_InitialHealth | 初始生命值 = maxHealth (3) |
-| | PlayerHealth_TakeDamage | 受伤后生命值减少 |
-| | PlayerHealth_InvincibleAfterDamage | 受伤后进入无敌帧，短时间内不会再次受伤 |
-| | PlayerHealth_DeathEvent | 生命值归零时触发 OnDeath 事件 |
-| | PlayerHealth_HealClampsToMax | 治疗不会超过最大生命值 |
-| | PlayerHealth_ResetHealth | ResetHealth 恢复满血并清除无敌状态 |
-| **DisguiseSystem** | DisguiseSystem_InitialState | 初始状态未伪装、未融入 |
-| | DisguiseSystem_NoDisguisesConfigured_Safe | 无配置时调用 Disguise() 不会崩溃 |
-| | DisguiseSystem_DebugStatus_NoConfig | 无配置时 GetDebugStatus 返回提示信息 |
-| **MovingPlatform** | MovingPlatform_IsKinematic | MovingPlatform 的 Rigidbody2D 自动设为 Kinematic |
-| **GoalZone/KillZone** | GoalZone_HasTriggerCollider | GoalZone 的 BoxCollider2D 自动设为 Trigger |
-| | KillZone_HasTriggerCollider | KillZone 的 BoxCollider2D 自动设为 Trigger |
-| **GameManager** | GameManager_InitialState | 初始状态为 WaitingToStart |
-| | GameManager_SingletonAccess | 单例模式可正常访问 |
-| **InputManager** | InputManager_SetControllers | 可以设置 Mario/Trickster 控制器引用 |
-| | InputManager_EnableDisable | EnableAllInput/DisableAllInput 正常工作 |
-| **IControllableProp** | ControllableHazard_ImplementsInterface | ControllableHazard 实现 IControllableProp 接口 |
-| | ControllableBlock_ImplementsInterface | ControllableBlock 实现 IControllableProp 接口 |
-| | ControllablePlatform_ImplementsInterface | ControllablePlatform 实现 IControllableProp 接口 |
-
-| **EnergySystem** | EnergySystem_InitialEnergy_IsMax | 初始能量 = maxEnergy (100) |
-| | EnergySystem_ConsumeEnergy_ReducesEnergy | 消耗后能量减少 |
-| | EnergySystem_ConsumeEnergy_ReturnsFalse_WhenInsufficient | 能量不足时返回 false |
-| | EnergySystem_HasEnergy_ChecksThreshold | HasEnergy 正确检查能量阈值 |
-| | EnergySystem_ResetEnergy_RestoresToMax | 重置后能量恢复满值 |
-| | EnergySystem_IsLowEnergy_BelowThreshold | 低于阈值时 IsLowEnergy=true |
-| | EnergySystem_EnergyRatio_ReturnsCorrectValue | EnergyRatio 返回正确比例 |
+| | TricksterController_HasDisguiseInputMethod | OnDisguisePressed 方法存在且可调用 |
+| | TricksterController_HasAbilityInputMethod | OnAbilityPressed 方法存在且可调用 |
+| | TricksterController_HasSwitchDisguiseMethod | SwitchDisguise 方法存在且可调用 |
+| **PlayerHealth** | PlayerHealth_InitializesWithMaxHealth | 初始生命值 = maxHealth (3) |
+| | PlayerHealth_TakeDamage_ReducesHealth | 受伤后生命值减少 |
+| | PlayerHealth_TakeDamage_TriggersInvincibility | 受伤后进入无敌帧 |
+| | PlayerHealth_TakeDamage_WhileInvincible_DoesNothing | 无敌期间受伤无效 |
+| | PlayerHealth_TakeDamage_FiresDeathEvent_WhenHealthReachesZero | 生命值归零时触发 OnDeath 事件 |
+| | PlayerHealth_Heal_IncreasesHealth | 治疗后生命值增加 |
+| | PlayerHealth_Heal_DoesNotExceedMax | 治疗不会超过最大生命值 |
+| | PlayerHealth_ResetHealth_RestoresFullHealth | ResetHealth 恢复满血并清除无敌状态 |
+| **DisguiseSystem** | DisguiseSystem_InitialState_NotDisguised | 初始状态未伪装、未融入 |
+| | DisguiseSystem_Disguise_WithoutConfig_DoesNothing | 无配置时调用 Disguise() 不会崩溃 |
+| | DisguiseSystem_GetDebugStatus_ReportsEmptyConfig | 无配置时 GetDebugStatus 返回提示信息 |
+| **MovingPlatform** | MovingPlatform_RequiresRigidbody2D | 挂载时自动添加 Rigidbody2D |
+| | MovingPlatform_SetsKinematic | Rigidbody2D 自动设为 Kinematic |
+| **GoalZone/KillZone** | GoalZone_RequiresBoxCollider2D | GoalZone 挂载时自动添加 BoxCollider2D |
+| | GoalZone_SetsTrigger | GoalZone 的 BoxCollider2D 自动设为 Trigger |
+| | KillZone_RequiresBoxCollider2D | KillZone 挂载时自动添加 BoxCollider2D |
+| | KillZone_SetsTrigger | KillZone 的 BoxCollider2D 自动设为 Trigger |
+| **GameManager** | GameManager_InitialState_IsWaitingToStart | 初始状态为 WaitingToStart |
+| | GameManager_HasSingletonProperty | 单例模式可正常访问 |
+| **InputManager** | InputManager_HasPlayerSetterMethods | 可以设置 Mario/Trickster 控制器引用 |
+| | InputManager_DisableEnableInput | EnableAllInput/DisableAllInput 正常工作 |
+| **IControllableProp** | ControllableHazard_ImplementsIControllableProp | ControllableHazard 实现 IControllableProp 接口 |
+| | ControllableBlock_ImplementsIControllableProp | ControllableBlock 实现 IControllableProp 接口 |
+| | ControllablePlatform_ImplementsIControllableProp | ControllablePlatform 实现 IControllableProp 接口 |
+| **EnergySystem** | EnergySystem_InitializesWithMaxEnergy | 初始能量 = maxEnergy (100) |
+| | EnergySystem_HasEnoughForDisguise_InitiallyTrue | 初始时能量足够变身 |
+| | EnergySystem_HasEnoughForControl_InitiallyTrue | 初始时能量足够操控 |
+| | EnergySystem_TryConsumeDisguiseCost_ReducesEnergy | 变身消耗后能量减少 |
+| | EnergySystem_TryConsumeControlCost_ReducesEnergy | 操控消耗后能量减少 |
+| | EnergySystem_ResetEnergy_RestoresMax | 重置后能量恢复满值 |
+| | EnergySystem_AddEnergy_IncreasesButCapsAtMax | 添加能量不超过上限 |
+| | EnergySystem_IsLowEnergy_WhenBelowThreshold | 低于阈值时 IsLowEnergy=true |
 | | EnergySystem_OnEnergyChanged_EventFires | 能量变化时触发事件 |
-| | EnergySystem_OnLowEnergy_EventFires | 低能量时触发事件 |
 | **ScanAbility** | ScanAbility_InitialState_IsReady | 初始状态 IsReady=true |
-| | ScanAbility_Cooldown_IsPositive | 冷却时间 > 0 |
+| | ScanAbility_ActivateScan_TriggersCooldown | 扫描后进入冷却 |
+| | ScanAbility_ActivateScan_FiresEvent | 扫描触发 OnScanActivated 事件 |
+| | ScanAbility_ActivateScan_WhileOnCooldown_DoesNothing | 冷却中扫描无效 |
 | | ScanAbility_ScanRadius_IsPositive | 扫描半径 > 0 |
-| | ScanAbility_OnScanPerformed_EventExists | OnScanPerformed 事件存在 |
-| | ScanAbility_OnTricksterRevealed_EventExists | OnTricksterRevealed 事件存在 |
 | | ScanAbility_OnScanResult_FiresWithFalse_WhenNoTrickster | 无 Trickster 时扫描结果为 false |
-| | **ScanAbility_OnScanPerformed_EventFires** | **扫描触发 OnScanPerformed 事件 (B015 修复验证)** |
-| **CameraController (Session 11)** | CameraController_CanBeCreated | CameraController 能正常挂载 |
+| | ScanAbility_OnScanPerformed_EventFires | 扫描触发 OnScanPerformed 事件 (B015 修复验证) |
+| **CameraController** | CameraController_CanBeCreated | CameraController 能正常挂载 |
 | | CameraController_SetTarget_DoesNotThrow | SetTarget 不抛异常 |
 | | CameraController_SetBounds_DoesNotThrow | SetBounds 不抛异常 |
 | | CameraController_SnapToTarget_WithoutTarget_DoesNotThrow | 无目标时 SnapToTarget 不崩溃 |
 | | CameraController_Shake_DoesNotThrow | Shake 不抛异常 |
-| **GameUI (Session 12 B018修复)** | GameUI_CanBeAddedToGameObject | GameUI 能正常添加到 GameObject |
+| **GameUI** | GameUI_CanBeAddedToGameObject | GameUI 能正常添加到 GameObject |
 | | GameUI_ShowGameOverScreen_SetsShowGameOverFlag | GameUI 创建和基本状态正确 |
 | | GameUI_OnGUIFallback_DefaultsToTrue | 无 Canvas 时 OnGUI 后备默认启用 |
 | | GameUI_ShowAbilityFailFeedback_DoesNotThrow | 失败提示不抛异常 |
 | | GameUI_ButtonCallbacks_DoNotThrow_WithoutGameManager | 无 GameManager 时按钮回调不崩溃 |
 
-**预期结果**：全部绿色通过（约 55+ 个测试用例）。
+**预期结果**：全部绿色通过（59 个测试用例）。
 
 ### 3.3 PlayMode 测试（需要进入 Play 模式）
 
@@ -268,30 +275,28 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 
 | 测试类别 | 测试名称 | 验证内容 |
 |----------|----------|----------|
-| **Mario 移动** | Mario_MovesRight | 给右方向输入后，Mario 向右移动 |
-| | Mario_MovesLeft | 给左方向输入后，Mario 向左移动 |
-| | Mario_StopsWhenNoInput | 松开输入后，Mario 减速停止 |
-| | Mario_FallsWithGravity | 无地面时，Mario 因重力下落 |
-| **Mario 跳跃** | Mario_JumpsUp | 按跳跃后，Mario 向上运动 |
-| | Mario_BounceOnEnemy | 调用 Bounce() 后，Mario 获得向上弹力 |
-| **Mario 状态** | Mario_IsMovingProperty | 有输入时 IsMoving=true，无输入时 IsMoving=false |
-| | Mario_DieDisablesController | 调用 Die() 后控制器被禁用 |
-| **Trickster** | Trickster_MovesRight | Trickster 向右移动正常 |
-| | Trickster_IsDisguisedProperty | 未伪装时 IsDisguised=false |
-| **伪装系统** | DisguiseSystem_NoConfigSafe | 运行时无配置不崩溃 |
-| | DisguiseSystem_CooldownPreventsDisguise | 解除伪装后冷却期间无法再次伪装 |
-| **道具状态机** | ControllableHazard_TelegraphToActive | 触发后从 Idle→Telegraph→Active 正确转换 |
-| | ControllableBlock_TelegraphToActive | 同上 |
-| **移动平台** | MovingPlatform_MovesBetweenPoints | 平台在两点间来回移动 |
-| **胜负判定** | GameManager_MarioReachesGoal_MarioWins | Mario 碰到 GoalZone 后 Mario 胜利 |
-| | GameManager_MarioDies_TricksterWins | Mario 死亡后 Trickster 胜利 |
+| **Mario 移动** | Mario_MoveRight_IncreasesXPosition | 给右方向输入后，Mario X 坐标增加 |
+| | Mario_MoveLeft_DecreasesXPosition | 给左方向输入后，Mario X 坐标减少 |
+| | Mario_StopInput_Decelerates | 松开输入后，Mario 减速停止 |
+| | Mario_Gravity_PullsDown | 无地面时，Mario 因重力下落 |
+| **Mario 跳跃** | Mario_Jump_IncreasesYPosition | 按跳跃后，Mario Y 坐标增加 |
+| | Mario_Bounce_SetsUpwardVelocity | 调用 Bounce() 后，Mario 获得向上速度 |
+| **Mario 状态** | Mario_IsMoving_ReflectsMovement | 有输入时 IsMoving=true，无输入时 IsMoving=false |
+| | Mario_Die_DisablesController | 调用 Die() 后控制器被禁用 |
+| **Trickster** | Trickster_MoveRight_IncreasesXPosition | Trickster 向右移动，X 坐标增加 |
+| | Trickster_IsDisguised_ReturnsFalse_WhenNoDisguiseSystem | 无 DisguiseSystem 时 IsDisguised=false |
+| **伪装系统** | DisguiseSystem_ToggleDisguise_WithoutConfig_StaysUndisuised | 运行时无配置不崩溃，保持未伪装 |
+| | DisguiseSystem_Cooldown_PreventsImmedateReDisguise | 解除伪装后冷却期间无法再次伪装 |
+| **道具状态机** | ControllableHazard_Activate_GoesToTelegraphThenActive | 触发后从 Idle→Telegraph→Active 正确转换 |
+| | ControllableBlock_Activate_GoesToTelegraphThenActive | 同上 |
+| **移动平台** | MovingPlatform_Moves_BetweenPoints | 平台在两点间来回移动 |
+| **胜负判定** | GameManager_MarioReachesGoal_EndRoundMarioWins | Mario 碰到 GoalZone 后触发 EndRound，Mario 胜利 |
+| | GameManager_MarioDies_EndRoundTricksterWins | Mario 死亡后触发 EndRound，Trickster 胜利 |
 | | GameManager_ResetRound_RestoresHealth | 回合重置后 Mario 恢复满血 |
-| **暂停** | GameManager_PauseResume | 暂停时 TimeScale=0，恢复时 TimeScale=1（无 RESUMED 提示） |
-| **InputManager** | InputManager_DisableStopsMovement | 禁用输入后 Mario 不再移动 |
+| **暂停** | GameManager_Pause_StopsTime | 暂停时 TimeScale=0，恢复时 TimeScale=1 |
+| **InputManager** | InputManager_DisableInput_StopsPlayerMovement | 禁用输入后 Mario 不再移动 |
 
-**预期结果**：全部绿色通过（约 20+ 个测试用例）。
-
-> **注意**：Session 12 修复了 GoalZone.ResetTrigger()、GameManager.ResetRound() 重置逻辑、移除了 RESUMED 提示。如果 PlayMode 测试中有涉及多回合或暂停恢复的用例，请确认新行为符合预期。
+**预期结果**：全部绿色通过（21 个测试用例）。
 
 ### 3.4 测试失败怎么办？
 
@@ -372,7 +377,7 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 | 测试 6.5：镜头系统 | ✅ 已通过 | 平滑跟随，无晃动 |
 | 测试 7：胜负判定与UI | ✅ 已通过 | 多回合胜利/失败画面正常显示（B018/B020修复） |
 | 测试 8：暂停系统 | ✅ 已通过 | ESC 暂停显示遮罩+PAUSED，恢复时直接回到游戏（B021修复） |
-| EditMode 自动化测试 | ⬜ 待运行 | 预期 55+ 个用例全部通过 |
-| PlayMode 自动化测试 | ⬜ 待运行 | 预期 20+ 个用例全部通过 |
+| EditMode 自动化测试 | ⬜ 待运行 | 预期 59 个用例全部通过 |
+| PlayMode 自动化测试 | ⬜ 待运行 | 预期 21 个用例全部通过 |
 
 **手动测试进度：9/9 全部通过！剩余自动化测试待运行。**

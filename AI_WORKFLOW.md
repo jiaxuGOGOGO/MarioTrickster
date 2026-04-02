@@ -1,11 +1,12 @@
-# 与 AI 高效协作开发工作流指南
+# AI 协作工作流指南 (AI_WORKFLOW)
 
 **项目名称**：MarioTrickster（非对称对抗平台跳跃游戏）
 **技术栈**：Unity 2022.3 LTS (2D Core)、C#、Rider、GitHub、ComfyUI / Stable Diffusion
 **仓库地址**：`https://github.com/jiaxuGOGOGO/MarioTrickster`
 **本地路径**：`E:\unity project\exercise1\MarioTrickster`
 
-> 更新时间：2026-04-02 (Session 10)
+> 更新时间：2026-04-02 (Session 11)
+> 文件名：`AI_WORKFLOW.md`（原 `与 AI 高效协作开发工作流指南.md`）
 
 本指南旨在帮助你以最低的沟通成本、最少的积分消耗，与 AI 进行最高效的协作开发。遇到特定情况时，直接按目录跳转到对应章节，复制模板使用即可。
 
@@ -89,24 +90,7 @@ git pull
 
 ### 1.1 新对话开启模板
 
-每次开新对话，**只需复制以下内容**（不到10行），填入本次任务后发送：
-
-```
-GitHub Token: ghp_你的token
-仓库：https://github.com/jiaxuGOGOGO/MarioTrickster
-
-请先用 Token 克隆仓库，读取根目录的以下文件获取完整项目上下文：
-1. MarioTrickster_Progress_Summary.md（进度/决策/文件结构/参考项目/开发计划）
-2. 与 AI 高效协作开发工作流指南.md（协作规范/模板/Git流程）
-
-本次任务：[在这里写你要做的事情]
-
-积分提醒：请在我积分接近300时暂停，优先存档推送。
-```
-
-> **💡 进阶技巧**：如果遇到 Bug，可以在"本次任务"中直接附上截图或报错信息（参考 [2.1 报错提问模板](#21-报错提问模板)）。
-
-> **为什么这样最优？** AI 直接从仓库读取最新的 Progress Summary，里面包含了完整的已完成功能、Bug清单、技术决策、文件结构、参考项目、开发计划。你不需要手动维护任何长文本，每次对话结束时 AI 会自动更新这个文件并推送。
+> ⚠️ **注意**：最新版的开场模板已移至 `SESSION_TRACKER.md` 底部，请直接去那里复制。
 
 ### 1.2 上下文保存机制（对话结束前）
 
@@ -535,72 +519,7 @@ Unity Hub → Open → 选择 `E:\unity project\exercise1\MarioTrickster` 文件
 
 ## 6. Unity 项目结构规范
 
-保持项目目录整洁，方便 AI 快速定位文件。当前项目按以下结构组织 Assets 文件夹：
-
-```
-Assets/
-├── Scripts/                    # 所有 C# 脚本
-│   ├── Player/                 # 闯关者相关
-│   │   ├── MarioController.cs      ✅ 已完成
-│   │   └── PlayerHealth.cs          ✅ 已完成
-│   ├── Enemy/                  # 捣蛋者相关
-│   │   ├── TricksterController.cs   ✅ 已完成
-│   │   ├── DisguiseSystem.cs        ✅ 已完成
-│   │   └── SimpleEnemy.cs           ✅ 已完成
-│   ├── Ability/                # Trickster 能力系统
-│   │   ├── IControllableProp.cs     ✅ 已完成
-│   │   ├── ControllablePropBase.cs  ✅ 已完成
-│   │   ├── TricksterAbilitySystem.cs ✅ 已完成
-│   │   ├── ControllablePlatform.cs  ✅ 已完成
-│   │   ├── ControllableHazard.cs    ✅ 已完成
-│   │   ├── ControllableBlock.cs     ✅ 已完成
-│   │   ├── EnergySystem.cs          ✅ 已完成 (Session 10)
-│   │   └── ScanAbility.cs           ✅ 已完成 (Session 10)
-│   ├── Core/                   # 核心系统
-│   │   ├── GameManager.cs           ✅ 已完成
-│   │   ├── InputManager.cs          ✅ 已完成
-│   │   ├── LevelManager.cs          ✅ 已完成
-│   │   ├── GoalZone.cs              ✅ 已完成
-│   │   ├── KillZone.cs              ✅ 已完成
-│   │   ├── DamageDealer.cs          ✅ 已完成
-│   │   ├── Collectible.cs           ✅ 已完成
-│   │   ├── Breakable.cs             ✅ 已完成
-│   │   └── MovingPlatform.cs        ✅ 已完成
-│   ├── Camera/                 # 相机
-│   │   └── CameraController.cs      ✅ 已完成
-│   ├── UI/                     # UI 相关
-│   │   └── GameUI.cs                ✅ 已完成
-│   ├── Editor/                 # 编辑器工具
-│   │   └── TestSceneBuilder.cs      ✅ 已完成
-│   └── Network/                # 联机相关（后期）
-│       └── NetworkManager.cs
-├── Tests/                         # 自动化测试
-│   ├── EditMode/
-│   │   └── ComponentSetupTests.cs   ✅ 44 个测试用例
-│   └── PlayMode/
-│       └── GameplayTests.cs         ✅ 20+ 个测试用例
-├── Sprites/                    # 所有图片素材
-│   ├── Player/
-│   ├── Trickster/
-│   ├── Environment/
-│   ├── Effects/
-│   └── UI/
-├── Animations/                 # 动画文件
-├── Prefabs/                    # 预制体
-│   ├── Mario.prefab
-│   ├── Trickster.prefab
-│   └── DisguiseObjects/
-├── Scenes/
-│   ├── MainMenu.unity
-│   └── Level_01.unity
-├── Tilemaps/
-├── Audio/
-│   ├── BGM/
-│   └── SFX/
-├── InputActions/
-│   └── GameControls.inputactions    ✅ 已配置
-└── Resources/
-```
+> ⚠️ **注意**：完整的项目文件结构树已移至 `MarioTrickster_Progress_Summary.md` 的"八、项目文件结构"章节。
 
 **命名规范**：
 
@@ -701,43 +620,7 @@ Profiler 截图：[如果会用 Unity Profiler，截图发过来]
 
 ## 9. 开发里程碑检查清单
 
-用于追踪项目整体进度，每完成一项打勾：
-
-### Phase 1：原型验证（2-3个月）
-- [x] Unity 项目搭建 + GitHub 配置
-- [x] 综合调研报告 + AI协作工作流文档
-- [x] 开源参考资源调研（GitHub + itch.io）
-- [x] Mario 控制器脚本（MarioController.cs）
-- [x] 生命值系统（PlayerHealth.cs）
-- [x] Trickster 控制器脚本（TricksterController.cs）
-- [x] 伪装/变身系统（DisguiseSystem.cs）
-- [x] 本地双人输入管理（InputManager.cs）
-- [x] 游戏管理器（GameManager.cs）
-- [x] 相机跟随系统（CameraController.cs）
-- [ ] 基础关卡搭建（Tilemap）
-- [ ] 核心玩法验证：**"这好玩吗？"**
-
-### Phase 2：功能完善（3-4个月）
-- [x] 能量系统 + 冷却机制 ✅ Session 10
-- [x] 扫描技能 ✅ Session 10
-- [x] Bug 修复（B011/B012/B014） ✅ Session 10
-- [ ] 多层级预警系统
-- [ ] 扩展变身种类（5-8种）
-- [ ] 基础 UI 升级（Canvas UI 替代 OnGUI）
-- [ ] 角色互换赛制
-
-### Phase 3：内容制作（4-6个月）
-- [ ] 4-6个完整关卡
-- [ ] AI 批量生成美术素材
-- [ ] 动画与特效完善
-- [ ] 音效与背景音乐
-- [ ] 联机框架搭建
-
-### Phase 4：测试与发布（2-3个月）
-- [ ] Bug 修复
-- [ ] 平衡性微调
-- [ ] 性能优化
-- [ ] 准备发布
+> ⚠️ **注意**：完整的开发计划和里程碑追踪已移至 `MarioTrickster_Progress_Summary.md` 的"五、下一步开发计划"章节。
 
 ---
 

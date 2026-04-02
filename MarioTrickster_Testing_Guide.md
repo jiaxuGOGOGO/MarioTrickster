@@ -286,10 +286,12 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 | **胜负判定** | GameManager_MarioReachesGoal_MarioWins | Mario 碰到 GoalZone 后 Mario 胜利 |
 | | GameManager_MarioDies_TricksterWins | Mario 死亡后 Trickster 胜利 |
 | | GameManager_ResetRound_RestoresHealth | 回合重置后 Mario 恢复满血 |
-| **暂停** | GameManager_PauseResume | 暂停时 TimeScale=0，恢复时 TimeScale=1 |
+| **暂停** | GameManager_PauseResume | 暂停时 TimeScale=0，恢复时 TimeScale=1（无 RESUMED 提示） |
 | **InputManager** | InputManager_DisableStopsMovement | 禁用输入后 Mario 不再移动 |
 
-**预期结果**：全部绿色通过（约 20 个测试用例）。
+**预期结果**：全部绿色通过（约 20+ 个测试用例）。
+
+> **注意**：Session 12 修复了 GoalZone.ResetTrigger()、GameManager.ResetRound() 重置逻辑、移除了 RESUMED 提示。如果 PlayMode 测试中有涉及多回合或暂停恢复的用例，请确认新行为符合预期。
 
 ### 3.4 测试失败怎么办？
 
@@ -315,6 +317,8 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 | 操控道具 | — | **L** |
 | 暂停 | ESC | ESC |
 | 快速重启 | F5 | F5 |
+| **回合结束后重启** | **R** | **R** |
+| **回合结束后下一回合** | **N** | **N** |
 
 ---
 

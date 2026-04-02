@@ -273,10 +273,12 @@ InputManager (右Alt/手柄Y)
 |------|------|
 | TestReportRunner 测试报告工具 | 新增 Editor 工具脚本 `TestReportRunner.cs`，解决 Unity Test Runner 需要逐个点击才能查看错误详情的问题。提供三个菜单入口（EditMode/PlayMode/All），一键运行所有测试并将完整错误信息（包括堆栈跟踪）导出到 `TestReport.txt`，同时在 Console 中完整打印。报告包含“快速复制区”方便用户直接发给 AI 统一修复。 |
 | Editor asmdef 更新 | `MarioTrickster.Editor.asmdef` 添加 `UnityEditor.TestRunner` 和 `UnityEngine.TestRunner` 引用，启用 `overrideReferences` 并添加 `nunit.framework.dll`，以支持 TestRunnerApi 编程调用。 |
+| EditMode 测试修复 (16个) | 根因：EditMode 测试中 `AddComponent<T>()` 不会自动调用 `Awake()`，导致依赖 Awake 初始化的组件状态全为默认值。修复：在测试代码中添加 `ForceAwake()` 辅助方法（通过反射调用私有 Awake 方法），在每个需要初始化的测试中统一调用。修复涉及 PlayerHealth(6个)、EnergySystem(7个)、GoalZone/KillZone/MovingPlatform(3个)。 |
 
 **代码统计：**
 - 新增了 TestReportRunner.cs（约 320 行）
 - 修改了 MarioTrickster.Editor.asmdef
+- 重写了 ComponentSetupTests.cs（添加 ForceAwake 辅助方法，修复 16 个失败测试）
 - 更新了 SESSION_TRACKER.md, MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
 
 ---

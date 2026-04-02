@@ -208,7 +208,8 @@ InputManager (右Alt/手柄Y)
 | B013 | ✅ **已修复 (Session 9)** TestSceneBuilder 中 LevelManager 字段名错误 | — | — |
 | B014 | ✅ **已修复 (Session 10)** ESC 暂停后再按 ESC 恢复无反馈 | — | 根因：同 B011，暂停状态下 ESC 按键检测被跳过。已修复逻辑，并在 GameUI 添加了"已恢复"的短暂提示。 |
 | B015 | ✅ **已修复 (Session 11)** 扫描成功时脉冲颜色首帧错误 + 屏幕下方矛盾提示 | — | 根因：StartPulse() 在 CheckForTrickster() 之前调用，首帧脉冲颜色用上次 tricksterFound 值。修复：先检测再启动脉冲。新增 Mario 下方扫描结果文字提示（区分范围内/外/未伪装）。 |
-| B016 | ✅ **已修复 (Session 11)** 镜头来回轻微晃动 | — | 根因三重叠加：(1) LookAhead 依赖 IsMoving 属性在静止时频繁切换；(2) 死区边缘振荡；(3) Shake 协程永久偏移相机。修复：滞后移动检测 + 渐进式死区 + 独立震动偏移量 + SmoothDamp 替代 Lerp。 |
+| B016 | ✅ **已修复已验证 (Session 11)** 镜头来回轻微晃动 | — | 根因：Main Camera 上被挂了 5 个 CameraController 组件，互相覆盖导致晃动。修复：用户手动删除多余 4 个组件。代码层面也重写了 CameraController（不再依赖 Velocity，改用帧间位置差值）。 |
+| B017 | 🔧 **已修复，待测试 (Session 11)** 到达终点无胜利提示 | P0 | Mario 走到绿色方块(GoalZone)后没有触发胜利画面。修复：增加 OnTriggerStay2D 双保险 + 4种Mario检测方式 + 详细Debug日志 + OnDrawGizmos可视化。 |
 
 ### 关于 B002 的修复方法
 
@@ -276,9 +277,13 @@ InputManager (右Alt/手柄Y)
 - 新增了 SESSION_TRACKER.md
 - 更新了 MarioTrickster_Progress_Summary.md, MarioTrickster_Testing_Guide.md
 
-**待测试项（详见 SESSION_TRACKER.md）：**
-- B016 镜头晃动修复：静止/移动→停止/方向切换/跳跃/边界
-- B015 扫描提示修复：范围内/外/未伪装扫描 + 矛盾提示消除
+**已验证通过：**
+- B016 镜头晃动：✅ 删除多余组件后稳定
+- B015 扫描提示：✅ 伪装后扫描正常，未伪装显示正确
+
+**待测试（详见 SESSION_TRACKER.md）：**
+- B017 终点胜利判定：Mario走到绿色方块应触发胜利画面
+- Trickster 状态文字：左上角应显示黄色状态信息
 
 ---
 

@@ -174,6 +174,12 @@ public class TestSceneBuilder : Editor
 
             CameraController camCtrl = mainCam.gameObject.AddComponent<CameraController>();
             SetSerializedField(camCtrl, "target", mario.transform);
+            // B027: 设置相机边界覆盖整个闯关场景
+            SetSerializedField(camCtrl, "useBounds", true);
+            SetSerializedField(camCtrl, "minX", -5f);
+            SetSerializedField(camCtrl, "maxX", totalLength + 10f);
+            SetSerializedField(camCtrl, "minY", -5f);
+            SetSerializedField(camCtrl, "maxY", 25f);
             mainCam.transform.position = new Vector3(0, 2, -10);
             mainCam.orthographicSize = 7;
         }

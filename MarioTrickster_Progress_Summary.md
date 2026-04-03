@@ -240,6 +240,7 @@ InputManager (右Alt/手柄Y)
 | B024 | ✅ **已修复 (Session 16)** UI时间显示不全（被裁剪） | P1 | 根因：GameUI.cs 中计时器 Rect 宽度不足且 Y 偏移太小。修复：加宽显示区域（120→60）并增加 Y 偏移（8px）。 |
 | B025 | ✅ **已实现 (Session 16)** 新增无冷却调试开关 (F9) | P0 | 在 GameManager 中添加 `noCooldownMode` 全局开关，F9 键切换。开启时自动清除 DisguiseSystem、ScanAbility、ControllablePropBase 的冷却。三个系统均新增 ResetCooldown() 方法。GameUI 显示绿色 "[F9] NO COOLDOWN" 指示器。 |
 | B026 | ✅ **已实现 (Session 16)** 测试场景重构为闯关形式 + 场景指示标签 | P0 | TestSceneBuilder 完全重写，按 Testing_Guide 测试顺序从左到右排列 9 个 Stage + 终点 GoalZone。每个区域有金黄色大标题 + 白色操作说明（TextMesh），Stage 9 内部分 9A-9I 子区域。 |
+| B027 | ✅ **已修复 (Session 16)** 闯关场景相机边界未设置，Stage 3 后镜头不跟随 | P0 | 根因：TestSceneBuilder 重写后未设置 CameraController 的边界参数，默认 maxX=100 而场景总长约 260。修复：在 TestSceneBuilder 中通过 SetSerializedField 设置 useBounds/minX/maxX/minY/maxY 覆盖整个场景。 |
 
 ### 关于 B002 的修复方法
 
@@ -311,7 +312,8 @@ InputManager (右Alt/手柄Y)
 - 修改 GameManager.cs（新增 noCooldownMode + F9 切换 + ClearAllCooldowns）
 - 修改 DisguiseSystem.cs、ScanAbility.cs、ControllablePropBase.cs（新增 ResetCooldown）
 - 修改 CollapsingPlatform.cs（stateTimer → collapseTimer）
-- 重写 TestSceneBuilder.cs（闯关形式 + 场景指示标签）
+- 重写 TestSceneBuilder.cs（闯关形式 + 场景指示标签 + B027 相机边界设置）
+- 新增 SESSION_TRACKER §0.8 测试场景同步规则
 - 更新 SESSION_TRACKER.md、MarioTrickster_Progress_Summary.md、MASTER_TRACKER.md
 
 ---

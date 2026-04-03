@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-02 (Session 14) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
+> 更新时间：2026-04-03 (Session 16) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
 > **AI 入口**：每次新对话优先读取 `SESSION_TRACKER.md`（当前状态 + AI 行为规范 + 回归清单 + 待办队列），需要完整上下文时再读本文件，需要纵览全局时读 `MASTER_TRACKER.md`
 
 ---
@@ -122,7 +122,7 @@
 | BouncingEnemy.cs | Assets/Scripts/LevelElements/Traps/ | ✅ | 弹跳小怪物（周期弹跳，可踩踏，可操控） |
 | BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ | 弹跳平台（带挤压动画，可操控） |
 | OneWayPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ | 单向平台（下蹲可落下，不可操控） |
-| CollapsingPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ | 崩塌平台（踩踏后抖动掉落，可操控） |
+| CollapsingPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 16 修复** | 崩塌平台（踩踏后抖动掉落，可操控）。B022修复：重命名 stateTimer → collapseTimer 消除与基类字段隐藏 |
 | HiddenPassage.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ | 隐藏通道（地下管道传送，可操控） |
 | FakeWall.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ | 伪装墙壁（进入后变透明，可操控） |
 
@@ -235,6 +235,7 @@ InputManager (右Alt/手柄Y)
 | B019 | ✅ **已修复已验证 (Session 12)** originalColor 序列化冲突 | P0 | 根因：ControllableBlock 和父类 ControllablePropBase 都声明了 private Color originalColor。修复：父类改为 protected，子类移除重复声明。 |
 | B020 | ✅ **已修复已验证 (Session 12)** 第二回合终点无反应 | P0 | 根因：GoalZone.triggered 在第一回合设为 true 后，ResetRound 未重置。修复：GoalZone 新增 ResetTrigger() 方法，GameManager.ResetRound() 调用它。 |
 | B021 | ✅ **已修复已验证 (Session 12)** RESUMED 恢复提示多余 | P1 | 用户反馈暂停恢复后显示 RESUMED 没必要。已移除 GameManager 和 GameUI 中的恢复提示逻辑。 |
+| B022 | ✅ **已修复 (Session 16)** CollapsingPlatform stateTimer 字段隐藏冲突 | P0 | 根因：CollapsingPlatform 第 36 行声明了 `private float stateTimer`，与爷父类 ControllablePropBase 第 52 行的 `protected float stateTimer` 重名，导致 C# 字段隐藏。修复：重命名为 `collapseTimer`，语义更清晰且消除隐藏冲突。 |
 
 ### 关于 B002 的修复方法
 
@@ -285,6 +286,20 @@ InputManager (右Alt/手柄Y)
 ---
 
 ## 六、Session 历史记录
+
+### Session 16 记录（2026-04-03）
+
+**本次完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| B022 CollapsingPlatform stateTimer 字段隐藏修复 | 根因：CollapsingPlatform 声明了 `private float stateTimer`，与爷父类 ControllablePropBase 的 `protected float stateTimer` 重名，导致 C# 字段隐藏。修复：重命名为 `collapseTimer`，语义更清晰且消除隐藏冲突。其他 8 个关卡元素均无同名字段冲突。 |
+
+**代码统计：**
+- 修改 CollapsingPlatform.cs（10 处替换：`stateTimer` → `collapseTimer`）
+- 更新 SESSION_TRACKER.md、MarioTrickster_Progress_Summary.md、MASTER_TRACKER.md
+
+---
 
 ### Session 14 记录（2026-04-02）
 
@@ -659,7 +674,7 @@ Assets/
 │   │   ├── Platforms/               ✅ 平台类
 │   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台
 │   │   │   ├── OneWayPlatform.cs    ✅ 单向平台
-│   │   │   └── CollapsingPlatform.cs ✅ 崩塌平台
+│   │   │   └── CollapsingPlatform.cs ✅ 崩塌平台 (Session 16 修复: stateTimer→collapseTimer)
 │   │   └── HiddenPassages/          ✅ 隐藏通道类
 │   │       ├── HiddenPassage.cs     ✅ 隐藏通道
 │   │       └── FakeWall.cs          ✅ 伪装墙壁

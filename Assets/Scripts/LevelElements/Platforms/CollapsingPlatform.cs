@@ -33,7 +33,7 @@ public class CollapsingPlatform : ControllableLevelElement
     // 状态
     private enum CollapseState { Stable, Shaking, Collapsed, Respawning }
     private CollapseState state = CollapseState.Stable;
-    private float stateTimer;
+    private float collapseTimer;
     private Vector3 initialPosition;
     private Color initialColor;
 
@@ -69,12 +69,12 @@ public class CollapsingPlatform : ControllableLevelElement
                 // 颜色渐变提示
                 if (sr != null)
                 {
-                    float progress = 1f - (stateTimer / collapseDelay);
+                    float progress = 1f - (collapseTimer / collapseDelay);
                     sr.color = Color.Lerp(initialColor, new Color(1, 0.3f, 0.3f, 0.5f), progress);
                 }
 
-                stateTimer -= Time.deltaTime;
-                if (stateTimer <= 0f || tricksterForceCollapse)
+                collapseTimer -= Time.deltaTime;
+                if (collapseTimer <= 0f || tricksterForceCollapse)
                 {
                     Collapse();
                 }
@@ -83,8 +83,8 @@ public class CollapsingPlatform : ControllableLevelElement
             case CollapseState.Collapsed:
                 if (canRespawn)
                 {
-                    stateTimer -= Time.deltaTime;
-                    if (stateTimer <= 0f)
+                    collapseTimer -= Time.deltaTime;
+                    if (collapseTimer <= 0f)
                     {
                         Respawn();
                     }
@@ -93,13 +93,13 @@ public class CollapsingPlatform : ControllableLevelElement
 
             case CollapseState.Respawning:
                 // 渐显动画
-                stateTimer -= Time.deltaTime;
+                collapseTimer -= Time.deltaTime;
                 if (sr != null)
                 {
-                    float alpha = 1f - (stateTimer / 0.5f);
+                    float alpha = 1f - (collapseTimer / 0.5f);
                     sr.color = new Color(initialColor.r, initialColor.g, initialColor.b, alpha);
                 }
-                if (stateTimer <= 0f)
+                if (collapseTimer <= 0f)
                 {
                     state = CollapseState.Stable;
                     if (sr != null) sr.color = initialColor;
@@ -124,14 +124,14 @@ public class CollapsingPlatform : ControllableLevelElement
     private void StartShaking()
     {
         state = CollapseState.Shaking;
-        stateTimer = collapseDelay;
+        collapseTimer = collapseDelay;
         Debug.Log($"[CollapsingPlatform] {gameObject.name} 开始震动，{collapseDelay}秒后崩塌");
     }
 
     private void Collapse()
     {
         state = CollapseState.Collapsed;
-        stateTimer = respawnDelay;
+        collapseTimer = respawnDelay;
         boxCollider.enabled = false;
         transform.localPosition = initialPosition;
 
@@ -144,7 +144,7 @@ public class CollapsingPlatform : ControllableLevelElement
     private void Respawn()
     {
         state = CollapseState.Respawning;
-        stateTimer = 0.5f; // 渐显时间
+        collapseTimer = 0.5f; // 渐显时间
         Debug.Log($"[CollapsingPlatform] {gameObject.name} 开始重生");
     }
 
@@ -175,7 +175,7 @@ public class CollapsingPlatform : ControllableLevelElement
     {
         base.OnLevelReset();
         state = CollapseState.Stable;
-        stateTimer = 0f;
+        collapseTimer = 0f;
         boxCollider.enabled = true;
         transform.localPosition = initialPosition;
         if (sr != null) sr.color = initialColor;

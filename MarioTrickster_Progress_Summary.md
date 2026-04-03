@@ -241,6 +241,8 @@ InputManager (右Alt/手柄Y)
 | B025 | ✅ **已实现 (Session 16)** 新增无冷却调试开关 (F9) | P0 | 在 GameManager 中添加 `noCooldownMode` 全局开关，F9 键切换。开启时自动清除 DisguiseSystem、ScanAbility、ControllablePropBase 的冷却。三个系统均新增 ResetCooldown() 方法。GameUI 显示绿色 "[F9] NO COOLDOWN" 指示器。 |
 | B026 | ✅ **已实现 (Session 16)** 测试场景重构为闯关形式 + 场景指示标签 | P0 | TestSceneBuilder 完全重写，按 Testing_Guide 测试顺序从左到右排列 9 个 Stage + 终点 GoalZone。每个区域有金黄色大标题 + 白色操作说明（TextMesh），Stage 9 内部分 9A-9I 子区域。 |
 | B027 | ✅ **根本修复 (Session 17)** 闯关场景相机边界未设置，Stage 3 后镜头不跟随 | P0 | 根因：`LevelManager.Start()` 在运行时调用 `CameraController.SetBounds()` 用默认值 `levelMaxX=50` 覆盖了 TestSceneBuilder 设置的正确边界 `maxX≈70`。Session 16 仅设置了 CameraController 的值但忽略了 LevelManager 会覆盖。Session 17 修复：在 TestSceneBuilder 中同步设置 LevelManager 的 levelMinX/levelMaxX/levelMinY/levelMaxY 字段。 |
+| B028 | ✅ **已修复 (Session 17)** Trickster 跳到 Mario 头上无法跳走（角色碰撞卡死） | P0 | 根因：Mario 和 Trickster 都在 Default Layer，物理碰撞让 Trickster 卡在 Mario 头上，但地面检测 BoxCast 只检测 Ground Layer，所以 `_grounded=false` 无法跳跃。修复：创建 Player/Trickster 专用 Layer，`Physics2D.IgnoreLayerCollision` 禁用两者碰撞，角色互相穿过不会卡住。 |
+| B029 | ⚠️ **待修复 (Session 17 分析完成，方案待确认)** 伪装后按 L 无法控制平台 + 移动平台上难以融入 | P0 | 根因二合一：1) `TricksterAbilitySystem` 只在变身瞬间绑定最近道具（bindOnDisguise=true），后续不重新绑定；2) `DisguiseSystem` 融入检测用世界坐标绝对静止（位移<0.01），在移动平台上平台速度被注入角色导致永远无法融入。方案：A) 动态重绑定（每次按L时重新搜索最近道具）；B) 平台相对静止检测（减去平台速度后判断）；C) 扩大操控范围至5格。 |
 
 ### 关于 B002 的修复方法
 
@@ -300,6 +302,7 @@ InputManager (右Alt/手柄Y)
 |------|------|
 | B027 根本修复: 相机边界被 LevelManager 覆盖 | 根因：`LevelManager.Start()` 在运行时调用 `CameraController.SetBounds()` 用默认值 `levelMaxX=50` 覆盖了 TestSceneBuilder 设置的正确边界。Session 16 仅设置了 CameraController 的值但忽略了 LevelManager 会覆盖。修复：在 TestSceneBuilder 中同步设置 LevelManager 的 levelMinX/levelMaxX/levelMinY/levelMaxY 字段 |
 | B028 修复: Trickster 跳到 Mario 头上无法跳走 | 根因：Mario 和 Trickster 都在 Default Layer，物理碰撞让 Trickster 卡在 Mario 头上，但地面检测 BoxCast 只检测 Ground Layer，所以 `_grounded=false` 无法跳跃。修复：创建 Player/Trickster 专用 Layer，`Physics2D.IgnoreLayerCollision` 禁用两者碰撞，角色互相穿过不会卡住 |
+| B029 分析: 伪装后无法 L 控制平台 + 移动平台上难以融入 | 根因二合一：1) TricksterAbilitySystem 只在变身瞬间绑定最近道具，后续不重新绑定；2) DisguiseSystem 融入检测用世界坐标绝对静止，在移动平台上平台速度被注入角色导致永远无法融入。方案已提出待用户确认：A) 动态重绑定 B) 平台相对静止检测 C) 扩大操控范围 |
 
 **代码统计：**
 - 修改 TestSceneBuilder.cs（B027 LevelManager 边界 + B028 Player/Trickster Layer 分离 + 禁用碰撞）

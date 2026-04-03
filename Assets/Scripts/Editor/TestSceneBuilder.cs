@@ -163,6 +163,12 @@ public class TestSceneBuilder : Editor
         SetSerializedField(gameManager, "tricksterSpawnPoint", tricksterSpawn.transform);
         SetSerializedField(levelManager, "marioSpawnPoint", marioSpawn.transform);
         SetSerializedField(levelManager, "tricksterSpawnPoint", tricksterSpawn.transform);
+        // B027 根本修复: LevelManager.Start() 会调用 CameraController.SetBounds() 覆盖相机边界，
+        // 必须同步设置 LevelManager 的边界字段，否则运行时会用默认值 maxX=50 覆盖正确值
+        SetSerializedField(levelManager, "levelMinX", -5f);
+        SetSerializedField(levelManager, "levelMaxX", totalLength + 10f);
+        SetSerializedField(levelManager, "levelMinY", -10f);
+        SetSerializedField(levelManager, "levelMaxY", 25f);
 
         // 相机
         Camera mainCam = Camera.main;
@@ -175,6 +181,8 @@ public class TestSceneBuilder : Editor
             CameraController camCtrl = mainCam.gameObject.AddComponent<CameraController>();
             SetSerializedField(camCtrl, "target", mario.transform);
             // B027: 设置相机边界覆盖整个闯关场景
+            // 注意: LevelManager.Start() 会再次调用 SetBounds 覆盖这些值，
+            // 因此上方已同步设置 LevelManager 的边界字段
             SetSerializedField(camCtrl, "useBounds", true);
             SetSerializedField(camCtrl, "minX", -5f);
             SetSerializedField(camCtrl, "maxX", totalLength + 10f);

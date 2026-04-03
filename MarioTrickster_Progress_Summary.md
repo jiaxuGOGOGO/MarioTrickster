@@ -105,7 +105,7 @@
 | MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **Session 6 重写** | Kinematic Rigidbody2D + MovePosition() + 速度注入法跟随角色（不使用 SetParent） |
 | SimpleEnemy.cs | Assets/Scripts/Enemy/ | ✅ | 简单巡逻敌人，边缘/墙壁检测自动转向，可被踩消灭 |
 | GameUI.cs | Assets/Scripts/UI/ | ✅ **Session 16 更新** | 基础HUD（生命值/计时器/回合信息/胜负画面/能量显示）。B024修复：加宽计时器显示区域。B025新增：无冷却模式指示器显示 |
-| LevelManager.cs | Assets/Scripts/Core/ | ✅ | 关卡管理（出生点/边界/可伪装对象列表） |
+| LevelManager.cs | Assets/Scripts/Core/ | ✅ | 关卡管理（出生点/边界/可伪装对象列表）。注意：Start() 中会调用 CameraController.SetBounds() 覆盖相机边界 |
 
 ### 2.6 关卡设计系统（Sprint 2 - Session 15 新增）
 
@@ -240,7 +240,7 @@ InputManager (右Alt/手柄Y)
 | B024 | ✅ **已修复 (Session 16)** UI时间显示不全（被裁剪） | P1 | 根因：GameUI.cs 中计时器 Rect 宽度不足且 Y 偏移太小。修复：加宽显示区域（120→60）并增加 Y 偏移（8px）。 |
 | B025 | ✅ **已实现 (Session 16)** 新增无冷却调试开关 (F9) | P0 | 在 GameManager 中添加 `noCooldownMode` 全局开关，F9 键切换。开启时自动清除 DisguiseSystem、ScanAbility、ControllablePropBase 的冷却。三个系统均新增 ResetCooldown() 方法。GameUI 显示绿色 "[F9] NO COOLDOWN" 指示器。 |
 | B026 | ✅ **已实现 (Session 16)** 测试场景重构为闯关形式 + 场景指示标签 | P0 | TestSceneBuilder 完全重写，按 Testing_Guide 测试顺序从左到右排列 9 个 Stage + 终点 GoalZone。每个区域有金黄色大标题 + 白色操作说明（TextMesh），Stage 9 内部分 9A-9I 子区域。 |
-| B027 | ✅ **已修复 (Session 16)** 闯关场景相机边界未设置，Stage 3 后镜头不跟随 | P0 | 根因：TestSceneBuilder 重写后未设置 CameraController 的边界参数，默认 maxX=100 而场景总长约 260。修复：在 TestSceneBuilder 中通过 SetSerializedField 设置 useBounds/minX/maxX/minY/maxY 覆盖整个场景。 |
+| B027 | ✅ **根本修复 (Session 17)** 闯关场景相机边界未设置，Stage 3 后镜头不跟随 | P0 | 根因：`LevelManager.Start()` 在运行时调用 `CameraController.SetBounds()` 用默认值 `levelMaxX=50` 覆盖了 TestSceneBuilder 设置的正确边界 `maxX≈70`。Session 16 仅设置了 CameraController 的值但忽略了 LevelManager 会覆盖。Session 17 修复：在 TestSceneBuilder 中同步设置 LevelManager 的 levelMinX/levelMaxX/levelMinY/levelMaxY 字段。 |
 
 ### 关于 B002 的修复方法
 
@@ -291,6 +291,20 @@ InputManager (右Alt/手柄Y)
 ---
 
 ## 六、Session 历史记录
+
+### Session 17 记录（2026-04-03）
+
+**本次完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| B027 根本修复: 相机边界被 LevelManager 覆盖 | 根因：`LevelManager.Start()` 在运行时调用 `CameraController.SetBounds()` 用默认值 `levelMaxX=50` 覆盖了 TestSceneBuilder 设置的正确边界。Session 16 仅设置了 CameraController 的值但忽略了 LevelManager 会覆盖。修复：在 TestSceneBuilder 中同步设置 LevelManager 的 levelMinX/levelMaxX/levelMinY/levelMaxY 字段 |
+
+**代码统计：**
+- 修改 TestSceneBuilder.cs（新增 LevelManager 边界字段设置 + 注释说明）
+- 更新 SESSION_TRACKER.md、MarioTrickster_Progress_Summary.md、MASTER_TRACKER.md
+
+---
 
 ### Session 16 记录（2026-04-03）
 

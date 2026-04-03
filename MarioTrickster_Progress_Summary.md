@@ -299,9 +299,10 @@ InputManager (右Alt/手柄Y)
 | 项目 | 说明 |
 |------|------|
 | B027 根本修复: 相机边界被 LevelManager 覆盖 | 根因：`LevelManager.Start()` 在运行时调用 `CameraController.SetBounds()` 用默认值 `levelMaxX=50` 覆盖了 TestSceneBuilder 设置的正确边界。Session 16 仅设置了 CameraController 的值但忽略了 LevelManager 会覆盖。修复：在 TestSceneBuilder 中同步设置 LevelManager 的 levelMinX/levelMaxX/levelMinY/levelMaxY 字段 |
+| B028 修复: Trickster 跳到 Mario 头上无法跳走 | 根因：Mario 和 Trickster 都在 Default Layer，物理碰撞让 Trickster 卡在 Mario 头上，但地面检测 BoxCast 只检测 Ground Layer，所以 `_grounded=false` 无法跳跃。修复：创建 Player/Trickster 专用 Layer，`Physics2D.IgnoreLayerCollision` 禁用两者碰撞，角色互相穿过不会卡住 |
 
 **代码统计：**
-- 修改 TestSceneBuilder.cs（新增 LevelManager 边界字段设置 + 注释说明）
+- 修改 TestSceneBuilder.cs（B027 LevelManager 边界 + B028 Player/Trickster Layer 分离 + 禁用碰撞）
 - 更新 SESSION_TRACKER.md、MarioTrickster_Progress_Summary.md、MASTER_TRACKER.md
 
 ---

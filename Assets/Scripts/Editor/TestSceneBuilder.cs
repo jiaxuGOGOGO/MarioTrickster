@@ -60,6 +60,12 @@ public class TestSceneBuilder : Editor
         int groundLayerIndex = EnsureLayerExists(GROUND_LAYER_NAME);
         LayerMask groundLayerMask = 1 << groundLayerIndex;
 
+        // B028: 创建 Player 和 Trickster 专用 Layer，禁用两者之间的物理碰撞
+        // 根因: Mario 和 Trickster 都在 Default Layer，物理碰撞导致 Trickster 卡在 Mario 头上无法跳走
+        int playerLayerIndex = EnsureLayerExists("Player");
+        int tricksterLayerIndex = EnsureLayerExists("Trickster");
+        Physics2D.IgnoreLayerCollision(playerLayerIndex, tricksterLayerIndex, true);
+
         // ═══════════════════════════════════════════════════
         // 全局地面 — 贯穿整个关卡的长地面
         // ═══════════════════════════════════════════════════
@@ -85,7 +91,7 @@ public class TestSceneBuilder : Editor
         float marioStartX = 2f;
         GameObject mario = new GameObject("Mario");
         mario.tag = "Player";
-        mario.layer = LayerMask.NameToLayer("Default");
+        mario.layer = playerLayerIndex; // B028: 使用专用 Player Layer
         mario.transform.position = new Vector3(marioStartX, 1, 0);
 
         SpriteRenderer marioSR = mario.AddComponent<SpriteRenderer>();
@@ -112,7 +118,7 @@ public class TestSceneBuilder : Editor
         // ═══════════════════════════════════════════════════
         float tricksterStartX = StageStartX(1) + 5f;
         GameObject trickster = new GameObject("Trickster");
-        trickster.layer = LayerMask.NameToLayer("Default");
+        trickster.layer = tricksterLayerIndex; // B028: 使用专用 Trickster Layer
         trickster.transform.position = new Vector3(tricksterStartX, 1, 0);
 
         SpriteRenderer tricksterSR = trickster.AddComponent<SpriteRenderer>();

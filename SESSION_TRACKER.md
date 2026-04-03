@@ -144,7 +144,7 @@ AI 每次 `git push` 前，根据本次修改类型，按表逐行检查：
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 17 (B027 根本修复: LevelManager 边界覆盖相机边界) |
+| **最新 Session** | Session 17 (B027 根本修复 + B028 角色碰撞卡死修复) |
 | **日期** | 2026-04-03 |
 | **分支** | master |
 | **项目阶段** | 游戏体验提升 (Sprint 2 进行中) |
@@ -202,6 +202,8 @@ Session 12 修复汇总：
 | 🔄 UI 显示 | GameUI.cs 修改了计时器显示区域 + 新增无冷却指示器 | 确认时间显示完整不被裁剪 |
 | 🔄 场景生成 | TestSceneBuilder.cs 完全重写为闯关形式 | Clear + Build 后确认 9 个 Stage + 标签正常显示 |
 | 🔄 测试 6.5：镜头系统 | B027 根本修复: LevelManager.Start() 覆盖相机边界 (maxX=50) | 走完全部 Stage，确认镜头始终跟随 Mario |
+| 🔄 角色碰撞 | B028: Mario/Trickster 分离到专用 Layer，禁用两者碰撞 | Trickster 走向 Mario 应该互相穿过，不会卡住 |
+| 🔄 测试 7：敌人碰撞 | B028 副作用检查: Mario 在 Player Layer | 确认 SimpleEnemy 仍能碰撞 Mario 造成伤害 |
 
 ---
 
@@ -249,6 +251,7 @@ Session 12 修复汇总：
 | ~~P0~~ | B025 | 新增无冷却调试开关 (F9) | ✅ 已实现 (Session 16) |
 | ~~P0~~ | B026 | 测试场景重构为闯关形式 + 场景指示标签 | ✅ 已实现 (Session 16) |
 | ~~P0~~ | B027 | 闯关场景相机边界未设置，Stage 3 后镜头不跟随 | ✅ 根本修复 (Session 17): LevelManager 边界同步 |
+| ~~P0~~ | B028 | Trickster 跳到 Mario 头上无法跳走（角色碰撞卡死） | ✅ 已修复 (Session 17): Player/Trickster Layer 分离 + 禁用碰撞 |
 | **P1** | — | **关卡设计系统 (Level Design)** | ✅ 框架已完成 |
 | **P1** | — | **音效系统 (Audio)** | 未开始 |
 | P2 | — | 动画系统完善 | 未开始 |

@@ -227,6 +227,16 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
 
     #region 回合重置
 
+    /// <summary>调试用：重置冷却时间（由冷却取消开关调用）</summary>
+    public void ResetCooldown()
+    {
+        if (currentState == PropControlState.Cooldown)
+        {
+            currentState = PropControlState.Idle;
+            stateTimer = 0f;
+        }
+    }
+
     /// <summary>
     /// 重置操控次数（由 GameManager 在新回合开始时调用）
     /// </summary>

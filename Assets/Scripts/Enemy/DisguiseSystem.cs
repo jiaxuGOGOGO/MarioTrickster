@@ -224,6 +224,12 @@ public class DisguiseSystem : MonoBehaviour
         OnDisguiseChanged?.Invoke(false);
     }
 
+    /// <summary>调试用：重置冷却时间（由冷却取消开关调用）</summary>
+    public void ResetCooldown()
+    {
+        cooldownTimer = 0f;
+    }
+
     /// <summary>选择下一个伪装形态</summary>
     public void NextDisguise()
     {

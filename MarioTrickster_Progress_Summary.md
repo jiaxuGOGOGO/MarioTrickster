@@ -104,7 +104,7 @@
 | Breakable.cs | Assets/Scripts/Core/ | ✅ | 可破坏方块（砖块/问号砖块），从下方顶撞触发 |
 | MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **Session 6 重写** | Kinematic Rigidbody2D + MovePosition() + 速度注入法跟随角色（不使用 SetParent） |
 | SimpleEnemy.cs | Assets/Scripts/Enemy/ | ✅ | 简单巡逻敌人，边缘/墙壁检测自动转向，可被踩消灭 |
-| GameUI.cs | Assets/Scripts/UI/ | ✅ **Session 10 更新** | 基础HUD（生命值/计时器/回合信息/胜负画面/能量显示），增强了游戏结束/暂停/操控失败反馈。B018修复：TestSceneBuilder已自动创建GameUI实例 |
+| GameUI.cs | Assets/Scripts/UI/ | ✅ **Session 16 更新** | 基础HUD（生命值/计时器/回合信息/胜负画面/能量显示）。B024修复：加宽计时器显示区域。B025新增：无冷却模式指示器显示 |
 | LevelManager.cs | Assets/Scripts/Core/ | ✅ | 关卡管理（出生点/边界/可伪装对象列表） |
 
 ### 2.6 关卡设计系统（Sprint 2 - Session 15 新增）
@@ -194,7 +194,7 @@ InputManager (右Alt/手柄Y)
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 15 更新** | Editor 菜单工具，一键生成完整测试场景。Session 15 新增：自动集成关卡设计系统的所有新元素（地刺、摆锤、火焰、弹跳怪、弹跳平台、单向平台、崩塌平台、隐藏通道、伪装墙） |
+| TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 16 重写** | Editor 菜单工具，一键生成闯关式测试场景。按 Testing_Guide 测试顺序从左到右排列 9 个 Stage + 终点。每个区域有金黄色大标题 + 白色操作说明（TextMesh），Stage 9 内部分 9A-9I 子区域 |
 | MarioTrickster.asmdef | Assets/Scripts/ | ✅ **Session 9 新增** | 主项目 Assembly Definition，引用 Unity.InputSystem |
 | MarioTrickster.Editor.asmdef | Assets/Scripts/Editor/ | ✅ **Session 9 新增** | Editor 脚本 Assembly Definition |
 | ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 12 更新** | EditMode 测试（59 个测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用、EnergySystem、ScanAbility、CameraController、GameUI |
@@ -236,6 +236,10 @@ InputManager (右Alt/手柄Y)
 | B020 | ✅ **已修复已验证 (Session 12)** 第二回合终点无反应 | P0 | 根因：GoalZone.triggered 在第一回合设为 true 后，ResetRound 未重置。修复：GoalZone 新增 ResetTrigger() 方法，GameManager.ResetRound() 调用它。 |
 | B021 | ✅ **已修复已验证 (Session 12)** RESUMED 恢复提示多余 | P1 | 用户反馈暂停恢复后显示 RESUMED 没必要。已移除 GameManager 和 GameUI 中的恢复提示逻辑。 |
 | B022 | ✅ **已修复 (Session 16)** CollapsingPlatform stateTimer 字段隐藏冲突 | P0 | 根因：CollapsingPlatform 第 36 行声明了 `private float stateTimer`，与爷父类 ControllablePropBase 第 52 行的 `protected float stateTimer` 重名，导致 C# 字段隐藏。修复：重命名为 `collapseTimer`，语义更清晰且消除隐藏冲突。 |
+| B023 | ✅ **已修复 (Session 16)** 受伤无击退效果（只有红色闪烁+扣血） | P0 | 根因：MarioController/TricksterController 使用 Tarodev 帧速度架构，每帧 FixedUpdate 用 `_frameVelocity` 覆盖 rb.velocity，导致外部 AddForce 产生的击退力在下一帧被覆盖。修复：在两个控制器中添加 knockback stun 机制（ApplyKnockback/isKnockedBack/knockbackTimer），受击期间暂停控制器的速度覆盖。DamageDealer 修改为通知控制器进入 stun 状态。 |
+| B024 | ✅ **已修复 (Session 16)** UI时间显示不全（被裁剪） | P1 | 根因：GameUI.cs 中计时器 Rect 宽度不足且 Y 偏移太小。修复：加宽显示区域（120→60）并增加 Y 偏移（8px）。 |
+| B025 | ✅ **已实现 (Session 16)** 新增无冷却调试开关 (F9) | P0 | 在 GameManager 中添加 `noCooldownMode` 全局开关，F9 键切换。开启时自动清除 DisguiseSystem、ScanAbility、ControllablePropBase 的冷却。三个系统均新增 ResetCooldown() 方法。GameUI 显示绿色 "[F9] NO COOLDOWN" 指示器。 |
+| B026 | ✅ **已实现 (Session 16)** 测试场景重构为闯关形式 + 场景指示标签 | P0 | TestSceneBuilder 完全重写，按 Testing_Guide 测试顺序从左到右排列 9 个 Stage + 终点 GoalZone。每个区域有金黄色大标题 + 白色操作说明（TextMesh），Stage 9 内部分 9A-9I 子区域。 |
 
 ### 关于 B002 的修复方法
 
@@ -293,10 +297,21 @@ InputManager (右Alt/手柄Y)
 
 | 项目 | 说明 |
 |------|------|
-| B022 CollapsingPlatform stateTimer 字段隐藏修复 | 根因：CollapsingPlatform 声明了 `private float stateTimer`，与爷父类 ControllablePropBase 的 `protected float stateTimer` 重名，导致 C# 字段隐藏。修复：重命名为 `collapseTimer`，语义更清晰且消除隐藏冲突。其他 8 个关卡元素均无同名字段冲突。 |
+| B022 CollapsingPlatform stateTimer 字段隐藏修复 | 重命名为 `collapseTimer`，消除与基类字段隐藏冲突 |
+| B023 受伤击退效果修复 | MarioController/TricksterController 添加 knockback stun 机制，受击期间暂停帧速度架构的速度覆盖，让 AddForce 击退力生效。DamageDealer 修改为通知控制器进入 stun 状态 |
+| B024 UI时间显示不全修复 | GameUI.cs 加宽计时器显示区域并增加 Y 偏移，防止被裁剪 |
+| B025 无冷却调试开关 (F9) | GameManager 新增 `noCooldownMode` 全局开关，F9 键切换。开启时自动清除 DisguiseSystem、ScanAbility、ControllablePropBase 的冷却。三个系统均新增 ResetCooldown() 方法。GameUI 显示绿色指示器 |
+| B026 测试场景重构为闯关形式 | TestSceneBuilder 完全重写，按 Testing_Guide 测试顺序从左到右排列 9 个 Stage + 终点 GoalZone。每个区域有金黄色大标题 + 白色操作说明（TextMesh），Stage 9 内部分 9A-9I 子区域 |
 
 **代码统计：**
-- 修改 CollapsingPlatform.cs（10 处替换：`stateTimer` → `collapseTimer`）
+- 修改 MarioController.cs（添加 ApplyKnockback/isKnockedBack/knockbackTimer）
+- 修改 TricksterController.cs（添加 ApplyKnockback/isKnockedBack/knockbackTimer）
+- 修改 DamageDealer.cs（击退后通知控制器进入 stun）
+- 修改 GameUI.cs（加宽计时器 + 无冷却指示器）
+- 修改 GameManager.cs（新增 noCooldownMode + F9 切换 + ClearAllCooldowns）
+- 修改 DisguiseSystem.cs、ScanAbility.cs、ControllablePropBase.cs（新增 ResetCooldown）
+- 修改 CollapsingPlatform.cs（stateTimer → collapseTimer）
+- 重写 TestSceneBuilder.cs（闯关形式 + 场景指示标签）
 - 更新 SESSION_TRACKER.md、MarioTrickster_Progress_Summary.md、MASTER_TRACKER.md
 
 ---

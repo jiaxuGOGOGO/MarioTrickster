@@ -15,6 +15,9 @@ using UnityEngine;
 ///   - 伪装状态下移动速度受 disguisedMoveMultiplier 限制
 ///   - 伪装状态下默认不可跳跃（可在 Inspector 开启）
 ///   - 支持 Coyote Time 和跳跃缓冲，与 Mario 手感一致
+///
+/// Session 16 更新:
+///   B023 - 添加击退 stun 机制：受伤时暂停控制器速度覆盖，让 AddForce 击退力生效
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -53,6 +56,11 @@ public class TricksterController : MonoBehaviour
     [Tooltip("伪装状态下能否跳跃")]
     [SerializeField] private bool canJumpWhileDisguised = false;
 
+    // ── 击退 (Session 16) ────────────────────────────────
+    [Header("击退")]
+    [Tooltip("受击后控制器暂停时长（秒），让击退力生效")]
+    [SerializeField] private float knockbackStunDuration = 0.25f;
+
     // ── 组件 ──────────────────────────────────────────────
     private Rigidbody2D rb;
     private BoxCollider2D boxCollider;
@@ -68,14 +76,12 @@ public class TricksterController : MonoBehaviour
      // ── 帧速度 ────────────────────────────────────────
     private Vector2 _frameVelocity;
 
-    // ── 平台速度注入（由 MovingPlatform / ControllablePlatform 每帧写入）──
-    // 重要：读回 rb.velocity 时必须减去上一帧的平台速度，
-    // 否则平台速度会每帧累积，导致角色被甩飞。
-    private Vector2 _platformVelocity;      // 本帧平台注入的速度
-    private Vector2 _lastPlatformVelocity;  // 上一帧平台注入的速度（用于下帧读回时扣除）
+    // ── 平台速度注入 ──
+    private Vector2 _platformVelocity;
+    private Vector2 _lastPlatformVelocity;
     private bool _onPlatform;
 
-    // ── 地面状态面状态 ──────────────────────────────────────────
+    // ── 地面状态 ──────────────────────────────────────────
     private bool _grounded;
     private float _timeLeftGrounded = float.MinValue;
     private float _time;
@@ -89,6 +95,10 @@ public class TricksterController : MonoBehaviour
 
     private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + jumpBuffer;
     private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + coyoteTime;
+
+    // ── 击退 stun 状态 (Session 16: B023) ─────────────────
+    private bool _isKnockbackStunned;
+    private float _knockbackStunTimer;
 
     // ── 朝向 ──────────────────────────────────────────────
     private bool isFacingRight = true;
@@ -113,7 +123,7 @@ public class TricksterController : MonoBehaviour
         disguiseSystem = GetComponent<DisguiseSystem>();
         abilitySystem = GetComponent<TricksterAbilitySystem>();
 
-        rb.gravityScale = 0f;  // 重力由代码自管
+        rb.gravityScale = 0f;
         rb.freezeRotation = true;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
@@ -133,6 +143,16 @@ public class TricksterController : MonoBehaviour
     {
         _time += Time.deltaTime;
 
+        // 击退 stun 倒计时
+        if (_isKnockbackStunned)
+        {
+            _knockbackStunTimer -= Time.deltaTime;
+            if (_knockbackStunTimer <= 0f)
+            {
+                _isKnockbackStunned = false;
+            }
+        }
+
         if (jumpPressedThisFrame)
         {
             _jumpToConsume = true;
@@ -148,7 +168,26 @@ public class TricksterController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // 读回 rb.velocity 并减去上一帧平台速度，得到角色自身速度
+        // 击退 stun 期间：不覆盖 rb.velocity，让物理引擎的 AddForce 击退力自然衰减
+        if (_isKnockbackStunned)
+        {
+            _lastPlatformVelocity = Vector2.zero;
+            _onPlatform = false;
+            _platformVelocity = Vector2.zero;
+
+            _frameVelocity = rb.velocity;
+
+            if (_frameVelocity.y <= 0f)
+            {
+                _frameVelocity.y = Mathf.MoveTowards(
+                    _frameVelocity.y, -maxFallSpeed, fallAcceleration * Time.fixedDeltaTime);
+            }
+
+            rb.velocity = _frameVelocity;
+            return;
+        }
+
+        // 读回 rb.velocity 并减去上一帧平台速度
         _frameVelocity = rb.velocity - _lastPlatformVelocity;
 
         CheckCollisions();
@@ -156,16 +195,14 @@ public class TricksterController : MonoBehaviour
         HandleDirection();
         HandleGravity();
 
-        // 叠加平台速度（在所有自身速度计算完成后叠加）
+        // 叠加平台速度
         Vector2 platformVelThisFrame = _onPlatform ? _platformVelocity : Vector2.zero;
         _frameVelocity += platformVelThisFrame;
 
         rb.velocity = _frameVelocity;
 
-        // 保存本帧平台速度，下帧读回时用于扣除
         _lastPlatformVelocity = platformVelThisFrame;
 
-        // 每帧重置平台状态（平台脚本每帧重新设置，若未设置则视为不在平台上）
         _onPlatform = false;
         _platformVelocity = Vector2.zero;
     }
@@ -215,7 +252,6 @@ public class TricksterController : MonoBehaviour
 
     private void HandleJump()
     {
-        // 伪装状态下不可跳跃（除非开启 canJumpWhileDisguised）
         if (IsDisguised && !canJumpWhileDisguised)
         {
             _jumpToConsume = false;
@@ -289,6 +325,21 @@ public class TricksterController : MonoBehaviour
     #endregion
 
     // ─────────────────────────────────────────────────────
+    #region 击退 (Session 16: B023)
+
+    /// <summary>
+    /// 外部调用：触发击退 stun，暂停控制器速度覆盖。
+    /// DamageDealer 在 AddForce 之后调用此方法，确保击退力不被覆盖。
+    /// </summary>
+    public void ApplyKnockbackStun(float duration = -1f)
+    {
+        _isKnockbackStunned = true;
+        _knockbackStunTimer = duration > 0f ? duration : knockbackStunDuration;
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
     #region 辅助
 
     private void UpdateFacing()
@@ -338,7 +389,6 @@ public class TricksterController : MonoBehaviour
     {
         if (abilitySystem == null) return;
 
-        // 在调用能力系统之前，检查各种失败条件并触发反馈事件
         string failReason = GetAbilityFailReason();
         if (failReason != null)
         {
@@ -382,7 +432,7 @@ public class TricksterController : MonoBehaviour
             return "Prop not ready!";
         }
 
-        return null; // 可以操控
+        return null;
     }
 
     #endregion

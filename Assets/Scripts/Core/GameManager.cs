@@ -11,6 +11,9 @@ using UnityEngine.SceneManagement;
 ///   计时器归零（可选）           → Trickster 胜利
 /// 
 /// 使用方式: 挂载到场景中的空GameObject上，设为单例
+///
+/// Session 16 更新:
+///   B025 - 添加冷却取消调试开关（F9 键切换），方便测试时快速重复操控
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -45,6 +48,10 @@ public class GameManager : MonoBehaviour
     private int currentRound = 1;
 
     // 恢复提示已移除（用户反馈不需要）
+
+    // B025: 冷却取消调试开关
+    private bool noCooldownMode = false;
+    public bool NoCooldownMode => noCooldownMode;
 
     // 公共属性
     public GameState CurrentState => currentState;
@@ -107,6 +114,18 @@ public class GameManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F5))
         {
             RestartLevel();
+        }
+
+        // B025: 冷却取消开关 (F9 键切换)
+        if (Input.GetKeyDown(KeyCode.F9))
+        {
+            ToggleNoCooldown();
+        }
+
+        // B025: 无冷却模式下每帧清除所有冷却
+        if (noCooldownMode && currentState == GameState.Playing)
+        {
+            ClearAllCooldowns();
         }
 
         // 回合结束后的按键检测
@@ -319,6 +338,46 @@ public class GameManager : MonoBehaviour
 
         // 重新开始
         StartGame();
+    }
+
+    #endregion
+
+    #region B025: 冷却取消调试开关
+
+    /// <summary>切换无冷却模式</summary>
+    private void ToggleNoCooldown()
+    {
+        noCooldownMode = !noCooldownMode;
+        Debug.Log($"[GameManager] 无冷却模式: {(noCooldownMode ? "ON" : "OFF")}");
+        if (noCooldownMode)
+        {
+            ClearAllCooldowns();
+        }
+    }
+
+    /// <summary>清除场景中所有技能/道具的冷却</summary>
+    private void ClearAllCooldowns()
+    {
+        // 清除伪装系统冷却
+        DisguiseSystem[] disguises = FindObjectsOfType<DisguiseSystem>();
+        foreach (DisguiseSystem ds in disguises)
+        {
+            ds.ResetCooldown();
+        }
+
+        // 清除扫描技能冷却
+        ScanAbility[] scans = FindObjectsOfType<ScanAbility>();
+        foreach (ScanAbility sa in scans)
+        {
+            sa.ResetCooldown();
+        }
+
+        // 清除可操控道具冷却
+        ControllablePropBase[] props = FindObjectsOfType<ControllablePropBase>();
+        foreach (ControllablePropBase prop in props)
+        {
+            prop.ResetCooldown();
+        }
     }
 
     #endregion

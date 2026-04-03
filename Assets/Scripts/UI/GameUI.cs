@@ -12,6 +12,7 @@ using UnityEngine.UI;
 ///   B011 - 游戏结束画面增强：全屏遮罩 + 大号胜利文字 + 闪烁提示 + Input.GetKeyDown 检测
 ///   B014 - 暂停反馈：暂停时显示半透明遮罩（恢复提示已根据用户反馈移除）
 ///   B012 - 道具操控失败反馈：屏幕下方显示失败原因提示（自动消失）
+///   B024 - 计时器显示区域加宽，防止文字被裁剪
 /// </summary>
 public class GameUI : MonoBehaviour
 {
@@ -228,7 +229,8 @@ public class GameUI : MonoBehaviour
 
             labelStyle.normal.textColor = time < 30f ? Color.red : Color.white;
             labelStyle.alignment = TextAnchor.MiddleCenter;
-            GUI.Label(new Rect(Screen.width / 2 - 50, 20, 100, 40), $"{minutes:00}:{seconds:00}", labelStyle);
+            // B024: 加宽显示区域，增加 Y 偏移，防止时间文字被裁剪
+            GUI.Label(new Rect(Screen.width / 2 - 80, 8, 160, 40), $"{minutes:00}:{seconds:00}", labelStyle);
         }
 
         // 回合信息（右上角）
@@ -239,6 +241,17 @@ public class GameUI : MonoBehaviour
             GUI.Label(new Rect(Screen.width - 320, 20, 300, 40),
                 $"Round {GameManager.Instance.CurrentRound}  |  Mario {GameManager.Instance.MarioWins} - Trickster {GameManager.Instance.TricksterWins}",
                 labelStyle);
+        }
+
+        // B025: 无冷却模式指示器
+        if (GameManager.Instance != null && GameManager.Instance.NoCooldownMode)
+        {
+            GUIStyle noCdStyle = new GUIStyle(GUI.skin.label);
+            noCdStyle.fontSize = 14;
+            noCdStyle.fontStyle = FontStyle.Bold;
+            noCdStyle.alignment = TextAnchor.MiddleCenter;
+            noCdStyle.normal.textColor = new Color(0f, 1f, 0.5f, 0.9f);
+            GUI.Label(new Rect(Screen.width / 2 - 100, 42, 200, 25), "[F9] NO COOLDOWN", noCdStyle);
         }
 
         // ===== 暂停画面 (B014 修复) =====

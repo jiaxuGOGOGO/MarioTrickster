@@ -80,6 +80,12 @@ public class ScanAbility : MonoBehaviour
 
     // 事件
     public System.Action OnScanActivated;
+
+    /// <summary>调试用：重置冷却时间（由冷却取消开关调用）</summary>
+    public void ResetCooldown()
+    {
+        cooldownTimer = 0f;
+    }
     public System.Action<bool> OnScanResult; // true = 发现 Trickster
     /// <summary>扫描执行事件（供测试验证）</summary>
     public System.Action OnScanPerformed;

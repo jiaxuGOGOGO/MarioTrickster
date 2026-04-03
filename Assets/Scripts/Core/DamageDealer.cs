@@ -4,6 +4,10 @@
 /// 通用伤害触发器
 /// 功能: 碰触时对目标造成伤害（用于尖刺、怪物、Trickster的Hazard伪装等）
 /// 使用方式: 挂载到危险物体上，需要Collider2D(isTrigger=true)
+///
+/// Session 16 更新:
+///   B023 - 击退后通知 MarioController/TricksterController 进入 knockback stun，
+///          防止帧速度架构在下一帧覆盖击退力
 /// </summary>
 [RequireComponent(typeof(Collider2D))]
 public class DamageDealer : MonoBehaviour
@@ -72,6 +76,19 @@ public class DamageDealer : MonoBehaviour
 
                     targetRb.velocity = Vector2.zero;
                     targetRb.AddForce(new Vector2(knockDir.x * knockbackForce, knockbackUpForce), ForceMode2D.Impulse);
+
+                    // B023: 通知控制器进入 knockback stun，防止帧速度覆盖击退力
+                    MarioController mario = other.GetComponent<MarioController>();
+                    if (mario != null)
+                    {
+                        mario.ApplyKnockbackStun();
+                    }
+
+                    TricksterController trickster = other.GetComponent<TricksterController>();
+                    if (trickster != null)
+                    {
+                        trickster.ApplyKnockbackStun();
+                    }
                 }
             }
 

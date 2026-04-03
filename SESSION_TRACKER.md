@@ -109,11 +109,11 @@ AI 每次 `git push` 前，根据本次修改类型，按表逐行检查：
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 16 (CollapsingPlatform stateTimer 字段隐藏修复) |
+| **最新 Session** | Session 16 (击退效果修复 + UI时间显示 + 冷却取消开关 + 测试场景重构) |
 | **日期** | 2026-04-03 |
 | **分支** | master |
 | **项目阶段** | 游戏体验提升 (Sprint 2 进行中) |
-| **编译状态** | ✅ 全部通过！手动 9/9 + EditMode 114/114 + PlayMode 21/21 = 144/144 |
+| **编译状态** | ⚠️ Session 16 多项修复待验证 |
 | **阻塞问题** | 无 |
 
 ---
@@ -156,13 +156,16 @@ Session 12 修复汇总：
 > AI 修复 Bug 后按 0.2 节流程自动填写。用户测试时除了当前测试项，还需快速验证此清单中的项目。
 > 简化操作见 Testing_Guide.md 第四章 4.4 节。
 
-**当前状态：Session 16 修复后待回归**
+**当前状态：Session 16 多项修复后待回归**
 
 | 测试项 | 原因 | 简化验证操作 |
 |--------|------|------------|
-| 🔄 测试 9：关卡设计系统 | 修改了 CollapsingPlatform.cs，直接影响 | Mario 站上崩塌平台，确认抧动→崩塌→重生流程正常 |
-
-> 注：本次修复为纯字段重命名（`stateTimer` → `collapseTimer`），不改变任何运行时行为，回归风险极低。
+| 🔄 测试 1：Mario 基础移动 | MarioController.cs 添加了 knockback stun 机制 | WASD 移动 + Space 跳跃，确认手感不变 |
+| 🔄 测试 2：Trickster 基础移动 | TricksterController.cs 添加了 knockback stun 机制 | 方向键移动 + 跳跃，确认手感不变 |
+| 🔄 测试 7：胜负判定与UI | DamageDealer.cs 修改了击退通知逻辑 | 碰敌人受伤确认有击退效果 + 红色闪烁 |
+| 🔄 测试 9：关卡设计系统 | CollapsingPlatform.cs 字段重命名 + SpikeTrap 击退测试 | 地刺伤害确认有击退 + 崩塌平台流程正常 |
+| 🔄 UI 显示 | GameUI.cs 修改了计时器显示区域 + 新增无冷却指示器 | 确认时间显示完整不被裁剪 |
+| 🔄 场景生成 | TestSceneBuilder.cs 完全重写为闯关形式 | Clear + Build 后确认 9 个 Stage + 标签正常显示 |
 
 ---
 
@@ -170,14 +173,14 @@ Session 12 修复汇总：
 
 | 测试项 | 状态 | 说明 |
 |--------|------|------|
-| 测试 1：Mario 基础移动 | ✅ 通过 | WASD 移动 + Space 跳跃 |
-| 测试 2：Trickster 基础移动 | ✅ 通过 | 方向键移动 + 跳跃 |
+| 测试 1：Mario 基础移动 | 🔄 待回归 | WASD 移动 + Space 跳跃（MarioController 添加了 knockback stun） |
+| 测试 2：Trickster 基础移动 | 🔄 待回归 | 方向键移动 + 跳跃（TricksterController 添加了 knockback stun） |
 | 测试 3：移动平台跟随 | ✅ 通过 | 站上平台不被甩飞 |
 | 测试 4：伪装系统 | ✅ 通过 | P 伪装/解除，O/I 切换形态 |
 | 测试 5：道具操控能力 | ✅ 通过 | Telegraph→Active→Cooldown 流程正常 |
 | 测试 6：扫描技能 | ✅ 通过 | Q 键扫描，脉冲+文字提示正常 |
 | 测试 6.5：镜头系统 | ✅ 通过 | 平滑跟随，无晃动 |
-| 测试 7：胜负判定与UI | ✅ 通过 | 多回合胜利/失败画面正常显示 |
+| 测试 7：胜负判定与UI | 🔄 待回归 | 多回合胜利/失败画面 + 受伤击退效果 |
 | 测试 8：暂停系统 | ✅ 通过 | ESC 暂停/恢复正常，无多余提示 |
 | EditMode 自动化测试 | ✅ 通过 | 59/59 全部通过（Session 13 修复 ForceAwake + DisguiseSystem断言） |
 | PlayMode 自动化测试 | ✅ 通过 | 21/21 全部通过（用户通过 Test Runner 验证） |
@@ -205,6 +208,10 @@ Session 12 修复汇总：
 | ~~P0~~ | B017 | 终点无胜利判定 | ✅ 已修复已验证 |
 | ~~P0~~ | UI | Trickster状态文字被裁剪 | ✅ 已修复已验证 |
 | ~~P0~~ | B022 | CollapsingPlatform stateTimer 字段隐藏冲突 | ✅ 已修复 (Session 16) |
+| ~~P0~~ | B023 | 受伤无击退效果（只有红色闪烁+扣血） | ✅ 已修复 (Session 16) |
+| ~~P0~~ | B024 | UI时间显示不全（被裁剪） | ✅ 已修复 (Session 16) |
+| ~~P0~~ | B025 | 新增无冷却调试开关 (F9) | ✅ 已实现 (Session 16) |
+| ~~P0~~ | B026 | 测试场景重构为闯关形式 + 场景指示标签 | ✅ 已实现 (Session 16) |
 | **P1** | — | **关卡设计系统 (Level Design)** | ✅ 框架已完成 |
 | **P1** | — | **音效系统 (Audio)** | 未开始 |
 | P2 | — | 动画系统完善 | 未开始 |
@@ -226,6 +233,7 @@ Session 12 修复汇总：
 | Trickster (P2) | **L** | **操控道具**（不是伪装！） |
 | 全局 | ESC | 暂停/恢复 |
 | 全局 | F5 | 快速重启 |
+| 全局 | **F9** | **切换无冷却模式**（调试用，取消所有技能冷却） |
 | 回合结束 | R | 重启关卡 |
 | 回合结束 | N | 下一回合 |
 

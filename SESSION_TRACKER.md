@@ -80,12 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 22 (BouncyPlatform 两段式弹射重构) |
+| **最新 Session** | Session 23 (工作流重构 + AI防坑警告注释) |
 | **日期** | 2026-04-04 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⚠️ S22 两段式弹射重构待验证 |
+| **编译状态** | ⚠️ S22 两段式弹射重构待用户在 Unity 中验证 |
 | **阻塞** | 无 |
+| **交接说明** | S21-22 彻底重构了 BouncyPlatform 弹射机制，S23 精简了工作流。代码已推送，用户尚未在 Unity 中测试。接班 AI 请先 `git log --oneline -n 5` 回顾近期变更，然后等待用户反馈测试结果或新任务。 |
 
 ---
 
@@ -134,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | 等待用户 Unity 测试 S22 弹跳平台重构结果 | ✅ 代码已推送，待用户反馈 |
 | **P1** | 关卡设计系统完善 | ✅ 框架已完成 |
 | **P1** | 音效系统 (Audio) | 未开始 |
 | P2 | 动画系统完善 | 未开始 |

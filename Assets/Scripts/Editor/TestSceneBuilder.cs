@@ -292,7 +292,7 @@ public class TestSceneBuilder : Editor
         GameObject stage5 = new GameObject("--- Stage 5: Prop Control ---");
 
         CreateStageSign(s5 + STAGE_WIDTH / 2f, "STAGE 5: PROP CONTROL",
-            "Trickster: Disguise+BlendIn -> L to control\nTelegraph(0.8s) -> Active -> Cooldown\nEnergy cost: Disguise=25, Control=20\n[F9] No-Cooldown for rapid testing",
+            "Trickster: Disguise+BlendIn -> L to control\nTelegraph(0.8s) -> Active -> Cooldown\nEnergy cost: Disguise=25, Control=20\n[F9] No-Cooldown for rapid testing\n[S20] Red/Gray visual links + Arrow-key magnetic target switch",
             stage5.transform);
 
         // 可操控陷阱
@@ -518,7 +518,7 @@ public class TestSceneBuilder : Editor
         // --- 9E: BouncyPlatform (弹跳平台) ---
         float s9e = s9d + s9SubWidth;
         CreateSubSign(s9e + s9SubWidth / 2f, "9E: BOUNCY PLATFORM",
-            "Mario: land on any side = bounce in surface normal direction\nBounce force adjustable (bounceForce + bounceForceMultiplier)\nComedy delay: brief freeze before launch\nTrickster(L): override direction + increase force\n[S19] Contact-normal based directional bounce",
+            "Mario: land on any side = bounce in surface normal direction\nBounce force adjustable (bounceForce + bounceForceMultiplier)\nComedy delay: brief freeze before launch\nTrickster(L): override direction + increase force\n[S19] Contact-normal based directional bounce\n[S20] Normal correction + BounceStun (reduced air control for parabola)",
             stage9.transform);
 
         GameObject bouncyPlatform = new GameObject("BouncyPlatform");
@@ -533,7 +533,7 @@ public class TestSceneBuilder : Editor
         bouncyCol.size = Vector2.one;
         bouncyPlatform.AddComponent<BouncyPlatform>();
         bouncyPlatform.transform.parent = stage9.transform;
-        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (land on any side = directional bounce)", stage9.transform);
+        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (S20: normal correction + parabola fix)", stage9.transform);
 
         // --- 9F: OneWayPlatform (单向平台) ---
         float s9f = s9e + s9SubWidth;

@@ -23,6 +23,10 @@ using UnityEngine.InputSystem;
 ///   - 单向平台下落改为 S+Jump 组合键（Down+Jump），避免误操作
 ///   - 隐藏通道传送保持 S 键单独触发
 ///   - 参考 Super Smash Bros / 行业标准的 Down+Jump 穿越平台做法
+/// Session 20 更新：
+///   - 融入状态下方向键拦截：不再作为移动输入，而是转发给 TricksterController.OnDirectionInput()
+///   - 融入状态下方向键不产生 moveInput，防止打破融入状态
+///   - 上方向键在融入状态下也作为磁吸切换方向（不触发跳跃）
 ///
 /// 使用方式：挂载到 Managers 对象，在 Inspector 中拖入 Mario 和 Trickster 引用
 /// </summary>
@@ -58,6 +62,10 @@ public class InputManager : MonoBehaviour
     private bool p2SwitchDown;
     private float p2SwitchDir;
     private bool p2AbilityDown;
+
+    // ── Session 20: P2 方向键原始输入（用于磁吸切换）────────
+    private Vector2 p2RawDirection;
+    private bool p2DirectionDown; // 方向键刚按下（单帧事件）
 
     // ── Mario 扫描技能引用（自动查找）────────────────────────
     private ScanAbility marioScanAbility;
@@ -157,6 +165,9 @@ public class InputManager : MonoBehaviour
 
         if (Input.GetKey(KeyCode.RightArrow)) h += 1f;
         if (Input.GetKey(KeyCode.LeftArrow))  h -= 1f;
+        // Session 20: 上下方向键也读取（用于磁吸切换的垂直方向）
+        if (Input.GetKey(KeyCode.UpArrow))    v += 1f;
+        if (Input.GetKey(KeyCode.DownArrow))  v -= 1f;
 
         if (gamepad2 != null)
         {
@@ -164,7 +175,18 @@ public class InputManager : MonoBehaviour
             if (s.magnitude > 0.1f) { h = s.x; v = s.y; }
         }
 
-        p2Move = new Vector2(Mathf.Clamp(h, -1f, 1f), Mathf.Clamp(v, -1f, 1f));
+        // Session 20: 保存原始方向输入（含上下），用于磁吸切换
+        p2RawDirection = new Vector2(Mathf.Clamp(h, -1f, 1f), Mathf.Clamp(v, -1f, 1f));
+
+        // 移动输入仍只使用水平分量（原始行为保持不变）
+        p2Move = new Vector2(Mathf.Clamp(h, -1f, 1f), 0f);
+
+        // Session 20: 检测方向键刚按下（单帧事件，用于磁吸切换触发）
+        if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow)
+            || Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.DownArrow))
+        {
+            p2DirectionDown = true;
+        }
 
         bool jumpKey = Input.GetKey(KeyCode.UpArrow)
                     || Input.GetKey(KeyCode.RightControl)
@@ -237,10 +259,38 @@ public class InputManager : MonoBehaviour
     {
         if (tricksterController == null) return;
 
-        tricksterController.SetMoveInput(p2Move);
+        // Session 20: 融入状态下方向键拦截
+        // 当 Trickster 处于完全融入状态时：
+        //   - 方向键不作为移动输入（防止打破融入状态）
+        //   - 方向键转发为磁吸切换目标指令
+        //   - 上方向键不触发跳跃（融入状态下不可跳跃）
+        bool isBlended = tricksterController.IsFullyBlended;
 
-        if (p2JumpDown)                   tricksterController.OnJumpPressed();
-        if (!p2JumpHeld && p2WasJumpHeld) tricksterController.OnJumpReleased();
+        if (isBlended)
+        {
+            // 融入状态：方向键拦截为磁吸切换
+            tricksterController.SetMoveInput(Vector2.zero); // 不产生移动
+
+            // 方向键刚按下时触发磁吸切换
+            if (p2DirectionDown && p2RawDirection.sqrMagnitude > 0.01f)
+            {
+                tricksterController.OnDirectionInput(p2RawDirection);
+            }
+
+            // 融入状态下不触发跳跃（上方向键已被拦截）
+            // 但仍允许 RightControl/Keypad0 触发跳跃（如果需要的话可以取消注释）
+            // if (p2JumpDown) tricksterController.OnJumpPressed();
+            // if (!p2JumpHeld && p2WasJumpHeld) tricksterController.OnJumpReleased();
+        }
+        else
+        {
+            // 正常状态：方向键作为移动输入
+            tricksterController.SetMoveInput(p2Move);
+
+            if (p2JumpDown)                   tricksterController.OnJumpPressed();
+            if (!p2JumpHeld && p2WasJumpHeld) tricksterController.OnJumpReleased();
+        }
+
         if (p2DisguiseDown)               tricksterController.OnDisguisePressed();
         if (p2SwitchDown)                 tricksterController.OnSwitchDisguise(p2SwitchDir);
         if (p2AbilityDown)                tricksterController.OnAbilityPressed();
@@ -266,6 +316,7 @@ public class InputManager : MonoBehaviour
         p2DisguiseDown = false;
         p2SwitchDown = false;
         p2AbilityDown = false;
+        p2DirectionDown = false; // Session 20
     }
 
     #endregion
@@ -302,8 +353,8 @@ public class InputManager : MonoBehaviour
         GUILayout.BeginArea(new Rect(10, 10, 280, 200));
         GUILayout.Label($"P1 Move: {p1Move}  JumpHeld: {p1JumpHeld}  Scan: {p1ScanDown}");
         GUILayout.Label($"P1 SHeld: {p1SHeld}  DropThrough: {p1DropThroughDown}");
-        GUILayout.Label($"P2 Move: {p2Move}  JumpHeld: {p2JumpHeld}");
-        GUILayout.Label($"P2 Disguise: {p2DisguiseDown}  Ability: {p2AbilityDown}");
+        GUILayout.Label($"P2 Move: {p2Move}  JumpHeld: {p2JumpHeld}  Blended: {(tricksterController != null ? tricksterController.IsFullyBlended.ToString() : "N/A")}");
+        GUILayout.Label($"P2 Disguise: {p2DisguiseDown}  Ability: {p2AbilityDown}  DirSwitch: {p2DirectionDown}");
         GUILayout.Label($"Pad1: {(gamepad1 != null ? gamepad1.displayName : "None")}");
         GUILayout.Label($"Pad2: {(gamepad2 != null ? gamepad2.displayName : "None")}");
         GUILayout.EndArea();

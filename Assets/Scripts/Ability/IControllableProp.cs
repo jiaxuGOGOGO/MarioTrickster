@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 /// <summary>
 /// 可操控道具接口 - Trickster 能力系统核心契约
@@ -9,6 +9,10 @@
 ///   1. Telegraph（预警）→ Active（爆发）→ Cooldown（冷却）三阶段
 ///   2. 每种道具可配置操控次数或持续时间限制
 ///   3. 预警阶段给 Mario 玩家反应窗口，提高博弈深度
+/// 
+/// Session 20 更新：
+///   - 新增 SetHighlight(bool) 方法，用于目标锁定时的视觉高亮反馈
+///   - 新增 GetTransform() 方法，用于连线系统获取道具位置
 /// 
 /// 使用方式:
 ///   在关卡道具脚本上实现此接口，TricksterAbilitySystem 会自动检测并调用
@@ -52,6 +56,17 @@ public interface IControllableProp
     /// 当前道具的操控状态
     /// </summary>
     PropControlState GetControlState();
+
+    /// <summary>
+    /// Session 20: 设置目标高亮状态（被锁定为当前操控目标时高亮）
+    /// </summary>
+    /// <param name="isSelected">true=被锁定为当前目标, false=取消锁定</param>
+    void SetHighlight(bool isSelected);
+
+    /// <summary>
+    /// Session 20: 获取道具的 Transform（用于连线系统计算位置）
+    /// </summary>
+    Transform GetTransform();
 }
 
 /// <summary>

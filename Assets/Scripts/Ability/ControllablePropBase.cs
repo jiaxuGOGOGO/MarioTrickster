@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 /// <summary>
 /// 可操控道具抽象基类 - 封装 Telegraph→Active→Cooldown 三阶段状态机
@@ -11,6 +11,11 @@
 ///   OnActiveEnd()       - 激活结束，恢复正常
 /// 
 /// 基类自动处理: 状态切换、计时、次数消耗、冷却、UI 数据
+/// 
+/// Session 20 更新：
+///   - 新增 SetHighlight(bool) 实现目标高亮视觉反馈
+///   - 新增 GetTransform() 供连线系统使用
+///   - 高亮效果：被锁定时 Sprite 颜色微红 + 轻微缩放脉冲
 /// </summary>
 public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
 {
@@ -58,6 +63,10 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     protected Color originalColor;
     private Vector3 originalLocalPosition;
 
+    // Session 20: 高亮状态
+    private bool _isHighlighted;
+    private static readonly Color HighlightColor = new Color(1f, 0.5f, 0.5f, 1f); // 微红色
+
     // 公共属性
     public string PropName => propName;
 
@@ -84,6 +93,13 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
             case PropControlState.Cooldown:
                 UpdateCooldown();
                 break;
+        }
+
+        // Session 20: 高亮脉冲效果（仅在 Idle 状态下显示，避免与预警闪烁冲突）
+        if (_isHighlighted && currentState == PropControlState.Idle && spriteRenderer != null)
+        {
+            float pulse = (Mathf.Sin(Time.time * 4f) + 1f) * 0.5f; // 0~1 脉冲
+            spriteRenderer.color = Color.Lerp(originalColor, HighlightColor, 0.4f + pulse * 0.3f);
         }
     }
 
@@ -123,6 +139,28 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     public PropControlState GetControlState()
     {
         return currentState;
+    }
+
+    /// <summary>
+    /// Session 20: 设置目标高亮状态
+    /// 被锁定为当前操控目标时 Sprite 颜色微红脉冲
+    /// </summary>
+    public void SetHighlight(bool isSelected)
+    {
+        _isHighlighted = isSelected;
+        if (!isSelected && spriteRenderer != null && currentState == PropControlState.Idle)
+        {
+            // 取消高亮时恢复原色
+            spriteRenderer.color = originalColor;
+        }
+    }
+
+    /// <summary>
+    /// Session 20: 获取道具的 Transform（用于连线系统计算位置）
+    /// </summary>
+    public Transform GetTransform()
+    {
+        return transform;
     }
 
     #endregion

@@ -19,6 +19,12 @@ using UnityEngine;
 ///
 /// Session 16 更新:
 ///   B023 - 添加击退 stun 机制：受伤时暂停控制器速度覆盖，让 AddForce 击退力生效
+///
+/// Session 20 更新:
+///   - 新增 BounceStun 状态（区别于 KnockbackStun）
+///   - BounceStun 不完全禁止横向控制，而是大幅降低 acceleration 和 deceleration
+///   - 让物理引擎先接管弹跳抛物线轨迹，之后再恢复玩家控制
+///   - 参考 Celeste 弹簧 / Sonic 弹簧最佳实践：弹跳后短暂降低操控力
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -102,6 +108,14 @@ public class MarioController : MonoBehaviour
     private bool _isKnockbackStunned;
     private float _knockbackStunTimer;
 
+    // ── Session 20: BounceStun 状态 ──────────────────────
+    // 区别于 KnockbackStun：不完全禁止横向控制，而是大幅降低操控力
+    // 让弹跳的水平惯性自然保持，产生顺滑的抛物线
+    private bool _isBounceStunned;
+    private float _bounceStunTimer;
+    private float _bounceAccelMult;   // 弹跳期间加速度倍率
+    private float _bounceDecelMult;   // 弹跳期间减速度倍率
+
     // ── 朝向 ──────────────────────────────────────────────
     private bool isFacingRight = true;
 
@@ -156,6 +170,16 @@ public class MarioController : MonoBehaviour
             }
         }
 
+        // Session 20: BounceStun 倒计时
+        if (_isBounceStunned)
+        {
+            _bounceStunTimer -= Time.deltaTime;
+            if (_bounceStunTimer <= 0f)
+            {
+                _isBounceStunned = false;
+            }
+        }
+
         if (jumpPressedThisFrame)
         {
             _jumpToConsume = true;
@@ -201,7 +225,7 @@ public class MarioController : MonoBehaviour
         // 3. 跳跃
         HandleJump();
 
-        // 4. 水平移动
+        // 4. 水平移动（Session 20: BounceStun 期间使用降低的操控力）
         HandleDirection();
 
         // 5. 重力
@@ -252,6 +276,10 @@ public class MarioController : MonoBehaviour
             _coyoteUsable = true;
             _bufferedJumpUsable = true;
             _endedJumpEarly = false;
+
+            // Session 20: 落地时自动解除 BounceStun（抛物线已结束）
+            _isBounceStunned = false;
+
             OnGroundedChanged?.Invoke(true, Mathf.Abs(_frameVelocity.y));
         }
         else if (_grounded && !groundHit)
@@ -296,16 +324,23 @@ public class MarioController : MonoBehaviour
 
     private void HandleDirection()
     {
+        // Session 20: BounceStun 期间使用降低的操控力
+        // 这样弹跳的水平惯性不会被玩家输入瞬间抹平
+        float accelMult = _isBounceStunned ? _bounceAccelMult : 1f;
+        float decelMult = _isBounceStunned ? _bounceDecelMult : 1f;
+
         if (Mathf.Abs(moveInput.x) > 0.01f)
         {
             _frameVelocity.x = Mathf.MoveTowards(
-                _frameVelocity.x, moveInput.x * maxSpeed, acceleration * Time.fixedDeltaTime);
+                _frameVelocity.x, moveInput.x * maxSpeed,
+                acceleration * accelMult * Time.fixedDeltaTime);
         }
         else
         {
             float decel = _grounded ? groundDeceleration : airDeceleration;
             _frameVelocity.x = Mathf.MoveTowards(
-                _frameVelocity.x, 0f, decel * Time.fixedDeltaTime);
+                _frameVelocity.x, 0f,
+                decel * decelMult * Time.fixedDeltaTime);
         }
     }
 
@@ -344,6 +379,37 @@ public class MarioController : MonoBehaviour
     {
         _isKnockbackStunned = true;
         _knockbackStunTimer = duration > 0f ? duration : knockbackStunDuration;
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region Session 20: BounceStun（弹跳后降低操控力）
+
+    /// <summary>
+    /// 弹跳平台触发：进入 BounceStun 状态。
+    /// 
+    /// 与 KnockbackStun 的区别：
+    ///   - KnockbackStun：完全禁止横向控制（让 AddForce 击退力生效）
+    ///   - BounceStun：大幅降低横向加速/减速度（让弹跳抛物线自然展开）
+    /// 
+    /// 参考 Celeste 弹簧最佳实践：
+    ///   弹簧弹射后短暂降低玩家操控力，让物理引擎先接管轨迹，
+    ///   之后再恢复正常控制。这样玩家仍有微弱操控感（不会感觉失控），
+    ///   但不会瞬间抹平弹跳的水平惯性。
+    /// </summary>
+    /// <param name="duration">BounceStun 持续时间（秒）</param>
+    /// <param name="accelMultiplier">加速度倍率（0~1，越小操控力越弱）</param>
+    /// <param name="decelMultiplier">减速度倍率（0~1，越小惯性保持越久）</param>
+    public void ApplyBounceStun(float duration, float accelMultiplier = 0.12f, float decelMultiplier = 0.08f)
+    {
+        _isBounceStunned = true;
+        _bounceStunTimer = duration;
+        _bounceAccelMult = Mathf.Clamp01(accelMultiplier);
+        _bounceDecelMult = Mathf.Clamp01(decelMultiplier);
+
+        // BounceStun 优先级低于 KnockbackStun
+        // 如果同时处于 KnockbackStun，BounceStun 会在 KnockbackStun 结束后生效
     }
 
     #endregion

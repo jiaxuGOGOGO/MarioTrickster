@@ -18,6 +18,11 @@ using UnityEngine;
 ///
 /// Session 16 更新:
 ///   B023 - 添加击退 stun 机制：受伤时暂停控制器速度覆盖，让 AddForce 击退力生效
+///
+/// Session 20 更新:
+///   - 融入状态下方向键输入拦截：不再作为移动输入，而是转发给 TricksterAbilitySystem.SwitchTarget()
+///   - 防止方向键打破融入状态
+///   - 新增 OnDirectionInput(Vector2) 回调供 InputManager 调用
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -103,9 +108,17 @@ public class TricksterController : MonoBehaviour
     // ── 朝向 ──────────────────────────────────────────────
     private bool isFacingRight = true;
 
+    // ── Session 20: 方向键磁吸切换防抖 ────────────────────
+    private float _lastSwitchTime;
+    private const float SwitchCooldown = 0.2f; // 切换冷却时间，防止连续快速切换
+
     // ── 公共属性 ──────────────────────────────────────────
     public bool IsGrounded  => _grounded;
     public bool IsDisguised => disguiseSystem != null && disguiseSystem.IsDisguised;
+
+    /// <summary>Session 20: 是否处于融入状态（已伪装且完全融入）</summary>
+    public bool IsFullyBlended => disguiseSystem != null && disguiseSystem.IsDisguised && disguiseSystem.IsFullyBlended;
+
     public TricksterAbilitySystem AbilitySystem => abilitySystem;
 
     // ── 事件 ──────────────────────────────────────────────
@@ -162,7 +175,9 @@ public class TricksterController : MonoBehaviour
 
         if (!IsDisguised) UpdateFacing();
 
-        if (abilitySystem != null)
+        // Session 20: 融入状态下不再将方向键作为 abilityDirection 传递
+        // （方向键已被拦截用于磁吸切换，不影响道具操控方向）
+        if (abilitySystem != null && !IsFullyBlended)
             abilitySystem.SetAbilityDirection(moveInput);
     }
 
@@ -284,6 +299,8 @@ public class TricksterController : MonoBehaviour
 
     private void HandleDirection()
     {
+        // Session 20: 融入状态下方向键被拦截，不产生移动
+        // moveInput 在融入状态下由 InputManager 设为 zero（见 DispatchP2 修改）
         float speedMult = IsDisguised ? disguisedMoveMultiplier : 1f;
         float target = moveInput.x * maxSpeed * speedMult;
 
@@ -329,7 +346,6 @@ public class TricksterController : MonoBehaviour
 
     /// <summary>
     /// 外部调用：触发击退 stun，暂停控制器速度覆盖。
-    /// DamageDealer 在 AddForce 之后调用此方法，确保击退力不被覆盖。
     /// </summary>
     public void ApplyKnockbackStun(float duration = -1f)
     {
@@ -397,6 +413,24 @@ public class TricksterController : MonoBehaviour
         }
 
         abilitySystem.OnAbilityPressed();
+    }
+
+    /// <summary>
+    /// Session 20: 方向键磁吸切换目标
+    /// 由 InputManager 在融入状态下拦截方向键后调用。
+    /// 带防抖冷却，避免连续快速切换。
+    /// </summary>
+    public void OnDirectionInput(Vector2 direction)
+    {
+        if (abilitySystem == null) return;
+        if (!IsFullyBlended) return;
+        if (direction.sqrMagnitude < 0.01f) return;
+
+        // 防抖：冷却时间内不重复切换
+        if (Time.time - _lastSwitchTime < SwitchCooldown) return;
+        _lastSwitchTime = Time.time;
+
+        abilitySystem.SwitchTarget(direction);
     }
 
     /// <summary>

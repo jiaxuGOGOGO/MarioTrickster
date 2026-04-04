@@ -2,6 +2,7 @@
 
 > **项目全局纵览中心**：本文档是项目的“中枢神经”，连接《游戏设计调研报告》(GAME_DESIGN) 与《项目进度总结》(Progress_Summary)，提供从“设计愿景”到“代码实现”再到“测试状态”的**全覆盖映射**。
 > **更新时机**：当发生任何功能新增、机制调整、架构重构、测试状态变更、美术/音效接入、网络联机开发时，由 AI 自动同步更新本文档。
+> **最后更新**：2026-04-04 (Session 20)
 
 ---
 
@@ -13,9 +14,9 @@
 
 | 设计模块 | 规划功能点 | 当前实现状态 | 对应脚本/系统 | 验证状态 |
 |:---|:---|:---|:---|:---|
-| **角色基础** | Mario 移动与跳跃 | ✅ 已完成 | `MarioController.cs` | 🔄 待回归 (B023 knockback stun) |
+| **角色基础** | Mario 移动与跳跃 | ✅ 已完成 | `MarioController.cs` | 🔄 待回归 (B023 knockback stun + S20 BounceStun) |
 | | Mario 冲刺能力 | ❌ 未开始 | 待开发 | ⚪ 未测试 |
-| | Trickster 移动与跳跃 | ✅ 已完成 | `TricksterController.cs` | 🔄 待回归 (B023 knockback stun) |
+| | Trickster 移动与跳跃 | ✅ 已完成 | `TricksterController.cs` | 🔄 待回归 (B023 knockback stun + S20 融入拦截) |
 | **伪装系统** | 基础伪装与形态切换 | ✅ 已完成 | `DisguiseSystem.cs` | 🟢 89/89 通过 |
 | | 伪装视觉线索 (微弱抖动) | ❌ 未开始 | 待开发 | ⚪ 未测试 |
 | | Mario 扫描技能 | ✅ 已完成 | `ScanAbility.cs` | 🟢 89/89 通过 |
@@ -23,14 +24,14 @@
 | | 变身与操控消耗能量 | ✅ 已完成 | `EnergySystem.cs` | 🟢 89/89 通过 |
 | | 击杀奖励能量 | ❌ 未开始 | 待开发 | ⚪ 未测试 |
 | **对抗博弈** | 道具操控 (预警→爆发→冷却) | ✅ 已完成 | `ControllablePropBase.cs` | 🟢 89/89 通过 |
-| | 道具绑定与融入体验 (B029) | ✅ 已修复 (S18) | `TricksterAbilitySystem.cs` | 🔄 待回归 (S18 动态重绑定+融入后自动绑定) |
+| | 道具绑定与融入体验 (B029) | ✅ 已修复 (S18) + **S20 重构** | `TricksterAbilitySystem.cs` + `IControllableProp.cs` + `ControllablePropBase.cs` + `InputManager.cs` | 🔄 待回归 (S20 视觉连线+目标高亮+方向键磁吸切换) |
 | | 陷阱预布置 | ❌ 未开始 | 待开发 | ⚪ 未测试 |
 | **关卡元素** | 陷阱系统 (地刺/摆锤/火焰) | ✅ 已完成 | `SpikeTrap.cs` 等 + `KnockbackHelper.cs` | 🔄 待回归 (S18 统一击退) |
-| | 平台系统 (弹跳/单向/崩塌) | ✅ 已完成 | `BouncyPlatform.cs`(法线弹射) + `OneWayPlatform.cs`(S+Jump) + `MarioInteractionHelper.cs` | 🔄 待回归 (S19 重写弹跳+单向) |
+| | 平台系统 (弹跳/单向/崩塌) | ✅ 已完成 | `BouncyPlatform.cs`(法线修正+BounceStun) + `OneWayPlatform.cs`(S+Jump) + `MarioInteractionHelper.cs` | 🔄 待回归 (S19 重写 + S20 法线修正+抛物线修复) |
 | | 隐藏通道 (地下通道/伪装墙) | ✅ 已完成 | `HiddenPassage.cs`(双向穿越) + `HiddenPassageReturnTrigger.cs` + `MarioInteractionHelper.cs` | 🔄 待回归 (S19 双向穿越) |
 | | 弹跳怪物 | ✅ 已完成 | `BouncingEnemy.cs` + `KnockbackHelper.cs` | 🔄 待回归 (S18 统一击退) |
 | **游戏流程** | 胜负判定与多回合制 | ✅ 已完成 | `GameManager.cs` | 🔄 待回归 (B023/B025 变更) |
-| | 性能优化 (B036 GPU Timeout 预防) | ✅ 已完成 (S18) | `GameUI.cs`, `ScanAbility.cs`, `TricksterController.cs`, `TricksterAbilitySystem.cs`, `GameManager.cs` | 🔄 待回归 |
+| | 性能优化 (B036 GPU Timeout 预防) | ✅ 已完成 (S18+S20) | `GameUI.cs`, `ScanAbility.cs`, `TricksterController.cs`, `TricksterAbilitySystem.cs`(S20 LineRenderer对象池), `GameManager.cs` | 🔄 待回归 |
 | | 关卡时间限制与生命值 | ✅ 已完成 | `PlayerHealth.cs` | 🟢 89/89 通过 |
 
 ### 1.2 视角与预警 (GAME_DESIGN §3)
@@ -80,9 +81,9 @@
 |:---|:---|:---|:---|
 | **基础设施** | 框架搭建、输入管理、测试场景生成 | 100% | `TestSceneBuilder` Session 16 重写为闯关形式，按测试顺序排列。 |
 | **核心控制** | 角色移动、物理跳跃、平台跟随 | 100% | 采用速度注入法解决平台跟随问题，手感已调优。 |
-| **能力机制** | 伪装变身、道具操控、能量消耗、扫描 | 95% | S18: Gizmo范围可视化 + 动态重绑定 + 融入后自动绑定。待补充高级变身形态和视觉线索。 |
+| **能力机制** | 伪装变身、道具操控、能量消耗、扫描 | 97% | S20: 视觉连线反馈(红/灰LineRenderer) + 目标高亮(微红脉冲) + 方向键磁吸切换。待补充高级变身形态。 |
 | **游戏流程** | 胜负判定、回合重置、暂停恢复 | 100% | 基础流程已完善，UI 反馈已增强。 |
-| **关卡设计** | 关卡白盒、障碍物布置、路线规划 | 55% | S19: 弹跳平台法线方向弹射 + 单向平台S+Jump组合键 + 隐藏通道双向穿越。关卡元素机制已健壮，正式关卡搭建待开始。 |
+| **关卡设计** | 关卡白盒、障碍物布置、路线规划 | 60% | S20: 弹跳平台法线修正+BounceStun抛物线保留。关卡元素机制已健壮，正式关卡搭建待开始。 |
 | **视听表现** | 角色动画、特效、背景音乐、音效 | 5% | 仅有基础色块和占位符，美术和音效系统待接入。 |
 | **网络联机** | Netcode接入、状态同步、大厅匹配 | 0% | 尚未开始，计划在 Sprint 2/3 引入。 |
 
@@ -111,7 +112,7 @@
 | 阶段 | 核心目标 | 包含任务 | 状态 |
 |:---|:---|:---|:---|
 | **Sprint 1** | 核心机制验证 (MVP) | 基础移动、伪装变身、道具操控、胜负判定、自动化测试框架 | ✅ 已完成 |
-| **Sprint 2** | 游戏体验提升 | 关卡设计系统、音效系统接入、动画系统完善、主菜单 UI | 🔄 进行中 (关卡系统已完成) |
+| **Sprint 2** | 游戏体验提升 | 关卡设计系统、道具操控UX重构、弹跳物理优化、音效系统接入、动画系统完善、主菜单 UI | 🔄 进行中 (关卡系统+操控UX+弹跳物理已完成) |
 | **Sprint 3** | 视听打磨与平衡 | 引入 Cinemachine、多层级预警系统、美术素材替换、数值平衡调整 | ❌ 未开始 |
 | **Sprint 4** | 网络联机与发布 | Netcode 接入、状态同步、大厅匹配、最终打磨 | ❌ 未开始 |
 

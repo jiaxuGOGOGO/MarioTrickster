@@ -18,7 +18,7 @@ using UnityEngine;
 ///   而被弹飞到一侧，不会原地反复弹跳。
 /// 
 ///   碰撞瞬间短暂冻结（comedyDelay）+ 挤压动画 → 然后猛力弹射
-///   弹射时触发 ApplyKnockbackStun 让 MarioController 暂停速度覆盖
+///   弹射时触发 ApplyBounceStun 让 MarioController 暂停速度覆盖
 ///   弹射时触发相机震动增强打击感
 ///   Trickster操控: 改变弹射方向或力度
 /// 
@@ -32,6 +32,11 @@ using UnityEngine;
 /// 扩展/删除指南: 删除此文件不影响其他脚本
 /// Session 15: 关卡设计系统新增
 /// Session 19: 反方向弹飞 + 位置偏移 + KnockbackStun防覆盖 + 相机震动
+/// Session 20: 物理弹跳优化
+///   - 碰撞法线修正：过滤极端 X 轴法线，混合平台 Up 方向
+///   - 抛物线修复：引入 BounceStun 状态（区别于 KnockbackStun），
+///     弹跳期间大幅降低横向操控力而非完全禁止，让物理引擎先接管抛物线
+///   - 参考 Celeste 弹簧 / Sonic 弹簧最佳实践
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class BouncyPlatform : ControllableLevelElement
@@ -56,13 +61,26 @@ public class BouncyPlatform : ControllableLevelElement
     [Tooltip("最小向上分量（保证弹射有弧线感，不会贴地滑行）")]
     [SerializeField] private float minUpwardComponent = 0.4f;
 
+    [Header("=== 碰撞法线修正 (Session 20) ===")]
+    [Tooltip("法线与平台 Up 方向的混合权重。0=纯碰撞法线，1=纯平台Up。推荐0.3-0.5")]
+    [SerializeField, Range(0f, 1f)] private float normalBlendWithUp = 0.4f;
+
+    [Tooltip("X 轴法线绝对值超过此阈值时视为极端侧面碰撞，强制修正")]
+    [SerializeField] private float extremeNormalXThreshold = 0.85f;
+
     [Header("=== 喜剧延迟 ===")]
     [Tooltip("碰撞后的冻结时间（秒），期间玩家被冻结在平台上。0=立即弹射")]
     [SerializeField] private float comedyDelay = 0.08f;
 
-    [Header("=== 弹射后 Stun ===")]
-    [Tooltip("弹射后 MarioController 暂停速度覆盖的时长（秒），让弹射力自然生效")]
+    [Header("=== 弹射后 Stun (Session 20 优化) ===")]
+    [Tooltip("弹射后 BounceStun 时长（秒）：期间横向操控力大幅降低，保留抛物线")]
     [SerializeField] private float bounceStunDuration = 0.35f;
+
+    [Tooltip("BounceStun 期间横向加速度倍率（0=完全不可控，0.15=微弱操控，1=正常）")]
+    [SerializeField, Range(0f, 1f)] private float bounceStunAccelMultiplier = 0.12f;
+
+    [Tooltip("BounceStun 期间横向减速度倍率（降低减速让惯性保持更久）")]
+    [SerializeField, Range(0f, 1f)] private float bounceStunDecelMultiplier = 0.08f;
 
     [Header("=== 相机震动 ===")]
     [Tooltip("弹射时是否触发相机震动")]
@@ -87,8 +105,10 @@ public class BouncyPlatform : ControllableLevelElement
     private float launchTimer;
     private Rigidbody2D pendingLaunchRb;
     private MarioController pendingLaunchMario;
+    private TricksterController pendingLaunchTrickster;
     private Vector2 pendingIncomingVelocity;
-    private Vector2 pendingContactPosition; // 碰撞接触点位置
+    private Vector2 pendingContactPosition;
+    private Vector2 pendingCorrectedNormal; // Session 20: 修正后的碰撞法线
 
     // Trickster覆盖
     private bool tricksterOverride;
@@ -158,7 +178,11 @@ public class BouncyPlatform : ControllableLevelElement
             contactPos /= collision.contactCount;
         }
 
+        // Session 20: 碰撞法线修正
+        Vector2 correctedNormal = CalcCorrectedNormal(collision);
+
         MarioController mario = collision.gameObject.GetComponent<MarioController>();
+        TricksterController trickster = collision.gameObject.GetComponent<TricksterController>();
 
         if (comedyDelay > 0f)
         {
@@ -166,14 +190,22 @@ public class BouncyPlatform : ControllableLevelElement
             launchTimer = comedyDelay;
             pendingLaunchRb = targetRb;
             pendingLaunchMario = mario;
+            pendingLaunchTrickster = trickster;
             pendingIncomingVelocity = incomingVelocity;
             pendingContactPosition = contactPos;
+            pendingCorrectedNormal = correctedNormal;
 
             targetRb.velocity = Vector2.zero;
 
+            // 喜剧延迟期间先施加 stun（防止帧速度覆盖冻结效果）
+            float totalStunTime = comedyDelay + bounceStunDuration;
             if (mario != null)
             {
-                mario.ApplyKnockbackStun(comedyDelay + bounceStunDuration);
+                mario.ApplyBounceStun(totalStunTime, bounceStunAccelMultiplier, bounceStunDecelMultiplier);
+            }
+            if (trickster != null)
+            {
+                trickster.ApplyKnockbackStun(totalStunTime);
             }
 
             if (!isAnimating)
@@ -183,8 +215,52 @@ public class BouncyPlatform : ControllableLevelElement
         }
         else
         {
-            LaunchTarget(targetRb, mario, incomingVelocity, contactPos);
+            LaunchTarget(targetRb, mario, trickster, incomingVelocity, contactPos, correctedNormal);
         }
+    }
+
+    /// <summary>
+    /// Session 20: 碰撞法线修正
+    /// 
+    /// 问题：BoxCollider2D 在角落碰撞时会产生极端的 X 轴法线（接近水平），
+    /// 导致弹射方向不自然（贴地滑行而非弧线弹飞）。
+    /// 
+    /// 解决方案：
+    /// 1. 将碰撞法线与平台自身的 Up 方向做混合（Blend）
+    /// 2. 过滤掉极端的 X 轴法线（|normal.x| > threshold），强制使用平台 Up
+    /// 3. 最终法线归一化后用于弹射方向计算
+    /// </summary>
+    private Vector2 CalcCorrectedNormal(Collision2D collision)
+    {
+        if (collision.contactCount == 0)
+        {
+            return transform.up;
+        }
+
+        // 计算平均碰撞法线
+        Vector2 avgNormal = Vector2.zero;
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            avgNormal += collision.GetContact(i).normal;
+        }
+        avgNormal /= collision.contactCount;
+
+        // 极端法线过滤：X 轴分量过大说明是侧面碰撞，强制修正
+        if (Mathf.Abs(avgNormal.x) > extremeNormalXThreshold)
+        {
+            // 保留少量 X 分量（给一点水平弹射感），但主要用平台 Up
+            Vector2 platformUp = transform.up;
+            float preservedX = Mathf.Sign(avgNormal.x) * 0.3f;
+            avgNormal = new Vector2(preservedX, platformUp.y).normalized;
+        }
+        else
+        {
+            // 正常法线：与平台 Up 方向混合
+            Vector2 platformUp = transform.up;
+            avgNormal = Vector2.Lerp(avgNormal, platformUp, normalBlendWithUp).normalized;
+        }
+
+        return avgNormal;
     }
 
     private void ExecuteLaunch()
@@ -193,19 +269,24 @@ public class BouncyPlatform : ControllableLevelElement
 
         if (pendingLaunchRb != null)
         {
-            LaunchTarget(pendingLaunchRb, pendingLaunchMario, pendingIncomingVelocity, pendingContactPosition);
+            LaunchTarget(pendingLaunchRb, pendingLaunchMario, pendingLaunchTrickster,
+                pendingIncomingVelocity, pendingContactPosition, pendingCorrectedNormal);
         }
 
         pendingLaunchRb = null;
         pendingLaunchMario = null;
+        pendingLaunchTrickster = null;
         pendingIncomingVelocity = Vector2.zero;
         pendingContactPosition = Vector2.zero;
+        pendingCorrectedNormal = Vector2.zero;
     }
 
     /// <summary>
     /// 执行弹射。方向由来向反弹和位置偏移混合决定。
+    /// Session 20: 使用修正后的碰撞法线参与方向计算。
     /// </summary>
-    private void LaunchTarget(Rigidbody2D targetRb, MarioController mario, Vector2 incomingVelocity, Vector2 contactPos)
+    private void LaunchTarget(Rigidbody2D targetRb, MarioController mario, TricksterController trickster,
+        Vector2 incomingVelocity, Vector2 contactPos, Vector2 correctedNormal)
     {
         Vector2 launchDir;
 
@@ -215,9 +296,17 @@ public class BouncyPlatform : ControllableLevelElement
         }
         else
         {
-            // ── 方向1：来向反弹 ──
-            // relativeVelocity 在平台静止时 = -玩家速度，方向就是弹射方向
-            Vector2 reflectDir = incomingVelocity.normalized;
+            // ── 方向1：来向反弹（结合修正法线） ──
+            // Session 20: 使用修正后的法线做反射，而非简单取反
+            // 这样侧面碰撞也能产生合理的弹射弧线
+            Vector2 incomingDir = -incomingVelocity.normalized; // 玩家实际运动方向
+            Vector2 reflectDir = Vector2.Reflect(incomingDir, correctedNormal);
+
+            // 如果反射结果朝下（不合理），回退到法线方向
+            if (reflectDir.y < 0.1f)
+            {
+                reflectDir = correctedNormal;
+            }
 
             // ── 方向2：位置偏移 ──
             // 从平台中心指向碰撞点的方向
@@ -260,18 +349,25 @@ public class BouncyPlatform : ControllableLevelElement
         // 直接设置速度
         targetRb.velocity = launchVelocity;
 
-        // 让 MarioController 暂停速度覆盖
+        // Session 20: 使用 BounceStun 替代 KnockbackStun
+        // BounceStun 不完全禁止横向控制，而是大幅降低操控力
+        // 让物理引擎先接管抛物线轨迹，之后再恢复玩家控制
         if (mario != null)
         {
             if (comedyDelay <= 0f)
             {
-                mario.ApplyKnockbackStun(bounceStunDuration);
+                mario.ApplyBounceStun(bounceStunDuration, bounceStunAccelMultiplier, bounceStunDecelMultiplier);
             }
 
             if (launchDir.y > 0.1f)
             {
                 mario.Bounce(launchVelocity.y);
             }
+        }
+
+        if (trickster != null && comedyDelay <= 0f)
+        {
+            trickster.ApplyKnockbackStun(bounceStunDuration);
         }
 
         // 相机震动
@@ -286,7 +382,7 @@ public class BouncyPlatform : ControllableLevelElement
             StartCoroutine(BounceAnimation());
         }
 
-        Debug.Log($"[BouncyPlatform] 弹飞 {targetRb.gameObject.name}, 来向反弹={incomingVelocity.normalized}, 位置偏移方向, 混合后={launchDir}, 力度={force}");
+        Debug.Log($"[BouncyPlatform] 弹飞 {targetRb.gameObject.name}, 修正法线={correctedNormal}, 来向反射={Vector2.Reflect(-incomingVelocity.normalized, correctedNormal)}, 混合后={launchDir}, 力度={force}");
     }
 
     private System.Collections.IEnumerator ComedySquashAnimation()
@@ -367,8 +463,10 @@ public class BouncyPlatform : ControllableLevelElement
         isWaitingToLaunch = false;
         pendingLaunchRb = null;
         pendingLaunchMario = null;
+        pendingLaunchTrickster = null;
         pendingIncomingVelocity = Vector2.zero;
         pendingContactPosition = Vector2.zero;
+        pendingCorrectedNormal = Vector2.zero;
     }
 
     private void OnDrawGizmos()
@@ -392,6 +490,10 @@ public class BouncyPlatform : ControllableLevelElement
             Gizmos.color = new Color(1, 0.5f, 0, 0.4f);
             Gizmos.DrawRay(center + new Vector3(-halfSize.x, halfSize.y, 0), new Vector3(-1, 1, 0).normalized * 1.2f);
             Gizmos.DrawRay(center + new Vector3(halfSize.x, halfSize.y, 0), new Vector3(1, 1, 0).normalized * 1.2f);
+
+            // Session 20: 显示平台 Up 方向（法线修正参考）
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawRay(center, transform.up * 1.5f);
         }
     }
 }

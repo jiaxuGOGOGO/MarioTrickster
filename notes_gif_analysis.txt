@@ -1,0 +1,8 @@
+GIF 分析关键发现：
+- 场景中可见：浅蓝色弹跳平台（中央偏左）、红色方块（可操控道具）、绿色倾斜平台（右侧）
+- 弹跳平台上方有白色竖线（可能是碰撞法线可视化）
+- 右上角文字提示：Comedy delay (left/hover before launch), Trickster disable direction + knockback force, [S19] Correct normal based direction/source
+- 右下角文字：Bouncy Platform (all or any side + directional bounce)
+- 可见控制范围圆（灰色虚线大圆）围绕 Trickster
+- 弹跳平台的碰撞法线可视化显示为白色线段
+- 问题确认：弹跳后水平抛物线被帧速度架构覆盖

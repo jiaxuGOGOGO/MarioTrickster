@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-04 (Session 19) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
+> 更新时间：2026-04-04 (Session 20) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
 > **AI 入口**：每次新对话优先读取 `SESSION_TRACKER.md`（当前状态 + AI 行为规范 + 回归清单 + 待办队列），需要完整上下文时再读本文件，需要纵览全局时读 `MASTER_TRACKER.md`
 
 ---
@@ -85,11 +85,11 @@
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| MarioController.cs | Assets/Scripts/Player/ | ✅ **Session 6 更新** | Tarodev 帧速度架构 + 平台速度注入法跟随 + 手感调优（acceleration=160, groundDeceleration=200） |
+| MarioController.cs | Assets/Scripts/Player/ | ✅ **Session 20 更新** | Tarodev 帧速度架构 + 平台速度注入法跟随。S20: 新增 BounceStun(降低横向操控力保留弹跳抛物线，区别于 KnockbackStun 完全禁止) |
 | PlayerHealth.cs | Assets/Scripts/Player/ | ✅ | 通用生命值/无敌帧/受伤闪烁/死亡事件 |
-| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | 与 MarioController 一致的帧速度架构 + 平台速度注入 + 手感调优；OnGUI 显示伪装系统实时状态 |
+| TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 20 更新** | 帧速度架构 + 平台速度注入。S20: 新增 OnDirectionInput() 磁吸切换回调 + IsFullyBlended 属性 + 切换防抖冷却(0.2s)。OnGUI 显示伪装系统实时状态 |
 | DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | Sprite替换变身/冷却/场景融入/多形态切换；新增 GetDebugStatus() 调试方法 |
-| InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 19 更新** | S+Jump组合键检测（单向平台下落）+ S键单独触发（隐藏通道传送），拆分HandleDropThrough/HandlePassageInteraction |
+| InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 20 更新** | S20: 融入状态下方向键拦截转发为磁吸切换指令(OnDirectionInput)。S19: S+Jump组合键(HandleDropThrough) + S单独(HandlePassageInteraction) |
 | GameManager.cs | Assets/Scripts/Core/ | ✅ **Session 12 更新** | 游戏状态/胜负判定/暂停/重启/计时器/单例模式。B020修复：ResetRound 重置 GoalZone.triggered + ControllablePropBase 使用次数。B021修复：移除 RESUMED 提示 |
 | CameraController.cs | Assets/Scripts/Camera/ | ✅ **Session 11 重写** | 平滑跟随Mario/前瞻偏移(滞后检测)/渐进式死区/关卡边界限制/相机震动(独立偏移量)。修复B016镜头晃动。 |
 
@@ -122,7 +122,7 @@
 | PendulumTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 摆锤绳索陷阱（物理摆动，可操控）。S18: KnockbackHelper 统一击退 |
 | FireTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 火焰陷阱（周期喷射，可操控）。S18: 击退方向修正 + KnockbackHelper |
 | BouncingEnemy.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 弹跳小怪物（周期弹跳，可踩踏，可操控）。S18: KnockbackHelper 统一击退 |
-| BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 19 重写** | 弹跳平台：碰撞法线方向弹射 + 可调强度(bounceForceMultiplier) + 喜剧延迟 + Trickster可操控方向/力度 |
+| BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 20 优化** | 弹跳平台。S20: 碰撞法线修正(混合平台Up+过滤极端法线) + BounceStun抛物线保留(降低横向操控力) + 喜剧延迟 + 相机震动 + Trickster可操控 |
 | OneWayPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 19 更新** | 单向平台：S+Jump组合键下落（行业标准，防止误操作） |
 | CollapsingPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 18 更新** | 崩塌平台（踩踏后抖动掉落，可操控）。S18: 位置重生修复 + Trickster也能触发 |
 | HiddenPassage.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ **Session 19 重写** | 隐藏通道：双向穿越 + TeleportMode状态机 + 返回触发区 + 冷却时间 |
@@ -135,9 +135,9 @@
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| IControllableProp.cs | Assets/Scripts/Ability/ | ✅ | 可操控道具接口（PropName/CanBeControlled/OnTricksterActivate/状态查询） |
-| ControllablePropBase.cs | Assets/Scripts/Ability/ | ✅ **Session 12 更新** | 抽象基类，封装 Telegraph→Active→Cooldown 状态机、预警闪烁/震动视觉效果、次数限制、回合重置。B019修复：originalColor 改为 protected 避免子类重复序列化 |
-| TricksterAbilitySystem.cs | Assets/Scripts/Ability/ | ✅ **Session 18 更新** | 核心能力管理器。S18: 运行时 Gizmo 范围可视化（controlRange 绿色圆圈）+ 动态重绑定（每次按L重新搜索最近道具）+ 融入后自动绑定 |
+| IControllableProp.cs | Assets/Scripts/Ability/ | ✅ **Session 20 更新** | 可操控道具接口。S20: 新增 SetHighlight(bool) 高亮控制 + GetTransform() 位置获取。原有: PropName/CanBeControlled/OnTricksterActivate/状态查询 |
+| ControllablePropBase.cs | Assets/Scripts/Ability/ | ✅ **Session 20 更新** | 抽象基类，封装 Telegraph→Active→Cooldown 状态机、预警闪烁/震动视觉效果、次数限制、回合重置。S20: 实现 SetHighlight(微红脉冲动画) + GetTransform()。B019修复: originalColor→protected |
+| TricksterAbilitySystem.cs | Assets/Scripts/Ability/ | ✅ **Session 20 重构** | 核心能力管理器。S20: 视觉连线反馈(红=锁定/灰=备选 LineRenderer对象池) + 目标高亮(微红脉冲) + 方向键磁吸切换 + Gizmo范围可视化 + 动态重绑定 |
 | ControllablePlatform.cs | Assets/Scripts/Ability/ | ✅ **Session 6 更新** | 可操控移动平台，4种模式：Rush/Drop/Reverse/Stop + 速度注入法跟随 |
 | ControllableHazard.cs | Assets/Scripts/Ability/ | ✅ | 可操控危险道具，4种模式：Spike/Expand/Burst/Directional |
 | ControllableBlock.cs | Assets/Scripts/Ability/ | ✅ | 可操控方块，3种模式：Vanish/Slide/Bounce |
@@ -306,6 +306,32 @@ InputManager (右Alt/手柄Y)
 ---
 
 ## 六、Session 历史记录
+
+### Session 20 记录（2026-04-04）
+
+**本次完成功能（Sprint 2 核心体验升级：Trickster 道具操控系统重构 + BouncyPlatform 物理弹跳优化）：**
+
+| 项目 | 说明 |
+|------|------|
+| 模块一: 视觉连线反馈 | TricksterAbilitySystem 融入后绘制红/灰连线到范围内所有可操控道具。红色加粗=当前锁定目标，灰色细线=备选目标。使用 LineRenderer 对象池(Awake预实例化)，严禁 Update 中 Instantiate |
+| 模块一: 目标高亮反馈 | ControllablePropBase 实现 SetHighlight()，当前锁定目标 Sprite 微红脉冲动画，解锁时恢复原色。Awake 中预缓存颜色 |
+| 模块一: 方向键磁吸切换 | 融入状态下 InputManager 拦截方向键，转发为 TricksterController.OnDirectionInput()，按方向切换最近的备选道具。带 0.2s 防抖冷却 |
+| 模块一: 接口扩展 | IControllableProp 新增 SetHighlight(bool) + GetTransform()，ControllablePropBase 统一实现 |
+| 模块二: 碰撞法线修正 | BouncyPlatform 新增 CalcCorrectedNormal()：将碰撞法线与平台 Up 方向混合(normalBlendWithUp=0.4)，过滤极端 X 轴法线(threshold=0.85) |
+| 模块二: 抛物线修复 (BounceStun) | MarioController 新增 ApplyBounceStun()：弹跳后大幅降低横向操控力(accel 12%, decel 8%)，落地自动解除。参考 Celeste/Sonic 弹簧最佳实践 |
+| 模块二: 弹射方向优化 | 使用修正后法线做反射(Vector2.Reflect)，与位置偏移方向混合，保证最小向上分量(0.4)防止贴地滑行 |
+
+**修改文件：**
+- `IControllableProp.cs` - 新增 SetHighlight(bool) + GetTransform() 接口方法
+- `ControllablePropBase.cs` - 实现 SetHighlight(微红脉冲) + GetTransform()，Awake 预缓存颜色
+- `TricksterAbilitySystem.cs` - 重构：LineRenderer 对象池 + 红/灰连线 + 方向键磁吸切换 + 目标高亮
+- `TricksterController.cs` - 新增 OnDirectionInput() + IsFullyBlended + 切换防抖冷却
+- `InputManager.cs` - 融入状态下方向键拦截转发为磁吸切换指令
+- `BouncyPlatform.cs` - 碰撞法线修正 + BounceStun 替代 KnockbackStun + 弹射方向优化
+- `MarioController.cs` - 新增 ApplyBounceStun() 方法 + BounceStun 状态机
+- `TestSceneBuilder.cs` - Stage 5/9E 标签更新反映 S20 功能
+
+---
 
 ### Session 19 记录（2026-04-04）
 
@@ -751,16 +777,16 @@ rb.velocity = _frameVelocity;  // 只写一次
 Assets/
 ├── Scripts/
 │   ├── Player/
-│   │   ├── MarioController.cs      ✅ Mario移动/跳跃/平台跟随 (Session 6 更新)
+│   │   ├── MarioController.cs      ✅ Mario移动/跳跃/平台跟随 (Session 20 更新: BounceStun)
 │   │   └── PlayerHealth.cs          ✅ 生命值管理
 │   ├── Enemy/
-│   │   ├── TricksterController.cs   ✅ Trickster控制/平台跟随 (Session 10 更新: OnAbilityFailed 事件)
+│   │   ├── TricksterController.cs   ✅ Trickster控制/平台跟随 (Session 20 更新: 磁吸切换+IsFullyBlended)
 │   │   ├── DisguiseSystem.cs        ✅ 伪装/变身系统 (Session 10 更新: 集成 EnergySystem)
 │   │   └── SimpleEnemy.cs           ✅ 简单巡逻敌人
 │ ├── Scripts/
 │   ├── Core/
 │   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定 (Session 12 更新: 修复B020/B021)
-│   │   ├── InputManager.cs          ✅ 输入分发中心 (Session 19 更新: S+Jump组合键 + S单独路由)
+│   │   ├── InputManager.cs          ✅ 输入分发中心 (Session 20 更新: 融入状态方向键拦截)
 │   │   ├── MarioInteractionHelper.cs ✅ Mario交互辅助 (Session 19 更新: 双向通道返回触发区)
 │   │   ├── KnockbackHelper.cs       ✅ 统一击退方向计算 (Session 18 新增)
 │   │   ├── LevelManager.cs          ✅ 关卡管理器
@@ -781,7 +807,7 @@ Assets/
 │   │   │   ├── FireTrap.cs          ✅ 火焰陷阱 (S18: 击退方向修正+KnockbackHelper)
 │   │   │   └── BouncingEnemy.cs     ✅ 弹跳小怪物 (S18: KnockbackHelper统一击退)
 │   │   ├── Platforms/               ✅ 平台类
-│   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台 (S19: 法线方向弹射+可调强度)
+│   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台 (S20: 法线修正+BounceStun抛物线保留)
 │   │   │   ├── OneWayPlatform.cs    ✅ 单向平台 (S19: S+Jump组合键)
 │   │   │   └── CollapsingPlatform.cs ✅ 崩塌平台 (S18: 位置重生修复+Trickster触发)
 │   │   └── HiddenPassages/          ✅ 隐藏通道类
@@ -789,9 +815,9 @@ Assets/
 │   │       ├── HiddenPassageReturnTrigger.cs ✅ 返回触发区 (S19 新增)
 │   │       └── FakeWall.cs          ✅ 伪装墙壁
 │   ├── Ability/
-│   │   ├── IControllableProp.cs     ✅ 可操控道具接口
-│   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类 (Session 12 更新: originalColor→protected)
-│   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器 (S18: Gizmo范围可视化+动态重绑定+融入后自动绑定)
+│   │   ├── IControllableProp.cs     ✅ 可操控道具接口 (S20: +SetHighlight+GetTransform)
+│   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类 (S20: +SetHighlight微红脉冲+GetTransform)
+│   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器 (S20: 视觉连线+磁吸切换+目标高亮)
 │   │   ├── EnergySystem.cs          ✅ Trickster 能量系统 (Session 10 新增)
 │   │   ├── ScanAbility.cs           ✅ Mario 扫描技能 (Session 11 更新: 修复B015)
 │   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)

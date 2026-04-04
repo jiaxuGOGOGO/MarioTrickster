@@ -7,8 +7,9 @@ using UnityEngine;
 /// 工作流程:
 ///   1. Trickster 变身为某个道具（由 DisguiseSystem 处理）
 ///   2. 完全融入场景后（isFullyBlended），本系统激活
-///   3. 玩家按下"操控"键 → 检测附近的 IControllableProp → 触发操控
-///   4. 道具进入 Telegraph→Active→Cooldown 流程
+///   3. 玩家按方向键 → 磁吸切换目标道具（红色连线跟随切换）
+///   4. 玩家按下"操控"键 → 触发当前锁定目标的操控
+///   5. 道具进入 Telegraph→Active→Cooldown 流程
 /// 
 /// Session 10 更新：集成 EnergySystem，操控道具消耗能量
 /// 
@@ -22,6 +23,12 @@ using UnityEngine;
 ///   - 道具列表在 ActivateAbility 时刷新一次，按L操控时再刷新一次
 ///   - OnRenderObject GL 绘制段数从 48 降到 32，并添加相机过滤避免重复绘制
 ///   - OnGUI 调试面板默认关闭，不产生任何开销
+/// 
+/// Session 20 重构：Trickster 道具操控选择系统
+///   - 视觉连线反馈：融入后绘制红/灰连线到范围内所有可操控道具
+///   - 目标高亮反馈：当前锁定目标 Sprite 微红脉冲
+///   - 方向键磁吸切换：融入状态下方向键拦截为切换目标指令
+///   - 使用 LineRenderer 对象池（预实例化），严禁 Update 中 Instantiate
 /// 
 /// 操控模式:
 ///   - 就近操控: 操控距离 Trickster 最近的可操控道具
@@ -49,6 +56,22 @@ public class TricksterAbilitySystem : MonoBehaviour
     [Tooltip("操控持续时间限制（秒，0=无限）")]
     [SerializeField] private float controlTimeLimit = 0f;
 
+    [Header("=== 连线视觉 (Session 20) ===")]
+    [Tooltip("连线池大小（最多同时显示的连线数量）")]
+    [SerializeField] private int maxLineRenderers = 8;
+
+    [Tooltip("当前锁定目标连线宽度")]
+    [SerializeField] private float selectedLineWidth = 0.08f;
+
+    [Tooltip("备选目标连线宽度")]
+    [SerializeField] private float candidateLineWidth = 0.03f;
+
+    [Tooltip("当前锁定目标连线颜色（高亮红色）")]
+    [SerializeField] private Color selectedLineColor = new Color(1f, 0.15f, 0.15f, 0.9f);
+
+    [Tooltip("备选目标连线颜色（半透明暗灰色）")]
+    [SerializeField] private Color candidateLineColor = new Color(0.4f, 0.4f, 0.4f, 0.35f);
+
     [Header("=== 运行时 Gizmo 可视化 ===")]
     [Tooltip("运行时是否显示控制范围圆和绑定连线（方便测试）")]
     [SerializeField] private bool showRuntimeGizmo = true;
@@ -65,7 +88,7 @@ public class TricksterAbilitySystem : MonoBehaviour
     private EnergySystem energySystem; // 可选：能量系统
 
     // 状态
-    private IControllableProp boundProp;          // 当前绑定的道具
+    private IControllableProp boundProp;          // 当前绑定（锁定）的道具
     private GameObject boundPropObject;           // 绑定道具的 GameObject（用于距离检测）
     private int controlsUsedThisDisguise;         // 本次变身已使用的操控次数
     private float controlTimeUsed;                // 本次变身已使用的操控时间
@@ -75,6 +98,15 @@ public class TricksterAbilitySystem : MonoBehaviour
     // Session 18 性能优化：缓存道具列表，避免每帧 FindObjectsByType
     private ControllablePropBase[] cachedProps;
     private bool propsCacheDirty = true;          // 标记缓存是否需要刷新
+
+    // Session 20: 范围内备选道具列表（每次激活/切换时刷新）
+    private ControllablePropBase[] propsInRange;
+    private int propsInRangeCount;
+    private static readonly int MaxPropsInRange = 16;
+
+    // Session 20: LineRenderer 对象池（预实例化，严禁 Update 中 Instantiate）
+    private LineRenderer[] linePool;
+    private Material lineMaterial; // 缓存的连线材质，Awake 中创建一次
 
     // GL 绘制用材质
     private Material glMaterial;
@@ -107,7 +139,117 @@ public class TricksterAbilitySystem : MonoBehaviour
             glMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
             glMaterial.SetInt("_ZWrite", 0);
         }
+
+        // Session 20: 预分配范围内道具数组
+        propsInRange = new ControllablePropBase[MaxPropsInRange];
+        propsInRangeCount = 0;
+
+        // Session 20: 创建 LineRenderer 对象池（P5 合规：Awake 中预实例化）
+        InitLineRendererPool();
     }
+
+    #region Session 20: LineRenderer 对象池
+
+    /// <summary>
+    /// 在 Awake 中预实例化 LineRenderer 对象池。
+    /// 严格遵守 P5 规范：不在 Update 中 Instantiate。
+    /// </summary>
+    private void InitLineRendererPool()
+    {
+        // 创建共享材质（P4 合规：只创建一次）
+        Shader lineShader = Shader.Find("Sprites/Default");
+        if (lineShader != null)
+        {
+            lineMaterial = new Material(lineShader);
+            lineMaterial.hideFlags = HideFlags.HideAndDontSave;
+        }
+
+        linePool = new LineRenderer[maxLineRenderers];
+        for (int i = 0; i < maxLineRenderers; i++)
+        {
+            GameObject lineObj = new GameObject($"AbilityLine_{i}");
+            lineObj.transform.SetParent(transform);
+            lineObj.transform.localPosition = Vector3.zero;
+
+            LineRenderer lr = lineObj.AddComponent<LineRenderer>();
+            lr.positionCount = 2;
+            lr.useWorldSpace = true;
+            lr.sortingOrder = 100; // 确保在最上层
+            lr.numCapVertices = 2;
+            lr.numCornerVertices = 2;
+
+            if (lineMaterial != null)
+            {
+                lr.material = lineMaterial;
+            }
+
+            lr.enabled = false; // 默认隐藏
+            linePool[i] = lr;
+        }
+    }
+
+    /// <summary>
+    /// 更新所有连线的显示状态。
+    /// 融入状态下：显示到范围内所有道具的连线（红=锁定，灰=备选）。
+    /// 非融入状态：隐藏所有连线。
+    /// </summary>
+    private void UpdateLineRenderers()
+    {
+        if (linePool == null) return;
+
+        if (!isAbilityActive)
+        {
+            // 非激活状态：隐藏所有连线
+            HideAllLines();
+            return;
+        }
+
+        Vector3 origin = transform.position;
+        int lineIndex = 0;
+
+        for (int i = 0; i < propsInRangeCount && lineIndex < linePool.Length; i++)
+        {
+            ControllablePropBase prop = propsInRange[i];
+            if (prop == null) continue;
+
+            LineRenderer lr = linePool[lineIndex];
+            lr.enabled = true;
+
+            Vector3 targetPos = prop.transform.position;
+            lr.SetPosition(0, origin);
+            lr.SetPosition(1, targetPos);
+
+            bool isSelected = (prop == (object)boundProp);
+            Color lineColor = isSelected ? selectedLineColor : candidateLineColor;
+            float lineWidth = isSelected ? selectedLineWidth : candidateLineWidth;
+
+            lr.startColor = lineColor;
+            lr.endColor = lineColor;
+            lr.startWidth = lineWidth;
+            lr.endWidth = lineWidth;
+
+            lineIndex++;
+        }
+
+        // 隐藏未使用的 LineRenderer
+        for (int i = lineIndex; i < linePool.Length; i++)
+        {
+            linePool[i].enabled = false;
+        }
+    }
+
+    /// <summary>隐藏所有连线</summary>
+    private void HideAllLines()
+    {
+        if (linePool == null) return;
+        for (int i = 0; i < linePool.Length; i++)
+        {
+            if (linePool[i] != null)
+                linePool[i].enabled = false;
+        }
+    }
+
+    #endregion
 
     private void OnEnable()
     {
@@ -161,6 +303,9 @@ public class TricksterAbilitySystem : MonoBehaviour
                 }
             }
         }
+
+        // Session 20: 更新连线显示
+        UpdateLineRenderers();
     }
 
     #region 输入回调（由 TricksterController 调用）
@@ -228,6 +373,74 @@ public class TricksterAbilitySystem : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Session 20: 方向键磁吸切换目标
+    /// 遍历 controlRange 内备选目标，计算相对于当前目标的方向向量，
+    /// 利用点乘（Vector2.Dot）寻找与按键方向最一致的道具，设为新目标。
+    /// 由 TricksterController 在融入状态下拦截方向键后调用。
+    /// </summary>
+    /// <param name="inputDirection">方向键输入方向（归一化）</param>
+    public void SwitchTarget(Vector2 inputDirection)
+    {
+        if (!isAbilityActive) return;
+        if (inputDirection.sqrMagnitude < 0.01f) return;
+
+        // 刷新范围内道具列表
+        RefreshPropsInRange();
+
+        if (propsInRangeCount <= 1) return; // 只有一个或没有道具，无需切换
+
+        Vector2 inputDir = inputDirection.normalized;
+        Vector2 currentPos = boundPropObject != null
+            ? (Vector2)boundPropObject.transform.position
+            : (Vector2)transform.position;
+
+        float bestDot = -2f;
+        ControllablePropBase bestCandidate = null;
+
+        for (int i = 0; i < propsInRangeCount; i++)
+        {
+            ControllablePropBase prop = propsInRange[i];
+            if (prop == null) continue;
+            if (prop == (object)boundProp) continue; // 跳过当前锁定目标
+
+            Vector2 dirToCandidate = ((Vector2)prop.transform.position - currentPos);
+            if (dirToCandidate.sqrMagnitude < 0.01f) continue; // 重叠位置跳过
+
+            float dot = Vector2.Dot(inputDir, dirToCandidate.normalized);
+
+            // 只考虑与输入方向大致一致的候选（点乘 > 0，即夹角 < 90°）
+            if (dot > 0f && dot > bestDot)
+            {
+                bestDot = dot;
+                bestCandidate = prop;
+            }
+        }
+
+        if (bestCandidate != null)
+        {
+            // 取消旧目标高亮
+            if (boundProp != null)
+            {
+                boundProp.SetHighlight(false);
+            }
+
+            // 设置新目标
+            boundProp = bestCandidate;
+            boundPropObject = bestCandidate.gameObject;
+
+            // 新目标高亮
+            boundProp.SetHighlight(true);
+
+            OnPropBound?.Invoke(boundProp);
+
+            if (showDebugInfo)
+            {
+                Debug.Log($"[TricksterAbility] 磁吸切换目标 → {boundProp.PropName} (dot={bestDot:F2})");
+            }
+        }
+    }
+
     #endregion
 
     #region 内部方法
@@ -270,16 +483,32 @@ public class TricksterAbilitySystem : MonoBehaviour
             BindNearestProp();
         }
 
+        // Session 20: 激活时刷新范围内道具列表并设置高亮
+        RefreshPropsInRange();
+        if (boundProp != null)
+        {
+            boundProp.SetHighlight(true);
+        }
+
         if (showDebugInfo)
         {
             string propInfo = boundProp != null ? boundProp.PropName : "无绑定道具";
-            Debug.Log($"[TricksterAbility] 能力系统激活! 绑定道具: {propInfo}");
+            Debug.Log($"[TricksterAbility] 能力系统激活! 绑定道具: {propInfo}, 范围内道具数: {propsInRangeCount}");
         }
     }
 
     private void DeactivateAbility()
     {
+        // Session 20: 取消所有高亮
+        if (boundProp != null)
+        {
+            boundProp.SetHighlight(false);
+        }
+
         isAbilityActive = false;
+
+        // Session 20: 隐藏所有连线
+        HideAllLines();
     }
 
     /// <summary>
@@ -290,6 +519,31 @@ public class TricksterAbilitySystem : MonoBehaviour
     {
         cachedProps = FindObjectsByType<ControllablePropBase>(FindObjectsSortMode.None);
         propsCacheDirty = false;
+    }
+
+    /// <summary>
+    /// Session 20: 刷新范围内道具列表（用于连线和磁吸切换）
+    /// </summary>
+    private void RefreshPropsInRange()
+    {
+        if (propsCacheDirty || cachedProps == null)
+        {
+            RefreshPropsCache();
+        }
+
+        propsInRangeCount = 0;
+        Vector2 myPos = transform.position;
+
+        for (int i = 0; i < cachedProps.Length && propsInRangeCount < MaxPropsInRange; i++)
+        {
+            if (cachedProps[i] == null) continue;
+            float dist = Vector2.Distance(myPos, cachedProps[i].transform.position);
+            if (dist <= controlRange)
+            {
+                propsInRange[propsInRangeCount] = cachedProps[i];
+                propsInRangeCount++;
+            }
+        }
     }
 
     /// <summary>绑定最近的可操控道具</summary>
@@ -319,9 +573,24 @@ public class TricksterAbilitySystem : MonoBehaviour
 
         if (nearest != null)
         {
+            // Session 20: 取消旧目标高亮
+            if (boundProp != null && boundProp != nearest)
+            {
+                boundProp.SetHighlight(false);
+            }
+
             boundProp = nearest;
             boundPropObject = nearestObj;
             OnPropBound?.Invoke(nearest);
+
+            // Session 20: 设置新目标高亮
+            if (isAbilityActive)
+            {
+                boundProp.SetHighlight(true);
+            }
+
+            // Session 20: 同时刷新范围内道具列表
+            RefreshPropsInRange();
 
             if (showDebugInfo)
             {
@@ -335,6 +604,9 @@ public class TricksterAbilitySystem : MonoBehaviour
     {
         if (boundProp != null)
         {
+            // Session 20: 取消高亮
+            boundProp.SetHighlight(false);
+
             boundProp = null;
             boundPropObject = null;
             OnPropUnbound?.Invoke();
@@ -382,6 +654,10 @@ public class TricksterAbilitySystem : MonoBehaviour
     /// Session 18 性能优化：
     ///   - 添加 Game 视图主相机过滤，避免 Scene 视图+Game 视图重复绘制
     ///   - 段数从 48 降到 32（视觉差异极小，减少 GL 顶点数）
+    /// 
+    /// Session 20 更新：
+    ///   - 连线改用 LineRenderer 对象池实现（见 UpdateLineRenderers）
+    ///   - GL 仅保留控制范围圆绘制
     /// </summary>
     private void OnRenderObject()
     {
@@ -411,23 +687,6 @@ public class TricksterAbilitySystem : MonoBehaviour
             float a2 = (i + 1) * angleStep * Mathf.Deg2Rad;
             GL.Vertex3(center.x + Mathf.Cos(a1) * controlRange, center.y + Mathf.Sin(a1) * controlRange, 0);
             GL.Vertex3(center.x + Mathf.Cos(a2) * controlRange, center.y + Mathf.Sin(a2) * controlRange, 0);
-        }
-
-        // ── 绘制绑定连线 ──
-        if (boundPropObject != null)
-        {
-            Color lineColor = isAbilityActive ? new Color(1f, 1f, 0f, 0.8f) : new Color(1f, 1f, 0f, 0.3f);
-            GL.Color(lineColor);
-            GL.Vertex3(center.x, center.y, 0);
-            GL.Vertex3(boundPropObject.transform.position.x, boundPropObject.transform.position.y, 0);
-
-            // 绑定目标十字标记
-            Vector3 tp = boundPropObject.transform.position;
-            float crossSize = 0.3f;
-            GL.Vertex3(tp.x - crossSize, tp.y, 0);
-            GL.Vertex3(tp.x + crossSize, tp.y, 0);
-            GL.Vertex3(tp.x, tp.y - crossSize, 0);
-            GL.Vertex3(tp.x, tp.y + crossSize, 0);
         }
 
         GL.End();
@@ -467,14 +726,15 @@ public class TricksterAbilitySystem : MonoBehaviour
         float x = screenPos.x - 80;
         float y = Screen.height - screenPos.y - 60;
 
-        GUILayout.BeginArea(new Rect(x, y, 160, 100));
+        GUILayout.BeginArea(new Rect(x, y, 200, 120));
         GUILayout.Label($"Ability: {(isAbilityActive ? "ON" : "OFF")}");
         if (boundProp != null)
         {
-            GUILayout.Label($"Prop: {boundProp.PropName}");
+            GUILayout.Label($"Target: {boundProp.PropName}");
             GUILayout.Label($"State: {boundProp.GetControlState()}");
             GUILayout.Label($"Uses: {ControlsRemaining}");
         }
+        GUILayout.Label($"Props in range: {propsInRangeCount}");
         if (energySystem != null)
         {
             GUILayout.Label($"Energy: {energySystem.CurrentEnergy:F0}/{energySystem.MaxEnergy:F0}");

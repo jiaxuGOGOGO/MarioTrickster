@@ -4,32 +4,35 @@ using UnityEditor.SceneManagement;
 using System.Collections.Generic;
 
 /// <summary>
-/// MarioTrickster Test Console — 统一测试配置窗口
+/// MarioTrickster Test Console — 统一测试配置窗口 (Level Studio)
 /// 
 /// 快捷键: Ctrl+T (Windows) / Cmd+T (Mac)
 /// 菜单:   MarioTrickster → Test Console
 ///
-/// 功能概览:
-///   Tab 1 — 传送与生成 (Teleport & Spawn)
+/// 功能概览 (S25 升级版 — 三大选项卡):
+///
+///   Tab 1 — Level Builder &amp; Theming (模板生成与换肤)
+///     · 一键生成白盒模板（Classic Plains / Underground Cavern）
+///     · 动态元素调色板：点击按钮在 Scene 摄像机中心生成白盒预制体
+///     · 一键应用主题（拖入 LevelThemeProfile，支持 Undo 撤销）
+///     · 字符映射表参考卡
+///     · 原有 TestSceneBuilder 的 Build/Clear 功能
+///     · 关卡元素集控（LevelElementRegistry 浏览 + 聚焦）
+///     · 测试报告快捷入口
+///
+///   Tab 2 — Teleport &amp; Reset (传送与状态管理)
 ///     · Stage 1~9 + GoalZone 一键传送（Mario + Trickster + Camera 硬切）
+///     · 自定义坐标传送
 ///     · 复活 Mario / 补满能量 / 重置关卡元素
 ///
-///   Tab 2 — 全局调试开关 (Global Debug)
+///   Tab 3 — Global Cheats (全局测试外挂)
 ///     · God Mode (无敌)：PlayerHealth.DebugGodMode
 ///     · No Cooldown：GameManager.NoCooldownMode
 ///     · Infinite Energy：EnergySystem.DebugInfiniteEnergy
 ///     · Instant Blend (秒速融入)：DisguiseSystem.DebugInstantBlend
 ///     · Time Scale 滑动条 (0.1x ~ 3.0x)
 ///     · Input Debug 显示开关
-///
-///   Tab 3 — 关卡元素集控 (Elements Hub)
-///     · 按类别分组显示 LevelElementRegistry 中的所有元素
-///     · 点击元素名称 → Scene 视图聚焦 + Inspector 选中
-///     · 一键 Reset All 重置所有元素状态
-///
-///   Tab 4 — 场景构建辅助 (Builder Tools)
-///     · 一键生成 / 清空测试场景
-///     · 运行 EditMode / PlayMode 测试报告
+///     · 运行时状态监控面板
 ///
 /// 设计原则:
 ///   1. 所有调试开关使用 [System.NonSerialized] + #if UNITY_EDITOR || DEVELOPMENT_BUILD 宏隔离
@@ -37,7 +40,8 @@ using System.Collections.Generic;
 ///   3. 传送时调用 CameraController.SnapToTarget() 实现相机硬切
 ///   4. 不修改任何核心逻辑，仅通过公开 API 进行状态干预
 ///
-/// Session 23: 新增
+/// Session 24: 初版创建
+/// Session 25: 升级为 Level Studio（ASCII 关卡生成 + 主题换肤 + 元素调色板）
 /// </summary>
 public class TestConsoleWindow : EditorWindow
 {
@@ -67,7 +71,7 @@ public class TestConsoleWindow : EditorWindow
     // 状态
     // ═══════════════════════════════════════════════════
     private int selectedTab = 0;
-    private readonly string[] tabNames = { "Teleport", "Debug", "Elements", "Builder" };
+    private readonly string[] tabNames = { "Level Builder", "Teleport", "Cheats" };
     private Vector2 scrollPos;
     private Vector2 elementsScrollPos;
 
@@ -82,11 +86,24 @@ public class TestConsoleWindow : EditorWindow
     private EnergySystem cachedEnergy;
     private DisguiseSystem cachedDisguise;
 
-    // Debug 开关本地状态（用于 UI 显示，实际值存在运行时组件上）
+    // Debug 开关本地状态
     private float timeScaleValue = 1f;
 
     // Elements Hub 折叠状态
     private Dictionary<string, bool> categoryFoldouts = new Dictionary<string, bool>();
+
+    // Level Builder 状态
+    private int selectedTemplateIndex = 0;
+    private LevelThemeProfile themeProfile;
+    private bool showCharMapRef = false;
+    private bool showElementPalette = true;
+    private bool showElementsHub = false;
+    private bool showTestReports = false;
+    private bool showBuilderTools = true;
+
+    // Teleport 状态
+    private float customTeleportX = 0f;
+    private float customTeleportY = 1f;
 
     // ═══════════════════════════════════════════════════
     // 菜单入口
@@ -95,7 +112,7 @@ public class TestConsoleWindow : EditorWindow
     public static void ShowWindow()
     {
         var window = GetWindow<TestConsoleWindow>("Test Console");
-        window.minSize = new Vector2(340, 480);
+        window.minSize = new Vector2(380, 520);
     }
 
     // ═══════════════════════════════════════════════════
@@ -113,13 +130,11 @@ public class TestConsoleWindow : EditorWindow
 
     private void OnPlayModeChanged(PlayModeStateChange state)
     {
-        // 进入 PlayMode 时清空缓存，确保重新获取
         if (state == PlayModeStateChange.EnteredPlayMode)
         {
             ClearCache();
             timeScaleValue = 1f;
         }
-        // 退出 PlayMode 时恢复 TimeScale
         if (state == PlayModeStateChange.ExitingPlayMode)
         {
             Time.timeScale = 1f;
@@ -129,7 +144,6 @@ public class TestConsoleWindow : EditorWindow
 
     private void Update()
     {
-        // PlayMode 下定期刷新（每秒约 10 次）
         if (EditorApplication.isPlaying)
         {
             Repaint();
@@ -144,7 +158,7 @@ public class TestConsoleWindow : EditorWindow
         // 标题栏
         EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
         GUILayout.FlexibleSpace();
-        GUILayout.Label("MarioTrickster Test Console", EditorStyles.boldLabel);
+        GUILayout.Label("MarioTrickster Level Studio", EditorStyles.boldLabel);
         GUILayout.FlexibleSpace();
         EditorGUILayout.EndHorizontal();
 
@@ -156,14 +170,13 @@ public class TestConsoleWindow : EditorWindow
         GUI.color = Color.white;
         GUILayout.FlexibleSpace();
 
-        // PlayMode 下显示活跃的调试开关数量
         if (EditorApplication.isPlaying)
         {
             int activeCount = CountActiveDebugFlags();
             if (activeCount > 0)
             {
                 GUI.color = new Color(1f, 0.6f, 0.2f);
-                GUILayout.Label($"[{activeCount} DEBUG FLAGS ON]", EditorStyles.boldLabel);
+                GUILayout.Label($"[{activeCount} CHEATS ON]", EditorStyles.boldLabel);
                 GUI.color = Color.white;
             }
         }
@@ -180,17 +193,480 @@ public class TestConsoleWindow : EditorWindow
 
         switch (selectedTab)
         {
-            case 0: DrawTeleportTab(); break;
-            case 1: DrawDebugTab(); break;
-            case 2: DrawElementsTab(); break;
-            case 3: DrawBuilderTab(); break;
+            case 0: DrawLevelBuilderTab(); break;
+            case 1: DrawTeleportTab(); break;
+            case 2: DrawCheatsTab(); break;
         }
 
         EditorGUILayout.EndScrollView();
     }
 
     // ═══════════════════════════════════════════════════
-    // Tab 1: 传送与生成
+    // Tab 1: Level Builder & Theming
+    // ═══════════════════════════════════════════════════
+    private void DrawLevelBuilderTab()
+    {
+        // ── 区块 1: ASCII 模板生成 ──
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("ASCII Level Generator", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox(
+            "一键生成白盒关卡模板。所有元素使用灰色方块，先测试逻辑，后续换肤。\n仅在 EditMode 下可用。",
+            MessageType.Info);
+
+        EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
+
+        // 模板选择
+        string[] templateNames = AsciiLevelGenerator.GetBuiltInTemplateNames();
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Template:", GUILayout.Width(65));
+        selectedTemplateIndex = EditorGUILayout.Popup(selectedTemplateIndex, templateNames);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        GUI.color = new Color(0.4f, 0.9f, 0.4f);
+        if (GUILayout.Button("Generate Whitebox Level", GUILayout.Height(32)))
+        {
+            GenerateWhiteboxLevel();
+        }
+        GUI.color = new Color(1f, 0.5f, 0.5f);
+        if (GUILayout.Button("Clear ASCII Level", GUILayout.Height(32)))
+        {
+            AsciiLevelGenerator.ClearGeneratedLevel();
+            Debug.Log("[TestConsole] ASCII level cleared.");
+        }
+        GUI.color = Color.white;
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUI.EndDisabledGroup();
+
+        // 字符映射参考
+        showCharMapRef = EditorGUILayout.Foldout(showCharMapRef, "Character Map Reference", true);
+        if (showCharMapRef)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUILayout.HelpBox(AsciiLevelGenerator.GetCharMapReference(), MessageType.None);
+            EditorGUI.indentLevel--;
+        }
+
+        EditorGUILayout.EndVertical();
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块 2: 主题换肤 ──
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("Theme System", EditorStyles.boldLabel);
+
+        EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
+
+        themeProfile = (LevelThemeProfile)EditorGUILayout.ObjectField(
+            "Theme Profile:", themeProfile, typeof(LevelThemeProfile), false);
+
+        EditorGUILayout.BeginHorizontal();
+        GUI.color = new Color(0.5f, 0.8f, 1f);
+        EditorGUI.BeginDisabledGroup(themeProfile == null);
+        if (GUILayout.Button("Apply Theme (with Undo)", GUILayout.Height(28)))
+        {
+            ApplyThemeWithUndo();
+        }
+        EditorGUI.EndDisabledGroup();
+        GUI.color = Color.white;
+
+        if (GUILayout.Button("Create New Theme", GUILayout.Height(28)))
+        {
+            CreateNewThemeProfile();
+        }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUI.EndDisabledGroup();
+        EditorGUILayout.EndVertical();
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块 3: 动态元素调色板 ──
+        showElementPalette = EditorGUILayout.Foldout(showElementPalette, "Element Palette (Spawn at Camera Center)", true, EditorStyles.foldoutHeader);
+        if (showElementPalette)
+        {
+            DrawElementPalette();
+        }
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块 4: 原有 TestSceneBuilder 工具 ──
+        showBuilderTools = EditorGUILayout.Foldout(showBuilderTools, "TestSceneBuilder (9-Stage Test Scene)", true, EditorStyles.foldoutHeader);
+        if (showBuilderTools)
+        {
+            DrawBuilderToolsSection();
+        }
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块 5: 关卡元素集控 ──
+        showElementsHub = EditorGUILayout.Foldout(showElementsHub, "Elements Hub (Registry Browser)", true, EditorStyles.foldoutHeader);
+        if (showElementsHub)
+        {
+            DrawElementsHubSection();
+        }
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块 6: 测试报告 ──
+        showTestReports = EditorGUILayout.Foldout(showTestReports, "Test Reports & Shortcuts", true, EditorStyles.foldoutHeader);
+        if (showTestReports)
+        {
+            DrawTestReportsSection();
+        }
+    }
+
+    /// <summary>生成白盒关卡</summary>
+    private void GenerateWhiteboxLevel()
+    {
+        string template = AsciiLevelGenerator.GetBuiltInTemplate(selectedTemplateIndex);
+        string[] names = AsciiLevelGenerator.GetBuiltInTemplateNames();
+        string templateName = selectedTemplateIndex < names.Length ? names[selectedTemplateIndex] : "Unknown";
+
+        // 注册 Undo
+        Undo.SetCurrentGroupName($"Generate Whitebox Level: {templateName}");
+
+        GameObject root = AsciiLevelGenerator.GenerateFromTemplate(template, true);
+        if (root != null)
+        {
+            Undo.RegisterCreatedObjectUndo(root, $"Generate {templateName}");
+
+            // 聚焦到生成的关卡
+            Selection.activeGameObject = root;
+            SceneView.lastActiveSceneView?.FrameSelected();
+
+            EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+
+            Debug.Log($"[TestConsole] Whitebox level '{templateName}' generated successfully.");
+        }
+    }
+
+    /// <summary>应用主题（支持 Undo）</summary>
+    private void ApplyThemeWithUndo()
+    {
+        if (themeProfile == null) return;
+
+        GameObject root = GameObject.Find("AsciiLevel_Root");
+        if (root == null)
+        {
+            EditorUtility.DisplayDialog("No Level Found",
+                "Please generate a whitebox level first before applying a theme.",
+                "OK");
+            return;
+        }
+
+        // 注册 Undo（记录所有子物体的 SpriteRenderer 状态）
+        Undo.SetCurrentGroupName($"Apply Theme: {themeProfile.themeName}");
+
+        SpriteRenderer[] renderers = root.GetComponentsInChildren<SpriteRenderer>();
+        foreach (SpriteRenderer sr in renderers)
+        {
+            Undo.RecordObject(sr, "Apply Theme Sprite");
+        }
+
+        // 记录相机背景色
+        Camera mainCam = Camera.main;
+        if (mainCam != null)
+        {
+            Undo.RecordObject(mainCam, "Apply Theme Camera BG");
+        }
+
+        AsciiLevelGenerator.ApplyTheme(themeProfile);
+
+        EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+
+        Debug.Log($"[TestConsole] Theme '{themeProfile.themeName}' applied with Undo support.");
+    }
+
+    /// <summary>创建新的 Theme Profile 资产</summary>
+    private void CreateNewThemeProfile()
+    {
+        string path = EditorUtility.SaveFilePanelInProject(
+            "Create Level Theme Profile",
+            "NewLevelTheme",
+            "asset",
+            "Choose where to save the new theme profile");
+
+        if (string.IsNullOrEmpty(path)) return;
+
+        LevelThemeProfile newProfile = ScriptableObject.CreateInstance<LevelThemeProfile>();
+        newProfile.themeName = System.IO.Path.GetFileNameWithoutExtension(path);
+        AssetDatabase.CreateAsset(newProfile, path);
+        AssetDatabase.SaveAssets();
+
+        themeProfile = newProfile;
+        EditorGUIUtility.PingObject(newProfile);
+        Selection.activeObject = newProfile;
+
+        Debug.Log($"[TestConsole] New theme profile created at: {path}");
+    }
+
+    /// <summary>绘制动态元素调色板</summary>
+    private void DrawElementPalette()
+    {
+        EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
+
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.HelpBox(
+            "点击按钮在 Scene 视图摄像机中心生成白盒元素，自动对齐网格。\n生成后可在 Scene 中手动拖拽调整位置。",
+            MessageType.Info);
+
+        // 陷阱类
+        EditorGUILayout.LabelField("Traps", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        DrawPaletteButton("Spike Trap", '^', new Color(0.85f, 0.25f, 0.25f));
+        DrawPaletteButton("Fire Trap", '~', new Color(1f, 0.5f, 0.1f));
+        DrawPaletteButton("Pendulum", 'P', new Color(0.7f, 0.45f, 0.2f));
+        EditorGUILayout.EndHorizontal();
+
+        // 平台类
+        EditorGUILayout.LabelField("Platforms", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        DrawPaletteButton("Bouncy", 'B', new Color(0.3f, 0.85f, 0.3f));
+        DrawPaletteButton("Collapse", 'C', new Color(0.8f, 0.65f, 0.3f));
+        DrawPaletteButton("OneWay", '-', new Color(0.5f, 0.75f, 0.9f));
+        DrawPaletteButton("Moving", '>', new Color(0.5f, 0.5f, 0.9f));
+        EditorGUILayout.EndHorizontal();
+
+        // 敌人类
+        EditorGUILayout.LabelField("Enemies", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        DrawPaletteButton("Bounce Enemy", 'E', new Color(0.9f, 0.2f, 0.6f));
+        DrawPaletteButton("Simple Enemy", 'e', new Color(0.9f, 0.2f, 0.6f));
+        EditorGUILayout.EndHorizontal();
+
+        // 通道/墙壁类
+        EditorGUILayout.LabelField("Passages & Walls", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        DrawPaletteButton("Fake Wall", 'F', new Color(0.55f, 0.55f, 0.65f));
+        DrawPaletteButton("Hidden Passage", 'H', new Color(0.4f, 0.7f, 0.55f));
+        EditorGUILayout.EndHorizontal();
+
+        // 基础方块
+        EditorGUILayout.LabelField("Blocks", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        DrawPaletteButton("Ground", '#', new Color(0.55f, 0.55f, 0.55f));
+        DrawPaletteButton("Platform", '=', new Color(0.7f, 0.7f, 0.7f));
+        DrawPaletteButton("Wall", 'W', new Color(0.4f, 0.4f, 0.4f));
+        EditorGUILayout.EndHorizontal();
+
+        // 其他
+        EditorGUILayout.LabelField("Other", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        DrawPaletteButton("Collectible", 'o', new Color(1f, 0.85f, 0.2f));
+        DrawPaletteButton("Goal Zone", 'G', new Color(0.2f, 1f, 0.4f));
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.EndVertical();
+
+        EditorGUI.EndDisabledGroup();
+    }
+
+    /// <summary>调色板按钮：在 Scene 摄像机中心生成元素</summary>
+    private void DrawPaletteButton(string label, char charKey, Color color)
+    {
+        GUI.color = color;
+        if (GUILayout.Button(label, GUILayout.Height(25)))
+        {
+            SpawnElementAtSceneCenter(charKey, label);
+        }
+        GUI.color = Color.white;
+    }
+
+    /// <summary>在 Scene 视图摄像机中心生成一个元素（对齐网格）</summary>
+    private void SpawnElementAtSceneCenter(char charKey, string label)
+    {
+        SceneView sceneView = SceneView.lastActiveSceneView;
+        if (sceneView == null)
+        {
+            Debug.LogWarning("[TestConsole] No active Scene View found.");
+            return;
+        }
+
+        // 获取 Scene 摄像机中心的世界坐标
+        Vector3 camCenter = sceneView.camera.transform.position;
+        camCenter.z = 0;
+
+        // 对齐到网格（四舍五入到整数）
+        int gridX = Mathf.RoundToInt(camCenter.x);
+        int gridY = Mathf.RoundToInt(camCenter.y);
+
+        // 使用 ASCII 生成器的单字符模板来生成
+        // 确保有 Root 节点
+        GameObject root = GameObject.Find("AsciiLevel_Root");
+        if (root == null)
+        {
+            root = new GameObject("AsciiLevel_Root");
+            Undo.RegisterCreatedObjectUndo(root, "Create ASCII Root");
+        }
+
+        // 生成单个元素（通过临时模板）
+        string miniTemplate = charKey.ToString();
+        // 直接调用生成器的公共 API，但不清除现有内容
+        GameObject tempRoot = AsciiLevelGenerator.GenerateFromTemplate(miniTemplate, false);
+
+        if (tempRoot != null && tempRoot.transform.childCount > 0)
+        {
+            // 将生成的子物体移到正确位置并挂到主 Root 下
+            List<Transform> children = new List<Transform>();
+            foreach (Transform child in tempRoot.transform)
+            {
+                children.Add(child);
+            }
+
+            foreach (Transform child in children)
+            {
+                // 调整位置到 Scene 摄像机中心
+                child.position = new Vector3(gridX, gridY, 0);
+                child.name = child.name.Replace("_0_0", $"_{gridX}_{gridY}");
+                child.parent = root.transform;
+                Undo.RegisterCreatedObjectUndo(child.gameObject, $"Spawn {label}");
+            }
+
+            // 删除临时 Root
+            Object.DestroyImmediate(tempRoot);
+
+            EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+            Debug.Log($"[TestConsole] Spawned '{label}' at grid ({gridX}, {gridY}).");
+        }
+    }
+
+    /// <summary>绘制 TestSceneBuilder 工具区块</summary>
+    private void DrawBuilderToolsSection()
+    {
+        EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
+
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("9-Stage Test Scene", EditorStyles.boldLabel);
+
+        EditorGUILayout.BeginHorizontal();
+        GUI.color = new Color(0.5f, 1f, 0.5f);
+        if (GUILayout.Button("Build Test Scene", GUILayout.Height(32)))
+        {
+            TestSceneBuilder.BuildTestScene();
+        }
+        GUI.color = new Color(1f, 0.5f, 0.5f);
+        if (GUILayout.Button("Clear Test Scene", GUILayout.Height(32)))
+        {
+            TestSceneBuilder.ClearTestScene();
+        }
+        GUI.color = Color.white;
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.EndVertical();
+
+        EditorGUI.EndDisabledGroup();
+    }
+
+    /// <summary>绘制关卡元素集控区块</summary>
+    private void DrawElementsHubSection()
+    {
+        EditorGUI.BeginDisabledGroup(!EditorApplication.isPlaying);
+
+        EditorGUILayout.BeginVertical("box");
+
+        int totalCount = LevelElementRegistry.TotalCount;
+        EditorGUILayout.LabelField($"Registered Elements: {totalCount}");
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Reset All Elements", GUILayout.Height(25)))
+        {
+            LevelElementRegistry.ResetAll();
+            Debug.Log("[TestConsole] All elements reset.");
+        }
+        if (GUILayout.Button("Print Summary", GUILayout.Height(25)))
+        {
+            LevelElementRegistry.DebugPrintSummary();
+        }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(4);
+
+        elementsScrollPos = EditorGUILayout.BeginScrollView(elementsScrollPos, GUILayout.MinHeight(150));
+
+        var stats = LevelElementRegistry.GetCategoryStats();
+        foreach (var kvp in stats)
+        {
+            string catName = kvp.Key.ToString();
+            int count = kvp.Value;
+
+            if (!categoryFoldouts.ContainsKey(catName))
+                categoryFoldouts[catName] = true;
+
+            categoryFoldouts[catName] = EditorGUILayout.Foldout(categoryFoldouts[catName],
+                $"{catName} ({count})", true, EditorStyles.foldoutHeader);
+
+            if (categoryFoldouts[catName])
+            {
+                EditorGUI.indentLevel++;
+                var elements = LevelElementRegistry.GetByCategory(kvp.Key);
+                foreach (var elem in elements)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    if (GUILayout.Button(elem.Name, EditorStyles.linkLabel))
+                    {
+                        if (elem.Component != null)
+                        {
+                            Selection.activeGameObject = elem.Component.gameObject;
+                            SceneView.lastActiveSceneView?.FrameSelected();
+                        }
+                    }
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"[{elem.Tags}]", EditorStyles.miniLabel, GUILayout.Width(120));
+                    EditorGUILayout.EndHorizontal();
+                }
+                EditorGUI.indentLevel--;
+            }
+        }
+
+        if (totalCount == 0)
+        {
+            EditorGUILayout.HelpBox(
+                "当前没有已注册的关卡元素。\n请先生成测试场景并进入 PlayMode。",
+                MessageType.Warning);
+        }
+
+        EditorGUILayout.EndScrollView();
+        EditorGUILayout.EndVertical();
+
+        EditorGUI.EndDisabledGroup();
+    }
+
+    /// <summary>绘制测试报告和快捷键区块</summary>
+    private void DrawTestReportsSection()
+    {
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("Test Reports", EditorStyles.boldLabel);
+
+        if (GUILayout.Button("Run EditMode Tests", GUILayout.Height(25)))
+        {
+            EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (EditMode)");
+        }
+        if (GUILayout.Button("Run PlayMode Tests", GUILayout.Height(25)))
+        {
+            EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (PlayMode)");
+        }
+        if (GUILayout.Button("Run All Tests + Report", GUILayout.Height(25)))
+        {
+            EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (All)");
+        }
+
+        EditorGUILayout.Space(4);
+
+        EditorGUILayout.LabelField("Keyboard Shortcuts", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Ctrl+T       Open Test Console");
+        EditorGUILayout.LabelField("F5           Quick Restart Level");
+        EditorGUILayout.LabelField("F9           Toggle No Cooldown");
+        EditorGUILayout.LabelField("ESC          Pause/Resume");
+        EditorGUILayout.LabelField("R            Restart (Round Over)");
+        EditorGUILayout.LabelField("N            Next Round (Round Over)");
+
+        EditorGUILayout.EndVertical();
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Tab 2: 传送与状态管理
     // ═══════════════════════════════════════════════════
     private void DrawTeleportTab()
     {
@@ -206,19 +682,27 @@ public class TestConsoleWindow : EditorWindow
         for (int i = 0; i < STAGE_NAMES.Length; i += 2)
         {
             EditorGUILayout.BeginHorizontal();
-
-            // 左列
             DrawStageButton(i);
-
-            // 右列（如果存在）
             if (i + 1 < STAGE_NAMES.Length)
             {
                 DrawStageButton(i + 1);
             }
-
             EditorGUILayout.EndHorizontal();
         }
         EditorGUILayout.EndVertical();
+
+        EditorGUILayout.Space(8);
+
+        // 自定义坐标传送
+        EditorGUILayout.LabelField("Custom Teleport", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        customTeleportX = EditorGUILayout.FloatField("X", customTeleportX);
+        customTeleportY = EditorGUILayout.FloatField("Y", customTeleportY);
+        if (GUILayout.Button("Go", GUILayout.Width(40)))
+        {
+            TeleportBothPlayers(new Vector3(customTeleportX, customTeleportY, 0));
+        }
+        EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.Space(8);
 
@@ -241,27 +725,11 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.EndHorizontal();
 
-        // 自定义坐标传送
-        EditorGUILayout.Space(4);
-        EditorGUILayout.LabelField("Custom Teleport", EditorStyles.boldLabel);
-        EditorGUILayout.BeginHorizontal();
-        customTeleportX = EditorGUILayout.FloatField("X", customTeleportX);
-        customTeleportY = EditorGUILayout.FloatField("Y", customTeleportY);
-        if (GUILayout.Button("Go", GUILayout.Width(40)))
-        {
-            TeleportBothPlayers(new Vector3(customTeleportX, customTeleportY, 0));
-        }
-        EditorGUILayout.EndHorizontal();
-
         EditorGUI.EndDisabledGroup();
     }
 
-    private float customTeleportX = 0f;
-    private float customTeleportY = 1f;
-
     private void DrawStageButton(int index)
     {
-        // GoalZone 用绿色高亮
         bool isGoal = index == STAGE_NAMES.Length - 1;
         if (isGoal) GUI.color = new Color(0.5f, 1f, 0.5f);
 
@@ -274,13 +742,14 @@ public class TestConsoleWindow : EditorWindow
     }
 
     // ═══════════════════════════════════════════════════
-    // Tab 2: 全局调试开关
+    // Tab 3: 全局测试外挂
     // ═══════════════════════════════════════════════════
-    private void DrawDebugTab()
+    private void DrawCheatsTab()
     {
-        EditorGUILayout.LabelField("Global Debug Toggles", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Global Test Cheats", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "所有开关默认关闭，每次 Play 自动重置。\n不影响自动化测试。仅在 PlayMode 下可用。",
+            "所有开关默认关闭，每次 Play 自动重置。\n不影响自动化测试。仅在 PlayMode 下可用。\n" +
+            "所有作弊代码被 #if UNITY_EDITOR || DEVELOPMENT_BUILD 宏包裹，Release 包零残留。",
             MessageType.Info);
 
         EditorGUI.BeginDisabledGroup(!EditorApplication.isPlaying);
@@ -292,7 +761,6 @@ public class TestConsoleWindow : EditorWindow
         // ── Mario 调试 ──
         EditorGUILayout.LabelField("Mario", EditorStyles.boldLabel);
 
-        // God Mode
         DrawDebugToggle(
             "God Mode (无敌)",
             "不扣血、不触发死亡",
@@ -305,7 +773,6 @@ public class TestConsoleWindow : EditorWindow
         // ── Trickster 调试 ──
         EditorGUILayout.LabelField("Trickster", EditorStyles.boldLabel);
 
-        // No Cooldown
         DrawDebugToggle(
             "No Cooldown (无冷却)",
             "伪装/扫描/道具冷却立即清零",
@@ -313,7 +780,6 @@ public class TestConsoleWindow : EditorWindow
             (val) => SetNoCooldown(val),
             new Color(0.3f, 0.7f, 1f));
 
-        // Infinite Energy
         DrawDebugToggle(
             "Infinite Energy (无限能量)",
             "能量不消耗，始终满值",
@@ -321,7 +787,6 @@ public class TestConsoleWindow : EditorWindow
             (val) => SetInfiniteEnergy(val),
             new Color(0.3f, 0.7f, 1f));
 
-        // Instant Blend
         DrawDebugToggle(
             "Instant Blend (秒速融入)",
             "伪装后立即进入完全融入状态",
@@ -428,6 +893,10 @@ public class TestConsoleWindow : EditorWindow
         }
     }
 
+    // ═══════════════════════════════════════════════════
+    // UI 辅助
+    // ═══════════════════════════════════════════════════
+
     private void DrawDebugToggle(string label, string tooltip, bool currentValue, System.Action<bool> setter, Color activeColor)
     {
         EditorGUILayout.BeginHorizontal();
@@ -453,162 +922,13 @@ public class TestConsoleWindow : EditorWindow
     }
 
     // ═══════════════════════════════════════════════════
-    // Tab 3: 关卡元素集控
-    // ═══════════════════════════════════════════════════
-    private void DrawElementsTab()
-    {
-        EditorGUILayout.LabelField("Level Elements Hub", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "显示 LevelElementRegistry 中所有已注册元素。\n点击名称 → Scene 聚焦 + Inspector 选中。\n仅在 PlayMode 下可用（元素需运行时注册）。",
-            MessageType.Info);
-
-        EditorGUI.BeginDisabledGroup(!EditorApplication.isPlaying);
-
-        // 统计
-        int totalCount = LevelElementRegistry.TotalCount;
-        EditorGUILayout.LabelField($"Registered Elements: {totalCount}");
-
-        // 一键操作
-        EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("Reset All Elements", GUILayout.Height(25)))
-        {
-            LevelElementRegistry.ResetAll();
-            Debug.Log("[TestConsole] All elements reset.");
-        }
-        if (GUILayout.Button("Print Summary", GUILayout.Height(25)))
-        {
-            LevelElementRegistry.DebugPrintSummary();
-        }
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.Space(4);
-
-        // 按类别分组显示
-        elementsScrollPos = EditorGUILayout.BeginScrollView(elementsScrollPos, GUILayout.MinHeight(200));
-
-        var stats = LevelElementRegistry.GetCategoryStats();
-        foreach (var kvp in stats)
-        {
-            string catName = kvp.Key.ToString();
-            int count = kvp.Value;
-
-            if (!categoryFoldouts.ContainsKey(catName))
-                categoryFoldouts[catName] = true;
-
-            categoryFoldouts[catName] = EditorGUILayout.Foldout(categoryFoldouts[catName],
-                $"{catName} ({count})", true, EditorStyles.foldoutHeader);
-
-            if (categoryFoldouts[catName])
-            {
-                EditorGUI.indentLevel++;
-                var elements = LevelElementRegistry.GetByCategory(kvp.Key);
-                foreach (var elem in elements)
-                {
-                    EditorGUILayout.BeginHorizontal();
-
-                    // 元素名称按钮 → 聚焦
-                    if (GUILayout.Button(elem.Name, EditorStyles.linkLabel))
-                    {
-                        if (elem.Component != null)
-                        {
-                            Selection.activeGameObject = elem.Component.gameObject;
-                            SceneView.lastActiveSceneView?.FrameSelected();
-                        }
-                    }
-
-                    // 标签显示
-                    GUILayout.FlexibleSpace();
-                    GUILayout.Label($"[{elem.Tags}]", EditorStyles.miniLabel, GUILayout.Width(120));
-
-                    EditorGUILayout.EndHorizontal();
-                }
-                EditorGUI.indentLevel--;
-            }
-        }
-
-        if (totalCount == 0)
-        {
-            EditorGUILayout.HelpBox(
-                "当前没有已注册的关卡元素。\n请先生成测试场景并进入 PlayMode。",
-                MessageType.Warning);
-        }
-
-        EditorGUILayout.EndScrollView();
-
-        EditorGUI.EndDisabledGroup();
-    }
-
-    // ═══════════════════════════════════════════════════
-    // Tab 4: 场景构建辅助
-    // ═══════════════════════════════════════════════════
-    private void DrawBuilderTab()
-    {
-        EditorGUILayout.LabelField("Scene Builder Tools", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "快速生成/清空测试场景，运行测试报告。\n仅在 EditMode 下可用。",
-            MessageType.Info);
-
-        EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
-
-        EditorGUILayout.BeginVertical("box");
-
-        EditorGUILayout.LabelField("Test Scene", EditorStyles.boldLabel);
-
-        EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.5f, 1f, 0.5f);
-        if (GUILayout.Button("Build Test Scene", GUILayout.Height(35)))
-        {
-            TestSceneBuilder.BuildTestScene();
-        }
-        GUI.color = new Color(1f, 0.5f, 0.5f);
-        if (GUILayout.Button("Clear Test Scene", GUILayout.Height(35)))
-        {
-            TestSceneBuilder.ClearTestScene();
-        }
-        GUI.color = Color.white;
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.EndVertical();
-
-        EditorGUILayout.Space(8);
-
-        EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("Test Reports", EditorStyles.boldLabel);
-
-        if (GUILayout.Button("Run EditMode Tests", GUILayout.Height(28)))
-        {
-            EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (EditMode)");
-        }
-        if (GUILayout.Button("Run PlayMode Tests", GUILayout.Height(28)))
-        {
-            EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (PlayMode)");
-        }
-        if (GUILayout.Button("Run All Tests + Report", GUILayout.Height(28)))
-        {
-            EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (All)");
-        }
-
-        EditorGUILayout.EndVertical();
-
-        EditorGUILayout.Space(8);
-
-        // 快捷键参考
-        EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("Keyboard Shortcuts", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("Ctrl+T       Open Test Console");
-        EditorGUILayout.LabelField("F5           Quick Restart Level");
-        EditorGUILayout.LabelField("F9           Toggle No Cooldown");
-        EditorGUILayout.LabelField("ESC          Pause/Resume");
-        EditorGUILayout.LabelField("R            Restart (Round Over)");
-        EditorGUILayout.LabelField("N            Next Round (Round Over)");
-        EditorGUILayout.EndVertical();
-
-        EditorGUI.EndDisabledGroup();
-    }
-
-    // ═══════════════════════════════════════════════════
     // 传送逻辑
     // ═══════════════════════════════════════════════════
+
+    // [AI防坑警告] 传送后必须调用 CameraController.SnapToTarget() 实现相机硬切！
+    // 绝对不能让相机花 5 秒钟缓慢滑动过去，这是核心红线。
+    // SnapToTarget() 会重置 smoothDampVelocity、lookAheadVelocity、currentLookAhead、
+    // smoothedSpeed、isMoving、lastTargetPosition 等所有平滑状态。
 
     /// <summary>传送到指定 Stage（0-based index，最后一个为 GoalZone）</summary>
     private void TeleportToStage(int stageIndex)
@@ -620,14 +940,11 @@ public class TestConsoleWindow : EditorWindow
 
         if (stageIndex < 9)
         {
-            // Stage 1~9: 使用与 TestSceneBuilder 相同的公式
             float stageStartX = stageIndex * TOTAL_STAGE_UNIT;
             targetPos = new Vector3(stageStartX + 3f, 1f, 0f);
         }
         else
         {
-            // GoalZone: Stage 9 子区域之后
-            // Stage 9 从 index 8 开始，有 9 个子区域 (s9SubWidth=8)，GoalZone 在最后
             float s9 = 8 * TOTAL_STAGE_UNIT;
             float s9SubWidth = 8f;
             float goalX = s9 + 9 * s9SubWidth + 2f;
@@ -639,6 +956,8 @@ public class TestConsoleWindow : EditorWindow
         Debug.Log($"[TestConsole] Teleported to {STAGE_NAMES[stageIndex]} at ({targetPos.x:F1}, {targetPos.y:F1})");
     }
 
+    // [AI防坑警告] 此方法末尾的 SnapToTarget() 调用是核心红线，绝对不能删除！
+    // 没有它，传送后相机会花 5 秒慢飘过去，严重浪费测试时间。
     /// <summary>将 Mario 和 Trickster 传送到指定位置，相机硬切</summary>
     private void TeleportBothPlayers(Vector3 position)
     {
@@ -649,7 +968,6 @@ public class TestConsoleWindow : EditorWindow
         if (cachedMario != null)
         {
             cachedMario.transform.position = position;
-            // 清零速度（通过 Rigidbody2D）
             Rigidbody2D marioRb = cachedMario.GetComponent<Rigidbody2D>();
             if (marioRb != null) marioRb.velocity = Vector2.zero;
         }
@@ -662,7 +980,7 @@ public class TestConsoleWindow : EditorWindow
             if (tricksterRb != null) tricksterRb.velocity = Vector2.zero;
         }
 
-        // 相机硬切（关键！避免 5 秒慢飘）
+        // [AI防坑警告] 相机硬切 — 核心红线，绝对不能删除或改为平滑跟随！
         if (cachedCamera != null)
         {
             cachedCamera.SnapToTarget();
@@ -684,11 +1002,9 @@ public class TestConsoleWindow : EditorWindow
             Debug.Log("[TestConsole] Mario revived (full HP).");
         }
 
-        // 重新启用 Mario 控制器（死亡后可能被禁用）
         if (cachedMario != null)
         {
             cachedMario.enabled = true;
-            // 重置 SpriteRenderer 可见性
             SpriteRenderer sr = cachedMario.GetComponent<SpriteRenderer>();
             if (sr != null)
             {
@@ -717,14 +1033,12 @@ public class TestConsoleWindow : EditorWindow
 
         LevelElementRegistry.ResetAll();
 
-        // 同时重置 GoalZone 触发状态
         GoalZone[] goalZones = Object.FindObjectsOfType<GoalZone>();
         foreach (GoalZone gz in goalZones)
         {
             gz.ResetTrigger();
         }
 
-        // 重置可操控道具使用次数
         ControllablePropBase[] props = Object.FindObjectsOfType<ControllablePropBase>();
         foreach (ControllablePropBase prop in props)
         {
@@ -753,7 +1067,6 @@ public class TestConsoleWindow : EditorWindow
     {
         EnsureCache();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-        // 同时设置 Mario 和 Trickster 的 PlayerHealth
         if (cachedMarioHealth != null) cachedMarioHealth.DebugGodMode = value;
         if (cachedTricksterHealth != null) cachedTricksterHealth.DebugGodMode = value;
 #endif
@@ -771,12 +1084,9 @@ public class TestConsoleWindow : EditorWindow
         EnsureCache();
         if (cachedGameManager == null) return;
 
-        // GameManager 的 NoCooldownMode 是只读属性，通过反射设置私有字段
-        // 或者直接模拟 F9 按键（更安全，复用现有逻辑）
         bool current = cachedGameManager.NoCooldownMode;
         if (current != value)
         {
-            // 使用反射设置私有字段 noCooldownMode
             var field = typeof(GameManager).GetField("noCooldownMode",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             if (field != null)

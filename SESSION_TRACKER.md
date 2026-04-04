@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 24 (Test Console 统一测试配置窗口) |
-| **日期** | 2026-04-04 |
+| **最新 Session** | Session 25 (Level Studio 关卡工坊) |
+| **日期** | 2026-04-05 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⚠️ S24 Test Console 待用户在 Unity 中验证 |
+| **编译状态** | ⚠️ S25 Level Studio 待用户在 Unity 中验证 |
 | **阻塞** | 无 |
-| **交接说明** | S24 新增 Test Console 编辑器窗口 (Ctrl+T)，含传送/调试开关/元素集控/场景构建四大模块。修改了 PlayerHealth、EnergySystem、DisguiseSystem 添加宏隔离的调试开关。接班 AI 请先 `git log --oneline -n 5` 回顾近期变更。 |
+| **交接说明** | S25 将 Test Console 升级为 Level Studio (Ctrl+T)：新增 ASCII 关卡模板生成器 + LevelThemeProfile 主题换肤系统 + 元素调色板。三个 Tab: Level Builder / Teleport / Cheats。新文件: LevelDesign/AsciiLevelGenerator.cs, LevelDesign/LevelThemeProfile.cs。接班 AI 请先 `git log --oneline -n 5` 回顾近期变更。 |
 
 ---
 
@@ -135,9 +135,9 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **紧急** | S24 Test Console 统一测试配置窗口 | ✅ 已完成，待用户 Unity 验证 |
+| **紧急** | S25 Level Studio 关卡工坊 (ASCII模板+主题换肤+元素调色板) | ✅ 已完成，待用户 Unity 验证 |
 | **紧急** | 等待用户 Unity 测试 S22 弹跳平台重构结果 | ✅ 代码已推送，待用户反馈 |
-| **P1** | 关卡设计系统完善 | ✅ 框架已完成 |
+| **P1** | 关卡设计系统完善 | ✅ Level Studio 已交付 |
 | **P1** | 音效系统 (Audio) | 未开始 |
 | P2 | 动画系统完善 | 未开始 |
 | P2 | 主菜单 UI | 未开始 |

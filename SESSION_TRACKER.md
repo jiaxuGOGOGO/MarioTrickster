@@ -85,7 +85,8 @@ AI 每次 `git push` 前，根据本次修改类型，按表逐行检查：
 | **推送前联动检查** | 每次 `git push` 前必须执行 §0.3 联动矩阵。这是强制规则，不是建议。 |
 | **MASTER_TRACKER 自检** | 每次新增功能、重构架构、接入资源或调整平衡性后，必须检查 `MASTER_TRACKER.md` §1 矩阵是否需要新增行或更新状态，并同步更新 §2 的完成度百分比。 |
 | **章节引用同步检查** | 修改任何文档的章节编号（合并/拆分/重排）时，必须执行以下两条搜索确保无遗漏：`grep -rn '§' *.md`（搜索 § 符号引用）和 `grep -rn '第.*章\|第.*节' *.md`（搜索"第X章/第X节"格式引用）。找到的所有旧编号引用必须更新为新编号。范围包括：信息真相源分配表、联动矩阵本身、README 流程图、AI_WORKFLOW 中的引用等。 |
-| **TestSceneBuilder 同步检查** | 每次代码修改后，必须检查是否触发 §0.8 的同步条件。如触发，必须在同一次 commit 中同步更新 TestSceneBuilder.cs。如果对话即将中断而未完成同步，必须在 §5 待办队列中标注"❗ TestSceneBuilder 待同步"。 |
+| **TestSceneBuilder 同步检查** | 每次代码修改后，必须检查是否触发 §0.8 的同步条件。如触发，必须在同一次 commit 中同步更新 TestSceneBuilder.cs。如果对话即将中断而未完成同步，必须在 §5 待办队列中标注“❗ TestSceneBuilder 待同步”。 |
+| **性能编码自检** | 每次写新代码或修改现有代码时，必须对照 §0.9 的 7 条性能规则自检。推送前建议执行 §0.9 中的 grep 检查脚本确认无违规。这是强制规则，不是建议。 |
 
 ### 0.5 积分管理规则
 
@@ -134,9 +135,39 @@ AI 每次 `git push` 前，根据本次修改类型，按表逐行检查：
 | 9A-9I | 测试 9：关卡元素 | 地刺/摆锤/火焰/弹跳怪/弹跳平台/单向平台/崩塌平台/隐藏通道/伪装墙 |
 | 终点 | 胜利判定 | GoalZone |
 
-**跨对话衔接要点：**
+**跨对话衍接要点：**
 - 新对话 AI 读取本节后，必须在每次代码修改时检查是否需要同步更新 TestSceneBuilder
-- 如果当前对话即将中断，在 SESSION_TRACKER §5 待办队列中标注"❗ TestSceneBuilder 待同步：XXX"，确保下次对话能接上
+- 如果当前对话即将中断，在 SESSION_TRACKER §5 待办队列中标注“❗ TestSceneBuilder 待同步：XXX”，确保下次对话能接上
+
+### 0.9 性能编码规范（强制，防止 GPU Timeout）
+
+> **背景**：Session 18 发现多个性能隐患累积导致 D3D11 GPU Timeout（TDR 崩溃）。以下规则是从 B036 修复中提炼的强制编码规范，所有新代码必须遵守。
+
+| 编号 | 规则 | 禁止做法 | 正确做法 | 检查方法 |
+|------|------|---------|---------|----------|
+| **P1** | **禁止在 OnGUI 中 new GUIStyle** | `void OnGUI() { var s = new GUIStyle(...); }` | 声明为类字段，在首次 OnGUI 调用时惰性初始化（`GUI.skin` 只在 OnGUI 内有效） | `grep -rn 'new GUIStyle' Assets/Scripts/` |
+| **P2** | **禁止在 Update/FixedUpdate 中 FindObjectsOfType** | `void Update() { FindObjectsOfType<T>(); }` | 缓存引用数组，只在特定事件时刷新（场景重建/角色状态变更） | `grep -rn 'FindObject' Assets/Scripts/` → 检查调用位置是否在每帧方法中 |
+| **P3** | **OnRenderObject 必须过滤相机** | `void OnRenderObject() { GL.Begin(...); }` 无条件绘制 | 添加 `if (Camera.current != Camera.main) return;` 防止多相机重复绘制 | `grep -rn 'OnRenderObject' Assets/Scripts/` |
+| **P4** | **禁止在每帧方法中 new Material** | `void Update() { new Material(shader); }` | 在 Awake/Start 中创建一次，缓存为字段 | `grep -rn 'new Material' Assets/Scripts/` |
+| **P5** | **禁止在每帧方法中 Instantiate 无限制** | `void Update() { Instantiate(prefab); }` 无条件 | 使用对象池，或确保有明确的频率限制/数量上限 | `grep -rn 'Instantiate' Assets/Scripts/` → 检查是否在 Update 中 |
+| **P6** | **while 循环必须有明确退出条件** | `while(true)` 无 break/yield | 每个 while 必须有可达的退出条件，协程中的 while 必须有 `yield return` | `grep -rn 'while' Assets/Scripts/` → 检查退出条件 |
+| **P7** | **OnGUI 中避免全屏 GUI.DrawTexture** | 多层叠加全屏半透明矩形 | 尽量用 Canvas UI 替代，必须用 OnGUI 时减少全屏绘制次数 | 代码审查 |
+
+**AI 每次写新代码或修改现有代码时，必须对照以上 7 条规则自检。推送前建议执行检查命令确认无违规：**
+
+```bash
+# 推送前性能自检脚本（在项目根目录执行）
+echo "=== P1: OnGUI 中 new GUIStyle ==="
+grep -rn 'new GUIStyle' Assets/Scripts/ | grep -v '// cached' | grep -v 'InitStyles'
+echo "=== P2: Update/FixedUpdate 中 FindObject ==="
+grep -rn 'FindObject' Assets/Scripts/ | grep -v 'Awake\|Start\|//\|Register'
+echo "=== P3: OnRenderObject 无相机过滤 ==="
+grep -A2 'OnRenderObject' Assets/Scripts/ | grep -v 'Camera.current\|Camera.main'
+echo "=== P4: 每帧 new Material ==="
+grep -rn 'new Material' Assets/Scripts/ | grep -v 'Awake\|Start\|Setup'
+echo "=== P5: Update 中无限制 Instantiate ==="
+grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|Setup'
+```
 
 ---
 

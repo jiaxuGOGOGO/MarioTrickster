@@ -447,17 +447,22 @@ public class TricksterController : MonoBehaviour
 
     // 调试显示：在屏幕左上角偏下显示伪装系统状态
     // Session 11 修复：原来放在右上角(Screen.width-520)，Game视图窄时会被裁剪看不到
+    // Session 18 性能优化：缓存 GUIStyle，消除每帧 new 分配
+    private GUIStyle cachedDebugStyle;
     private void OnGUI()
     {
         if (disguiseSystem == null) return;
-        GUIStyle style = new GUIStyle(GUI.skin.label)
+        if (cachedDebugStyle == null)
         {
-            fontSize = 14,
-            fontStyle = FontStyle.Bold,
-            normal = { textColor = Color.yellow }
-        };
+            cachedDebugStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 14,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = Color.yellow }
+            };
+        }
         string status = disguiseSystem.GetDebugStatus();
         // 放在左上角第二行（第一行是Mario HP），确保任何分辨率都能看到
-        GUI.Label(new Rect(20, 50, 600, 25), $"[Trickster] {status}", style);
+        GUI.Label(new Rect(20, 50, 600, 25), $"[Trickster] {status}", cachedDebugStyle);
     }
 }

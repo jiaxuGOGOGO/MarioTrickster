@@ -251,6 +251,7 @@ InputManager (右Alt/手柄Y)
 | B033 | ✅ **已修复 (Session 18)** 单向平台按S不下落 | P0 | 修复：InputManager 新增 S键下蹲交互路由，通过 MarioInteractionHelper 检测脚下 OneWayPlatform 并调用 AllowDropThrough() |
 | B034 | ✅ **已修复 (Session 18)** 崩塌平台位置重生错误 + Trickster无法触发 | P0 | 修复：改用 stablePosition（在 Stable 状态持续更新），移动平台后重生在新位置。OnCollisionEnter2D 不再限制只有 MarioController，任何有 Rigidbody2D 的对象从上方踩踏都能触发 |
 | B035 | ✅ **已修复 (Session 18)** 隐藏通道按S不传送 | P0 | 修复：InputManager 新增 S键下蹲交互路由，通过 MarioInteractionHelper 检测周围 HiddenPassage 并调用 TryEnterPassage() |
+| B036 | ✅ **已修复 (Session 18)** 全局性能优化（D3D11 GPU Timeout 预防） | P0 | 修复：(1) GameUI/ScanAbility/TricksterController 的 OnGUI 中所有 GUIStyle 缓存为类字段，消除每帧 new 分配的 GC 压力；(2) TricksterAbilitySystem.BindNearestProp 改用缓存道具列表，消除 Update 中每帧 FindObjectsByType 场景扫描；(3) GameManager.ClearAllCooldowns 缓存场景对象引用，避免无冷却模式下每帧 3 次 FindObjectsOfType；(4) OnRenderObject GL 绘制添加主相机过滤，避免多相机重复绘制 |
 
 ### 关于 B002 的修复方法
 
@@ -316,18 +317,23 @@ InputManager (右Alt/手柄Y)
 | B033 修复: 单向平台按S不下落 | InputManager S键路由 + MarioInteractionHelper 检测脚下 OneWayPlatform |
 | B034 修复: 崩塌平台位置重生错误 + Trickster无法触发 | stablePosition 持续更新 + 任何 Rigidbody2D 从上方踩踏都触发 |
 | B035 修复: 隐藏通道按S不传送 | InputManager S键路由 + MarioInteractionHelper 检测 HiddenPassage |
+| B036 修复: 全局性能优化（D3D11 GPU Timeout 预防） | GUIStyle缓存（GameUI/ScanAbility/TricksterController）+ FindObjectsOfType缓存（TricksterAbilitySystem/GameManager）+ GL绘制主相机过滤 |
 
 **新增文件：**
 - `KnockbackHelper.cs` - 统一击退方向计算工具
 - `MarioInteractionHelper.cs` - Mario S键下蹲交互辅助
 
 **修改文件：**
-- `TricksterAbilitySystem.cs` - Gizmo可视化 + 动态重绑定 + 融入后自动绑定
+- `TricksterAbilitySystem.cs` - Gizmo可视化 + 动态重绑定 + 融入后自动绑定 + **性能优化: 缓存道具列表 + GL主相机过滤**
 - `FireTrap.cs` / `SpikeTrap.cs` / `PendulumTrap.cs` / `BouncingEnemy.cs` - KnockbackHelper 统一击退
 - `DamageDealer.cs` - KnockbackHelper 统一击退
 - `BouncyPlatform.cs` - 两边弹跳 + comedyDelay
 - `CollapsingPlatform.cs` - 位置重生修复 + Trickster触发
 - `InputManager.cs` - S键下蹲交互路由
+- `GameUI.cs` - **性能优化: 10个 GUIStyle 缓存为类字段**
+- `ScanAbility.cs` - **性能优化: 3个 GUIStyle 缓存为类字段**
+- `TricksterController.cs` - **性能优化: 1个 GUIStyle 缓存为类字段**
+- `GameManager.cs` - **性能优化: ClearAllCooldowns 缓存场景对象引用**
 - `TestSceneBuilder.cs` - Stage 9 标签更新
 - `Testing_Guide.md` - 影响矩阵新增 KnockbackHelper/MarioInteractionHelper/DamageDealer
 

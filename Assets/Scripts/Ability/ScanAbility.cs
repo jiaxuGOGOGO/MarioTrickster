@@ -26,6 +26,10 @@ using UnityEngine;
 ///     修复: 先执行检测再启动脉冲，确保颜色正确。
 ///   新增: OnScanPerformed 事件（供 UI 区分扫描反馈和道具操控反馈）
 ///
+/// Session 18 性能优化：
+///   - 所有 GUIStyle 缓存为类字段，消除 OnGUI 每帧 new GUIStyle 的 GC 分配
+///   - 惰性初始化（GUI.skin 只在 OnGUI 内有效）
+///
 /// 使用方式：挂载在 Mario GameObject 上
 /// </summary>
 public class ScanAbility : MonoBehaviour
@@ -70,6 +74,12 @@ public class ScanAbility : MonoBehaviour
     private TricksterController targetTrickster;
     private DisguiseSystem targetDisguise;
     private SpriteRenderer targetSpriteRenderer;
+
+    // ── Session 18 性能优化：缓存 GUIStyle ──
+    private bool stylesInitialized;
+    private GUIStyle cachedReadyStyle;
+    private GUIStyle cachedMarkerStyle;
+    private GUIStyle cachedResultStyle;
 
     // 公共属性
     public float CooldownRemaining => cooldownTimer;
@@ -266,9 +276,34 @@ public class ScanAbility : MonoBehaviour
         Gizmos.DrawWireSphere(transform.position, scanRadius);
     }
 
+    /// <summary>Session 18: 惰性初始化缓存样式</summary>
+    private void InitStylesIfNeeded()
+    {
+        if (stylesInitialized) return;
+        stylesInitialized = true;
+
+        cachedReadyStyle = new GUIStyle(GUI.skin.label);
+        cachedReadyStyle.fontSize = 10;
+        cachedReadyStyle.alignment = TextAnchor.MiddleCenter;
+        cachedReadyStyle.normal.textColor = new Color(0.3f, 0.8f, 1f, 0.7f);
+
+        cachedMarkerStyle = new GUIStyle(GUI.skin.label);
+        cachedMarkerStyle.fontSize = 22;
+        cachedMarkerStyle.fontStyle = FontStyle.Bold;
+        cachedMarkerStyle.alignment = TextAnchor.MiddleCenter;
+
+        cachedResultStyle = new GUIStyle(GUI.skin.label);
+        cachedResultStyle.fontSize = 14;
+        cachedResultStyle.fontStyle = FontStyle.Bold;
+        cachedResultStyle.alignment = TextAnchor.MiddleCenter;
+    }
+
     private void OnGUI()
     {
         if (Camera.main == null) return;
+
+        // Session 18: 惰性初始化缓存样式
+        InitStylesIfNeeded();
 
         // 扫描冷却 UI（Mario 头顶）
         Vector3 screenPos = Camera.main.WorldToScreenPoint(transform.position + Vector3.up * 1.8f);
@@ -293,12 +328,8 @@ public class ScanAbility : MonoBehaviour
         }
         else
         {
-            // 就绪提示
-            GUIStyle readyStyle = new GUIStyle(GUI.skin.label);
-            readyStyle.fontSize = 10;
-            readyStyle.alignment = TextAnchor.MiddleCenter;
-            readyStyle.normal.textColor = new Color(0.3f, 0.8f, 1f, 0.7f);
-            GUI.Label(new Rect(x - 10, y - 2, barWidth + 20, 14), "[Q] Scan", readyStyle);
+            // 就绪提示（使用缓存样式）
+            GUI.Label(new Rect(x - 10, y - 2, barWidth + 20, 14), "[Q] Scan", cachedReadyStyle);
         }
 
         // 脉冲效果绘制
@@ -364,15 +395,12 @@ public class ScanAbility : MonoBehaviour
 
         float blinkAlpha = Mathf.Abs(Mathf.Sin(Time.time * flashFrequency * Mathf.PI));
 
-        GUIStyle markerStyle = new GUIStyle(GUI.skin.label);
-        markerStyle.fontSize = 22;
-        markerStyle.fontStyle = FontStyle.Bold;
-        markerStyle.alignment = TextAnchor.MiddleCenter;
-        markerStyle.normal.textColor = new Color(1f, 0.1f, 0.1f, blinkAlpha);
+        // Session 18: 使用缓存样式，只更新动态颜色
+        cachedMarkerStyle.normal.textColor = new Color(1f, 0.1f, 0.1f, blinkAlpha);
 
         float mx = markerPos.x;
         float my = Screen.height - markerPos.y;
-        GUI.Label(new Rect(mx - 20, my - 15, 40, 30), "!", markerStyle);
+        GUI.Label(new Rect(mx - 20, my - 15, 40, 30), "!", cachedMarkerStyle);
     }
 
     /// <summary>绘制扫描结果文字提示（Mario 附近，与道具操控提示区分位置）</summary>
@@ -385,23 +413,19 @@ public class ScanAbility : MonoBehaviour
 
         float alpha = Mathf.Clamp01(scanResultTimer / 0.5f);
 
-        GUIStyle resultStyle = new GUIStyle(GUI.skin.label);
-        resultStyle.fontSize = 14;
-        resultStyle.fontStyle = FontStyle.Bold;
-        resultStyle.alignment = TextAnchor.MiddleCenter;
-
+        // Session 18: 使用缓存样式，只更新动态颜色
         if (tricksterFound)
         {
-            resultStyle.normal.textColor = new Color(1f, 0.2f, 0.2f, alpha);
+            cachedResultStyle.normal.textColor = new Color(1f, 0.2f, 0.2f, alpha);
         }
         else
         {
-            resultStyle.normal.textColor = new Color(0.5f, 0.7f, 1f, alpha);
+            cachedResultStyle.normal.textColor = new Color(0.5f, 0.7f, 1f, alpha);
         }
 
         float tx = textPos.x;
         float ty = Screen.height - textPos.y;
-        GUI.Label(new Rect(tx - 100, ty, 200, 25), scanResultText, resultStyle);
+        GUI.Label(new Rect(tx - 100, ty, 200, 25), scanResultText, cachedResultStyle);
     }
 
     #endregion

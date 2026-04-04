@@ -355,28 +355,45 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>清除场景中所有技能/道具的冷却</summary>
+    // Session 18 性能优化：缓存场景对象引用，避免每帧 3 次 FindObjectsOfType 场景扫描
+    private DisguiseSystem[] cachedDisguises;
+    private ScanAbility[] cachedScans;
+    private ControllablePropBase[] cachedProps;
+    private bool cooldownCacheDirty = true;
+
+    /// <summary>刷新冷却缓存（场景重建或首次启用时调用）</summary>
+    private void RefreshCooldownCache()
+    {
+        cachedDisguises = FindObjectsOfType<DisguiseSystem>();
+        cachedScans = FindObjectsOfType<ScanAbility>();
+        cachedProps = FindObjectsOfType<ControllablePropBase>();
+        cooldownCacheDirty = false;
+    }
+
+    /// <summary>清除场景中所有技能/道具的冷却（Session 18: 使用缓存）</summary>
     private void ClearAllCooldowns()
     {
-        // 清除伪装系统冷却
-        DisguiseSystem[] disguises = FindObjectsOfType<DisguiseSystem>();
-        foreach (DisguiseSystem ds in disguises)
+        if (cooldownCacheDirty || cachedDisguises == null)
         {
-            ds.ResetCooldown();
+            RefreshCooldownCache();
+        }
+
+        // 清除伪装系统冷却
+        foreach (DisguiseSystem ds in cachedDisguises)
+        {
+            if (ds != null) ds.ResetCooldown();
         }
 
         // 清除扫描技能冷却
-        ScanAbility[] scans = FindObjectsOfType<ScanAbility>();
-        foreach (ScanAbility sa in scans)
+        foreach (ScanAbility sa in cachedScans)
         {
-            sa.ResetCooldown();
+            if (sa != null) sa.ResetCooldown();
         }
 
         // 清除可操控道具冷却
-        ControllablePropBase[] props = FindObjectsOfType<ControllablePropBase>();
-        foreach (ControllablePropBase prop in props)
+        foreach (ControllablePropBase prop in cachedProps)
         {
-            prop.ResetCooldown();
+            if (prop != null) prop.ResetCooldown();
         }
     }
 

@@ -144,11 +144,11 @@ AI 每次 `git push` 前，根据本次修改类型，按表逐行检查：
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 18 (TricksterAbilitySystem 多项修复 + Gizmo范围可视化 + 统一击退系统) |
+| **最新 Session** | Session 18 (TricksterAbilitySystem 多项修复 + Gizmo范围可视化 + 统一击退系统 + 全局性能优化) |
 | **日期** | 2026-04-04 |
 | **分支** | master |
 | **项目阶段** | 游戏体验提升 (Sprint 2 进行中) |
-| **编译状态** | ⚠️ Session 18 多项修复待验证 |
+| **编译状态** | ⚠️ Session 18 多项修复 + 性能优化待验证 |
 | **阻塞问题** | 无（B029 已在本次修复中一并解决） |
 
 ---
@@ -265,6 +265,7 @@ Session 12 修复汇总：
 | ~~P0~~ | B034 | 崩塌平台位置重生错误 + Trickster无法触发 | ✅ 已修复 (Session 18): stablePosition + 任何Rigidbody2D触发 |
 | ~~P0~~ | B035 | 隐藏通道按S不传送 | ✅ 已修复 (Session 18): InputManager S键路由 + MarioInteractionHelper |
 | ~~P0~~ | — | Gizmo范围可视化 | ✅ 已实现 (Session 18): 运行时控制范围圆圈 + 陷阱范围显示 |
+| ~~P0~~ | B036 | 全局性能优化（D3D11 GPU Timeout 预防） | ✅ 已修复 (Session 18): GUIStyle缓存 + FindObjectsOfType缓存 + GL绘制优化 |
 | **P1** | — | **关卡设计系统 (Level Design)** | ✅ 框架已完成 |
 | **P1** | — | **音效系统 (Audio)** | 未开始 |
 | P2 | — | 动画系统完善 | 未开始 |

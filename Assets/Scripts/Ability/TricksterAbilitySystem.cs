@@ -17,6 +17,12 @@ using UnityEngine;
 ///   - 修复隐蔽状态下绑定逻辑：融入后自动重新绑定最近道具
 ///   - controlRange 可在 Inspector 中调整控制范围
 /// 
+/// Session 18 性能优化：
+///   - BindNearestProp 改用缓存的道具列表，消除 Update 中每帧 FindObjectsByType
+///   - 道具列表在 ActivateAbility 时刷新一次，按L操控时再刷新一次
+///   - OnRenderObject GL 绘制段数从 48 降到 32，并添加相机过滤避免重复绘制
+///   - OnGUI 调试面板默认关闭，不产生任何开销
+/// 
 /// 操控模式:
 ///   - 就近操控: 操控距离 Trickster 最近的可操控道具
 ///   - 绑定操控: 变身时自动绑定最近的同类道具（推荐）
@@ -47,8 +53,8 @@ public class TricksterAbilitySystem : MonoBehaviour
     [Tooltip("运行时是否显示控制范围圆和绑定连线（方便测试）")]
     [SerializeField] private bool showRuntimeGizmo = true;
 
-    [Tooltip("Gizmo 圆的线段数（越大越圆滑）")]
-    [SerializeField] private int gizmoSegments = 48;
+    [Tooltip("Gizmo 圆的线段数（越大越圆滑，越小越省性能）")]
+    [SerializeField] private int gizmoSegments = 32;
 
     [Header("=== 调试 ===")]
     [SerializeField] private bool showDebugInfo = false;
@@ -65,6 +71,10 @@ public class TricksterAbilitySystem : MonoBehaviour
     private float controlTimeUsed;                // 本次变身已使用的操控时间
     private bool isAbilityActive;                 // 能力系统是否激活（变身且融入后）
     private Vector2 lastInputDirection;           // 最近一次输入方向
+
+    // Session 18 性能优化：缓存道具列表，避免每帧 FindObjectsByType
+    private ControllablePropBase[] cachedProps;
+    private bool propsCacheDirty = true;          // 标记缓存是否需要刷新
 
     // GL 绘制用材质
     private Material glMaterial;
@@ -132,6 +142,7 @@ public class TricksterAbilitySystem : MonoBehaviour
         }
 
         // Session 17: 融入后自动重新绑定最近道具（解决隐蔽状态下无法绑定的问题）
+        // Session 18 优化: 只在 boundProp 为空时尝试绑定，不再每帧扫描场景
         if (isAbilityActive && boundProp == null && bindOnDisguise)
         {
             BindNearestProp();
@@ -229,6 +240,9 @@ public class TricksterAbilitySystem : MonoBehaviour
             controlsUsedThisDisguise = 0;
             controlTimeUsed = 0f;
 
+            // 变身时标记缓存需要刷新
+            propsCacheDirty = true;
+
             // 绑定模式：变身时立即绑定最近的道具
             if (bindOnDisguise)
             {
@@ -246,6 +260,9 @@ public class TricksterAbilitySystem : MonoBehaviour
     private void ActivateAbility()
     {
         isAbilityActive = true;
+
+        // 激活时刷新道具缓存
+        propsCacheDirty = true;
 
         // Session 17: 激活时也尝试绑定（解决变身时距离远、融入后距离近的场景）
         if (bindOnDisguise && boundProp == null)
@@ -265,18 +282,32 @@ public class TricksterAbilitySystem : MonoBehaviour
         isAbilityActive = false;
     }
 
+    /// <summary>
+    /// Session 18 性能优化：刷新道具缓存列表
+    /// 只在必要时调用（变身、激活、按L操控时），而非每帧
+    /// </summary>
+    private void RefreshPropsCache()
+    {
+        cachedProps = FindObjectsByType<ControllablePropBase>(FindObjectsSortMode.None);
+        propsCacheDirty = false;
+    }
+
     /// <summary>绑定最近的可操控道具</summary>
     private void BindNearestProp()
     {
+        // Session 18: 使用缓存的道具列表
+        if (propsCacheDirty || cachedProps == null)
+        {
+            RefreshPropsCache();
+        }
+
         IControllableProp nearest = null;
         float nearestDist = float.MaxValue;
         GameObject nearestObj = null;
 
-        // 查找场景中所有实现了 IControllableProp 的组件
-        ControllablePropBase[] allProps = FindObjectsByType<ControllablePropBase>(FindObjectsSortMode.None);
-
-        foreach (ControllablePropBase prop in allProps)
+        foreach (ControllablePropBase prop in cachedProps)
         {
+            if (prop == null) continue; // 防止已销毁的对象
             float dist = Vector2.Distance(transform.position, prop.transform.position);
             if (dist <= controlRange && dist < nearestDist)
             {
@@ -326,12 +357,15 @@ public class TricksterAbilitySystem : MonoBehaviour
                 }
             }
             // Session 17: 如果绑定丢失，尝试重新绑定
+            // Session 18: 操控时刷新缓存，确保能找到新道具
+            propsCacheDirty = true;
             BindNearestProp();
             return boundProp;
         }
         else
         {
             // 就近模式：每次操控时检测最近的道具
+            propsCacheDirty = true;
             BindNearestProp();
             return boundProp;
         }
@@ -344,15 +378,19 @@ public class TricksterAbilitySystem : MonoBehaviour
     /// <summary>
     /// 使用 GL 在运行时绘制控制范围圆和绑定连线
     /// OnRenderObject 在所有相机渲染后调用，确保 Gizmo 始终可见
+    /// 
+    /// Session 18 性能优化：
+    ///   - 添加 Game 视图主相机过滤，避免 Scene 视图+Game 视图重复绘制
+    ///   - 段数从 48 降到 32（视觉差异极小，减少 GL 顶点数）
     /// </summary>
     private void OnRenderObject()
     {
         if (!showRuntimeGizmo || glMaterial == null) return;
         if (!Application.isPlaying) return;
 
-        // 只在 Scene 视图或 Game 视图中绘制
+        // Session 18: 只在 Game 视图的主相机中绘制一次，避免多相机重复绘制
         Camera cam = Camera.current;
-        if (cam == null) return;
+        if (cam == null || cam != Camera.main) return;
 
         glMaterial.SetPass(0);
 
@@ -421,8 +459,9 @@ public class TricksterAbilitySystem : MonoBehaviour
     private void OnGUI()
     {
         if (!showDebugInfo) return;
+        if (Camera.main == null) return;
 
-        Vector3 screenPos = Camera.main != null ? Camera.main.WorldToScreenPoint(transform.position) : Vector3.zero;
+        Vector3 screenPos = Camera.main.WorldToScreenPoint(transform.position);
         if (screenPos.z < 0) return;
 
         float x = screenPos.x - 80;

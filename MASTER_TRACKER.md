@@ -29,7 +29,8 @@
 | | 平台系统 (弹跳/单向/崩塌) | ✅ 已完成 | `BouncyPlatform.cs` 等 + `MarioInteractionHelper.cs` | 🔄 待回归 (S18 多项修复) |
 | | 隐藏通道 (地下通道/伪装墙) | ✅ 已完成 | `HiddenPassage.cs` 等 + `MarioInteractionHelper.cs` | 🔄 待回归 (S18 S键路由) |
 | | 弹跳怪物 | ✅ 已完成 | `BouncingEnemy.cs` + `KnockbackHelper.cs` | 🔄 待回归 (S18 统一击退) |
-| **游戏循环** | 胜负判定与多回合制 | ✅ 已完成 | `GameManager.cs` | 🔄 待回归 (B023/B025 变更) |
+| **游戏流程** | 胜负判定与多回合制 | ✅ 已完成 | `GameManager.cs` | 🔄 待回归 (B023/B025 变更) |
+| | 性能优化 (B036 GPU Timeout 预防) | ✅ 已完成 (S18) | `GameUI.cs`, `ScanAbility.cs`, `TricksterController.cs`, `TricksterAbilitySystem.cs`, `GameManager.cs` | 🔄 待回归 |
 | | 关卡时间限制与生命值 | ✅ 已完成 | `PlayerHealth.cs` | 🟢 89/89 通过 |
 
 ### 1.2 视角与预警 (GAME_DESIGN §3)

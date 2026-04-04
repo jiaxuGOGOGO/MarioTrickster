@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
@@ -13,6 +13,11 @@ using UnityEngine.UI;
 ///   B014 - 暂停反馈：暂停时显示半透明遮罩（恢复提示已根据用户反馈移除）
 ///   B012 - 道具操控失败反馈：屏幕下方显示失败原因提示（自动消失）
 ///   B024 - 计时器显示区域加宽，防止文字被裁剪
+/// 
+/// Session 18 性能优化:
+///   - 所有 GUIStyle 缓存为类字段，消除 OnGUI 每帧 new GUIStyle 的 GC 分配
+///   - GUIStyle 在首次 OnGUI 调用时惰性初始化（GUI.skin 只在 OnGUI 内有效）
+///   - 减少不必要的 GUI.DrawTexture 调用
 /// </summary>
 public class GameUI : MonoBehaviour
 {
@@ -39,6 +44,19 @@ public class GameUI : MonoBehaviour
 
     // B011: 游戏结束闪烁效果
     private float gameOverBlinkTimer;
+
+    // ── Session 18 性能优化：缓存 GUIStyle ──
+    private bool stylesInitialized;
+    private GUIStyle cachedLabelStyle;
+    private GUIStyle cachedBigLabelStyle;
+    private GUIStyle cachedNoCdStyle;
+    private GUIStyle cachedControlStyle;
+    private GUIStyle cachedPauseTitleStyle;
+    private GUIStyle cachedPauseHintStyle;
+    private GUIStyle cachedWinnerStyle;
+    private GUIStyle cachedScoreStyle;
+    private GUIStyle cachedHintStyle;
+    private GUIStyle cachedFailStyle;
 
     private void Start()
     {
@@ -190,19 +208,69 @@ public class GameUI : MonoBehaviour
 
     #region OnGUI 后备显示（无Canvas时使用）
 
+    /// <summary>
+    /// Session 18 性能优化：惰性初始化所有 GUIStyle（只在首次 OnGUI 调用时创建一次）
+    /// GUI.skin 只在 OnGUI 回调内有效，所以不能在 Awake/Start 中初始化
+    /// </summary>
+    private void InitStylesIfNeeded()
+    {
+        if (stylesInitialized) return;
+        stylesInitialized = true;
+
+        cachedLabelStyle = new GUIStyle(GUI.skin.label);
+        cachedLabelStyle.fontSize = 20;
+        cachedLabelStyle.fontStyle = FontStyle.Bold;
+
+        cachedBigLabelStyle = new GUIStyle(GUI.skin.label);
+        cachedBigLabelStyle.fontSize = 36;
+        cachedBigLabelStyle.fontStyle = FontStyle.Bold;
+        cachedBigLabelStyle.alignment = TextAnchor.MiddleCenter;
+
+        cachedNoCdStyle = new GUIStyle(GUI.skin.label);
+        cachedNoCdStyle.fontSize = 14;
+        cachedNoCdStyle.fontStyle = FontStyle.Bold;
+        cachedNoCdStyle.alignment = TextAnchor.MiddleCenter;
+        cachedNoCdStyle.normal.textColor = new Color(0f, 1f, 0.5f, 0.9f);
+
+        cachedControlStyle = new GUIStyle(GUI.skin.label);
+        cachedControlStyle.fontSize = 12;
+        cachedControlStyle.normal.textColor = new Color(1, 1, 1, 0.5f);
+
+        cachedPauseTitleStyle = new GUIStyle(cachedBigLabelStyle);
+        cachedPauseTitleStyle.fontSize = 48;
+        cachedPauseTitleStyle.normal.textColor = Color.yellow;
+
+        cachedPauseHintStyle = new GUIStyle(GUI.skin.label);
+        cachedPauseHintStyle.fontSize = 20;
+        cachedPauseHintStyle.alignment = TextAnchor.MiddleCenter;
+        cachedPauseHintStyle.normal.textColor = Color.white;
+
+        cachedWinnerStyle = new GUIStyle(cachedBigLabelStyle);
+        cachedWinnerStyle.fontSize = 52;
+        cachedWinnerStyle.normal.textColor = Color.yellow;
+
+        cachedScoreStyle = new GUIStyle(GUI.skin.label);
+        cachedScoreStyle.fontSize = 22;
+        cachedScoreStyle.alignment = TextAnchor.MiddleCenter;
+        cachedScoreStyle.normal.textColor = Color.white;
+
+        cachedHintStyle = new GUIStyle(GUI.skin.label);
+        cachedHintStyle.fontSize = 20;
+        cachedHintStyle.fontStyle = FontStyle.Bold;
+        cachedHintStyle.alignment = TextAnchor.MiddleCenter;
+
+        cachedFailStyle = new GUIStyle(GUI.skin.label);
+        cachedFailStyle.fontSize = 18;
+        cachedFailStyle.fontStyle = FontStyle.Bold;
+        cachedFailStyle.alignment = TextAnchor.MiddleCenter;
+    }
+
     private void OnGUI()
     {
         if (!useOnGUIFallback) return;
 
-        // ===== 样式定义 =====
-        GUIStyle labelStyle = new GUIStyle(GUI.skin.label);
-        labelStyle.fontSize = 20;
-        labelStyle.fontStyle = FontStyle.Bold;
-
-        GUIStyle bigLabelStyle = new GUIStyle(GUI.skin.label);
-        bigLabelStyle.fontSize = 36;
-        bigLabelStyle.fontStyle = FontStyle.Bold;
-        bigLabelStyle.alignment = TextAnchor.MiddleCenter;
+        // Session 18: 惰性初始化缓存样式（只执行一次）
+        InitStylesIfNeeded();
 
         // ===== HUD 信息 =====
 
@@ -214,8 +282,9 @@ public class GameUI : MonoBehaviour
             {
                 hearts += i < marioHealth.CurrentHealth ? "♥ " : "♡ ";
             }
-            labelStyle.normal.textColor = Color.red;
-            GUI.Label(new Rect(20, 20, 300, 40), $"Mario HP: {hearts}", labelStyle);
+            cachedLabelStyle.normal.textColor = Color.red;
+            cachedLabelStyle.alignment = TextAnchor.MiddleLeft;
+            GUI.Label(new Rect(20, 20, 300, 40), $"Mario HP: {hearts}", cachedLabelStyle);
         }
 
         // 计时器（顶部居中）- 非暂停/非结束时显示
@@ -227,43 +296,38 @@ public class GameUI : MonoBehaviour
             int minutes = Mathf.FloorToInt(time / 60f);
             int seconds = Mathf.FloorToInt(time % 60f);
 
-            labelStyle.normal.textColor = time < 30f ? Color.red : Color.white;
-            labelStyle.alignment = TextAnchor.MiddleCenter;
+            cachedLabelStyle.normal.textColor = time < 30f ? Color.red : Color.white;
+            cachedLabelStyle.alignment = TextAnchor.MiddleCenter;
             // B024: 加宽显示区域，增加 Y 偏移，防止时间文字被裁剪
-            GUI.Label(new Rect(Screen.width / 2 - 80, 8, 160, 40), $"{minutes:00}:{seconds:00}", labelStyle);
+            GUI.Label(new Rect(Screen.width / 2 - 80, 8, 160, 40), $"{minutes:00}:{seconds:00}", cachedLabelStyle);
         }
 
         // 回合信息（右上角）
         if (GameManager.Instance != null)
         {
-            labelStyle.normal.textColor = Color.white;
-            labelStyle.alignment = TextAnchor.MiddleRight;
+            cachedLabelStyle.normal.textColor = Color.white;
+            cachedLabelStyle.alignment = TextAnchor.MiddleRight;
             GUI.Label(new Rect(Screen.width - 320, 20, 300, 40),
                 $"Round {GameManager.Instance.CurrentRound}  |  Mario {GameManager.Instance.MarioWins} - Trickster {GameManager.Instance.TricksterWins}",
-                labelStyle);
+                cachedLabelStyle);
         }
 
         // B025: 无冷却模式指示器
         if (GameManager.Instance != null && GameManager.Instance.NoCooldownMode)
         {
-            GUIStyle noCdStyle = new GUIStyle(GUI.skin.label);
-            noCdStyle.fontSize = 14;
-            noCdStyle.fontStyle = FontStyle.Bold;
-            noCdStyle.alignment = TextAnchor.MiddleCenter;
-            noCdStyle.normal.textColor = new Color(0f, 1f, 0.5f, 0.9f);
-            GUI.Label(new Rect(Screen.width / 2 - 100, 42, 200, 25), "[F9] NO COOLDOWN", noCdStyle);
+            GUI.Label(new Rect(Screen.width / 2 - 100, 42, 200, 25), "[F9] NO COOLDOWN", cachedNoCdStyle);
         }
 
         // ===== 暂停画面 (B014 修复) =====
         if (GameManager.Instance != null && GameManager.Instance.CurrentState == GameState.Paused)
         {
-            DrawPauseScreen(bigLabelStyle);
+            DrawPauseScreen();
         }
 
         // ===== 游戏结束画面 (B011 修复) =====
         if (showGameOver)
         {
-            DrawGameOverScreen(bigLabelStyle);
+            DrawGameOverScreen();
         }
 
         // ===== 道具操控失败提示 (B012 修复) =====
@@ -273,16 +337,13 @@ public class GameUI : MonoBehaviour
         }
 
         // ===== 操作提示（左下角）=====
-        GUIStyle controlStyle = new GUIStyle(GUI.skin.label);
-        controlStyle.fontSize = 12;
-        controlStyle.normal.textColor = new Color(1, 1, 1, 0.5f);
         GUI.Label(new Rect(20, Screen.height - 80, 400, 60),
             "P1(Mario): WASD + Space | P2(Trickster): Arrows + P/O/I/L\nESC: Pause | F5: Restart",
-            controlStyle);
+            cachedControlStyle);
     }
 
     /// <summary>绘制暂停画面 - 半透明遮罩 + 大号文字 (B014)</summary>
-    private void DrawPauseScreen(GUIStyle bigLabelStyle)
+    private void DrawPauseScreen()
     {
         // 半透明深色遮罩
         GUI.color = new Color(0, 0, 0, 0.5f);
@@ -290,21 +351,14 @@ public class GameUI : MonoBehaviour
         GUI.color = Color.white;
 
         // 暂停标题
-        GUIStyle pauseTitleStyle = new GUIStyle(bigLabelStyle);
-        pauseTitleStyle.fontSize = 48;
-        pauseTitleStyle.normal.textColor = Color.yellow;
-        GUI.Label(new Rect(0, Screen.height / 2 - 60, Screen.width, 60), "PAUSED", pauseTitleStyle);
+        GUI.Label(new Rect(0, Screen.height / 2 - 60, Screen.width, 60), "PAUSED", cachedPauseTitleStyle);
 
         // 操作提示
-        GUIStyle pauseHintStyle = new GUIStyle(GUI.skin.label);
-        pauseHintStyle.fontSize = 20;
-        pauseHintStyle.alignment = TextAnchor.MiddleCenter;
-        pauseHintStyle.normal.textColor = Color.white;
-        GUI.Label(new Rect(0, Screen.height / 2 + 10, Screen.width, 40), "Press ESC to Resume  |  Press F5 to Restart", pauseHintStyle);
+        GUI.Label(new Rect(0, Screen.height / 2 + 10, Screen.width, 40), "Press ESC to Resume  |  Press F5 to Restart", cachedPauseHintStyle);
     }
 
     /// <summary>绘制游戏结束画面 - 全屏遮罩 + 醒目胜利信息 + 闪烁提示 (B011)</summary>
-    private void DrawGameOverScreen(GUIStyle bigLabelStyle)
+    private void DrawGameOverScreen()
     {
         // ---- 全屏半透明遮罩 ----
         GUI.color = new Color(0, 0, 0, 0.75f);
@@ -318,37 +372,25 @@ public class GameUI : MonoBehaviour
         GUI.color = Color.white;
 
         // ---- 胜利信息（大号文字）----
-        GUIStyle winnerStyle = new GUIStyle(bigLabelStyle);
-        winnerStyle.fontSize = 52;
-        winnerStyle.normal.textColor = Color.yellow;
-
         // 添加阴影效果
         GUI.color = new Color(0, 0, 0, 0.5f);
-        GUI.Label(new Rect(3, Screen.height / 2 - 57, Screen.width, 60), gameOverMessage, winnerStyle);
+        GUI.Label(new Rect(3, Screen.height / 2 - 57, Screen.width, 60), gameOverMessage, cachedWinnerStyle);
         GUI.color = Color.white;
-        GUI.Label(new Rect(0, Screen.height / 2 - 60, Screen.width, 60), gameOverMessage, winnerStyle);
+        GUI.Label(new Rect(0, Screen.height / 2 - 60, Screen.width, 60), gameOverMessage, cachedWinnerStyle);
 
         // ---- 比分显示 ----
         if (GameManager.Instance != null)
         {
-            GUIStyle scoreStyle = new GUIStyle(GUI.skin.label);
-            scoreStyle.fontSize = 22;
-            scoreStyle.alignment = TextAnchor.MiddleCenter;
-            scoreStyle.normal.textColor = Color.white;
             GUI.Label(new Rect(0, Screen.height / 2 + 5, Screen.width, 35),
                 $"Score: Mario {GameManager.Instance.MarioWins} - Trickster {GameManager.Instance.TricksterWins}  |  Round {GameManager.Instance.CurrentRound}",
-                scoreStyle);
+                cachedScoreStyle);
         }
 
         // ---- 操作提示（闪烁效果）----
         float blinkAlpha = Mathf.PingPong(gameOverBlinkTimer * 2f, 1f) * 0.6f + 0.4f;
-        GUIStyle hintStyle = new GUIStyle(GUI.skin.label);
-        hintStyle.fontSize = 20;
-        hintStyle.fontStyle = FontStyle.Bold;
-        hintStyle.alignment = TextAnchor.MiddleCenter;
-        hintStyle.normal.textColor = new Color(1f, 1f, 1f, blinkAlpha);
+        cachedHintStyle.normal.textColor = new Color(1f, 1f, 1f, blinkAlpha);
         GUI.Label(new Rect(0, Screen.height / 2 + 50, Screen.width, 40),
-            "Press  R  to Restart   |   Press  N  for Next Round", hintStyle);
+            "Press  R  to Restart   |   Press  N  for Next Round", cachedHintStyle);
     }
 
     /// <summary>绘制道具操控失败提示 (B012)</summary>
@@ -357,18 +399,14 @@ public class GameUI : MonoBehaviour
         // 渐隐效果
         float alpha = Mathf.Clamp01(abilityFailTimer / 0.5f);
 
-        GUIStyle failStyle = new GUIStyle(GUI.skin.label);
-        failStyle.fontSize = 18;
-        failStyle.fontStyle = FontStyle.Bold;
-        failStyle.alignment = TextAnchor.MiddleCenter;
-        failStyle.normal.textColor = new Color(1f, 0.5f, 0.3f, alpha);
+        cachedFailStyle.normal.textColor = new Color(1f, 0.5f, 0.3f, alpha);
 
         // 背景条
         GUI.color = new Color(0, 0, 0, 0.4f * alpha);
         GUI.DrawTexture(new Rect(Screen.width / 2 - 200, Screen.height - 100, 400, 40), Texture2D.whiteTexture);
         GUI.color = Color.white;
 
-        GUI.Label(new Rect(Screen.width / 2 - 200, Screen.height - 100, 400, 40), abilityFailMessage, failStyle);
+        GUI.Label(new Rect(Screen.width / 2 - 200, Screen.height - 100, 400, 40), abilityFailMessage, cachedFailStyle);
     }
 
     #endregion

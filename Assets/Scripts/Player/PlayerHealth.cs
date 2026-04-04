@@ -18,6 +18,16 @@ public class PlayerHealth : MonoBehaviour
     private float invincibleTimer;
     private SpriteRenderer spriteRenderer;
 
+    // ── Test Console 调试开关（仅 Editor/Development Build 可用）──
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// God Mode：开启后 TakeDamage 完全无效，不扣血不触发死亡。
+    /// 默认 false，仅由 TestConsoleWindow 在运行时设置，
+    /// 每次 Play 自动重置为 false，不影响自动化测试。
+    /// </summary>
+    [System.NonSerialized] public bool DebugGodMode = false;
+#endif
+
     // 事件
     public System.Action<int, int> OnHealthChanged; // (当前, 最大)
     public System.Action OnDeath;
@@ -63,6 +73,10 @@ public class PlayerHealth : MonoBehaviour
     /// <summary>受到伤害</summary>
     public void TakeDamage(int damage = 1)
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        // [AI防坑警告] God Mode 拦截：仅在调试开关开启时跳过伤害，默认关闭，不影响自动化测试
+        if (DebugGodMode) return;
+#endif
         if (isInvincible || currentHealth <= 0) return;
 
         currentHealth = Mathf.Max(0, currentHealth - damage);

@@ -45,6 +45,16 @@ public class DisguiseSystem : MonoBehaviour
     private bool isFullyBlended; // 是否完全融入场景
     private Vector3 lastPosition;
 
+    // ── Test Console 调试开关（仅 Editor/Development Build 可用）──
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// Instant Blend：开启后伪装后立即进入 IsFullyBlended 状态，无需等待 1.5s 静止。
+    /// 默认 false，仅由 TestConsoleWindow 在运行时设置，
+    /// 每次 Play 自动重置为 false，不影响自动化测试。
+    /// </summary>
+    [System.NonSerialized] public bool DebugInstantBlend = false;
+#endif
+
     // 公共属性
     public bool IsDisguised => isDisguised;
     public bool IsFullyBlended => isFullyBlended;
@@ -91,6 +101,17 @@ public class DisguiseSystem : MonoBehaviour
         // 静止融入检测
         if (isDisguised)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // [AI防坑警告] 秒速融入拦截：仅在调试开关开启时立即融入，默认关闭，不影响自动化测试
+            if (DebugInstantBlend && !isFullyBlended)
+            {
+                stillTimer = blendInTime;
+                isFullyBlended = true;
+                SetBlendedVisual(true);
+                lastPosition = transform.position;
+                return; // 跳过正常的静止检测流程
+            }
+#endif
             float moved = Vector3.Distance(transform.position, lastPosition);
             if (moved < 0.01f)
             {

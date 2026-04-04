@@ -2,7 +2,7 @@
 
 > **项目全局纵览中心**：本文档是项目的“中枢神经”，连接《游戏设计调研报告》(GAME_DESIGN) 与《项目进度总结》(Progress_Summary)，提供从“设计愿景”到“代码实现”再到“测试状态”的**全覆盖映射**。
 > **更新时机**：当发生任何功能新增、机制调整、架构重构、测试状态变更、美术/音效接入、网络联机开发时，由 AI 自动同步更新本文档。
-> **最后更新**：2026-04-04 (Session 20)
+> **最后更新**：2026-04-04 (Session 21)
 
 ---
 
@@ -14,7 +14,7 @@
 
 | 设计模块 | 规划功能点 | 当前实现状态 | 对应脚本/系统 | 验证状态 |
 |:---|:---|:---|:---|:---|
-| **角色基础** | Mario 移动与跳跃 | ✅ 已完成 | `MarioController.cs` | 🔄 待回归 (B023 knockback stun + S20 BounceStun) |
+| **角色基础** | Mario 移动与跳跃 | ✅ 已完成 | `MarioController.cs` | 🔄 待回归 (B023 knockback stun + S20 BounceStun + **S21 SetFrameVelocity+maxSpeed跳过**) |
 | | Mario 冲刺能力 | ❌ 未开始 | 待开发 | ⚪ 未测试 |
 | | Trickster 移动与跳跃 | ✅ 已完成 | `TricksterController.cs` | 🔄 待回归 (B023 knockback stun + S20 融入拦截) |
 | **伪装系统** | 基础伪装与形态切换 | ✅ 已完成 | `DisguiseSystem.cs` | 🟢 89/89 通过 |
@@ -27,7 +27,7 @@
 | | 道具绑定与融入体验 (B029) | ✅ 已修复 (S18) + **S20 重构** | `TricksterAbilitySystem.cs` + `IControllableProp.cs` + `ControllablePropBase.cs` + `InputManager.cs` | 🔄 待回归 (S20 视觉连线+目标高亮+方向键磁吸切换) |
 | | 陷阱预布置 | ❌ 未开始 | 待开发 | ⚪ 未测试 |
 | **关卡元素** | 陷阱系统 (地刺/摆锤/火焰) | ✅ 已完成 | `SpikeTrap.cs` 等 + `KnockbackHelper.cs` | 🔄 待回归 (S18 统一击退) |
-| | 平台系统 (弹跳/单向/崩塌) | ✅ 已完成 | `BouncyPlatform.cs`(法线修正+BounceStun) + `OneWayPlatform.cs`(S+Jump) + `MarioInteractionHelper.cs` | 🔄 待回归 (S19 重写 + S20 法线修正+抛物线修复) |
+| | 平台系统 (弹跳/单向/崩塔) | ✅ 已完成 | `BouncyPlatform.cs`(法线修正+**S21 SetFrameVelocity抛物线根因修复**) + `OneWayPlatform.cs`(S+Jump) + `MarioInteractionHelper.cs` | 🔄 待回归 (S19 重写 + S20 法线修正 + **S21 抛物线根因修复**) |
 | | 隐藏通道 (地下通道/伪装墙) | ✅ 已完成 | `HiddenPassage.cs`(双向穿越) + `HiddenPassageReturnTrigger.cs` + `MarioInteractionHelper.cs` | 🔄 待回归 (S19 双向穿越) |
 | | 弹跳怪物 | ✅ 已完成 | `BouncingEnemy.cs` + `KnockbackHelper.cs` | 🔄 待回归 (S18 统一击退) |
 | **游戏流程** | 胜负判定与多回合制 | ✅ 已完成 | `GameManager.cs` | 🔄 待回归 (B023/B025 变更) |
@@ -112,7 +112,7 @@
 | 阶段 | 核心目标 | 包含任务 | 状态 |
 |:---|:---|:---|:---|
 | **Sprint 1** | 核心机制验证 (MVP) | 基础移动、伪装变身、道具操控、胜负判定、自动化测试框架 | ✅ 已完成 |
-| **Sprint 2** | 游戏体验提升 | 关卡设计系统、道具操控UX重构、弹跳物理优化、音效系统接入、动画系统完善、主菜单 UI | 🔄 进行中 (关卡系统+操控UX+弹跳物理已完成) |
+| **Sprint 2** | 游戏体验提升 | 关卡设计系统、道具操控UX重构、弹跳物理优化、音效系统接入、动画系统完善、主菜单 UI | 🔄 进行中 (关卡系统+操控UX+弹跳物理已完成，S21抛物线根因修复) |
 | **Sprint 3** | 视听打磨与平衡 | 引入 Cinemachine、多层级预警系统、美术素材替换、数值平衡调整 | ❌ 未开始 |
 | **Sprint 4** | 网络联机与发布 | Netcode 接入、状态同步、大厅匹配、最终打磨 | ❌ 未开始 |
 

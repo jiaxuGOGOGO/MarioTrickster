@@ -37,6 +37,11 @@ using UnityEngine;
 ///   - 抛物线修复：引入 BounceStun 状态（区别于 KnockbackStun），
 ///     弹跳期间大幅降低横向操控力而非完全禁止，让物理引擎先接管抛物线
 ///   - 参考 Celeste 弹簧 / Sonic 弹簧最佳实践
+/// Session 21: 彻底修复抛物线 + 水平动能丢失
+///   - 废弃 AddForce / rb.velocity 赋值，改用 MarioController.SetFrameVelocity() 绝对速度注入
+///   - 注入前清除角色旧速度（重力积累等），保证发射轨道干净一致
+///   - 移除冗余的 mario.Bounce() 调用（Y轴速度已包含在 SetFrameVelocity 中）
+///   - 配合 MarioController Session 21 的 HandleDirection maxSpeed 截断跳过
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class BouncyPlatform : ControllableLevelElement
@@ -72,7 +77,7 @@ public class BouncyPlatform : ControllableLevelElement
     [Tooltip("碰撞后的冻结时间（秒），期间玩家被冻结在平台上。0=立即弹射")]
     [SerializeField] private float comedyDelay = 0.08f;
 
-    [Header("=== 弹射后 Stun (Session 20 优化) ===")]
+    [Header("=== 弹射后 Stun (Session 20/21 优化) ===")]
     [Tooltip("弹射后 BounceStun 时长（秒）：期间横向操控力大幅降低，保留抛物线")]
     [SerializeField] private float bounceStunDuration = 0.35f;
 
@@ -195,7 +200,13 @@ public class BouncyPlatform : ControllableLevelElement
             pendingContactPosition = contactPos;
             pendingCorrectedNormal = correctedNormal;
 
+            // Session 21: 冻结角色 — 清除 rb 和 frameVelocity 中的旧速度
             targetRb.velocity = Vector2.zero;
+            if (mario != null)
+            {
+                // 通过 SetFrameVelocity 清零内部帧速度，防止重力积累
+                mario.SetFrameVelocity(Vector2.zero);
+            }
 
             // 喜剧延迟期间先施加 stun（防止帧速度覆盖冻结效果）
             float totalStunTime = comedyDelay + bounceStunDuration;
@@ -284,6 +295,9 @@ public class BouncyPlatform : ControllableLevelElement
     /// <summary>
     /// 执行弹射。方向由来向反弹和位置偏移混合决定。
     /// Session 20: 使用修正后的碰撞法线参与方向计算。
+    /// Session 21: 废弃 AddForce / rb.velocity 赋值，
+    ///   改用 MarioController.SetFrameVelocity() 绝对速度注入。
+    ///   注入前清除旧速度，保证发射轨道干净一致。
     /// </summary>
     private void LaunchTarget(Rigidbody2D targetRb, MarioController mario, TricksterController trickster,
         Vector2 incomingVelocity, Vector2 contactPos, Vector2 correctedNormal)
@@ -314,7 +328,7 @@ public class BouncyPlatform : ControllableLevelElement
             Vector2 offsetDir = (contactPos - platformCenter);
 
             // 归一化偏移（相对于平台半尺寸，-1到+1范围）
-            Vector2 halfSize = boxCollider.size * 0.5f * (Vector2)transform.localScale;
+            Vector2 halfSize = boxCollider.size * 0.5f * (Vector2)transform.lossyScale;
             if (halfSize.x > 0.01f) offsetDir.x /= halfSize.x;
             if (halfSize.y > 0.01f) offsetDir.y /= halfSize.y;
 
@@ -343,26 +357,28 @@ public class BouncyPlatform : ControllableLevelElement
         if (tricksterOverride) force *= tricksterForceMult;
         force = Mathf.Clamp(force, minBounceForce, maxBounceForce);
 
-        // 最终弹射速度
+        // 最终弹射速度向量
         Vector2 launchVelocity = launchDir * force;
 
-        // 直接设置速度
-        targetRb.velocity = launchVelocity;
-
-        // Session 20: 使用 BounceStun 替代 KnockbackStun
-        // BounceStun 不完全禁止横向控制，而是大幅降低操控力
-        // 让物理引擎先接管抛物线轨迹，之后再恢复玩家控制
+        // ── Session 21: 绝对速度注入（替代旧的 rb.velocity 赋值 + AddForce） ──
+        // 对 Mario：使用 SetFrameVelocity 直接注入，绕过帧速度架构的读回逻辑
+        // 对 Trickster / 其他 Rigidbody：仍使用 rb.velocity 赋值（Trickster 的 KnockbackStun 会跳过覆盖）
         if (mario != null)
         {
+            // 清除旧速度 + 注入弹射向量（一步完成）
+            mario.SetFrameVelocity(launchVelocity);
+
+            // BounceStun（如果 comedyDelay > 0，已在碰撞时施加了包含 delay 的总时长）
             if (comedyDelay <= 0f)
             {
                 mario.ApplyBounceStun(bounceStunDuration, bounceStunAccelMultiplier, bounceStunDecelMultiplier);
             }
-
-            if (launchDir.y > 0.1f)
-            {
-                mario.Bounce(launchVelocity.y);
-            }
+            // 注意：不再调用 mario.Bounce()，因为 Y 轴速度已包含在 SetFrameVelocity 中
+        }
+        else
+        {
+            // 非 Mario 角色（Trickster 或其他）：直接设置 rb.velocity
+            targetRb.velocity = launchVelocity;
         }
 
         if (trickster != null && comedyDelay <= 0f)
@@ -382,7 +398,7 @@ public class BouncyPlatform : ControllableLevelElement
             StartCoroutine(BounceAnimation());
         }
 
-        Debug.Log($"[BouncyPlatform] 弹飞 {targetRb.gameObject.name}, 修正法线={correctedNormal}, 来向反射={Vector2.Reflect(-incomingVelocity.normalized, correctedNormal)}, 混合后={launchDir}, 力度={force}");
+        Debug.Log($"[BouncyPlatform] 弹飞 {targetRb.gameObject.name}, 修正法线={correctedNormal}, 弹射方向={launchDir}, 弹射速度={launchVelocity}, 力度={force}, 使用SetFrameVelocity={mario != null}");
     }
 
     private System.Collections.IEnumerator ComedySquashAnimation()

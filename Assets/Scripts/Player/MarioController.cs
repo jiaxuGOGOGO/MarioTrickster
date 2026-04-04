@@ -25,6 +25,14 @@ using UnityEngine;
 ///   - BounceStun 不完全禁止横向控制，而是大幅降低 acceleration 和 deceleration
 ///   - 让物理引擎先接管弹跳抛物线轨迹，之后再恢复玩家控制
 ///   - 参考 Celeste 弹簧 / Sonic 弹簧最佳实践：弹跳后短暂降低操控力
+///
+/// Session 21 更新:
+///   - 根因修复：BounceStun 期间 HandleDirection 的 MoveTowards 目标值
+///     不再被 maxSpeed 截断，允许弹射速度超过 maxSpeed 自由飞行
+///   - 新增 SetFrameVelocity(Vector2) 公开方法：允许 BouncyPlatform
+///     在喜剧延迟结束后直接注入绝对弹射速度，替代 AddForce / rb.velocity 赋值
+///   - 修复流程：BouncyPlatform 调用 SetFrameVelocity → 清除旧速度 + 注入弹射向量
+///     → HandleDirection 在 BounceStun 期间跳过 Clamp → 抛物线完整保留
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -108,13 +116,19 @@ public class MarioController : MonoBehaviour
     private bool _isKnockbackStunned;
     private float _knockbackStunTimer;
 
-    // ── Session 20: BounceStun 状态 ──────────────────────
+    // ── Session 20/21: BounceStun 状态 ──────────────────────
     // 区别于 KnockbackStun：不完全禁止横向控制，而是大幅降低操控力
-    // 让弹跳的水平惯性自然保持，产生顺滑的抛物线
+    // Session 21 根因修复：BounceStun 期间跳过 maxSpeed 截断，
+    // 允许弹射速度超过 maxSpeed 自由飞行（惯性抛物线）
     private bool _isBounceStunned;
     private float _bounceStunTimer;
     private float _bounceAccelMult;   // 弹跳期间加速度倍率
     private float _bounceDecelMult;   // 弹跳期间减速度倍率
+
+    // ── Session 21: 外部速度注入标记 ─────────────────────────
+    // SetFrameVelocity 被调用后，下一次 FixedUpdate 跳过 rb.velocity 读回，
+    // 直接使用注入的速度作为 _frameVelocity 起点
+    private bool _frameVelocityOverridden;
 
     // ── 朝向 ──────────────────────────────────────────────
     private bool isFacingRight = true;
@@ -213,11 +227,27 @@ public class MarioController : MonoBehaviour
             }
 
             rb.velocity = _frameVelocity;
+
+            // Session 21: KnockbackStun 分支消费掉 override 标记
+            _frameVelocityOverridden = false;
             return;
         }
 
         // 1. 从 rb 读回速度，并减去上一帧注入的平台速度
-        _frameVelocity = rb.velocity - _lastPlatformVelocity;
+        //    Session 21: 如果 SetFrameVelocity 已注入绝对速度，跳过读回
+        if (_frameVelocityOverridden)
+        {
+            // _frameVelocity 已由 SetFrameVelocity 设定，直接使用
+            // 同时写入 rb.velocity 使物理引擎同步（防止碰撞检测不一致）
+            rb.velocity = _frameVelocity;
+            _frameVelocityOverridden = false;
+            // 清除上一帧平台速度（弹射后不再跟随平台）
+            _lastPlatformVelocity = Vector2.zero;
+        }
+        else
+        {
+            _frameVelocity = rb.velocity - _lastPlatformVelocity;
+        }
 
         // 2. 碰撞检测
         CheckCollisions();
@@ -225,7 +255,7 @@ public class MarioController : MonoBehaviour
         // 3. 跳跃
         HandleJump();
 
-        // 4. 水平移动（Session 20: BounceStun 期间使用降低的操控力）
+        // 4. 水平移动（Session 20/21: BounceStun 期间使用降低的操控力 + 跳过 maxSpeed 截断）
         HandleDirection();
 
         // 5. 重力
@@ -324,23 +354,53 @@ public class MarioController : MonoBehaviour
 
     private void HandleDirection()
     {
-        // Session 20: BounceStun 期间使用降低的操控力
-        // 这样弹跳的水平惯性不会被玩家输入瞬间抹平
+        // Session 20/21: BounceStun 期间使用降低的操控力
+        // Session 21 根因修复：BounceStun 期间 MoveTowards 的目标值
+        // 不再被 maxSpeed 截断，而是以当前速度为基准做微弱衰减/加速
+        // 这样弹射速度 > maxSpeed 时不会被瞬间拉回 maxSpeed
         float accelMult = _isBounceStunned ? _bounceAccelMult : 1f;
         float decelMult = _isBounceStunned ? _bounceDecelMult : 1f;
 
         if (Mathf.Abs(moveInput.x) > 0.01f)
         {
-            _frameVelocity.x = Mathf.MoveTowards(
-                _frameVelocity.x, moveInput.x * maxSpeed,
-                acceleration * accelMult * Time.fixedDeltaTime);
+            if (_isBounceStunned)
+            {
+                // ── BounceStun 期间：允许超过 maxSpeed 的惯性飞行 ──
+                // 目标速度 = 输入方向 × 当前速度绝对值（至少为 maxSpeed）
+                // 这样玩家输入只能微弱地偏转轨迹，不会截断弹射动能
+                float currentAbsX = Mathf.Abs(_frameVelocity.x);
+                float targetSpeed = Mathf.Max(currentAbsX, maxSpeed);
+                float target = moveInput.x * targetSpeed;
+                _frameVelocity.x = Mathf.MoveTowards(
+                    _frameVelocity.x, target,
+                    acceleration * accelMult * Time.fixedDeltaTime);
+            }
+            else
+            {
+                // ── 正常状态：目标速度 = maxSpeed ──
+                _frameVelocity.x = Mathf.MoveTowards(
+                    _frameVelocity.x, moveInput.x * maxSpeed,
+                    acceleration * Time.fixedDeltaTime);
+            }
         }
         else
         {
             float decel = _grounded ? groundDeceleration : airDeceleration;
-            _frameVelocity.x = Mathf.MoveTowards(
-                _frameVelocity.x, 0f,
-                decel * decelMult * Time.fixedDeltaTime);
+
+            if (_isBounceStunned)
+            {
+                // ── BounceStun 期间无输入：极慢衰减，保持惯性 ──
+                _frameVelocity.x = Mathf.MoveTowards(
+                    _frameVelocity.x, 0f,
+                    decel * decelMult * Time.fixedDeltaTime);
+            }
+            else
+            {
+                // ── 正常状态：正常减速 ──
+                _frameVelocity.x = Mathf.MoveTowards(
+                    _frameVelocity.x, 0f,
+                    decel * Time.fixedDeltaTime);
+            }
         }
     }
 
@@ -384,19 +444,23 @@ public class MarioController : MonoBehaviour
     #endregion
 
     // ─────────────────────────────────────────────────────
-    #region Session 20: BounceStun（弹跳后降低操控力）
+    #region Session 20/21: BounceStun（弹跳后降低操控力 + 允许超速飞行）
 
     /// <summary>
     /// 弹跳平台触发：进入 BounceStun 状态。
     /// 
     /// 与 KnockbackStun 的区别：
     ///   - KnockbackStun：完全禁止横向控制（让 AddForce 击退力生效）
-    ///   - BounceStun：大幅降低横向加速/减速度（让弹跳抛物线自然展开）
+    ///   - BounceStun：大幅降低横向加速/减速度 + 跳过 maxSpeed 截断
     /// 
-    /// 参考 Celeste 弹簧最佳实践：
-    ///   弹簧弹射后短暂降低玩家操控力，让物理引擎先接管轨迹，
-    ///   之后再恢复正常控制。这样玩家仍有微弱操控感（不会感觉失控），
-    ///   但不会瞬间抹平弹跳的水平惯性。
+    /// Session 21 根因修复：
+    ///   Session 20 的 BounceStun 仅降低了 acceleration/deceleration 倍率，
+    ///   但 HandleDirection 的 MoveTowards 目标值仍为 maxSpeed，
+    ///   导致弹射后下一帧水平速度被截断至 maxSpeed，抛物线变成垂直下落。
+    ///   
+    ///   修复方案：BounceStun 期间 HandleDirection 使用
+    ///   max(|currentVelocity.x|, maxSpeed) 作为目标速度上限，
+    ///   允许弹射速度超过 maxSpeed 自由飞行。
     /// </summary>
     /// <param name="duration">BounceStun 持续时间（秒）</param>
     /// <param name="accelMultiplier">加速度倍率（0~1，越小操控力越弱）</param>
@@ -410,6 +474,42 @@ public class MarioController : MonoBehaviour
 
         // BounceStun 优先级低于 KnockbackStun
         // 如果同时处于 KnockbackStun，BounceStun 会在 KnockbackStun 结束后生效
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region Session 21: 外部绝对速度注入
+
+    /// <summary>
+    /// 外部调用：强制重写当前帧速度（绝对速度注入）。
+    /// 
+    /// 设计目的：
+    ///   BouncyPlatform 在喜剧延迟结束后调用此方法，直接注入弹射向量。
+    ///   替代旧方案中的 rb.velocity 赋值 + AddForce，确保弹射速度
+    ///   不会在下一帧被 FixedUpdate 的 rb.velocity 读回逻辑覆盖。
+    /// 
+    /// 工作原理：
+    ///   1. 清除 _frameVelocity 中的旧速度（重力积累等）
+    ///   2. 设置 _frameVelocityOverridden 标记
+    ///   3. 下一次 FixedUpdate 检测到标记后，跳过 rb.velocity 读回，
+    ///      直接使用注入的速度作为 _frameVelocity 起点
+    ///   4. 同时将注入速度写入 rb.velocity 保持物理引擎同步
+    /// 
+    /// 注意：此方法应与 ApplyBounceStun 配合使用，
+    ///       否则 HandleDirection 会在同帧将速度截断至 maxSpeed。
+    /// </summary>
+    /// <param name="newVelocity">要注入的绝对速度向量</param>
+    public void SetFrameVelocity(Vector2 newVelocity)
+    {
+        _frameVelocity = newVelocity;
+        _frameVelocityOverridden = true;
+
+        // 立即同步到 rb.velocity，防止物理碰撞检测不一致
+        if (rb != null)
+        {
+            rb.velocity = newVelocity;
+        }
     }
 
     #endregion

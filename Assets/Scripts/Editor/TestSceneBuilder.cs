@@ -518,7 +518,7 @@ public class TestSceneBuilder : Editor
         // --- 9E: BouncyPlatform (弹跳平台) ---
         float s9e = s9d + s9SubWidth;
         CreateSubSign(s9e + s9SubWidth / 2f, "9E: BOUNCY PLATFORM",
-            "Mario: land on any side = bounce in surface normal direction\nBounce force adjustable (bounceForce + bounceForceMultiplier)\nComedy delay: brief freeze before launch\nTrickster(L): override direction + increase force\n[S19] Contact-normal based directional bounce\n[S20] Normal correction + BounceStun (reduced air control for parabola)\n[S21] SetFrameVelocity absolute injection + maxSpeed bypass = full parabola",
+            "Mario: land on any side = bounce in surface normal direction\nBounce force adjustable (bounceForce + bounceForceMultiplier)\nComedy delay(0.25s): freeze + squash animation\nTrickster(L): override direction + increase force during freeze\n[S19] Contact-normal based directional bounce\n[S20] Normal correction for corner collisions\n[S22] Two-phase bounce: PrepareBounce(freeze) → ExecuteBounce(launch)\n     Momentum preservation: airFriction + bounceAirAcceleration\n     Auto-release on landing or wall hit",
             stage9.transform);
 
         GameObject bouncyPlatform = new GameObject("BouncyPlatform");
@@ -533,7 +533,7 @@ public class TestSceneBuilder : Editor
         bouncyCol.size = Vector2.one;
         bouncyPlatform.AddComponent<BouncyPlatform>();
         bouncyPlatform.transform.parent = stage9.transform;
-        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (S21: SetFrameVelocity + maxSpeed bypass parabola fix)", stage9.transform);
+        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (S22: Two-phase bounce = PrepareBounce + ExecuteBounce + momentum preservation)", stage9.transform);
 
         // --- 9F: OneWayPlatform (单向平台) ---
         float s9f = s9e + s9SubWidth;

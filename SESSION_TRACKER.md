@@ -132,7 +132,7 @@ AI 每次 `git push` 前，根据本次修改类型，按表逐行检查：
 | 6 | 测试 6：扫描技能 | Trickster 伪装目标 |
 | 7 | 测试 7：胜负判定 | 敌人 + 金币 + GoalZone |
 | 8 | 测试 8：暂停系统 | 无特殊元素 |
-| 9A-9I | 测试 9：关卡元素 | 地刺/摆锤/火焰/弹跳怪/弹跳平台(S20法线修正+S21 SetFrameVelocity抛物线根因修复)/单向平台/崩塔平台/隐藏通道/伪装墙 |
+| 9A-9I | 测试 9：关卡元素 | 地刺/摆锤/火焰/弹跳怪/弹跳平台(S22两段式弹射重构:蓄力冻结+抛物线动能保留)/单向平台/崩塔平台/隐藏通道/伪装墙 |
 | 终点 | 胜利判定 | GoalZone |
 
 **跨对话衍接要点：**
@@ -175,11 +175,11 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 21 (BouncyPlatform 弹射抛物线根因修复：SetFrameVelocity 绝对速度注入 + maxSpeed 截断跳过) |
+| **最新 Session** | Session 22 (BouncyPlatform 两段式弹射重构：蓄力冻结期 + 抛物线动能保留系统) |
 | **日期** | 2026-04-04 |
 | **分支** | master |
 | **项目阶段** | 游戏体验提升 (Sprint 2 进行中) |
-| **编译状态** | ⚠️ Session 21 弹射修复待验证 |
+| **编译状态** | ⚠️ Session 22 两段式弹射重构待验证 |
 | **阻塞问题** | 无 |
 
 ---
@@ -222,26 +222,26 @@ Session 12 修复汇总：
 > AI 修复 Bug 后按 0.2 节流程自动填写。用户测试时除了当前测试项，还需快速验证此清单中的项目。
 > 简化操作见 Testing_Guide.md 第四章 4.4 节。
 
-**当前状态：Session 18-21 修复和优化后待回归**
+**当前状态：Session 18-22 修复和优化后待回归**
 
 | 测试项 | 原因 | 简化验证操作 |
 |--------|------|------------|
-| 🔄 测试 1：Mario 基础移动 | MarioController.cs knockback stun (S16) + InputManager S键路由 (S18) + S+Jump组合键 (S19) + BounceStun (S20) + **SetFrameVelocity + maxSpeed跳过 (S21)** | WASD 移动 + Space 跳跃，确认手感不变，确认单独按S不会触发下落 |
+| 🔄 测试 1：Mario 基础移动 | MarioController.cs knockback stun (S16) + InputManager S键路由 (S18) + S+Jump组合键 (S19) + **S22 两段式弹射状态机重构** | WASD 移动 + Space 跳跃，确认手感不变，确认单独按S不会触发下落 |
 | 🔄 测试 2：Trickster 基础移动 | TricksterController.cs knockback stun (S16) + **融入状态方向键拦截 (S20)** | 方向键移动 + 跳跃，确认手感不变；融入后方向键不移动而是切换目标 |
 | 🔄 测试 5：道具操控能力 | **Session 20 重构**：视觉连线 + 目标高亮 + 方向键磁吸切换 | 融入后确认红/灰连线出现；按方向键确认红线磁吸转移；按L确认只触发红线连接的道具；移动后连线消失 |
 | 🔄 测试 7：胜负判定与UI | DamageDealer.cs KnockbackHelper (S18) | 碰敌人受伤确认有击退效果 + 红色闪烁 |
-| 🔄 测试 9：关卡设计系统 | **Session 18-21 修复和优化** — 详见下方 | 逐一验证 9A-9I 所有子区域 |
+| 🔄 测试 9：关卡设计系统 | **Session 18-22 修复和优化** — 详见下方 | 逐一验证 9A-9I 所有子区域 |
 | 🔄 测试 9A：地刺 | SpikeTrap KnockbackHelper (S18) | 碰地刺确认向后退一小段距离，不会飞出 |
 | 🔄 测试 9B：摆锤 | PendulumTrap KnockbackHelper + 隐蔽控制 (S18) | Trickster伪装融入后按L确认能控制摆锤 |
 | 🔄 测试 9C：火陷阱 | FireTrap 击退方向修正 (S18) | 碰火焰确认向后退一小段距离，不会向上飞出 |
 | 🔄 测试 9D：弹跳怪 | BouncingEnemy KnockbackHelper (S18) | 碰弹跳怪确认有合理击退 |
-| 🔄 测试 9E：弹跳平台 | **S19 重写 + S20 优化 + S21 根因修复**：法线修正 + SetFrameVelocity绝对注入 + maxSpeed截断跳过 + 相机震动 | 从不同角度踩踏弹跳平台，确认产生完整抛物线（非垂直下落）；弹跳后按左右不会立即抹平横向惯性；落地后恢复正常控制 |
+| 🔄 测试 9E：弹跳平台 | **S19 重写 + S20 优化 + S22 两段式弹射重构**：蓄力冻结期(PrepareBounce) + 抛物线飞行期(ExecuteBounce) + 动能保留 + 相机震动 | 踩踏弹跳平台后确认短暂冻结(~0.25s)；弹射后确认产生完整抛物线（非垂直下落）；弹跳后按左右可微弱转向但不会立即抹平横向惯性；落地或碰墙后恢复正常控制 |
 | 🔄 测试 9F：单向平台 | **S19 重写**：S+Jump组合键下落 | 站在平台上按S+Space确认能落下，单独按S不会落下 |
 | 🔄 测试 9G：崩塌平台 | CollapsingPlatform 位置重生 + Trickster触发 (S18) | 移动平台后确认重生在新位置 + Trickster踩上也触发崩塌 |
 | 🔄 测试 9H：隐藏通道 | **S19 重写**：双向穿越 + TeleportMode状态机 | 入口按S传送到出口 + 出口按S传回入口 + 确认冷却时间内无法重复传送 |
 | 🔄 测试 9I：伪装墙 | FakeWall 无代码修改 | 确认走入变透明 + Trickster L键变实体 |
 | 🔄 UI 显示 | GameUI.cs 计时器 + 无冷却指示器 (S16) | 确认时间显示完整不被裁剪 |
-| 🔄 场景生成 | TestSceneBuilder.cs 标签更新 (S18+S19+S20+**S21**) | Clear + Build 后确认 9 个 Stage + 标签正常显示，确认 S21 新标签内容正确 |
+| 🔄 场景生成 | TestSceneBuilder.cs 标签更新 (S18+S19+S20+**S22**) | Clear + Build 后确认 9 个 Stage + 标签正常显示，确认 S22 新标签内容正确 |
 | 🔄 测试 6.5：镜头系统 | B027 根本修复 (S17) | 走完全部 Stage，确认镜头始终跟随 Mario |
 | 🔄 角色碰撞 | B028 (S17): Mario/Trickster 分离到专用 Layer | Trickster 走向 Mario 应该互相穿过 |
 
@@ -251,7 +251,7 @@ Session 12 修复汇总：
 
 | 测试项 | 状态 | 说明 |
 |--------|------|------|
-| 测试 1：Mario 基础移动 | 🔄 待回归 | WASD 移动 + Space 跳跃（InputManager S键路由新增） |
+| 测试 1：Mario 基础移动 | 🔄 待回归 | WASD 移动 + Space 跳跃（S22 两段式弹射状态机重构） |
 | 测试 2：Trickster 基础移动 | 🔄 待回归 | 方向键移动 + 跳跃（knockback stun + S20融入拦截） |
 | 测试 3：移动平台跟随 | ✅ 通过 | 站上平台不被甩飞 |
 | 测试 4：伪装系统 | ✅ 通过 | P 伪装/解除，O/I 切换形态 |
@@ -260,7 +260,7 @@ Session 12 修复汇总：
 | 测试 6.5：镜头系统 | 🔄 待回归 | B027 根本修复 (S17) |
 | 测试 7：胜负判定与UI | 🔄 待回归 | 多回合胜利/失败画面 + 受伤击退效果（KnockbackHelper） |
 | 测试 8：暂停系统 | ✅ 通过 | ESC 暂停/恢复正常，无多余提示 |
-| 测试 9：关卡设计系统 | 🔄 待回归 | **Session 18-21**：击退/弹跳法线修正+SetFrameVelocity抛物线根因修复/S+Jump单向平台/双向通道 |
+| 测试 9：关卡设计系统 | 🔄 待回归 | **Session 18-22**：击退/S22两段式弹射重构(蓄力冻结+抛物线动能保留)/S+Jump单向平台/双向通道 |
 | EditMode 自动化测试 | ✅ 通过 | 59/59 全部通过（Session 13 修复 ForceAwake + DisguiseSystem断言） |
 | PlayMode 自动化测试 | ✅ 通过 | 21/21 全部通过（用户通过 Test Runner 验证） |
 

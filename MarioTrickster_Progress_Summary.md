@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-04 (Session 21) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
+> 更新时间：2026-04-04 (Session 22) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
 > **AI 入口**：每次新对话优先读取 `SESSION_TRACKER.md`（当前状态 + AI 行为规范 + 回归清单 + 待办队列），需要完整上下文时再读本文件，需要纵览全局时读 `MASTER_TRACKER.md`
 
 ---
@@ -85,7 +85,7 @@
 
 | 脚本 | 路径 | 状态 | 说明 |
 |------|------|------|------|
-| MarioController.cs | Assets/Scripts/Player/ | ✅ **Session 21 更新** | Tarodev 帧速度架构 + 平台速度注入法跟随。S20: BounceStun。**S21: 新增 SetFrameVelocity() 绝对速度注入 + BounceStun期间跳过 maxSpeed 截断，彻底修复弹射抛物线** |
+| MarioController.cs | Assets/Scripts/Player/ | ✅ **Session 22 重构** | Tarodev 帧速度架构 + 平台速度注入法跟随。**S22: 两段式弹射状态机重构 — 废除 bounceStunTimer，改用 _isPreparingBounce + _isBouncing 布尔状态机；PrepareBounce() 蓄力冻结 + ExecuteBounce() 绝对速度注入 + HandleDirection 动能保留(airFriction/bounceAirAcceleration) + 落地/碰墙自动解除** |
 | PlayerHealth.cs | Assets/Scripts/Player/ | ✅ | 通用生命值/无敌帧/受伤闪烁/死亡事件 |
 | TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 20 更新** | 帧速度架构 + 平台速度注入。S20: 新增 OnDirectionInput() 磁吸切换回调 + IsFullyBlended 属性 + 切换防抖冷却(0.2s)。OnGUI 显示伪装系统实时状态 |
 | DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | Sprite替换变身/冷却/场景融入/多形态切换；新增 GetDebugStatus() 调试方法 |
@@ -122,7 +122,7 @@
 | PendulumTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 摆锤绳索陷阱（物理摆动，可操控）。S18: KnockbackHelper 统一击退 |
 | FireTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 火焰陷阱（周期喷射，可操控）。S18: 击退方向修正 + KnockbackHelper |
 | BouncingEnemy.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 弹跳小怪物（周期弹跳，可踩踏，可操控）。S18: KnockbackHelper 统一击退 |
-| BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 21 更新** | 弹跳平台。S20: 法线修正+BounceStun。**S21: 废弃 AddForce/rb.velocity，改用 SetFrameVelocity() 绝对速度注入；注入前清除旧速度；移除冗余 mario.Bounce() 调用** + 喜剧延迟 + 相机震动 + Trickster可操控 |
+| BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 22 重构** | 弹跳平台。**S22: 两段式弹射协程重构 — 废除 Update 手动计时器，改用 LaunchSequence 协程统一管理时序；碰撞调用 PrepareBounce() 冻结角色，延迟结束调用 ExecuteBounce() 注入绝对速度；WaitForSeconds 缓存实例避免 GC** + 喜剧延迟(0.25s) + 相机震动 + Trickster可操控 |
 | OneWayPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 19 更新** | 单向平台：S+Jump组合键下落（行业标准，防止误操作） |
 | CollapsingPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 18 更新** | 崩塌平台（踩踏后抖动掉落，可操控）。S18: 位置重生修复 + Trickster也能触发 |
 | HiddenPassage.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ **Session 19 重写** | 隐藏通道：双向穿越 + TeleportMode状态机 + 返回触发区 + 冷却时间 |
@@ -306,6 +306,36 @@ InputManager (右Alt/手柄Y)
 ---
 
 ## 六、Session 历史记录
+
+### Session 22 记录（2026-04-04）
+
+**本次完成功能（BouncyPlatform 两段式弹射重构：蓄力冻结期 + 抛物线动能保留系统）：**
+
+| 项目 | 说明 |
+|------|------|
+| 设计背景 | 为保证非对称对抗的博弈空间，弹跳平台需要“喜剧延迟”和“抛物线弹射”两个阶段明确分离。Session 20-21 的 BounceStun 计时器方案将两个阶段混在一起，导致冻结期和飞行期互相冲突 |
+| MarioController: 废除 bounceStunTimer | 移除旧的 _isBounceStunned / _bounceStunTimer / _bounceAccelMult / _bounceDecelMult / _frameVelocityOverridden，改用布尔状态机 _isPreparingBounce + _isBouncing |
+| MarioController: PrepareBounce() | 新增公开方法。进入蓄力冻结状态：FixedUpdate 强制零速度，Update 忽略跳跃输入，角色完全冻结不受重力影响 |
+| MarioController: ExecuteBounce(Vector2) | 新增公开方法。解除冻结，进入抛物线飞行期，注入绝对弹射速度到 _frameVelocity 和 rb.velocity |
+| MarioController: HandleDirection 动能保留 | _isBouncing 期间超速时：无输入用 airFriction(=8) 缓慢衰减；有输入用 bounceAirAcceleration(=12) 微弱转向但不突破当前超速上限；速度自然衰减到 maxSpeed 以下后恢复正常空中控制 |
+| MarioController: 自动解除 | 落地(_grounded)、碰天花板、碰侧墙(OnCollisionEnter2D 检测法线水平分量)时自动解除 _isBouncing |
+| BouncyPlatform: LaunchSequence 协程 | 废除 Update 手动计时器，改用协程统一管理时序：碰撞→PrepareBounce()冻结→挤压动画→WaitForSeconds(comedyDelay)→计算弹力→ExecuteBounce()发射→拉伸动画 |
+| BouncyPlatform: WaitForSeconds 缓存 | Awake 中预创建 cachedComedyWait，协程中使用缓存实例避免 GC 分配（P1-P7 合规） |
+| BouncyPlatform: Trickster 操控窗口 | 蓄力冻结期内 Trickster 可按 L 键修改弹射方向/力度，延迟结束后统一计算最终弹力 |
+| TestSceneBuilder: 9E 标签更新 | Stage 9E 标签更新为 [S22] Two-phase bounce: PrepareBounce → ExecuteBounce + momentum preservation |
+
+**保留的公共 API（向后兼容）：**
+- `ApplyKnockbackStun()` — KnockbackHelper 调用，行为不变（增强：击退时自动解除弹射状态）
+- `Bounce()` — SimpleEnemy 踩敌弹跳，行为不变
+- `Die()` — GameManager 调用，行为不变（增强：死亡时解除弹射状态）
+- `SetMoveInput()` / `OnJumpPressed()` / `OnJumpReleased()` / `SetPlatformVelocity()` — 完全不变
+
+**修改文件：**
+- `MarioController.cs` - 两段式弹射状态机重构 + 动能保留系统 + 碰墙解除
+- `BouncyPlatform.cs` - LaunchSequence 协程重构 + WaitForSeconds 缓存 + 废除 Update 计时器
+- `TestSceneBuilder.cs` - Stage 9E 标签更新反映 S22 功能
+
+---
 
 ### Session 21 记录（2026-04-04）
 
@@ -797,7 +827,7 @@ rb.velocity = _frameVelocity;  // 只写一次
 Assets/
 ├── Scripts/
 │   ├── Player/
-│   │   ├── MarioController.cs      ✅ Mario移动/跳跃/平台跟随 (Session 21 更新: SetFrameVelocity+maxSpeed跳过)
+│   │   ├── MarioController.cs      ✅ Mario移动/跳跃/平台跟随 (S22: 两段式弹射状态机 PrepareBounce+ExecuteBounce+动能保留)
 │   │   └── PlayerHealth.cs          ✅ 生命值管理
 │   ├── Enemy/
 │   │   ├── TricksterController.cs   ✅ Trickster控制/平台跟随 (Session 20 更新: 磁吸切换+IsFullyBlended)
@@ -827,7 +857,7 @@ Assets/
 │   │   │   ├── FireTrap.cs          ✅ 火焰陷阱 (S18: 击退方向修正+KnockbackHelper)
 │   │   │   └── BouncingEnemy.cs     ✅ 弹跳小怪物 (S18: KnockbackHelper统一击退)
 │   │   ├── Platforms/               ✅ 平台类
-│   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台 (S20: 法线修正+BounceStun抛物线保留)
+│   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台 (S22: LaunchSequence协程两段式弹射重构)
 │   │   │   ├── OneWayPlatform.cs    ✅ 单向平台 (S19: S+Jump组合键)
 │   │   │   └── CollapsingPlatform.cs ✅ 崩塌平台 (S18: 位置重生修复+Trickster触发)
 │   │   └── HiddenPassages/          ✅ 隐藏通道类

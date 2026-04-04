@@ -29,10 +29,16 @@ using UnityEngine;
 /// Session 21 更新:
 ///   - 根因修复：BounceStun 期间 HandleDirection 的 MoveTowards 目标值
 ///     不再被 maxSpeed 截断，允许弹射速度超过 maxSpeed 自由飞行
-///   - 新增 SetFrameVelocity(Vector2) 公开方法：允许 BouncyPlatform
-///     在喜剧延迟结束后直接注入绝对弹射速度，替代 AddForce / rb.velocity 赋值
-///   - 修复流程：BouncyPlatform 调用 SetFrameVelocity → 清除旧速度 + 注入弹射向量
-///     → HandleDirection 在 BounceStun 期间跳过 Clamp → 抛物线完整保留
+///   - 新增 SetFrameVelocity(Vector2) 公开方法
+///
+/// Session 22 重构：两段式弹射状态机
+///   - 废除 bounceStunTimer 浮点计时器，改用布尔状态机：
+///     _isPreparingBounce（蓄力冻结期）+ _isBouncing（抛物线飞行期）
+///   - PrepareBounce()：碰到平台时调用，冻结角色（忽略输入、零速度、零重力）
+///   - ExecuteBounce(Vector2)：延迟结束后调用，注入绝对弹射速度，进入飞行期
+///   - HandleDirection 动能保留：飞行期超速时引入微弱空气阻力自然衰减，
+///     允许微弱空中转向但不突破当前超速上限
+///   - 落地或碰墙自动解除 _isBouncing，恢复正常移动逻辑
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -78,6 +84,13 @@ public class MarioController : MonoBehaviour
     [Tooltip("受击后控制器暂停时长（秒），让击退力生效")]
     [SerializeField] private float knockbackStunDuration = 0.25f;
 
+    // ── 弹射动能保留 (Session 22) ────────────────────────
+    [Header("弹射动能保留 (Session 22)")]
+    [Tooltip("抛物线飞行期空气阻力（无输入时 X 轴速度每秒衰减量）")]
+    [SerializeField] private float airFriction = 8f;
+    [Tooltip("抛物线飞行期空中转向加速度（有输入时的微弱偏转力）")]
+    [SerializeField] private float bounceAirAcceleration = 12f;
+
     // ── 组件 ──────────────────────────────────────────────
     private Rigidbody2D rb;
     private BoxCollider2D boxCollider;
@@ -116,19 +129,11 @@ public class MarioController : MonoBehaviour
     private bool _isKnockbackStunned;
     private float _knockbackStunTimer;
 
-    // ── Session 20/21: BounceStun 状态 ──────────────────────
-    // 区别于 KnockbackStun：不完全禁止横向控制，而是大幅降低操控力
-    // Session 21 根因修复：BounceStun 期间跳过 maxSpeed 截断，
-    // 允许弹射速度超过 maxSpeed 自由飞行（惯性抛物线）
-    private bool _isBounceStunned;
-    private float _bounceStunTimer;
-    private float _bounceAccelMult;   // 弹跳期间加速度倍率
-    private float _bounceDecelMult;   // 弹跳期间减速度倍率
-
-    // ── Session 21: 外部速度注入标记 ─────────────────────────
-    // SetFrameVelocity 被调用后，下一次 FixedUpdate 跳过 rb.velocity 读回，
-    // 直接使用注入的速度作为 _frameVelocity 起点
-    private bool _frameVelocityOverridden;
+    // ── Session 22: 两段式弹射状态机 ──────────────────────
+    // 阶段1: 蓄力冻结期 — 碰到弹跳平台后，角色完全冻结（零速度、忽略输入）
+    // 阶段2: 抛物线飞行期 — 延迟结束后注入弹射速度，允许超速惯性飞行
+    private bool _isPreparingBounce;  // 蓄力冻结中
+    private bool _isBouncing;         // 抛物线飞行中
 
     // ── 朝向 ──────────────────────────────────────────────
     private bool isFacingRight = true;
@@ -184,14 +189,11 @@ public class MarioController : MonoBehaviour
             }
         }
 
-        // Session 20: BounceStun 倒计时
-        if (_isBounceStunned)
+        // Session 22: 蓄力冻结期忽略跳跃输入
+        if (_isPreparingBounce)
         {
-            _bounceStunTimer -= Time.deltaTime;
-            if (_bounceStunTimer <= 0f)
-            {
-                _isBounceStunned = false;
-            }
+            jumpPressedThisFrame = false;
+            return;
         }
 
         if (jumpPressedThisFrame)
@@ -207,19 +209,15 @@ public class MarioController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // 击退 stun 期间：不覆盖 rb.velocity，让物理引擎的 AddForce 击退力自然衰减
+        // ── 击退 stun 分支：不覆盖 rb.velocity，让 AddForce 击退力自然衰减 ──
         if (_isKnockbackStunned)
         {
-            // 仍然需要更新平台状态，避免平台速度累积
             _lastPlatformVelocity = Vector2.zero;
             _onPlatform = false;
             _platformVelocity = Vector2.zero;
 
-            // 只做重力（让击退弧线自然）但不做水平控制
-            // 读回当前速度作为基础
             _frameVelocity = rb.velocity;
 
-            // 应用重力让角色自然下落
             if (_frameVelocity.y <= 0f)
             {
                 _frameVelocity.y = Mathf.MoveTowards(
@@ -227,35 +225,35 @@ public class MarioController : MonoBehaviour
             }
 
             rb.velocity = _frameVelocity;
+            return;
+        }
 
-            // Session 21: KnockbackStun 分支消费掉 override 标记
-            _frameVelocityOverridden = false;
+        // ── Session 22: 蓄力冻结期 — 强制零速度，不做任何物理计算 ──
+        if (_isPreparingBounce)
+        {
+            _frameVelocity = Vector2.zero;
+            rb.velocity = Vector2.zero;
+
+            // 清除平台状态（防止平台速度在冻结期累积）
+            _lastPlatformVelocity = Vector2.zero;
+            _onPlatform = false;
+            _platformVelocity = Vector2.zero;
             return;
         }
 
         // 1. 从 rb 读回速度，并减去上一帧注入的平台速度
-        //    Session 21: 如果 SetFrameVelocity 已注入绝对速度，跳过读回
-        if (_frameVelocityOverridden)
-        {
-            // _frameVelocity 已由 SetFrameVelocity 设定，直接使用
-            // 同时写入 rb.velocity 使物理引擎同步（防止碰撞检测不一致）
-            rb.velocity = _frameVelocity;
-            _frameVelocityOverridden = false;
-            // 清除上一帧平台速度（弹射后不再跟随平台）
-            _lastPlatformVelocity = Vector2.zero;
-        }
-        else
-        {
-            _frameVelocity = rb.velocity - _lastPlatformVelocity;
-        }
+        _frameVelocity = rb.velocity - _lastPlatformVelocity;
 
         // 2. 碰撞检测
         CheckCollisions();
 
-        // 3. 跳跃
-        HandleJump();
+        // 3. 跳跃（飞行期不允许跳跃，防止破坏抛物线）
+        if (!_isBouncing)
+        {
+            HandleJump();
+        }
 
-        // 4. 水平移动（Session 20/21: BounceStun 期间使用降低的操控力 + 跳过 maxSpeed 截断）
+        // 4. 水平移动（Session 22: 飞行期使用动能保留逻辑）
         HandleDirection();
 
         // 5. 重力
@@ -298,7 +296,16 @@ public class MarioController : MonoBehaviour
 
         Physics2D.queriesStartInColliders = prev;
 
-        if (ceilingHit) _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
+        if (ceilingHit)
+        {
+            _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
+
+            // Session 22: 碰天花板解除飞行期（碰墙）
+            if (_isBouncing)
+            {
+                _isBouncing = false;
+            }
+        }
 
         if (!_grounded && groundHit)
         {
@@ -307,8 +314,8 @@ public class MarioController : MonoBehaviour
             _bufferedJumpUsable = true;
             _endedJumpEarly = false;
 
-            // Session 20: 落地时自动解除 BounceStun（抛物线已结束）
-            _isBounceStunned = false;
+            // Session 22: 落地时解除飞行期
+            _isBouncing = false;
 
             OnGroundedChanged?.Invoke(true, Mathf.Abs(_frameVelocity.y));
         }
@@ -352,55 +359,79 @@ public class MarioController : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region 水平移动
 
+    /// <summary>
+    /// 水平移动处理。
+    /// 
+    /// Session 22 动能保留系统：
+    ///   当 _isBouncing == true 且 |_frameVelocity.x| > maxSpeed 时：
+    ///   - 绝对禁止 Mathf.Clamp 限制 X 轴速度
+    ///   - 无输入：引入微弱空气阻力(airFriction)让速度缓慢衰减
+    ///   - 有输入：允许微弱空中转向加速度(bounceAirAcceleration)，
+    ///     但不可突破当前的超速上限
+    ///   - 当速度自然衰减到 maxSpeed 以下时，自动恢复正常移动逻辑
+    /// </summary>
     private void HandleDirection()
     {
-        // Session 20/21: BounceStun 期间使用降低的操控力
-        // Session 21 根因修复：BounceStun 期间 MoveTowards 的目标值
-        // 不再被 maxSpeed 截断，而是以当前速度为基准做微弱衰减/加速
-        // 这样弹射速度 > maxSpeed 时不会被瞬间拉回 maxSpeed
-        float accelMult = _isBounceStunned ? _bounceAccelMult : 1f;
-        float decelMult = _isBounceStunned ? _bounceDecelMult : 1f;
-
-        if (Mathf.Abs(moveInput.x) > 0.01f)
+        // ── Session 22: 抛物线飞行期动能保留 ──
+        if (_isBouncing)
         {
-            if (_isBounceStunned)
+            float absX = Mathf.Abs(_frameVelocity.x);
+
+            if (absX > maxSpeed)
             {
-                // ── BounceStun 期间：允许超过 maxSpeed 的惯性飞行 ──
-                // 目标速度 = 输入方向 × 当前速度绝对值（至少为 maxSpeed）
-                // 这样玩家输入只能微弱地偏转轨迹，不会截断弹射动能
-                float currentAbsX = Mathf.Abs(_frameVelocity.x);
-                float targetSpeed = Mathf.Max(currentAbsX, maxSpeed);
-                float target = moveInput.x * targetSpeed;
-                _frameVelocity.x = Mathf.MoveTowards(
-                    _frameVelocity.x, target,
-                    acceleration * accelMult * Time.fixedDeltaTime);
+                // 超速飞行中：保留动能
+                if (Mathf.Abs(moveInput.x) > 0.01f)
+                {
+                    // 有输入：微弱空中转向，但不突破当前超速上限
+                    float currentCap = absX; // 当前速度就是上限
+                    _frameVelocity.x = Mathf.MoveTowards(
+                        _frameVelocity.x,
+                        moveInput.x * currentCap,
+                        bounceAirAcceleration * Time.fixedDeltaTime);
+                    // 确保不突破上限
+                    _frameVelocity.x = Mathf.Clamp(_frameVelocity.x, -currentCap, currentCap);
+                }
+                else
+                {
+                    // 无输入：微弱空气阻力自然衰减
+                    _frameVelocity.x = Mathf.MoveTowards(
+                        _frameVelocity.x, 0f,
+                        airFriction * Time.fixedDeltaTime);
+                }
             }
             else
             {
-                // ── 正常状态：目标速度 = maxSpeed ──
-                _frameVelocity.x = Mathf.MoveTowards(
-                    _frameVelocity.x, moveInput.x * maxSpeed,
-                    acceleration * Time.fixedDeltaTime);
+                // 速度已衰减到 maxSpeed 以下：使用正常空中控制
+                // （但仍处于飞行期，直到落地才完全解除）
+                if (Mathf.Abs(moveInput.x) > 0.01f)
+                {
+                    _frameVelocity.x = Mathf.MoveTowards(
+                        _frameVelocity.x, moveInput.x * maxSpeed,
+                        acceleration * Time.fixedDeltaTime);
+                }
+                else
+                {
+                    _frameVelocity.x = Mathf.MoveTowards(
+                        _frameVelocity.x, 0f,
+                        airDeceleration * Time.fixedDeltaTime);
+                }
             }
+            return;
+        }
+
+        // ── 正常状态 ──
+        if (Mathf.Abs(moveInput.x) > 0.01f)
+        {
+            _frameVelocity.x = Mathf.MoveTowards(
+                _frameVelocity.x, moveInput.x * maxSpeed,
+                acceleration * Time.fixedDeltaTime);
         }
         else
         {
             float decel = _grounded ? groundDeceleration : airDeceleration;
-
-            if (_isBounceStunned)
-            {
-                // ── BounceStun 期间无输入：极慢衰减，保持惯性 ──
-                _frameVelocity.x = Mathf.MoveTowards(
-                    _frameVelocity.x, 0f,
-                    decel * decelMult * Time.fixedDeltaTime);
-            }
-            else
-            {
-                // ── 正常状态：正常减速 ──
-                _frameVelocity.x = Mathf.MoveTowards(
-                    _frameVelocity.x, 0f,
-                    decel * Time.fixedDeltaTime);
-            }
+            _frameVelocity.x = Mathf.MoveTowards(
+                _frameVelocity.x, 0f,
+                decel * Time.fixedDeltaTime);
         }
     }
 
@@ -437,6 +468,10 @@ public class MarioController : MonoBehaviour
     /// </summary>
     public void ApplyKnockbackStun(float duration = -1f)
     {
+        // 击退优先级最高：解除弹射状态
+        _isPreparingBounce = false;
+        _isBouncing = false;
+
         _isKnockbackStunned = true;
         _knockbackStunTimer = duration > 0f ? duration : knockbackStunDuration;
     }
@@ -444,72 +479,59 @@ public class MarioController : MonoBehaviour
     #endregion
 
     // ─────────────────────────────────────────────────────
-    #region Session 20/21: BounceStun（弹跳后降低操控力 + 允许超速飞行）
+    #region Session 22: 两段式弹射接口
 
     /// <summary>
-    /// 弹跳平台触发：进入 BounceStun 状态。
+    /// 阶段1：蓄力冻结。碰到弹跳平台时由 BouncyPlatform 调用。
     /// 
-    /// 与 KnockbackStun 的区别：
-    ///   - KnockbackStun：完全禁止横向控制（让 AddForce 击退力生效）
-    ///   - BounceStun：大幅降低横向加速/减速度 + 跳过 maxSpeed 截断
+    /// 效果：
+    ///   - 进入 _isPreparingBounce 状态
+    ///   - FixedUpdate 中强制 _frameVelocity = Vector2.zero 和 rb.velocity = Vector2.zero
+    ///   - Update 中忽略跳跃输入
+    ///   - 角色完全冻结在平台上，不受重力影响，不滑落
     /// 
-    /// Session 21 根因修复：
-    ///   Session 20 的 BounceStun 仅降低了 acceleration/deceleration 倍率，
-    ///   但 HandleDirection 的 MoveTowards 目标值仍为 maxSpeed，
-    ///   导致弹射后下一帧水平速度被截断至 maxSpeed，抛物线变成垂直下落。
-    ///   
-    ///   修复方案：BounceStun 期间 HandleDirection 使用
-    ///   max(|currentVelocity.x|, maxSpeed) 作为目标速度上限，
-    ///   允许弹射速度超过 maxSpeed 自由飞行。
+    /// 由 BouncyPlatform.LaunchSequence 协程在碰撞瞬间调用。
     /// </summary>
-    /// <param name="duration">BounceStun 持续时间（秒）</param>
-    /// <param name="accelMultiplier">加速度倍率（0~1，越小操控力越弱）</param>
-    /// <param name="decelMultiplier">减速度倍率（0~1，越小惯性保持越久）</param>
-    public void ApplyBounceStun(float duration, float accelMultiplier = 0.12f, float decelMultiplier = 0.08f)
+    public void PrepareBounce()
     {
-        _isBounceStunned = true;
-        _bounceStunTimer = duration;
-        _bounceAccelMult = Mathf.Clamp01(accelMultiplier);
-        _bounceDecelMult = Mathf.Clamp01(decelMultiplier);
+        _isPreparingBounce = true;
+        _isBouncing = false;
 
-        // BounceStun 优先级低于 KnockbackStun
-        // 如果同时处于 KnockbackStun，BounceStun 会在 KnockbackStun 结束后生效
+        // 立即清零速度，防止当前帧残留速度导致位移
+        _frameVelocity = Vector2.zero;
+        rb.velocity = Vector2.zero;
+
+        // 清除平台速度（弹射后不再跟随平台）
+        _lastPlatformVelocity = Vector2.zero;
+        _onPlatform = false;
+        _platformVelocity = Vector2.zero;
     }
 
-    #endregion
-
-    // ─────────────────────────────────────────────────────
-    #region Session 21: 外部绝对速度注入
-
     /// <summary>
-    /// 外部调用：强制重写当前帧速度（绝对速度注入）。
+    /// 阶段2：执行弹射。喜剧延迟结束后由 BouncyPlatform 调用。
     /// 
-    /// 设计目的：
-    ///   BouncyPlatform 在喜剧延迟结束后调用此方法，直接注入弹射向量。
-    ///   替代旧方案中的 rb.velocity 赋值 + AddForce，确保弹射速度
-    ///   不会在下一帧被 FixedUpdate 的 rb.velocity 读回逻辑覆盖。
+    /// 效果：
+    ///   - 解除 _isPreparingBounce
+    ///   - 进入 _isBouncing 状态（抛物线飞行期）
+    ///   - 强制注入绝对弹射速度到 _frameVelocity 和 rb.velocity
+    ///   - HandleDirection 在飞行期使用动能保留逻辑（超速惯性飞行）
+    ///   - 落地或碰墙时自动解除 _isBouncing
     /// 
-    /// 工作原理：
-    ///   1. 清除 _frameVelocity 中的旧速度（重力积累等）
-    ///   2. 设置 _frameVelocityOverridden 标记
-    ///   3. 下一次 FixedUpdate 检测到标记后，跳过 rb.velocity 读回，
-    ///      直接使用注入的速度作为 _frameVelocity 起点
-    ///   4. 同时将注入速度写入 rb.velocity 保持物理引擎同步
-    /// 
-    /// 注意：此方法应与 ApplyBounceStun 配合使用，
-    ///       否则 HandleDirection 会在同帧将速度截断至 maxSpeed。
+    /// 由 BouncyPlatform.LaunchSequence 协程在延迟结束后调用。
     /// </summary>
-    /// <param name="newVelocity">要注入的绝对速度向量</param>
-    public void SetFrameVelocity(Vector2 newVelocity)
+    /// <param name="launchVelocity">绝对弹射速度向量</param>
+    public void ExecuteBounce(Vector2 launchVelocity)
     {
-        _frameVelocity = newVelocity;
-        _frameVelocityOverridden = true;
+        _isPreparingBounce = false;
+        _isBouncing = true;
 
-        // 立即同步到 rb.velocity，防止物理碰撞检测不一致
-        if (rb != null)
-        {
-            rb.velocity = newVelocity;
-        }
+        // 绝对速度注入
+        _frameVelocity = launchVelocity;
+        rb.velocity = launchVelocity;
+
+        // 重置跳跃状态（防止弹射后立即触发跳跃）
+        _endedJumpEarly = false;
+        _jumpToConsume = false;
     }
 
     #endregion
@@ -563,6 +585,10 @@ public class MarioController : MonoBehaviour
     /// <summary>Mario 死亡</summary>
     public void Die()
     {
+        // 死亡时解除所有弹射状态
+        _isPreparingBounce = false;
+        _isBouncing = false;
+
         OnDeath?.Invoke();
         rb.velocity = Vector2.zero;
         _frameVelocity = Vector2.zero;
@@ -574,6 +600,30 @@ public class MarioController : MonoBehaviour
     {
         _frameVelocity.y = bounceForce;
         rb.velocity = _frameVelocity;
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region 碰墙检测（Session 22: 飞行期碰墙解除）
+
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (!_isBouncing) return;
+
+        // 检查是否碰到侧面墙壁（法线水平分量大于垂直分量）
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            Vector2 normal = collision.GetContact(i).normal;
+            if (Mathf.Abs(normal.x) > 0.5f)
+            {
+                // 碰墙：解除飞行期，清除水平速度
+                _isBouncing = false;
+                _frameVelocity.x = 0f;
+                rb.velocity = new Vector2(0f, rb.velocity.y);
+                return;
+            }
+        }
     }
 
     #endregion

@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-04 (Session 22) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
+> 更新时间：2026-04-05 (Session 25) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
 > **AI 入口**：每次新对话优先读取 `SESSION_TRACKER.md`（当前状态 + AI 行为规范 + 回归清单 + 待办队列），需要完整上下文时再读本文件，需要纵览全局时读 `MASTER_TRACKER.md`
 
 ---
@@ -200,6 +200,9 @@ InputManager (右Alt/手柄Y)
 | TestSceneBuilder.cs | Assets/Scripts/Editor/ | ✅ **Session 16 重写** | Editor 菜单工具，一键生成闯关式测试场景。按 Testing_Guide 测试顺序从左到右排列 9 个 Stage + 终点。每个区域有金黄色大标题 + 白色操作说明（TextMesh），Stage 9 内部分 9A-9I 子区域 |
 | MarioTrickster.asmdef | Assets/Scripts/ | ✅ **Session 9 新增** | 主项目 Assembly Definition，引用 Unity.InputSystem |
 | MarioTrickster.Editor.asmdef | Assets/Scripts/Editor/ | ✅ **Session 9 新增** | Editor 脚本 Assembly Definition |
+| TestConsoleWindow.cs | Assets/Scripts/Editor/ | ✅ **Session 24/25 新增/重构** | 统一测试配置窗口与 Level Studio |
+| AsciiLevelGenerator.cs | Assets/Scripts/LevelDesign/ | ✅ **Session 25 新增** | 基于字典解析的 ASCII 白盒关卡生成器 |
+| LevelThemeProfile.cs | Assets/Scripts/LevelDesign/ | ✅ **Session 25 新增** | 数据驱动的关卡主题换肤系统 (ScriptableObject) |
 | ComponentSetupTests.cs | Assets/Tests/EditMode/ | ✅ **Session 12 更新** | EditMode 测试（59 个测试用例）：验证 RequireComponent 自动添加、组件初始状态、PlayerHealth 伤害/治疗/死亡/无敌帧逻辑、DisguiseSystem 初始状态、IControllableProp 接口实现、InputManager 启用/禁用、EnergySystem、ScanAbility、CameraController、GameUI |
 | LevelElementTests.cs | Assets/Tests/EditMode/ | ✅ **Session 15 新增** | EditMode 测试（55 个测试用例）：验证关卡设计系统框架核心、所有9种关卡元素、枚举完整性和低耦合验证 |
 | GameplayTests.cs | Assets/Tests/PlayMode/ | ✅ **Session 8 新增** | PlayMode 测试（21 个测试用例）：验证 Mario/Trickster 移动/跳跃/重力、伪装系统运行时行为、道具操控状态机（Telegraph→Active→Cooldown）、移动平台运动、GameManager 胜负判定/暂停/回合重置、InputManager 集成 |
@@ -306,6 +309,32 @@ InputManager (右Alt/手柄Y)
 ---
 
 ## 六、Session 历史记录
+
+### Session 25 记录（2026-04-05）
+
+**本次完成功能（Level Studio 关卡工坊）：**
+
+| 项目 | 说明 |
+|------|------|
+| **ASCII 关卡生成器** | `AsciiLevelGenerator.cs` (新增)：使用 `Dictionary<char, Action>` 字典驱动解析，包含 2 个内置白盒模板，扩展只需 `charMap.Add()` 一行，拒绝硬编码 if-else。 |
+| **主题换肤系统** | `LevelThemeProfile.cs` (新增)：ScriptableObject + `[CreateAssetMenu]`，空插槽 Null 安全（保留白盒），通用 SpriteRenderer 替换，不耦合具体陷阱类。 |
+| **Level Studio 窗口** | `TestConsoleWindow.cs` (重构)：分为三个 Tab（Level Builder, Teleport, Cheats），整合白盒生成、动态元素调色板、一键换肤、传送、全局作弊开关等所有工具。 |
+| **架构合规性** | 所有调试/作弊代码均被 `#if UNITY_EDITOR \|\| DEVELOPMENT_BUILD` 包裹，Release 包零残留；每次 Play 自动重置，不影响 114 个自动化测试。 |
+
+---
+
+### Session 24 记录（2026-04-05）
+
+**本次完成功能（Test Console 测试控制台）：**
+
+| 项目 | 说明 |
+|------|------|
+| **Test Console** | `TestConsoleWindow.cs` (新增)：统一测试配置窗口（快捷键 `Ctrl+T`），包含四大模块：传送与生成、全局调试开关、关卡元素集控、场景构建辅助。 |
+| **传送与状态** | Stage 1~9 + GoalZone 一键传送（Mario + Trickster + 相机硬切），Revive Mario / Refill Energy / Reset Elements。 |
+| **全局开关** | God Mode（无敌）、No Cooldown（无冷却）、Infinite Energy（无限能量）、Instant Blend（秒速融入）、Time Scale 滑动条。 |
+| **代码隔离** | 修改 `PlayerHealth.cs`, `EnergySystem.cs`, `DisguiseSystem.cs`，使用宏包裹调试字段，保证生产环境绝对隔离。 |
+
+---
 
 ### Session 22 记录（2026-04-04）
 
@@ -847,6 +876,9 @@ Assets/
 │   │   ├── Breakable.cs             ✅ 可破坏方块
 │   │   ├── MovingPlatform.cs        ✅ 移动平台 (Session 6 重写: 速度注入法)
 │   │   └── SpriteAutoFit.cs         ✅ Sprite 自动适配 (Session 7 新增)
+│   ├── LevelDesign/                 ✅ 关卡工坊与主题系统 (Session 25 新增)
+│   │   ├── AsciiLevelGenerator.cs   ✅ 基于字典解析的关卡模板生成器
+│   │   └── LevelThemeProfile.cs     ✅ 数据驱动的主题换肤配置 (ScriptableObject)
 │   ├── LevelElements/               ✅ 关卡设计系统 (Session 15 新增)
 │   │   ├── LevelElementBase.cs      ✅ 关卡元素统一基类
 │   │   ├── LevelElementRegistry.cs  ✅ 自动注册中心
@@ -878,6 +910,7 @@ Assets/
 │   ├── Editor/
 │   │   ├── TestSceneBuilder.cs      ✅ 一键生成测试场景 (Session 12 更新: +GameUI)
 │   │   ├── TestReportRunner.cs      ✅ 一键测试报告工具 (Session 13 新增: 完整错误导出)
+│   │   ├── TestConsoleWindow.cs     ✅ 统一测试配置窗口与 Level Studio (Session 24/25)
 │   │   └── MarioTrickster.Editor.asmdef ✅ Editor Assembly Definition (Session 13 更新: +TestRunner引用)
 │   ├── MarioTrickster.asmdef        ✅ 主项目 Assembly Definition (Session 9 新增)
 │   └── UI/

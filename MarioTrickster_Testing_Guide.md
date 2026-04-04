@@ -1,7 +1,7 @@
 # MarioTrickster 测试指南
 
-> 本文档覆盖五部内容：手动 Play 测试、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明、**回归影响矩阵与修复流程**。
-> 更新时间：2026-04-04 (Session 22)
+> 本文档覆盖六部内容：手动 Play 测试、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明、**回归影响矩阵与修复流程**、**工具集使用指南**。
+> 更新时间：2026-04-05 (Session 25)
 
 ---
 
@@ -10,8 +10,8 @@
 ### 1.1 生成测试场景
 
 1. **File → New Scene → Basic 2D**（创建空白场景）
-2. 菜单栏 **MarioTrickster → Build Test Scene**
-3. 弹出确认对话框，点击 **生成**
+2. 菜单栏 **MarioTrickster → Test Console** (或快捷键 `Ctrl+T`) 打开工具窗口
+3. 在 **Level Builder** Tab 下点击 **Generate Whitebox Level** 生成白盒关卡，或点击 **Build Test Scene** 生成标准测试关卡
 4. **Ctrl+S** 保存场景（建议命名为 `TestScene`）
 
 ### 1.2 配置伪装系统 Sprite（必须手动完成）
@@ -515,3 +515,44 @@ AI 每次修复 Bug 时，**必须**执行以下流程：
 | PlayMode 自动化测试 | ✅ 已通过 | 21 个用例全部通过 |
 
 **手动测试进度：9/10 通过（测试 9 待测）。**
+
+---
+
+## 八、工具集使用指南 (Session 24/25 新增)
+
+### 8.1 Test Console 测试控制台 (Ctrl+T)
+
+通过菜单 `MarioTrickster → Test Console` 或快捷键 `Ctrl+T` 打开统一工具窗口。
+
+**Tab 2: Teleport (传送与状态管理)**
+- **Stage 1~9 & GoalZone**: 一键传送 Mario 和 Trickster 到指定测试区域，**相机强制硬切**。
+- **Custom Teleport**: 自定义坐标传送。
+- **Quick Actions**: Revive Mario (满血复活), Refill Energy (回满能量), Reset Elements (重置关卡元素状态)。
+
+**Tab 3: Cheats (全局调试外挂)**
+- **God Mode**: 无敌模式，免疫所有伤害。
+- **No Cooldown**: 无冷却模式，技能/道具可无限使用。
+- **Infinite Energy**: 无限能量模式。
+- **Instant Blend**: 秒速融入模式，伪装后无需等待 1.5 秒直接进入 `IsFullyBlended` 状态。
+- **Time Scale**: 游戏速度滑动条 (0.1x ~ 3.0x)，方便慢动作观察物理效果。
+- **Input Debug**: 显示当前按键输入状态。
+
+> ⚠️ **注意**：所有作弊开关仅在 Editor 或 Development Build 中生效，每次进入 Play 模式会自动重置为关闭状态，**绝对不会影响自动化测试和正式包**。
+
+### 8.2 Level Studio 关卡工坊
+
+在 Test Console 窗口的 **Tab 1: Level Builder** 中：
+
+**ASCII 模板生成**
+1. 在下拉框选择内置模板 (如 `Classic Plains` 或 `Underground Cavern`)。
+2. 点击 **Generate Whitebox Level** 一键生成白盒关卡。
+3. 也可以点击 **Clear Generated Level** 清空。
+
+**动态元素调色板**
+点击各种关卡元素按钮（陷阱、平台、敌人等），即可在 Scene 摄像机中心生成对应的白盒预制体，支持自动网格对齐，方便快速搭建。
+
+**主题换肤系统**
+1. 在 Project 窗口右键 `Create → MarioTrickster → Level Theme Profile` 创建主题配置文件。
+2. 在 Inspector 中为各个元素配置 Sprite。
+3. 将配置好的 Profile 拖入 Level Builder 的 **Apply Theme** 槽位。
+4. 点击 **Apply Theme** 按钮，一键将场景中的白盒替换为配置的美术素材（支持 Undo 撤销）。遇到未配置的空插槽会安全保留原白盒。

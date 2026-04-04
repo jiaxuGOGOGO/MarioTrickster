@@ -11,6 +11,11 @@ using UnityEngine;
 ///   - 火焰柱有方向性（上/下/左/右），可配置喷射距离
 ///   - Trickster操控: 强制喷火或强制熄灭
 /// 
+/// Session 17 更新:
+///   - 修复击退方向：改为 Mario 移动方向的反方向后退一小段距离
+///     避免被火焰柱击飞到天上或反复二次伤害
+///   - 击退后通知控制器进入 knockback stun
+/// 
 /// 扩展/删除指南: 删除此文件不影响其他脚本
 /// Session 15: 关卡设计系统新增
 /// </summary>
@@ -27,9 +32,11 @@ public class FireTrap : ControllableLevelElement
     [SerializeField] private float fireDuration = 1.5f;
     [SerializeField] private float coolOffDuration = 2f;
 
-    [Header("=== 击退 ===")]
+    [Header("=== 击退 (Session 17 修正) ===")]
+    [Tooltip("击退水平力度 — 向 Mario 移动方向的反方向推")]
     [SerializeField] private float knockbackForce = 6f;
-    [SerializeField] private float knockbackUpForce = 4f;
+    [Tooltip("击退垂直力度 — 轻微向上，避免卡地面")]
+    [SerializeField] private float knockbackUpForce = 2f;
 
     // 组件
     private BoxCollider2D fireCollider;
@@ -153,12 +160,18 @@ public class FireTrap : ControllableLevelElement
         {
             health.TakeDamage(damage);
             damageCooldown = 0.5f;
+
             Rigidbody2D rb = other.GetComponent<Rigidbody2D>();
             if (rb != null)
             {
-                Vector2 dir = (other.transform.position - transform.position).normalized;
+                // Session 17: 使用 SafeKnockback 统一击退逻辑
+                Vector2 knockback = KnockbackHelper.CalcSafeKnockback(
+                    other.transform, transform, rb, knockbackForce, knockbackUpForce);
                 rb.velocity = Vector2.zero;
-                rb.AddForce(new Vector2(dir.x * knockbackForce, knockbackUpForce), ForceMode2D.Impulse);
+                rb.AddForce(knockback, ForceMode2D.Impulse);
+
+                // 通知控制器进入 knockback stun
+                KnockbackHelper.NotifyKnockbackStun(other);
             }
         }
     }

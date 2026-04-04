@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-03 (Session 16) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
+> 更新时间：2026-04-04 (Session 18) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
 > **AI 入口**：每次新对话优先读取 `SESSION_TRACKER.md`（当前状态 + AI 行为规范 + 回归清单 + 待办队列），需要完整上下文时再读本文件，需要纵览全局时读 `MASTER_TRACKER.md`
 
 ---
@@ -99,7 +99,9 @@
 |------|------|------|------|
 | GoalZone.cs | Assets/Scripts/Core/ | ✅ **Session 12 更新** | 终点触发器，Mario碰触后触发胜利。B020修复：新增 ResetTrigger() 方法供多回合重置 |
 | KillZone.cs | Assets/Scripts/Core/ | ✅ | 死亡区域（掉落深渊），碰触即死 |
-| DamageDealer.cs | Assets/Scripts/Core/ | ✅ | 通用伤害触发器（尖刺/怪物/Hazard伪装），支持击退 |
+| DamageDealer.cs | Assets/Scripts/Core/ | ✅ **Session 18 更新** | 通用伤害触发器（尖刺/怪物/Hazard伪装），支持击退。S18: 使用 KnockbackHelper 统一击退方向 |
+| KnockbackHelper.cs | Assets/Scripts/Core/ | ✅ **Session 18 新增** | 统一击退方向计算工具，根据 Mario 移动方向反向后退，避免反复二次伤害 |
+| MarioInteractionHelper.cs | Assets/Scripts/Core/ | ✅ **Session 18 新增** | Mario S键下蹲交互辅助，统一处理单向平台下落和隐藏通道传送 |
 | Collectible.cs | Assets/Scripts/Core/ | ✅ | 可收集物品（金币/回血/加速），带浮动动画 |
 | Breakable.cs | Assets/Scripts/Core/ | ✅ | 可破坏方块（砖块/问号砖块），从下方顶撞触发 |
 | MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **Session 6 重写** | Kinematic Rigidbody2D + MovePosition() + 速度注入法跟随角色（不使用 SetParent） |
@@ -116,13 +118,13 @@
 | LevelElementBase.cs | Assets/Scripts/LevelElements/ | ✅ | 关卡元素统一抽象基类，定义分类(Category)和标签(Tags) |
 | LevelElementRegistry.cs | Assets/Scripts/LevelElements/ | ✅ | 自动注册中心，提供按分类/标签/距离等多维度查询 |
 | ControllableLevelElement.cs | Assets/Scripts/LevelElements/ | ✅ | 桥接基类，连接关卡框架与Trickster操控系统 |
-| SpikeTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ | 地刺陷阱（静态/周期伸缩，可操控） |
-| PendulumTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ | 摆锤绳索陷阱（物理摆动，可操控） |
-| FireTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ | 火焰陷阱（周期喷射，可操控） |
-| BouncingEnemy.cs | Assets/Scripts/LevelElements/Traps/ | ✅ | 弹跳小怪物（周期弹跳，可踩踏，可操控） |
-| BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ | 弹跳平台（带挤压动画，可操控） |
+| SpikeTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 地刺陷阱（静态/周期伸缩，可操控）。S18: KnockbackHelper 统一击退 |
+| PendulumTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 摆锤绳索陷阱（物理摆动，可操控）。S18: KnockbackHelper 统一击退 |
+| FireTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 火焰陷阱（周期喷射，可操控）。S18: 击退方向修正 + KnockbackHelper |
+| BouncingEnemy.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 弹跳小怪物（周期弹跳，可踩踏，可操控）。S18: KnockbackHelper 统一击退 |
+| BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 18 更新** | 弹跳平台（带挤压动画，可操控）。S18: 两边都弹跳 + comedyDelay 喜剧延迟 |
 | OneWayPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ | 单向平台（下蹲可落下，不可操控） |
-| CollapsingPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 16 修复** | 崩塌平台（踩踏后抖动掉落，可操控）。B022修复：重命名 stateTimer → collapseTimer 消除与基类字段隐藏 |
+| CollapsingPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 18 更新** | 崩塌平台（踩踏后抖动掉落，可操控）。S18: 位置重生修复 + Trickster也能触发 |
 | HiddenPassage.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ | 隐藏通道（地下管道传送，可操控） |
 | FakeWall.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ | 伪装墙壁（进入后变透明，可操控） |
 
@@ -134,7 +136,7 @@
 |------|------|------|------|
 | IControllableProp.cs | Assets/Scripts/Ability/ | ✅ | 可操控道具接口（PropName/CanBeControlled/OnTricksterActivate/状态查询） |
 | ControllablePropBase.cs | Assets/Scripts/Ability/ | ✅ **Session 12 更新** | 抽象基类，封装 Telegraph→Active→Cooldown 状态机、预警闪烁/震动视觉效果、次数限制、回合重置。B019修复：originalColor 改为 protected 避免子类重复序列化 |
-| TricksterAbilitySystem.cs | Assets/Scripts/Ability/ | ✅ | 核心能力管理器，检测伪装状态、绑定/检测附近道具、处理操控输入、管理操控次数/时间限制 |
+| TricksterAbilitySystem.cs | Assets/Scripts/Ability/ | ✅ **Session 18 更新** | 核心能力管理器。S18: 运行时 Gizmo 范围可视化（controlRange 绿色圆圈）+ 动态重绑定（每次按L重新搜索最近道具）+ 融入后自动绑定 |
 | ControllablePlatform.cs | Assets/Scripts/Ability/ | ✅ **Session 6 更新** | 可操控移动平台，4种模式：Rush/Drop/Reverse/Stop + 速度注入法跟随 |
 | ControllableHazard.cs | Assets/Scripts/Ability/ | ✅ | 可操控危险道具，4种模式：Spike/Expand/Burst/Directional |
 | ControllableBlock.cs | Assets/Scripts/Ability/ | ✅ | 可操控方块，3种模式：Vanish/Slide/Bounce |
@@ -242,7 +244,13 @@ InputManager (右Alt/手柄Y)
 | B026 | ✅ **已实现 (Session 16)** 测试场景重构为闯关形式 + 场景指示标签 | P0 | TestSceneBuilder 完全重写，按 Testing_Guide 测试顺序从左到右排列 9 个 Stage + 终点 GoalZone。每个区域有金黄色大标题 + 白色操作说明（TextMesh），Stage 9 内部分 9A-9I 子区域。 |
 | B027 | ✅ **根本修复 (Session 17)** 闯关场景相机边界未设置，Stage 3 后镜头不跟随 | P0 | 根因：`LevelManager.Start()` 在运行时调用 `CameraController.SetBounds()` 用默认值 `levelMaxX=50` 覆盖了 TestSceneBuilder 设置的正确边界 `maxX≈70`。Session 16 仅设置了 CameraController 的值但忽略了 LevelManager 会覆盖。Session 17 修复：在 TestSceneBuilder 中同步设置 LevelManager 的 levelMinX/levelMaxX/levelMinY/levelMaxY 字段。 |
 | B028 | ✅ **已修复 (Session 17)** Trickster 跳到 Mario 头上无法跳走（角色碰撞卡死） | P0 | 根因：Mario 和 Trickster 都在 Default Layer，物理碰撞让 Trickster 卡在 Mario 头上，但地面检测 BoxCast 只检测 Ground Layer，所以 `_grounded=false` 无法跳跃。修复：创建 Player/Trickster 专用 Layer，`Physics2D.IgnoreLayerCollision` 禁用两者碰撞，角色互相穿过不会卡住。 |
-| B029 | ⚠️ **待修复 (Session 17 分析完成，方案待确认)** 伪装后按 L 无法控制平台 + 移动平台上难以融入 | P0 | 根因二合一：1) `TricksterAbilitySystem` 只在变身瞬间绑定最近道具（bindOnDisguise=true），后续不重新绑定；2) `DisguiseSystem` 融入检测用世界坐标绝对静止（位移<0.01），在移动平台上平台速度被注入角色导致永远无法融入。方案：A) 动态重绑定（每次按L时重新搜索最近道具）；B) 平台相对静止检测（减去平台速度后判断）；C) 扩大操控范围至5格。 |
+| B029 | ✅ **已修复 (Session 18)** 伪装后按 L 无法控制平台 + 移动平台上难以融入 | P0 | 修复：TricksterAbilitySystem 加入动态重绑定（每次按L重新搜索最近道具）+ 融入后自动绑定最近道具 + Gizmo范围可视化 |
+| B030 | ✅ **已修复 (Session 18)** 火陷阱击退飞出 + 所有陷阱击退方向不合理 | P0 | 修复：创建 KnockbackHelper 统一击退方向计算，改为 Mario 移动方向的反方向后退一小段距离，避免反复二次伤害。影响：FireTrap/SpikeTrap/PendulumTrap/BouncingEnemy/DamageDealer |
+| B031 | ✅ **已修复 (Session 18)** 摆锤隐蔽状态下无法 Trickster 控制 | P0 | 修复：TricksterAbilitySystem 融入后自动重新绑定最近道具，不再只在变身瞬间绑定一次 |
+| B032 | ✅ **已修复 (Session 18)** 弹跳平台只有宽边有效 + 无喜剧延迟 | P0 | 修复：移除 contact.normal 方向限制，两边都触发弹跳。新增 comedyDelay 参数（默认0.25秒），Mario 落上后先“陷入”压缩，延迟后才弹射。期间 Trickster 可操控增强弹性 |
+| B033 | ✅ **已修复 (Session 18)** 单向平台按S不下落 | P0 | 修复：InputManager 新增 S键下蹲交互路由，通过 MarioInteractionHelper 检测脚下 OneWayPlatform 并调用 AllowDropThrough() |
+| B034 | ✅ **已修复 (Session 18)** 崩塌平台位置重生错误 + Trickster无法触发 | P0 | 修复：改用 stablePosition（在 Stable 状态持续更新），移动平台后重生在新位置。OnCollisionEnter2D 不再限制只有 MarioController，任何有 Rigidbody2D 的对象从上方踩踏都能触发 |
+| B035 | ✅ **已修复 (Session 18)** 隐藏通道按S不传送 | P0 | 修复：InputManager 新增 S键下蹲交互路由，通过 MarioInteractionHelper 检测周围 HiddenPassage 并调用 TryEnterPassage() |
 
 ### 关于 B002 的修复方法
 
@@ -293,6 +301,37 @@ InputManager (右Alt/手柄Y)
 ---
 
 ## 六、Session 历史记录
+
+### Session 18 记录（2026-04-04）
+
+**本次完成功能：**
+
+| 项目 | 说明 |
+|------|------|
+| Gizmo 范围可视化 | TricksterAbilitySystem 新增运行时 Gizmo 显示：绿色圆圈显示 controlRange，黄色圆圈显示陷阱伤害范围。调整 controlRange 参数即可控制可操控范围 |
+| B029 修复: 伪装后按L无法控制 | 动态重绑定（每次按L重新搜索最近道具）+ 融入后自动绑定最近道具 |
+| B030 修复: 火陷阱击退飞出 | 创建 KnockbackHelper 统一击退方向计算，Mario 移动方向反向后退一小段距离。影响：FireTrap/SpikeTrap/PendulumTrap/BouncingEnemy/DamageDealer |
+| B031 修复: 摆锤隐蔽状态无法控制 | 融入后自动重新绑定最近道具 |
+| B032 修复: 弹跳平台只有宽边有效 | 移除方向限制，两边都触发弹跳。新增 comedyDelay 喜剧延迟（0.25秒），Trickster 可在延迟期间增强弹性 |
+| B033 修复: 单向平台按S不下落 | InputManager S键路由 + MarioInteractionHelper 检测脚下 OneWayPlatform |
+| B034 修复: 崩塌平台位置重生错误 + Trickster无法触发 | stablePosition 持续更新 + 任何 Rigidbody2D 从上方踩踏都触发 |
+| B035 修复: 隐藏通道按S不传送 | InputManager S键路由 + MarioInteractionHelper 检测 HiddenPassage |
+
+**新增文件：**
+- `KnockbackHelper.cs` - 统一击退方向计算工具
+- `MarioInteractionHelper.cs` - Mario S键下蹲交互辅助
+
+**修改文件：**
+- `TricksterAbilitySystem.cs` - Gizmo可视化 + 动态重绑定 + 融入后自动绑定
+- `FireTrap.cs` / `SpikeTrap.cs` / `PendulumTrap.cs` / `BouncingEnemy.cs` - KnockbackHelper 统一击退
+- `DamageDealer.cs` - KnockbackHelper 统一击退
+- `BouncyPlatform.cs` - 两边弹跳 + comedyDelay
+- `CollapsingPlatform.cs` - 位置重生修复 + Trickster触发
+- `InputManager.cs` - S键下蹲交互路由
+- `TestSceneBuilder.cs` - Stage 9 标签更新
+- `Testing_Guide.md` - 影响矩阵新增 KnockbackHelper/MarioInteractionHelper/DamageDealer
+
+---
 
 ### Session 17 记录（2026-04-03）
 
@@ -688,11 +727,13 @@ Assets/
 │ ├── Scripts/
 │   ├── Core/
 │   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定 (Session 12 更新: 修复B020/B021)
-│   │   ├── InputManager.cs          ✅ 输入分发中心 (Session 7 更新: 修复B009)
+│   │   ├── InputManager.cs          ✅ 输入分发中心 (Session 18 更新: S键下蹲交互路由)
+│   │   ├── MarioInteractionHelper.cs ✅ Mario S键交互辅助 (Session 18 新增)
+│   │   ├── KnockbackHelper.cs       ✅ 统一击退方向计算 (Session 18 新增)
 │   │   ├── LevelManager.cs          ✅ 关卡管理器
 │   │   ├── GoalZone.cs              ✅ 终点触发器 (Session 12 更新: +ResetTrigger)
 │   │   ├── KillZone.cs              ✅ 死亡区域
-│   │   ├── DamageDealer.cs          ✅ 伤害触发器
+│   │   ├── DamageDealer.cs          ✅ 伤害触发器 (Session 18 更新: KnockbackHelper统一击退)
 │   │   ├── Collectible.cs           ✅ 可收集物品
 │   │   ├── Breakable.cs             ✅ 可破坏方块
 │   │   ├── MovingPlatform.cs        ✅ 移动平台 (Session 6 重写: 速度注入法)
@@ -702,21 +743,21 @@ Assets/
 │   │   ├── LevelElementRegistry.cs  ✅ 自动注册中心
 │   │   ├── ControllableLevelElement.cs ✅ 桥接基类
 │   │   ├── Traps/                   ✅ 陷阱类
-│   │   │   ├── SpikeTrap.cs         ✅ 地刺陷阱
-│   │   │   ├── PendulumTrap.cs      ✅ 摆锤绳索陷阱
-│   │   │   ├── FireTrap.cs          ✅ 火焰陷阱
-│   │   │   └── BouncingEnemy.cs     ✅ 弹跳小怪物
+│   │   │   ├── SpikeTrap.cs         ✅ 地刺陷阱 (S18: KnockbackHelper统一击退)
+│   │   │   ├── PendulumTrap.cs      ✅ 摆锤绳索陷阱 (S18: KnockbackHelper统一击退)
+│   │   │   ├── FireTrap.cs          ✅ 火焰陷阱 (S18: 击退方向修正+KnockbackHelper)
+│   │   │   └── BouncingEnemy.cs     ✅ 弹跳小怪物 (S18: KnockbackHelper统一击退)
 │   │   ├── Platforms/               ✅ 平台类
-│   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台
+│   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台 (S18: 两边弹跳+喜剧延迟)
 │   │   │   ├── OneWayPlatform.cs    ✅ 单向平台
-│   │   │   └── CollapsingPlatform.cs ✅ 崩塌平台 (Session 16 修复: stateTimer→collapseTimer)
+│   │   │   └── CollapsingPlatform.cs ✅ 崩塌平台 (S18: 位置重生修复+Trickster触发)
 │   │   └── HiddenPassages/          ✅ 隐藏通道类
 │   │       ├── HiddenPassage.cs     ✅ 隐藏通道
 │   │       └── FakeWall.cs          ✅ 伪装墙壁
 │   ├── Ability/
 │   │   ├── IControllableProp.cs     ✅ 可操控道具接口
 │   │   ├── ControllablePropBase.cs  ✅ 操控状态机基类 (Session 12 更新: originalColor→protected)
-│   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器
+│   │   ├── TricksterAbilitySystem.cs ✅ 能力系统管理器 (S18: Gizmo范围可视化+动态重绑定+融入后自动绑定)
 │   │   ├── EnergySystem.cs          ✅ Trickster 能量系统 (Session 10 新增)
 │   │   ├── ScanAbility.cs           ✅ Mario 扫描技能 (Session 11 更新: 修复B015)
 │   │   ├── ControllablePlatform.cs  ✅ 可操控移动平台 (Session 6 更新: 速度注入法)

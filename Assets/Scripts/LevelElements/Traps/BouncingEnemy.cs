@@ -112,6 +112,7 @@ public class BouncingEnemy : ControllableLevelElement
         }
 
         // 对Mario造成伤害
+        // Session 17: 使用 KnockbackHelper 统一击退逻辑
         PlayerHealth health = collision.gameObject.GetComponent<PlayerHealth>();
         if (health != null && !health.IsInvincible)
         {
@@ -119,9 +120,12 @@ public class BouncingEnemy : ControllableLevelElement
             Rigidbody2D targetRb = collision.gameObject.GetComponent<Rigidbody2D>();
             if (targetRb != null)
             {
-                Vector2 dir = (collision.transform.position - transform.position).normalized;
+                Vector2 knockback = KnockbackHelper.CalcSafeKnockback(
+                    collision.transform, transform, targetRb, knockbackForce, knockbackUpForce);
                 targetRb.velocity = Vector2.zero;
-                targetRb.AddForce(new Vector2(dir.x * knockbackForce, knockbackUpForce), ForceMode2D.Impulse);
+                targetRb.AddForce(knockback, ForceMode2D.Impulse);
+
+                KnockbackHelper.NotifyKnockbackStun(collision.gameObject);
             }
         }
     }

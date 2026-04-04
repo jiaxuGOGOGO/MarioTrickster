@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 /// <summary>
 /// Trickster 能力系统 - 变身后操控关卡道具的核心管理器
@@ -12,6 +12,11 @@
 /// 
 /// Session 10 更新：集成 EnergySystem，操控道具消耗能量
 /// 
+/// Session 17 更新：
+///   - 添加运行时 Gizmo 可视化（GL 绘制控制范围圆 + 绑定连线）
+///   - 修复隐蔽状态下绑定逻辑：融入后自动重新绑定最近道具
+///   - controlRange 可在 Inspector 中调整控制范围
+/// 
 /// 操控模式:
 ///   - 就近操控: 操控距离 Trickster 最近的可操控道具
 ///   - 绑定操控: 变身时自动绑定最近的同类道具（推荐）
@@ -22,8 +27,8 @@
 public class TricksterAbilitySystem : MonoBehaviour
 {
     [Header("=== 操控配置 ===")]
-    [Tooltip("操控检测半径")]
-    [SerializeField] private float controlRange = 2f;
+    [Tooltip("操控检测半径 — 在 Inspector 中调整此值可控制 Trickster 的操控范围")]
+    [SerializeField] private float controlRange = 5f;
 
     [Tooltip("是否需要完全融入场景才能操控")]
     [SerializeField] private bool requireBlended = true;
@@ -37,6 +42,13 @@ public class TricksterAbilitySystem : MonoBehaviour
 
     [Tooltip("操控持续时间限制（秒，0=无限）")]
     [SerializeField] private float controlTimeLimit = 0f;
+
+    [Header("=== 运行时 Gizmo 可视化 ===")]
+    [Tooltip("运行时是否显示控制范围圆和绑定连线（方便测试）")]
+    [SerializeField] private bool showRuntimeGizmo = true;
+
+    [Tooltip("Gizmo 圆的线段数（越大越圆滑）")]
+    [SerializeField] private int gizmoSegments = 48;
 
     [Header("=== 调试 ===")]
     [SerializeField] private bool showDebugInfo = false;
@@ -54,6 +66,9 @@ public class TricksterAbilitySystem : MonoBehaviour
     private bool isAbilityActive;                 // 能力系统是否激活（变身且融入后）
     private Vector2 lastInputDirection;           // 最近一次输入方向
 
+    // GL 绘制用材质
+    private Material glMaterial;
+
     // 公共属性
     public bool IsAbilityActive => isAbilityActive;
     public IControllableProp BoundProp => boundProp;
@@ -70,6 +85,18 @@ public class TricksterAbilitySystem : MonoBehaviour
         disguiseSystem = GetComponent<DisguiseSystem>();
         tricksterController = GetComponent<TricksterController>();
         energySystem = GetComponent<EnergySystem>(); // 可选组件
+
+        // 创建 GL 绘制材质
+        Shader shader = Shader.Find("Hidden/Internal-Colored");
+        if (shader != null)
+        {
+            glMaterial = new Material(shader);
+            glMaterial.hideFlags = HideFlags.HideAndDontSave;
+            glMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            glMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            glMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
+            glMaterial.SetInt("_ZWrite", 0);
+        }
     }
 
     private void OnEnable()
@@ -102,6 +129,12 @@ public class TricksterAbilitySystem : MonoBehaviour
         else if (!shouldBeActive && isAbilityActive)
         {
             DeactivateAbility();
+        }
+
+        // Session 17: 融入后自动重新绑定最近道具（解决隐蔽状态下无法绑定的问题）
+        if (isAbilityActive && boundProp == null && bindOnDisguise)
+        {
+            BindNearestProp();
         }
 
         // 更新操控时间
@@ -214,6 +247,12 @@ public class TricksterAbilitySystem : MonoBehaviour
     {
         isAbilityActive = true;
 
+        // Session 17: 激活时也尝试绑定（解决变身时距离远、融入后距离近的场景）
+        if (bindOnDisguise && boundProp == null)
+        {
+            BindNearestProp();
+        }
+
         if (showDebugInfo)
         {
             string propInfo = boundProp != null ? boundProp.PropName : "无绑定道具";
@@ -286,7 +325,9 @@ public class TricksterAbilitySystem : MonoBehaviour
                     return boundProp;
                 }
             }
-            return null;
+            // Session 17: 如果绑定丢失，尝试重新绑定
+            BindNearestProp();
+            return boundProp;
         }
         else
         {
@@ -298,7 +339,66 @@ public class TricksterAbilitySystem : MonoBehaviour
 
     #endregion
 
-    #region 调试可视化
+    #region 运行时 Gizmo 可视化 (Session 17)
+
+    /// <summary>
+    /// 使用 GL 在运行时绘制控制范围圆和绑定连线
+    /// OnRenderObject 在所有相机渲染后调用，确保 Gizmo 始终可见
+    /// </summary>
+    private void OnRenderObject()
+    {
+        if (!showRuntimeGizmo || glMaterial == null) return;
+        if (!Application.isPlaying) return;
+
+        // 只在 Scene 视图或 Game 视图中绘制
+        Camera cam = Camera.current;
+        if (cam == null) return;
+
+        glMaterial.SetPass(0);
+
+        // ── 绘制控制范围圆 ──
+        GL.PushMatrix();
+        GL.MultMatrix(Matrix4x4.identity);
+        GL.Begin(GL.LINES);
+
+        // 范围圆颜色：激活=品红，未激活=灰色
+        Color rangeColor = isAbilityActive ? new Color(1f, 0f, 1f, 0.5f) : new Color(0.5f, 0.5f, 0.5f, 0.3f);
+        GL.Color(rangeColor);
+
+        Vector3 center = transform.position;
+        float angleStep = 360f / gizmoSegments;
+        for (int i = 0; i < gizmoSegments; i++)
+        {
+            float a1 = i * angleStep * Mathf.Deg2Rad;
+            float a2 = (i + 1) * angleStep * Mathf.Deg2Rad;
+            GL.Vertex3(center.x + Mathf.Cos(a1) * controlRange, center.y + Mathf.Sin(a1) * controlRange, 0);
+            GL.Vertex3(center.x + Mathf.Cos(a2) * controlRange, center.y + Mathf.Sin(a2) * controlRange, 0);
+        }
+
+        // ── 绘制绑定连线 ──
+        if (boundPropObject != null)
+        {
+            Color lineColor = isAbilityActive ? new Color(1f, 1f, 0f, 0.8f) : new Color(1f, 1f, 0f, 0.3f);
+            GL.Color(lineColor);
+            GL.Vertex3(center.x, center.y, 0);
+            GL.Vertex3(boundPropObject.transform.position.x, boundPropObject.transform.position.y, 0);
+
+            // 绑定目标十字标记
+            Vector3 tp = boundPropObject.transform.position;
+            float crossSize = 0.3f;
+            GL.Vertex3(tp.x - crossSize, tp.y, 0);
+            GL.Vertex3(tp.x + crossSize, tp.y, 0);
+            GL.Vertex3(tp.x, tp.y - crossSize, 0);
+            GL.Vertex3(tp.x, tp.y + crossSize, 0);
+        }
+
+        GL.End();
+        GL.PopMatrix();
+    }
+
+    #endregion
+
+    #region Editor Gizmo
 
     private void OnDrawGizmosSelected()
     {
@@ -313,6 +413,10 @@ public class TricksterAbilitySystem : MonoBehaviour
             Gizmos.DrawLine(transform.position, boundPropObject.transform.position);
         }
     }
+
+    #endregion
+
+    #region 调试 GUI
 
     private void OnGUI()
     {

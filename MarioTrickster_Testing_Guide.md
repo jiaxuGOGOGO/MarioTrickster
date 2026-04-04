@@ -375,6 +375,9 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 | ControllableBlock/Hazard/Platform.cs | 测试 5 | — | 具体道具效果 |
 | LevelElementBase.cs 等关卡框架 | 测试 9 | 测试 5 | 关卡元素基础逻辑 |
 | SpikeTrap.cs 等 9 种具体元素 | 测试 9 | — | 具体关卡元素表现 |
+| KnockbackHelper.cs | 测试 7、9 | 测试 1、2 | Session 18: 统一击退方向计算，影响所有伤害源 |
+| MarioInteractionHelper.cs | 测试 9 | — | Session 18: S键下蹲交互路由（单向平台下落+隐藏通道传送） |
+| DamageDealer.cs | 测试 7、9 | — | Session 18: 使用 KnockbackHelper 统一击退 |
 | TestSceneBuilder.cs | **测试 1-9 全部** | — | 场景生成影响所有测试的前置条件 |
 
 ### 4.2 AI 修复 Bug 标准流程

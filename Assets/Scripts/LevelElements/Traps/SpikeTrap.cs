@@ -11,6 +11,10 @@ using UnityEngine;
 ///   - 周期模式: 地刺按固定间隔伸出/缩回，需要玩家把握时机通过
 ///   - Trickster操控: 预警→强制伸出/缩回→冷却（三阶段状态机由基类管理）
 /// 
+/// Session 17 更新:
+///   - 使用 KnockbackHelper 统一击退方向计算
+///   - 击退方向改为 Mario 移动方向的反方向后退，避免反复二次伤害
+/// 
 /// 扩展/删除指南:
 ///   - 删除此文件不影响任何其他脚本（Registry自动注销）
 ///   - 修改参数只需在Inspector中调整，无需改代码
@@ -36,9 +40,9 @@ public class SpikeTrap : ControllableLevelElement
     [SerializeField] private float extendedY = 0f;
     [SerializeField] private float retractedY = -0.8f;
 
-    [Header("=== 击退 ===")]
+    [Header("=== 击退 (Session 17 修正) ===")]
     [SerializeField] private float knockbackForce = 5f;
-    [SerializeField] private float knockbackUpForce = 4f;
+    [SerializeField] private float knockbackUpForce = 2f;
 
     // 组件
     private BoxCollider2D boxCollider;
@@ -123,10 +127,13 @@ public class SpikeTrap : ControllableLevelElement
             Rigidbody2D rb = other.GetComponent<Rigidbody2D>();
             if (rb != null)
             {
-                Vector2 dir = (other.transform.position - transform.position).normalized;
-                dir.y = 0; if (dir.x == 0) dir.x = 1f;
+                // Session 17: 使用 KnockbackHelper 统一击退逻辑
+                Vector2 knockback = KnockbackHelper.CalcSafeKnockback(
+                    other.transform, transform, rb, knockbackForce, knockbackUpForce);
                 rb.velocity = Vector2.zero;
-                rb.AddForce(new Vector2(dir.normalized.x * knockbackForce, knockbackUpForce), ForceMode2D.Impulse);
+                rb.AddForce(knockback, ForceMode2D.Impulse);
+
+                KnockbackHelper.NotifyKnockbackStun(other);
             }
         }
     }

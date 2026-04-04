@@ -12,6 +12,10 @@ using UnityEngine;
 ///   - 锤头碰到Mario造成伤害和击退
 ///   - Trickster操控: 改变摆动速度/方向，或强制停止
 /// 
+/// Session 17 更新:
+///   - 使用 KnockbackHelper 统一击退方向计算
+///   - 击退方向改为 Mario 移动方向的反方向后退，避免反复二次伤害
+/// 
 /// 扩展/删除指南:
 ///   - 删除此文件不影响任何其他脚本
 ///   - 可通过调整 ropeLength/maxAngle/swingSpeed 创建不同难度的摆锤
@@ -31,9 +35,9 @@ public class PendulumTrap : ControllableLevelElement
     [SerializeField] private float hammerRadius = 0.4f;
     [SerializeField] private Color hammerColor = new Color(0.8f, 0.2f, 0.1f);
 
-    [Header("=== 击退 ===")]
+    [Header("=== 击退 (Session 17 修正) ===")]
     [SerializeField] private float knockbackForce = 8f;
-    [SerializeField] private float knockbackUpForce = 5f;
+    [SerializeField] private float knockbackUpForce = 3f;
 
     [Header("=== 绳索视觉 ===")]
     [SerializeField] private Color ropeColor = new Color(0.6f, 0.4f, 0.2f);
@@ -151,9 +155,14 @@ public class PendulumTrap : ControllableLevelElement
             Rigidbody2D rb = other.GetComponent<Rigidbody2D>();
             if (rb != null)
             {
-                Vector2 dir = (other.transform.position - hammerObject.transform.position).normalized;
+                // Session 17: 使用 KnockbackHelper 统一击退逻辑
+                // 以锤头位置作为伤害源
+                Vector2 knockback = KnockbackHelper.CalcSafeKnockback(
+                    other.transform, hammerObject.transform, rb, knockbackForce, knockbackUpForce);
                 rb.velocity = Vector2.zero;
-                rb.AddForce(new Vector2(dir.x * knockbackForce, knockbackUpForce), ForceMode2D.Impulse);
+                rb.AddForce(knockback, ForceMode2D.Impulse);
+
+                KnockbackHelper.NotifyKnockbackStun(other);
             }
         }
     }

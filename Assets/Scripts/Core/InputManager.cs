@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 ///
 /// 键盘方案：
 ///   P1 (Mario)    : WASD 移动 | Space 跳跃 | Q 扫描
+///                   S 键（下蹲/交互）: 单向平台下落 + 隐藏通道传送
 ///   P2 (Trickster): 左右方向键 移动 | 上方向键/右Ctrl 跳跃
 ///                   P 伪装 | O/I 切换形态 | L 操控道具
 ///
@@ -15,6 +16,11 @@ using UnityEngine.InputSystem;
 ///   右肩键 下一形态 | 左肩键 上一形态 | 北键(Y/△) 操控道具
 ///
 /// Session 10 更新：添加 P1 扫描技能按键
+/// Session 17 更新：
+///   - 添加 S 键下蹲交互路由：
+///     · 检测 Mario 脚下的 OneWayPlatform → 调用 AllowDropThrough()
+///     · 检测 Mario 所在的 HiddenPassage → 调用 TryEnterPassage()
+///   - 使用 MarioInteractionHelper 统一处理交互检测
 ///
 /// 使用方式：挂载到 Managers 对象，在 Inspector 中拖入 Mario 和 Trickster 引用
 /// </summary>
@@ -37,6 +43,7 @@ public class InputManager : MonoBehaviour
     private bool p1JumpHeld;
     private bool p1WasJumpHeld;
     private bool p1ScanDown;
+    private bool p1DownInteractDown; // Session 17: S键下蹲交互
 
     // ── P2 输入状态 ────────────────────────────────────────
     private Vector2 p2Move;
@@ -113,6 +120,11 @@ public class InputManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Q)
             || (gamepad1 != null && gamepad1.buttonEast.wasPressedThisFrame))
             p1ScanDown = true;
+
+        // Session 17: S键下蹲交互（按下瞬间触发）
+        if (Input.GetKeyDown(KeyCode.S)
+            || (gamepad1 != null && gamepad1.dpad.down.wasPressedThisFrame))
+            p1DownInteractDown = true;
     }
 
     #endregion
@@ -182,6 +194,12 @@ public class InputManager : MonoBehaviour
         {
             marioScanAbility.ActivateScan();
         }
+
+        // Session 17: S键下蹲交互 — 单向平台下落 + 隐藏通道传送
+        if (p1DownInteractDown)
+        {
+            MarioInteractionHelper.HandleDownInteraction(marioController.gameObject);
+        }
     }
 
     private void DispatchP2()
@@ -211,6 +229,7 @@ public class InputManager : MonoBehaviour
         // 单帧事件清零
         p1JumpDown = false;
         p1ScanDown = false;
+        p1DownInteractDown = false; // Session 17
         p2JumpDown = false;
         p2DisguiseDown = false;
         p2SwitchDown = false;

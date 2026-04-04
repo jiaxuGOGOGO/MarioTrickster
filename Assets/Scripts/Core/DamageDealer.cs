@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 /// <summary>
 /// 通用伤害触发器
@@ -8,6 +8,10 @@
 /// Session 16 更新:
 ///   B023 - 击退后通知 MarioController/TricksterController 进入 knockback stun，
 ///          防止帧速度架构在下一帧覆盖击退力
+///
+/// Session 17 更新:
+///   - 使用 KnockbackHelper 统一击退方向计算
+///   - 击退方向改为 Mario 移动方向的反方向后退，避免反复二次伤害
 /// </summary>
 [RequireComponent(typeof(Collider2D))]
 public class DamageDealer : MonoBehaviour
@@ -20,10 +24,10 @@ public class DamageDealer : MonoBehaviour
     [Tooltip("只对带有这些标签的对象造成伤害（空=对所有PlayerHealth生效）")]
     [SerializeField] private string[] targetTags = { "Player" };
 
-    [Header("=== 击退 ===")]
+    [Header("=== 击退 (Session 17 修正) ===")]
     [SerializeField] private bool applyKnockback = true;
     [SerializeField] private float knockbackForce = 5f;
-    [SerializeField] private float knockbackUpForce = 3f;
+    [SerializeField] private float knockbackUpForce = 2f;
 
     private float lastDamageTime;
 
@@ -63,32 +67,18 @@ public class DamageDealer : MonoBehaviour
             health.TakeDamage(damage);
             lastDamageTime = Time.time;
 
-            // 击退
+            // Session 17: 使用 KnockbackHelper 统一击退逻辑
             if (applyKnockback)
             {
                 Rigidbody2D targetRb = other.GetComponent<Rigidbody2D>();
                 if (targetRb != null)
                 {
-                    Vector2 knockDir = (other.transform.position - transform.position).normalized;
-                    knockDir.y = 0;
-                    if (knockDir.x == 0) knockDir.x = 1f; // 默认向右
-                    knockDir = knockDir.normalized;
-
+                    Vector2 knockback = KnockbackHelper.CalcSafeKnockback(
+                        other.transform, transform, targetRb, knockbackForce, knockbackUpForce);
                     targetRb.velocity = Vector2.zero;
-                    targetRb.AddForce(new Vector2(knockDir.x * knockbackForce, knockbackUpForce), ForceMode2D.Impulse);
+                    targetRb.AddForce(knockback, ForceMode2D.Impulse);
 
-                    // B023: 通知控制器进入 knockback stun，防止帧速度覆盖击退力
-                    MarioController mario = other.GetComponent<MarioController>();
-                    if (mario != null)
-                    {
-                        mario.ApplyKnockbackStun();
-                    }
-
-                    TricksterController trickster = other.GetComponent<TricksterController>();
-                    if (trickster != null)
-                    {
-                        trickster.ApplyKnockbackStun();
-                    }
+                    KnockbackHelper.NotifyKnockbackStun(other);
                 }
             }
 

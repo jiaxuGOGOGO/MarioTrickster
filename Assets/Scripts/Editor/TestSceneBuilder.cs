@@ -423,7 +423,7 @@ public class TestSceneBuilder : Editor
         // --- 9A: SpikeTrap (地刺) ---
         float s9a = s9 + 2f;
         CreateSubSign(s9a + s9SubWidth / 2f, "9A: SPIKE TRAP",
-            "Mario: touch spikes = damage + knockback\nTrickster(L): force extend / change freq",
+            "Mario: touch spikes = damage + safe knockback\nTrickster(L): force extend / change freq\n[S18] Knockback: backward from move dir",
             stage9.transform);
 
         // 周期地刺
@@ -460,7 +460,7 @@ public class TestSceneBuilder : Editor
         // --- 9B: PendulumTrap (摆锤) ---
         float s9b = s9a + s9SubWidth;
         CreateSubSign(s9b + s9SubWidth / 2f, "9B: PENDULUM TRAP",
-            "Mario: touch pendulum = damage\nTrickster(L): increase swing + speed",
+            "Mario: touch pendulum = damage + safe knockback\nTrickster(L): increase swing + speed\n[S18] Disguised Trickster can control",
             stage9.transform);
 
         GameObject pendulum = new GameObject("PendulumTrap");
@@ -477,7 +477,7 @@ public class TestSceneBuilder : Editor
         // --- 9C: FireTrap (火焰) ---
         float s9c = s9b + s9SubWidth;
         CreateSubSign(s9c + s9SubWidth / 2f, "9C: FIRE TRAP",
-            "Mario: touch fire = damage\nTrickster(L): force fire / speed up",
+            "Mario: touch fire = damage + safe knockback\nTrickster(L): force fire / speed up\n[S18] No more fly-away on hit",
             stage9.transform);
 
         GameObject fireTrap = new GameObject("FireTrap");
@@ -518,7 +518,7 @@ public class TestSceneBuilder : Editor
         // --- 9E: BouncyPlatform (弹跳平台) ---
         float s9e = s9d + s9SubWidth;
         CreateSubSign(s9e + s9SubWidth / 2f, "9E: BOUNCY PLATFORM",
-            "Mario: land on it = bounce up high\nTrickster(L): increase bounce force",
+            "Mario: land on any side = comedy delay + bounce\nTrickster(L): increase bounce force during delay\n[S18] Both sides bounce + comedy delay",
             stage9.transform);
 
         GameObject bouncyPlatform = new GameObject("BouncyPlatform");
@@ -538,7 +538,7 @@ public class TestSceneBuilder : Editor
         // --- 9F: OneWayPlatform (单向平台) ---
         float s9f = s9e + s9SubWidth;
         CreateSubSign(s9f + s9SubWidth / 2f, "9F: ONE-WAY PLATFORM",
-            "Jump from below = pass through\nStand on top + S = drop through",
+            "Jump from below = pass through\nStand on top + press S = drop through\n[S18] S key now routes to drop",
             stage9.transform);
 
         GameObject oneWayPlatform = new GameObject("OneWayPlatform");
@@ -559,7 +559,7 @@ public class TestSceneBuilder : Editor
         // --- 9G: CollapsingPlatform (崩塌平台) ---
         float s9g = s9f + s9SubWidth;
         CreateSubSign(s9g + s9SubWidth / 2f, "9G: COLLAPSING PLATFORM",
-            "Mario: stand on it -> shake -> collapse -> respawn\nTrickster(L): instant collapse",
+            "Mario/Trickster: stand on it -> shake -> collapse\nRespawns at current position (not initial)\nTrickster(L): instant collapse\n[S18] Both players trigger + position fix",
             stage9.transform);
 
         GameObject collapsingPlatform = new GameObject("CollapsingPlatform");
@@ -583,7 +583,7 @@ public class TestSceneBuilder : Editor
         // --- 9H: HiddenPassage (隐藏通道) ---
         float s9h = s9g + s9SubWidth;
         CreateSubSign(s9h + s9SubWidth / 2f, "9H: HIDDEN PASSAGE",
-            "Mario: walk to entrance + S = teleport to exit\nTrickster(L): block the passage",
+            "Mario: walk to entrance + press S = teleport to exit\nTrickster(L): block the passage\n[S18] S key now routes to teleport",
             stage9.transform);
 
         // 地下出口区域
@@ -618,7 +618,7 @@ public class TestSceneBuilder : Editor
         // --- 9I: FakeWall (伪装墙) ---
         float s9i = s9h + s9SubWidth;
         CreateSubSign(s9i + s9SubWidth / 2f, "9I: FAKE WALL",
-            "Mario: walk into wall = pass through (semi-transparent)\nTrickster(L): wall becomes solid",
+            "Mario: walk into wall = pass through (semi-transparent)\nTrickster(L): wall becomes solid\n[S18] Solid duration = activeDuration in Inspector",
             stage9.transform);
 
         GameObject fakeWall = new GameObject("FakeWall");

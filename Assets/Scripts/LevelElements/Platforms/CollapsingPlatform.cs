@@ -11,6 +11,13 @@ using UnityEngine;
 ///   - 崩塌后经过恢复时间自动重生（可配置）
 ///   - Trickster操控: 提前触发崩塌或延长延迟时间
 /// 
+/// Session 17 更新:
+///   - 修复崩塌后重生位置：使用当前 localPosition 作为重生基准
+///     移动平台后重生在新位置，不会回到初始位置
+///   - 修复 Trickster 也能触发崩塌：OnCollisionEnter2D 不再限制只有 Mario
+///     任何有 Rigidbody2D 的对象从上方踩踏都能触发
+///   - Trickster 按 L 键也能远程触发崩塌（通过 OnActivate）
+/// 
 /// 扩展/删除指南: 删除此文件不影响其他脚本
 /// Session 15: 关卡设计系统新增
 /// </summary>
@@ -34,8 +41,11 @@ public class CollapsingPlatform : ControllableLevelElement
     private enum CollapseState { Stable, Shaking, Collapsed, Respawning }
     private CollapseState state = CollapseState.Stable;
     private float collapseTimer;
-    private Vector3 initialPosition;
     private Color initialColor;
+
+    // Session 17: 使用 stablePosition 记录震动前的稳定位置（而非 Awake 时的初始位置）
+    // 这样移动平台后崩塌/重生都基于当前位置
+    private Vector3 stablePosition;
 
     // Trickster覆盖
     private bool tricksterForceCollapse;
@@ -51,7 +61,7 @@ public class CollapsingPlatform : ControllableLevelElement
 
         boxCollider = GetComponent<BoxCollider2D>();
         sr = GetComponent<SpriteRenderer>();
-        initialPosition = transform.localPosition;
+        stablePosition = transform.localPosition;
         initialColor = sr != null ? sr.color : Color.white;
     }
 
@@ -61,10 +71,16 @@ public class CollapsingPlatform : ControllableLevelElement
 
         switch (state)
         {
+            case CollapseState.Stable:
+                // Session 17: 在稳定状态持续更新 stablePosition
+                // 这样如果平台被移动（编辑器/代码），重生位置跟着更新
+                stablePosition = transform.localPosition;
+                break;
+
             case CollapseState.Shaking:
-                // 震动效果
+                // 震动效果（基于 stablePosition 偏移）
                 float shakeX = Mathf.Sin(Time.time * shakeFrequency) * shakeIntensity;
-                transform.localPosition = initialPosition + new Vector3(shakeX, 0, 0);
+                transform.localPosition = stablePosition + new Vector3(shakeX, 0, 0);
 
                 // 颜色渐变提示
                 if (sr != null)
@@ -113,9 +129,10 @@ public class CollapsingPlatform : ControllableLevelElement
     {
         if (state != CollapseState.Stable) return;
 
-        // 检查是否从上方踩踏
+        // Session 17: 不再限制只有 Mario 才能触发
+        // 任何有 Rigidbody2D 的对象从上方踩踏都能触发崩塌
         ContactPoint2D contact = collision.GetContact(0);
-        if (contact.normal.y < -0.5f && collision.gameObject.GetComponent<MarioController>() != null)
+        if (contact.normal.y < -0.5f && collision.gameObject.GetComponent<Rigidbody2D>() != null)
         {
             StartShaking();
         }
@@ -123,6 +140,8 @@ public class CollapsingPlatform : ControllableLevelElement
 
     private void StartShaking()
     {
+        // 记录开始震动时的位置作为稳定位置
+        stablePosition = transform.localPosition;
         state = CollapseState.Shaking;
         collapseTimer = collapseDelay;
         Debug.Log($"[CollapsingPlatform] {gameObject.name} 开始震动，{collapseDelay}秒后崩塌");
@@ -133,7 +152,9 @@ public class CollapsingPlatform : ControllableLevelElement
         state = CollapseState.Collapsed;
         collapseTimer = respawnDelay;
         boxCollider.enabled = false;
-        transform.localPosition = initialPosition;
+
+        // Session 17: 崩塌时回到 stablePosition（震动前的位置）
+        transform.localPosition = stablePosition;
 
         if (sr != null) sr.color = new Color(initialColor.r, initialColor.g, initialColor.b, 0f);
 
@@ -145,6 +166,10 @@ public class CollapsingPlatform : ControllableLevelElement
     {
         state = CollapseState.Respawning;
         collapseTimer = 0.5f; // 渐显时间
+
+        // Session 17: 重生在 stablePosition（即崩塌前的位置）
+        transform.localPosition = stablePosition;
+
         Debug.Log($"[CollapsingPlatform] {gameObject.name} 开始重生");
     }
 
@@ -177,7 +202,8 @@ public class CollapsingPlatform : ControllableLevelElement
         state = CollapseState.Stable;
         collapseTimer = 0f;
         boxCollider.enabled = true;
-        transform.localPosition = initialPosition;
+        // Session 17: 重置时回到 stablePosition
+        transform.localPosition = stablePosition;
         if (sr != null) sr.color = initialColor;
         tricksterForceCollapse = false;
     }

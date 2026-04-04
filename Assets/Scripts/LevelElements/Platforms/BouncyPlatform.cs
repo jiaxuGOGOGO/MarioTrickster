@@ -105,6 +105,10 @@ public class BouncyPlatform : ControllableLevelElement
     // 组件
     private BoxCollider2D boxCollider;
 
+    // [AI防坑警告] 弹射全流程由 LaunchSequence 协程统一管理，不要拆回 Update 手动计时器！
+    // 协程时序：OnCollisionEnter2D → PrepareBounce(冻结) → WaitForSeconds → ExecuteBounce(发射)
+    // 不要用 AddForce 替代 ExecuteBounce — AddForce 会被 MarioController._frameVelocity 写入覆盖。
+    // 不要用 rb.velocity = xxx 替代 ExecuteBounce — 同理，下一帧 FixedUpdate 会读回并截断。
     // 状态
     private Vector3 originalScale;
     private bool isAnimating;
@@ -192,6 +196,10 @@ public class BouncyPlatform : ControllableLevelElement
     // ─────────────────────────────────────────────────────
     #region 两段式弹射协程 (Session 22)
 
+    // [AI防坑警告] 这是弹射的核心协程，时序严格不可打乱！
+    // 必须先 PrepareBounce(冻结) → 等待 comedyDelay → 再 ExecuteBounce(发射)。
+    // 如果跳过冻结直接发射，角色当帧可能还有重力累积的旧速度，弹射轨道会被污染。
+    // cachedComedyWait 在 Awake 中缓存，协程中禁止 new WaitForSeconds（P1-P7 GC 规范）。
     /// <summary>
     /// 两段式弹射协程：统一管理蓄力冻结 → 发射的完整时序。
     /// 

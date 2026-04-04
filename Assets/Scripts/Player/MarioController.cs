@@ -130,6 +130,11 @@ public class MarioController : MonoBehaviour
     private float _knockbackStunTimer;
 
     // ── Session 22: 两段式弹射状态机 ──────────────────────
+    // [AI防坑警告] 这是两段式弹射的核心状态机，绝对不要改回 bounceStunTimer 单计时器方案！
+    // _isPreparingBounce（蓄力冻结）和 _isBouncing（抛物线飞行）必须是两个独立的 bool。
+    // 如果合并成一个 timer，HandleDirection 的 maxSpeed 截断会在冻结期就生效，
+    // 导致弹射后水平速度被截断至 maxSpeed，抛物线变成垂直下落的直角三角形。
+    // 完整弹射流程：碰撞→PrepareBounce()冻结→comedyDelay→ExecuteBounce()飞行→落地/碰墙解除
     // 阶段1: 蓄力冻结期 — 碰到弹跳平台后，角色完全冻结（零速度、忽略输入）
     // 阶段2: 抛物线飞行期 — 延迟结束后注入弹射速度，允许超速惯性飞行
     private bool _isPreparingBounce;  // 蓄力冻结中
@@ -359,6 +364,10 @@ public class MarioController : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region 水平移动
 
+    // [AI防坑警告] HandleDirection 是水平速度的唯一控制点。
+    // 飞行期(_isBouncing)超速时，绝对禁止用 MoveTowards(target=maxSpeed) 截断速度！
+    // 必须用 airFriction 自然衰减 + bounceAirAcceleration 微弱转向。
+    // 如果直接 Clamp 到 maxSpeed，弹射抛物线会立即变成垂直下落。
     /// <summary>
     /// 水平移动处理。
     /// 
@@ -481,6 +490,10 @@ public class MarioController : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region Session 22: 两段式弹射接口
 
+    // [AI防坑警告] PrepareBounce 和 ExecuteBounce 是成对的两段式接口。
+    // PrepareBounce 必须在碰撞瞬间调用，ExecuteBounce 必须在 comedyDelay 后调用。
+    // 不要试图合并成一个方法或用 AddForce 替代 — AddForce 会被下一帧的
+    // _frameVelocity 写入覆盖，导致弹射力完全丢失。
     /// <summary>
     /// 阶段1：蓄力冻结。碰到弹跳平台时由 BouncyPlatform 调用。
     /// 

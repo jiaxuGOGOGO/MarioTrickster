@@ -6,7 +6,8 @@ using UnityEngine.InputSystem;
 ///
 /// 键盘方案：
 ///   P1 (Mario)    : WASD 移动 | Space 跳跃 | Q 扫描
-///                   S 键（下蹲/交互）: 单向平台下落 + 隐藏通道传送
+///                   S+Space（下+跳）: 单向平台下落（Session 19 改为组合键）
+///                   S 键（下蹲/交互）: 隐藏通道传送
 ///   P2 (Trickster): 左右方向键 移动 | 上方向键/右Ctrl 跳跃
 ///                   P 伪装 | O/I 切换形态 | L 操控道具
 ///
@@ -17,10 +18,11 @@ using UnityEngine.InputSystem;
 ///
 /// Session 10 更新：添加 P1 扫描技能按键
 /// Session 17 更新：
-///   - 添加 S 键下蹲交互路由：
-///     · 检测 Mario 脚下的 OneWayPlatform → 调用 AllowDropThrough()
-///     · 检测 Mario 所在的 HiddenPassage → 调用 TryEnterPassage()
-///   - 使用 MarioInteractionHelper 统一处理交互检测
+///   - 添加 S 键下蹲交互路由
+/// Session 19 更新：
+///   - 单向平台下落改为 S+Jump 组合键（Down+Jump），避免误操作
+///   - 隐藏通道传送保持 S 键单独触发
+///   - 参考 Super Smash Bros / 行业标准的 Down+Jump 穿越平台做法
 ///
 /// 使用方式：挂载到 Managers 对象，在 Inspector 中拖入 Mario 和 Trickster 引用
 /// </summary>
@@ -43,7 +45,9 @@ public class InputManager : MonoBehaviour
     private bool p1JumpHeld;
     private bool p1WasJumpHeld;
     private bool p1ScanDown;
-    private bool p1DownInteractDown; // Session 17: S键下蹲交互
+    private bool p1DownInteractDown;     // S键下蹲交互（隐藏通道）
+    private bool p1DropThroughDown;      // Session 19: S+Jump 组合键（单向平台下落）
+    private bool p1SHeld;               // S键持续按住状态
 
     // ── P2 输入状态 ────────────────────────────────────────
     private Vector2 p2Move;
@@ -116,15 +120,30 @@ public class InputManager : MonoBehaviour
         p1JumpDown = jumpKey && !p1WasJumpHeld;
         p1JumpHeld = jumpKey;
 
+        // S键持续按住状态
+        p1SHeld = Input.GetKey(KeyCode.S)
+                || (gamepad1 != null && gamepad1.dpad.down.isPressed);
+
         // 扫描（Q 键 / 手柄东键 B/○）
         if (Input.GetKeyDown(KeyCode.Q)
             || (gamepad1 != null && gamepad1.buttonEast.wasPressedThisFrame))
             p1ScanDown = true;
 
-        // Session 17: S键下蹲交互（按下瞬间触发）
+        // Session 19: S+Jump 组合键检测（单向平台下落）
+        // 当 S 键被按住 且 Jump 键刚按下时，触发下落穿越
+        if (p1SHeld && p1JumpDown)
+        {
+            p1DropThroughDown = true;
+        }
+
+        // Session 17/19: S键下蹲交互（隐藏通道传送）
+        // 只在 S 键单独按下（不与 Jump 组合）时触发
         if (Input.GetKeyDown(KeyCode.S)
             || (gamepad1 != null && gamepad1.dpad.down.wasPressedThisFrame))
+        {
+            // 标记为待处理，在 Dispatch 中判断是否被组合键消费
             p1DownInteractDown = true;
+        }
     }
 
     #endregion
@@ -186,8 +205,20 @@ public class InputManager : MonoBehaviour
 
         marioController.SetMoveInput(p1Move);
 
-        if (p1JumpDown)              marioController.OnJumpPressed();
-        if (!p1JumpHeld && p1WasJumpHeld) marioController.OnJumpReleased();
+        // Session 19: S+Jump 组合键 → 单向平台下落（优先级最高）
+        if (p1DropThroughDown)
+        {
+            MarioInteractionHelper.HandleDropThrough(marioController.gameObject);
+            // 组合键已消费 Jump，不再触发普通跳跃
+            // 同时消费 S 的交互事件，避免同时触发隐藏通道
+            p1DownInteractDown = false;
+        }
+        else
+        {
+            // 普通跳跃（非组合键时）
+            if (p1JumpDown)              marioController.OnJumpPressed();
+            if (!p1JumpHeld && p1WasJumpHeld) marioController.OnJumpReleased();
+        }
 
         // 扫描技能
         if (p1ScanDown && marioScanAbility != null)
@@ -195,10 +226,10 @@ public class InputManager : MonoBehaviour
             marioScanAbility.ActivateScan();
         }
 
-        // Session 17: S键下蹲交互 — 单向平台下落 + 隐藏通道传送
-        if (p1DownInteractDown)
+        // Session 19: S键单独交互 → 隐藏通道传送（仅在非组合键时触发）
+        if (p1DownInteractDown && !p1DropThroughDown)
         {
-            MarioInteractionHelper.HandleDownInteraction(marioController.gameObject);
+            MarioInteractionHelper.HandlePassageInteraction(marioController.gameObject);
         }
     }
 
@@ -229,7 +260,8 @@ public class InputManager : MonoBehaviour
         // 单帧事件清零
         p1JumpDown = false;
         p1ScanDown = false;
-        p1DownInteractDown = false; // Session 17
+        p1DownInteractDown = false;
+        p1DropThroughDown = false; // Session 19
         p2JumpDown = false;
         p2DisguiseDown = false;
         p2SwitchDown = false;
@@ -269,6 +301,7 @@ public class InputManager : MonoBehaviour
         if (!showDebugInput) return;
         GUILayout.BeginArea(new Rect(10, 10, 280, 200));
         GUILayout.Label($"P1 Move: {p1Move}  JumpHeld: {p1JumpHeld}  Scan: {p1ScanDown}");
+        GUILayout.Label($"P1 SHeld: {p1SHeld}  DropThrough: {p1DropThroughDown}");
         GUILayout.Label($"P2 Move: {p2Move}  JumpHeld: {p2JumpHeld}");
         GUILayout.Label($"P2 Disguise: {p2DisguiseDown}  Ability: {p2AbilityDown}");
         GUILayout.Label($"Pad1: {(gamepad1 != null ? gamepad1.displayName : "None")}");

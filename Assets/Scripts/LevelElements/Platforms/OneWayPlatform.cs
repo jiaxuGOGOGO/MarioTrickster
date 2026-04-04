@@ -8,8 +8,14 @@ using UnityEngine;
 /// 
 /// 功能:
 ///   - 玩家可从下方穿过，落在上方
-///   - 按下蹲键可从平台上方穿过落下
+///   - 按 S+Jump（下+跳）组合键可从平台上方穿过落下
 ///   - 使用 PlatformEffector2D 实现单向碰撞
+/// 
+/// Session 19 优化（参考行业最佳实践）:
+///   - 改为 S+Jump 组合键触发下落（之前是单独按S，容易误操作）
+///   - 参考 Super Smash Bros / 大多数2D平台游戏的标准做法：Down+Jump = 穿越平台
+///   - InputManager 在检测到 S+Space 同时按下时调用 AllowDropThrough()
+///   - 单独按 S 不再触发下落，避免移动时误操作
 /// 
 /// 扩展/删除指南: 删除此文件不影响其他脚本
 /// Session 15: 关卡设计系统新增
@@ -19,8 +25,8 @@ using UnityEngine;
 public class OneWayPlatform : LevelElementBase
 {
     [Header("=== 单向平台设置 ===")]
-    [Tooltip("玩家按下蹲键后禁用碰撞的时长")]
-    [SerializeField] private float dropThroughDuration = 0.3f;
+    [Tooltip("玩家按下组合键后禁用碰撞的时长")]
+    [SerializeField] private float dropThroughDuration = 0.35f;
 
     // 组件
     private BoxCollider2D boxCollider;
@@ -35,7 +41,7 @@ public class OneWayPlatform : LevelElementBase
         elementName = "单向平台";
         category = ElementCategory.Platform;
         tags = ElementTag.AffectsPhysics;
-        description = "可从下方穿过的平台，按下蹲键可落下";
+        description = "可从下方穿过的平台，按 S+Jump 组合键可落下";
 
         boxCollider = GetComponent<BoxCollider2D>();
         boxCollider.usedByEffector = true;
@@ -60,7 +66,8 @@ public class OneWayPlatform : LevelElementBase
 
     /// <summary>
     /// 允许玩家从平台上方穿过落下
-    /// 由 MarioController 在检测到下蹲输入时调用
+    /// 由 InputManager 在检测到 S+Jump 组合键时通过 MarioInteractionHelper 调用
+    /// Session 19: 改为组合键触发，避免误操作
     /// </summary>
     public void AllowDropThrough()
     {

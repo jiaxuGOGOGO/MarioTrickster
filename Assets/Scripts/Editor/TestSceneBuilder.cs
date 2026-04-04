@@ -518,7 +518,7 @@ public class TestSceneBuilder : Editor
         // --- 9E: BouncyPlatform (弹跳平台) ---
         float s9e = s9d + s9SubWidth;
         CreateSubSign(s9e + s9SubWidth / 2f, "9E: BOUNCY PLATFORM",
-            "Mario: land on any side = comedy delay + bounce\nTrickster(L): increase bounce force during delay\n[S18] Both sides bounce + comedy delay",
+            "Mario: land on any side = bounce in surface normal direction\nBounce force adjustable (bounceForce + bounceForceMultiplier)\nComedy delay: brief freeze before launch\nTrickster(L): override direction + increase force\n[S19] Contact-normal based directional bounce",
             stage9.transform);
 
         GameObject bouncyPlatform = new GameObject("BouncyPlatform");
@@ -533,12 +533,12 @@ public class TestSceneBuilder : Editor
         bouncyCol.size = Vector2.one;
         bouncyPlatform.AddComponent<BouncyPlatform>();
         bouncyPlatform.transform.parent = stage9.transform;
-        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (jump on it)", stage9.transform);
+        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (land on any side = directional bounce)", stage9.transform);
 
         // --- 9F: OneWayPlatform (单向平台) ---
         float s9f = s9e + s9SubWidth;
         CreateSubSign(s9f + s9SubWidth / 2f, "9F: ONE-WAY PLATFORM",
-            "Jump from below = pass through\nStand on top + press S = drop through\n[S18] S key now routes to drop",
+            "Jump from below = pass through\nStand on top + press S+Space = drop through\n[S19] S+Jump combo (industry standard, prevents accidental drop)",
             stage9.transform);
 
         GameObject oneWayPlatform = new GameObject("OneWayPlatform");
@@ -554,7 +554,7 @@ public class TestSceneBuilder : Editor
         oneWayPlatform.AddComponent<PlatformEffector2D>();
         oneWayPlatform.AddComponent<OneWayPlatform>();
         oneWayPlatform.transform.parent = stage9.transform;
-        CreateSubLabel(s9f + 4, 1.8f, "One-Way Platform (jump up / S to drop)", stage9.transform);
+        CreateSubLabel(s9f + 4, 1.8f, "One-Way Platform (jump up / S+Space to drop)", stage9.transform);
 
         // --- 9G: CollapsingPlatform (崩塌平台) ---
         float s9g = s9f + s9SubWidth;
@@ -583,7 +583,7 @@ public class TestSceneBuilder : Editor
         // --- 9H: HiddenPassage (隐藏通道) ---
         float s9h = s9g + s9SubWidth;
         CreateSubSign(s9h + s9SubWidth / 2f, "9H: HIDDEN PASSAGE",
-            "Mario: walk to entrance + press S = teleport to exit\nTrickster(L): block the passage\n[S18] S key now routes to teleport",
+            "Mario: walk to entrance + press S = teleport to exit\nAt exit: press S = teleport back to entrance\nBidirectional with cooldown + return trigger zone\nTrickster(L): block the passage\n[S19] Bidirectional passage + TeleportMode state machine",
             stage9.transform);
 
         // 地下出口区域
@@ -613,7 +613,7 @@ public class TestSceneBuilder : Editor
         HiddenPassage hp = passageEntrance.AddComponent<HiddenPassage>();
         SetSerializedField(hp, "exitPoint", passageExit.transform);
         passageEntrance.transform.parent = stage9.transform;
-        CreateSubLabel(s9h + 2, -0.5f, "Entrance (press S)", stage9.transform);
+        CreateSubLabel(s9h + 2, -0.5f, "Entrance (press S to go / S to return)", stage9.transform);
 
         // --- 9I: FakeWall (伪装墙) ---
         float s9i = s9h + s9SubWidth;

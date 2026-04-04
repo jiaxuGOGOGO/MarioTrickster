@@ -1,6 +1,6 @@
 # MarioTrickster 项目进度总结
 
-> 更新时间：2026-04-04 (Session 18) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
+> 更新时间：2026-04-04 (Session 19) | 完整存档文档：功能清单、Bug 库、技术决策、Session 历史
 > **AI 入口**：每次新对话优先读取 `SESSION_TRACKER.md`（当前状态 + AI 行为规范 + 回归清单 + 待办队列），需要完整上下文时再读本文件，需要纵览全局时读 `MASTER_TRACKER.md`
 
 ---
@@ -89,7 +89,7 @@
 | PlayerHealth.cs | Assets/Scripts/Player/ | ✅ | 通用生命值/无敌帧/受伤闪烁/死亡事件 |
 | TricksterController.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | 与 MarioController 一致的帧速度架构 + 平台速度注入 + 手感调优；OnGUI 显示伪装系统实时状态 |
 | DisguiseSystem.cs | Assets/Scripts/Enemy/ | ✅ **Session 7 更新** | Sprite替换变身/冷却/场景融入/多形态切换；新增 GetDebugStatus() 调试方法 |
-| InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 7 更新** | 修复 OnJumpReleased 每帧触发问题，用 wasJumpHeld 状态机精确检测按下/松开事件；P2 键位改为 POIL 方案 |
+| InputManager.cs | Assets/Scripts/Core/ | ✅ **Session 19 更新** | S+Jump组合键检测（单向平台下落）+ S键单独触发（隐藏通道传送），拆分HandleDropThrough/HandlePassageInteraction |
 | GameManager.cs | Assets/Scripts/Core/ | ✅ **Session 12 更新** | 游戏状态/胜负判定/暂停/重启/计时器/单例模式。B020修复：ResetRound 重置 GoalZone.triggered + ControllablePropBase 使用次数。B021修复：移除 RESUMED 提示 |
 | CameraController.cs | Assets/Scripts/Camera/ | ✅ **Session 11 重写** | 平滑跟随Mario/前瞻偏移(滞后检测)/渐进式死区/关卡边界限制/相机震动(独立偏移量)。修复B016镜头晃动。 |
 
@@ -101,7 +101,7 @@
 | KillZone.cs | Assets/Scripts/Core/ | ✅ | 死亡区域（掉落深渊），碰触即死 |
 | DamageDealer.cs | Assets/Scripts/Core/ | ✅ **Session 18 更新** | 通用伤害触发器（尖刺/怪物/Hazard伪装），支持击退。S18: 使用 KnockbackHelper 统一击退方向 |
 | KnockbackHelper.cs | Assets/Scripts/Core/ | ✅ **Session 18 新增** | 统一击退方向计算工具，根据 Mario 移动方向反向后退，避免反复二次伤害 |
-| MarioInteractionHelper.cs | Assets/Scripts/Core/ | ✅ **Session 18 新增** | Mario S键下蹲交互辅助，统一处理单向平台下落和隐藏通道传送 |
+| MarioInteractionHelper.cs | Assets/Scripts/Core/ | ✅ **Session 19 更新** | Mario交互辅助：HandleDropThrough(S+Jump) + HandlePassageInteraction(S单独)，支持双向隐藏通道返回触发区 |
 | Collectible.cs | Assets/Scripts/Core/ | ✅ | 可收集物品（金币/回血/加速），带浮动动画 |
 | Breakable.cs | Assets/Scripts/Core/ | ✅ | 可破坏方块（砖块/问号砖块），从下方顶撞触发 |
 | MovingPlatform.cs | Assets/Scripts/Core/ | ✅ **Session 6 重写** | Kinematic Rigidbody2D + MovePosition() + 速度注入法跟随角色（不使用 SetParent） |
@@ -122,10 +122,11 @@
 | PendulumTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 摆锤绳索陷阱（物理摆动，可操控）。S18: KnockbackHelper 统一击退 |
 | FireTrap.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 火焰陷阱（周期喷射，可操控）。S18: 击退方向修正 + KnockbackHelper |
 | BouncingEnemy.cs | Assets/Scripts/LevelElements/Traps/ | ✅ **Session 18 更新** | 弹跳小怪物（周期弹跳，可踩踏，可操控）。S18: KnockbackHelper 统一击退 |
-| BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 18 更新** | 弹跳平台（带挤压动画，可操控）。S18: 两边都弹跳 + comedyDelay 喜剧延迟 |
-| OneWayPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ | 单向平台（下蹲可落下，不可操控） |
+| BouncyPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 19 重写** | 弹跳平台：碰撞法线方向弹射 + 可调强度(bounceForceMultiplier) + 喜剧延迟 + Trickster可操控方向/力度 |
+| OneWayPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 19 更新** | 单向平台：S+Jump组合键下落（行业标准，防止误操作） |
 | CollapsingPlatform.cs | Assets/Scripts/LevelElements/Platforms/ | ✅ **Session 18 更新** | 崩塌平台（踩踏后抖动掉落，可操控）。S18: 位置重生修复 + Trickster也能触发 |
-| HiddenPassage.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ | 隐藏通道（地下管道传送，可操控） |
+| HiddenPassage.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ **Session 19 重写** | 隐藏通道：双向穿越 + TeleportMode状态机 + 返回触发区 + 冷却时间 |
+| HiddenPassageReturnTrigger.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ **Session 19 新增** | 隐藏通道返回触发区，在出口位置动态创建，允许玩家按S传回入口 |
 | FakeWall.cs | Assets/Scripts/LevelElements/HiddenPassages/ | ✅ | 伪装墙壁（进入后变透明，可操控） |
 
 ### 2.7 Trickster 能力系统（Sprint 2 - Session 3 新增）
@@ -252,6 +253,9 @@ InputManager (右Alt/手柄Y)
 | B034 | ✅ **已修复 (Session 18)** 崩塌平台位置重生错误 + Trickster无法触发 | P0 | 修复：改用 stablePosition（在 Stable 状态持续更新），移动平台后重生在新位置。OnCollisionEnter2D 不再限制只有 MarioController，任何有 Rigidbody2D 的对象从上方踩踏都能触发 |
 | B035 | ✅ **已修复 (Session 18)** 隐藏通道按S不传送 | P0 | 修复：InputManager 新增 S键下蹲交互路由，通过 MarioInteractionHelper 检测周围 HiddenPassage 并调用 TryEnterPassage() |
 | B036 | ✅ **已修复 (Session 18)** 全局性能优化（D3D11 GPU Timeout 预防） | P0 | 修复：(1) GameUI/ScanAbility/TricksterController 的 OnGUI 中所有 GUIStyle 缓存为类字段，消除每帧 new 分配的 GC 压力；(2) TricksterAbilitySystem.BindNearestProp 改用缓存道具列表，消除 Update 中每帧 FindObjectsByType 场景扫描；(3) GameManager.ClearAllCooldowns 缓存场景对象引用，避免无冷却模式下每帧 3 次 FindObjectsOfType；(4) OnRenderObject GL 绘制添加主相机过滤，避免多相机重复绘制 |
+| B037 | ✅ **已优化 (Session 19)** 弹跳平台效果不好，只有宽边有效 | P0 | 优化：重写 BouncyPlatform，使用碰撞接触点法线(contact.normal)确定弹射方向，玩家从任何方向碰撞平台都会沿接触面法线方向弹射。新增 bounceForceMultiplier 可调强度。参考 Sonic 弹簧/rastating 教程的法线方向弹射最佳实践 |
+| B038 | ✅ **已优化 (Session 19)** 单向平台单独S键容易误操作 | P0 | 优化：将单向平台下落从单独S键改为S+Jump组合键。参考 Super Smash Bros/Celeste/行业标准的 Down+Jump 穿越平台做法。InputManager 拆分为 HandleDropThrough(S+Jump) 和 HandlePassageInteraction(S单独) |
+| B039 | ✅ **已优化 (Session 19)** 隐藏通道只能单向穿越，无法从出口返回 | P0 | 优化：重写 HiddenPassage 支持双向穿越。新增 TeleportMode 状态机(Forward/Return)、返回触发区(HiddenPassageReturnTrigger)、传送冷却时间。出口处自动创建返回触发区，玩家按S即可传回入口 |
 
 ### 关于 B002 的修复方法
 
@@ -302,6 +306,29 @@ InputManager (右Alt/手柄Y)
 ---
 
 ## 六、Session 历史记录
+
+### Session 19 记录（2026-04-04）
+
+**本次完成功能（参考行业最佳实践优化三大关卡元素）：**
+
+| 项目 | 说明 |
+|------|------|
+| B037 优化: 弹跳平台法线方向弹射 | 重写 BouncyPlatform，使用碰撞接触点法线(contact.normal)确定弹射方向。玩家从平台任何面碰撞都会沿法线方向弹射。新增 bounceForceMultiplier 可调强度。参考 Sonic 弹簧 + rastating 教程 |
+| B038 优化: 单向平台S+Jump组合键 | 将单向平台下落从单独S键改为S+Space组合键，防止误操作。参考 Super Smash Bros/Celeste 的 Down+Jump 行业标准 |
+| B039 优化: 隐藏通道双向穿越 | 重写 HiddenPassage 支持双向传送。新增 TeleportMode 状态机(Forward/Return)、返回触发区(HiddenPassageReturnTrigger)、传送冷却时间。出口处自动创建返回触发区 |
+
+**新增文件：**
+- `HiddenPassageReturnTrigger.cs` - 隐藏通道返回触发区（出口位置动态创建）
+
+**修改文件：**
+- `BouncyPlatform.cs` - 重写：碰撞法线方向弹射 + bounceForceMultiplier 可调强度
+- `OneWayPlatform.cs` - 更新注释，配合 S+Jump 组合键
+- `HiddenPassage.cs` - 重写：双向穿越 + TeleportMode 状态机 + 返回触发区创建 + 冷却时间
+- `InputManager.cs` - 拆分 S+Jump 组合键(HandleDropThrough) 和 S单独(HandlePassageInteraction)
+- `MarioInteractionHelper.cs` - 重构：支持双向隐藏通道返回触发区检测
+- `TestSceneBuilder.cs` - Stage 9E/9F/9H 标签更新（反映新操作方式）
+
+---
 
 ### Session 18 记录（2026-04-04）
 
@@ -733,8 +760,8 @@ Assets/
 │ ├── Scripts/
 │   ├── Core/
 │   │   ├── GameManager.cs           ✅ 游戏状态/胜负判定 (Session 12 更新: 修复B020/B021)
-│   │   ├── InputManager.cs          ✅ 输入分发中心 (Session 18 更新: S键下蹲交互路由)
-│   │   ├── MarioInteractionHelper.cs ✅ Mario S键交互辅助 (Session 18 新增)
+│   │   ├── InputManager.cs          ✅ 输入分发中心 (Session 19 更新: S+Jump组合键 + S单独路由)
+│   │   ├── MarioInteractionHelper.cs ✅ Mario交互辅助 (Session 19 更新: 双向通道返回触发区)
 │   │   ├── KnockbackHelper.cs       ✅ 统一击退方向计算 (Session 18 新增)
 │   │   ├── LevelManager.cs          ✅ 关卡管理器
 │   │   ├── GoalZone.cs              ✅ 终点触发器 (Session 12 更新: +ResetTrigger)
@@ -754,11 +781,12 @@ Assets/
 │   │   │   ├── FireTrap.cs          ✅ 火焰陷阱 (S18: 击退方向修正+KnockbackHelper)
 │   │   │   └── BouncingEnemy.cs     ✅ 弹跳小怪物 (S18: KnockbackHelper统一击退)
 │   │   ├── Platforms/               ✅ 平台类
-│   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台 (S18: 两边弹跳+喜剧延迟)
-│   │   │   ├── OneWayPlatform.cs    ✅ 单向平台
+│   │   │   ├── BouncyPlatform.cs    ✅ 弹跳平台 (S19: 法线方向弹射+可调强度)
+│   │   │   ├── OneWayPlatform.cs    ✅ 单向平台 (S19: S+Jump组合键)
 │   │   │   └── CollapsingPlatform.cs ✅ 崩塌平台 (S18: 位置重生修复+Trickster触发)
 │   │   └── HiddenPassages/          ✅ 隐藏通道类
-│   │       ├── HiddenPassage.cs     ✅ 隐藏通道
+│   │       ├── HiddenPassage.cs     ✅ 隐藏通道 (S19: 双向穿越+TeleportMode)
+│   │       ├── HiddenPassageReturnTrigger.cs ✅ 返回触发区 (S19 新增)
 │   │       └── FakeWall.cs          ✅ 伪装墙壁
 │   ├── Ability/
 │   │   ├── IControllableProp.cs     ✅ 可操控道具接口

@@ -175,12 +175,12 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 18 (TricksterAbilitySystem 多项修复 + Gizmo范围可视化 + 统一击退系统 + 全局性能优化) |
+| **最新 Session** | Session 19 (弹跳平台法线方向弹射 + 单向平台S+Jump组合键 + 隐藏通道双向穿越) |
 | **日期** | 2026-04-04 |
 | **分支** | master |
 | **项目阶段** | 游戏体验提升 (Sprint 2 进行中) |
-| **编译状态** | ⚠️ Session 18 多项修复 + 性能优化待验证 |
-| **阻塞问题** | 无（B029 已在本次修复中一并解决） |
+| **编译状态** | ⚠️ Session 19 三项优化待验证 |
+| **阻塞问题** | 无 |
 
 ---
 
@@ -222,25 +222,25 @@ Session 12 修复汇总：
 > AI 修复 Bug 后按 0.2 节流程自动填写。用户测试时除了当前测试项，还需快速验证此清单中的项目。
 > 简化操作见 Testing_Guide.md 第四章 4.4 节。
 
-**当前状态：Session 18 大量修复后待回归**
+**当前状态：Session 18+19 修复和优化后待回归**
 
 | 测试项 | 原因 | 简化验证操作 |
 |--------|------|------------|
-| 🔄 测试 1：Mario 基础移动 | MarioController.cs 添加了 knockback stun 机制 (S16) + InputManager S键路由 (S18) | WASD 移动 + Space 跳跃，确认手感不变 |
-| 🔄 测试 2：Trickster 基础移动 | TricksterController.cs 添加了 knockback stun 机制 (S16) | 方向键移动 + 跳跃，确认手感不变 |
-| 🔄 测试 7：胜负判定与UI | DamageDealer.cs 使用 KnockbackHelper 统一击退 (S18) | 碰敌人受伤确认有击退效果 + 红色闪烁 |
-| 🔄 测试 9：关卡设计系统 | **Session 18 大量修复** — 详见下方 | 逐一验证 9A-9I 所有子区域 |
-| 🔄 测试 9A：地刺 | SpikeTrap 使用 KnockbackHelper 统一击退 | 碰地刺确认向后退一小段距离，不会飞出 |
-| 🔄 测试 9B：摆锤 | PendulumTrap 使用 KnockbackHelper + 隐蔽状态可控制 | Trickster伪装融入后按L确认能控制摆锤 |
-| 🔄 测试 9C：火陷阱 | FireTrap 击退方向修正 | 碰火焰确认向后退一小段距离，不会向上飞出 |
-| 🔄 测试 9D：弹跳怪 | BouncingEnemy 使用 KnockbackHelper 统一击退 | 碰弹跳怪确认有合理击退 |
-| 🔄 测试 9E：弹跳平台 | BouncyPlatform 两边弹跳 + 喜剧延迟 | 从宽边和长边都跳上去确认都有弹射 + 有短暂停留 |
-| 🔄 测试 9F：单向平台 | InputManager S键路由到 OneWayPlatform | 站在平台上按S确认能落下 |
-| 🔄 测试 9G：崩塌平台 | CollapsingPlatform 位置重生修复 + Trickster触发 | 移动平台后确认重生在新位置 + Trickster踩上也触发崩塌 |
-| 🔄 测试 9H：隐藏通道 | InputManager S键路由到 HiddenPassage | 走到入口按S确认能传送到出口 |
-| 🔄 测试 9I：伪装墙 | FakeWall 无代码修改，仅标签更新 | 确认走入变透明 + Trickster L键变实体 |
-| 🔄 UI 显示 | GameUI.cs 修改了计时器显示区域 + 新增无冷却指示器 (S16) | 确认时间显示完整不被裁剪 |
-| 🔄 场景生成 | TestSceneBuilder.cs 标签更新 (S18) | Clear + Build 后确认 9 个 Stage + 标签正常显示 |
+| 🔄 测试 1：Mario 基础移动 | MarioController.cs knockback stun (S16) + InputManager S键路由 (S18) + S+Jump组合键 (S19) | WASD 移动 + Space 跳跃，确认手感不变，确认单独按S不会触发下落 |
+| 🔄 测试 2：Trickster 基础移动 | TricksterController.cs knockback stun (S16) | 方向键移动 + 跳跃，确认手感不变 |
+| 🔄 测试 7：胜负判定与UI | DamageDealer.cs KnockbackHelper (S18) | 碰敌人受伤确认有击退效果 + 红色闪烁 |
+| 🔄 测试 9：关卡设计系统 | **Session 18+19 修复和优化** — 详见下方 | 逐一验证 9A-9I 所有子区域 |
+| 🔄 测试 9A：地刺 | SpikeTrap KnockbackHelper (S18) | 碰地刺确认向后退一小段距离，不会飞出 |
+| 🔄 测试 9B：摆锤 | PendulumTrap KnockbackHelper + 隐蔽控制 (S18) | Trickster伪装融入后按L确认能控制摆锤 |
+| 🔄 测试 9C：火陷阱 | FireTrap 击退方向修正 (S18) | 碰火焰确认向后退一小段距离，不会向上飞出 |
+| 🔄 测试 9D：弹跳怪 | BouncingEnemy KnockbackHelper (S18) | 碰弹跳怪确认有合理击退 |
+| 🔄 测试 9E：弹跳平台 | **S19 重写**：碰撞法线方向弹射 + 可调强度 | 从上/下/左/右各个方向碰撞平台，确认弹射方向与接触面法线一致 + 喜剧延迟正常 |
+| 🔄 测试 9F：单向平台 | **S19 重写**：S+Jump组合键下落 | 站在平台上按S+Space确认能落下，单独按S不会落下 |
+| 🔄 测试 9G：崩塌平台 | CollapsingPlatform 位置重生 + Trickster触发 (S18) | 移动平台后确认重生在新位置 + Trickster踩上也触发崩塌 |
+| 🔄 测试 9H：隐藏通道 | **S19 重写**：双向穿越 + TeleportMode状态机 | 入口按S传送到出口 + 出口按S传回入口 + 确认冷却时间内无法重复传送 |
+| 🔄 测试 9I：伪装墙 | FakeWall 无代码修改 | 确认走入变透明 + Trickster L键变实体 |
+| 🔄 UI 显示 | GameUI.cs 计时器 + 无冷却指示器 (S16) | 确认时间显示完整不被裁剪 |
+| 🔄 场景生成 | TestSceneBuilder.cs 标签更新 (S18+S19) | Clear + Build 后确认 9 个 Stage + 标签正常显示，确认新标签内容正确 |
 | 🔄 测试 6.5：镜头系统 | B027 根本修复 (S17) | 走完全部 Stage，确认镜头始终跟随 Mario |
 | 🔄 角色碰撞 | B028 (S17): Mario/Trickster 分离到专用 Layer | Trickster 走向 Mario 应该互相穿过 |
 
@@ -259,7 +259,7 @@ Session 12 修复汇总：
 | 测试 6.5：镜头系统 | 🔄 待回归 | B027 根本修复 (S17) |
 | 测试 7：胜负判定与UI | 🔄 待回归 | 多回合胜利/失败画面 + 受伤击退效果（KnockbackHelper） |
 | 测试 8：暂停系统 | ✅ 通过 | ESC 暂停/恢复正常，无多余提示 |
-| 测试 9：关卡设计系统 | 🔄 待回归 | **Session 18 大量修复**：击退/弹跳/平台/通道 |
+| 测试 9：关卡设计系统 | 🔄 待回归 | **Session 18+19**：击退/弹跳法线方向/S+Jump单向平台/双向通道 |
 | EditMode 自动化测试 | ✅ 通过 | 59/59 全部通过（Session 13 修复 ForceAwake + DisguiseSystem断言） |
 | PlayMode 自动化测试 | ✅ 通过 | 21/21 全部通过（用户通过 Test Runner 验证） |
 
@@ -297,6 +297,9 @@ Session 12 修复汇总：
 | ~~P0~~ | B035 | 隐藏通道按S不传送 | ✅ 已修复 (Session 18): InputManager S键路由 + MarioInteractionHelper |
 | ~~P0~~ | — | Gizmo范围可视化 | ✅ 已实现 (Session 18): 运行时控制范围圆圈 + 陷阱范围显示 |
 | ~~P0~~ | B036 | 全局性能优化（D3D11 GPU Timeout 预防） | ✅ 已修复 (Session 18): GUIStyle缓存 + FindObjectsOfType缓存 + GL绘制优化 |
+| ~~P0~~ | B037 | 弹跳平台效果不好，只有宽边有效 | ✅ 已优化 (Session 19): 碰撞法线方向弹射 + 可调强度 bounceForceMultiplier |
+| ~~P0~~ | B038 | 单向平台单独S键容易误操作 | ✅ 已优化 (Session 19): S+Jump 组合键（行业标准） |
+| ~~P0~~ | B039 | 隐藏通道只能单向穿越，无法从出口返回 | ✅ 已优化 (Session 19): 双向穿越 + TeleportMode状态机 + 返回触发区 |
 | **P1** | — | **关卡设计系统 (Level Design)** | ✅ 框架已完成 |
 | **P1** | — | **音效系统 (Audio)** | 未开始 |
 | P2 | — | 动画系统完善 | 未开始 |
@@ -310,7 +313,8 @@ Session 12 修复汇总：
 |------|------|------|
 | Mario (P1) | WASD | 移动 |
 | Mario (P1) | Space | 跳跃 |
-| Mario (P1) | **S** | **下蹲交互**（单向平台下落 / 隐藏通道传送）(Session 18 新增路由) |
+| Mario (P1) | **S** | **隐藏通道传送**（入口/出口双向）(S18新增路由, S19双向) |
+| Mario (P1) | **S+Space** | **单向平台下落**（S19 组合键，防止误操作） |
 | Mario (P1) | **Q** | **扫描**（需要 Trickster 先按 P 伪装才能检测到） |
 | Trickster (P2) | 方向键 | 移动 |
 | Trickster (P2) | 上/右Ctrl | 跳跃 |

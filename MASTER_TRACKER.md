@@ -26,8 +26,8 @@
 | | 道具绑定与融入体验 (B029) | ✅ 已修复 (S18) | `TricksterAbilitySystem.cs` | 🔄 待回归 (S18 动态重绑定+融入后自动绑定) |
 | | 陷阱预布置 | ❌ 未开始 | 待开发 | ⚪ 未测试 |
 | **关卡元素** | 陷阱系统 (地刺/摆锤/火焰) | ✅ 已完成 | `SpikeTrap.cs` 等 + `KnockbackHelper.cs` | 🔄 待回归 (S18 统一击退) |
-| | 平台系统 (弹跳/单向/崩塌) | ✅ 已完成 | `BouncyPlatform.cs` 等 + `MarioInteractionHelper.cs` | 🔄 待回归 (S18 多项修复) |
-| | 隐藏通道 (地下通道/伪装墙) | ✅ 已完成 | `HiddenPassage.cs` 等 + `MarioInteractionHelper.cs` | 🔄 待回归 (S18 S键路由) |
+| | 平台系统 (弹跳/单向/崩塌) | ✅ 已完成 | `BouncyPlatform.cs`(法线弹射) + `OneWayPlatform.cs`(S+Jump) + `MarioInteractionHelper.cs` | 🔄 待回归 (S19 重写弹跳+单向) |
+| | 隐藏通道 (地下通道/伪装墙) | ✅ 已完成 | `HiddenPassage.cs`(双向穿越) + `HiddenPassageReturnTrigger.cs` + `MarioInteractionHelper.cs` | 🔄 待回归 (S19 双向穿越) |
 | | 弹跳怪物 | ✅ 已完成 | `BouncingEnemy.cs` + `KnockbackHelper.cs` | 🔄 待回归 (S18 统一击退) |
 | **游戏流程** | 胜负判定与多回合制 | ✅ 已完成 | `GameManager.cs` | 🔄 待回归 (B023/B025 变更) |
 | | 性能优化 (B036 GPU Timeout 预防) | ✅ 已完成 (S18) | `GameUI.cs`, `ScanAbility.cs`, `TricksterController.cs`, `TricksterAbilitySystem.cs`, `GameManager.cs` | 🔄 待回归 |
@@ -82,7 +82,7 @@
 | **核心控制** | 角色移动、物理跳跃、平台跟随 | 100% | 采用速度注入法解决平台跟随问题，手感已调优。 |
 | **能力机制** | 伪装变身、道具操控、能量消耗、扫描 | 95% | S18: Gizmo范围可视化 + 动态重绑定 + 融入后自动绑定。待补充高级变身形态和视觉线索。 |
 | **游戏流程** | 胜负判定、回合重置、暂停恢复 | 100% | 基础流程已完善，UI 反馈已增强。 |
-| **关卡设计** | 关卡白盒、障碍物布置、路线规划 | 50% | S18: 关卡元素多项修复（击退/弹跳/平台/通道），框架已健壮，正式关卡搭建待开始。 |
+| **关卡设计** | 关卡白盒、障碍物布置、路线规划 | 55% | S19: 弹跳平台法线方向弹射 + 单向平台S+Jump组合键 + 隐藏通道双向穿越。关卡元素机制已健壮，正式关卡搭建待开始。 |
 | **视听表现** | 角色动画、特效、背景音乐、音效 | 5% | 仅有基础色块和占位符，美术和音效系统待接入。 |
 | **网络联机** | Netcode接入、状态同步、大厅匹配 | 0% | 尚未开始，计划在 Sprint 2/3 引入。 |
 

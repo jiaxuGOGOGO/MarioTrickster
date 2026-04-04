@@ -204,13 +204,16 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 | **BouncingEnemy** (弹跳怪) | Mario | 从侧面碰到怪物 | 受到伤害并被击退 |
 | | Mario | 从上方踩踏怪物 | 怪物被消灭，Mario 获得向上弹力 |
 | | Trickster | 伪装融入后按 L 操控 | 怪物弹跳高度增加、速度加快 |
-| **BouncyPlatform** (弹跳平台) | Mario | 跳到平台上方 | 自动被向上弹射，平台播放挤压动画 |
-| | Trickster | 伪装融入后按 L 操控 | 平台的弹射力大幅增加 |
+| **BouncyPlatform** (弹跳平台) | Mario | 从任意方向碰撞平台 | 沿接触面法线方向弹射（上/下/左/右），平台播放挤压动画 + 喜剧延迟 [S19] |
+| | Trickster | 伪装融入后按 L 操控 | 平台的弹射力大幅增加，可覆盖弹射方向 |
 | **OneWayPlatform** (单向平台) | Mario | 从平台下方往上跳 | 可以穿过平台并落在上面 |
-| | Mario | 站在平台上按 S (下蹲) | 从平台上方穿过落下 |
+| | Mario | 站在平台上按 S+Space (下+跳) | 从平台上方穿过落下 [S19: S+Jump组合键] |
+| | Mario | 站在平台上单独按 S | 不会落下（防止误操作） |
 | **CollapsingPlatform** (崩塌平台) | Mario | 站上平台 | 平台开始抖动，短时间后掉落，几秒后自动重生 |
 | | Trickster | 伪装融入后按 L 操控 | 平台立即崩塌掉落 |
-| **HiddenPassage** (隐藏通道) | Mario | 走到入口处按 S (下蹲) | 被传送到出口位置 |
+| **HiddenPassage** (隐藏通道) | Mario | 走到入口处按 S | 被传送到出口位置 [S19: 双向穿越] |
+| | Mario | 在出口处按 S | 被传回入口位置（双向穿越）[S19 新增] |
+| | Mario | 传送后立即再按 S | 冷却时间内无法重复传送 [S19 新增] |
 | | Trickster | 伪装融入后按 L 操控 | 通道被封锁，Mario 无法进入 |
 | **FakeWall** (伪装墙) | Mario | 走进看起来像墙的区域 | 墙壁变半透明，显示内部隐藏空间 |
 | | Trickster | 伪装融入后按 L 操控 | 伪装墙变为真实物理墙壁，阻挡 Mario |
@@ -376,7 +379,8 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 | LevelElementBase.cs 等关卡框架 | 测试 9 | 测试 5 | 关卡元素基础逻辑 |
 | SpikeTrap.cs 等 9 种具体元素 | 测试 9 | — | 具体关卡元素表现 |
 | KnockbackHelper.cs | 测试 7、9 | 测试 1、2 | Session 18: 统一击退方向计算，影响所有伤害源 |
-| MarioInteractionHelper.cs | 测试 9 | — | Session 18: S键下蹲交互路由（单向平台下落+隐藏通道传送） |
+| MarioInteractionHelper.cs | 测试 9 | — | Session 19: HandleDropThrough(S+Jump单向平台) + HandlePassageInteraction(S隐藏通道双向) |
+| HiddenPassageReturnTrigger.cs | 测试 9 | — | Session 19: 隐藏通道返回触发区（出口位置动态创建） |
 | DamageDealer.cs | 测试 7、9 | — | Session 18: 使用 KnockbackHelper 统一击退 |
 | TestSceneBuilder.cs | **测试 1-9 全部** | — | 场景生成影响所有测试的前置条件 |
 
@@ -439,6 +443,8 @@ AI 每次修复 Bug 时，**必须**执行以下流程：
 |------|-----------------|---------------------|
 | 移动 | WASD | 方向键 |
 | 跳跃 | Space | ↑ / 右Ctrl / 小键盘0 |
+| **单向平台下落** | **S+Space** (组合键) [S19] | — |
+| **隐藏通道传送** | **S** (入口/出口双向) [S19] | — |
 | **扫描技能** | **Q / 手柄东键** | — |
 | 伪装/取消伪装 | — | **P** |
 | 切换伪装形态（下一个） | — | **O** |

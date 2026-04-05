@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 30 (LevelStudio_DesignGuide.md 全面更新) |
+| **最新 Session** | Session 31 (ASCII 关卡自动创建可玩环境) |
 | **日期** | 2026-04-05 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⚠️ S26b 精简后待用户 Unity 验证（S27~S30 仅文档变更，不影响编译） |
+| **编译状态** | ⚠️ S31 修改了 TestConsoleWindow.cs，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S30 全面重写 `LevelStudio_DesignGuide.md`，结合 S26b~S29 全部更新：三合一 Custom Template Editor 教程、双路线工作流架构、8 个模板总览与拼装建议、博弈维度覆盖进展、17 项缺失机制待办、跨账号防重闭环机制。接班 AI 请先 `git log --oneline -n 5`，关卡搜集任务请直接复制 `AI_PROMPT_WORKFLOW.md` 中路线 A 的指令。 |
+| **交接说明** | S31 修复 ASCII 关卡生成后无法操控的问题。`GenerateFromCustomTemplate` 现在会自动调用 `EnsurePlayableEnvironment`，补全 Mario/Trickster/Managers/Camera/KillZone。场景中已有这些对象时会跳过创建，避免重复。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -304,3 +304,28 @@ GitHub Token: ghp_你的token
 | 第五部分：博弈维度覆盖 | 新增章节，展示 14 个博弈维度的覆盖进展（5 已覆盖 / 9 待探索） |
 | 第六部分：要素分析与扩展 | 缺失机制从 8 项扩展为 17 项（含 T07/T08 新发现的 3 项），新增发现来源列 |
 | 第七部分：跨账号防重闭环 | 新增章节，说明防重三件套和去重粒度 |
+
+## [2026-04-05] S31: ASCII 关卡自动创建可玩环境
+
+### 问题
+用经典片段库或自定义模板生成 ASCII 关卡后，Mario 不会动——`M` 字符只生成了一个红色视觉标记（MarioSpawn），不会创建可操控的 Mario 角色和运行时基础设施。
+
+### 修复方案
+在 `TestConsoleWindow.GenerateFromCustomTemplate` 中新增 `EnsurePlayableEnvironment` 调用，ASCII 关卡生成后自动补全完整可玩环境：
+
+| 组件 | 创建条件 | 包含内容 |
+|------|---------|---------|
+| Mario | 场景中无 MarioController | MarioController + Rigidbody2D + PlayerHealth + ScanAbility + BoxCollider2D |
+| Trickster | 场景中无 TricksterController | TricksterController + DisguiseSystem + TricksterAbilitySystem + EnergySystem |
+| Managers | 场景中无 GameManager | GameManager + InputManager + LevelManager + GameUI，自动连线所有引用 |
+| Camera | Main Camera 无 CameraController | CameraController，自动设置 target 和 bounds |
+| KillZone | 场景中无 KillZone | 底部死亡区域触发器 |
+
+### 关键设计
+- **幂等安全**：场景中已有对象时跳过创建（如在 TestScene 中追加模板不会重复创建 Mario）
+- **自动连线**：通过 SerializedObject API 设置所有 SerializeField 引用（groundLayer、spawnPoint 等）
+- **B028 兼容**：自动创建 Player/Trickster Layer 并禁用两者碰撞
+- **边界自适应**：根据 ASCII 关卡实际尺寸自动计算 Camera 和 LevelManager 的边界
+
+### 修改文件
+- `Assets/Scripts/Editor/TestConsoleWindow.cs` — 新增 ~340 行（EnsurePlayableEnvironment + 辅助方法）

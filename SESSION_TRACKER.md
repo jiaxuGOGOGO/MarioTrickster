@@ -199,3 +199,8 @@ GitHub Token: ghp_你的token
 - 搜集并整理了基于 GMTK 四步法和 Celeste 关卡设计模式的优秀参考资源。
 - 对比经典平台跳跃游戏，识别并列出了项目中缺失的高/中/低优先级游戏要素（如传送带、旋转锯片、飞行敌人等）。
 - 提供了基于现有框架快速扩展新要素的工作流建议。
+
+### Element Palette 生成位置修复
+- 修复 `TestConsoleWindow.SpawnElementAtSceneCenter`：将 `sceneView.camera.transform.position` 替换为 `sceneView.pivot`
+- 原因：camera.transform.position 是 Scene 摄像机的 3D 位置（含透视偏移），在 2D 模式下与画面可视中心存在较大偏差
+- 效果：Element Palette 生成的元素现在准确出现在 Scene 视图画面中心

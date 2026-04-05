@@ -484,8 +484,12 @@ public class TestConsoleWindow : EditorWindow
             return;
         }
 
-        // 获取 Scene 摄像机中心的世界坐标
-        Vector3 camCenter = sceneView.camera.transform.position;
+        // 获取 Scene 视图焦点中心的世界坐标
+        // [AI防坑警告] 必须使用 sceneView.pivot 而非 camera.transform.position
+        // camera.transform.position 是 Scene 摄像机的 3D 位置（含透视偏移），
+        // 在 2D 模式下与画面可视中心存在较大偏差。
+        // pivot 才是用户在 Scene 视图中看到的真正焦点中心。
+        Vector3 camCenter = sceneView.pivot;
         camCenter.z = 0;
 
         // 对齐到网格（四舍五入到整数）

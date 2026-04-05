@@ -48,6 +48,12 @@ public class TricksterController : MonoBehaviour
     [SerializeField] private float coyoteTime = 0.15f;
     [SerializeField] private float jumpBuffer = 0.2f;
 
+    [Header("半重力跳跃顶点 (Session 32)")]
+    [Tooltip("跳跃顶点附近的速度阈值，|velocity.y| < 此值时视为顶点区")]
+    [SerializeField] private float apexThreshold = 2.0f;
+    [Tooltip("顶点区域重力倍率（0.5=半重力，Celeste 风格）")]
+    [SerializeField] private float apexGravityMultiplier = 0.5f;
+
     // ── 地面检测 ──────────────────────────────────────────
     [Header("地面检测")]
     [Tooltip("地面所在的 Layer（必须设置，否则无法跳跃）")]
@@ -322,6 +328,11 @@ public class TricksterController : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region 重力
 
+    /// <summary>
+    /// Session 32 半重力跳跃顶点（Celeste 风格）：
+    ///   当 |velocity.y| < apexThreshold 且正在长按跳跃键时，
+    ///   重力减半，给玩家更多空中调整时间。
+    /// </summary>
     private void HandleGravity()
     {
         if (_grounded && _frameVelocity.y <= 0f)
@@ -332,7 +343,15 @@ public class TricksterController : MonoBehaviour
         {
             float gravity = fallAcceleration;
             if (_endedJumpEarly && _frameVelocity.y > 0)
+            {
                 gravity *= jumpEndEarlyGravityModifier;
+            }
+            else if (jumpHeld && Mathf.Abs(_frameVelocity.y) < apexThreshold)
+            {
+                // Session 32: 半重力跳跃顶点
+                // 长按跳跃键 + 接近跳跃顶点 → 重力减半
+                gravity *= apexGravityMultiplier;
+            }
 
             _frameVelocity.y = Mathf.MoveTowards(
                 _frameVelocity.y, -maxFallSpeed, gravity * Time.fixedDeltaTime);

@@ -84,6 +84,13 @@ public class MarioController : MonoBehaviour
     [Tooltip("受击后控制器暂停时长（秒），让击退力生效")]
     [SerializeField] private float knockbackStunDuration = 0.25f;
 
+    // ── 半重力跳跃顶点 (Session 32: Celeste 风格增强) ────────
+    [Header("半重力跳跃顶点 (Session 32)")]
+    [Tooltip("跳跃顶点附近的速度阈值，|velocity.y| < 此值时视为顶点区")]
+    [SerializeField] private float apexThreshold = 2.0f;
+    [Tooltip("顶点区域重力倍率（0.5=半重力，Celeste 风格）")]
+    [SerializeField] private float apexGravityMultiplier = 0.5f;
+
     // ── 弹射动能保留 (Session 22) ────────────────────────
     [Header("弹射动能保留 (Session 22)")]
     [Tooltip("抛物线飞行期空气阻力（无输入时 X 轴速度每秒衰减量）")]
@@ -449,6 +456,15 @@ public class MarioController : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region 重力
 
+    /// <summary>
+    /// 重力处理。
+    /// 
+    /// Session 32 半重力跳跃顶点（Celeste 风格）：
+    ///   当 |velocity.y| < apexThreshold 且正在长按跳跃键时，
+    ///   重力减半，给玩家更多空中调整时间。
+    ///   "It's subtle, but this gives you more time to adjust for landing,
+    ///    and also just looks/feels pleasant." — Maddy Thorson (Celeste)
+    /// </summary>
     private void HandleGravity()
     {
         if (_grounded && _frameVelocity.y <= 0f)
@@ -458,8 +474,19 @@ public class MarioController : MonoBehaviour
         else
         {
             float gravity = fallAcceleration;
+
             if (_endedJumpEarly && _frameVelocity.y > 0)
+            {
+                // 提前松开跳跃键：高重力快速截断跳跃
                 gravity *= jumpEndEarlyGravityModifier;
+            }
+            else if (jumpHeld && Mathf.Abs(_frameVelocity.y) < apexThreshold)
+            {
+                // Session 32: 半重力跳跃顶点
+                // 长按跳跃键 + 接近跳跃顶点 → 重力减半
+                // 效果：跳跃弧线顶部更平缓，给玩家更多时间调整落点
+                gravity *= apexGravityMultiplier;
+            }
 
             _frameVelocity.y = Mathf.MoveTowards(
                 _frameVelocity.y, -maxFallSpeed, gravity * Time.fixedDeltaTime);

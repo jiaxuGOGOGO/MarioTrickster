@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 31 (ASCII 关卡自动创建可玩环境) |
+| **最新 Session** | Session 32 (视碰分离与关卡度量转译系统) |
 | **日期** | 2026-04-05 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⚠️ S31 修改了 TestConsoleWindow.cs，待用户 Unity 验证 |
+| **编译状态** | ⚠️ S32 修改了 7 个 .cs 文件 + 新增 2 个，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S31 修复 ASCII 关卡生成后无法操控的问题。`GenerateFromCustomTemplate` 现在会自动调用 `EnsurePlayableEnvironment`，补全 Mario/Trickster/Managers/Camera/KillZone。场景中已有这些对象时会跳过创建，避免重复。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S32 落地「视碰分离」与「关卡度量转译」系统。新增 PhysicsMetrics.cs（全局物理常量中心）和 JumpArcVisualizer.cs（跳跃抛物线可视化）。重写 SpriteAutoFit.cs 支持 Tiled 渲染。所有碰撞体尺寸统一引用 PhysicsMetrics 常量。MarioController 和 TricksterController 新增半重力跳跃顶点。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -135,9 +135,9 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S32 视碰分离与关卡度量转译系统 | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S26b Level Studio 精简 (删除AI分析器，重写为纯本地三合一) | ✅ 已完成，待用户 Unity 验证 |
-| **紧急** | 等待用户 Unity 测试 S22 弹跳平台重构结果 | ✅ 代码已推送，待用户反馈 |
-| **P1** | 关卡设计系统完善 | ✅ Level Studio + 工作流文档已交付 |
+| **P1** | 关卡设计系统完善 | ✅ Level Studio + 工作流文档 + 物理度量系统已交付 |
 | **P1** | 音效系统 (Audio) | 未开始 |
 | P2 | 动画系统完善 | 未开始 |
 | P2 | 主菜单 UI | 未开始 |
@@ -329,3 +329,35 @@ GitHub Token: ghp_你的token
 
 ### 修改文件
 - `Assets/Scripts/Editor/TestConsoleWindow.cs` — 新增 ~340 行（EnsurePlayableEnvironment + 辅助方法）
+
+## [2026-04-05] S32: 视碰分离与关卡度量转译系统
+
+### 核心理念
+基于 GDC "Building a Better Jump"、Celeste 10大容错机制、GMTK Platformer Toolkit、DiGRA 跳跃模型论文、Reverse Design: Super Mario World 等业界最佳实践，建立了完整的"白盒锁死物理真相，一键换肤纯净包浆"工业化管线。
+
+### 新增文件
+- `Assets/Scripts/LevelDesign/PhysicsMetrics.cs` — 全局物理度量常量中心（碰撞体尺寸、跳跃极限、安全约束）
+- `Assets/Scripts/Player/JumpArcVisualizer.cs` — 跳跃抛物线可视化工具（Scene视图实时预览，含半重力顶点弧线）
+- `LevelDesign_References/PHYSICS_METRICS_GUIDE.md` — 技术方案文档
+
+### 修改文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `MarioController.cs` | 新增半重力跳跃顶点（Celeste风格）：apexThreshold + apexGravityMultiplier |
+| `TricksterController.cs` | 同步新增半重力跳跃顶点，与Mario保持一致 |
+| `SpriteAutoFit.cs` | 重写：支持 Tiled 渲染模式，实现视碰分离的像素完美效果 |
+| `AsciiLevelGenerator.cs` | CELL_SIZE 引用 PhysicsMetrics；所有 Spawn 方法的碰撞体引用 PhysicsMetrics 常量；ApplyTheme 自动挂载 SpriteAutoFit |
+| `TestSceneBuilder.cs` | Mario/Trickster/元素碰撞体尺寸全部引用 PhysicsMetrics 常量 |
+| `TestConsoleWindow.cs` | Mario/Trickster 碰撞体尺寸引用 PhysicsMetrics 常量 |
+
+### 物理度量体系
+- 原地最高跳：2.5格 | 满速平跳：4.5格 | 含Coyote：5.85格
+- 角色碰撞体：宽0.8 高0.95（小于1格=宽容感）
+- 地刺碰撞体：(0.9, 0.35)，比视觉小=差一点就碰到的宽容感
+- 安全间隙上限：4格 | 安全高台上限：2格
+
+### 半重力跳跃顶点
+- 触发条件：长按跳跃键 + |velocity.y| < 2.0
+- 效果：重力减半，跳跃弧线顶部更平缓
+- 参考：Celeste 容错机制 #3 (Maddy Thorson)

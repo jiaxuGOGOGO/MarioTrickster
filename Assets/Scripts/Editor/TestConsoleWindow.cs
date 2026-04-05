@@ -1481,7 +1481,8 @@ public class TestConsoleWindow : EditorWindow
             AssignDefaultSpriteForPlayable(marioSR, marioSR.color);
 
             BoxCollider2D marioCol = mario.AddComponent<BoxCollider2D>();
-            marioCol.size = new Vector2(0.8f, 1f);
+            marioCol.size = new Vector2(PhysicsMetrics.MARIO_COLLIDER_WIDTH, PhysicsMetrics.MARIO_COLLIDER_HEIGHT);
+            marioCol.offset = new Vector2(0f, PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y);
 
             Rigidbody2D marioRb = mario.AddComponent<Rigidbody2D>();
             marioRb.gravityScale = 0f; // MarioController 自行管理重力
@@ -1523,7 +1524,8 @@ public class TestConsoleWindow : EditorWindow
             AssignDefaultSpriteForPlayable(tricksterSR, tricksterSR.color);
 
             BoxCollider2D tricksterCol = trickster.AddComponent<BoxCollider2D>();
-            tricksterCol.size = new Vector2(0.8f, 1f);
+            tricksterCol.size = new Vector2(PhysicsMetrics.TRICKSTER_COLLIDER_WIDTH, PhysicsMetrics.TRICKSTER_COLLIDER_HEIGHT);
+            tricksterCol.offset = new Vector2(0f, PhysicsMetrics.TRICKSTER_COLLIDER_OFFSET_Y);
 
             Rigidbody2D tricksterRb = trickster.AddComponent<Rigidbody2D>();
             tricksterRb.gravityScale = 0f;

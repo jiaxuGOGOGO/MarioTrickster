@@ -42,7 +42,9 @@ public static class AsciiLevelGenerator
     // ═══════════════════════════════════════════════════
     // 常量
     // ═══════════════════════════════════════════════════
-    private const float CELL_SIZE = 1f;  // 每个字符对应的世界单位大小
+    // [AI防坑警告] CELL_SIZE 必须与 PhysicsMetrics.CELL_SIZE 保持一致！
+    // 这是整个关卡系统的基石，修改会导致所有关卡布局崩溃。
+    private const float CELL_SIZE = PhysicsMetrics.CELL_SIZE;
     private const int GROUND_SORTING = 0;
     private const int ELEMENT_SORTING = 5;
     private const string ROOT_NAME = "AsciiLevel_Root";
@@ -312,62 +314,91 @@ public static class AsciiLevelGenerator
 
     private static void SpawnGoalZone(int x, int y)
     {
+        // Session 32: 终点碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("GoalZone", x, y, COLOR_GOAL, ELEMENT_SORTING, false, true);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.GOAL_COLLIDER_SIZE;
         go.AddComponent<GoalZone>();
     }
 
     private static void SpawnSpikeTrap(int x, int y)
     {
+        // Session 32: 使用 PhysicsMetrics 的宽容碰撞体
+        // 地刺碰撞体比视觉小 = Celeste 风格宽容感
         GameObject go = CreateBlock("SpikeTrap", x, y, COLOR_SPIKE, ELEMENT_SORTING, false, true);
         go.transform.localScale = new Vector3(CELL_SIZE, CELL_SIZE * 0.4f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null)
+        {
+            col.size = PhysicsMetrics.SPIKE_COLLIDER_SIZE;
+            col.offset = new Vector2(0f, PhysicsMetrics.SPIKE_COLLIDER_OFFSET_Y);
+        }
         go.AddComponent<SpikeTrap>();
     }
 
     private static void SpawnFireTrap(int x, int y)
     {
+        // Session 32: 火焰碰撞体使用 PhysicsMetrics 标准尺寸（比视觉小，提供容错）
         GameObject go = CreateBlock("FireTrap", x, y, COLOR_FIRE, ELEMENT_SORTING, false, true);
         go.transform.localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = Vector2.one;
+        if (col != null) col.size = PhysicsMetrics.FIRE_COLLIDER_SIZE;
         go.AddComponent<FireTrap>();
     }
 
     private static void SpawnPendulumTrap(int x, int y)
     {
+        // Session 32: 摆锤碰撞体使用 PhysicsMetrics 标准尺寸
         // 摆锤锚点在上方，实际摆锤在下面摆动
         GameObject go = CreateBlock("PendulumTrap", x, y, COLOR_PENDULUM, ELEMENT_SORTING, false, false);
         go.transform.localScale = new Vector3(CELL_SIZE * 0.3f, CELL_SIZE * 0.3f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.PENDULUM_COLLIDER_SIZE;
         go.AddComponent<PendulumTrap>();
     }
 
     private static void SpawnBouncyPlatform(int x, int y)
     {
+        // Session 32: 弹跳平台碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("BouncyPlatform", x, y, COLOR_BOUNCY, ELEMENT_SORTING, true, false);
         go.transform.localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.3f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.BOUNCY_COLLIDER_SIZE;
         go.AddComponent<BouncyPlatform>();
     }
 
     private static void SpawnCollapsingPlatform(int x, int y)
     {
+        // Session 32: 崩塌平台碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("CollapsingPlatform", x, y, COLOR_COLLAPSE, ELEMENT_SORTING, true, false);
         go.transform.localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.4f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.COLLAPSE_COLLIDER_SIZE;
         go.AddComponent<CollapsingPlatform>();
     }
 
     private static void SpawnOneWayPlatform(int x, int y)
     {
+        // Session 32: 单向平台碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("OneWayPlatform", x, y, COLOR_ONEWAY, ELEMENT_SORTING, true, false);
         go.transform.localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.3f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.usedByEffector = true;
+        if (col != null)
+        {
+            col.size = PhysicsMetrics.ONEWAY_COLLIDER_SIZE;
+            col.usedByEffector = true;
+        }
         go.AddComponent<PlatformEffector2D>();
         go.AddComponent<OneWayPlatform>();
     }
 
     private static void SpawnBouncingEnemy(int x, int y)
     {
+        // Session 32: 敌人碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("BouncingEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, true);
         go.transform.localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.BOUNCING_ENEMY_COLLIDER_SIZE;
         Rigidbody2D rb = go.AddComponent<Rigidbody2D>();
         rb.gravityScale = 1f;
         rb.freezeRotation = true;
@@ -376,8 +407,11 @@ public static class AsciiLevelGenerator
 
     private static void SpawnSimpleEnemy(int x, int y)
     {
+        // Session 32: 敌人碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("SimpleEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, true);
         go.transform.localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.SIMPLE_ENEMY_COLLIDER_SIZE;
         Rigidbody2D rb = go.AddComponent<Rigidbody2D>();
         rb.gravityScale = 1f;
         rb.freezeRotation = true;
@@ -400,15 +434,21 @@ public static class AsciiLevelGenerator
 
     private static void SpawnCollectible(int x, int y)
     {
+        // Session 32: 收集物碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("Collectible", x, y, COLOR_COLLECT, ELEMENT_SORTING, false, true);
         go.transform.localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.COLLECTIBLE_COLLIDER_SIZE;
         go.AddComponent<Collectible>();
     }
 
     private static void SpawnMovingPlatform(int x, int y)
     {
+        // Session 32: 移动平台碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("MovingPlatform", x, y, COLOR_MOVING, ELEMENT_SORTING, true, false);
         go.transform.localScale = new Vector3(CELL_SIZE * 3f, CELL_SIZE * 0.4f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.MOVING_COLLIDER_SIZE;
         MovingPlatform mp = go.AddComponent<MovingPlatform>();
     }
 
@@ -499,6 +539,11 @@ public static class AsciiLevelGenerator
     /// 
     /// 【Fallback 安全】空插槽保留白盒原样，绝不抛 NullReferenceException
     /// 【通用替换】不强耦合具体陷阱类，统一通过 SpriteRenderer 替换
+    /// 
+    /// Session 32 视碰分离增强：
+    ///   换肤时自动为地形元素挂载 SpriteAutoFit（Tiled 模式），
+    ///   确保新素材以正确的 PPU 平铺填充碰撞体区域，
+    ///   不拉伸不变形，保持像素完美。
     /// </summary>
     public static void ApplyTheme(LevelThemeProfile theme)
     {
@@ -540,6 +585,7 @@ public static class AsciiLevelGenerator
                 if (theme.groundSprite != null)
                 {
                     sr.sprite = theme.groundSprite;
+                    EnsureSpriteAutoFit(child.gameObject, SpriteAutoFit.FitMode.Tiled);
                     replacedCount++;
                 }
                 sr.color = theme.groundColor;
@@ -549,6 +595,7 @@ public static class AsciiLevelGenerator
                 if (theme.platformSprite != null)
                 {
                     sr.sprite = theme.platformSprite;
+                    EnsureSpriteAutoFit(child.gameObject, SpriteAutoFit.FitMode.Tiled);
                     replacedCount++;
                 }
                 sr.color = theme.platformColor;
@@ -558,6 +605,7 @@ public static class AsciiLevelGenerator
                 if (theme.wallSprite != null)
                 {
                     sr.sprite = theme.wallSprite;
+                    EnsureSpriteAutoFit(child.gameObject, SpriteAutoFit.FitMode.Tiled);
                     replacedCount++;
                 }
                 sr.color = theme.wallColor;
@@ -594,5 +642,20 @@ public static class AsciiLevelGenerator
         if (firstUnderscore > 0)
             return objectName.Substring(0, firstUnderscore);
         return objectName;
+    }
+
+    /// <summary>
+    /// Session 32: 确保目标 GameObject 上有 SpriteAutoFit 组件，并设置指定的适配模式。
+    /// 如果已存在则只更新模式，不重复挂载。
+    /// 用于换肤时自动为地形元素启用视碰分离的 Tiled 渲染。
+    /// </summary>
+    private static void EnsureSpriteAutoFit(GameObject go, SpriteAutoFit.FitMode mode)
+    {
+        SpriteAutoFit autoFit = go.GetComponent<SpriteAutoFit>();
+        if (autoFit == null)
+        {
+            autoFit = go.AddComponent<SpriteAutoFit>();
+        }
+        autoFit.SetFitMode(mode);
     }
 }

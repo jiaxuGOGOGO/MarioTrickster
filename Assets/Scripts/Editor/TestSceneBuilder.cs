@@ -99,7 +99,8 @@ public class TestSceneBuilder : Editor
         marioSR.sortingOrder = 10;
 
         BoxCollider2D marioCol = mario.AddComponent<BoxCollider2D>();
-        marioCol.size = new Vector2(0.8f, 1f);
+        marioCol.size = new Vector2(PhysicsMetrics.MARIO_COLLIDER_WIDTH, PhysicsMetrics.MARIO_COLLIDER_HEIGHT);
+        marioCol.offset = new Vector2(0f, PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y);
 
         Rigidbody2D marioRb = mario.AddComponent<Rigidbody2D>();
         marioRb.gravityScale = 0f;
@@ -126,7 +127,8 @@ public class TestSceneBuilder : Editor
         tricksterSR.sortingOrder = 10;
 
         BoxCollider2D tricksterCol = trickster.AddComponent<BoxCollider2D>();
-        tricksterCol.size = new Vector2(0.8f, 1f);
+        tricksterCol.size = new Vector2(PhysicsMetrics.TRICKSTER_COLLIDER_WIDTH, PhysicsMetrics.TRICKSTER_COLLIDER_HEIGHT);
+        tricksterCol.offset = new Vector2(0f, PhysicsMetrics.TRICKSTER_COLLIDER_OFFSET_Y);
 
         Rigidbody2D tricksterRb = trickster.AddComponent<Rigidbody2D>();
         tricksterRb.gravityScale = 0f;
@@ -304,7 +306,7 @@ public class TestSceneBuilder : Editor
         hazardSR.sortingOrder = 5;
         AssignDefaultSprite(hazardSR, new Color(1f, 0.5f, 0f));
         BoxCollider2D hazardCol = hazard.AddComponent<BoxCollider2D>();
-        hazardCol.size = new Vector2(1f, 0.5f);
+        hazardCol.size = PhysicsMetrics.CONTROLLABLE_HAZARD_COLLIDER_SIZE;
         hazardCol.isTrigger = true;
         hazard.AddComponent<ControllableHazard>();
         hazard.transform.parent = stage5.transform;
@@ -319,7 +321,7 @@ public class TestSceneBuilder : Editor
         blockSR.sortingOrder = 5;
         AssignDefaultSprite(blockSR, new Color(0.8f, 0.6f, 0.2f));
         BoxCollider2D blockCol = block.AddComponent<BoxCollider2D>();
-        blockCol.size = new Vector2(1f, 1f);
+        blockCol.size = PhysicsMetrics.BLOCK_COLLIDER_SIZE;
         block.AddComponent<ControllableBlock>();
         block.transform.parent = stage5.transform;
         CreateSubLabel(s5 + 9, 1.5f, "Controllable Block (L)", stage5.transform);
@@ -368,7 +370,7 @@ public class TestSceneBuilder : Editor
         enemySR.sortingOrder = 8;
         AssignDefaultSprite(enemySR, new Color(0.6f, 0f, 0.6f));
         BoxCollider2D enemyCol = enemy.AddComponent<BoxCollider2D>();
-        enemyCol.size = new Vector2(0.8f, 0.8f);
+        enemyCol.size = PhysicsMetrics.SIMPLE_ENEMY_COLLIDER_SIZE;
         Rigidbody2D enemyRb = enemy.AddComponent<Rigidbody2D>();
         enemyRb.gravityScale = 1f;
         enemyRb.freezeRotation = true;
@@ -386,7 +388,7 @@ public class TestSceneBuilder : Editor
         breakSR.sortingOrder = 5;
         AssignDefaultSprite(breakSR, new Color(0.9f, 0.7f, 0.3f));
         BoxCollider2D breakCol = breakable.AddComponent<BoxCollider2D>();
-        breakCol.size = new Vector2(1f, 1f);
+        breakCol.size = PhysicsMetrics.BREAKABLE_BLOCK_COLLIDER_SIZE;
         breakable.AddComponent<Breakable>();
         breakable.transform.parent = stage7.transform;
         CreateSubLabel(s7 + 10, 2f, "Breakable Block", stage7.transform);
@@ -660,7 +662,7 @@ public class TestSceneBuilder : Editor
         goalSR.sortingOrder = 3;
         AssignDefaultSprite(goalSR, new Color(0f, 1f, 0f, 0.5f));
         BoxCollider2D goalCol = goal.AddComponent<BoxCollider2D>();
-        goalCol.size = new Vector2(1f, 3f);
+        goalCol.size = PhysicsMetrics.GOAL_COLLIDER_SIZE;
         goalCol.isTrigger = true;
         goal.AddComponent<GoalZone>();
         goal.transform.parent = goalParent.transform;

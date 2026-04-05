@@ -238,3 +238,7 @@ GitHub Token: ghp_你的token
 
 ### 缺失机制汇总（高优先级）
 - 旋转锯片 (Circular Saw)、传送带 (Conveyor Belt)、追逐者 (Chaser)
+
+### S27 追加：模板登记簿 + 优化提示词
+- `LevelDesign_References/TEMPLATE_REGISTRY.md` — 按"核心博弈组合"去重的模板登记簿，含快速复制区和灵感池
+- `LevelDesign_References/AI_PROMPT_WORKFLOW.md` — 整合去重机制的完整工作流提示词（可直接复制使用）

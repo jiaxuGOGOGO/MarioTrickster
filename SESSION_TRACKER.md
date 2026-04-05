@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 26b (Level Studio 精简为纯本地三合一) |
+| **最新 Session** | Session 27 (ASCII 白盒模板集 + 参考图片库) |
 | **日期** | 2026-04-05 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⚠️ S26b 精简后待用户 Unity 验证 |
+| **编译状态** | ⚠️ S26b 精简后待用户 Unity 验证（S27 仅新增文档和图片，不影响编译） |
 | **阻塞** | 无 |
-| **交接说明** | S26b 精简 Level Builder Tab：删除 LevelImageAnalyzer.cs（过度设计），重写为纯本地三合一（字典速查 + 5个经典片段追加 + 文本框编辑/Build）。图片识别留在外部 AI 聊天框。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S27 新增 6 个严格验证的 ASCII 白盒模板 + 7 张经典关卡参考截图。每个模板附带动态参数建议和缺失机制分析。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -221,3 +221,20 @@ GitHub Token: ghp_你的token
 - 纯本地功能，零外部依赖，不需要 API Key
 - 所有新功能仅在 EditMode 下可用
 - 工作流：外部 AI 聊天框识别图片 → 复制 ASCII → 粘贴到文本框 → Build
+
+## [2026-04-05] S27: ASCII 白盒模板集 + 参考图片库
+
+### 新增文件
+- `LevelDesign_References/ASCII_Templates.md` — 6 个经过严格验证的 ASCII 白盒模板（矩形对齐、无空格、字符合法）
+- `LevelDesign_References/*.png|jpg|webp` — 7 张经典游戏关卡参考截图（Celeste/Mega Man/VVVVVV/Mario）
+
+### 6 个模板
+1. **Spike Abyss & Bait** (25x12) — Celeste 风格地刺深渊 + 诱饵金币
+2. **Zigzag Climb Tower** (20x16) — Mega Man 风格 Z 字垂直攀爬
+3. **Platform & Bouncer Duet** (26x13) — 移动平台 + 弹跳怪三段式跳跃
+4. **Fire Corridor & Pendulum** (30x9) — Super Meat Boy 风格火焰走廊 + 摆锤
+5. **Crumbling Escape** (25x11) — 崩塌平台逃亡 + V 字金币引导
+6. **Secret Chamber** (25x12) — 伪装墙密室 + 隐藏通道探索
+
+### 缺失机制汇总（高优先级）
+- 旋转锯片 (Circular Saw)、传送带 (Conveyor Belt)、追逐者 (Chaser)

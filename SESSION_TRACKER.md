@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 29 (全网搜集新关卡灵感 T07/T08 + 登记簿更新) |
+| **最新 Session** | Session 30 (LevelStudio_DesignGuide.md 全面更新) |
 | **日期** | 2026-04-05 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⚠️ S26b 精简后待用户 Unity 验证（S27/S28/S29 仅文档变更，不影响编译） |
+| **编译状态** | ⚠️ S26b 精简后待用户 Unity 验证（S27~S30 仅文档变更，不影响编译） |
 | **阻塞** | 无 |
-| **交接说明** | S29 全网搜集新关卡灵感并转化为 T07/T08 模板。T07=踩敌跳板+双路分支（Shovel Knight+Mario），T08=垂直坠井+视觉欺骗（Downwell+I Wanna）。登记簿已更新，灵感池新覆盖 5 个维度，缺失机制新增 3 项。接班 AI 请先 `git log --oneline -n 5`，关卡搜集任务请直接复制 `AI_PROMPT_WORKFLOW.md` 中路线 A 的指令。 |
+| **交接说明** | S30 全面重写 `LevelStudio_DesignGuide.md`，结合 S26b~S29 全部更新：三合一 Custom Template Editor 教程、双路线工作流架构、8 个模板总览与拼装建议、博弈维度覆盖进展、17 项缺失机制待办、跨账号防重闭环机制。接班 AI 请先 `git log --oneline -n 5`，关卡搜集任务请直接复制 `AI_PROMPT_WORKFLOW.md` 中路线 A 的指令。 |
 
 ---
 
@@ -288,3 +288,19 @@ GitHub Token: ghp_你的token
 - 已探索灵感来源新增 4 条（Shovel Knight Pogo、Mario 水管分支、Downwell 垂直下落、I Wanna 视觉欺骗）
 - 灵感池新覆盖 5 个维度：路径分支[T07]、敌人利用[T07]、渐进揭示[T07]、垂直下落[T08]、视觉欺骗[T08]
 - 缺失机制待办新增 3 项：下砸攻击(Pogo)、单向下落平台(Drop-through)、视觉提示系统(Visual Hint)
+
+## [2026-04-05] S30: LevelStudio_DesignGuide.md 全面更新
+
+结合 S26b 至 S29 的全部功能迭代，对 `LevelStudio_DesignGuide.md` 进行了完整重写。文档从原来的 3 部分 155 行扩展为 7 部分的一站式参考手册。
+
+### 主要变更
+
+| 章节 | 更新内容 |
+|------|---------|
+| 第一部分：Level Studio 教程 | 更新为 S26b 精简后的三合一架构（字典速查+片段库+文本框 Build），新增 Element Palette 和 Theme System 的完整操作步骤 |
+| 第二部分：关卡设计工作流 | 新增章节，整合双路线架构（全自动+半自动视觉）和 Unity 内极速实操三阶段 |
+| 第三部分：关卡模板库概览 | 从 6 个更新为 8 个模板，新增难度标签定义和推荐拼装顺序表 |
+| 第四部分：关卡设计理论 | 新增 T07/T08 作为 GMTK 四步法和信任欺骗博弈的实例，新增物理法则约束表 |
+| 第五部分：博弈维度覆盖 | 新增章节，展示 14 个博弈维度的覆盖进展（5 已覆盖 / 9 待探索） |
+| 第六部分：要素分析与扩展 | 缺失机制从 8 项扩展为 17 项（含 T07/T08 新发现的 3 项），新增发现来源列 |
+| 第七部分：跨账号防重闭环 | 新增章节，说明防重三件套和去重粒度 |

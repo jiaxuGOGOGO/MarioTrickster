@@ -111,6 +111,13 @@ public class TestConsoleWindow : EditorWindow
     private float customTeleportX = 0f;
     private float customTeleportY = 1f;
 
+    // S33: 动态锚点系统（Teleport Tab 动态 POI 发现）
+    // [System.NonSerialized] 确保序列化隔离，Domain Reload 后自动重建
+    [System.NonSerialized] private List<TeleportAnchor> cachedAnchors = null;
+    [System.NonSerialized] private Vector2 anchorScrollPos;
+    [System.NonSerialized] private Dictionary<string, bool> anchorCategoryFoldouts = new Dictionary<string, bool>();
+    [System.NonSerialized] private bool showDynamicAnchors = true;
+
     // ═══════════════════════════════════════════════════
     // 菜单入口
     // ═══════════════════════════════════════════════════
@@ -139,6 +146,7 @@ public class TestConsoleWindow : EditorWindow
         if (state == PlayModeStateChange.EnteredPlayMode)
         {
             ClearCache();
+            cachedAnchors = null; // S33: 重置动态锚点缓存，进入 PlayMode 后重新扫描
             timeScaleValue = 1f;
         }
         if (state == PlayModeStateChange.ExitingPlayMode)
@@ -347,13 +355,18 @@ public class TestConsoleWindow : EditorWindow
         {
             Undo.RegisterCreatedObjectUndo(root, $"Generate {templateName}");
 
+            // S33: 统一调用链 — 与 GenerateFromCustomTemplate 保持一致，
+            // 自动补全 Mario/Trickster/Managers/Camera/KillZone，让生成的关卡直接可 Play。
+            // 此方法是幂等的：如果场景中已有这些对象则跳过创建。
+            EnsurePlayableEnvironment(root);
+
             // 聚焦到生成的关卡
             Selection.activeGameObject = root;
             SceneView.lastActiveSceneView?.FrameSelected();
 
             EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
 
-            Debug.Log($"[TestConsole] Whitebox level '{templateName}' generated successfully.");
+            Debug.Log($"[TestConsole] Whitebox level '{templateName}' generated with playable environment.");
         }
     }
 
@@ -712,6 +725,24 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(8);
 
+        // ═══════════════════════════════════════════════════
+        // S33: 动态锚点系统 — 自动扫描场景中的兴趣点 (POI)
+        // 设计理念（参考 Celeste Debug Map）：
+        //   - 不硬编码任何坐标，通过“场景自省”动态发现传送目标
+        //   - 优先从 LevelElementRegistry 查询（已有 Fake Null 防御）
+        //   - 补充扫描 SpawnPoint、GoalZone 等非 Registry 对象
+        //   - 白名单过滤：仅保留有调试价值的 POI，剔除纯静态地形噪声
+        //   - 危险对象自动叠加安全传送偏移量
+        // ═══════════════════════════════════════════════════
+        showDynamicAnchors = EditorGUILayout.Foldout(showDynamicAnchors,
+            "Dynamic Level Anchors (动态关卡锚点)", true, EditorStyles.foldoutHeader);
+        if (showDynamicAnchors)
+        {
+            DrawDynamicAnchorsSection();
+        }
+
+        EditorGUILayout.Space(8);
+
         // 自定义坐标传送
         EditorGUILayout.LabelField("Custom Teleport", EditorStyles.boldLabel);
         EditorGUILayout.BeginHorizontal();
@@ -774,6 +805,49 @@ public class TestConsoleWindow : EditorWindow
         EditorGUI.BeginDisabledGroup(!EditorApplication.isPlaying);
 
         EnsureCache();
+
+        // S33: 缺失组件检测 — 当 Cheats 依赖的核心组件不存在时，
+        // 显示警告 + 置灰无效开关 + 提供一键修复按钮。
+        // 参考审计意见第 4 点：“消极警告”升级为“一键修复”与视觉阻断。
+        bool cheatsAvailable = (cachedMarioHealth != null && cachedGameManager != null &&
+                                cachedEnergy != null && cachedDisguise != null);
+
+        if (EditorApplication.isPlaying && !cheatsAvailable)
+        {
+            EditorGUILayout.HelpBox(
+                "⚠️ 场景中缺少 Cheats 依赖的核心组件：\n" +
+                (cachedMarioHealth == null ? "  · MarioController / PlayerHealth\n" : "") +
+                (cachedGameManager == null ? "  · GameManager\n" : "") +
+                (cachedEnergy == null ? "  · EnergySystem (Trickster)\n" : "") +
+                (cachedDisguise == null ? "  · DisguiseSystem (Trickster)\n" : "") +
+                "\n请先通过 Level Builder 生成关卡，或点击下方按钮自动补全环境。",
+                MessageType.Warning);
+
+            // 一键修复按钮 — EnsurePlayableEnvironment 是幂等的，绝对安全
+            GameObject asciiRoot = GameObject.Find("AsciiLevel_Root");
+            if (asciiRoot != null)
+            {
+                GUI.color = new Color(0.3f, 0.9f, 0.5f);
+                if (GUILayout.Button("Auto-Fix: Inject Playable Environment", GUILayout.Height(28)))
+                {
+                    EnsurePlayableEnvironment(asciiRoot);
+                    ClearCache();
+                    EnsureCache(); // 重新获取缓存，激活置灰的 Toggle
+                    cachedAnchors = null; // 刷新动态锚点
+                    Debug.Log("[TestConsole] Auto-Fix: Playable environment injected for Cheats.");
+                }
+                GUI.color = Color.white;
+            }
+            else
+            {
+                EditorGUILayout.HelpBox(
+                    "未找到 AsciiLevel_Root，请先在 Level Builder Tab 生成关卡。",
+                    MessageType.Error);
+            }
+        }
+
+        // S33: 视觉阻断 — 缺少组件时置灰所有 Cheat Toggle，杜绝无效点击
+        EditorGUI.BeginDisabledGroup(!cheatsAvailable && EditorApplication.isPlaying);
 
         EditorGUILayout.BeginVertical("box");
 
@@ -879,7 +953,9 @@ public class TestConsoleWindow : EditorWindow
         }
         EditorGUILayout.EndHorizontal();
 
-        EditorGUI.EndDisabledGroup();
+        EditorGUI.EndDisabledGroup(); // S33: cheatsAvailable 置灰组结束
+
+        EditorGUI.EndDisabledGroup(); // 原有的 !isPlaying 置灰组结束
 
         // ── 运行时状态监控 ──
         if (EditorApplication.isPlaying)
@@ -1745,5 +1821,277 @@ public class TestConsoleWindow : EditorWindow
         }
 
         so.ApplyModifiedProperties();
+    }
+
+    // ═════════════════════════════════════════════════════════
+    // S33: 动态锚点系统 (Dynamic Teleport Anchors)
+    //
+    // 设计背景：
+    //   Level Builder 生成的 ASCII 关卡布局不固定，无法像 TestSceneBuilder 的
+    //   9-Stage 那样硬编码传送坐标。参考 Celeste Debug Map 的“场景自省”理念，
+    //   通过运行时扫描自动发现关卡中的兴趣点 (POI)，动态生成传送按钮。
+    //
+    // 核心原则：
+    //   1. 优先从 LevelElementRegistry 查询（已有 Fake Null 防御）
+    //   2. 补充扫描 SpawnPoint、GoalZone 等非 Registry 对象
+    //   3. 白名单过滤：仅保留有调试价值的 POI，剔除纯静态地形噪声
+    //   4. 危险对象自动叠加安全传送偏移量 (Vector3.up * 2f)
+    //   5. [System.NonSerialized] 缓存 + 懒加载，Domain Reload 安全
+    //   6. Fake Null 防御：遍历时跳过已销毁对象
+    //   7. ScrollView 限制最大高度，防止大量元素撑爆窗口
+    // ═════════════════════════════════════════════════════════
+
+    /// <summary>动态传送锚点数据结构</summary>
+    private struct TeleportAnchor
+    {
+        public string Name;           // 显示名称
+        public string Category;       // 分组名称
+        public Vector3 RawPosition;   // 原始坐标
+        public Vector3 SafePosition;  // 安全传送坐标（危险对象已叠加偏移）
+        public bool IsDangerous;      // 是否为危险对象
+        public Color ButtonColor;     // 按钮颜色
+        public Object SourceObject;   // 源对象引用（用于 Fake Null 检测）
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // POI 白名单：仅保留有调试价值的分类
+    // 剔除 Platform 和 Misc — 这些多为纯静态地形，传送过去没有调试意义
+    // ─────────────────────────────────────────────────────────
+    private static readonly HashSet<ElementCategory> POI_CATEGORIES = new HashSet<ElementCategory>
+    {
+        ElementCategory.Trap,
+        ElementCategory.Enemy,
+        ElementCategory.Hazard,
+        ElementCategory.HiddenPassage,
+        ElementCategory.Collectible,
+        ElementCategory.Checkpoint
+    };
+
+    /// <summary>刷新动态锚点缓存</summary>
+    private void RefreshTeleportAnchors()
+    {
+        cachedAnchors = new List<TeleportAnchor>();
+
+        // ── 源 1: LevelElementRegistry 查询（白名单过滤） ──
+        foreach (var rec in LevelElementRegistry.GetAll())
+        {
+            // Fake Null 防御：跳过已销毁的对象
+            if (rec.Component == null || rec.Transform == null) continue;
+
+            // 白名单过滤：仅保留 POI 分类
+            if (!POI_CATEGORIES.Contains(rec.Category)) continue;
+
+            bool isDangerous = (rec.Category == ElementCategory.Trap ||
+                                rec.Category == ElementCategory.Enemy ||
+                                rec.Category == ElementCategory.Hazard);
+
+            Vector3 rawPos = rec.Transform.position;
+            // 安全传送偏移：危险对象在目标上方 2 个单位，避免落地瞬间触发受击
+            Vector3 safePos = isDangerous ? rawPos + Vector3.up * 2f : rawPos + Vector3.up * 0.5f;
+
+            Color btnColor;
+            switch (rec.Category)
+            {
+                case ElementCategory.Trap:           btnColor = new Color(1f, 0.4f, 0.4f); break;
+                case ElementCategory.Enemy:          btnColor = new Color(1f, 0.5f, 0.3f); break;
+                case ElementCategory.Hazard:         btnColor = new Color(1f, 0.3f, 0.5f); break;
+                case ElementCategory.HiddenPassage:  btnColor = new Color(0.6f, 0.4f, 1f); break;
+                case ElementCategory.Collectible:    btnColor = new Color(1f, 0.9f, 0.3f); break;
+                case ElementCategory.Checkpoint:     btnColor = new Color(0.3f, 1f, 0.5f); break;
+                default:                             btnColor = Color.white; break;
+            }
+
+            cachedAnchors.Add(new TeleportAnchor
+            {
+                Name = rec.Name,
+                Category = rec.Category.ToString(),
+                RawPosition = rawPos,
+                SafePosition = safePos,
+                IsDangerous = isDangerous,
+                ButtonColor = btnColor,
+                SourceObject = rec.Component
+            });
+        }
+
+        // ── 源 2: SpawnPoint 标记（非 Registry 对象） ──
+        GameObject asciiRoot = GameObject.Find("AsciiLevel_Root");
+        if (asciiRoot != null)
+        {
+            foreach (Transform child in asciiRoot.transform)
+            {
+                if (child == null) continue;
+                if (child.name.StartsWith("MarioSpawnPoint"))
+                {
+                    cachedAnchors.Add(new TeleportAnchor
+                    {
+                        Name = "Mario Spawn",
+                        Category = "Spawn",
+                        RawPosition = child.position,
+                        SafePosition = child.position + Vector3.up * 0.5f,
+                        IsDangerous = false,
+                        ButtonColor = new Color(0.2f, 0.8f, 0.2f),
+                        SourceObject = child.gameObject
+                    });
+                }
+                else if (child.name.StartsWith("TricksterSpawnPoint"))
+                {
+                    cachedAnchors.Add(new TeleportAnchor
+                    {
+                        Name = "Trickster Spawn",
+                        Category = "Spawn",
+                        RawPosition = child.position,
+                        SafePosition = child.position + Vector3.up * 0.5f,
+                        IsDangerous = false,
+                        ButtonColor = new Color(0.3f, 0.7f, 1f),
+                        SourceObject = child.gameObject
+                    });
+                }
+            }
+        }
+
+        // ── 源 3: GoalZone（非 Registry 对象） ──
+        GoalZone[] goalZones = Object.FindObjectsOfType<GoalZone>();
+        foreach (GoalZone gz in goalZones)
+        {
+            if (gz == null) continue;
+            cachedAnchors.Add(new TeleportAnchor
+            {
+                Name = "GoalZone",
+                Category = "Goal",
+                RawPosition = gz.transform.position,
+                SafePosition = gz.transform.position + Vector3.left * 2f + Vector3.up * 0.5f,
+                IsDangerous = false,
+                ButtonColor = new Color(0.5f, 1f, 0.5f),
+                SourceObject = gz
+            });
+        }
+
+        // 按分类名称 + X 坐标排序，保证 UI 稳定
+        cachedAnchors.Sort((a, b) =>
+        {
+            int catCmp = string.Compare(a.Category, b.Category, System.StringComparison.Ordinal);
+            return catCmp != 0 ? catCmp : a.RawPosition.x.CompareTo(b.RawPosition.x);
+        });
+
+        Debug.Log($"[TestConsole] Dynamic anchors refreshed: {cachedAnchors.Count} POIs found.");
+    }
+
+    /// <summary>绘制动态锚点区域 UI</summary>
+    private void DrawDynamicAnchorsSection()
+    {
+        if (!EditorApplication.isPlaying)
+        {
+            EditorGUILayout.HelpBox(
+                "动态锚点仅在 PlayMode 下可用。\n进入 PlayMode 后自动扫描场景中的兴趣点。",
+                MessageType.Info);
+            return;
+        }
+
+        // S33: 懒加载/状态校验拦截（审计意见第 5 点）
+        // Domain Reload 后 [System.NonSerialized] 字段会被清空，
+        // 在绘制入口做懒加载检查，确保从编辑态进入运行态时自动完成首次扫描。
+        if (cachedAnchors == null || cachedAnchors.Count == 0)
+        {
+            RefreshTeleportAnchors();
+        }
+
+        // 手动刷新按钮
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Refresh Anchors", GUILayout.Height(22)))
+        {
+            RefreshTeleportAnchors();
+        }
+        EditorGUILayout.LabelField($"{(cachedAnchors != null ? cachedAnchors.Count : 0)} POIs",
+            EditorStyles.miniLabel, GUILayout.Width(60));
+        EditorGUILayout.EndHorizontal();
+
+        if (cachedAnchors == null || cachedAnchors.Count == 0)
+        {
+            EditorGUILayout.HelpBox("场景中未发现可传送的兴趣点。", MessageType.Info);
+            return;
+        }
+
+        // S33: ScrollView 限制最大高度（审计意见第 2 点）
+        // 防止大量元素撑爆窗口，底部的 Custom Teleport 和 Quick Actions 始终可达。
+        anchorScrollPos = EditorGUILayout.BeginScrollView(anchorScrollPos,
+            GUILayout.MaxHeight(300));
+
+        // 按分类分组显示（Foldout 折叠）
+        string currentCategory = "";
+        for (int i = 0; i < cachedAnchors.Count; i++)
+        {
+            TeleportAnchor anchor = cachedAnchors[i];
+
+            // S33: Fake Null 防御（审计意见第 1 点）
+            // 游玩过程中敌人被踩死、一次性陷阱被 Destroy 后，
+            // 缓存列表中的引用在 Unity 底层会变成 null。
+            // 必须在访问其属性前检查，否则会抛 MissingReferenceException。
+            if (anchor.SourceObject == null) continue;
+
+            // 分类标题 + Foldout
+            if (anchor.Category != currentCategory)
+            {
+                currentCategory = anchor.Category;
+                if (!anchorCategoryFoldouts.ContainsKey(currentCategory))
+                    anchorCategoryFoldouts[currentCategory] = true;
+                anchorCategoryFoldouts[currentCategory] = EditorGUILayout.Foldout(
+                    anchorCategoryFoldouts[currentCategory],
+                    $"{currentCategory} ({CountAnchorsInCategory(currentCategory)})",
+                    true, EditorStyles.foldoutHeader);
+            }
+
+            if (!anchorCategoryFoldouts.ContainsKey(currentCategory) ||
+                !anchorCategoryFoldouts[currentCategory])
+                continue;
+
+            // 绘制传送按钮
+            EditorGUILayout.BeginHorizontal();
+            GUI.color = anchor.ButtonColor;
+
+            string dangerTag = anchor.IsDangerous ? " [SAFE+2]" : "";
+            string btnLabel = $"{anchor.Name}{dangerTag}\n({anchor.SafePosition.x:F1}, {anchor.SafePosition.y:F1})";
+
+            if (GUILayout.Button(btnLabel, GUILayout.Height(32)))
+            {
+                TeleportBothPlayers(anchor.SafePosition);
+                Debug.Log($"[TestConsole] Teleported to dynamic anchor: {anchor.Name} " +
+                          $"at ({anchor.SafePosition.x:F1}, {anchor.SafePosition.y:F1})" +
+                          (anchor.IsDangerous ? " [safe offset applied]" : ""));
+            }
+
+            GUI.color = Color.white;
+
+            // 聚焦按钮：在 Scene View 中定位到该元素
+            if (GUILayout.Button("F", GUILayout.Width(22), GUILayout.Height(32)))
+            {
+                if (anchor.SourceObject is Component comp && comp != null)
+                {
+                    Selection.activeGameObject = comp.gameObject;
+                    SceneView.lastActiveSceneView?.FrameSelected();
+                }
+                else if (anchor.SourceObject is GameObject go && go != null)
+                {
+                    Selection.activeGameObject = go;
+                    SceneView.lastActiveSceneView?.FrameSelected();
+                }
+            }
+
+            EditorGUILayout.EndHorizontal();
+        }
+
+        EditorGUILayout.EndScrollView();
+    }
+
+    /// <summary>统计指定分类的有效锚点数量（跳过已销毁对象）</summary>
+    private int CountAnchorsInCategory(string category)
+    {
+        if (cachedAnchors == null) return 0;
+        int count = 0;
+        foreach (var a in cachedAnchors)
+        {
+            if (a.Category == category && a.SourceObject != null)
+                count++;
+        }
+        return count;
     }
 }

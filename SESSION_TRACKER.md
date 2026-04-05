@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 32 (视碰分离与关卡度量转译系统) |
+| **最新 Session** | Session 33 (Level Builder ↔ Teleport/Cheats 联动 + 动态锚点系统) |
 | **日期** | 2026-04-05 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⚠️ S32 修改了 7 个 .cs 文件 + 新增 3 个，待用户 Unity 验证 |
+| **编译状态** | ⚠️ S33 修改 1 个 .cs 文件 (TestConsoleWindow.cs +350行)，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S32 落地「视碰分离」与「关卡度量转译」系统。新增 PhysicsMetrics.cs、JumpArcVisualizer.cs、AsciiLevelValidator.cs。重写 SpriteAutoFit.cs。所有碰撞体统一引用 PhysicsMetrics。生成前自动验证物理可行性。JumpArcVisualizer 自动挂载。扩展指南已写入代码注释和文档。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S33 实现 Level Builder 生成关卡后与 Teleport/Cheats 的完整联动。新增动态锚点系统（参考 Celeste Debug Map 场景自省理念），自动扫描 SpawnPoint/GoalZone/Trap/Enemy 等 POI 生成传送按钮。危险对象自动叠加安全偏移。Cheats Tab 新增缺失组件检测 + 视觉阻断 + 一键修复。全部改动仅在 Editor 文件夹内，零运行时影响。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S33 Level Builder ↔ Teleport/Cheats 联动 + 动态锚点系统 | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S32 视碰分离与关卡度量转译系统 | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S26b Level Studio 精简 (删除AI分析器，重写为纯本地三合一) | ✅ 已完成，待用户 Unity 验证 |
 | **P1** | 关卡设计系统完善 | ✅ Level Studio + 工作流文档 + 物理度量系统已交付 |
@@ -376,3 +377,45 @@ GitHub Token: ghp_你的token
 | `TestConsoleWindow.cs` | Mario 创建时自动挂载 JumpArcVisualizer |
 | `PhysicsMetrics.cs` | 添加新元素扩展指南注释（6步操作流程） |
 | `PHYSICS_METRICS_GUIDE.md` | 新增第7章验证器说明、第8章扩展指南 |
+
+## [2026-04-05] S33: Level Builder ↔ Teleport/Cheats 联动 + 动态锚点系统
+
+### 问题背景
+1. `GenerateWhiteboxLevel()`（内置模板）缺少 `EnsurePlayableEnvironment()` 调用，生成的关卡无法直接 Play，Cheats 也无法生效（S31 遗漏）
+2. Teleport Tab 硬编码 9-Stage 坐标（来自 TestSceneBuilder），无法适配 ASCII Level Builder 生成的关卡
+3. Cheats Tab 在缺少必要组件时静默失败，用户无从得知原因
+
+### 改动 1: 统一调用链
+- `GenerateWhiteboxLevel()` 补全 `EnsurePlayableEnvironment(root)` 调用
+- 与 `GenerateFromCustomTemplate()` 保持一致，生成即可 Play
+- `EnsurePlayableEnvironment()` 是幂等的，重复调用安全
+
+### 改动 2: 动态锚点系统（参考 Celeste Debug Map 场景自省理念）
+- 新增 `TeleportAnchor` 结构体 + `RefreshTeleportAnchors()` 方法
+- 三路扫描：LevelElementRegistry（白名单过滤）+ SpawnPoint 标记 + GoalZone
+- POI 白名单：Trap / Enemy / Hazard / HiddenPassage / Collectible / Checkpoint
+- 危险对象自动叠加安全传送偏移 `Vector3.up * 2f`
+- 按分类排序 + Foldout 折叠菜单 + ScrollView 限高 300px
+- 每个锚点提供 [F] 聚焦按钮（Scene View 定位）
+
+### 改动 3: Cheats Tab 缺失组件检测
+- 新增 `cheatsAvailable` 检测：缺少 MarioHealth / GameManager / EnergySystem / DisguiseSystem 时显示警告
+- 视觉阻断：缺少组件时置灰所有 Cheat Toggle
+- 一键修复按钮：`Auto-Fix: Inject Playable Environment`
+- 修复后自动刷新缓存 + 动态锚点
+
+### 改动 4: 安全防御（基于审计意见 5 点加固）
+1. **Fake Null 防御**：遍历 cachedAnchors 时 `if (anchor.SourceObject == null) continue`
+2. **ScrollView 防爆栈**：动态锚点区域包裹 `BeginScrollView` + `MaxHeight(300)`
+3. **白名单噪音过滤**：剔除 Platform / Misc 等纯静态地形
+4. **一键修复替代消极警告**：Cheats Tab 缺组件时提供 Auto-Fix 按钮
+5. **懒加载/状态校验**：`DrawDynamicAnchorsSection` 入口做 null 检查，Domain Reload 后自动重建缓存
+
+### 修改文件
+- `Assets/Scripts/Editor/TestConsoleWindow.cs` — 1 个文件，+350 行，零运行时脚本修改
+
+### 设计原则
+- 全部改动在 `Assets/Scripts/Editor/` 内，不影响 114 个自动化测试
+- 严格遵守所有 `[AI防坑警告]` 注释
+- `SnapToTarget()` 调用链完整保留
+- `[System.NonSerialized]` 确保序列化隔离

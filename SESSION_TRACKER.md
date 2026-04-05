@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 28 (关卡工作流终极整合 — 双路线 + 跨账号防重闭环) |
+| **最新 Session** | Session 29 (全网搜集新关卡灵感 T07/T08 + 登记簿更新) |
 | **日期** | 2026-04-05 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⚠️ S26b 精简后待用户 Unity 验证（S27/S28 仅文档变更，不影响编译） |
+| **编译状态** | ⚠️ S26b 精简后待用户 Unity 验证（S27/S28/S29 仅文档变更，不影响编译） |
 | **阻塞** | 无 |
-| **交接说明** | S28 整合优化关卡制作工作流：双路线架构（全自动搜网 + 半自动视觉拆解）、跨账号防重闭环（已探索灵感来源黑名单 + 语义指纹）、缺失机制统一待办、难度标签体系。接班 AI 请先 `git log --oneline -n 5`，关卡搜集任务请直接复制 `AI_PROMPT_WORKFLOW.md` 中路线 A 的指令。 |
+| **交接说明** | S29 全网搜集新关卡灵感并转化为 T07/T08 模板。T07=踩敌跳板+双路分支（Shovel Knight+Mario），T08=垂直坠井+视觉欺骗（Downwell+I Wanna）。登记簿已更新，灵感池新覆盖 5 个维度，缺失机制新增 3 项。接班 AI 请先 `git log --oneline -n 5`，关卡搜集任务请直接复制 `AI_PROMPT_WORKFLOW.md` 中路线 A 的指令。 |
 
 ---
 
@@ -263,3 +263,28 @@ GitHub Token: ghp_你的token
 
 ### ASCII_Templates.md 精简
 - 缺失机制汇总改为指向 TEMPLATE_REGISTRY.md 的统一维护点，避免两处不一致
+
+## [2026-04-05] S29: 全网搜集新关卡灵感 T07/T08
+
+### 搜集过程
+- 读取 TEMPLATE_REGISTRY.md 防重库，确认已有 6 个模板的博弈组合和 8 条灵感来源黑名单
+- 全网搜索 Shovel Knight 关卡设计深度分析（Yacht Club Games 官方博客）、Downwell 设计分析（Gamedeveloper.com）、I Wanna Maker 深度分析、VVVVVV 分析、Ori 遍历分析
+- 确认搜集方向避开所有黑名单条目
+
+### 新增模板
+- **T07: 踩敌跳板与双路分支 (Pogo Bounce & Branching Path)** [30x13, 难度:中]
+  - 灵感：Shovel Knight Pogo/Shovel Drop + Mario 水管路径分支
+  - 核心博弈：路径分支（安全但无聊 vs 危险但有趣）+ 敌人利用（弹跳怪作跳板）+ 渐进揭示（教学区→选择区）
+  - 涉及元素：`# = ^ E e o M G`
+
+- **T08: 垂直坠井与视觉陷阱 (Vertical Descent & Visual Trap)** [13x22, 难度:难]
+  - 灵感：Downwell 垂直下落闪避 + I Wanna Be The Guy 视觉欺骗
+  - 核心博弈：垂直下落（重力驱动推进）+ 视觉欺骗（伪装墙假平台）+ 反向欺骗（隐藏通道密室）
+  - 涉及元素：`W = ^ F H B o M G`
+
+### 登记簿更新
+- 完整登记表新增 T07/T08 两行
+- 快速复制区新增 2 条摘要
+- 已探索灵感来源新增 4 条（Shovel Knight Pogo、Mario 水管分支、Downwell 垂直下落、I Wanna 视觉欺骗）
+- 灵感池新覆盖 5 个维度：路径分支[T07]、敌人利用[T07]、渐进揭示[T07]、垂直下落[T08]、视觉欺骗[T08]
+- 缺失机制待办新增 3 项：下砸攻击(Pogo)、单向下落平台(Drop-through)、视觉提示系统(Visual Hint)

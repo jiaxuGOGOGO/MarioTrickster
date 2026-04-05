@@ -42,7 +42,7 @@ using System.Collections.Generic;
 ///
 /// Session 24: 初版创建
 /// Session 25: 升级为 Level Studio（ASCII 关卡生成 + 主题换肤 + 元素调色板）
-/// Session 26: 新增三大功能（片段模板库 + AI 关卡分析器 + 缺失要素浏览器 + 自定义模板编辑器）
+/// Session 26b: 精简为纯本地三合一（Custom Template Editor: 字典速查 + 5个经典片段追加 + 文本框编辑/Build）
 /// </summary>
 public class TestConsoleWindow : EditorWindow
 {
@@ -102,30 +102,10 @@ public class TestConsoleWindow : EditorWindow
     private bool showTestReports = false;
     private bool showBuilderTools = true;
 
-    // S26: Snippet Library 状态
-    private bool showSnippetLibrary = false;
-    private int selectedSnippetCategory = 0;
-    private List<LevelSnippetLibrary.Snippet> selectedSnippetsForCombine = new List<LevelSnippetLibrary.Snippet>();
-    private Vector2 snippetScrollPos;
-    private string snippetPreviewText = "";
-    private bool showSnippetPreview = false;
-
-    // S26: AI Level Analyzer 状态
-    private bool showAIAnalyzer = false;
-    private Texture2D analyzerInputImage;
-    private string analyzerApiKey = "";
-    private bool analyzerIsRunning = false;
-    private LevelImageAnalyzer.AnalysisResult lastAnalysisResult;
-    private Vector2 analysisResultScrollPos;
-    private bool showAnalysisTemplate = true;
-    private bool showAnalysisElements = true;
-    private bool showAnalysisMissing = true;
-    private bool showAnalysisSuggestions = true;
-    private string customAsciiTemplate = "";
+    // S26b: Custom Template Editor + Snippet Library 状态
     private bool showCustomTemplateEditor = false;
-
-    // S26: Missing Elements Browser 状态
-    private bool showMissingBrowser = false;
+    private string customAsciiTemplate = "";
+    private bool showSnippetLibrary = false;
 
     // Teleport 状态
     private float customTeleportX = 0f;
@@ -317,17 +297,8 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(6);
 
-        // ── 区块4: 片段模板库 (S26) ──
-        showSnippetLibrary = EditorGUILayout.Foldout(showSnippetLibrary, "☆ Snippet Library (关卡片段库)", true, EditorStyles.foldoutHeader);
-        if (showSnippetLibrary)
-        {
-            DrawSnippetLibrarySection();
-        }
-
-        EditorGUILayout.Space(6);
-
-        // ── 区块5: 自定义模板编辑器 (S26) ──
-        showCustomTemplateEditor = EditorGUILayout.Foldout(showCustomTemplateEditor, "☆ Custom Template Editor (自定义模板)", true, EditorStyles.foldoutHeader);
+        // ── 区块4: 自定义模板编辑器 + 字典速查 + 片段库 (S26b) ──
+        showCustomTemplateEditor = EditorGUILayout.Foldout(showCustomTemplateEditor, "☆ Custom Template Editor (自定义模板编辑器)", true, EditorStyles.foldoutHeader);
         if (showCustomTemplateEditor)
         {
             DrawCustomTemplateSection();
@@ -335,25 +306,7 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(6);
 
-        // ── 区块6: AI 关卡分析器 (S26) ──
-        showAIAnalyzer = EditorGUILayout.Foldout(showAIAnalyzer, "☆ AI Level Analyzer (图片识别生成)", true, EditorStyles.foldoutHeader);
-        if (showAIAnalyzer)
-        {
-            DrawAIAnalyzerSection();
-        }
-
-        EditorGUILayout.Space(6);
-
-        // ── 区块7: 缺失要素浏览器 (S26) ──
-        showMissingBrowser = EditorGUILayout.Foldout(showMissingBrowser, "☆ Missing Elements Browser (缺失要素)", true, EditorStyles.foldoutHeader);
-        if (showMissingBrowser)
-        {
-            DrawMissingElementsSection();
-        }
-
-        EditorGUILayout.Space(6);
-
-        // ── 区块8: 原有 TestSceneBuilder 工具 ──
+        // ── 区块5: 原有 TestSceneBuilder 工具 ──
         showBuilderTools = EditorGUILayout.Foldout(showBuilderTools, "TestSceneBuilder (9-Stage Test Scene)", true, EditorStyles.foldoutHeader);
         if (showBuilderTools)
         {
@@ -1299,213 +1252,85 @@ public class TestConsoleWindow : EditorWindow
     }
 
     // ═════════════════════════════════════════════════
-    // S26: 片段模板库 (Snippet Library)
+    // S26b: Custom Template Editor (三合一: 字典速查 + 片段库追加 + 文本框编辑)
     // ═════════════════════════════════════════════════
 
-    /// <summary>绘制片段模板库 UI</summary>
-    private void DrawSnippetLibrarySection()
-    {
-        EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
-        EditorGUILayout.BeginVertical("box");
-
-        EditorGUILayout.HelpBox(
-            "预设的经典关卡设计片段。可单独生成，也可勾选多个拼接成完整关卡。\n" +
-            "每个片段附带设计说明、难度等级和 GMTK 设计模式参考。",
-            MessageType.Info);
-
-        // 分类选择
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("分类:", GUILayout.Width(35));
-        selectedSnippetCategory = EditorGUILayout.Popup(selectedSnippetCategory, LevelSnippetLibrary.CATEGORIES);
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.Space(4);
-
-        // 获取当前分类的片段
-        string category = LevelSnippetLibrary.CATEGORIES[selectedSnippetCategory];
-        List<LevelSnippetLibrary.Snippet> categorySnippets = LevelSnippetLibrary.GetSnippetsByCategory(category);
-
-        if (categorySnippets.Count == 0)
-        {
-            EditorGUILayout.LabelField("该分类暂无片段", EditorStyles.centeredGreyMiniLabel);
-        }
-        else
-        {
-            snippetScrollPos = EditorGUILayout.BeginScrollView(snippetScrollPos, GUILayout.MaxHeight(400));
-
-            foreach (var snippet in categorySnippets)
-            {
-                DrawSnippetCard(snippet);
-                EditorGUILayout.Space(2);
-            }
-
-            EditorGUILayout.EndScrollView();
-        }
-
-        EditorGUILayout.Space(6);
-
-        // 拼接区域
-        EditorGUILayout.LabelField("片段拼接器", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            $"已选择 {selectedSnippetsForCombine.Count} 个片段。点击片段卡片上的 [+] 添加，点击 [拼接并生成] 生成完整关卡。",
-            MessageType.None);
-
-        // 显示已选片段列表
-        if (selectedSnippetsForCombine.Count > 0)
-        {
-            EditorGUILayout.BeginVertical("box");
-            for (int i = 0; i < selectedSnippetsForCombine.Count; i++)
-            {
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField($"{i + 1}. {selectedSnippetsForCombine[i].name}", GUILayout.ExpandWidth(true));
-                GUI.color = new Color(1f, 0.5f, 0.5f);
-                if (GUILayout.Button("×", GUILayout.Width(22)))
-                {
-                    selectedSnippetsForCombine.RemoveAt(i);
-                    i--;
-                }
-                GUI.color = Color.white;
-                EditorGUILayout.EndHorizontal();
-            }
-            EditorGUILayout.EndVertical();
-        }
-
-        EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.4f, 0.9f, 0.4f);
-        EditorGUI.BeginDisabledGroup(selectedSnippetsForCombine.Count == 0);
-        if (GUILayout.Button("拼接并生成关卡", GUILayout.Height(28)))
-        {
-            string combined = LevelSnippetLibrary.CombineSnippetsHorizontal(selectedSnippetsForCombine);
-            GenerateFromCustomTemplate(combined, "CombinedSnippets");
-        }
-        EditorGUI.EndDisabledGroup();
-        GUI.color = Color.white;
-
-        GUI.color = new Color(0.5f, 0.8f, 1f);
-        EditorGUI.BeginDisabledGroup(selectedSnippetsForCombine.Count == 0);
-        if (GUILayout.Button("预览拼接结果", GUILayout.Height(28)))
-        {
-            snippetPreviewText = LevelSnippetLibrary.CombineSnippetsHorizontal(selectedSnippetsForCombine);
-            showSnippetPreview = true;
-        }
-        EditorGUI.EndDisabledGroup();
-        GUI.color = Color.white;
-
-        if (GUILayout.Button("清空选择", GUILayout.Height(28)))
-        {
-            selectedSnippetsForCombine.Clear();
-            showSnippetPreview = false;
-        }
-        EditorGUILayout.EndHorizontal();
-
-        // 预览窗口
-        if (showSnippetPreview && !string.IsNullOrEmpty(snippetPreviewText))
-        {
-            EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField("拼接预览:", EditorStyles.boldLabel);
-            EditorGUILayout.BeginVertical("box");
-            // 用等宽字体显示 ASCII
-            GUIStyle monoStyle = new GUIStyle(EditorStyles.label)
-            {
-                font = Font.CreateDynamicFontFromOSFont("Courier New", 11),
-                fontSize = 11,
-                wordWrap = false,
-                richText = false
-            };
-            EditorGUILayout.SelectableLabel(snippetPreviewText, monoStyle,
-                GUILayout.Height(Mathf.Min(snippetPreviewText.Split('\n').Length * 14 + 10, 250)));
-            EditorGUILayout.EndVertical();
-        }
-
-        EditorGUILayout.EndVertical();
-        EditorGUI.EndDisabledGroup();
-    }
-
-    /// <summary>绘制单个片段卡片</summary>
-    private void DrawSnippetCard(LevelSnippetLibrary.Snippet snippet)
-    {
-        EditorGUILayout.BeginVertical("box");
-
-        // 标题行
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField(snippet.name, EditorStyles.boldLabel, GUILayout.ExpandWidth(true));
-
-        // 难度星级
-        string stars = new string('★', snippet.difficulty) + new string('☆', 5 - snippet.difficulty);
-        GUILayout.Label(stars, GUILayout.Width(65));
-
-        // 尺寸
-        GUILayout.Label($"{snippet.width}×{snippet.height}", EditorStyles.miniLabel, GUILayout.Width(45));
-        EditorGUILayout.EndHorizontal();
-
-        // 设计模式标签
-        EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.6f, 0.8f, 1f);
-        GUILayout.Label($"[{snippet.designPattern}]", EditorStyles.miniLabel, GUILayout.Width(120));
-        GUI.color = Color.white;
-        EditorGUILayout.LabelField(snippet.description, EditorStyles.wordWrappedMiniLabel);
-        EditorGUILayout.EndHorizontal();
-
-        // 操作按钮
-        EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.4f, 0.9f, 0.4f);
-        if (GUILayout.Button("生成到场景", GUILayout.Height(22)))
-        {
-            GenerateFromCustomTemplate(snippet.ascii, snippet.name);
-        }
-        GUI.color = new Color(0.5f, 0.8f, 1f);
-        if (GUILayout.Button("复制模板", GUILayout.Height(22)))
-        {
-            EditorGUIUtility.systemCopyBuffer = snippet.ascii;
-            Debug.Log($"[TestConsole] Snippet '{snippet.name}' ASCII template copied to clipboard.");
-        }
-        GUI.color = new Color(1f, 0.85f, 0.3f);
-        if (GUILayout.Button("+ 拼接", GUILayout.Height(22)))
-        {
-            selectedSnippetsForCombine.Add(snippet);
-            Debug.Log($"[TestConsole] Added '{snippet.name}' to combine list ({selectedSnippetsForCombine.Count} total).");
-        }
-        GUI.color = Color.white;
-        EditorGUILayout.EndHorizontal();
-
-        // 使用建议
-        if (!string.IsNullOrEmpty(snippet.usageTip))
-        {
-            EditorGUILayout.HelpBox(snippet.usageTip, MessageType.None);
-        }
-
-        EditorGUILayout.EndVertical();
-    }
-
-    // ═════════════════════════════════════════════════
-    // S26: 自定义模板编辑器 (Custom Template Editor)
-    // ═════════════════════════════════════════════════
-
-    /// <summary>绘制自定义模板编辑器 UI</summary>
+    /// <summary>绘制自定义模板编辑器（三合一：字典速查 + 片段库追加 + 文本框 + Build）</summary>
     private void DrawCustomTemplateSection()
     {
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
         EditorGUILayout.BeginVertical("box");
 
         EditorGUILayout.HelpBox(
-            "直接编写或粘贴 ASCII 模板，然后一键生成关卡。\n" +
-            "支持从 AI 分析结果、片段库或外部复制粘贴。",
+            "粘贴或编写 ASCII 模板，一键生成关卡。\n" +
+            "可从外部 AI 聊天框复制模板粘贴进来，也可点击下方片段按钮追加拼装。",
             MessageType.Info);
 
-        // 字符映射参考（始终可见）
+        // ── 字典速查表 ──
         EditorGUILayout.BeginVertical("box");
         GUIStyle refStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = true, richText = true };
-        EditorGUILayout.LabelField("字符映射快速参考:", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("字符映射速查表:", EditorStyles.boldLabel);
         EditorGUILayout.LabelField(
-            "<b>#</b>=地面  <b>=</b>=平台  <b>W</b>=墙  <b>.</b>=空气  <b>M</b>=Mario  <b>T</b>=Trickster  <b>G</b>=终点\n" +
-            "<b>^</b>=地刺  <b>~</b>=火焰  <b>P</b>=摆锤  <b>B</b>=弹跳  <b>C</b>=崩塔  <b>-</b>=单向平台\n" +
+            "<b>#</b>=地面  <b>=</b>=平台  <b>W</b>=墙壁  <b>.</b>=空气  <b>M</b>=Mario  <b>T</b>=Trickster  <b>G</b>=终点\n" +
+            "<b>^</b>=地刺  <b>~</b>=火焰  <b>P</b>=摆锤  <b>B</b>=弹跳平台  <b>C</b>=崩塔平台  <b>-</b>=单向平台\n" +
             "<b>E</b>=弹跳怪  <b>e</b>=巡逻怪  <b>></b>=移动平台  <b>F</b>=伪装墙  <b>H</b>=隐藏通道  <b>o</b>=金币",
             refStyle);
         EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space(4);
 
-        // 模板编辑区
+        // ── 片段库 (Snippet Library) ──
+        showSnippetLibrary = EditorGUILayout.Foldout(showSnippetLibrary, "经典片段库 (点击追加到下方文本框)", true);
+        if (showSnippetLibrary)
+        {
+            EditorGUILayout.BeginVertical("box");
+            var allSnippets = LevelSnippetLibrary.GetAllSnippets();
+            foreach (var snippet in allSnippets)
+            {
+                EditorGUILayout.BeginVertical("box");
+                // 标题 + 尺寸
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField(snippet.name, EditorStyles.boldLabel, GUILayout.ExpandWidth(true));
+                GUILayout.Label($"{snippet.width}×{snippet.height}", EditorStyles.miniLabel, GUILayout.Width(50));
+                EditorGUILayout.EndHorizontal();
+
+                // 说明
+                EditorGUILayout.LabelField(snippet.description, EditorStyles.wordWrappedMiniLabel);
+
+                // 操作按钮
+                EditorGUILayout.BeginHorizontal();
+                GUI.color = new Color(1f, 0.85f, 0.3f);
+                if (GUILayout.Button("追加到文本框", GUILayout.Height(22)))
+                {
+                    // 追加到文本框（如果已有内容，用空行分隔）
+                    if (!string.IsNullOrEmpty(customAsciiTemplate))
+                        customAsciiTemplate += "\n\n";
+                    customAsciiTemplate += snippet.ascii;
+                    Debug.Log($"[TestConsole] Snippet '{snippet.name}' appended to template editor.");
+                }
+                GUI.color = new Color(0.4f, 0.9f, 0.4f);
+                if (GUILayout.Button("直接生成", GUILayout.Height(22)))
+                {
+                    GenerateFromCustomTemplate(snippet.ascii, snippet.name);
+                }
+                GUI.color = new Color(0.5f, 0.8f, 1f);
+                if (GUILayout.Button("复制", GUILayout.Height(22), GUILayout.Width(45)))
+                {
+                    EditorGUIUtility.systemCopyBuffer = snippet.ascii;
+                    Debug.Log($"[TestConsole] Snippet '{snippet.name}' copied to clipboard.");
+                }
+                GUI.color = Color.white;
+                EditorGUILayout.EndHorizontal();
+                EditorGUILayout.EndVertical();
+
+                EditorGUILayout.Space(2);
+            }
+            EditorGUILayout.EndVertical();
+        }
+
+        EditorGUILayout.Space(6);
+
+        // ── 模板编辑文本框 ──
         EditorGUILayout.LabelField("模板内容 (每行一层，第一行=最高层):", EditorStyles.boldLabel);
         GUIStyle textAreaStyle = new GUIStyle(EditorStyles.textArea)
         {
@@ -1514,7 +1339,7 @@ public class TestConsoleWindow : EditorWindow
             wordWrap = false
         };
         customAsciiTemplate = EditorGUILayout.TextArea(customAsciiTemplate, textAreaStyle,
-            GUILayout.MinHeight(120), GUILayout.MaxHeight(300));
+            GUILayout.MinHeight(150), GUILayout.MaxHeight(400));
 
         // 统计信息
         if (!string.IsNullOrEmpty(customAsciiTemplate))
@@ -1526,26 +1351,27 @@ public class TestConsoleWindow : EditorWindow
             EditorGUILayout.LabelField($"尺寸: {maxWidth} × {lines.Length} 格", EditorStyles.miniLabel);
         }
 
+        // ── 操作按钮行 ──
         EditorGUILayout.BeginHorizontal();
         GUI.color = new Color(0.4f, 0.9f, 0.4f);
         EditorGUI.BeginDisabledGroup(string.IsNullOrEmpty(customAsciiTemplate));
-        if (GUILayout.Button("生成关卡", GUILayout.Height(30)))
+        if (GUILayout.Button("Build From Text (生成关卡)", GUILayout.Height(30)))
         {
             GenerateFromCustomTemplate(customAsciiTemplate, "CustomTemplate");
         }
         EditorGUI.EndDisabledGroup();
         GUI.color = Color.white;
 
-        if (GUILayout.Button("清空", GUILayout.Height(30)))
-        {
-            customAsciiTemplate = "";
-        }
-
         if (GUILayout.Button("从剪贴板粘贴", GUILayout.Height(30)))
         {
             customAsciiTemplate = EditorGUIUtility.systemCopyBuffer;
             Debug.Log("[TestConsole] Template pasted from clipboard.");
         }
+
+        if (GUILayout.Button("清空", GUILayout.Height(30), GUILayout.Width(50)))
+        {
+            customAsciiTemplate = "";
+        }
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.EndVertical();
@@ -1553,342 +1379,7 @@ public class TestConsoleWindow : EditorWindow
     }
 
     // ═════════════════════════════════════════════════
-    // S26: AI 关卡分析器 (AI Level Analyzer)
-    // ═════════════════════════════════════════════════
-
-    /// <summary>绘制 AI 关卡分析器 UI</summary>
-    private void DrawAIAnalyzerSection()
-    {
-        EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
-        EditorGUILayout.BeginVertical("box");
-
-        EditorGUILayout.HelpBox(
-            "拖入 Mario 风格关卡截图，AI 自动识别并转换为 ASCII 模板。\n" +
-            "同时标注项目中已支持 vs 缺失的要素，并提供改进建议。\n" +
-            "需要 OpenAI API Key（支持 gpt-4.1-mini）。",
-            MessageType.Info);
-
-        // API Key 输入
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("API Key:", GUILayout.Width(55));
-        analyzerApiKey = EditorGUILayout.PasswordField(analyzerApiKey);
-        if (GUILayout.Button("从环境变量", GUILayout.Width(80)))
-        {
-            string envKey = System.Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-            if (!string.IsNullOrEmpty(envKey))
-            {
-                analyzerApiKey = envKey;
-                Debug.Log("[TestConsole] API Key loaded from OPENAI_API_KEY environment variable.");
-            }
-            else
-            {
-                Debug.LogWarning("[TestConsole] OPENAI_API_KEY environment variable not found.");
-            }
-        }
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.Space(4);
-
-        // 图片输入
-        EditorGUILayout.LabelField("参考图片:", EditorStyles.boldLabel);
-        analyzerInputImage = (Texture2D)EditorGUILayout.ObjectField(
-            analyzerInputImage, typeof(Texture2D), false, GUILayout.Height(64));
-
-        EditorGUILayout.Space(4);
-
-        // 分析按钮
-        EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.4f, 0.9f, 0.4f);
-        EditorGUI.BeginDisabledGroup(analyzerInputImage == null || string.IsNullOrEmpty(analyzerApiKey) || analyzerIsRunning);
-        string analyzeLabel = analyzerIsRunning ? "分析中..." : "开始 AI 分析";
-        if (GUILayout.Button(analyzeLabel, GUILayout.Height(30)))
-        {
-            StartAIAnalysis();
-        }
-        EditorGUI.EndDisabledGroup();
-        GUI.color = Color.white;
-
-        if (GUILayout.Button("清除结果", GUILayout.Height(30)))
-        {
-            lastAnalysisResult = null;
-        }
-        EditorGUILayout.EndHorizontal();
-
-        // 显示分析结果
-        if (lastAnalysisResult != null)
-        {
-            EditorGUILayout.Space(6);
-            DrawAnalysisResult();
-        }
-
-        EditorGUILayout.EndVertical();
-        EditorGUI.EndDisabledGroup();
-    }
-
-    /// <summary>启动 AI 分析</summary>
-    private void StartAIAnalysis()
-    {
-        if (analyzerInputImage == null) return;
-
-        // 获取图片文件路径
-        string assetPath = AssetDatabase.GetAssetPath(analyzerInputImage);
-        if (string.IsNullOrEmpty(assetPath))
-        {
-            Debug.LogError("[TestConsole] Cannot get asset path for the image.");
-            return;
-        }
-
-        string fullPath = System.IO.Path.GetFullPath(assetPath);
-        analyzerIsRunning = true;
-
-        Debug.Log($"[TestConsole] Starting AI analysis of: {fullPath}");
-
-        LevelImageAnalyzer.AnalyzeImageAsync(fullPath, analyzerApiKey, (result) =>
-        {
-            analyzerIsRunning = false;
-            lastAnalysisResult = result;
-
-            if (result.success)
-            {
-                Debug.Log($"[TestConsole] AI analysis complete! " +
-                    $"Recognized: {result.recognizedElements.Count} elements, " +
-                    $"Missing: {result.missingElements.Count} elements.");
-            }
-            else
-            {
-                Debug.LogError($"[TestConsole] AI analysis failed: {result.error}");
-            }
-
-            Repaint();
-        });
-    }
-
-    /// <summary>绘制分析结果</summary>
-    private void DrawAnalysisResult()
-    {
-        var result = lastAnalysisResult;
-
-        if (!result.success)
-        {
-            EditorGUILayout.HelpBox($"分析失败: {result.error}", MessageType.Error);
-            return;
-        }
-
-        // 状态栏
-        EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.2f, 0.9f, 0.2f);
-        EditorGUILayout.LabelField("✓ 分析完成", EditorStyles.boldLabel, GUILayout.Width(80));
-        GUI.color = Color.white;
-        EditorGUILayout.LabelField(
-            $"识别 {result.recognizedElements.Count} 个要素 | " +
-            $"已支持 {result.supportedElements.Count} | " +
-            $"缺失 {result.missingElements.Count}",
-            EditorStyles.miniLabel);
-        EditorGUILayout.EndHorizontal();
-
-        analysisResultScrollPos = EditorGUILayout.BeginScrollView(analysisResultScrollPos, GUILayout.MaxHeight(500));
-
-        // 设计概述
-        if (!string.IsNullOrEmpty(result.designSummary))
-        {
-            EditorGUILayout.HelpBox(result.designSummary, MessageType.None);
-        }
-
-        // ASCII 模板
-        showAnalysisTemplate = EditorGUILayout.Foldout(showAnalysisTemplate, "生成的 ASCII 模板", true);
-        if (showAnalysisTemplate && !string.IsNullOrEmpty(result.asciiTemplate))
-        {
-            EditorGUILayout.BeginVertical("box");
-            GUIStyle monoStyle = new GUIStyle(EditorStyles.label)
-            {
-                font = Font.CreateDynamicFontFromOSFont("Courier New", 11),
-                fontSize = 11,
-                wordWrap = false
-            };
-            EditorGUILayout.SelectableLabel(result.asciiTemplate, monoStyle,
-                GUILayout.Height(Mathf.Min(result.asciiTemplate.Split('\n').Length * 14 + 10, 250)));
-
-            EditorGUILayout.BeginHorizontal();
-            GUI.color = new Color(0.4f, 0.9f, 0.4f);
-            if (GUILayout.Button("直接生成关卡", GUILayout.Height(25)))
-            {
-                GenerateFromCustomTemplate(result.asciiTemplate, "AI_Generated");
-            }
-            GUI.color = new Color(0.5f, 0.8f, 1f);
-            if (GUILayout.Button("复制到自定义编辑器", GUILayout.Height(25)))
-            {
-                customAsciiTemplate = result.asciiTemplate;
-                showCustomTemplateEditor = true;
-                Debug.Log("[TestConsole] AI template copied to Custom Template Editor for editing.");
-            }
-            GUI.color = Color.white;
-            if (GUILayout.Button("复制到剪贴板", GUILayout.Height(25)))
-            {
-                EditorGUIUtility.systemCopyBuffer = result.asciiTemplate;
-            }
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.EndVertical();
-        }
-
-        EditorGUILayout.Space(4);
-
-        // 识别到的要素
-        showAnalysisElements = EditorGUILayout.Foldout(showAnalysisElements,
-            $"识别到的要素 ({result.recognizedElements.Count})", true);
-        if (showAnalysisElements && result.recognizedElements.Count > 0)
-        {
-            EditorGUILayout.BeginVertical("box");
-            foreach (var elem in result.recognizedElements)
-            {
-                EditorGUILayout.BeginHorizontal();
-                // 支持状态指示器
-                GUI.color = elem.isSupported ? new Color(0.2f, 0.9f, 0.2f) : new Color(1f, 0.4f, 0.4f);
-                GUILayout.Label(elem.isSupported ? "✓" : "✗", GUILayout.Width(16));
-                GUI.color = Color.white;
-
-                EditorGUILayout.LabelField(elem.name, EditorStyles.boldLabel, GUILayout.Width(120));
-                GUILayout.Label($"[{elem.category}]", EditorStyles.miniLabel, GUILayout.Width(70));
-                EditorGUILayout.LabelField(elem.description, EditorStyles.wordWrappedMiniLabel);
-
-                if (!string.IsNullOrEmpty(elem.mappedChar))
-                {
-                    GUILayout.Label($"'{elem.mappedChar}'", EditorStyles.miniLabel, GUILayout.Width(25));
-                }
-                EditorGUILayout.EndHorizontal();
-            }
-            EditorGUILayout.EndVertical();
-        }
-
-        EditorGUILayout.Space(4);
-
-        // 缺失要素
-        showAnalysisMissing = EditorGUILayout.Foldout(showAnalysisMissing,
-            $"缺失要素 ({result.missingElements.Count})", true);
-        if (showAnalysisMissing && result.missingElements.Count > 0)
-        {
-            EditorGUILayout.BeginVertical("box");
-            foreach (var missing in result.missingElements)
-            {
-                EditorGUILayout.BeginVertical("box");
-                EditorGUILayout.BeginHorizontal();
-
-                // 优先级颜色
-                Color priorityColor = missing.priority == "High" ? new Color(1f, 0.3f, 0.3f) :
-                    missing.priority == "Medium" ? new Color(1f, 0.7f, 0.2f) : new Color(0.5f, 0.8f, 0.5f);
-                GUI.color = priorityColor;
-                GUILayout.Label($"[{missing.priority}]", EditorStyles.boldLabel, GUILayout.Width(60));
-                GUI.color = Color.white;
-
-                EditorGUILayout.LabelField(missing.name, EditorStyles.boldLabel, GUILayout.Width(130));
-                GUILayout.Label($"[{missing.category}]", EditorStyles.miniLabel, GUILayout.Width(70));
-                EditorGUILayout.EndHorizontal();
-
-                EditorGUILayout.LabelField(missing.description, EditorStyles.wordWrappedMiniLabel);
-                if (!string.IsNullOrEmpty(missing.suggestion))
-                {
-                    EditorGUILayout.LabelField($"建议: {missing.suggestion}", EditorStyles.wordWrappedMiniLabel);
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.EndVertical();
-        }
-
-        EditorGUILayout.Space(4);
-
-        // 改进建议
-        showAnalysisSuggestions = EditorGUILayout.Foldout(showAnalysisSuggestions,
-            $"改进建议 ({result.improvementSuggestions.Count})", true);
-        if (showAnalysisSuggestions && result.improvementSuggestions.Count > 0)
-        {
-            EditorGUILayout.BeginVertical("box");
-            for (int i = 0; i < result.improvementSuggestions.Count; i++)
-            {
-                EditorGUILayout.LabelField($"{i + 1}. {result.improvementSuggestions[i]}",
-                    EditorStyles.wordWrappedMiniLabel);
-            }
-            EditorGUILayout.EndVertical();
-        }
-
-        EditorGUILayout.EndScrollView();
-    }
-
-    // ═════════════════════════════════════════════════
-    // S26: 缺失要素浏览器 (Missing Elements Browser)
-    // ═════════════════════════════════════════════════
-
-    /// <summary>绘制缺失要素浏览器 UI</summary>
-    private void DrawMissingElementsSection()
-    {
-        EditorGUILayout.BeginVertical("box");
-
-        EditorGUILayout.HelpBox(
-            "对比经典平台跳跃游戏，列出项目中尚未实现的关卡要素。\n" +
-            "每个要素附带优先级、功能描述和实现建议，方便你决定是否新增。",
-            MessageType.Info);
-
-        // 已支持要素概览
-        EditorGUILayout.LabelField("✓ 已支持的要素", EditorStyles.boldLabel);
-        EditorGUILayout.BeginVertical("box");
-        var supported = LevelImageAnalyzer.GetSupportedElements();
-        // 去重显示
-        HashSet<string> shownSupported = new HashSet<string>();
-        System.Text.StringBuilder supportedSB = new System.Text.StringBuilder();
-        foreach (var kvp in supported)
-        {
-            string charVal = kvp.Value;
-            string key = kvp.Key;
-            if (charVal == "." || shownSupported.Contains(key)) continue;
-            shownSupported.Add(key);
-            supportedSB.Append($"'{charVal}'={key}  ");
-        }
-        EditorGUILayout.LabelField(supportedSB.ToString(), EditorStyles.wordWrappedMiniLabel);
-        EditorGUILayout.EndVertical();
-
-        EditorGUILayout.Space(6);
-
-        // 缺失要素列表
-        EditorGUILayout.LabelField("✗ 缺失的要素 (建议新增)", EditorStyles.boldLabel);
-
-        var missing = LevelImageAnalyzer.GetAllKnownMissingElements();
-
-        // 按优先级分组
-        string[] priorities = { "High", "Medium", "Low" };
-        foreach (string priority in priorities)
-        {
-            Color priorityColor = priority == "High" ? new Color(1f, 0.3f, 0.3f) :
-                priority == "Medium" ? new Color(1f, 0.7f, 0.2f) : new Color(0.5f, 0.8f, 0.5f);
-
-            bool hasPriority = false;
-            foreach (var kvp in missing)
-            {
-                if (kvp.Value[2] == priority) { hasPriority = true; break; }
-            }
-            if (!hasPriority) continue;
-
-            GUI.color = priorityColor;
-            EditorGUILayout.LabelField($"--- {priority} Priority ---", EditorStyles.boldLabel);
-            GUI.color = Color.white;
-
-            foreach (var kvp in missing)
-            {
-                if (kvp.Value[2] != priority) continue;
-
-                EditorGUILayout.BeginVertical("box");
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(kvp.Key, EditorStyles.boldLabel, GUILayout.Width(140));
-                GUILayout.Label($"[{kvp.Value[0]}]", EditorStyles.miniLabel, GUILayout.Width(70));
-                EditorGUILayout.EndHorizontal();
-                EditorGUILayout.LabelField(kvp.Value[1], EditorStyles.wordWrappedMiniLabel);
-                EditorGUILayout.LabelField($"实现建议: {kvp.Value[3]}", EditorStyles.wordWrappedMiniLabel);
-                EditorGUILayout.EndVertical();
-            }
-        }
-
-        EditorGUILayout.EndVertical();
-    }
-
-    // ═════════════════════════════════════════════════
-    // S26: 通用模板生成方法
+    // S26b: 通用模板生成方法
     // ═════════════════════════════════════════════════
 
     /// <summary>从自定义 ASCII 模板生成关卡</summary>

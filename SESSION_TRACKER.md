@@ -84,9 +84,9 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **日期** | 2026-04-05 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⚠️ S32 修改了 7 个 .cs 文件 + 新增 2 个，待用户 Unity 验证 |
+| **编译状态** | ⚠️ S32 修改了 7 个 .cs 文件 + 新增 3 个，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S32 落地「视碰分离」与「关卡度量转译」系统。新增 PhysicsMetrics.cs（全局物理常量中心）和 JumpArcVisualizer.cs（跳跃抛物线可视化）。重写 SpriteAutoFit.cs 支持 Tiled 渲染。所有碰撞体尺寸统一引用 PhysicsMetrics 常量。MarioController 和 TricksterController 新增半重力跳跃顶点。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S32 落地「视碰分离」与「关卡度量转译」系统。新增 PhysicsMetrics.cs、JumpArcVisualizer.cs、AsciiLevelValidator.cs。重写 SpriteAutoFit.cs。所有碰撞体统一引用 PhysicsMetrics。生成前自动验证物理可行性。JumpArcVisualizer 自动挂载。扩展指南已写入代码注释和文档。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -361,3 +361,18 @@ GitHub Token: ghp_你的token
 - 触发条件：长按跳跃键 + |velocity.y| < 2.0
 - 效果：重力减半，跳跃弧线顶部更平缓
 - 参考：Celeste 容错机制 #3 (Maddy Thorson)
+
+### S32 补丁：完整性审查与扩展机制
+
+**新增文件**：
+- `Assets/Scripts/LevelDesign/AsciiLevelValidator.cs` — ASCII 模板物理验证器（间隙/高台/出生点/终点检查）
+
+**补充修改**：
+
+| 文件 | 变更内容 |
+|------|--------|
+| `AsciiLevelGenerator.cs` | GenerateFromTemplate 生成前自动调用 AsciiLevelValidator；扩展指南注释 |
+| `TestSceneBuilder.cs` | Mario 创建时自动挂载 JumpArcVisualizer |
+| `TestConsoleWindow.cs` | Mario 创建时自动挂载 JumpArcVisualizer |
+| `PhysicsMetrics.cs` | 添加新元素扩展指南注释（6步操作流程） |
+| `PHYSICS_METRICS_GUIDE.md` | 新增第7章验证器说明、第8章扩展指南 |

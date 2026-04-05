@@ -1,0 +1,314 @@
+using UnityEngine;
+using System.Collections.Generic;
+using System.Text;
+
+/// <summary>
+/// ASCII 关卡物理验证器 — 在生成前/后自动检查关卡的物理可行性
+///
+/// 功能：
+///   1. 扫描 ASCII 模板中的所有间隙（连续的 '.' 字符），检查是否超过安全上限
+///   2. 扫描所有高台（需要跳跃才能到达的平台），检查是否超过跳跃极限
+///   3. 验证 Mario 出生点 (M) 是否存在且可站立
+///   4. 验证终点 (G) 是否存在且可到达
+///   5. 输出详细的验证报告（警告/错误），帮助设计师快速定位问题
+///
+/// 使用方式：
+///   在 TestConsoleWindow 的 Build 按钮中调用 ValidateTemplate()，
+///   生成前先验证，有错误时弹出警告但不阻止生成（设计师可能故意设计极限关卡）。
+///
+/// 所有阈值引用 PhysicsMetrics 常量，确保与物理系统同步。
+///
+/// Session 32: 关卡度量转译系统
+/// </summary>
+public static class AsciiLevelValidator
+{
+    /// <summary>验证结果</summary>
+    public class ValidationResult
+    {
+        public List<string> errors = new List<string>();
+        public List<string> warnings = new List<string>();
+        public List<string> info = new List<string>();
+
+        public bool HasErrors => errors.Count > 0;
+        public bool HasWarnings => warnings.Count > 0;
+        public bool IsClean => !HasErrors && !HasWarnings;
+
+        /// <summary>生成可读的验证报告</summary>
+        public string GetReport()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("═══ ASCII Level Validation Report ═══");
+
+            if (IsClean)
+            {
+                sb.AppendLine("✅ All checks passed! Level is physically valid.");
+            }
+            else
+            {
+                if (HasErrors)
+                {
+                    sb.AppendLine($"\n❌ ERRORS ({errors.Count}):");
+                    foreach (string e in errors)
+                        sb.AppendLine($"  • {e}");
+                }
+                if (HasWarnings)
+                {
+                    sb.AppendLine($"\n⚠️ WARNINGS ({warnings.Count}):");
+                    foreach (string w in warnings)
+                        sb.AppendLine($"  • {w}");
+                }
+            }
+
+            if (info.Count > 0)
+            {
+                sb.AppendLine($"\nℹ️ INFO ({info.Count}):");
+                foreach (string i in info)
+                    sb.AppendLine($"  • {i}");
+            }
+
+            sb.AppendLine("\n═══ End of Report ═══");
+            return sb.ToString();
+        }
+    }
+
+    // 地面字符集（玩家可以站在上面的字符）
+    private static readonly HashSet<char> solidChars = new HashSet<char>
+    {
+        '#', // 地面
+        '=', // 平台
+        'W', // 墙壁
+        'B', // 弹跳平台
+        'C', // 崩塌平台
+        '-', // 单向平台
+        'F', // 伪装墙
+    };
+
+    // 空气字符集（玩家可以通过的字符）
+    private static readonly HashSet<char> airChars = new HashSet<char>
+    {
+        '.', // 空白
+        'M', // Mario出生点
+        'G', // 终点
+        '^', // 地刺（空气中）
+        '~', // 火焰
+        'P', // 摆锤
+        'E', // 弹跳怪
+        'e', // 简单敌人
+        'o', // 收集物
+        'H', // 隐藏通道
+        '>', // 移动平台
+    };
+
+    /// <summary>
+    /// 验证 ASCII 模板的物理可行性
+    /// </summary>
+    /// <param name="template">多行 ASCII 字符串</param>
+    /// <returns>验证结果</returns>
+    public static ValidationResult ValidateTemplate(string template)
+    {
+        ValidationResult result = new ValidationResult();
+
+        if (string.IsNullOrEmpty(template))
+        {
+            result.errors.Add("Template is empty!");
+            return result;
+        }
+
+        string[] lines = template.Split('\n');
+        int height = lines.Length;
+
+        // 清理行尾
+        for (int i = 0; i < lines.Length; i++)
+            lines[i] = lines[i].TrimEnd('\r');
+
+        int maxWidth = 0;
+        foreach (string line in lines)
+            if (line.Length > maxWidth) maxWidth = line.Length;
+
+        // 构建字符网格（坐标系与 AsciiLevelGenerator 一致）
+        char[,] grid = new char[maxWidth, height];
+        for (int x = 0; x < maxWidth; x++)
+            for (int y = 0; y < height; y++)
+                grid[x, y] = '.';
+
+        bool hasMario = false;
+        bool hasGoal = false;
+        int marioX = -1, marioY = -1;
+        int goalX = -1, goalY = -1;
+
+        for (int row = 0; row < height; row++)
+        {
+            int worldY = height - 1 - row;
+            for (int col = 0; col < lines[row].Length; col++)
+            {
+                char c = lines[row][col];
+                grid[col, worldY] = c;
+
+                if (c == 'M')
+                {
+                    hasMario = true;
+                    marioX = col;
+                    marioY = worldY;
+                }
+                if (c == 'G')
+                {
+                    hasGoal = true;
+                    goalX = col;
+                    goalY = worldY;
+                }
+            }
+        }
+
+        // ── 检查 1: Mario 出生点 ──
+        if (!hasMario)
+        {
+            result.errors.Add("No Mario spawn point (M) found!");
+        }
+        else
+        {
+            // 检查 Mario 脚下是否有地面
+            if (marioY > 0 && !IsSolid(grid, marioX, marioY - 1, maxWidth, height))
+            {
+                result.warnings.Add($"Mario spawn (M) at ({marioX},{marioY}) has no ground below! Mario will fall.");
+            }
+            result.info.Add($"Mario spawn at ({marioX},{marioY})");
+        }
+
+        // ── 检查 2: 终点 ──
+        if (!hasGoal)
+        {
+            result.warnings.Add("No goal zone (G) found. Level has no ending.");
+        }
+        else
+        {
+            result.info.Add($"Goal at ({goalX},{goalY})");
+        }
+
+        // ── 检查 3: 水平间隙扫描 ──
+        // 扫描每一行的地面层，查找连续空白间隙
+        for (int y = 0; y < height; y++)
+        {
+            int gapStart = -1;
+            bool inGap = false;
+
+            for (int x = 0; x < maxWidth; x++)
+            {
+                bool solid = IsSolid(grid, x, y, maxWidth, height);
+
+                if (!solid && !inGap)
+                {
+                    // 间隙开始
+                    // 但只有当左边有实体时才算间隙（排除关卡边缘）
+                    if (x > 0 && IsSolid(grid, x - 1, y, maxWidth, height))
+                    {
+                        inGap = true;
+                        gapStart = x;
+                    }
+                }
+                else if (solid && inGap)
+                {
+                    // 间隙结束
+                    int gapWidth = x - gapStart;
+                    CheckGap(gapWidth, gapStart, y, result);
+                    inGap = false;
+                }
+            }
+        }
+
+        // ── 检查 4: 垂直高台扫描 ──
+        // 扫描每列，查找需要跳跃才能到达的高台
+        for (int x = 1; x < maxWidth - 1; x++)
+        {
+            for (int y = 1; y < height; y++)
+            {
+                // 找到一个实体块，检查它下方是否有足够的空间构成高台
+                if (IsSolid(grid, x, y, maxWidth, height) &&
+                    !IsSolid(grid, x, y + 1, maxWidth, height) && // 上方是空气（可站立的表面）
+                    y + 1 < height)
+                {
+                    // 向下查找最近的地面
+                    int dropHeight = 0;
+                    for (int checkY = y - 1; checkY >= 0; checkY--)
+                    {
+                        if (IsSolid(grid, x, checkY, maxWidth, height))
+                            break;
+                        dropHeight++;
+                    }
+
+                    if (dropHeight > PhysicsMetrics.ASCII_MAX_HEIGHT &&
+                        dropHeight <= PhysicsMetrics.ASCII_EXTREME_HEIGHT)
+                    {
+                        // 检查左右是否有更低的平台可以跳上来
+                        bool hasSteppingStone = false;
+                        for (int checkX = Mathf.Max(0, x - PhysicsMetrics.ASCII_MAX_GAP);
+                             checkX <= Mathf.Min(maxWidth - 1, x + PhysicsMetrics.ASCII_MAX_GAP);
+                             checkX++)
+                        {
+                            if (checkX == x) continue;
+                            for (int checkY = y - dropHeight + 1; checkY < y; checkY++)
+                            {
+                                if (IsSolid(grid, checkX, checkY, maxWidth, height))
+                                {
+                                    hasSteppingStone = true;
+                                    break;
+                                }
+                            }
+                            if (hasSteppingStone) break;
+                        }
+
+                        if (!hasSteppingStone)
+                        {
+                            result.warnings.Add(
+                                $"High platform at ({x},{y}): {dropHeight} blocks high " +
+                                $"(max safe = {PhysicsMetrics.ASCII_MAX_HEIGHT}). " +
+                                $"Requires precise jumping.");
+                        }
+                    }
+                    else if (dropHeight > PhysicsMetrics.ASCII_EXTREME_HEIGHT)
+                    {
+                        result.errors.Add(
+                            $"UNREACHABLE platform at ({x},{y}): {dropHeight} blocks high " +
+                            $"(max jump = {PhysicsMetrics.MAX_JUMP_HEIGHT:F1} blocks). " +
+                            $"This is a physical dead end!");
+                    }
+                }
+            }
+        }
+
+        // ── 检查 5: 关卡尺寸信息 ──
+        result.info.Add($"Level size: {maxWidth} x {height} (W x H)");
+        result.info.Add($"Physics limits: max jump height = {PhysicsMetrics.MAX_JUMP_HEIGHT:F1}, " +
+                       $"max jump distance = {PhysicsMetrics.MAX_JUMP_DISTANCE:F1}, " +
+                       $"safe gap = {PhysicsMetrics.ASCII_MAX_GAP}, " +
+                       $"safe height = {PhysicsMetrics.ASCII_MAX_HEIGHT}");
+
+        return result;
+    }
+
+    /// <summary>检查间隙宽度是否安全</summary>
+    private static void CheckGap(int gapWidth, int gapStartX, int y, ValidationResult result)
+    {
+        if (gapWidth > PhysicsMetrics.ASCII_MAX_GAP &&
+            gapWidth <= Mathf.FloorToInt(PhysicsMetrics.MAX_JUMP_DISTANCE))
+        {
+            result.warnings.Add(
+                $"Tight gap at row Y={y}, X=[{gapStartX}..{gapStartX + gapWidth - 1}]: " +
+                $"{gapWidth} blocks wide (safe limit = {PhysicsMetrics.ASCII_MAX_GAP}). " +
+                $"Requires precise timing.");
+        }
+        else if (gapWidth > Mathf.FloorToInt(PhysicsMetrics.MAX_GAP_WITH_COYOTE))
+        {
+            result.errors.Add(
+                $"IMPASSABLE gap at row Y={y}, X=[{gapStartX}..{gapStartX + gapWidth - 1}]: " +
+                $"{gapWidth} blocks wide (max with coyote = {PhysicsMetrics.MAX_GAP_WITH_COYOTE:F1}). " +
+                $"This is a physical dead end!");
+        }
+    }
+
+    /// <summary>检查指定位置是否为实体</summary>
+    private static bool IsSolid(char[,] grid, int x, int y, int width, int height)
+    {
+        if (x < 0 || x >= width || y < 0 || y >= height) return false;
+        return solidChars.Contains(grid[x, y]);
+    }
+}

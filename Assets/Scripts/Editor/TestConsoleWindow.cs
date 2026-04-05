@@ -1495,6 +1495,9 @@ public class TestConsoleWindow : EditorWindow
 
             SetSerializedFieldForPlayable(marioCtrl, "groundLayer", groundLayerMask);
 
+            // Session 32: 自动挂载跳跃抛物线可视化工具
+            mario.AddComponent<JumpArcVisualizer>();
+
             Undo.RegisterCreatedObjectUndo(mario, "Create Mario");
             Debug.Log("[TestConsole] Created Mario at " + mario.transform.position);
         }

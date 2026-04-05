@@ -241,4 +241,34 @@ public static class PhysicsMetrics
         float availableDistance = MAX_JUMP_DISTANCE * (1f - heightRatio * 0.5f);
         return gapWidth <= availableDistance;
     }
+
+    // ═══════════════════════════════════════════════════
+    // 扩展指南：如何添加新元素类型
+    // ═══════════════════════════════════════════════════
+    //
+    // 步骤 1: 在本文件添加新元素的碰撞体常量
+    //   public static readonly Vector2 NEW_ELEMENT_COLLIDER_SIZE = new Vector2(w, h);
+    //
+    // 步骤 2: 在 AsciiLevelGenerator.cs 中添加新的 Spawn 方法
+    //   - 在 InitCharMap() 中注册新字符映射
+    //   - 创建 SpawnNewElement(int gridX, int gridY) 方法
+    //   - 碰撞体必须引用: col.size = PhysicsMetrics.NEW_ELEMENT_COLLIDER_SIZE;
+    //
+    // 步骤 3: 在 AsciiLevelValidator.cs 中更新字符分类
+    //   - 实体元素加入 solidChars
+    //   - 空气元素加入 airChars
+    //
+    // 步骤 4: 在 LevelThemeProfile.cs 中添加主题插槽
+    //   - 在 elementSprites 数组中添加新的 ElementSpriteMapping
+    //   - key 必须与 Spawn 方法生成的 GameObject 名称前缀一致
+    //
+    // 步骤 5: 在 AI_PROMPT_WORKFLOW.md 中更新 ASCII 字符表
+    //   - 添加新字符的含义和使用示例
+    //
+    // 注意事项：
+    //   - 碰撞体尺寸必须在本文件定义，禁止在 Spawn 方法中硬编码
+    //   - 危险物碰撞体应小于视觉（宽容感）
+    //   - 平台类碰撞体宽度应 >= 1.5格（给玩家落脚空间）
+    //   - 新增的跳跃能力修改必须同步更新本文件的跳跃极限常量
+    //
 }

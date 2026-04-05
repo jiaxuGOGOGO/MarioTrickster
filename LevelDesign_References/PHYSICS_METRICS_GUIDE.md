@@ -89,6 +89,40 @@
 
 这些弧线精确模拟了控制器的物理逻辑（包括半重力顶点效果）。设计师只需在 Scene 视图中拖动角色，即可直观地判断前方的间隙或高台是否可跨越，无需频繁运行游戏进行测试。这极大地加速了"白盒锁死物理真相，一键换肤纯净包浆"的工业化管线。
 
+## 7. ASCII 模板物理验证器 (AsciiLevelValidator)
+
+为了在关卡生成前就发现物理死路，我们开发了 `AsciiLevelValidator.cs`。它在 `AsciiLevelGenerator.GenerateFromTemplate()` 中自动调用，对 ASCII 模板进行以下检查：
+
+*   **Mario 出生点检查**：确认 `M` 字符存在且脚下有地面。
+*   **终点检查**：确认 `G` 字符存在。
+*   **水平间隙扫描**：检测连续空白间隙是否超过安全上限（`ASCII_MAX_GAP = 4`）或物理极限（`MAX_GAP_WITH_COYOTE = 5.85`）。
+*   **垂直高台扫描**：检测需要跳跃才能到达的平台是否超过跳跃极限。
+*   **踏脚石检查**：对于超过安全高度但未超过极限的高台，检查附近是否有可作为踏脚石的中间平台。
+
+验证结果分三级：
+*   **❌ ERROR**：物理死路（不可跨越的间隙、不可到达的平台）。关卡仍会生成，但会在 Console 中输出红色错误。
+*   **⚠️ WARNING**：需要精确操作的极限跳跃。设计师可能是故意的，但需确认。
+*   **ℹ️ INFO**：关卡尺寸、物理极限等参考信息。
+
+## 8. 扩展指南：添加新元素类型
+
+当需要添加新的关卡元素类型（如新陷阱、新平台、新敌人）时，请按以下 6 步操作：
+
+| 步骤 | 文件 | 操作 |
+|------|------|------|
+| 1 | `PhysicsMetrics.cs` | 添加碰撞体常量 `NEW_ELEMENT_COLLIDER_SIZE` |
+| 2 | `AsciiLevelGenerator.cs` | 在 `InitCharMap()` 中注册新字符映射 |
+| 3 | `AsciiLevelGenerator.cs` | 添加 `SpawnNewElement()` 方法，碰撞体引用 PhysicsMetrics |
+| 4 | `AsciiLevelValidator.cs` | 在 `solidChars` 或 `airChars` 中注册新字符 |
+| 5 | `LevelThemeProfile.cs` | 在 `elementSprites` 中添加主题插槽 |
+| 6 | `AI_PROMPT_WORKFLOW.md` | 更新 ASCII 字符表和使用示例 |
+
+**设计原则**：
+*   危险物碰撞体应小于视觉（宽容感）。
+*   平台类碰撞体宽度应 >= 1.5 格（给玩家落脚空间）。
+*   新增的跳跃能力修改必须同步更新 PhysicsMetrics 的跳跃极限常量。
+*   碰撞体尺寸必须在 PhysicsMetrics 中定义，禁止在 Spawn 方法中硬编码。
+
 ## References
 
 [1] Brazmogu. (2020). Physics for Game Dev: A Platformer Physics Cheatsheet. Medium.

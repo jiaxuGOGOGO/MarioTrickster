@@ -77,7 +77,14 @@ public static class AsciiLevelGenerator
 
     /// <summary>
     /// 初始化字符映射字典
-    /// 【扩展点】新增陷阱/元素时，只需在此方法中 Add 一行即可
+    /// 【扩展点】新增陷阱/元素时，按以下步骤操作：
+    ///   1. 在 PhysicsMetrics.cs 中定义碰撞体常量 (NEW_ELEMENT_COLLIDER_SIZE)
+    ///   2. 在本方法中 Add 一行字符映射: { 'X', SpawnNewElement }
+    ///   3. 在本文件底部添加 SpawnNewElement(int gridX, int gridY) 方法
+    ///      - 碰撞体必须引用 PhysicsMetrics 常量，禁止硬编码
+    ///   4. 在 AsciiLevelValidator.cs 的 solidChars 或 airChars 中注册新字符
+    ///   5. 在 LevelThemeProfile.cs 的 elementSprites 中添加主题插槽
+    ///   6. 在 AI_PROMPT_WORKFLOW.md 中更新 ASCII 字符表
     /// </summary>
     private static void InitCharMap()
     {
@@ -123,6 +130,21 @@ public static class AsciiLevelGenerator
         {
             Debug.LogWarning("[AsciiLevelGen] Template is empty!");
             return null;
+        }
+
+        // Session 32: 生成前自动验证模板的物理可行性
+        var validationResult = AsciiLevelValidator.ValidateTemplate(template);
+        if (validationResult.HasErrors)
+        {
+            Debug.LogError($"[AsciiLevelGen] ⚠️ Template has physical issues!\n{validationResult.GetReport()}");
+        }
+        else if (validationResult.HasWarnings)
+        {
+            Debug.LogWarning($"[AsciiLevelGen] Template has warnings:\n{validationResult.GetReport()}");
+        }
+        else
+        {
+            Debug.Log("[AsciiLevelGen] ✅ Template validation passed.");
         }
 
         if (clearExisting) ClearGeneratedLevel();

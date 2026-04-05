@@ -114,6 +114,9 @@ public class TestSceneBuilder : Editor
         SetSerializedField(marioCtrl, "groundLayer", groundLayerMask);
         AssignDefaultSprite(marioSR, Color.red);
 
+        // Session 32: 自动挂载跳跃抛物线可视化工具
+        mario.AddComponent<JumpArcVisualizer>();
+
         // ═══════════════════════════════════════════════════
         // Trickster (起始位置在 Stage 2)
         // ═══════════════════════════════════════════════════

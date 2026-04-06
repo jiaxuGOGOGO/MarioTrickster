@@ -60,7 +60,8 @@ public class CollapsingPlatform : ControllableLevelElement
         base.Awake();
 
         boxCollider = GetComponent<BoxCollider2D>();
-        sr = GetComponent<SpriteRenderer>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        sr = GetComponentInChildren<SpriteRenderer>();
         stablePosition = transform.localPosition;
         initialColor = sr != null ? sr.color : Color.white;
     }

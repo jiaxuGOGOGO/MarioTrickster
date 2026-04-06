@@ -359,7 +359,8 @@ public static class AsciiLevelGenerator
         // Session 32: 使用 PhysicsMetrics 的宽容碰撞体
         // 地刺碰撞体比视觉小 = Celeste 风格宽容感
         GameObject go = CreateBlock("SpikeTrap", x, y, COLOR_SPIKE, ELEMENT_SORTING, false, true);
-        go.transform.localScale = new Vector3(CELL_SIZE, CELL_SIZE * 0.4f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点，根物体 localScale 保持 (1,1,1)
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE, CELL_SIZE * 0.4f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null)
         {
@@ -373,7 +374,8 @@ public static class AsciiLevelGenerator
     {
         // Session 32: 火焰碰撞体使用 PhysicsMetrics 标准尺寸（比视觉小，提供容错）
         GameObject go = CreateBlock("FireTrap", x, y, COLOR_FIRE, ELEMENT_SORTING, false, true);
-        go.transform.localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null) col.size = PhysicsMetrics.FIRE_COLLIDER_SIZE;
         go.AddComponent<FireTrap>();
@@ -384,7 +386,8 @@ public static class AsciiLevelGenerator
         // Session 32: 摆锤碰撞体使用 PhysicsMetrics 标准尺寸
         // 摆锤锚点在上方，实际摆锤在下面摆动
         GameObject go = CreateBlock("PendulumTrap", x, y, COLOR_PENDULUM, ELEMENT_SORTING, false, false);
-        go.transform.localScale = new Vector3(CELL_SIZE * 0.3f, CELL_SIZE * 0.3f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.3f, CELL_SIZE * 0.3f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null) col.size = PhysicsMetrics.PENDULUM_COLLIDER_SIZE;
         go.AddComponent<PendulumTrap>();
@@ -394,17 +397,21 @@ public static class AsciiLevelGenerator
     {
         // Session 32: 弹跳平台碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("BouncyPlatform", x, y, COLOR_BOUNCY, ELEMENT_SORTING, true, false);
-        go.transform.localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.3f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点，并赋值给 BouncyPlatform.visualTransform
+        Transform bouncyVisual = go.transform.Find("Visual");
+        bouncyVisual.localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.3f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null) col.size = PhysicsMetrics.BOUNCY_COLLIDER_SIZE;
-        go.AddComponent<BouncyPlatform>();
+        BouncyPlatform bp = go.AddComponent<BouncyPlatform>();
+        bp.visualTransform = bouncyVisual;
     }
 
     private static void SpawnCollapsingPlatform(int x, int y)
     {
         // Session 32: 崩塌平台碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("CollapsingPlatform", x, y, COLOR_COLLAPSE, ELEMENT_SORTING, true, false);
-        go.transform.localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.4f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.4f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null) col.size = PhysicsMetrics.COLLAPSE_COLLIDER_SIZE;
         go.AddComponent<CollapsingPlatform>();
@@ -414,7 +421,8 @@ public static class AsciiLevelGenerator
     {
         // Session 32: 单向平台碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("OneWayPlatform", x, y, COLOR_ONEWAY, ELEMENT_SORTING, true, false);
-        go.transform.localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.3f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.3f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null)
         {
@@ -429,7 +437,8 @@ public static class AsciiLevelGenerator
     {
         // Session 32: 敌人碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("BouncingEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, true);
-        go.transform.localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null) col.size = PhysicsMetrics.BOUNCING_ENEMY_COLLIDER_SIZE;
         Rigidbody2D rb = go.AddComponent<Rigidbody2D>();
@@ -442,7 +451,8 @@ public static class AsciiLevelGenerator
     {
         // Session 32: 敌人碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("SimpleEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, true);
-        go.transform.localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null) col.size = PhysicsMetrics.SIMPLE_ENEMY_COLLIDER_SIZE;
         Rigidbody2D rb = go.AddComponent<Rigidbody2D>();
@@ -469,7 +479,8 @@ public static class AsciiLevelGenerator
     {
         // Session 32: 收集物碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("Collectible", x, y, COLOR_COLLECT, ELEMENT_SORTING, false, true);
-        go.transform.localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null) col.size = PhysicsMetrics.COLLECTIBLE_COLLIDER_SIZE;
         go.AddComponent<Collectible>();
@@ -479,7 +490,8 @@ public static class AsciiLevelGenerator
     {
         // Session 32: 移动平台碰撞体使用 PhysicsMetrics 标准尺寸
         GameObject go = CreateBlock("MovingPlatform", x, y, COLOR_MOVING, ELEMENT_SORTING, true, false);
-        go.transform.localScale = new Vector3(CELL_SIZE * 3f, CELL_SIZE * 0.4f, 1f);
+        // S37: 视觉缩放操作 Visual 子节点
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 3f, CELL_SIZE * 0.4f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null) col.size = PhysicsMetrics.MOVING_COLLIDER_SIZE;
         MovingPlatform mp = go.AddComponent<MovingPlatform>();
@@ -490,7 +502,9 @@ public static class AsciiLevelGenerator
     // ═══════════════════════════════════════════════════
 
     /// <summary>
-    /// 创建一个白盒方块（带 SpriteRenderer + BoxCollider2D）
+    /// S37: 视碰分离重构 — 创建白盒方块
+    /// 结构: Root(物理层: BoxCollider2D) -> Visual(视觉层: SpriteRenderer)
+    /// 根物体 localScale 永远保持 (1,1,1)，视觉缩放由 Visual 子节点承担。
     /// </summary>
     private static GameObject CreateBlock(string name, int gridX, int gridY, Color color,
         int sortingOrder, bool isSolid, bool isTrigger)
@@ -503,13 +517,17 @@ public static class AsciiLevelGenerator
         if (isSolid && !isTrigger)
             go.layer = groundLayerIndex;
 
-        // SpriteRenderer（白盒纹理）
-        SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+        // S37: Visual 子节点（承载 SpriteRenderer）
+        GameObject visual = new GameObject("Visual");
+        visual.transform.SetParent(go.transform, false);
+        visual.transform.localPosition = Vector3.zero;
+
+        SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
         sr.sprite = CreateWhiteBoxSprite();
         sr.color = color;
         sr.sortingOrder = sortingOrder;
 
-        // BoxCollider2D
+        // BoxCollider2D 保留在根物体上
         BoxCollider2D col = go.AddComponent<BoxCollider2D>();
         col.size = Vector2.one;
         col.isTrigger = isTrigger;
@@ -605,7 +623,8 @@ public static class AsciiLevelGenerator
         // 遍历所有子物体
         foreach (Transform child in root.transform)
         {
-            SpriteRenderer sr = child.GetComponent<SpriteRenderer>();
+            // S37: 视碰分离 — SpriteRenderer 现在在 Visual 子节点上
+            SpriteRenderer sr = child.GetComponentInChildren<SpriteRenderer>();
             if (sr == null) continue;
 
             string objName = child.name;
@@ -618,7 +637,8 @@ public static class AsciiLevelGenerator
                 if (theme.groundSprite != null)
                 {
                     sr.sprite = theme.groundSprite;
-                    EnsureSpriteAutoFit(child.gameObject, SpriteAutoFit.FitMode.Tiled);
+                    // S37: SpriteAutoFit 挂在 Visual 子节点上
+                    EnsureSpriteAutoFit(sr.gameObject, SpriteAutoFit.FitMode.Tiled);
                     replacedCount++;
                 }
                 sr.color = theme.groundColor;
@@ -628,7 +648,7 @@ public static class AsciiLevelGenerator
                 if (theme.platformSprite != null)
                 {
                     sr.sprite = theme.platformSprite;
-                    EnsureSpriteAutoFit(child.gameObject, SpriteAutoFit.FitMode.Tiled);
+                    EnsureSpriteAutoFit(sr.gameObject, SpriteAutoFit.FitMode.Tiled);
                     replacedCount++;
                 }
                 sr.color = theme.platformColor;
@@ -638,7 +658,7 @@ public static class AsciiLevelGenerator
                 if (theme.wallSprite != null)
                 {
                     sr.sprite = theme.wallSprite;
-                    EnsureSpriteAutoFit(child.gameObject, SpriteAutoFit.FitMode.Tiled);
+                    EnsureSpriteAutoFit(sr.gameObject, SpriteAutoFit.FitMode.Tiled);
                     replacedCount++;
                 }
                 sr.color = theme.wallColor;

@@ -130,6 +130,13 @@ public class BouncyPlatform : ControllableLevelElement
     private SpriteRenderer spriteRenderer;  // S36: 用于弹射闪白反馈
     private Color originalColor;             // S36: 缓存原始颜色
 
+    // S37: 视碰分离 — 视觉代理节点
+    // [AI防坑警告] 所有 squash/stretch 动画必须操作 visualTransform.localScale，
+    // 绝对不要操作根物体的 transform.localScale！
+    [Header("S37: 视碰分离")]
+    [Tooltip("视觉子节点的 Transform。为空时自动回退到自身 Transform。")]
+    public Transform visualTransform;
+
     // [AI防坑警告] 弹射全流程由 LaunchSequence 协程统一管理，不要拆回 Update 手动计时器！
     // 协程时序：OnCollisionEnter2D → PrepareBounce(冻结) → WaitForSeconds → ExecuteBounce(发射)
     // 不要用 AddForce 替代 ExecuteBounce — AddForce 会被 MarioController._frameVelocity 写入覆盖。
@@ -164,11 +171,19 @@ public class BouncyPlatform : ControllableLevelElement
 
         boxCollider = GetComponent<BoxCollider2D>();
         boxCollider.isTrigger = false;
-        originalScale = transform.localScale;
 
         // S36: 缓存 SpriteRenderer 和原始颜色（用于弹射闪白反馈）
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         if (spriteRenderer != null) originalColor = spriteRenderer.color;
+
+        // S37: visualTransform 兼容回退
+        if (visualTransform == null && spriteRenderer != null)
+            visualTransform = spriteRenderer.transform;
+        if (visualTransform == null)
+            visualTransform = transform;
+
+        originalScale = visualTransform.localScale;
 
         // 缓存 WaitForSeconds（P7: 避免协程中 GC 分配）
         cachedComedyWait = new WaitForSeconds(comedyDelay);
@@ -285,10 +300,10 @@ public class BouncyPlatform : ControllableLevelElement
             while (t < squashDuration)
             {
                 t += Time.deltaTime;
-                transform.localScale = Vector3.Lerp(originalScale, squashedScale, t / squashDuration);
+                visualTransform.localScale = Vector3.Lerp(originalScale, squashedScale, t / squashDuration);
                 yield return null;
             }
-            transform.localScale = squashedScale;
+            visualTransform.localScale = squashedScale;
 
             // 等待喜剧延迟（使用缓存的 WaitForSeconds）
             yield return cachedComedyWait;
@@ -338,7 +353,7 @@ public class BouncyPlatform : ControllableLevelElement
         // 业界参考: GameMaker Kitchen — 弹跳平台被踩时 image_yscale=0 然后 lerp 回弹
         // Secrets of Springs — velocity nudge 产生过冲效果
         {
-            Vector3 currentScale = transform.localScale;
+            Vector3 currentScale = visualTransform.localScale;
             // 拉伸目标（平台变窄变高，体积守恒）
             Vector3 stretchedScale = new Vector3(
                 originalScale.x * (1 - squashAmount * 0.6f),
@@ -355,13 +370,13 @@ public class BouncyPlatform : ControllableLevelElement
                 {
                     // 第一段（0-30%）：快速拉伸到过冲位置
                     float p = progress / 0.3f;
-                    transform.localScale = Vector3.Lerp(currentScale, stretchedScale, p);
+                    visualTransform.localScale = Vector3.Lerp(currentScale, stretchedScale, p);
                 }
                 else if (progress < 0.6f)
                 {
                     // 第二段（30-60%）：从过冲回弹到原始尺寸
                     float p = (progress - 0.3f) / 0.3f;
-                    transform.localScale = Vector3.Lerp(stretchedScale, originalScale, p);
+                    visualTransform.localScale = Vector3.Lerp(stretchedScale, originalScale, p);
                 }
                 else
                 {
@@ -372,9 +387,9 @@ public class BouncyPlatform : ControllableLevelElement
                         originalScale.y * (1 - squashAmount * 0.15f),
                         originalScale.z);
                     if (p < 0.5f)
-                        transform.localScale = Vector3.Lerp(originalScale, microBounce, p * 2f);
+                        visualTransform.localScale = Vector3.Lerp(originalScale, microBounce, p * 2f);
                     else
-                        transform.localScale = Vector3.Lerp(microBounce, originalScale, (p - 0.5f) * 2f);
+                        visualTransform.localScale = Vector3.Lerp(microBounce, originalScale, (p - 0.5f) * 2f);
                 }
 
                 // S36: 闪白淡出
@@ -390,7 +405,7 @@ public class BouncyPlatform : ControllableLevelElement
 
                 yield return null;
             }
-            transform.localScale = originalScale;
+            visualTransform.localScale = originalScale;
             if (spriteRenderer != null) spriteRenderer.color = originalColor;
         }
 
@@ -528,7 +543,7 @@ public class BouncyPlatform : ControllableLevelElement
             activeLaunchCoroutine = null;
         }
 
-        transform.localScale = originalScale;
+        visualTransform.localScale = originalScale;
         tricksterOverride = false;
         isAnimating = false;
         isLaunching = false;

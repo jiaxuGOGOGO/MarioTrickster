@@ -31,11 +31,17 @@ public class DisguiseSystem : MonoBehaviour
     private BoxCollider2D boxCollider;
     private EnergySystem energySystem; // 可选：能量系统
 
+    // S37: 视碰分离 — 视觉代理节点
+    // [AI防坑警告] 伪装时视觉缩放必须操作 visualTransform.localScale，
+    // 物理碰撞体必须同步修改 boxCollider.size/offset，
+    // 根物体 transform.localScale 永远锁定 (1,1,1)。
+    private Transform visualTransform;
+
     // 原始数据（用于还原）
     private Sprite originalSprite;
     private Vector2 originalColliderSize;
     private Vector2 originalColliderOffset;
-    private Vector3 originalScale;
+    private Vector3 originalVisualScale; // S37: 视觉子节点的原始缩放
 
     // 状态
     private bool isDisguised;
@@ -69,15 +75,22 @@ public class DisguiseSystem : MonoBehaviour
 
     private void Awake()
     {
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         boxCollider = GetComponent<BoxCollider2D>();
         energySystem = GetComponent<EnergySystem>(); // 可选组件
 
+        // S37: visualTransform 兼容回退
+        if (spriteRenderer != null)
+            visualTransform = spriteRenderer.transform;
+        else
+            visualTransform = transform;
+
         // 保存原始数据
-        originalSprite = spriteRenderer.sprite;
+        originalSprite = spriteRenderer != null ? spriteRenderer.sprite : null;
         originalColliderSize = boxCollider.size;
         originalColliderOffset = boxCollider.offset;
-        originalScale = transform.localScale;
+        originalVisualScale = visualTransform.localScale;
     }
 
     private void Update()
@@ -207,10 +220,19 @@ public class DisguiseSystem : MonoBehaviour
             boxCollider.offset = data.customColliderOffset;
         }
 
-        // 调整缩放
+        // S37: 视碰分离 — 视觉缩放操作 visualTransform，物理碰撞体同步修改 size/offset
+        // 根物体 localScale 永远保持 (1,1,1)
         if (data.customScale != Vector3.zero)
         {
-            transform.localScale = data.customScale;
+            visualTransform.localScale = data.customScale;
+            // 物理层：同步修改碰撞体尺寸，确保“看起来像，摸起来也像”
+            if (data.customColliderSize == Vector2.zero)
+            {
+                // 未显式指定碰撞体时，根据 customScale 推算
+                boxCollider.size = new Vector2(
+                    originalColliderSize.x * data.customScale.x,
+                    originalColliderSize.y * data.customScale.y);
+            }
         }
 
         // 变身特效
@@ -236,8 +258,8 @@ public class DisguiseSystem : MonoBehaviour
         boxCollider.size = originalColliderSize;
         boxCollider.offset = originalColliderOffset;
 
-        // 还原缩放
-        transform.localScale = originalScale;
+        // S37: 视碰分离 — 还原视觉缩放和碰撞体
+        visualTransform.localScale = originalVisualScale;
 
         // 变身特效
         SpawnVFX();

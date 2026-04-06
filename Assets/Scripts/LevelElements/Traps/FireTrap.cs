@@ -65,7 +65,8 @@ public class FireTrap : ControllableLevelElement
         fireCollider = GetComponent<BoxCollider2D>();
         fireCollider.isTrigger = true;
         fireCollider.enabled = false;
-        sr = GetComponent<SpriteRenderer>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        sr = GetComponentInChildren<SpriteRenderer>();
         initialLocalPos = transform.localPosition;
 
         // 设置碰撞器形状匹配火焰方向

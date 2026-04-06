@@ -40,6 +40,9 @@ public class BouncingEnemy : ControllableLevelElement
     private Rigidbody2D rb;
     private BoxCollider2D boxCollider;
 
+    // S37: 视碰分离 — 视觉代理节点
+    private Transform visualTransform;
+
     // 状态
     private float bounceTimer;
     private int currentHealth;
@@ -65,6 +68,10 @@ public class BouncingEnemy : ControllableLevelElement
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
         boxCollider = GetComponent<BoxCollider2D>();
+
+        // S37: 视碰分离 — 视觉代理节点兼容回退
+        SpriteRenderer sr = GetComponentInChildren<SpriteRenderer>();
+        visualTransform = sr != null ? sr.transform : transform;
 
         currentHealth = maxHealth;
         bounceTimer = bounceInterval;
@@ -156,14 +163,15 @@ public class BouncingEnemy : ControllableLevelElement
         StartCoroutine(DeathAnimation());
     }
 
+    // S37: 视碰分离 — 死亡动画操作视觉节点
     private System.Collections.IEnumerator DeathAnimation()
     {
         float t = 0;
-        Vector3 originalScale = transform.localScale;
+        Vector3 origScale = visualTransform.localScale;
         while (t < 0.3f)
         {
             t += Time.deltaTime;
-            transform.localScale = Vector3.Lerp(originalScale, Vector3.zero, t / 0.3f);
+            visualTransform.localScale = Vector3.Lerp(origScale, Vector3.zero, t / 0.3f);
             yield return null;
         }
         gameObject.SetActive(false);
@@ -196,7 +204,7 @@ public class BouncingEnemy : ControllableLevelElement
         boxCollider.enabled = true;
         rb.simulated = true;
         transform.position = initialPosition;
-        transform.localScale = Vector3.one;
+        visualTransform.localScale = Vector3.one;
         gameObject.SetActive(true);
         tricksterOverride = false;
     }

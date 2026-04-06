@@ -48,7 +48,7 @@ using UnityEngine;
 ///   改动:
 ///     - 弹射飞行期也启用半重力顶点（不需要 jumpHeld）
 ///     - 角色 Squash & Stretch 形变：蓄力压扁、弹射拉伸、落地压扁
-///     - 视碰分离：通过 spriteRenderer.transform.localScale 实现
+///     - 视碰分离：通过 visualTransform.localScale 实现（S37 重构）
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -114,6 +114,14 @@ public class MarioController : MonoBehaviour
     private SpriteRenderer spriteRenderer;
     private Animator animator;
 
+    // ── S37: 视碰分离 — 视觉代理节点 ──────────────────────
+    // [AI防坑警告] visualTransform 是所有形变动画（Squash & Stretch）的唯一操作目标。
+    // 绝对不要对根物体的 transform.localScale 做形变！根物体 localScale 必须永远是 (1,1,1)。
+    // 朝向翻转统一使用 spriteRenderer.flipX，绝不修改 localScale.x = -1。
+    [Header("S37: 视碰分离")]
+    [Tooltip("视觉子节点的 Transform（Squash/Stretch 形变动画操作此节点）。为空时自动回退到自身 Transform。")]
+    public Transform visualTransform;
+
     // ── 输入（由 InputManager 每帧写入）─────────────────────
     private Vector2 moveInput;
     private bool jumpPressedThisFrame;
@@ -161,7 +169,7 @@ public class MarioController : MonoBehaviour
     // 业界参考: GameMaker Kitchen —10 Levels of Platformer Jumping”
     //   弹跳时角色拉伸（Y 放大、X 缩小），落地时压扁（Y 缩小、X 放大）
     // Dawnosaur “Improve Your Platformer Jump” — visual juice
-    // 实现：通过 spriteRenderer.transform.localScale 实现，不影响碰撞体
+    // 实现：通过 visualTransform.localScale 实现（S37 视碰分离），不影响碰撞体
     private bool _bounceSquashActive;       // 是否正在播放形变动画
     private float _bounceSquashTimer;       // 形变动画计时器
     private const float BounceStretchDuration = 0.3f;  // 形变动画总时长
@@ -194,8 +202,15 @@ public class MarioController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         boxCollider = GetComponent<BoxCollider2D>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        animator = GetComponent<Animator>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        animator = GetComponentInChildren<Animator>();
+
+        // S37: visualTransform 兼容回退 — 未赋值时使用 spriteRenderer 所在节点
+        if (visualTransform == null && spriteRenderer != null)
+            visualTransform = spriteRenderer.transform;
+        if (visualTransform == null)
+            visualTransform = transform;
 
         rb.gravityScale = 0f;
         rb.freezeRotation = true;
@@ -364,9 +379,9 @@ public class MarioController : MonoBehaviour
                 _landSquashActive = true;
                 _landSquashTimer = 0f;
                 _bounceSquashActive = false;
-                if (spriteRenderer != null)
+                if (visualTransform != null)
                 {
-                    spriteRenderer.transform.localScale = new Vector3(LandSquashX, LandSquashY, 1f);
+                    visualTransform.localScale = new Vector3(LandSquashX, LandSquashY, 1f);
                 }
             }
 
@@ -597,9 +612,9 @@ public class MarioController : MonoBehaviour
         _platformVelocity = Vector2.zero;
 
         // S36: 蓄力冻结时角色压扁（视觉上“被弹簧压住”的感觉）
-        if (spriteRenderer != null)
+        if (visualTransform != null)
         {
-            spriteRenderer.transform.localScale = new Vector3(LandSquashX, LandSquashY, 1f);
+            visualTransform.localScale = new Vector3(LandSquashX, LandSquashY, 1f);
         }
     }
 
@@ -633,9 +648,9 @@ public class MarioController : MonoBehaviour
         _bounceSquashActive = true;
         _bounceSquashTimer = 0f;
         _landSquashActive = false;
-        if (spriteRenderer != null)
+        if (visualTransform != null)
         {
-            spriteRenderer.transform.localScale = new Vector3(BounceStretchX, BounceStretchY, 1f);
+            visualTransform.localScale = new Vector3(BounceStretchX, BounceStretchY, 1f);
         }
     }
 
@@ -667,13 +682,13 @@ public class MarioController : MonoBehaviour
     ///   - Secrets of Springs: 过冲回弹的简谐运动
     /// 
     /// 实现原理:
-    ///   通过 spriteRenderer.transform.localScale 实现视觉形变，
+    ///   通过 visualTransform.localScale 实现视觉形变（S37 视碰分离），
     ///   不影响 BoxCollider2D 的碰撞体尺寸（视碰分离）。
     ///   形变动画使用 Lerp 平滑回弹到原始尺寸。
     /// </summary>
     private void UpdateBounceSquashStretch()
     {
-        if (spriteRenderer == null) return;
+        if (visualTransform == null) return;
 
         // 弹射拉伸动画：从拉伸状态平滑回弹到原始尺寸
         if (_bounceSquashActive)
@@ -683,7 +698,7 @@ public class MarioController : MonoBehaviour
 
             if (progress >= 1f)
             {
-                spriteRenderer.transform.localScale = Vector3.one;
+                visualTransform.localScale = Vector3.one;
                 _bounceSquashActive = false;
             }
             else
@@ -692,7 +707,7 @@ public class MarioController : MonoBehaviour
                 float t = Mathf.SmoothStep(0f, 1f, progress);
                 float scaleX = Mathf.Lerp(BounceStretchX, 1f, t);
                 float scaleY = Mathf.Lerp(BounceStretchY, 1f, t);
-                spriteRenderer.transform.localScale = new Vector3(scaleX, scaleY, 1f);
+                visualTransform.localScale = new Vector3(scaleX, scaleY, 1f);
             }
             return; // 拉伸动画优先于压扁动画
         }
@@ -705,7 +720,7 @@ public class MarioController : MonoBehaviour
 
             if (progress >= 1f)
             {
-                spriteRenderer.transform.localScale = Vector3.one;
+                visualTransform.localScale = Vector3.one;
                 _landSquashActive = false;
             }
             else
@@ -713,7 +728,7 @@ public class MarioController : MonoBehaviour
                 float t = Mathf.SmoothStep(0f, 1f, progress);
                 float scaleX = Mathf.Lerp(LandSquashX, 1f, t);
                 float scaleY = Mathf.Lerp(LandSquashY, 1f, t);
-                spriteRenderer.transform.localScale = new Vector3(scaleX, scaleY, 1f);
+                visualTransform.localScale = new Vector3(scaleX, scaleY, 1f);
             }
         }
     }
@@ -757,7 +772,7 @@ public class MarioController : MonoBehaviour
         // S36: 重置形变状态
         _bounceSquashActive = false;
         _landSquashActive = false;
-        if (spriteRenderer != null) spriteRenderer.transform.localScale = Vector3.one;
+        if (visualTransform != null) visualTransform.localScale = Vector3.one;
 
         OnDeath?.Invoke();
         rb.velocity = Vector2.zero;

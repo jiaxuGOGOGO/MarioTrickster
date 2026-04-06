@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 36 (弹跳平台 Game Feel 增强：平台 Squash/Stretch/闪白 + 角色弹射形变 + 弹射飞行期半重力顶点) |
+| **最新 Session** | Session 37 (视碰分离架构重构：Root(物理) → Visual(表现) 父子层级，为 Animator 帧动画打地基) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ✅ S36 修改 2 个文件，+218/-12 行，待用户 Unity 验证 |
+| **编译状态** | ✅ S37 修改 18 个文件，+217/-79 行，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S36 基于 YouTube/GDC/GameMaker Kitchen 业界最佳实践优化弹跳平台手感。BouncyPlatform: 增强 squash/stretch 动画、弹射闪白反馈、缩放过冲。MarioController: 弹射飞行期半重力顶点、角色 Squash & Stretch 形变（蓄力压扁/弹射拉伸/落地压扁）。视碰分离，不触碰两段式弹射核心逻辑。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S37 视碰分离架构重构。所有角色/机关的 SpriteRenderer 迁移到 Visual 子节点，根物体 localScale 永远锁定 (1,1,1)。形变动画操作 visualTransform.localScale，转向死守 spriteRenderer.flipX。DisguiseSystem 伪装时同步修改 BoxCollider2D.size + visualTransform.localScale。AsciiLevelGenerator/TestConsoleWindow/TestSceneBuilder 均已适配 Visual 子节点创建。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S37 视碰分离架构重构（Root→Visual 父子层级，18 文件） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S36 弹跳平台 Game Feel 增强（平台动画+角色形变+半重力顶点） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S35 关卡布局安全性修复（模板+片段+验证器） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S33 Level Builder ↔ Teleport/Cheats 联动 + 动态锚点系统 | ✅ 代码已推送，待用户 Unity 验证 |

@@ -72,7 +72,8 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
 
     protected virtual void Awake()
     {
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         if (spriteRenderer != null)
         {
             originalColor = spriteRenderer.color;

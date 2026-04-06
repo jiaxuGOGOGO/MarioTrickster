@@ -107,7 +107,8 @@ public class ScanAbility : MonoBehaviour
         if (targetTrickster != null)
         {
             targetDisguise = targetTrickster.GetComponent<DisguiseSystem>();
-            targetSpriteRenderer = targetTrickster.GetComponent<SpriteRenderer>();
+            // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+            targetSpriteRenderer = targetTrickster.GetComponentInChildren<SpriteRenderer>();
         }
     }
 

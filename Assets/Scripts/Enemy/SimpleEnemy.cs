@@ -31,6 +31,9 @@ public class SimpleEnemy : MonoBehaviour
     private BoxCollider2D boxCollider;
     private SpriteRenderer spriteRenderer;
 
+    // S37: 视碰分离 — 视觉代理节点
+    private Transform visualTransform;
+
     // 状态
     private int moveDirection;
     private bool isDead;
@@ -39,7 +42,14 @@ public class SimpleEnemy : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         boxCollider = GetComponent<BoxCollider2D>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+
+        // S37: visualTransform 兼容回退
+        if (spriteRenderer != null)
+            visualTransform = spriteRenderer.transform;
+        else
+            visualTransform = transform;
 
         rb.gravityScale = 3f;
         rb.freezeRotation = true;
@@ -140,8 +150,8 @@ public class SimpleEnemy : MonoBehaviour
         rb.velocity = Vector2.zero;
         rb.bodyType = RigidbodyType2D.Kinematic;
 
-        // 压扁动画（简单缩放）
-        transform.localScale = new Vector3(transform.localScale.x, 0.2f, transform.localScale.z);
+        // S37: 视碰分离 — 压扁动画操作视觉节点
+        visualTransform.localScale = new Vector3(visualTransform.localScale.x, 0.2f, visualTransform.localScale.z);
 
         // 禁用碰撞
         boxCollider.enabled = false;

@@ -94,7 +94,12 @@ public class TestSceneBuilder : Editor
         mario.layer = playerLayerIndex; // B028: 使用专用 Player Layer
         mario.transform.position = new Vector3(marioStartX, 1, 0);
 
-        SpriteRenderer marioSR = mario.AddComponent<SpriteRenderer>();
+        // S37: 视碰分离 — 创建 Visual 子节点承载 SpriteRenderer
+        GameObject marioVisual = new GameObject("Visual");
+        marioVisual.transform.SetParent(mario.transform, false);
+        marioVisual.transform.localPosition = Vector3.zero;
+
+        SpriteRenderer marioSR = marioVisual.AddComponent<SpriteRenderer>();
         marioSR.color = new Color(0.9f, 0.2f, 0.2f);
         marioSR.sortingOrder = 10;
 
@@ -108,6 +113,7 @@ public class TestSceneBuilder : Editor
         marioRb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
         MarioController marioCtrl = mario.AddComponent<MarioController>();
+        marioCtrl.visualTransform = marioVisual.transform; // S37: 赋值视觉代理节点
         PlayerHealth marioHealth = mario.AddComponent<PlayerHealth>();
         ScanAbility scanAbility = mario.AddComponent<ScanAbility>();
 
@@ -125,7 +131,12 @@ public class TestSceneBuilder : Editor
         trickster.layer = tricksterLayerIndex; // B028: 使用专用 Trickster Layer
         trickster.transform.position = new Vector3(tricksterStartX, 1, 0);
 
-        SpriteRenderer tricksterSR = trickster.AddComponent<SpriteRenderer>();
+        // S37: 视碰分离 — 创建 Visual 子节点承载 SpriteRenderer
+        GameObject tricksterVisual = new GameObject("Visual");
+        tricksterVisual.transform.SetParent(trickster.transform, false);
+        tricksterVisual.transform.localPosition = Vector3.zero;
+
+        SpriteRenderer tricksterSR = tricksterVisual.AddComponent<SpriteRenderer>();
         tricksterSR.color = new Color(0.2f, 0.4f, 0.9f);
         tricksterSR.sortingOrder = 10;
 
@@ -139,6 +150,7 @@ public class TestSceneBuilder : Editor
         tricksterRb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
         TricksterController tricksterCtrl = trickster.AddComponent<TricksterController>();
+        tricksterCtrl.visualTransform = tricksterVisual.transform; // S37: 赋值视觉代理节点
         DisguiseSystem disguiseSystem = trickster.AddComponent<DisguiseSystem>();
         TricksterAbilitySystem abilitySystem = trickster.AddComponent<TricksterAbilitySystem>();
         EnergySystem energySystem = trickster.AddComponent<EnergySystem>();

@@ -79,6 +79,13 @@ public class TricksterController : MonoBehaviour
     private DisguiseSystem disguiseSystem;
     private TricksterAbilitySystem abilitySystem;
 
+    // ── S37: 视碰分离 — 视觉代理节点 ──────────────────────
+    // [AI防坑警告] visualTransform 是视觉层的唯一操作目标。
+    // 朝向翻转统一使用 spriteRenderer.flipX，绝不修改 localScale.x = -1。
+    [Header("S37: 视碰分离")]
+    [Tooltip("视觉子节点的 Transform。为空时自动回退到自身 Transform。")]
+    public Transform visualTransform;
+
     // ── 输入（由 InputManager 每帧写入）─────────────────────
     private Vector2 moveInput;
     private bool jumpPressedThisFrame;
@@ -138,9 +145,16 @@ public class TricksterController : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         boxCollider = GetComponent<BoxCollider2D>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
         disguiseSystem = GetComponent<DisguiseSystem>();
         abilitySystem = GetComponent<TricksterAbilitySystem>();
+
+        // S37: visualTransform 兼容回退
+        if (visualTransform == null && spriteRenderer != null)
+            visualTransform = spriteRenderer.transform;
+        if (visualTransform == null)
+            visualTransform = transform;
 
         rb.gravityScale = 0f;
         rb.freezeRotation = true;

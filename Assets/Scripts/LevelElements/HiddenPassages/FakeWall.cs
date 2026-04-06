@@ -47,7 +47,8 @@ public class FakeWall : ControllableLevelElement
 
         boxCollider = GetComponent<BoxCollider2D>();
         boxCollider.isTrigger = true; // 默认可穿过
-        sr = GetComponent<SpriteRenderer>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        sr = GetComponentInChildren<SpriteRenderer>();
         baseColor = sr != null ? sr.color : Color.white;
         currentAlpha = 1f;
     }

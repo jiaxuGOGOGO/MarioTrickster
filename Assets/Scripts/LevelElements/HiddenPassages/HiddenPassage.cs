@@ -94,7 +94,8 @@ public class HiddenPassage : ControllableLevelElement
 
         triggerCollider = GetComponent<BoxCollider2D>();
         triggerCollider.isTrigger = true;
-        sr = GetComponent<SpriteRenderer>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+        sr = GetComponentInChildren<SpriteRenderer>();
 
         UpdateVisibility(false);
     }

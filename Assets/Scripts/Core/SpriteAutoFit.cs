@@ -63,8 +63,9 @@ public class SpriteAutoFit : MonoBehaviour
 
     private void Awake()
     {
-        sr = GetComponent<SpriteRenderer>();
-        col = GetComponent<BoxCollider2D>();
+        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上，BoxCollider2D 保留在根物体
+        sr = GetComponentInChildren<SpriteRenderer>();
+        col = GetComponentInParent<BoxCollider2D>();
     }
 
     private void Start()
@@ -77,8 +78,8 @@ public class SpriteAutoFit : MonoBehaviour
         #if UNITY_EDITOR
         if (!Application.isPlaying)
         {
-            if (sr == null) sr = GetComponent<SpriteRenderer>();
-            if (col == null) col = GetComponent<BoxCollider2D>();
+            if (sr == null) sr = GetComponentInChildren<SpriteRenderer>();
+            if (col == null) col = GetComponentInParent<BoxCollider2D>();
             FitSprite();
             return;
         }

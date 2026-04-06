@@ -1100,7 +1100,8 @@ public class TestConsoleWindow : EditorWindow
         if (cachedMario != null)
         {
             cachedMario.enabled = true;
-            SpriteRenderer sr = cachedMario.GetComponent<SpriteRenderer>();
+            // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
+            SpriteRenderer sr = cachedMario.GetComponentInChildren<SpriteRenderer>();
             if (sr != null)
             {
                 Color c = sr.color;
@@ -1551,7 +1552,12 @@ public class TestConsoleWindow : EditorWindow
             mario.layer = playerLayerIndex;
             mario.transform.position = marioSpawnPos + Vector3.up * 0.5f;
 
-            SpriteRenderer marioSR = mario.AddComponent<SpriteRenderer>();
+            // S37: 视碰分离 — 创建 Visual 子节点承载 SpriteRenderer
+            GameObject marioVisual = new GameObject("Visual");
+            marioVisual.transform.SetParent(mario.transform, false);
+            marioVisual.transform.localPosition = Vector3.zero;
+
+            SpriteRenderer marioSR = marioVisual.AddComponent<SpriteRenderer>();
             marioSR.color = new Color(0.9f, 0.2f, 0.2f);
             marioSR.sortingOrder = 10;
             AssignDefaultSpriteForPlayable(marioSR, marioSR.color);
@@ -1566,6 +1572,7 @@ public class TestConsoleWindow : EditorWindow
             marioRb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
             marioCtrl = mario.AddComponent<MarioController>();
+            marioCtrl.visualTransform = marioVisual.transform; // S37: 赋值视觉代理节点
             marioHealth = mario.AddComponent<PlayerHealth>();
             mario.AddComponent<ScanAbility>();
 
@@ -1597,7 +1604,12 @@ public class TestConsoleWindow : EditorWindow
             trickster.layer = tricksterLayerIndex;
             trickster.transform.position = tricksterSpawnPos + Vector3.up * 0.5f;
 
-            SpriteRenderer tricksterSR = trickster.AddComponent<SpriteRenderer>();
+            // S37: 视碰分离 — 创建 Visual 子节点承载 SpriteRenderer
+            GameObject tricksterVisual = new GameObject("Visual");
+            tricksterVisual.transform.SetParent(trickster.transform, false);
+            tricksterVisual.transform.localPosition = Vector3.zero;
+
+            SpriteRenderer tricksterSR = tricksterVisual.AddComponent<SpriteRenderer>();
             tricksterSR.color = new Color(0.2f, 0.4f, 0.9f);
             tricksterSR.sortingOrder = 10;
             AssignDefaultSpriteForPlayable(tricksterSR, tricksterSR.color);
@@ -1612,6 +1624,7 @@ public class TestConsoleWindow : EditorWindow
             tricksterRb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
             tricksterCtrl = trickster.AddComponent<TricksterController>();
+            tricksterCtrl.visualTransform = tricksterVisual.transform; // S37: 赋值视觉代理节点
             trickster.AddComponent<DisguiseSystem>();
             trickster.AddComponent<TricksterAbilitySystem>();
             trickster.AddComponent<EnergySystem>();

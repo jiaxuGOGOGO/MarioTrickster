@@ -288,14 +288,15 @@ public static class PhysicsMetrics
     // 步骤 1: 在本文件添加新元素的碰撞体常量
     //   public static readonly Vector2 NEW_ELEMENT_COLLIDER_SIZE = new Vector2(w, h);
     //
-    // 步骤 2: 在 AsciiLevelGenerator.cs 中添加新的 Spawn 方法
-    //   - 在 InitCharMap() 中注册新字符映射
+    // 步骤 2: 在 AsciiElementRegistry.cs 的默认实例中添加新元素条目 (S46)
+    //   - 在 CreateDefaultInstance() 的 entries 数组中添加 AsciiElementEntry
+    //   - 设置 asciiChar, elementName, isSolid, isHazard, jumpBoost
+    //   - 或者在 Inspector 中编辑 AsciiElementRegistry 资产
+    //
+    // 步骤 3: 在 AsciiLevelGenerator.cs 中添加新的 Spawn 方法
+    //   - 在 InitSpawnMap() 中注册: spawnMap["NewElement"] = SpawnNewElement;
     //   - 创建 SpawnNewElement(int gridX, int gridY) 方法
     //   - 碰撞体必须引用: col.size = PhysicsMetrics.NEW_ELEMENT_COLLIDER_SIZE;
-    //
-    // 步骤 3: 在 AsciiLevelValidator.cs 中更新字符分类
-    //   - 实体元素加入 solidChars
-    //   - 空气元素加入 airChars
     //
     // 步骤 4: 在 LevelThemeProfile.cs 中添加主题插槽
     //   - 在 elementSprites 数组中添加新的 ElementSpriteMapping

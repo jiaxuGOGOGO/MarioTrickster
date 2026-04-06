@@ -2,16 +2,16 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// ASCII 关卡模板生成器 — 基于字典的字符解析系统
+/// ASCII 关卡模板生成器 — 基于 AsciiElementRegistry 的数据驱动字符解析系统
 /// 
 /// 核心设计:
-///   - 使用 Dictionary&lt;char, System.Action&lt;int, int&gt;&gt; 映射字符与生成逻辑
-///   - 绝对禁止 if-else / switch 硬编码，新增陷阱只需 charMap.Add() 一行
+///   - S46: 字符映射从 AsciiElementRegistry (ScriptableObject) 动态构建
+///   - 新增元素只需在 Registry 中 Add 一条记录 + 添加对应 Spawn 方法
 ///   - 所有生成的元素默认使用白盒（纯白/灰色方块），方便先测试逻辑
 ///   - 内置 2 个经典平台跳跃关卡模板（平原关卡 + 地下关卡）
 ///   - 生成结果挂载在统一的 Root GameObject 下，方便一键清除
 ///
-/// 字符映射表 (Character Map):
+/// 字符映射表 (Character Map) — 由 AsciiElementRegistry 定义:
 ///   '#' = 实心地面方块 (Ground Block)
 ///   '=' = 平台方块 (Platform, 可站立)
 ///   '.' = 空气 (Air, 不生成任何东西)
@@ -32,10 +32,16 @@ using System.Collections.Generic;
 ///   '>' = 移动平台 (MovingPlatform, 水平)
 ///   'W' = 墙壁方块 (Wall Block)
 ///
-/// 扩展方式:
-///   在 InitCharMap() 中添加一行: charMap['新字符'] = (x, y) => SpawnXxx(x, y);
+/// 扩展方式 (S46 Data-Driven):
+///   1. 在 AsciiElementRegistry 资产中添加新字符条目
+///   2. 在本文件 InitSpawnMap() 中注册: spawnMap["NewElement"] = SpawnNewElement;
+///   3. 在本文件底部添加 SpawnNewElement(int gridX, int gridY) 方法
+///   4. 在 PhysicsMetrics.cs 中定义碰撞体常量（如需要）
+///   5. 在 LevelThemeProfile.cs 的 elementSprites 中添加主题插槽
+///   6. 在 AI_PROMPT_WORKFLOW.md 中更新 ASCII 字符表
 ///
 /// Session 25: 关卡工坊新增
+/// Session 46: Data-Driven Registry 重构
 /// </summary>
 public static class AsciiLevelGenerator
 {
@@ -76,50 +82,90 @@ public static class AsciiLevelGenerator
     private static readonly Color COLOR_TRICKSTER = new Color(0.50f, 0.20f, 0.80f);   // 紫色
 
     // ═══════════════════════════════════════════════════
-    // 字符映射字典
+    // S46: 数据驱动字符映射
     // ═══════════════════════════════════════════════════
+    // charMap: ASCII 字符 → 生成委托（从 Registry + spawnMap 动态构建）
     private static Dictionary<char, System.Action<int, int>> charMap;
+    // spawnMap: 元素名称 → 生成委托（内部映射表，连接 Registry 条目与 Spawn 方法）
+    private static Dictionary<string, System.Action<int, int>> spawnMap;
     private static Transform rootTransform;
     private static int groundLayerIndex;
 
     /// <summary>
-    /// 初始化字符映射字典
-    /// 【扩展点】新增陷阱/元素时，按以下步骤操作：
-    ///   1. 在 PhysicsMetrics.cs 中定义碰撞体常量 (NEW_ELEMENT_COLLIDER_SIZE)
-    ///   2. 在本方法中 Add 一行字符映射: { 'X', SpawnNewElement }
-    ///   3. 在本文件底部添加 SpawnNewElement(int gridX, int gridY) 方法
-    ///      - 碰撞体必须引用 PhysicsMetrics 常量，禁止硬编码
-    ///   4. 在 AsciiLevelValidator.cs 的 solidChars 或 airChars 中注册新字符
-    ///   5. 在 LevelThemeProfile.cs 的 elementSprites 中添加主题插槽
-    ///   6. 在 AI_PROMPT_WORKFLOW.md 中更新 ASCII 字符表
+    /// S46: 初始化元素名称到 Spawn 方法的映射。
+    /// 新增元素时在此注册: spawnMap["NewElementName"] = SpawnNewElement;
+    /// </summary>
+    private static void InitSpawnMap()
+    {
+        spawnMap = new Dictionary<string, System.Action<int, int>>
+        {
+            { "Ground",             SpawnGround },
+            { "Platform",           SpawnPlatform },
+            { "Wall",               SpawnWall },
+            { "Air",                (x, y) => { } },  // 空气，不生成
+            { "Space",              (x, y) => { } },  // 空格也视为空气
+            { "MarioSpawn",         SpawnMarioSpawn },
+            { "TricksterSpawn",     SpawnTricksterSpawn },
+            { "GoalZone",           SpawnGoalZone },
+            { "SpikeTrap",          SpawnSpikeTrap },
+            { "FireTrap",           SpawnFireTrap },
+            { "PendulumTrap",       SpawnPendulumTrap },
+            { "BouncyPlatform",     SpawnBouncyPlatform },
+            { "CollapsingPlatform", SpawnCollapsingPlatform },
+            // [AI防坑警告] S44c: OneWayPlatform 不再逐字符生成。
+            // 连续的 '-' 会被 MergeAndSpawnOneWayPlatforms 合并为一个长条平台。
+            // 如果恢复逐字符生成，会导致 S+Space 下落失效（需要同时 IgnoreCollision 多个碰撞体）、
+            // 边缘掉落、物理抖动等一系列拼接问题。
+            { "OneWayPlatform",     (x, y) => { } },  // 占位：实际生成由合并逻辑处理
+            { "BouncingEnemy",      SpawnBouncingEnemy },
+            { "FakeWall",           SpawnFakeWall },
+            { "HiddenPassage",      SpawnHiddenPassage },
+            { "Collectible",        SpawnCollectible },
+            { "SimpleEnemy",        SpawnSimpleEnemy },
+            { "MovingPlatform",     SpawnMovingPlatform },
+        };
+    }
+
+    /// <summary>
+    /// S46: 从 AsciiElementRegistry 动态构建字符映射字典。
+    /// 替代原始的硬编码 InitCharMap()。
+    ///
+    /// 构建逻辑：
+    ///   1. 从 Registry 获取所有元素条目
+    ///   2. 通过 elementName 在 spawnMap 中查找对应的 Spawn 方法
+    ///   3. 将 asciiChar → Spawn 方法 的映射写入 charMap
+    ///   4. 未在 spawnMap 中注册的元素名会输出警告（提醒开发者添加 Spawn 方法）
     /// </summary>
     private static void InitCharMap()
     {
-        charMap = new Dictionary<char, System.Action<int, int>>
+        InitSpawnMap();
+
+        charMap = new Dictionary<char, System.Action<int, int>>();
+
+        AsciiElementRegistry registry = AsciiElementRegistry.GetDefault();
+        if (registry == null || registry.entries == null)
         {
-            { '#', SpawnGround },
-            { '=', SpawnPlatform },
-            { 'W', SpawnWall },
-            { '.', (x, y) => { } },  // 空气，不生成
-            { ' ', (x, y) => { } },  // 空格也视为空气
-            { 'M', SpawnMarioSpawn },
-            { 'T', SpawnTricksterSpawn },
-            { 'G', SpawnGoalZone },
-            { '^', SpawnSpikeTrap },
-            { '~', SpawnFireTrap },
-            { 'P', SpawnPendulumTrap },
-            { 'B', SpawnBouncyPlatform },
-            { 'C', SpawnCollapsingPlatform },
-            // S44c: '-' 不再逐字符生成，改为在解析循环中合并连续 '-' 为一个长条平台
-            // { '-', SpawnOneWayPlatform },  // 已移至 MergeAndSpawnOneWayPlatforms
-            { '-', (x, y) => { } },  // 占位：实际生成由合并逻辑处理
-            { 'E', SpawnBouncingEnemy },
-            { 'F', SpawnFakeWall },
-            { 'H', SpawnHiddenPassage },
-            { 'o', SpawnCollectible },
-            { 'e', SpawnSimpleEnemy },
-            { '>', SpawnMovingPlatform },
-        };
+            Debug.LogError("[AsciiLevelGen] AsciiElementRegistry is null! Using empty charMap.");
+            return;
+        }
+
+        foreach (var entry in registry.entries)
+        {
+            if (entry == null) continue;
+
+            if (spawnMap.TryGetValue(entry.elementName, out var spawnAction))
+            {
+                charMap[entry.asciiChar] = spawnAction;
+            }
+            else
+            {
+                Debug.LogWarning($"[AsciiLevelGen] No spawn method registered for " +
+                                 $"'{entry.elementName}' (char '{entry.asciiChar}'). " +
+                                 $"Add it to InitSpawnMap().");
+                // 未注册的元素默认不生成（空气行为）
+                charMap[entry.asciiChar] = (x, y) => { };
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════
@@ -274,7 +320,7 @@ public static class AsciiLevelGenerator
             "^ = Spike    ~ = Fire       P = Pendulum\n" +
             "B = Bouncy   C = Collapse   - = OneWay\n" +
             "E = BounceEnemy  e = SimpleEnemy\n" +
-            "F = FakeWall H = Passage    o = Coin\n" +
+            "F = FakeWall  H = HiddenPassage  o = Collectible\n" +
             "> = MovingPlatform";
     }
 

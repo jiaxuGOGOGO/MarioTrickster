@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 45 (Doc-as-Code 动态文档同步引擎 DocsAutomatorWindow) |
-| **日期** | 2026-04-06 |
+| **最新 Session** | Session 46 (Data-Driven Registry 关卡元素字典中心化解耦) |
+| **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S45 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S46 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S45 新增 `DocsAutomatorWindow.cs` 编辑器工具（菜单 MarioTrickster → Docs Automator）。功能1 Sync Docs：一键读取 PhysicsMetrics 常量刷新三个 MD 文档的物理数值。功能2 Copy Prompt：一键生成含最新物理常量+设计铁律的关卡系统提示词并复制到剪贴板。确认三个文档（Testing Guide / PHYSICS_METRICS_GUIDE / LevelStudio_DesignGuide）数值已在 S43b 中修正为正确值。新增 1 个文件。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S46 新增 `AsciiElementRegistry.cs` (ScriptableObject)，中心化管理 ASCII 字符到关卡元素的映射。重构 `AsciiLevelGenerator.cs`：用 Registry + spawnMap 替代硬编码 charMap 字典，保留所有 Spawn 方法和 S44c OneWayPlatform 合并逻辑。重构 `AsciiLevelValidator.cs`：用 Registry.GetSolidChars()/GetHazardChars() 替代硬编码 HashSet，保留所有 S35/S43 检查方法。更新 PhysicsMetrics.cs 扩展指南注释。新增 1 文件，修改 3 文件。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S46 Data-Driven Registry 关卡元素字典中心化解耦 (AsciiElementRegistry + Generator/Validator 重构) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S45 Doc-as-Code 动态文档同步引擎 (DocsAutomatorWindow: Sync Docs + Copy Prompt) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S44c OneWayPlatform 连续 '-' 合并为长条平台 + 提示词文档同步 | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S44b OneWayPlatform S+Space 下落修复 (多平台同时 IgnoreCollision) | ⏳ 代码已推送，待用户 Unity 验证 |

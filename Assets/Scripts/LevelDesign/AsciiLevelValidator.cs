@@ -13,6 +13,9 @@ using System.Text;
 ///   5. 输出详细的验证报告（警告/错误），帮助设计师快速定位问题
 ///   6. 支持片段模式 (isSnippet)：片段不要求 M/G，适用于局部挑战片段
 ///
+/// S46: solidChars/airChars/hazardChars 改为从 AsciiElementRegistry 动态获取，
+///      不再硬编码。新增元素只需在 Registry 中标记 IsSolid/IsHazard 即可。
+///
 /// 使用方式：
 ///   在 TestConsoleWindow 的 Build 按钮中调用 ValidateTemplate()，
 ///   生成前先验证，有错误时弹出警告但不阻止生成（设计师可能故意设计极限关卡）。
@@ -21,6 +24,7 @@ using System.Text;
 ///
 /// Session 32: 关卡度量转译系统
 /// Session 43: 修复间隙检测误报、增加片段模式、改进高台可达性检测
+/// Session 46: Data-Driven Registry 重构 — solidChars/airChars/hazardChars 从 Registry 动态获取
 /// </summary>
 public static class AsciiLevelValidator
 {
@@ -73,33 +77,28 @@ public static class AsciiLevelValidator
         }
     }
 
-    // 地面字符集（玩家可以站在上面的字符）
-    private static readonly HashSet<char> solidChars = new HashSet<char>
-    {
-        '#', // 地面
-        '=', // 平台
-        'W', // 墙壁
-        'B', // 弹跳平台
-        'C', // 崩塌平台
-        '-', // 单向平台
-        'F', // 伪装墙
-    };
+    // ═══════════════════════════════════════════════════
+    // S46: 从 AsciiElementRegistry 动态获取字符分类集合
+    // 替代原始的硬编码 HashSet<char>
+    // ═══════════════════════════════════════════════════
 
-    // 空气字符集（玩家可以通过的字符）
-    private static readonly HashSet<char> airChars = new HashSet<char>
+    /// <summary>
+    /// 获取实体字符集合（玩家可以站在上面的字符）。
+    /// S46: 从 AsciiElementRegistry 动态获取，不再硬编码。
+    /// </summary>
+    private static HashSet<char> GetSolidChars()
     {
-        '.', // 空白
-        'M', // Mario出生点
-        'G', // 终点
-        '^', // 地刺（空气中）
-        '~', // 火焰
-        'P', // 摆锤
-        'E', // 弹跳怪
-        'e', // 简单敌人
-        'o', // 收集物
-        'H', // 隐藏通道
-        '>', // 移动平台
-    };
+        return AsciiElementRegistry.GetDefault().GetSolidChars();
+    }
+
+    /// <summary>
+    /// 获取危险字符集合（对玩家造成伤害的元素）。
+    /// S46: 从 AsciiElementRegistry 动态获取，不再硬编码。
+    /// </summary>
+    private static HashSet<char> GetHazardChars()
+    {
+        return AsciiElementRegistry.GetDefault().GetHazardChars();
+    }
 
     /// <summary>
     /// 验证 ASCII 模板的物理可行性（完整关卡模式）
@@ -130,6 +129,10 @@ public static class AsciiLevelValidator
             result.errors.Add("Template is empty!");
             return result;
         }
+
+        // S46: 从 Registry 获取字符分类集合（每次验证时刷新，确保与 Registry 同步）
+        HashSet<char> solidChars = GetSolidChars();
+        HashSet<char> hazardChars = GetHazardChars();
 
         string[] lines = template.Split('\n');
         int height = lines.Length;
@@ -187,7 +190,7 @@ public static class AsciiLevelValidator
             else
             {
                 // 检查 Mario 脚下是否有地面
-                if (marioY > 0 && !IsSolid(grid, marioX, marioY - 1, maxWidth, height))
+                if (marioY > 0 && !IsSolid(grid, marioX, marioY - 1, maxWidth, height, solidChars))
                 {
                     result.warnings.Add($"Mario spawn (M) at ({marioX},{marioY}) has no ground below! Mario will fall.");
                 }
@@ -217,27 +220,27 @@ public static class AsciiLevelValidator
         // 关键地面层定义：该行有实体块，且实体块上方可站立（不被实体覆盖），
         // 且间隙上方在跳跃高度范围内没有替代通路（桥梁/平台）。
         // 这避免了对非地面行（如纯装饰行、高空行）的间隙误报。
-        CheckGroundGaps(grid, maxWidth, height, result);
+        CheckGroundGaps(grid, maxWidth, height, solidChars, result);
 
         // ── 检查 4: 垂直高台扫描（改进版）──
         // S43 改进: 检查周围水平范围内是否有可跳达的平台，
         // 而非只看正下方的垂直距离。
-        CheckHighPlatforms(grid, maxWidth, height, result);
+        CheckHighPlatforms(grid, maxWidth, height, solidChars, result);
 
         // ── 检查 5: S35 出生点安全距离 ──
         // 业界参考: Celeste 每个 checkpoint 周围无危险物，给玩家安全起步空间
         if (!isSnippet)
         {
-            CheckSpawnSafety(grid, maxWidth, height, marioX, marioY, result);
+            CheckSpawnSafety(grid, maxWidth, height, marioX, marioY, hazardChars, result);
         }
 
         // ── 检查 6: S35 弹跳平台上方安全净空 ──
         // 业界参考: SMW 弹跳垫上方始终留出完整弹跳弧线空间
-        CheckBounceClearance(grid, maxWidth, height, result);
+        CheckBounceClearance(grid, maxWidth, height, solidChars, hazardChars, result);
 
         // ── 检查 7: S35 陷阱着陆缓冲 ──
         // 业界参考: Dylan Wolf 程序化生成中陷阱必须指向至少一个空tile
-        CheckHazardLandingBuffer(grid, maxWidth, height, result);
+        CheckHazardLandingBuffer(grid, maxWidth, height, solidChars, result);
 
         // ── 检查 8: 关卡尺寸信息 ──
         result.info.Add($"Level size: {maxWidth} x {height} (W x H)");
@@ -263,7 +266,8 @@ public static class AsciiLevelValidator
     ///    则该间隙不是真正的死路（玩家可以走上面的桥）
     /// 3. 避免对纯空气行、装饰行的间隙误报
     /// </summary>
-    private static void CheckGroundGaps(char[,] grid, int width, int height, ValidationResult result)
+    private static void CheckGroundGaps(char[,] grid, int width, int height,
+        HashSet<char> solidChars, ValidationResult result)
     {
         // 收集所有"可行走表面行"：该行至少有一个实体块，且该实体块上方为空气
         for (int y = 0; y < height; y++)
@@ -271,8 +275,8 @@ public static class AsciiLevelValidator
             bool hasWalkableSurface = false;
             for (int x = 0; x < width; x++)
             {
-                if (IsSolid(grid, x, y, width, height) &&
-                    !IsSolid(grid, x, y + 1, width, height))
+                if (IsSolid(grid, x, y, width, height, solidChars) &&
+                    !IsSolid(grid, x, y + 1, width, height, solidChars))
                 {
                     hasWalkableSurface = true;
                     break;
@@ -286,12 +290,12 @@ public static class AsciiLevelValidator
 
             for (int x = 0; x < width; x++)
             {
-                bool solid = IsSolid(grid, x, y, width, height);
+                bool solid = IsSolid(grid, x, y, width, height, solidChars);
 
                 if (!solid && !inGap)
                 {
                     // 间隙开始：只有当左边有实体时才算间隙（排除关卡边缘）
-                    if (x > 0 && IsSolid(grid, x - 1, y, width, height))
+                    if (x > 0 && IsSolid(grid, x - 1, y, width, height, solidChars))
                     {
                         inGap = true;
                         gapStart = x;
@@ -302,7 +306,7 @@ public static class AsciiLevelValidator
                     // 间隙结束
                     int gapWidth = x - gapStart;
                     // S43: 检查间隙上方是否有替代通路
-                    if (!HasBridgeAbove(grid, gapStart, x - 1, y, width, height))
+                    if (!HasBridgeAbove(grid, gapStart, x - 1, y, width, height, solidChars))
                     {
                         CheckGap(gapWidth, gapStart, y, result);
                     }
@@ -318,9 +322,9 @@ public static class AsciiLevelValidator
     /// 则玩家可以走上面的桥，该间隙不是死路。
     /// </summary>
     private static bool HasBridgeAbove(char[,] grid, int gapStartX, int gapEndX, int gapY,
-        int width, int height)
+        int width, int height, HashSet<char> solidChars)
     {
-        // 在间隙上方 1 到 MAX_JUMP_HEIGHT 范围内查找桥梁
+        // 在间隙上方 1 到 MAX_JUMP_HEIGHT 范围内搜索
         int maxCheckHeight = Mathf.CeilToInt(PhysicsMetrics.MAX_JUMP_HEIGHT);
         for (int dy = 1; dy <= maxCheckHeight; dy++)
         {
@@ -331,7 +335,7 @@ public static class AsciiLevelValidator
             bool fullBridge = true;
             for (int x = gapStartX; x <= gapEndX; x++)
             {
-                if (!IsSolid(grid, x, checkY, width, height))
+                if (!IsSolid(grid, x, checkY, width, height, solidChars))
                 {
                     fullBridge = false;
                     break;
@@ -341,7 +345,7 @@ public static class AsciiLevelValidator
 
             // S43: 也检查是否有足够密集的平台序列可以跳跃通过
             // （不要求完全连续，但间隙内的子间隙不超过安全跳跃距离）
-            bool hasSteppingPath = CheckSteppingPath(grid, gapStartX, gapEndX, checkY, width, height);
+            bool hasSteppingPath = CheckSteppingPath(grid, gapStartX, gapEndX, checkY, width, height, solidChars);
             if (hasSteppingPath) return true;
         }
         return false;
@@ -352,21 +356,21 @@ public static class AsciiLevelValidator
     /// 即：间隙范围内的实体块之间的子间隙都不超过安全跳跃距离。
     /// </summary>
     private static bool CheckSteppingPath(char[,] grid, int startX, int endX, int y,
-        int width, int height)
+        int width, int height, HashSet<char> solidChars)
     {
         // 从间隙左侧开始，检查是否能通过平台序列到达右侧
         // 需要左侧入口和右侧出口都有实体可站立
-        bool hasLeftEntry = IsSolid(grid, startX - 1, y, width, height) ||
-                           IsSolid(grid, startX, y, width, height);
-        bool hasRightExit = IsSolid(grid, endX + 1, y, width, height) ||
-                           IsSolid(grid, endX, y, width, height);
+        bool hasLeftEntry = IsSolid(grid, startX - 1, y, width, height, solidChars) ||
+                           IsSolid(grid, startX, y, width, height, solidChars);
+        bool hasRightExit = IsSolid(grid, endX + 1, y, width, height, solidChars) ||
+                           IsSolid(grid, endX, y, width, height, solidChars);
         if (!hasLeftEntry || !hasRightExit) return false;
 
         // 检查间隙范围内的子间隙
         int subGapWidth = 0;
         for (int x = startX; x <= endX; x++)
         {
-            if (IsSolid(grid, x, y, width, height))
+            if (IsSolid(grid, x, y, width, height, solidChars))
             {
                 subGapWidth = 0;
             }
@@ -393,21 +397,22 @@ public static class AsciiLevelValidator
     /// 3. 如果垂直距离超过安全高度，检查水平范围内是否有可跳达的中间平台
     /// 4. 水平搜索范围 = MAX_JUMP_DISTANCE（而非仅 ASCII_MAX_GAP）
     /// </summary>
-    private static void CheckHighPlatforms(char[,] grid, int width, int height, ValidationResult result)
+    private static void CheckHighPlatforms(char[,] grid, int width, int height,
+        HashSet<char> solidChars, ValidationResult result)
     {
         for (int x = 0; x < width; x++)
         {
             for (int y = 1; y < height; y++)
             {
                 // 找到一个实体块，检查它是否是可站立表面
-                if (!IsSolid(grid, x, y, width, height)) continue;
-                if (y + 1 < height && IsSolid(grid, x, y + 1, width, height)) continue; // 上方被覆盖，不是表面
+                if (!IsSolid(grid, x, y, width, height, solidChars)) continue;
+                if (y + 1 < height && IsSolid(grid, x, y + 1, width, height, solidChars)) continue; // 上方被覆盖，不是表面
 
                 // 向下查找最近的地面
                 int dropHeight = 0;
                 for (int checkY = y - 1; checkY >= 0; checkY--)
                 {
-                    if (IsSolid(grid, x, checkY, width, height))
+                    if (IsSolid(grid, x, checkY, width, height, solidChars))
                         break;
                     dropHeight++;
                 }
@@ -431,8 +436,8 @@ public static class AsciiLevelValidator
                     for (int checkY = Mathf.Max(0, y - Mathf.CeilToInt(PhysicsMetrics.MAX_JUMP_HEIGHT));
                          checkY <= y; checkY++)
                     {
-                        if (IsSolid(grid, checkX, checkY, width, height) &&
-                            (checkY + 1 >= height || !IsSolid(grid, checkX, checkY + 1, width, height)))
+                        if (IsSolid(grid, checkX, checkY, width, height, solidChars) &&
+                            (checkY + 1 >= height || !IsSolid(grid, checkX, checkY + 1, width, height, solidChars)))
                         {
                             // 找到一个可站立的平台，检查是否物理可达
                             int heightDiff = y - checkY; // 需要跳的高度
@@ -452,8 +457,8 @@ public static class AsciiLevelValidator
                         for (int checkY = y; checkY <= Mathf.Min(height - 1, y + Mathf.CeilToInt(PhysicsMetrics.MAX_JUMP_HEIGHT));
                              checkY++)
                         {
-                            if (IsSolid(grid, checkX, checkY, width, height) &&
-                                (checkY + 1 >= height || !IsSolid(grid, checkX, checkY + 1, width, height)))
+                            if (IsSolid(grid, checkX, checkY, width, height, solidChars) &&
+                                (checkY + 1 >= height || !IsSolid(grid, checkX, checkY + 1, width, height, solidChars)))
                             {
                                 // 从高处跳下来，高度差为负（向下跳更容易）
                                 int heightDiff = y - checkY; // 负值 = 向下跳
@@ -513,8 +518,11 @@ public static class AsciiLevelValidator
         }
     }
 
-    /// <summary>检查指定位置是否为实体</summary>
-    private static bool IsSolid(char[,] grid, int x, int y, int width, int height)
+    /// <summary>
+    /// S46: 检查指定位置是否为实体（从 Registry 驱动的 solidChars 集合判断）
+    /// </summary>
+    private static bool IsSolid(char[,] grid, int x, int y, int width, int height,
+        HashSet<char> solidChars)
     {
         if (x < 0 || x >= width || y < 0 || y >= height) return false;
         return solidChars.Contains(grid[x, y]);
@@ -529,16 +537,11 @@ public static class AsciiLevelValidator
     //   - sgalban/platformer-gen-2D: 每个节奏组之间有 rest area
     // ═══════════════════════════════════════════════════
 
-    // 危险字符集（对玩家造成伤害的元素）
-    private static readonly HashSet<char> hazardChars = new HashSet<char>
-    {
-        '^', // 地刺
-        '~', // 火焰
-        'P', // 摆锤
-    };
-
-    /// <summary>检查指定位置是否为危险物</summary>
-    private static bool IsHazard(char[,] grid, int x, int y, int width, int height)
+    /// <summary>
+    /// S46: 检查指定位置是否为危险物（从 Registry 驱动的 hazardChars 集合判断）
+    /// </summary>
+    private static bool IsHazard(char[,] grid, int x, int y, int width, int height,
+        HashSet<char> hazardChars)
     {
         if (x < 0 || x >= width || y < 0 || y >= height) return false;
         return hazardChars.Contains(grid[x, y]);
@@ -550,7 +553,7 @@ public static class AsciiLevelValidator
     /// </summary>
     private static void CheckSpawnSafety(
         char[,] grid, int width, int height,
-        int marioX, int marioY, ValidationResult result)
+        int marioX, int marioY, HashSet<char> hazardChars, ValidationResult result)
     {
         if (marioX < 0) return; // 无 Mario 出生点，已在检查 1 报错
 
@@ -594,7 +597,7 @@ public static class AsciiLevelValidator
             {
                 int cx = marioX + ddx;
                 int cy = marioY + ddy;
-                if (IsHazard(grid, cx, cy, width, height))
+                if (IsHazard(grid, cx, cy, width, height, hazardChars))
                 {
                     result.warnings.Add(
                         $"Hazard '{grid[cx, cy]}' at ({cx},{cy}) is within spawn safe radius " +
@@ -610,7 +613,8 @@ public static class AsciiLevelValidator
     /// 扫描所有 B 字符，检查上方 BOUNCE_CLEARANCE 格内是否有危险物或实体阻挡。
     /// </summary>
     private static void CheckBounceClearance(
-        char[,] grid, int width, int height, ValidationResult result)
+        char[,] grid, int width, int height,
+        HashSet<char> solidChars, HashSet<char> hazardChars, ValidationResult result)
     {
         int clearance = PhysicsMetrics.BOUNCE_CLEARANCE;
 
@@ -654,7 +658,8 @@ public static class AsciiLevelValidator
     /// 当陷阱直接相邻平台边缘时，玩家着陆后无法避开伤害。
     /// </summary>
     private static void CheckHazardLandingBuffer(
-        char[,] grid, int width, int height, ValidationResult result)
+        char[,] grid, int width, int height,
+        HashSet<char> solidChars, ValidationResult result)
     {
         int buffer = PhysicsMetrics.HAZARD_LANDING_BUFFER;
 
@@ -673,8 +678,8 @@ public static class AsciiLevelValidator
                     int checkX = x - bx;
                     if (checkX < 0) break;
                     // 如果缓冲区内是实体且上方可站立，说明是平台边缘
-                    if (IsSolid(grid, checkX, y, width, height) &&
-                        !IsSolid(grid, checkX, y + 1, width, height))
+                    if (IsSolid(grid, checkX, y, width, height, solidChars) &&
+                        !IsSolid(grid, checkX, y + 1, width, height, solidChars))
                     {
                         leftPlatformEdge = true;
                         break;
@@ -687,8 +692,8 @@ public static class AsciiLevelValidator
                 {
                     int checkX = x + bx;
                     if (checkX >= width) break;
-                    if (IsSolid(grid, checkX, y, width, height) &&
-                        !IsSolid(grid, checkX, y + 1, width, height))
+                    if (IsSolid(grid, checkX, y, width, height, solidChars) &&
+                        !IsSolid(grid, checkX, y + 1, width, height, solidChars))
                     {
                         rightPlatformEdge = true;
                         break;

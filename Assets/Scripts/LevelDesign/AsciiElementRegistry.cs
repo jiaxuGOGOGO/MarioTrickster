@@ -8,16 +8,21 @@ using System.Collections.Generic;
 /// 取代 AsciiLevelGenerator.InitCharMap() 中的硬编码字典
 /// 和 AsciiLevelValidator 中的硬编码 solidChars/airChars/hazardChars。
 ///
+/// [AI防坑警告] 本项目采用纯白盒生成模式，所有关卡元素由 AsciiLevelGenerator 的
+/// Spawn 方法用 new GameObject + SpriteRenderer + BoxCollider2D 动态创建，
+/// 不依赖任何 Prefab。Registry 的职责是提供字符分类元数据（IsSolid/IsHazard/JumpBoost），
+/// 不是 Prefab 仓库。Inspector 中无需拖入任何 Prefab。
+///
 /// 设计原则:
-///   - ScriptableObject 资产，可在 Inspector 中可视化编辑
-///   - 每个元素定义包含：ASCII字符、元素名、Prefab（可选）、物理属性标记
+///   - ScriptableObject 资产，可在 Inspector 中可视化编辑字符分类
+///   - 每个元素定义包含：ASCII字符、元素名、物理属性标记（IsSolid/IsHazard/JumpBoost）
 ///   - 提供静态默认实例 + 运行时查询 API，供 Generator 和 Validator 使用
 ///   - 新增元素只需在 Inspector 中 Add 一条记录，无需改代码
 ///   - 向后兼容：无 Registry 资产时自动使用内置默认定义
 ///
 /// 扩展方式:
 ///   1. Project 面板右键 → Create → MarioTrickster → Ascii Element Registry
-///   2. 在 Inspector 中添加新元素条目
+///   2. 在 Inspector 中添加新元素条目（设置字符、名称、IsSolid/IsHazard/JumpBoost）
 ///   3. AsciiLevelGenerator 和 AsciiLevelValidator 自动识别新字符
 /// </summary>
 [CreateAssetMenu(fileName = "AsciiElementRegistry", menuName = "MarioTrickster/Ascii Element Registry", order = 101)]
@@ -29,7 +34,8 @@ public class AsciiElementRegistry : ScriptableObject
 
     [Header("=== ASCII 元素定义列表 ===")]
     [Tooltip("所有 ASCII 字符到关卡元素的映射。\n" +
-             "新增元素只需 Add 一条记录，Generator 和 Validator 自动识别。")]
+             "新增元素只需 Add 一条记录，Generator 和 Validator 自动识别。\n" +
+             "ℹ️ 本项目采用白盒生成模式，无需配置 Prefab。")]
     public AsciiElementEntry[] entries;
 
     // ═══════════════════════════════════════════════════
@@ -212,6 +218,9 @@ public class AsciiElementRegistry : ScriptableObject
 
 /// <summary>
 /// ASCII 元素条目 — 单个字符到关卡元素的映射定义
+///
+/// [AI防坑警告] 本项目不使用 Prefab，所有元素由 AsciiLevelGenerator 的 Spawn 方法
+/// 用 new GameObject 白盒生成。此数据结构仅提供字符分类元数据，不要添加 Prefab 字段。
 /// </summary>
 [System.Serializable]
 public class AsciiElementEntry
@@ -219,11 +228,8 @@ public class AsciiElementEntry
     [Tooltip("ASCII 字符（在模板中使用的单个字符）")]
     public char asciiChar;
 
-    [Tooltip("元素名称（与 GameObject 命名前缀一致，如 Ground, SpikeTrap, BouncingEnemy）")]
+    [Tooltip("元素名称（与 Generator 中 SpawnMap 的 key 一致，如 Ground, SpikeTrap, BouncingEnemy）")]
     public string elementName = "";
-
-    [Tooltip("可选的 Prefab 引用（null = 使用白盒生成）")]
-    public GameObject prefab;
 
     [Tooltip("是否为实体（玩家可站立：地面、平台、墙壁等）")]
     public bool isSolid;

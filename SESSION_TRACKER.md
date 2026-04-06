@@ -84,7 +84,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ✅ S37 修改 18 个文件，+217/-79 行，待用户 Unity 验证 |
+| **编译状态** | ✅ S37 编译通过，EditMode 109/109 自动化测试全通过 |
 | **阻塞** | 无 |
 | **交接说明** | S37 视碰分离架构重构。所有角色/机关的 SpriteRenderer 迁移到 Visual 子节点，根物体 localScale 永远锁定 (1,1,1)。形变动画操作 visualTransform.localScale，转向死守 spriteRenderer.flipX。DisguiseSystem 伪装时同步修改 BoxCollider2D.size + visualTransform.localScale。AsciiLevelGenerator/TestConsoleWindow/TestSceneBuilder 均已适配 Visual 子节点创建。接班 AI 请先 `git log --oneline -n 5`。 |
 
@@ -115,17 +115,17 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | Clear + Build 后标签正常，S35 布局安全 + S36 弹跳手感 |
-| ✅ | EditMode 自动化 | 59/59 通过 |
+| ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
 | ✅ | PlayMode 自动化 | 21/21 通过 |
 
 ---
 
 ## 3. 自动化测试（安全网）
 
-- **EditMode**: 59 个（结构/静态逻辑验证）
+- **EditMode**: 109 个（结构/静态逻辑验证，S37 全量通过）
 - **PlayMode**: 21 个（运行时行为验证）
 - **运行方式**: `MarioTrickster → Run Tests → Export Full Report (All)` 导出到 `TestReport.txt`
-- **总计 114 个测试**（含 34 个 Prefab/资源检查）作为防回归兜底
+- **总计 130 个测试**（EditMode 109 + PlayMode 21）作为防回归兖底
 
 ---
 
@@ -135,7 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **紧急** | S37 视碰分离架构重构（Root→Visual 父子层级，18 文件） | ✅ 代码已推送，待用户 Unity 验证 |
+| **紧急** | S37 视碰分离架构重构（Root→Visual 父子层级，18 文件） | ✅ 自动化测试 109/109 通过，待手动 PlayMode 验证 |
 | **紧急** | S36 弹跳平台 Game Feel 增强（平台动画+角色形变+半重力顶点） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S35 关卡布局安全性修复（模板+片段+验证器） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S33 Level Builder ↔ Teleport/Cheats 联动 + 动态锚点系统 | ✅ 代码已推送，待用户 Unity 验证 |

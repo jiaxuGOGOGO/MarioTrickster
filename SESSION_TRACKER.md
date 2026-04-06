@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 41 (LevelEditorPickingManager v3 + OneWayPlatform 下落修复) |
+| **最新 Session** | Session 43 (关卡生成验证系统全面修复) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S41 全部代码已推送（含 PhysicsMetrics 终极校准），待用户 Unity 验证 |
+| **编译状态** | ⏳ S43 全部代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S41 包含三部分：(1) LevelEditorPickingManager v3 — Selection 后处理策略，框选 Visual 自动替换为 Root，支持 Root/Visual 模式切换（Test Console Toggle）。(2) OneWayPlatform S+Space 下落修复 — Physics2D.IgnoreCollision 定向忽略碰撞（终极方案）。(3) PhysicsMetrics 终极校准 — 修复 S37 前双重缩放畸变遗留，平台类 1x1 网格对齐，摆锤/收集物校准。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S43 全面审视并修复关卡生成验证系统。问题根源：(1) 验证器间隙检测逐行扫描所有行导致大量误报 (2) 片段(snippet)被强制要求M/G (3) 内置模板有空格字符和行宽不一致 (4) 提示词物理约束与代码不一致(说3格实际2.5格) (5) 部分片段间距超物理极限。修复6个文件：AsciiLevelValidator(重写间隙检测+片段模式)、AsciiLevelGenerator(模板修复+isSnippet重载)、TestConsoleWindow(片段传参)、LevelSnippetLibrary(间距修复)、AI_PROMPT_WORKFLOW.md+ASCII_Templates.md(物理约束修正)。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -114,7 +114,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
-| 🔄 | 场景生成 | Clear + Build 后标签正常，S35 布局安全 + S36 弹跳手感 |
+| 🔄 | 场景生成 | Clear + Build 后标签正常，S43 验证器修复 + S35 布局安全 + S36 弹跳手感 |
 | ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
 | ✅ | PlayMode 自动化 | 21/21 通过 |
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S43 关卡生成验证系统全面修复（验证器重写+模板修复+提示词修正） | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S39 方案 C 弹跳平台重构（按键驱动大跳+状态机锁+Kinematic Freeze+微抬坐标） | ⏳ 代码已推送，待用户 Unity 验证 |
 | **普通** | LEVEL_DESIGN_SYSTEM.md 新增关卡参数调整入口导航章节 | ✅ 已完成并推送 |
 | **紧急** | S41 LevelEditorPickingManager v3 + OneWayPlatform IgnoreCollision + PhysicsMetrics 终极校准 | ⏳ 代码已推送，待用户 Unity 验证 |

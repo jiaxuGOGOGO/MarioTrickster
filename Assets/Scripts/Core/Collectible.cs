@@ -6,6 +6,7 @@
 /// 使用方式: 挂载到金币/道具GameObject上，需要Collider2D(isTrigger=true)
 /// </summary>
 [RequireComponent(typeof(Collider2D))]
+[SelectionBase] // S37 视碰分离: 确保框选时选中 Root 而非 Visual 子节点
 public class Collectible : MonoBehaviour
 {
     public enum CollectibleType

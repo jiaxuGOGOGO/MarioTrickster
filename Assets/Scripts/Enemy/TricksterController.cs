@@ -26,6 +26,7 @@ using UnityEngine;
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
+[SelectionBase] // S37 视碰分离: 确保框选时选中 Root 而非 Visual 子节点
 public class TricksterController : MonoBehaviour
 {
     // ── 移动 ──────────────────────────────────────────────

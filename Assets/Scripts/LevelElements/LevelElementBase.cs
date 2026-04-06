@@ -22,6 +22,9 @@ using UnityEngine;
 /// 
 /// Session 15: 关卡设计系统框架新增
 /// </summary>
+// [SelectionBase] 确保 Scene 视图中点击/框选时优先选中 Root 母体，
+// 而不是 Visual 子节点（因为 SpriteRenderer 在 Visual 上，Unity 默认选中有渲染组件的子物体）。
+[SelectionBase]
 public abstract class LevelElementBase : MonoBehaviour
 {
     [Header("=== 关卡元素基础信息 ===")]

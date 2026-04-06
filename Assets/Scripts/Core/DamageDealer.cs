@@ -14,6 +14,7 @@ using UnityEngine;
 ///   - 击退方向改为 Mario 移动方向的反方向后退，避免反复二次伤害
 /// </summary>
 [RequireComponent(typeof(Collider2D))]
+[SelectionBase] // S37 视碰分离: 确保框选时选中 Root 而非 Visual 子节点
 public class DamageDealer : MonoBehaviour
 {
     [Header("=== 伤害设置 ===")]

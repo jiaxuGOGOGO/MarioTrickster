@@ -5,6 +5,7 @@
 /// 功能: Mario从下方顶撞时触发效果（掉落物品/破碎）
 /// 使用方式: 挂载到砖块GameObject上，需要BoxCollider2D
 /// </summary>
+[SelectionBase] // S37 视碰分离: 确保框选时选中 Root 而非 Visual 子节点
 public class Breakable : MonoBehaviour
 {
     public enum BlockType

@@ -17,6 +17,9 @@ using UnityEngine;
 ///   - 新增 GetTransform() 供连线系统使用
 ///   - 高亮效果：被锁定时 Sprite 颜色微红 + 轻微缩放脉冲
 /// </summary>
+// [SelectionBase] 确保 Scene 视图中点击/框选时优先选中 Root 母体，
+// 而不是 Visual 子节点（S37 视碰分离架构）。
+[SelectionBase]
 public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
 {
     [Header("=== 操控配置 ===")]

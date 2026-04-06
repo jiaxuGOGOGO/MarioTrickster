@@ -203,7 +203,7 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 | 功能模块 | 操作 | 预期结果 |
 |----------|------|----------|
 | **ASCII 模板生成** | 在 Level Builder Tab 的文本框中输入模板（或从 Snippet Library 追加），点击 `Build From Text` | 场景中生成对应关卡，且**自动补全可玩环境**（Mario、Trickster、GameManager 等），可直接按 Play 游玩。 |
-| **物理验证器** | 输入一个包含超过 4 格宽间隙或 3 格高平台的 ASCII 模板并 Build | Console 输出 `AsciiLevelValidator` 的警告/错误信息，但不阻止生成。 |
+| **物理验证器** | 输入一个包含超过 4 格宽间雙或超过 2.5 格高平台的 ASCII 模板并 Build | Console 输出 `AsciiLevelValidator` 的警告/错误信息，但不阻止生成。 |
 | **跳跃抛物线** | 在 Scene 视图中选中 Mario | 实时显示绿色（最高跳）、蓝色（极限远跳）、黄色（短跳）抛物线及网格刻度，无需运行游戏。 |
 | **半重力跳跃顶点** | 运行游戏，长按跳跃键 | Mario 在跳跃最高点附近时，重力减半，滞空时间略微延长，弧线更平缓。 |
 | **动态锚点传送** | 切换到 Teleport Tab，展开 `Dynamic Anchors` | 自动列出当前场景中的 SpawnPoint、GoalZone、Trap、Enemy 等兴趣点。点击 `[F]` 可在 Scene 视图聚焦，点击按钮可传送。 |

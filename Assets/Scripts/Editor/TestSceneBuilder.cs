@@ -714,6 +714,9 @@ public class TestSceneBuilder : Editor
         // 标记场景为已修改
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
 
+        // S41: 生成完毕后主动同步 Picking 状态
+        LevelEditorPickingManager.SyncState();
+
         Debug.Log("[TestSceneBuilder] ✅ 闯关测试场景生成完成！\n" +
                   "  Stage 1: Mario 基础移动与跳跃\n" +
                   "  Stage 2: Trickster 基础移动\n" +

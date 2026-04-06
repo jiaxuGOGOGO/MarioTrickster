@@ -185,6 +185,12 @@ public static class AsciiLevelGenerator
         }
 
         Debug.Log($"[AsciiLevelGen] Level generated: {root.transform.childCount} objects from {height} rows.");
+
+        // S41: 生成完毕后主动同步 Picking 状态，一次上锁，零性能损耗
+#if UNITY_EDITOR
+        LevelEditorPickingManager.SyncState();
+#endif
+
         return root;
     }
 
@@ -683,6 +689,11 @@ public static class AsciiLevelGenerator
         }
 
         Debug.Log($"[AsciiLevelGen] Theme '{theme.themeName}' applied: {replacedCount} sprites replaced.");
+
+        // S41: 换肤后重新同步 Picking 状态（换肤可能新增 SpriteAutoFit 等组件）
+#if UNITY_EDITOR
+        LevelEditorPickingManager.SyncState();
+#endif
     }
 
     /// <summary>

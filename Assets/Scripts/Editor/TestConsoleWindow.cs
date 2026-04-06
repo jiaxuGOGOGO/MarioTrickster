@@ -198,6 +198,29 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(4);
 
+        // ── S41: Picking Mode Toggle ──
+        // Root 模式(默认): 框选只选 Root，Visual 不可拾取，适合批量移动/旋转
+        // Visual 模式: 框选可选到 Visual，适合单独调整视觉大小
+        EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
+        EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+        bool isRootMode = LevelEditorPickingManager.IsRootMode;
+        GUILayout.Label("Picking:", GUILayout.Width(50));
+        GUI.color = isRootMode ? new Color(0.4f, 0.9f, 0.4f) : Color.white;
+        if (GUILayout.Toggle(isRootMode, "Root (移动/旋转)", EditorStyles.toolbarButton) && !isRootMode)
+        {
+            LevelEditorPickingManager.SetMode(true);
+        }
+        GUI.color = !isRootMode ? new Color(0.5f, 0.8f, 1f) : Color.white;
+        if (GUILayout.Toggle(!isRootMode, "Visual (调大小)", EditorStyles.toolbarButton) && isRootMode)
+        {
+            LevelEditorPickingManager.SetMode(false);
+        }
+        GUI.color = Color.white;
+        EditorGUILayout.EndHorizontal();
+        EditorGUI.EndDisabledGroup();
+
+        EditorGUILayout.Space(4);
+
         // Tab 选择
         selectedTab = GUILayout.Toolbar(selectedTab, tabNames, GUILayout.Height(28));
 
@@ -1741,6 +1764,9 @@ public class TestConsoleWindow : EditorWindow
         }
 
         Debug.Log($"[TestConsole] ✅ Playable environment ready! Mario at {mario.transform.position}, bounds: X[{boundMinX},{boundMaxX}] Y[{boundMinY},{boundMaxY}]");
+
+        // S41: 补全环境后同步 Picking 状态（Mario/Trickster 的 Visual 子节点在此方法中创建）
+        LevelEditorPickingManager.SyncState();
     }
 
     // ═══════════════════════════════════════════════════

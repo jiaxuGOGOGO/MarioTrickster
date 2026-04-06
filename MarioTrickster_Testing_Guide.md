@@ -1,7 +1,7 @@
 # MarioTrickster 测试指南
 
-> 本文档覆盖六部内容：手动 Play 测试、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明、**回归影响矩阵与修复流程**、**工具集使用指南**。
-> 更新时间：2026-04-05 (Session 25)
+> 本文档覆盖七部内容：手动 Play 测试、自动化 Test Runner 测试、伪装系统 Sprite 配置指引、调试信息说明、**回归影响矩阵与修复流程**、**工具集使用指南**、**用户反馈模板**。
+> 更新时间：2026-04-06 (Session 34)
 
 ---
 
@@ -196,6 +196,26 @@ TestSceneBuilder 生成的 Trickster 已经挂载了 `DisguiseSystem`，但 **Av
 
 **前置条件**：使用 `MarioTrickster → Build Test Scene` 重新生成测试场景，场景中会自动包含所有 9 种新关卡元素。
 
+### 测试 10：Level Studio 关卡工坊与动态锚点 (S26b-S33 新增) ⬜ 待测试
+
+**前置条件**：打开 `MarioTrickster → Test Console` (Ctrl+T)。
+
+| 功能模块 | 操作 | 预期结果 |
+|----------|------|----------|
+| **ASCII 模板生成** | 在 Level Builder Tab 的文本框中输入模板（或从 Snippet Library 追加），点击 `Build From Text` | 场景中生成对应关卡，且**自动补全可玩环境**（Mario、Trickster、GameManager 等），可直接按 Play 游玩。 |
+| **物理验证器** | 输入一个包含超过 4 格宽间隙或 3 格高平台的 ASCII 模板并 Build | Console 输出 `AsciiLevelValidator` 的警告/错误信息，但不阻止生成。 |
+| **跳跃抛物线** | 在 Scene 视图中选中 Mario | 实时显示绿色（最高跳）、蓝色（极限远跳）、黄色（短跳）抛物线及网格刻度，无需运行游戏。 |
+| **半重力跳跃顶点** | 运行游戏，长按跳跃键 | Mario 在跳跃最高点附近时，重力减半，滞空时间略微延长，弧线更平缓。 |
+| **动态锚点传送** | 切换到 Teleport Tab，展开 `Dynamic Anchors` | 自动列出当前场景中的 SpawnPoint、GoalZone、Trap、Enemy 等兴趣点。点击 `[F]` 可在 Scene 视图聚焦，点击按钮可传送。 |
+| **Cheats 缺失检测** | 在空场景中打开 Cheats Tab | 所有作弊选项置灰，提示缺少组件，并显示 `Auto-Fix: Inject Playable Environment` 按钮。点击后自动修复并可用。 |
+| **主题换肤** | 创建 `Level Theme Profile`，配置 Sprite，拖入 Level Builder 的 Theme 槽位并点击 Apply | 场景中的白盒元素被替换为配置的 Sprite，碰撞体大小保持不变（视碰分离）。 |
+
+**通过标准**：ASCII 生成的关卡可直接 Play；抛物线在 Scene 视图正确显示；动态锚点能扫描到场景元素；Cheats 缺失检测和 Auto-Fix 正常工作；主题换肤不影响碰撞体。
+
+---
+
+### 测试 9 关卡元素明细表
+
 | 元素 | 角色 | 操作 | 预期结果 |
 |------|------|------|----------|
 | **SpikeTrap** (地刺) | Mario | 碰到伸出的地刺 | 受到伤害并被击退 |
@@ -385,7 +405,14 @@ Unity 会自动进入 Play 模式执行测试，验证运行时行为：
 | MarioInteractionHelper.cs | 测试 9 | — | Session 19: HandleDropThrough(S+Jump单向平台) + HandlePassageInteraction(S隐藏通道双向) |
 | HiddenPassageReturnTrigger.cs | 测试 9 | — | Session 19: 隐藏通道返回触发区（出口位置动态创建） |
 | DamageDealer.cs | 测试 7、9 | — | Session 18: 使用 KnockbackHelper 统一击退 |
-| TestSceneBuilder.cs | **测试 1-9 全部** | — | 场景生成影响所有测试的前置条件 |
+| PhysicsMetrics.cs | 测试 9、10 | 测试 1、2 | S32: 全局物理常量中心，修改影响所有碰撞体尺寸和跳跃极限 |
+| AsciiLevelGenerator.cs | 测试 10 | 测试 9 | ASCII 关卡生成器，影响 Build From Text 和内置模板 |
+| AsciiLevelValidator.cs | 测试 10 | — | 生成前物理验证，逻辑独立 |
+| JumpArcVisualizer.cs | 测试 10 | — | Scene 视图抛物线，仅编辑器可视化，不影响运行时 |
+| SpriteAutoFit.cs | 测试 10 | 测试 9 | S32: 视碰分离，影响主题换肤和元素视觉尺寸 |
+| LevelThemeProfile.cs | 测试 10 | — | 主题配置数据，影响 Apply Theme 换肤 |
+| LevelSnippetLibrary.cs | 测试 10 | — | 片段库内容，影响 Snippet Library 追加功能 |
+| TestSceneBuilder.cs | **测试 1-10 全部** | — | 场景生成影响所有测试的前置条件 |
 
 ### 4.2 AI 修复 Bug 标准流程
 
@@ -424,6 +451,7 @@ AI 每次修复 Bug 时，**必须**执行以下流程：
 | 测试 7 | Mario 到终点，确认胜利画面显示 |
 | 测试 8 | ESC 暂停→ESC 恢复，确认正常 |
 | 测试 9 | 快速触发一次地刺伤害、踩一次弹跳怪、穿一次单向平台 |
+| 测试 10 | Build From Text 生成一次 ASCII 关卡并按 Play，确认可玩；检查 Scene 视图抛物线显示；尝试动态锚点传送 |
 
 ### 4.5 实例：Session 12 的回归影响分析
 
@@ -497,7 +525,7 @@ AI 每次修复 Bug 时，**必须**执行以下流程：
 
 ## 七、测试进度总览
 
-> 更新时间：2026-04-04 (Session 22)
+> 更新时间：2026-04-06 (Session 34)
 
 | 测试项 | 状态 | 备注 |
 |----------|------|------|
@@ -511,10 +539,11 @@ AI 每次修复 Bug 时，**必须**执行以下流程：
 | 测试 7：胜负判定与UI | ✅ 已通过 | 多回合胜利/失败画面正常显示（B018/B020修复） |
 | 测试 8：暂停系统 | ✅ 已通过 | ESC 暂停显示遮罩+PAUSED，恢复时直接回到游戏（B021修复） |
 | 测试 9：关卡设计系统 | ⬜ 待测试 | 9 种新元素的物理交互与 Trickster 操控 |
+| 测试 10：Level Studio 与动态锚点 | ⬜ 待测试 | S26b-S33 新增：ASCII生成、物理验证、跳跃抛物线、半重力、动态锚点、Cheats检测、主题换肤 |
 | EditMode 自动化测试 | ✅ 已通过 | 114 个用例全部通过 (Session 15 新增 55 个关卡测试) |
 | PlayMode 自动化测试 | ✅ 已通过 | 21 个用例全部通过 |
 
-**手动测试进度：9/10 通过（测试 9 待测）。**
+**手动测试进度：9/11 通过（测试 9、10 待测）。**
 
 ---
 
@@ -556,3 +585,35 @@ AI 每次修复 Bug 时，**必须**执行以下流程：
 2. 在 Inspector 中为各个元素配置 Sprite。
 3. 将配置好的 Profile 拖入 Level Builder 的 **Apply Theme** 槽位。
 4. 点击 **Apply Theme** 按钮，一键将场景中的白盒替换为配置的美术素材（支持 Undo 撤销）。遇到未配置的空插槽会安全保留原白盒。
+
+---
+
+## 附录：用户反馈简要模板
+
+> **致测试员**：请复制以下模板，根据实际测试结果填写后反馈给 AI。
+
+```text
+【测试反馈报告】
+测试环境：Unity 2022.3.x (EditMode / PlayMode)
+
+1. 基础回归测试 (测试 1-8)：
+   - [ ] 全部通过
+   - [ ] 发现异常：(请描述具体表现)
+
+2. 关卡设计系统 (测试 9)：
+   - [ ] 9 种元素交互正常
+   - [ ] 发现异常：(请描述具体表现)
+
+3. Level Studio 与新特性 (测试 10)：
+   - [ ] ASCII 生成与自动补全环境正常
+   - [ ] 跳跃抛物线 (JumpArcVisualizer) 显示正常
+   - [ ] 半重力跳跃手感正常
+   - [ ] 动态锚点 (Teleport) 扫描与传送正常
+   - [ ] Cheats 缺失检测与 Auto-Fix 正常
+   - [ ] 发现异常：(请描述具体表现)
+
+4. 自动化测试兜底：
+   - EditMode: [ ] 通过 / [ ] 失败 (失败数量: ___)
+   - PlayMode: [ ] 通过 / [ ] 失败 (失败数量: ___)
+   - (如有失败，请附上 TestReport.txt 中的报错堆栈)
+```

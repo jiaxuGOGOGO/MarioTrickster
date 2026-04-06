@@ -1411,7 +1411,8 @@ public class TestConsoleWindow : EditorWindow
                 GUI.color = new Color(0.4f, 0.9f, 0.4f);
                 if (GUILayout.Button("直接生成", GUILayout.Height(22)))
                 {
-                    GenerateFromCustomTemplate(snippet.ascii, snippet.name);
+                    // S43: 片段直接生成时传递 isSnippet=true，避免验证器误报缺少 M/G
+                    GenerateFromCustomTemplate(snippet.ascii, snippet.name, true);
                 }
                 GUI.color = new Color(0.5f, 0.8f, 1f);
                 if (GUILayout.Button("复制", GUILayout.Height(22), GUILayout.Width(45)))
@@ -1483,7 +1484,10 @@ public class TestConsoleWindow : EditorWindow
     // ═════════════════════════════════════════════════
 
     /// <summary>从自定义 ASCII 模板生成关卡</summary>
-    private void GenerateFromCustomTemplate(string template, string sourceName)
+    /// <param name="template">ASCII 模板字符串</param>
+    /// <param name="sourceName">模板来源名称（用于日志）</param>
+    /// <param name="isSnippet">是否为片段模式（片段不要求 M/G）</param>
+    private void GenerateFromCustomTemplate(string template, string sourceName, bool isSnippet = false)
     {
         if (string.IsNullOrEmpty(template))
         {
@@ -1493,7 +1497,8 @@ public class TestConsoleWindow : EditorWindow
 
         Undo.SetCurrentGroupName($"Generate Level: {sourceName}");
 
-        GameObject root = AsciiLevelGenerator.GenerateFromTemplate(template, true);
+        // S43: 传递 isSnippet 参数给生成器，片段模式下验证器不要求 M/G
+        GameObject root = AsciiLevelGenerator.GenerateFromTemplate(template, true, isSnippet);
         if (root != null)
         {
             Undo.RegisterCreatedObjectUndo(root, $"Generate {sourceName}");

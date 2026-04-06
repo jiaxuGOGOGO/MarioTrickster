@@ -11,6 +11,7 @@ using System.Text;
 ///   3. 验证 Mario 出生点 (M) 是否存在且可站立
 ///   4. 验证终点 (G) 是否存在且可到达
 ///   5. 输出详细的验证报告（警告/错误），帮助设计师快速定位问题
+///   6. 支持片段模式 (isSnippet)：片段不要求 M/G，适用于局部挑战片段
 ///
 /// 使用方式：
 ///   在 TestConsoleWindow 的 Build 按钮中调用 ValidateTemplate()，
@@ -19,6 +20,7 @@ using System.Text;
 /// 所有阈值引用 PhysicsMetrics 常量，确保与物理系统同步。
 ///
 /// Session 32: 关卡度量转译系统
+/// Session 43: 修复间隙检测误报、增加片段模式、改进高台可达性检测
 /// </summary>
 public static class AsciiLevelValidator
 {
@@ -100,11 +102,26 @@ public static class AsciiLevelValidator
     };
 
     /// <summary>
-    /// 验证 ASCII 模板的物理可行性
+    /// 验证 ASCII 模板的物理可行性（完整关卡模式）
     /// </summary>
     /// <param name="template">多行 ASCII 字符串</param>
     /// <returns>验证结果</returns>
     public static ValidationResult ValidateTemplate(string template)
+    {
+        return ValidateTemplate(template, false);
+    }
+
+    /// <summary>
+    /// 验证 ASCII 模板的物理可行性
+    /// </summary>
+    /// <param name="template">多行 ASCII 字符串</param>
+    /// <param name="isSnippet">是否为片段模式（片段不要求 M/G）</param>
+    /// <returns>验证结果</returns>
+    // [AI防坑警告] isSnippet 参数控制验证严格度。
+    // 片段(snippet)是局部挑战片段，不含 M/G 出生点和终点，
+    // 验证器不应对片段报 "No Mario spawn" 或 "No goal zone" 错误。
+    // 但物理可行性检查（间隙、高台）对片段同样适用。
+    public static ValidationResult ValidateTemplate(string template, bool isSnippet)
     {
         ValidationResult result = new ValidationResult();
 
@@ -160,124 +177,59 @@ public static class AsciiLevelValidator
         }
 
         // ── 检查 1: Mario 出生点 ──
-        if (!hasMario)
+        // S43: 片段模式下跳过 M/G 检查（片段是局部挑战，不含出生点和终点）
+        if (!isSnippet)
         {
-            result.errors.Add("No Mario spawn point (M) found!");
+            if (!hasMario)
+            {
+                result.errors.Add("No Mario spawn point (M) found!");
+            }
+            else
+            {
+                // 检查 Mario 脚下是否有地面
+                if (marioY > 0 && !IsSolid(grid, marioX, marioY - 1, maxWidth, height))
+                {
+                    result.warnings.Add($"Mario spawn (M) at ({marioX},{marioY}) has no ground below! Mario will fall.");
+                }
+                result.info.Add($"Mario spawn at ({marioX},{marioY})");
+            }
+
+            // ── 检查 2: 终点 ──
+            if (!hasGoal)
+            {
+                result.warnings.Add("No goal zone (G) found. Level has no ending.");
+            }
+            else
+            {
+                result.info.Add($"Goal at ({goalX},{goalY})");
+            }
         }
         else
         {
-            // 检查 Mario 脚下是否有地面
-            if (marioY > 0 && !IsSolid(grid, marioX, marioY - 1, maxWidth, height))
-            {
-                result.warnings.Add($"Mario spawn (M) at ({marioX},{marioY}) has no ground below! Mario will fall.");
-            }
-            result.info.Add($"Mario spawn at ({marioX},{marioY})");
+            // 片段模式下仍然记录 M/G 信息（如果有的话）
+            if (hasMario) result.info.Add($"Mario spawn at ({marioX},{marioY})");
+            if (hasGoal) result.info.Add($"Goal at ({goalX},{goalY})");
+            result.info.Add("Snippet mode: M/G checks skipped.");
         }
 
-        // ── 检查 2: 终点 ──
-        if (!hasGoal)
-        {
-            result.warnings.Add("No goal zone (G) found. Level has no ending.");
-        }
-        else
-        {
-            result.info.Add($"Goal at ({goalX},{goalY})");
-        }
+        // ── 检查 3: 水平间隙扫描（改进版）──
+        // S43 改进: 只检测"关键地面层"的间隙，而非逐行扫描所有行。
+        // 关键地面层定义：该行有实体块，且实体块上方可站立（不被实体覆盖），
+        // 且间隙上方在跳跃高度范围内没有替代通路（桥梁/平台）。
+        // 这避免了对非地面行（如纯装饰行、高空行）的间隙误报。
+        CheckGroundGaps(grid, maxWidth, height, result);
 
-        // ── 检查 3: 水平间隙扫描 ──
-        // 扫描每一行的地面层，查找连续空白间隙
-        for (int y = 0; y < height; y++)
-        {
-            int gapStart = -1;
-            bool inGap = false;
-
-            for (int x = 0; x < maxWidth; x++)
-            {
-                bool solid = IsSolid(grid, x, y, maxWidth, height);
-
-                if (!solid && !inGap)
-                {
-                    // 间隙开始
-                    // 但只有当左边有实体时才算间隙（排除关卡边缘）
-                    if (x > 0 && IsSolid(grid, x - 1, y, maxWidth, height))
-                    {
-                        inGap = true;
-                        gapStart = x;
-                    }
-                }
-                else if (solid && inGap)
-                {
-                    // 间隙结束
-                    int gapWidth = x - gapStart;
-                    CheckGap(gapWidth, gapStart, y, result);
-                    inGap = false;
-                }
-            }
-        }
-
-        // ── 检查 4: 垂直高台扫描 ──
-        // 扫描每列，查找需要跳跃才能到达的高台
-        for (int x = 1; x < maxWidth - 1; x++)
-        {
-            for (int y = 1; y < height; y++)
-            {
-                // 找到一个实体块，检查它下方是否有足够的空间构成高台
-                if (IsSolid(grid, x, y, maxWidth, height) &&
-                    !IsSolid(grid, x, y + 1, maxWidth, height) && // 上方是空气（可站立的表面）
-                    y + 1 < height)
-                {
-                    // 向下查找最近的地面
-                    int dropHeight = 0;
-                    for (int checkY = y - 1; checkY >= 0; checkY--)
-                    {
-                        if (IsSolid(grid, x, checkY, maxWidth, height))
-                            break;
-                        dropHeight++;
-                    }
-
-                    if (dropHeight > PhysicsMetrics.ASCII_MAX_HEIGHT &&
-                        dropHeight <= PhysicsMetrics.ASCII_EXTREME_HEIGHT)
-                    {
-                        // 检查左右是否有更低的平台可以跳上来
-                        bool hasSteppingStone = false;
-                        for (int checkX = Mathf.Max(0, x - PhysicsMetrics.ASCII_MAX_GAP);
-                             checkX <= Mathf.Min(maxWidth - 1, x + PhysicsMetrics.ASCII_MAX_GAP);
-                             checkX++)
-                        {
-                            if (checkX == x) continue;
-                            for (int checkY = y - dropHeight + 1; checkY < y; checkY++)
-                            {
-                                if (IsSolid(grid, checkX, checkY, maxWidth, height))
-                                {
-                                    hasSteppingStone = true;
-                                    break;
-                                }
-                            }
-                            if (hasSteppingStone) break;
-                        }
-
-                        if (!hasSteppingStone)
-                        {
-                            result.warnings.Add(
-                                $"High platform at ({x},{y}): {dropHeight} blocks high " +
-                                $"(max safe = {PhysicsMetrics.ASCII_MAX_HEIGHT}). " +
-                                $"Requires precise jumping.");
-                        }
-                    }
-                    else if (dropHeight > PhysicsMetrics.ASCII_EXTREME_HEIGHT)
-                    {
-                        result.errors.Add(
-                            $"UNREACHABLE platform at ({x},{y}): {dropHeight} blocks high " +
-                            $"(max jump = {PhysicsMetrics.MAX_JUMP_HEIGHT:F1} blocks). " +
-                            $"This is a physical dead end!");
-                    }
-                }
-            }
-        }
+        // ── 检查 4: 垂直高台扫描（改进版）──
+        // S43 改进: 检查周围水平范围内是否有可跳达的平台，
+        // 而非只看正下方的垂直距离。
+        CheckHighPlatforms(grid, maxWidth, height, result);
 
         // ── 检查 5: S35 出生点安全距离 ──
         // 业界参考: Celeste 每个 checkpoint 周围无危险物，给玩家安全起步空间
-        CheckSpawnSafety(grid, maxWidth, height, marioX, marioY, result);
+        if (!isSnippet)
+        {
+            CheckSpawnSafety(grid, maxWidth, height, marioX, marioY, result);
+        }
 
         // ── 检查 6: S35 弹跳平台上方安全净空 ──
         // 业界参考: SMW 弹跳垫上方始终留出完整弹跳弧线空间
@@ -295,6 +247,250 @@ public static class AsciiLevelValidator
                        $"safe height = {PhysicsMetrics.ASCII_MAX_HEIGHT}");
 
         return result;
+    }
+
+    // ═══════════════════════════════════════════════════
+    // S43 改进: 间隙检测 — 只检测关键地面层
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// 检测关键地面层的水平间隙。
+    /// 
+    /// 改进逻辑（S43）：
+    /// 1. 只在"可行走表面"上检测间隙（实体块上方为空气的行）
+    /// 2. 对检测到的间隙，检查上方是否有替代通路（桥梁/平台），
+    ///    如果间隙上方在跳跃高度范围内有连续的实体桥梁横跨整个间隙，
+    ///    则该间隙不是真正的死路（玩家可以走上面的桥）
+    /// 3. 避免对纯空气行、装饰行的间隙误报
+    /// </summary>
+    private static void CheckGroundGaps(char[,] grid, int width, int height, ValidationResult result)
+    {
+        // 收集所有"可行走表面行"：该行至少有一个实体块，且该实体块上方为空气
+        for (int y = 0; y < height; y++)
+        {
+            bool hasWalkableSurface = false;
+            for (int x = 0; x < width; x++)
+            {
+                if (IsSolid(grid, x, y, width, height) &&
+                    !IsSolid(grid, x, y + 1, width, height))
+                {
+                    hasWalkableSurface = true;
+                    break;
+                }
+            }
+            if (!hasWalkableSurface) continue;
+
+            // 在这一行扫描间隙
+            int gapStart = -1;
+            bool inGap = false;
+
+            for (int x = 0; x < width; x++)
+            {
+                bool solid = IsSolid(grid, x, y, width, height);
+
+                if (!solid && !inGap)
+                {
+                    // 间隙开始：只有当左边有实体时才算间隙（排除关卡边缘）
+                    if (x > 0 && IsSolid(grid, x - 1, y, width, height))
+                    {
+                        inGap = true;
+                        gapStart = x;
+                    }
+                }
+                else if (solid && inGap)
+                {
+                    // 间隙结束
+                    int gapWidth = x - gapStart;
+                    // S43: 检查间隙上方是否有替代通路
+                    if (!HasBridgeAbove(grid, gapStart, x - 1, y, width, height))
+                    {
+                        CheckGap(gapWidth, gapStart, y, result);
+                    }
+                    inGap = false;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 检查间隙上方是否有替代通路（桥梁/平台）。
+    /// 如果在间隙正上方的跳跃高度范围内，存在连续的实体块横跨整个间隙，
+    /// 则玩家可以走上面的桥，该间隙不是死路。
+    /// </summary>
+    private static bool HasBridgeAbove(char[,] grid, int gapStartX, int gapEndX, int gapY,
+        int width, int height)
+    {
+        // 在间隙上方 1 到 MAX_JUMP_HEIGHT 范围内查找桥梁
+        int maxCheckHeight = Mathf.CeilToInt(PhysicsMetrics.MAX_JUMP_HEIGHT);
+        for (int dy = 1; dy <= maxCheckHeight; dy++)
+        {
+            int checkY = gapY + dy;
+            if (checkY >= height) break;
+
+            // 检查这一行是否有连续实体横跨整个间隙
+            bool fullBridge = true;
+            for (int x = gapStartX; x <= gapEndX; x++)
+            {
+                if (!IsSolid(grid, x, checkY, width, height))
+                {
+                    fullBridge = false;
+                    break;
+                }
+            }
+            if (fullBridge) return true;
+
+            // S43: 也检查是否有足够密集的平台序列可以跳跃通过
+            // （不要求完全连续，但间隙内的子间隙不超过安全跳跃距离）
+            bool hasSteppingPath = CheckSteppingPath(grid, gapStartX, gapEndX, checkY, width, height);
+            if (hasSteppingPath) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 检查指定行在间隙范围内是否有足够密集的平台序列可以跳跃通过。
+    /// 即：间隙范围内的实体块之间的子间隙都不超过安全跳跃距离。
+    /// </summary>
+    private static bool CheckSteppingPath(char[,] grid, int startX, int endX, int y,
+        int width, int height)
+    {
+        // 从间隙左侧开始，检查是否能通过平台序列到达右侧
+        // 需要左侧入口和右侧出口都有实体可站立
+        bool hasLeftEntry = IsSolid(grid, startX - 1, y, width, height) ||
+                           IsSolid(grid, startX, y, width, height);
+        bool hasRightExit = IsSolid(grid, endX + 1, y, width, height) ||
+                           IsSolid(grid, endX, y, width, height);
+        if (!hasLeftEntry || !hasRightExit) return false;
+
+        // 检查间隙范围内的子间隙
+        int subGapWidth = 0;
+        for (int x = startX; x <= endX; x++)
+        {
+            if (IsSolid(grid, x, y, width, height))
+            {
+                subGapWidth = 0;
+            }
+            else
+            {
+                subGapWidth++;
+                if (subGapWidth > PhysicsMetrics.ASCII_MAX_GAP)
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    // ═══════════════════════════════════════════════════
+    // S43 改进: 高台检测 — 考虑水平可达性
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// 检测需要跳跃才能到达的高台。
+    /// 
+    /// 改进逻辑（S43）：
+    /// 1. 找到可站立表面（实体块上方为空气）
+    /// 2. 计算该表面到正下方最近地面的垂直距离
+    /// 3. 如果垂直距离超过安全高度，检查水平范围内是否有可跳达的中间平台
+    /// 4. 水平搜索范围 = MAX_JUMP_DISTANCE（而非仅 ASCII_MAX_GAP）
+    /// </summary>
+    private static void CheckHighPlatforms(char[,] grid, int width, int height, ValidationResult result)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 1; y < height; y++)
+            {
+                // 找到一个实体块，检查它是否是可站立表面
+                if (!IsSolid(grid, x, y, width, height)) continue;
+                if (y + 1 < height && IsSolid(grid, x, y + 1, width, height)) continue; // 上方被覆盖，不是表面
+
+                // 向下查找最近的地面
+                int dropHeight = 0;
+                for (int checkY = y - 1; checkY >= 0; checkY--)
+                {
+                    if (IsSolid(grid, x, checkY, width, height))
+                        break;
+                    dropHeight++;
+                }
+
+                // 跳过底层地面（dropHeight=0 说明紧贴下方实体）
+                if (dropHeight <= PhysicsMetrics.ASCII_MAX_HEIGHT) continue;
+
+                // S43: 在水平范围内搜索可跳达的平台
+                // 搜索范围 = MAX_JUMP_DISTANCE（含 coyote 时间）
+                int searchRange = Mathf.CeilToInt(PhysicsMetrics.MAX_GAP_WITH_COYOTE);
+                bool reachable = false;
+
+                for (int dx = -searchRange; dx <= searchRange; dx++)
+                {
+                    if (dx == 0) continue;
+                    int checkX = x + dx;
+                    if (checkX < 0 || checkX >= width) continue;
+
+                    // 在目标平台的跳跃高度范围内搜索可站立的平台
+                    // 玩家可以从较低的平台跳上来
+                    for (int checkY = Mathf.Max(0, y - Mathf.CeilToInt(PhysicsMetrics.MAX_JUMP_HEIGHT));
+                         checkY <= y; checkY++)
+                    {
+                        if (IsSolid(grid, checkX, checkY, width, height) &&
+                            (checkY + 1 >= height || !IsSolid(grid, checkX, checkY + 1, width, height)))
+                        {
+                            // 找到一个可站立的平台，检查是否物理可达
+                            int heightDiff = y - checkY; // 需要跳的高度
+                            int horizDist = Mathf.Abs(dx);  // 水平距离
+
+                            if (PhysicsMetrics.IsGapTraversable(horizDist, heightDiff))
+                            {
+                                reachable = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 也检查从较高平台跳下来的情况
+                    if (!reachable)
+                    {
+                        for (int checkY = y; checkY <= Mathf.Min(height - 1, y + Mathf.CeilToInt(PhysicsMetrics.MAX_JUMP_HEIGHT));
+                             checkY++)
+                        {
+                            if (IsSolid(grid, checkX, checkY, width, height) &&
+                                (checkY + 1 >= height || !IsSolid(grid, checkX, checkY + 1, width, height)))
+                            {
+                                // 从高处跳下来，高度差为负（向下跳更容易）
+                                int heightDiff = y - checkY; // 负值 = 向下跳
+                                int horizDist = Mathf.Abs(dx);
+
+                                if (PhysicsMetrics.IsGapTraversable(horizDist, heightDiff))
+                                {
+                                    reachable = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (reachable) break;
+                }
+
+                if (!reachable)
+                {
+                    if (dropHeight > PhysicsMetrics.ASCII_EXTREME_HEIGHT)
+                    {
+                        result.errors.Add(
+                            $"UNREACHABLE platform at ({x},{y}): {dropHeight} blocks above nearest ground, " +
+                            $"no reachable platform within jump range " +
+                            $"(max jump = {PhysicsMetrics.MAX_JUMP_HEIGHT:F1}). " +
+                            $"This is a physical dead end!");
+                    }
+                    else if (dropHeight > PhysicsMetrics.ASCII_MAX_HEIGHT)
+                    {
+                        result.warnings.Add(
+                            $"High platform at ({x},{y}): {dropHeight} blocks above nearest ground " +
+                            $"(max safe = {PhysicsMetrics.ASCII_MAX_HEIGHT}). " +
+                            $"Requires precise jumping or stepping stones.");
+                    }
+                }
+            }
+        }
     }
 
     /// <summary>检查间隙宽度是否安全</summary>
@@ -392,12 +588,12 @@ public static class AsciiLevelValidator
 
         // 检查 Mario 出生点周围安全半径内是否有危险物
         int r = PhysicsMetrics.SPAWN_SAFE_RADIUS;
-        for (int dx = -r; dx <= r; dx++)
+        for (int ddx = -r; ddx <= r; ddx++)
         {
-            for (int dy = -r; dy <= r; dy++)
+            for (int ddy = -r; ddy <= r; ddy++)
             {
-                int cx = marioX + dx;
-                int cy = marioY + dy;
+                int cx = marioX + ddx;
+                int cy = marioY + ddy;
                 if (IsHazard(grid, cx, cy, width, height))
                 {
                     result.warnings.Add(

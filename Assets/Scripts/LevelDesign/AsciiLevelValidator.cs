@@ -275,7 +275,19 @@ public static class AsciiLevelValidator
             }
         }
 
-        // ── 检查 5: 关卡尺寸信息 ──
+        // ── 检查 5: S35 出生点安全距离 ──
+        // 业界参考: Celeste 每个 checkpoint 周围无危险物，给玩家安全起步空间
+        CheckSpawnSafety(grid, maxWidth, height, marioX, marioY, result);
+
+        // ── 检查 6: S35 弹跳平台上方安全净空 ──
+        // 业界参考: SMW 弹跳垫上方始终留出完整弹跳弧线空间
+        CheckBounceClearance(grid, maxWidth, height, result);
+
+        // ── 检查 7: S35 陷阱着陆缓冲 ──
+        // 业界参考: Dylan Wolf 程序化生成中陷阱必须指向至少一个空tile
+        CheckHazardLandingBuffer(grid, maxWidth, height, result);
+
+        // ── 检查 8: 关卡尺寸信息 ──
         result.info.Add($"Level size: {maxWidth} x {height} (W x H)");
         result.info.Add($"Physics limits: max jump height = {PhysicsMetrics.MAX_JUMP_HEIGHT:F1}, " +
                        $"max jump distance = {PhysicsMetrics.MAX_JUMP_DISTANCE:F1}, " +
@@ -310,5 +322,192 @@ public static class AsciiLevelValidator
     {
         if (x < 0 || x >= width || y < 0 || y >= height) return false;
         return solidChars.Contains(grid[x, y]);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // S35 新增安全验证方法
+    // 业界参考:
+    //   - Celeste (Maddy Thorson): checkpoint 周围无危险物
+    //   - Super Mario World (Reverse Design): 弹跳垫上方留完整弧线空间
+    //   - Dylan Wolf: 陷阱必须指向至少一个空tile
+    //   - sgalban/platformer-gen-2D: 每个节奏组之间有 rest area
+    // ═══════════════════════════════════════════════════
+
+    // 危险字符集（对玩家造成伤害的元素）
+    private static readonly HashSet<char> hazardChars = new HashSet<char>
+    {
+        '^', // 地刺
+        '~', // 火焰
+        'P', // 摆锤
+    };
+
+    /// <summary>检查指定位置是否为危险物</summary>
+    private static bool IsHazard(char[,] grid, int x, int y, int width, int height)
+    {
+        if (x < 0 || x >= width || y < 0 || y >= height) return false;
+        return hazardChars.Contains(grid[x, y]);
+    }
+
+    /// <summary>
+    /// S35 检查 5: 出生点安全性
+    /// 验证 M/T 之间的间距以及出生点周围是否有危险物。
+    /// </summary>
+    private static void CheckSpawnSafety(
+        char[,] grid, int width, int height,
+        int marioX, int marioY, ValidationResult result)
+    {
+        if (marioX < 0) return; // 无 Mario 出生点，已在检查 1 报错
+
+        // 查找 Trickster 出生点
+        int tricksterX = -1, tricksterY = -1;
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                if (grid[x, y] == 'T')
+                {
+                    tricksterX = x;
+                    tricksterY = y;
+                    break;
+                }
+            }
+            if (tricksterX >= 0) break;
+        }
+
+        // 检查 M/T 间距
+        if (tricksterX >= 0)
+        {
+            int dx = Mathf.Abs(marioX - tricksterX);
+            int dy = Mathf.Abs(marioY - tricksterY);
+            float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+            if (dist < PhysicsMetrics.SPAWN_SAFE_RADIUS)
+            {
+                result.warnings.Add(
+                    $"M/T spawn too close: M({marioX},{marioY}) T({tricksterX},{tricksterY}) " +
+                    $"distance={dist:F1} (min={PhysicsMetrics.SPAWN_SAFE_RADIUS}). " +
+                    $"Players may overlap on start. Separate by at least {PhysicsMetrics.SPAWN_SAFE_RADIUS} blocks.");
+            }
+        }
+
+        // 检查 Mario 出生点周围安全半径内是否有危险物
+        int r = PhysicsMetrics.SPAWN_SAFE_RADIUS;
+        for (int dx = -r; dx <= r; dx++)
+        {
+            for (int dy = -r; dy <= r; dy++)
+            {
+                int cx = marioX + dx;
+                int cy = marioY + dy;
+                if (IsHazard(grid, cx, cy, width, height))
+                {
+                    result.warnings.Add(
+                        $"Hazard '{grid[cx, cy]}' at ({cx},{cy}) is within spawn safe radius " +
+                        $"({r} blocks) of Mario spawn ({marioX},{marioY}). " +
+                        $"Player may take damage immediately on start.");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// S35 检查 6: 弹跳平台上方安全净空
+    /// 扫描所有 B 字符，检查上方 BOUNCE_CLEARANCE 格内是否有危险物或实体阻挡。
+    /// </summary>
+    private static void CheckBounceClearance(
+        char[,] grid, int width, int height, ValidationResult result)
+    {
+        int clearance = PhysicsMetrics.BOUNCE_CLEARANCE;
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                if (grid[x, y] != 'B') continue;
+
+                // 检查 B 上方 clearance 格
+                for (int dy = 1; dy <= clearance; dy++)
+                {
+                    int checkY = y + dy;
+                    if (checkY >= height) break;
+
+                    char above = grid[x, checkY];
+
+                    if (hazardChars.Contains(above))
+                    {
+                        result.warnings.Add(
+                            $"Hazard '{above}' at ({x},{checkY}) is only {dy} block(s) above " +
+                            $"BouncyPlatform at ({x},{y}). Min clearance = {clearance}. " +
+                            $"Player will be launched into hazard with no escape.");
+                    }
+                    else if (solidChars.Contains(above))
+                    {
+                        result.warnings.Add(
+                            $"Solid block at ({x},{checkY}) is only {dy} block(s) above " +
+                            $"BouncyPlatform at ({x},{y}). Min clearance = {clearance}. " +
+                            $"Bounce trajectory will be cut short.");
+                        break; // 实体阻挡后上方不用再查
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// S35 检查 7: 陷阱着陆缓冲
+    /// 扫描所有陷阱字符(^~)，检查其左右是否紧贴平台边缘而无缓冲空间。
+    /// 当陷阱直接相邻平台边缘时，玩家着陆后无法避开伤害。
+    /// </summary>
+    private static void CheckHazardLandingBuffer(
+        char[,] grid, int width, int height, ValidationResult result)
+    {
+        int buffer = PhysicsMetrics.HAZARD_LANDING_BUFFER;
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                char c = grid[x, y];
+                // 只检查地刺和火焰（地面层陷阱），摆锤是空中陷阱不适用此规则
+                if (c != '^' && c != '~') continue;
+
+                // 检查左侧是否紧贴平台边缘
+                bool leftPlatformEdge = false;
+                for (int bx = 1; bx <= buffer; bx++)
+                {
+                    int checkX = x - bx;
+                    if (checkX < 0) break;
+                    // 如果缓冲区内是实体且上方可站立，说明是平台边缘
+                    if (IsSolid(grid, checkX, y, width, height) &&
+                        !IsSolid(grid, checkX, y + 1, width, height))
+                    {
+                        leftPlatformEdge = true;
+                        break;
+                    }
+                }
+
+                // 检查右侧是否紧贴平台边缘
+                bool rightPlatformEdge = false;
+                for (int bx = 1; bx <= buffer; bx++)
+                {
+                    int checkX = x + bx;
+                    if (checkX >= width) break;
+                    if (IsSolid(grid, checkX, y, width, height) &&
+                        !IsSolid(grid, checkX, y + 1, width, height))
+                    {
+                        rightPlatformEdge = true;
+                        break;
+                    }
+                }
+
+                // 如果陷阱两侧都紧贴平台边缘，玩家无安全着陆区
+                if (leftPlatformEdge && rightPlatformEdge)
+                {
+                    result.warnings.Add(
+                        $"Hazard '{c}' at ({x},{y}) is sandwiched between platforms " +
+                        $"with no landing buffer (min={buffer}). " +
+                        $"Player has no safe landing zone when jumping across.");
+                }
+            }
+        }
     }
 }

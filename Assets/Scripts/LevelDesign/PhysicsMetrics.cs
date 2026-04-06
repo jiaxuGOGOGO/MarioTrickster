@@ -197,6 +197,39 @@ public static class PhysicsMetrics
     public const int ASCII_EXTREME_HEIGHT = 3;
 
     // ═══════════════════════════════════════════════════
+    // 关卡布局安全约束（S35 新增，供验证器和模板设计使用）
+    // ═══════════════════════════════════════════════════
+
+    // 业界参考：
+    //   - Dylan Wolf "Building a Procedurally Generated Platformer":
+    //     陷阱只在满足空间约束时放置，spike 上方必须有空tile
+    //   - sgalban/platformer-gen-2D (Rhythm-Based Level Generation):
+    //     每个节奏组之间有 rest area，敌人不在 < 3格宽平台上生成
+    //   - Celeste (Maddy Thorson, GDC 2017 "Designing Celeste"):
+    //     危险前总有安全着陆区，第一个坑前有安全跳台学习物理
+    //   - Super Mario World (Reverse Design):
+    //     弹跳垫上方必须留出最大弹跳高度的安全空间
+
+    /// <summary>
+    /// 出生点安全半径（格）— M/T 之间最小间距，且半径内不得有危险物。
+    /// 业界参考: Celeste 每个 checkpoint 周围无危险物，给玩家安全起步空间。
+    /// </summary>
+    public const int SPAWN_SAFE_RADIUS = 2;
+
+    /// <summary>
+    /// 弹跳平台上方安全净空（格）— B 字符上方此范围内不得有危险物(^~P)。
+    /// 推导: 弹跳平台弹射高度 >= MAX_JUMP_HEIGHT(2.5格)，向上取整+缓冲 = 3格。
+    /// 业界参考: SMW 弹跳垫上方始终留出完整弹跳弧线空间。
+    /// </summary>
+    public const int BOUNCE_CLEARANCE = 3;
+
+    /// <summary>
+    /// 陷阱着陆缓冲（格）— 平台边缘到相邻陷阱之间至少留此间距。
+    /// 业界参考: Dylan Wolf 的程序化生成中，陷阱必须指向至少一个空tile。
+    /// </summary>
+    public const int HAZARD_LANDING_BUFFER = 1;
+
+    // ═══════════════════════════════════════════════════
     // 工具方法
     // ═══════════════════════════════════════════════════
 

@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 34 (测试文档更新：新增测试 10 + 反馈模板 + 回归矩阵扩展) |
+| **最新 Session** | Session 35 (关卡布局安全性修复：模板 M/T 间距 + 弹跳净空 + 陷阱缓冲 + 验证器增强) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ✅ S34 仅文档更新，零代码修改 |
+| **编译状态** | ✅ S35 修改 4 个文件，+271/-21 行，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S34 更新测试文档：新增测试 10（Level Studio 关卡工坊与动态锚点）覆盖 S26b-S33 全部新功能，新增用户反馈简要模板，扩展回归影响矩阵添加 7 个新文件的影响关系。仅文档修改，零代码变更。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S35 修复用户反馈的关卡布局异常（GIF 中弹跳平台上方有陷阱、M/T 重叠、陷阱紧贴着陆区）。修改范围：PhysicsMetrics 新增 3 个安全常量，AsciiLevelGenerator 修正 2 个内置模板，AsciiLevelValidator 新增 3 条验证规则，LevelSnippetLibrary 修正 3 个片段。零运行时代码修改，仅影响编辑器和关卡生成。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -114,7 +114,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
-| 🔄 | 场景生成 | Clear + Build 后标签正常 |
+| 🔄 | 场景生成 | Clear + Build 后标签正常，S35 模板布局安全性修复 |
 | ✅ | EditMode 自动化 | 59/59 通过 |
 | ✅ | PlayMode 自动化 | 21/21 通过 |
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S35 关卡布局安全性修复（模板+片段+验证器） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S33 Level Builder ↔ Teleport/Cheats 联动 + 动态锚点系统 | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S32 视碰分离与关卡度量转译系统 | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S26b Level Studio 精简 (删除AI分析器，重写为纯本地三合一) | ✅ 已完成，待用户 Unity 验证 |

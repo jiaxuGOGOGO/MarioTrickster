@@ -86,7 +86,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阶段** | Sprint 2 游戏体验提升 |
 | **编译状态** | ⏳ S39 代码已推送，待用户 Unity 编译验证 |
 | **阻塞** | 无 |
-| **交接说明** | S39 方案 C 重构弹跳平台：(1)彻底删除 OnCollisionStay2D，用 enum State{Idle,Bouncing,Cooldown} 状态机锁替代，根治"先高后矮"Bug；(2)PrepareBounce 设 rb.isKinematic=true 熔断物理引擎干扰；(3)ExecuteBounce 微抬坐标 0.05f 脱离碰撞重叠区；(4)严格法线检测 avgNormal.y>0.5 只接受从上方落下；(5)按键驱动大跳 IsJumpHeld→superBounceMultiplier 1.4x；(6)MarioController 新增 IsJumpHeld 公共属性+Kinematic Freeze+微抬坐标+击退/死亡恢复 isKinematic。修改文件：BouncyPlatform.cs、MarioController.cs、TestSceneBuilder.cs。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S39 方案 C 重构弹跳平台：(1)彻底删除 OnCollisionStay2D，用 enum State{Idle,Bouncing,Cooldown} 状态机锁替代，根治"先高后矮"Bug；(2)PrepareBounce 设 rb.isKinematic=true 熔断物理引擎干扰；(3)ExecuteBounce 微抬坐标 0.05f 脱离碰撞重叠区；(4)严格法线检测 avgNormal.y<-0.5 只接受从上方落下（与 CollapsingPlatform/BouncingEnemy 一致）；(5)按键驱动大跳 IsJumpHeld→superBounceMultiplier 1.4x；(6)MarioController 新增 IsJumpHeld 公共属性+Kinematic Freeze+微抬坐标+击退/死亡恢复 isKinematic。修改文件：BouncyPlatform.cs、MarioController.cs、TestSceneBuilder.cs。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 

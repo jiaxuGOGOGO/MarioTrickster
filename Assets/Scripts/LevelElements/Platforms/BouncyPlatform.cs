@@ -232,15 +232,11 @@ public class BouncyPlatform : ControllableLevelElement
         if (targetRb == null) return;
 
         // S39: 严格法线检测 — 只有从上方落下才触发弹射
-        // 碰撞法线是从平台指向 Mario 的方向，Mario 从上方落下时法线朝上（normal.y > 0）
-        // 但 Unity 2D 中 collision 在 BouncyPlatform 上收到的 normal 是指向 BouncyPlatform 的
-        // 即 Mario 从上方砸下来时，BouncyPlatform 收到的法线 Y < 0（指向下方，即 Mario 砸下来的方向）
-        // 所以我们检查法线 Y 分量：对于 BouncyPlatform 来说，从上方碰撞的法线 Y < -0.5
-        // 
-        // 注意：Unity 2D 碰撞法线的方向取决于哪个物体接收事件。
-        // 在 BouncyPlatform 的 OnCollisionEnter2D 中，contact.normal 指向的是
-        // 将碰撞体推开的方向（即从 BouncyPlatform 指向 Mario）。
-        // 所以 Mario 从上方落下时，法线朝上，normal.y > 0。
+        // 项目约定（与 CollapsingPlatform、BouncingEnemy 一致）：
+        //   在静态碰撞体（无 Rigidbody2D）的 OnCollisionEnter2D 中，
+        //   contact.normal 指向碰撞体自身（即从 Mario 指向平台）。
+        //   Mario 从上方落下时，法线朝下：normal.y < -0.5。
+        //   侧面碰撞时 |normal.y| 较小，不满足阈值。
         if (collision.contactCount > 0)
         {
             Vector2 avgNormal = Vector2.zero;
@@ -250,8 +246,8 @@ public class BouncyPlatform : ControllableLevelElement
             }
             avgNormal /= collision.contactCount;
 
-            // 法线 Y > 0.5 表示 Mario 从上方落下（法线从平台指向 Mario，即朝上）
-            if (avgNormal.y < 0.5f)
+            // normal.y < -0.5 表示 Mario 从上方落下（与 CollapsingPlatform/BouncingEnemy 一致）
+            if (avgNormal.y > -0.5f)
             {
                 // 不是从上方落下，忽略（防止侧面蹭到也被弹飞）
                 return;

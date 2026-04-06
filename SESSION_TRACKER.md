@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 47 (L2 BFS 可达性验证器 + Auto-Prompting 纠错闭环) |
+| **最新 Session** | Session 48 (Registry char 序列化 bug 修复 — string 代理 + HideFlags + 完整性校验) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S47 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S48 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S47+S47b `LevelReachabilityAnalyzer.cs`：纯网格 BFS 图搜索验证 M→G 可达性。S47b 三补丁: (1) 纠错话术含 Unity→ASCII 坐标系翻译(row=height-1-y)+原始模板附带 (2) 陷阱致死拦截: 脚下为 Hazard 的位置视为死亡不可站立 (3) 单向平台'-'穿透豁免: IsPathBlocked 跳过单向平台不视为头顶阻挡。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S48 修复 `AsciiElementRegistry.cs`: Unity 不序列化 char 类型，导致 Domain Reload 后 entries 全部丢失为 '\0'，Generator 输出 Unknown char + 0 objects。三层修复: (1) AsciiElementEntry.asciiChar 从 char 字段改为 string 序列化代理+属性 (2) CreateDefaultInstance 加 HideFlags.HideAndDontSave (3) GetDefault 加 entries 完整性校验+自愈。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -114,7 +114,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
-| 🔄 | 场景生成 | **S44c重点验证**: ASCII Build 后单向平台是长条而非拼接 + 敌人不掉落 + S43 验证器 + S35 布局安全 |
+| 🔄 | 场景生成 | **S48重点验证**: ASCII Build 后应正常生成所有元素（不再 Unknown char）+ 单向平台长条 + 敌人不掉落 + S43 验证器 + S35 布局安全 |
 | ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
 | ✅ | PlayMode 自动化 | 21/21 通过 |
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S48 Registry char 序列化 bug 修复 (string 代理 + HideFlags + 完整性校验) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S47 L2 BFS 可达性验证器 + Auto-Prompting 纠错闭环 (LevelReachabilityAnalyzer) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S46 Data-Driven Registry 关卡元素字典中心化解耦 (AsciiElementRegistry + Generator/Validator 重构) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S45 Doc-as-Code 动态文档同步引擎 (DocsAutomatorWindow: Sync Docs + Copy Prompt) | ⏳ 代码已推送，待用户 Unity 验证 |

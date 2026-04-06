@@ -62,21 +62,152 @@
 | **无敌星 (Invincibility)** | 临时无敌状态。 | 扩展 `Collectible.cs` | 可伪装，不可操控。 |
 | **钥匙 (Key)** | 用于开启特定的门或隐藏通道。 | 新增 `Key.cs` | 可伪装，可操控（移动位置）。 |
 
-## 3. 系统集成与扩展
+## 3. 关卡参数调整入口导航 (Parameter Tuning Entry Points)
 
-### 3.1 关卡管理器 (LevelManager)
+本节梳理项目中调整关卡参数的所有入口，按**集中度从高到低**分为四个层级。设计师可根据需要修改的参数类型快速定位到对应入口。
+
+### 3.1 顶层入口：Level Studio (Test Console)
+
+**唤出方式**：Unity 菜单栏 `MarioTrickster → Test Console`，或快捷键 `Ctrl+T` (Windows) / `Cmd+T` (Mac)。
+
+Level Studio 是项目唯一的集中式关卡构建工具，所有关卡生成操作都从这里发起。它本身不直接暴露移动/旋转/缩放的数值滑块，而是通过以下三个子入口间接控制关卡布局和元素参数。
+
+| 子入口 | 控制范围 | 操作方式 |
+| :--- | :--- | :--- |
+| **内置模板 / Custom Template Editor** | 所有元素的**位置布局**（网格坐标）、元素种类选择 | 在 ASCII 文本框中编辑字符矩阵，点击 Build From Text 一键生成。改位置优先改文本，不要在 Scene 里拖白盒 |
+| **Element Palette（元素调色板）** | 单个元素的**快速生成与摆放** | 点击按钮在 Scene 视图中心生成白盒元素，然后在 Scene 中手动拖拽到目标位置 |
+| **Theme System（主题换肤）** | 所有元素的**视觉外观** | 拖入 LevelThemeProfile 资产，点击 Apply Theme 一键替换 Sprite |
+
+### 3.2 全局物理常量：PhysicsMetrics.cs
+
+**文件路径**：`Assets/Scripts/LevelDesign/PhysicsMetrics.cs`
+
+这是整个关卡系统的**物理真相源**，定义了所有碰撞体尺寸、跳跃能力极限和安全约束。任何生成器和编辑器都必须引用此处常量，禁止在其他文件中硬编码物理尺寸。
+
+| 参数类别 | 常量示例 | 说明 |
+| :--- | :--- | :--- |
+| 网格基准 | `CELL_SIZE = 1f` | 每个 ASCII 字符对应的世界单位，**绝对不可修改** |
+| 角色碰撞体 | `MARIO_COLLIDER_WIDTH/HEIGHT` | Mario/Trickster 的碰撞体尺寸（小于视觉 Sprite，提供宽容感） |
+| 元素碰撞体 | `BOUNCY_COLLIDER_SIZE`, `MOVING_COLLIDER_SIZE`, `SPIKE_COLLIDER_SIZE` 等 | 各类关卡元素的标准碰撞体尺寸 |
+| 跳跃极限 | `MAX_JUMP_HEIGHT = 2.5f`, `MAX_JUMP_DISTANCE = 4.5f` | 基于 MarioController 物理参数公式演算的真实极限 |
+| 安全约束 | `ASCII_MAX_GAP = 4`, `BOUNCE_CLEARANCE = 3` | 供 ASCII 验证器和模板设计使用的安全边界 |
+
+> **注意**：修改 MarioController 的 `jumpPower` / `fallAcceleration` / `maxSpeed` 后，必须同步更新 PhysicsMetrics 中的跳跃极限常量。
+
+### 3.3 运行时行为参数：各元素脚本的 Inspector 字段
+
+元素生成后，其**运行时行为参数**（如移动速度、弹跳力度、伤害值、周期时间等）分散在各自的组件脚本中，通过 Unity Inspector 面板调整。以下按类别列出所有可调参数入口。
+
+#### 3.3.1 移动 / 旋转 / 缩放（Transform 相关）
+
+项目中没有专门的"移动/旋转/缩放"集中面板。Transform 调整遵循以下规则：
+
+| 调整目标 | 入口 | 操作方式 |
+| :--- | :--- | :--- |
+| **元素位置（Position）** | ASCII 文本模板 或 Scene 视图 | 优先在 ASCII 文本中改字符位置；Element Palette 生成的元素可在 Scene 中拖拽 |
+| **元素旋转（Rotation）** | Scene 视图 Inspector | 选中元素后在 Inspector 的 Transform 组件中修改 Rotation |
+| **视觉缩放（Visual Scale）** | `Visual` 子节点的 `localScale` | 根物体 `localScale` 必须永远是 `(1,1,1)`；视觉缩放由 `Visual` 子节点承担（S37 视碰分离架构） |
+| **碰撞体尺寸** | `PhysicsMetrics.cs` | 碰撞体尺寸统一在 PhysicsMetrics 中定义，禁止在 Inspector 中手动修改 |
+
+> **S37 视碰分离铁律**：所有形变动画（Squash/Stretch）只操作 `visualTransform.localScale`，绝对不要修改根物体的 `transform.localScale`。朝向翻转统一使用 `spriteRenderer.flipX`。
+
+#### 3.3.2 弹跳平台高度（BouncyPlatform.cs）
+
+**文件路径**：`Assets/Scripts/LevelElements/Platforms/BouncyPlatform.cs`
+
+弹跳平台是参数最丰富的元素之一，在 Inspector 中选中弹跳平台对象即可调整：
+
+| Inspector 字段 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `bounceForce` | 22 | 基础弹射力度（直接决定弹跳高度） |
+| `bounceForceMultiplier` | 1.0 | 弹射力倍率（用于微调） |
+| `minBounceForce` | 10 | 最小弹射力 |
+| `maxBounceForce` | 50 | 最大弹射力 |
+| `superBounceMultiplier` | 1.4 | 按住跳跃键时的大跳倍率 |
+| `positionInfluence` | 0.2 | 位置偏移对弹射方向的影响权重（0=纯法线，1=纯位置） |
+| `comedyDelay` | 0.15s | 碰撞后蓄力冻结时间 |
+| `squashAmount` / `stretchOvershoot` | 0.5 / 1.3 | 挤压拉伸动画参数 |
+
+#### 3.3.3 移动平台（MovingPlatform.cs）
+
+**文件路径**：`Assets/Scripts/Core/MovingPlatform.cs`
+
+| Inspector 字段 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `pointB` | (5, 0, 0) | 终点相对于起点的偏移向量（决定移动方向和距离） |
+| `moveSpeed` | 2 | 移动速度 |
+| `waitTime` | 0.5s | 到达端点后的等待时间 |
+| `startFromB` | false | 是否从 B 点出发 |
+
+#### 3.3.4 陷阱类参数
+
+| 陷阱 | 文件路径 | 核心 Inspector 字段 |
+| :--- | :--- | :--- |
+| **地刺** | `LevelElements/Traps/SpikeTrap.cs` | `mode`(Static/Periodic), `damage`, `extendedDuration`, `retractedDuration`, `transitionSpeed`, `knockbackForce/UpForce` |
+| **火焰** | `LevelElements/Traps/FireTrap.cs` | `damage`, `fireDirection`, `fireLength`, `warmupDuration`, `fireDuration`, `coolOffDuration`, `knockbackForce/UpForce` |
+| **摆锤** | `LevelElements/Traps/PendulumTrap.cs` | `ropeLength`, `swingSpeed`, `maxAngle`, `damage`, `hammerRadius`, `knockbackForce/UpForce` |
+| **弹跳怪** | `LevelElements/Traps/BouncingEnemy.cs` | `bounceForce`, `bounceInterval`, `horizontalDrift`, `contactDamage`, `canBeStomped`, `stompBounceForce`, `maxHealth` |
+
+#### 3.3.5 其他平台类参数
+
+| 平台 | 文件路径 | 核心 Inspector 字段 |
+| :--- | :--- | :--- |
+| **崩塌平台** | `LevelElements/Platforms/CollapsingPlatform.cs` | `collapseDelay`, `respawnDelay`, `canRespawn`, `shakeIntensity`, `shakeFrequency` |
+| **单向平台** | `LevelElements/Platforms/OneWayPlatform.cs` | `dropThroughDuration` |
+
+#### 3.3.6 隐藏通道与伪装墙参数
+
+| 元素 | 文件路径 | 核心 Inspector 字段 |
+| :--- | :--- | :--- |
+| **隐藏通道** | `LevelElements/HiddenPassages/HiddenPassage.cs` | `exitPoint`, `isBidirectional`, `teleportDelay`, `teleportCooldown`, `visibility`, `hintDistance`, `requiresKey` |
+| **伪装墙** | `LevelElements/HiddenPassages/FakeWall.cs` | `revealAlpha`, `fadeSpeed` |
+
+#### 3.3.7 角色控制参数
+
+| 角色 | 文件路径 | 核心 Inspector 字段 |
+| :--- | :--- | :--- |
+| **Mario** | `Player/MarioController.cs` | `maxSpeed`(9), `acceleration`(160), `groundDeceleration`(200), `jumpPower`(20), `fallAcceleration`(80), `maxFallSpeed`(40), `jumpEndEarlyGravityModifier`(3), `coyoteTime`(0.15), `jumpBuffer`(0.2), `apexThreshold`(2.0), `apexGravityMultiplier`(0.5) |
+| **Trickster** | `Enemy/TricksterController.cs` | `maxSpeed`(8), `acceleration`(140), `jumpPower`(18), `disguisedMoveMultiplier`(0.15), `canJumpWhileDisguised`(false) |
+
+#### 3.3.8 相机与全局系统参数
+
+| 系统 | 文件路径 | 核心 Inspector 字段 |
+| :--- | :--- | :--- |
+| **相机** | `Camera/CameraController.cs` | `smoothTime`(0.2), `offset`(0,1,-10), `lookAheadDistance`(1.5), `useBounds`, `minX/maxX/minY/maxY` |
+| **死亡区域** | `Core/KillZone.cs` | `damage`(999) |
+| **可破坏方块** | `Core/Breakable.cs` | `blockType`, `hitsToBreak`, `bumpHeight`, `bumpSpeed` |
+| **收集物** | `Core/Collectible.cs` | `type`, `value`, `bobUpDown`, `bobSpeed`, `bobHeight` |
+
+### 3.4 参数调整工作流总结
+
+以下是推荐的参数调整优先级和工作流：
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  第 1 步：改布局 → ASCII 文本（Level Studio → Custom Template）     │
+│  第 2 步：改物理尺寸 → PhysicsMetrics.cs（全局碰撞体常量）          │
+│  第 3 步：改行为参数 → 选中元素 → Inspector（各脚本 SerializeField）│
+│  第 4 步：改视觉外观 → Theme System（LevelThemeProfile 换肤）       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+> **核心原则**：布局问题回文本改，物理尺寸回 PhysicsMetrics 改，行为参数回 Inspector 改。三者职责分明，互不越界。
+
+## 4. 系统集成与扩展
+
+### 4.1 关卡管理器 (LevelManager)
 `LevelManager` 将扩展以支持更多关卡元数据：
 - 注册所有陷阱、平台和隐藏通道。
 - 管理关卡状态（如重置、检查点）。
 - 提供全局查询接口供 Trickster 技能系统使用。
 
-### 3.2 Trickster 技能系统 (TricksterAbilitySystem)
+### 4.2 Trickster 技能系统 (TricksterAbilitySystem)
 新加入的关卡元素（如地刺、摆锤）必须实现 `IControllableProp` 接口或继承 `ControllablePropBase`，以便 Trickster 能够发现并操控它们。
 
-### 3.3 测试场景构建器 (TestSceneBuilder)
+### 4.3 测试场景构建器 (TestSceneBuilder)
 `TestSceneBuilder` 将更新以自动生成包含新陷阱、平台和隐藏通道的测试场景，确保新元素的快速验证。
 
-## 4. 后续开发计划
+## 5. 后续开发计划
 1. **Sprint 2**：实现基础陷阱（地刺、摆锤）和新平台（弹跳、单向）。
 2. **Sprint 3**：实现隐藏通道和高级道具（钥匙、无敌星）。
 3. **Sprint 4**：完善关卡编辑器工具，支持可视化配置。

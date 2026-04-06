@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 39 (方案 C: 按键驱动大跳 Skill-Based Bounce — 状态机锁+Kinematic Freeze+微抬坐标+Super Bounce) |
+| **最新 Session** | Session 39+ (文档更新: LEVEL_DESIGN_SYSTEM.md 新增关卡参数调整入口导航章节) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S39 代码已推送，待用户 Unity 编译验证 |
+| **编译状态** | ⏳ S39 代码已推送，待用户 Unity 编译验证（本次仅文档更新，不影响编译） |
 | **阻塞** | 无 |
-| **交接说明** | S39 方案 C 重构弹跳平台：(1)彻底删除 OnCollisionStay2D，用 enum State{Idle,Bouncing,Cooldown} 状态机锁替代，根治"先高后矮"Bug；(2)PrepareBounce 设 rb.isKinematic=true 熔断物理引擎干扰；(3)ExecuteBounce 微抬坐标 0.05f 脱离碰撞重叠区；(4)严格法线检测 avgNormal.y<-0.5 只接受从上方落下（与 CollapsingPlatform/BouncingEnemy 一致）；(5)按键驱动大跳 IsJumpHeld→superBounceMultiplier 1.4x；(6)MarioController 新增 IsJumpHeld 公共属性+Kinematic Freeze+微抬坐标+击退/死亡恢复 isKinematic。修改文件：BouncyPlatform.cs、MarioController.cs、TestSceneBuilder.cs。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S39+ 本次仅文档更新：在 LEVEL_DESIGN_SYSTEM.md 新增第 3 章「关卡参数调整入口导航」，梳理了四层参数入口体系（Level Studio → PhysicsMetrics → Inspector → Theme），覆盖移动/旋转/缩放、弹跳平台高度、陷阱/平台/角色/相机等全部参数入口。无代码修改，不影响编译和测试。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -136,6 +136,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **紧急** | S39 方案 C 弹跳平台重构（按键驱动大跳+状态机锁+Kinematic Freeze+微抬坐标） | ⏳ 代码已推送，待用户 Unity 验证 |
+| **普通** | LEVEL_DESIGN_SYSTEM.md 新增关卡参数调整入口导航章节 | ✅ 已完成并推送 |
 | **紧急** | S37 视碰分离架构重构（Root→Visual 父子层级，18 文件） | ✅ 自动化测试 109/109 通过，待手动 PlayMode 验证 |
 | **紧急** | S36 弹跳平台 Game Feel 增强（平台动画+角色形变+半重力顶点） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S35 关卡布局安全性修复（模板+片段+验证器） | ✅ 代码已推送，待用户 Unity 验证 |

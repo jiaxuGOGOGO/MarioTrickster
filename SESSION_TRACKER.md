@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 38 (弹跳平台三修：法线方向弹射+持续弹跳+TestSceneBuilder S37适配) |
+| **最新 Session** | Session 38 (弹跳平台四修：法线方向+持续弹跳+空中二次弹射修正+TestSceneBuilder适配) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
 | **编译状态** | ⏳ S38 代码已推送，待用户 Unity 编译验证 |
 | **阻塞** | 无 |
-| **交接说明** | S38 修复弹跳平台三个问题：(1)弹射方向改为碰撞面法线为主，废除relativeVelocity反射；(2)新增OnCollisionStay2D实现持续弹跳；(3)TestSceneBuilder中BouncyPlatform补全S37视碰分离适配。MarioController未修改。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S38 共四次修复：(1)弹射方向改为法线为主；(2)OnCollisionStay2D持续弹跳；(3)hasLeftPlatform+IsGrounded双重防护修复空中二次弹射（第一下低后续高）；(4)TestSceneBuilder S37适配。MarioController未修改，仅读取其 IsGrounded 属性。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 

@@ -169,10 +169,16 @@ public class BouncyPlatform : ControllableLevelElement
     // P1-P7: 缓存 WaitForSeconds 实例，避免协程中每次 new 产生 GC
     private WaitForSeconds cachedComedyWait;
 
-    // S38: 持续弹跳冷却 — 防止 OnCollisionStay2D 在弹射动画未完成时重复触发
-    // 弹射完成后需要一小段冷却时间，等角色真正离开或稳定接触后再允许下一次弹射
+    // S38: 持续弹跳冷却 — 防止角色还在空中就被 Stay 重新弹射
+    // 根因：弹射动画 stretchDuration=0.25s 结束后 isLaunching=false，
+    // 但角色到达顶点时间 v/g=22/80=0.275s，刚好比动画长一点。
+    // 如果碰撞体没有完全脱离平台，Stay 会在角色刚过顶点时触发二次弹射，
+    // 导致"第一下低后续高"的叠加速度问题。
+    // 解决方案：用 hasLeftPlatform 标记角色是否已经离开过平台，
+    // Stay 只在角色"离开后重新落回"时才触发。
     private float launchCooldownTimer;
-    private const float LAUNCH_COOLDOWN = 0.05f; // 极短冷却，仅防止同帧重复
+    private const float LAUNCH_COOLDOWN = 0.05f;
+    private bool hasLeftPlatform = true; // 初始为 true，允许第一次 Enter 触发
 
     protected override void Awake()
     {
@@ -235,17 +241,24 @@ public class BouncyPlatform : ControllableLevelElement
     /// OnCollisionEnter2D 可能不会重新触发（Unity 物理特性），
     /// 因此需要 OnCollisionStay2D 作为补充检测通道。
     /// 
+    /// S38 修正：必须满足 hasLeftPlatform=true 才允许 Stay 触发弹射。
+    /// 这防止角色弹起后碰撞体没有完全脱离平台时，在空中被二次弹射
+    /// （导致"第一下低后续高"的叠加速度问题）。
+    /// 
     /// 触发条件：
+    ///   - 角色已经离开过平台后重新落回（hasLeftPlatform=true）
     ///   - 当前没有弹射序列在进行（!isLaunching）
     ///   - 冷却已结束（launchCooldownTimer <= 0）
-    ///   - 碰撞对象有 Rigidbody2D
-    ///   - 碰撞对象正在下落或静止（velocity.y <= 0.1f），
-    ///     防止角色正在上升时误触发
+    ///   - 碰撞对象有 MarioController 且 grounded=true（真正落地）
+    ///   - 碰撞对象正在下落或静止（velocity.y <= 0.1f）
     /// </summary>
     private void OnCollisionStay2D(Collision2D collision)
     {
         // 正在弹射中或冷却中，跳过
         if (isLaunching || launchCooldownTimer > 0f) return;
+
+        // 角色还没离开过平台，不允许 Stay 触发（防止空中二次弹射）
+        if (!hasLeftPlatform) return;
 
         Rigidbody2D targetRb = collision.gameObject.GetComponent<Rigidbody2D>();
         if (targetRb == null) return;
@@ -253,7 +266,23 @@ public class BouncyPlatform : ControllableLevelElement
         // 只在角色下落或静止时触发（防止上升途中误弹）
         if (targetRb.velocity.y > 0.1f) return;
 
+        // 额外检测：Mario 必须真正 grounded（不是空中擦边）
+        MarioController mario = collision.gameObject.GetComponent<MarioController>();
+        if (mario != null && !mario.IsGrounded) return;
+
         TryLaunch(collision);
+    }
+
+    /// <summary>
+    /// S38: 角色离开平台时标记 hasLeftPlatform=true。
+    /// 这样下次 Stay 检测到角色重新落回时才允许触发弹射。
+    /// </summary>
+    private void OnCollisionExit2D(Collision2D collision)
+    {
+        if (collision.gameObject.GetComponent<Rigidbody2D>() != null)
+        {
+            hasLeftPlatform = true;
+        }
     }
 
     /// <summary>
@@ -287,6 +316,9 @@ public class BouncyPlatform : ControllableLevelElement
 
         // Session 20: 碰撞法线修正
         Vector2 correctedNormal = CalcCorrectedNormal(collision);
+
+        // 标记角色还没离开平台（防止 Stay 在弹射动画结束后空中二次触发）
+        hasLeftPlatform = false;
 
         // 启动弹射序列协程
         activeLaunchCoroutine = StartCoroutine(

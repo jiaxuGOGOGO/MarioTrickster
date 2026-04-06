@@ -136,8 +136,8 @@ public class BouncyPlatform : ControllableLevelElement
 
     // 组件
     private BoxCollider2D boxCollider;
-    private SpriteRenderer spriteRenderer;  // S36: 用于弹射闪白反馈
-    private Color originalColor;             // S36: 缓存原始颜色
+    // S38: spriteRenderer 和 originalColor 已由父类 ControllablePropBase 声明为 protected 并在 base.Awake() 中初始化。
+    // 子类不再重复声明，直接使用父类字段，消除 Unity 序列化重复警告。
 
     // S37: 视碰分离 — 视觉代理节点
     // [AI防坑警告] 所有 squash/stretch 动画必须操作 visualTransform.localScale，
@@ -192,10 +192,8 @@ public class BouncyPlatform : ControllableLevelElement
         boxCollider = GetComponent<BoxCollider2D>();
         boxCollider.isTrigger = false;
 
-        // S36: 缓存 SpriteRenderer 和原始颜色（用于弹射闪白反馈）
-        // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
-        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
-        if (spriteRenderer != null) originalColor = spriteRenderer.color;
+        // S38: spriteRenderer 和 originalColor 已由 base.Awake() 初始化（ControllablePropBase.Awake 使用 GetComponentInChildren）
+        // 此处不再重复赋值，直接使用父类已缓存的字段
 
         // S37: visualTransform 兼容回退
         if (visualTransform == null && spriteRenderer != null)
@@ -411,8 +409,29 @@ public class BouncyPlatform : ControllableLevelElement
         if (tricksterOverride) force *= tricksterForceMult;
         force = Mathf.Clamp(force, minBounceForce, maxBounceForce);
 
-        // 最终弹射速度向量
-        Vector2 launchVelocity = launchDir * force;
+        // S38 修正：固定垂直分量 + 独立水平分量
+        // 根因：旧逻辑 launchDir*force 会因碰撞角度不同导致垂直分量变化，
+        // 第一次从斜上方碰撞时法线有水平分量，导致 launchDir.y < 1，
+        // 垂直弹射力 = force * launchDir.y < force，看起来“矮”。
+        // 后续 Stay 触发时角色垂直落回，法线纯向上，launchDir.y ≈ 1，
+        // 垂直弹射力 = force，看起来“高”。
+        //
+        // 修复：垂直分量始终固定为 force，水平分量由方向计算独立提供。
+        // 这样无论从哪个角度碰撞，弹跳高度始终一致，
+        // 同时保留微弱的水平偏移感（落在平台边缘时微微偏向一侧）。
+        Vector2 launchVelocity;
+        if (tricksterOverride)
+        {
+            // Trickster 操控时保留完整方向控制
+            launchVelocity = launchDir * force;
+        }
+        else
+        {
+            // 正常弹射：垂直分量固定，水平分量由方向计算提供
+            float verticalForce = force;  // 固定垂直弹射力
+            float horizontalForce = launchDir.x * force * 0.3f;  // 微弱水平偏移
+            launchVelocity = new Vector2(horizontalForce, verticalForce);
+        }
 
         // 执行弹射
         if (mario != null)

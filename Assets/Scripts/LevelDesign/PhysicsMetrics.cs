@@ -101,14 +101,17 @@ public static class PhysicsMetrics
     /// <summary>火焰陷阱碰撞体（比视觉小，提供容错）</summary>
     public static readonly Vector2 FIRE_COLLIDER_SIZE = new Vector2(0.6f, 0.6f);
 
-    /// <summary>弹跳平台碰撞体（宽2格，矮，像弹簧）</summary>
-    public static readonly Vector2 BOUNCY_COLLIDER_SIZE = new Vector2(1.8f, 0.3f);
+    /// <summary>弹跳平台碰撞体（1x1 网格对齐，确保 ASCII 连续 B 无缝拼接）</summary>
+    /// S41 校准: 宽度从 1.8 → 1.0，配合 Root.localScale=(1,1,1) 后的真实物理尺寸
+    public static readonly Vector2 BOUNCY_COLLIDER_SIZE = new Vector2(1.0f, 0.3f);
 
-    /// <summary>崩塌平台碰撞体</summary>
-    public static readonly Vector2 COLLAPSE_COLLIDER_SIZE = new Vector2(1.8f, 0.4f);
+    /// <summary>崩塌平台碰撞体（1x1 网格对齐，确保 ASCII 连续 C 无缝拼接）</summary>
+    /// S41 校准: 宽度从 1.8 → 1.0
+    public static readonly Vector2 COLLAPSE_COLLIDER_SIZE = new Vector2(1.0f, 0.4f);
 
-    /// <summary>单向平台碰撞体</summary>
-    public static readonly Vector2 ONEWAY_COLLIDER_SIZE = new Vector2(1.8f, 0.25f);
+    /// <summary>单向平台碰撞体（1x1 网格对齐，确保 ASCII 连续 - 无缝拼接）</summary>
+    /// S41 校准: 宽度从 1.8 → 1.0
+    public static readonly Vector2 ONEWAY_COLLIDER_SIZE = new Vector2(1.0f, 0.25f);
 
     /// <summary>移动平台碰撞体</summary>
     public static readonly Vector2 MOVING_COLLIDER_SIZE = new Vector2(2.5f, 0.4f);
@@ -119,11 +122,13 @@ public static class PhysicsMetrics
     /// <summary>简单敌人碰撞体</summary>
     public static readonly Vector2 SIMPLE_ENEMY_COLLIDER_SIZE = new Vector2(0.8f, 0.8f);
 
-    /// <summary>收集物碰撞体</summary>
-    public static readonly Vector2 COLLECTIBLE_COLLIDER_SIZE = new Vector2(0.5f, 0.5f);
+    /// <summary>收集物碰撞体（比视觉贴图略大一圈，磁吸手感顺滑爽快）</summary>
+    /// S41 校准: 从 0.5 → 0.6，增强拾取体验
+    public static readonly Vector2 COLLECTIBLE_COLLIDER_SIZE = new Vector2(0.6f, 0.6f);
 
-    /// <summary>摆锤锚点碰撞体</summary>
-    public static readonly Vector2 PENDULUM_COLLIDER_SIZE = new Vector2(0.3f, 0.3f);
+    /// <summary>摆锤碰撞体（0.4 大小足够有威慑力，契合铁球视觉核心）</summary>
+    /// S41 校准: 从 0.3 → 0.4，修复 S37 前双重缩放导致的 0.09 像素级杀伤区
+    public static readonly Vector2 PENDULUM_COLLIDER_SIZE = new Vector2(0.4f, 0.4f);
 
     /// <summary>可操控危险物碰撞体</summary>
     public static readonly Vector2 CONTROLLABLE_HAZARD_COLLIDER_SIZE = new Vector2(1f, 0.5f);
@@ -301,7 +306,8 @@ public static class PhysicsMetrics
     // 注意事项：
     //   - 碰撞体尺寸必须在本文件定义，禁止在 Spawn 方法中硬编码
     //   - 危险物碰撞体应小于视觉（宽容感）
-    //   - 平台类碰撞体宽度应 >= 1.5格（给玩家落脚空间）
+    //   - 平台类碰撞体宽度应 = 1.0格（1x1 网格对齐，确保 ASCII 连续字符无缝拼接）
+    //   - 移动平台等独立实体不拼接，可使用更大宽度
     //   - 新增的跳跃能力修改必须同步更新本文件的跳跃极限常量
     //
 }

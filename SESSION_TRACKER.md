@@ -84,9 +84,9 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S41 全部代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S41 全部代码已推送（含 PhysicsMetrics 终极校准），待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S41 包含两部分：(1) LevelEditorPickingManager v3 — Selection 后处理策略，框选 Visual 自动替换为 Root，支持 Root/Visual 模式切换（Test Console Toggle）。(2) OneWayPlatform S+Space 下落修复 — Physics2D.IgnoreCollision 定向忽略碰撞（终极方案），只让触发者穿过，其他实体不受影响。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S41 包含三部分：(1) LevelEditorPickingManager v3 — Selection 后处理策略，框选 Visual 自动替换为 Root，支持 Root/Visual 模式切换（Test Console Toggle）。(2) OneWayPlatform S+Space 下落修复 — Physics2D.IgnoreCollision 定向忽略碰撞（终极方案）。(3) PhysicsMetrics 终极校准 — 修复 S37 前双重缩放畸变遗留，平台类 1x1 网格对齐，摆锤/收集物校准。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -137,7 +137,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 |--------|------|------|
 | **紧急** | S39 方案 C 弹跳平台重构（按键驱动大跳+状态机锁+Kinematic Freeze+微抬坐标） | ⏳ 代码已推送，待用户 Unity 验证 |
 | **普通** | LEVEL_DESIGN_SYSTEM.md 新增关卡参数调整入口导航章节 | ✅ 已完成并推送 |
-| **紧急** | S41 LevelEditorPickingManager v3 框选拾取模式切换 + OneWayPlatform 下落修复 | ⏳ 代码已推送，待用户 Unity 验证 |
+| **紧急** | S41 LevelEditorPickingManager v3 + OneWayPlatform IgnoreCollision + PhysicsMetrics 终极校准 | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S40 [SelectionBase] 修复框选选到 Visual 子节点问题（11 个文件） | ✅ 已完成，S41 进一步优化 |
 | **紧急** | S37 视碰分离架构重构（Root→Visual 父子层级，18 文件） | ✅ 自动化测试 109/109 通过，待手动 PlayMode 验证 |
 | **紧急** | S36 弹跳平台 Game Feel 增强（平台动画+角色形变+半重力顶点） | ✅ 代码已推送，待用户 Unity 验证 |

@@ -377,10 +377,15 @@ public class TestSceneBuilder : Editor
             "Mario reach GoalZone -> Mario Wins\nMario fall to death -> Trickster Wins\nR = Restart | N = Next Round | F5 = Quick Restart\nCheck: Timer, HP, Round display",
             stage7.transform);
 
-        // 简单敌人（用于测试 Mario 死亡）
+        // S44: 简单敌人（用于测试 Mario 死亡）— 视碰分离 + groundLayer 设置
         GameObject enemy = new GameObject("SimpleEnemy");
         enemy.transform.position = new Vector3(s7 + 6, 0.5f, 0);
-        SpriteRenderer enemySR = enemy.AddComponent<SpriteRenderer>();
+        // S37: Visual 子节点承载 SpriteRenderer
+        GameObject enemyVisual = new GameObject("Visual");
+        enemyVisual.transform.SetParent(enemy.transform, false);
+        enemyVisual.transform.localPosition = Vector3.zero;
+        enemyVisual.transform.localScale = new Vector3(0.8f, 0.8f, 1f);
+        SpriteRenderer enemySR = enemyVisual.AddComponent<SpriteRenderer>();
         enemySR.color = new Color(0.6f, 0f, 0.6f);
         enemySR.sortingOrder = 8;
         AssignDefaultSprite(enemySR, new Color(0.6f, 0f, 0.6f));
@@ -389,8 +394,9 @@ public class TestSceneBuilder : Editor
         Rigidbody2D enemyRb = enemy.AddComponent<Rigidbody2D>();
         enemyRb.gravityScale = 1f;
         enemyRb.freezeRotation = true;
-        enemy.AddComponent<SimpleEnemy>();
-        enemy.AddComponent<DamageDealer>();
+        SimpleEnemy simpleEnemyComp = enemy.AddComponent<SimpleEnemy>();
+        SetSerializedField(simpleEnemyComp, "groundLayer", groundLayerMask);
+        // S44: 移除 DamageDealer — SimpleEnemy.OnCollisionEnter2D 已完整处理伤害+踩踏逻辑
         enemy.transform.parent = stage7.transform;
         CreateSubLabel(s7 + 6, -0.5f, "Enemy (touch = damage)", stage7.transform);
 
@@ -516,15 +522,20 @@ public class TestSceneBuilder : Editor
             "Mario side-touch = damage + knockback\nMario stomp from above = kill enemy\nTrickster(L): increase bounce + speed",
             stage9.transform);
 
+        // S44: BouncingEnemy 视碰分离 + PhysicsMetrics 碰撞体尺寸
         GameObject bouncingEnemy = new GameObject("BouncingEnemy");
         bouncingEnemy.transform.position = new Vector3(s9d + 4, 0.5f, 0);
-        SpriteRenderer bounceSR = bouncingEnemy.AddComponent<SpriteRenderer>();
+        // S37: Visual 子节点承载 SpriteRenderer，Root.localScale 保持 (1,1,1)
+        GameObject bounceVisual = new GameObject("Visual");
+        bounceVisual.transform.SetParent(bouncingEnemy.transform, false);
+        bounceVisual.transform.localPosition = Vector3.zero;
+        bounceVisual.transform.localScale = new Vector3(0.6f, 0.6f, 1f);
+        SpriteRenderer bounceSR = bounceVisual.AddComponent<SpriteRenderer>();
         bounceSR.color = new Color(0.8f, 0.2f, 0.8f);
         bounceSR.sortingOrder = 8;
         AssignDefaultSprite(bounceSR, new Color(0.8f, 0.2f, 0.8f));
-        bouncingEnemy.transform.localScale = new Vector3(0.6f, 0.6f, 1f);
         BoxCollider2D bounceCol = bouncingEnemy.AddComponent<BoxCollider2D>();
-        bounceCol.size = Vector2.one;
+        bounceCol.size = PhysicsMetrics.BOUNCING_ENEMY_COLLIDER_SIZE;
         Rigidbody2D bounceRb = bouncingEnemy.AddComponent<Rigidbody2D>();
         bounceRb.gravityScale = 2f;
         bounceRb.freezeRotation = true;

@@ -464,7 +464,9 @@ public static class AsciiLevelGenerator
     private static void SpawnBouncingEnemy(int x, int y)
     {
         // Session 32: 敌人碰撞体使用 PhysicsMetrics 标准尺寸
-        GameObject go = CreateBlock("BouncingEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, true);
+        // S44: isTrigger 改为 false — 敌人需要物理碰撞站在地面上，
+        // isTrigger=true 会导致穿过地面掉落。BouncingEnemy 自带 OnCollisionEnter2D 处理伤害。
+        GameObject go = CreateBlock("BouncingEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, false);
         // S37: 视觉缩放操作 Visual 子节点
         go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
@@ -478,7 +480,10 @@ public static class AsciiLevelGenerator
     private static void SpawnSimpleEnemy(int x, int y)
     {
         // Session 32: 敌人碰撞体使用 PhysicsMetrics 标准尺寸
-        GameObject go = CreateBlock("SimpleEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, true);
+        // S44: isTrigger 改为 false — 敌人需要物理碰撞站在地面上，
+        // isTrigger=true 会导致穿过地面掉落。SimpleEnemy 自带 OnCollisionEnter2D 处理伤害+踩踏，
+        // 不需要 DamageDealer（DamageDealer 依赖 OnTrigger 回调，与非 Trigger 碰撞体不兼容）。
+        GameObject go = CreateBlock("SimpleEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, false);
         // S37: 视觉缩放操作 Visual 子节点
         go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
@@ -487,7 +492,8 @@ public static class AsciiLevelGenerator
         rb.gravityScale = 1f;
         rb.freezeRotation = true;
         go.AddComponent<SimpleEnemy>();
-        go.AddComponent<DamageDealer>();
+        // S44: 移除 DamageDealer — SimpleEnemy.OnCollisionEnter2D 已完整处理伤害+踩踏逻辑，
+        // DamageDealer 的 OnTrigger 回调在非 Trigger 碰撞体上不会触发，挂载无意义。
     }
 
     private static void SpawnFakeWall(int x, int y)

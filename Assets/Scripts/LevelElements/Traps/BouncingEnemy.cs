@@ -69,6 +69,16 @@ public class BouncingEnemy : ControllableLevelElement
 
         boxCollider = GetComponent<BoxCollider2D>();
 
+        // S44: 碰撞体安全检查 — 确保非 Trigger，否则敌人会穿过地面掉落
+        // [AI防坑警告] BouncingEnemy 的碰撞体必须是非 Trigger！
+        // 它依赖 Rigidbody2D 物理碰撞站在地面上，isTrigger=true 会导致穿地掉落。
+        // 伤害逻辑通过 OnCollisionEnter2D 处理（非 Trigger）。
+        if (boxCollider.isTrigger)
+        {
+            Debug.LogWarning($"[BouncingEnemy] {gameObject.name} 的 BoxCollider2D.isTrigger 被错误设为 true，已自动修正为 false。");
+            boxCollider.isTrigger = false;
+        }
+
         // S37: 视碰分离 — 视觉代理节点兼容回退
         SpriteRenderer sr = GetComponentInChildren<SpriteRenderer>();
         visualTransform = sr != null ? sr.transform : transform;

@@ -39,6 +39,16 @@ public class SimpleEnemy : MonoBehaviour
     private int moveDirection;
     private bool isDead;
 
+    // [AI防坑警告] SimpleEnemy 的碰撞体必须是非 Trigger（isTrigger=false）！
+    // 它依赖 Rigidbody2D 物理碰撞站在地面上，isTrigger=true 会导致穿过地面掉落。
+    // 伤害逻辑通过 OnCollisionEnter2D 处理（非 Trigger），不需要 DamageDealer。
+    // 如果同时挂载了 DamageDealer（需要 Trigger），DamageDealer 的 OnTrigger 回调不会触发，
+    // 因为主碰撞体是非 Trigger。SimpleEnemy 自身的 OnCollisionEnter2D 已完整处理伤害+踩踏。
+    //
+    // groundLayer 必须在创建时通过 SetSerializedField 赋值，或者依赖下方 Awake 中的自动回退。
+    // 如果 groundLayer 为 0（Nothing），边缘检测和墙壁检测的 Raycast 永远检测不到地面，
+    // 敌人会认为自己始终在边缘，不断翻转或直接走出平台掉落。
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -54,6 +64,29 @@ public class SimpleEnemy : MonoBehaviour
 
         rb.gravityScale = 3f;
         rb.freezeRotation = true;
+
+        // S44: 碰撞体安全检查 — 确保非 Trigger，否则敌人会穿过地面掉落
+        if (boxCollider.isTrigger)
+        {
+            Debug.LogWarning($"[SimpleEnemy] {gameObject.name} 的 BoxCollider2D.isTrigger 被错误设为 true，已自动修正为 false。" +
+                             "SimpleEnemy 依赖物理碰撞站在地面上，isTrigger=true 会导致穿地掉落。");
+            boxCollider.isTrigger = false;
+        }
+
+        // S44: groundLayer 自动回退 — 如果未通过 SerializedField 赋值，自动检测 "Ground" 层
+        if (groundLayer.value == 0)
+        {
+            int groundLayerIndex = LayerMask.NameToLayer("Ground");
+            if (groundLayerIndex >= 0)
+            {
+                groundLayer = 1 << groundLayerIndex;
+                Debug.Log($"[SimpleEnemy] {gameObject.name} 的 groundLayer 未设置，已自动回退为 Ground 层 (index={groundLayerIndex})");
+            }
+            else
+            {
+                Debug.LogWarning($"[SimpleEnemy] {gameObject.name} 的 groundLayer 未设置且找不到 Ground 层！边缘/墙壁检测将失效。");
+            }
+        }
 
         moveDirection = startMovingRight ? 1 : -1;
     }
@@ -78,7 +111,8 @@ public class SimpleEnemy : MonoBehaviour
         }
 
         // 更新朝向
-        spriteRenderer.flipX = moveDirection > 0;
+        if (spriteRenderer != null)
+            spriteRenderer.flipX = moveDirection > 0;
     }
 
     private void OnCollisionEnter2D(Collision2D collision)

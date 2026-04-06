@@ -113,7 +113,7 @@ public class BouncyPlatform : ControllableLevelElement
 
     [Header("=== S39: 状态机冷却 ===")]
     [Tooltip("弹射完成后的冷却时间（秒），期间不接受新的碰撞触发")]
-    [SerializeField] private float cooldownDuration = 0.15f;
+    [SerializeField] private float bounceCooldownDuration = 0.15f;
 
     [Header("=== 相机震动 ===")]
     [Tooltip("弹射时是否触发相机震动")]
@@ -207,7 +207,7 @@ public class BouncyPlatform : ControllableLevelElement
 
         // 缓存 WaitForSeconds（P7: 避免协程中 GC 分配）
         cachedComedyWait = new WaitForSeconds(comedyDelay);
-        cachedCooldownWait = new WaitForSeconds(cooldownDuration);
+        cachedCooldownWait = new WaitForSeconds(bounceCooldownDuration);
     }
 
     private void Start()

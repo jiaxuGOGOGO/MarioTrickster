@@ -86,7 +86,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阶段** | Sprint 2 游戏体验提升 |
 | **编译状态** | ⏳ S47 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S47 新增 `LevelReachabilityAnalyzer.cs`：纯网格 BFS 图搜索验证 M→G 可达性。状态转移规则基于 PhysicsMetrics 跳跃极限（水平 5 格、垂直 2 格），支持 JumpBoost 弹跳增益、招物线约束、头顶阻挡检测。不可达时自动生成纠错话术并复制到剪贴板（Auto-Prompting）。已集成到 Generator 的 L1 验证后。新增 1 文件，修改 1 文件。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S47+S47b `LevelReachabilityAnalyzer.cs`：纯网格 BFS 图搜索验证 M→G 可达性。S47b 三补丁: (1) 纠错话术含 Unity→ASCII 坐标系翻译(row=height-1-y)+原始模板附带 (2) 陷阱致死拦截: 脚下为 Hazard 的位置视为死亡不可站立 (3) 单向平台'-'穿透豁免: IsPathBlocked 跳过单向平台不视为头顶阻挡。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 

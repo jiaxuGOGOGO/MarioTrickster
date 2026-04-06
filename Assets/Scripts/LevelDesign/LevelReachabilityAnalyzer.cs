@@ -15,10 +15,12 @@ using System.Collections.Generic;
 ///     dy 范围: [-自由落体高度, +MAX_JUMP_CELLS]
 ///   - 落点合法条件: 落点 (nx, ny) 在网格内，且 ny==0 或 grid[ny-1] 有 Solid 支撑
 ///   - 踩中 JumpBoost > 0 的元素（弹跳平台 B、弹跳怪 E）时，纵向跳跃上限临时增加
+///   - S47b 补丁: 脚下为 Hazard 的位置视为死亡，不可站立
+///   - S47b 补丁: 单向平台 '-' 不阻挡从下方向上的跳跃路径
 ///
 /// Auto-Prompting 闭环:
 ///   若 BFS 无法到达 'G'，找出离 'G' 最近的已探索合法坐标，
-///   自动生成纠错话术并复制到系统剪贴板，供用户直接粘贴给 AI 修正关卡。
+///   自动生成纠错话术（含 ASCII 行列坐标翻译 + 原始模板）并复制到系统剪贴板。
 ///
 /// [AI防坑警告] 本验证器是纯静态网格分析，不依赖 Unity 物理引擎。
 /// 所有跳跃能力参数来自 PhysicsMetrics 常量，修改物理参数后本验证器自动同步。
@@ -53,6 +55,15 @@ public static class LevelReachabilityAnalyzer
     {
         get { return Mathf.FloorToInt(PhysicsMetrics.MAX_JUMP_HEIGHT); }
     }
+
+    // ═══════════════════════════════════════════════════
+    // 单向平台字符常量
+    // ═══════════════════════════════════════════════════
+
+    // [AI防坑警告] 单向平台 '-' 在 Registry 中 isSolid=true（可站立），
+    // 但玩家可以从下方穿透跳上去（PlatformEffector2D.useOneWay=true）。
+    // BFS 的头顶阻挡检查必须豁免此字符，否则会误判跳跃路径被阻断。
+    private const char ONE_WAY_PLATFORM_CHAR = '-';
 
     // ═══════════════════════════════════════════════════
     // BFS 状态定义
@@ -190,6 +201,7 @@ public static class LevelReachabilityAnalyzer
         // ── 获取 Registry 元数据 ──
         var registry = AsciiElementRegistry.GetDefault();
         HashSet<char> solidChars = registry.GetSolidChars();
+        HashSet<char> hazardChars = registry.GetHazardChars(); // S47b: 陷阱致死拦截
 
         // ── BFS 搜索 ──
         // visited[x, y, hasBounce] — hasBounce 作为状态维度，因为弹跳能力影响可达范围
@@ -204,7 +216,7 @@ public static class LevelReachabilityAnalyzer
         // 向下搜索第一个支撑面
         for (int fallY = startY; fallY >= 0; fallY--)
         {
-            if (CanStandAt(grid, startX, fallY, solidChars, width, height))
+            if (CanStandAt(grid, startX, fallY, solidChars, hazardChars, width, height))
             {
                 bool fb = HasJumpBoost(grid, startX, fallY, registry);
                 EnqueueIfNew(queue, visited, startX, fallY, fb, width, height);
@@ -270,9 +282,9 @@ public static class LevelReachabilityAnalyzer
                     if (dy > 0 && !IsJumpPhysicallyFeasible(dx, dy, jumpUp, jumpHoriz))
                         continue;
 
-                    if (CanStandAt(grid, nx, ny, solidChars, width, height))
+                    if (CanStandAt(grid, nx, ny, solidChars, hazardChars, width, height))
                     {
-                        // 检查路径上没有被实体方块挡住头部
+                        // S47b: 头顶阻挡检查（豁免单向平台 '-'）
                         if (!IsPathBlocked(grid, current.x, current.y, nx, ny, solidChars, width, height))
                         {
                             bool nb = HasJumpBoost(grid, nx, ny, registry);
@@ -285,7 +297,7 @@ public static class LevelReachabilityAnalyzer
                 int fallLimit = Mathf.Max(0, current.y - MAX_FALL_CELLS);
                 for (int ny = current.y - 1; ny >= fallLimit; ny--)
                 {
-                    if (CanStandAt(grid, nx, ny, solidChars, width, height))
+                    if (CanStandAt(grid, nx, ny, solidChars, hazardChars, width, height))
                     {
                         // 向下跳不需要抛物线约束（重力自然下落）
                         bool nb = HasJumpBoost(grid, nx, ny, registry);
@@ -306,7 +318,7 @@ public static class LevelReachabilityAnalyzer
                 if (wx >= 0 && wx < width)
                 {
                     // 同层行走
-                    if (CanStandAt(grid, wx, current.y, solidChars, width, height) &&
+                    if (CanStandAt(grid, wx, current.y, solidChars, hazardChars, width, height) &&
                         !IsSolidAt(grid, wx, current.y, solidChars, width, height))
                     {
                         bool wb = HasJumpBoost(grid, wx, current.y, registry);
@@ -316,7 +328,7 @@ public static class LevelReachabilityAnalyzer
                     // 走下台阶（走到边缘掉落一格）
                     if (current.y > 0 &&
                         !IsSolidAt(grid, wx, current.y, solidChars, width, height) &&
-                        CanStandAt(grid, wx, current.y - 1, solidChars, width, height))
+                        CanStandAt(grid, wx, current.y - 1, solidChars, hazardChars, width, height))
                     {
                         bool wb = HasJumpBoost(grid, wx, current.y - 1, registry);
                         EnqueueIfNew(queue, visited, wx, current.y - 1, wb, width, height);
@@ -332,8 +344,8 @@ public static class LevelReachabilityAnalyzer
         result.ClosestDistance = closestDist;
         result.ExploredCount = exploredCount;
 
-        // Auto-Prompting: 生成纠错话术
-        result.ErrorPrompt = GenerateErrorPrompt(closestX, closestY, goalX, goalY);
+        // S47b: Auto-Prompting 话术含坐标系翻译 + 原始 ASCII 模板
+        result.ErrorPrompt = GenerateErrorPrompt(closestX, closestY, goalX, goalY, height, template);
 
         return result;
     }
@@ -342,20 +354,38 @@ public static class LevelReachabilityAnalyzer
     // 辅助方法
     // ═══════════════════════════════════════════════════
 
-    /// <summary>判断 (x, y) 是否可以站立：y==0（地面底部）或 (x, y-1) 是 Solid</summary>
+    /// <summary>
+    /// 判断 (x, y) 是否可以站立。
+    /// 条件: 自身非实体 + (y==0 或 下方有 Solid 支撑) + 脚下非 Hazard。
+    /// S47b: 脚下为 Hazard（地刺/火焰/摆锤）时视为死亡，不可站立。
+    /// </summary>
     private static bool CanStandAt(char[,] grid, int x, int y,
-        HashSet<char> solidChars, int width, int height)
+        HashSet<char> solidChars, HashSet<char> hazardChars, int width, int height)
     {
         if (x < 0 || x >= width || y < 0 || y >= height) return false;
 
         // 自身位置不能是实体（角色不能站在实体内部）
         if (solidChars.Contains(grid[x, y])) return false;
 
+        // [AI防坑警告] S47b 陷阱致死拦截:
+        // 如果角色脚下 (x, y) 本身就是 Hazard（如地刺 ^），角色会受伤/死亡，
+        // 此位置不可作为合法站立点。
+        if (hazardChars.Contains(grid[x, y])) return false;
+
         // y==0 时视为地面底部（如果下方没有格子，说明是最底层）
         if (y == 0) return true;
 
         // 下方有实体支撑
-        if (y - 1 >= 0 && solidChars.Contains(grid[x, y - 1])) return true;
+        if (y - 1 >= 0 && solidChars.Contains(grid[x, y - 1]))
+        {
+            // [AI防坑警告] S47b 陷阱致死拦截:
+            // 即使下方是 Solid 支撑，如果脚下 (y-1) 同时也是 Hazard（理论上不会，
+            // 因为当前 Registry 中 Hazard 都是 isSolid=false），仍做防御性检查。
+            // 此处不需要额外检查，因为 Hazard 元素在 Registry 中 isSolid=false，
+            // 不会出现在 solidChars 集合中。但如果未来有 Solid+Hazard 的元素，
+            // 上面的 hazardChars.Contains(grid[x, y]) 已经拦截了角色站在其上方的情况。
+            return true;
+        }
 
         return false;
     }
@@ -411,6 +441,7 @@ public static class LevelReachabilityAnalyzer
     /// <summary>
     /// 检查从 (fromX, fromY) 到 (toX, toY) 的跳跃路径是否被实体方块挡住。
     /// 简化检查：只检查头顶是否有实体（向上跳时）。
+    /// S47b: 豁免单向平台 '-'（PlatformEffector2D.useOneWay=true，可从下方穿透）。
     /// </summary>
     private static bool IsPathBlocked(char[,] grid, int fromX, int fromY,
         int toX, int toY, HashSet<char> solidChars, int width, int height)
@@ -422,7 +453,17 @@ public static class LevelReachabilityAnalyzer
         for (int checkY = fromY + 1; checkY <= maxCheckY; checkY++)
         {
             if (IsSolidAt(grid, fromX, checkY, solidChars, width, height))
-                return true; // 头顶被挡
+            {
+                // [AI防坑警告] S47b 单向平台穿透豁免:
+                // 单向平台 '-' 使用 PlatformEffector2D.useOneWay=true，
+                // 玩家可以从下方穿透跳上去。因此在头顶阻挡检查中必须豁免此字符，
+                // 否则会误判"头顶被挡"导致合法跳跃路径被截断。
+                char blockChar = grid[fromX, checkY];
+                if (blockChar == ONE_WAY_PLATFORM_CHAR)
+                    continue; // 单向平台不阻挡，跳过
+
+                return true; // 非单向平台的实体方块阻挡了跳跃
+            }
         }
 
         return false;
@@ -449,26 +490,43 @@ public static class LevelReachabilityAnalyzer
     }
 
     // ═══════════════════════════════════════════════════
-    // Auto-Prompting 纠错话术生成
+    // Auto-Prompting 纠错话术生成 (S47b: 坐标系降维翻译 + 原始模板附带)
     // ═══════════════════════════════════════════════════
 
     /// <summary>
-    /// 生成纠错话术并复制到系统剪贴板。
-    /// 话术包含断层位置和修复建议，用户可直接粘贴给 AI 修正关卡。
+    /// 生成纠错话术。
+    /// S47b 升级: 包含 Unity→ASCII 坐标翻译（行列号）和原始 ASCII 模板，
+    /// 让 LLM 能直接看着原图定位断层并修改。
     /// </summary>
-    private static string GenerateErrorPrompt(int closestX, int closestY, int goalX, int goalY)
+    /// <param name="closestX">最近可达点的 X 坐标（Unity 网格坐标）</param>
+    /// <param name="closestY">最近可达点的 Y 坐标（Unity 网格坐标，自下而上）</param>
+    /// <param name="goalX">终点 G 的 X 坐标</param>
+    /// <param name="goalY">终点 G 的 Y 坐标</param>
+    /// <param name="totalHeight">关卡总行数</param>
+    /// <param name="template">原始 ASCII 模板字符串</param>
+    private static string GenerateErrorPrompt(int closestX, int closestY,
+        int goalX, int goalY, int totalHeight, string template)
     {
         float distance = Mathf.Sqrt((closestX - goalX) * (closestX - goalX) +
                                      (closestY - goalY) * (closestY - goalY));
 
+        // S47b: Unity Y 轴自下而上 → ASCII 行号自上而下的翻译
+        // row = totalHeight - 1 - y（行号从0开始）
+        int closestRow = totalHeight - 1 - closestY;
+        int goalRow = totalHeight - 1 - goalY;
+
         string prompt =
             $"[系统反馈] 你的关卡存在物理死路。" +
-            $"角色最远抵达 ({closestX},{closestY})，距离终点 ({goalX},{goalY}) " +
+            $"角色最远抵达 (x={closestX}, y={closestY})，" +
+            $"对应 ASCII 文本的 [从左往右第 {closestX} 列，从上往下数第 {closestRow} 行] " +
+            $"(注: 行号从0开始，row = 关卡总行数 - 1 - y)。" +
+            $"距离终点 G (x={goalX}, y={goalY}) [第 {goalX} 列，第 {goalRow} 行] " +
             $"路径发生断层（距离 {distance:F1} 格），超过了跳跃极限" +
             $"（水平极限 {PhysicsMetrics.MAX_GAP_WITH_COYOTE:F1} 格，" +
             $"垂直极限 {PhysicsMetrics.MAX_JUMP_HEIGHT:F1} 格）。" +
-            $"请在 ({closestX},{closestY}) 附近增加平台或弹跳跳板（B），" +
-            $"确保路径连通，输出修正后的完整 ASCII 模板。";
+            $"请在 (第{closestX}列, 第{closestRow}行) 附近增加平台或弹跳跳板（B），" +
+            $"确保路径连通，输出修正后的完整 ASCII 模板。" +
+            $"请在原图上修改：\n{template}";
 
         return prompt;
     }
@@ -484,7 +542,7 @@ public static class LevelReachabilityAnalyzer
 
 #if UNITY_EDITOR
         GUIUtility.systemCopyBuffer = result.ErrorPrompt;
-        Debug.Log("[L2 BFS] 📋 纠错话术已复制到剪贴板，可直接粘贴给 AI 修正关卡。");
+        Debug.Log("[L2 BFS] 📋 纠错话术已复制到剪贴板（含坐标翻译+原始模板），可直接粘贴给 AI 修正关卡。");
 #endif
         Debug.LogError($"[L2 BFS] {result.GetReport()}");
         Debug.Log($"[L2 BFS] 纠错话术:\n{result.ErrorPrompt}");

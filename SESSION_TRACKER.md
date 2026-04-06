@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 37 (视碰分离架构重构：Root(物理) → Visual(表现) 父子层级，为 Animator 帧动画打地基) |
+| **最新 Session** | Session 38 (弹跳平台三修：法线方向弹射+持续弹跳+TestSceneBuilder S37适配) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ✅ S37 编译通过，EditMode 109/109 自动化测试全通过 |
+| **编译状态** | ⏳ S38 代码已推送，待用户 Unity 编译验证 |
 | **阻塞** | 无 |
-| **交接说明** | S37 视碰分离架构重构。所有角色/机关的 SpriteRenderer 迁移到 Visual 子节点，根物体 localScale 永远锁定 (1,1,1)。形变动画操作 visualTransform.localScale，转向死守 spriteRenderer.flipX。DisguiseSystem 伪装时同步修改 BoxCollider2D.size + visualTransform.localScale。AsciiLevelGenerator/TestConsoleWindow/TestSceneBuilder 均已适配 Visual 子节点创建。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S38 修复弹跳平台三个问题：(1)弹射方向改为碰撞面法线为主，废除relativeVelocity反射；(2)新增OnCollisionStay2D实现持续弹跳；(3)TestSceneBuilder中BouncyPlatform补全S37视碰分离适配。MarioController未修改。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -109,7 +109,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9B：摆锤 | Trickster L键可控制 |
 | 🔄 | 测试 9C：火陷阱 | 碰到向后退，不向上飞 |
 | 🔄 | 测试 9D：弹跳怪 | 碰到有击退，踩踏消灭 |
-| 🔄 | 测试 9E：弹跳平台 | **S22核心+S36增强**：冻结时角色压扁+平台压缩 → 弹射时角色拉伸+平台拉伸+闪白 → 顶点有滑翔感 → 落地压扁回弹 |
+| 🔄 | 测试 9E：弹跳平台 | **S38重点验证**：(1)从上方跳上去应向上弹 (2)持续弹跳不停 (3)不会弹到反方向 + S22核心+S36增强手感 |
 | 🔄 | 测试 9F：单向平台 | S+Space 下落，单独S不落 |
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S38 弹跳平台三修（法线方向+持续弹跳+TestSceneBuilder S37适配） | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S37 视碰分离架构重构（Root→Visual 父子层级，18 文件） | ✅ 自动化测试 109/109 通过，待手动 PlayMode 验证 |
 | **紧急** | S36 弹跳平台 Game Feel 增强（平台动画+角色形变+半重力顶点） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S35 关卡布局安全性修复（模板+片段+验证器） | ✅ 代码已推送，待用户 Unity 验证 |

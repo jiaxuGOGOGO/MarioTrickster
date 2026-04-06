@@ -538,19 +538,29 @@ public class TestSceneBuilder : Editor
             "Mario: land on any side = bounce in surface normal direction\nBounce force adjustable (bounceForce + bounceForceMultiplier)\nComedy delay(0.25s): freeze + squash animation\nTrickster(L): override direction + increase force during freeze\n[S19] Contact-normal based directional bounce\n[S20] Normal correction for corner collisions\n[S22] Two-phase bounce: PrepareBounce(freeze) → ExecuteBounce(launch)\n     Momentum preservation: airFriction + bounceAirAcceleration\n     Auto-release on landing or wall hit",
             stage9.transform);
 
+        // S38: BouncyPlatform 适配 S37 视碰分离架构
+        // Root(物理碰撞) → Visual(视觉表现) 父子层级
+        // Root.localScale 永远 (1,1,1)，碰撞体用 PhysicsMetrics 标准尺寸
+        // Visual.localScale 控制视觉大小
         GameObject bouncyPlatform = new GameObject("BouncyPlatform");
         bouncyPlatform.transform.position = new Vector3(s9e + 4, -0.3f, 0);
         bouncyPlatform.layer = groundLayerIndex;
-        SpriteRenderer bouncyPlatSR = bouncyPlatform.AddComponent<SpriteRenderer>();
+        // S37: Visual 子节点承载 SpriteRenderer
+        GameObject bouncyVisual = new GameObject("Visual");
+        bouncyVisual.transform.SetParent(bouncyPlatform.transform, false);
+        bouncyVisual.transform.localPosition = Vector3.zero;
+        bouncyVisual.transform.localScale = new Vector3(2f, 0.4f, 1f);
+        SpriteRenderer bouncyPlatSR = bouncyVisual.AddComponent<SpriteRenderer>();
         bouncyPlatSR.color = new Color(0.2f, 0.9f, 0.3f);
         bouncyPlatSR.sortingOrder = 5;
         AssignDefaultSprite(bouncyPlatSR, new Color(0.2f, 0.9f, 0.3f));
-        bouncyPlatform.transform.localScale = new Vector3(2f, 0.4f, 1f);
+        // Root.localScale 保持 (1,1,1)，碰撞体使用 PhysicsMetrics 标准尺寸
         BoxCollider2D bouncyCol = bouncyPlatform.AddComponent<BoxCollider2D>();
-        bouncyCol.size = Vector2.one;
-        bouncyPlatform.AddComponent<BouncyPlatform>();
+        bouncyCol.size = PhysicsMetrics.BOUNCY_COLLIDER_SIZE;
+        BouncyPlatform bouncyPlatComp = bouncyPlatform.AddComponent<BouncyPlatform>();
+        bouncyPlatComp.visualTransform = bouncyVisual.transform;
         bouncyPlatform.transform.parent = stage9.transform;
-        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (S22: Two-phase bounce = PrepareBounce + ExecuteBounce + momentum preservation)", stage9.transform);
+        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (S38: normal-based bounce + continuous bouncing)", stage9.transform);
 
         // --- 9F: OneWayPlatform (单向平台) ---
         float s9f = s9e + s9SubWidth;

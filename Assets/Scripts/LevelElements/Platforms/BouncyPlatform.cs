@@ -7,17 +7,16 @@ using System.Collections;
 /// 框架定位: ControllableLevelElement
 /// 分类: Platform | 标签: Controllable, AffectsPhysics, Resettable
 /// 
-/// 核心机制（两段式弹射 + 反方向弹飞 + 位置偏移）:
-///   玩家碰撞平台后，弹射方向由两部分混合决定：
-///   1. 来向反弹：玩家碰撞前运动方向取反（collision.relativeVelocity）
-///   2. 位置偏移：玩家相对平台中心的偏移方向
-///      - 落在平台左半边 → 加入向左的水平分量
-///      - 落在平台右半边 → 加入向右的水平分量
-///      - 落在平台正中间 → 纯向上（但力度更大）
+/// 核心机制（两段式弹射 + 法线方向弹飞 + 持续弹跳）:
+///   玩家碰撞平台后，弹射方向以碰撞面法线为主：
+///   1. 法线弹射：碰撞面法线决定弹射主方向（从上方落下→向上弹，从侧面碰→斜向弹）
+///   2. 位置偏移：玩家相对平台中心的偏移提供微弱水平修正
+///      - 落在平台左半边 → 微弱向左偏移
+///      - 落在平台右半边 → 微弱向右偏移
+///      - 落在平台正中间 → 纯法线方向
+///   3. 持续弹跳：角色落回平台后会自动重新弹射（OnCollisionStay2D），
+///      不会出现"弹一次就停"的问题
 ///   
-///   这样即使正方体玩家垂直落下（来向纯向下），也会因为位置偏移
-///   而被弹飞到一侧，不会原地反复弹跳。
-/// 
 /// Session 22 重构：两段式弹射协程
 ///   整个弹射流程由 LaunchSequence 协程统一管理：
 ///   
@@ -68,6 +67,16 @@ using System.Collections;
 ///     - 拉伸动画添加三段式过冲回弹（弹簧物理感）
 ///     - 弹射瞬间颜色闪白反馈（冲击感）
 ///     - comedyDelay 0.25→0.15（更紧凑的节奏）
+///
+/// Session 38: 弹跳方向修正 + 持续弹跳 + 方向自然化
+///   问题修复:
+///     1. 弹回方向不自然 → 改为碰撞面法线为主方向，位置偏移仅做微弱水平修正
+///     2. 弹一次可能跳过去弹回来 → 废除 relativeVelocity 反射，直接用法线
+///     3. 弹一次落地就不动了 → 新增 OnCollisionStay2D 持续弹跳检测
+///   设计理念:
+///     - 弹跳平台的行为应该像蹦床：踩上去就弹，方向始终以表面法线为主
+///     - 参考 Super Mario Bros 弹簧：始终向上弹，不会弹到奇怪的方向
+///     - 持续弹跳是弹跳平台的核心体验，不应该弹一次就停
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class BouncyPlatform : ControllableLevelElement
@@ -85,16 +94,16 @@ public class BouncyPlatform : ControllableLevelElement
     [Tooltip("最大弹射力")]
     [SerializeField] private float maxBounceForce = 50f;
 
-    [Header("=== 弹射方向混合 ===")]
-    [Tooltip("位置偏移对弹射方向的影响权重。0=纯来向反弹，1=纯位置偏移。推荐0.5-0.7")]
-    [SerializeField, Range(0f, 1f)] private float positionInfluence = 0.6f;
+    [Header("=== 弹射方向 (S38: 法线为主) ===")]
+    [Tooltip("位置偏移对弹射方向的影响权重。0=纯法线弹射，1=纯位置偏移。推荐0.15-0.3")]
+    [SerializeField, Range(0f, 1f)] private float positionInfluence = 0.2f;
 
     [Tooltip("最小向上分量（保证弹射有弧线感，不会贴地滑行）")]
-    [SerializeField] private float minUpwardComponent = 0.4f;
+    [SerializeField] private float minUpwardComponent = 0.5f;
 
     [Header("=== 碰撞法线修正 (Session 20) ===")]
-    [Tooltip("法线与平台 Up 方向的混合权重。0=纯碰撞法线，1=纯平台Up。推荐0.3-0.5")]
-    [SerializeField, Range(0f, 1f)] private float normalBlendWithUp = 0.4f;
+    [Tooltip("法线与平台 Up 方向的混合权重。0=纯碰撞法线，1=纯平台Up。推荐0.5-0.7")]
+    [SerializeField, Range(0f, 1f)] private float normalBlendWithUp = 0.6f;
 
     [Tooltip("X 轴法线绝对值超过此阈值时视为极端侧面碰撞，强制修正")]
     [SerializeField] private float extremeNormalXThreshold = 0.85f;
@@ -160,12 +169,17 @@ public class BouncyPlatform : ControllableLevelElement
     // P1-P7: 缓存 WaitForSeconds 实例，避免协程中每次 new 产生 GC
     private WaitForSeconds cachedComedyWait;
 
+    // S38: 持续弹跳冷却 — 防止 OnCollisionStay2D 在弹射动画未完成时重复触发
+    // 弹射完成后需要一小段冷却时间，等角色真正离开或稳定接触后再允许下一次弹射
+    private float launchCooldownTimer;
+    private const float LAUNCH_COOLDOWN = 0.05f; // 极短冷却，仅防止同帧重复
+
     protected override void Awake()
     {
         propName = "弹跳平台";
         elementCategory = ElementCategory.Platform;
         elementTags = ElementTag.Controllable | ElementTag.AffectsPhysics | ElementTag.Resettable;
-        elementDescription = "碰撞后反方向弹飞的平台";
+        elementDescription = "碰撞后弹飞的平台";
 
         base.Awake();
 
@@ -194,26 +208,70 @@ public class BouncyPlatform : ControllableLevelElement
         cachedCamera = FindObjectOfType<CameraController>();
     }
 
+    private void Update()
+    {
+        // S38: 冷却计时器递减
+        if (launchCooldownTimer > 0f)
+        {
+            launchCooldownTimer -= Time.deltaTime;
+        }
+    }
+
     // ─────────────────────────────────────────────────────
     #region 碰撞入口
 
+    // [AI防坑警告] S38 重构：碰撞入口拆分为 Enter + Stay 双通道。
+    // OnCollisionEnter2D 处理首次碰撞弹射。
+    // OnCollisionStay2D 处理角色落回平台后的持续弹射（解决"弹一次就停"的问题）。
+    // 两者共用 TryLaunch() 方法，由 isLaunching + launchCooldownTimer 双重防护防止重复触发。
+
     private void OnCollisionEnter2D(Collision2D collision)
+    {
+        TryLaunch(collision);
+    }
+
+    /// <summary>
+    /// S38: 持续弹跳检测。角色弹起后落回同一平台时，
+    /// OnCollisionEnter2D 可能不会重新触发（Unity 物理特性），
+    /// 因此需要 OnCollisionStay2D 作为补充检测通道。
+    /// 
+    /// 触发条件：
+    ///   - 当前没有弹射序列在进行（!isLaunching）
+    ///   - 冷却已结束（launchCooldownTimer <= 0）
+    ///   - 碰撞对象有 Rigidbody2D
+    ///   - 碰撞对象正在下落或静止（velocity.y <= 0.1f），
+    ///     防止角色正在上升时误触发
+    /// </summary>
+    private void OnCollisionStay2D(Collision2D collision)
+    {
+        // 正在弹射中或冷却中，跳过
+        if (isLaunching || launchCooldownTimer > 0f) return;
+
+        Rigidbody2D targetRb = collision.gameObject.GetComponent<Rigidbody2D>();
+        if (targetRb == null) return;
+
+        // 只在角色下落或静止时触发（防止上升途中误弹）
+        if (targetRb.velocity.y > 0.1f) return;
+
+        TryLaunch(collision);
+    }
+
+    /// <summary>
+    /// S38: 统一弹射入口。Enter 和 Stay 共用此方法。
+    /// </summary>
+    private void TryLaunch(Collision2D collision)
     {
         // 防止重复触发（已有弹射序列在进行中）
         if (isLaunching) return;
+
+        // 冷却中
+        if (launchCooldownTimer > 0f) return;
 
         Rigidbody2D targetRb = collision.gameObject.GetComponent<Rigidbody2D>();
         if (targetRb == null) return;
 
         MarioController mario = collision.gameObject.GetComponent<MarioController>();
         TricksterController trickster = collision.gameObject.GetComponent<TricksterController>();
-
-        // ── 记录碰撞信息 ──
-        Vector2 incomingVelocity = collision.relativeVelocity;
-        if (incomingVelocity.sqrMagnitude < 0.5f)
-        {
-            incomingVelocity = Vector2.up;
-        }
 
         // 碰撞接触点位置（用于位置偏移方向）
         Vector2 contactPos = (Vector2)collision.gameObject.transform.position;
@@ -232,7 +290,7 @@ public class BouncyPlatform : ControllableLevelElement
 
         // 启动弹射序列协程
         activeLaunchCoroutine = StartCoroutine(
-            LaunchSequence(targetRb, mario, trickster, incomingVelocity, contactPos, correctedNormal));
+            LaunchSequence(targetRb, mario, trickster, contactPos, correctedNormal));
     }
 
     #endregion
@@ -264,7 +322,7 @@ public class BouncyPlatform : ControllableLevelElement
     ///   - 动画协程使用 yield return null（帧等待无 GC）
     /// </summary>
     private IEnumerator LaunchSequence(Rigidbody2D targetRb, MarioController mario,
-        TricksterController trickster, Vector2 incomingVelocity, Vector2 contactPos, Vector2 correctedNormal)
+        TricksterController trickster, Vector2 contactPos, Vector2 correctedNormal)
     {
         isLaunching = true;
 
@@ -313,8 +371,8 @@ public class BouncyPlatform : ControllableLevelElement
         // 阶段2：发射
         // ══════════════════════════════════════════════════
 
-        // 计算弹射方向
-        Vector2 launchDir = CalcLaunchDirection(incomingVelocity, contactPos, correctedNormal);
+        // S38: 计算弹射方向（法线为主，位置偏移为辅）
+        Vector2 launchDir = CalcLaunchDirection(contactPos, correctedNormal);
 
         // 计算弹射力度（含 Trickster 操控加成）
         float force = bounceForce * bounceForceMultiplier;
@@ -411,6 +469,9 @@ public class BouncyPlatform : ControllableLevelElement
 
         isLaunching = false;
         activeLaunchCoroutine = null;
+
+        // S38: 启动冷却，防止协程刚结束就被 Stay 立即重新触发
+        launchCooldownTimer = LAUNCH_COOLDOWN;
     }
 
     #endregion
@@ -419,27 +480,30 @@ public class BouncyPlatform : ControllableLevelElement
     #region 弹射方向计算
 
     /// <summary>
-    /// 计算弹射方向：来向反弹 + 位置偏移混合。
-    /// Session 20: 使用修正后的碰撞法线参与方向计算。
+    /// S38: 弹射方向计算重写 — 法线为主，位置偏移为辅。
+    /// 
+    /// 设计理念（参考 Super Mario Bros 弹簧 + Celeste 弹射台）：
+    ///   弹跳平台的行为应该像蹦床，弹射方向由碰撞面法线决定：
+    ///   - 从上方落下 → 法线朝上 → 向上弹（最常见场景）
+    ///   - 从侧面碰撞 → 法线朝侧 → 斜向弹飞
+    ///   - 位置偏移仅提供微弱水平修正，避免纯垂直弹跳的单调感
+    /// 
+    /// 废除旧逻辑：
+    ///   - 不再使用 collision.relativeVelocity 做反射计算
+    ///     （relativeVelocity 在 Unity 2D 中方向不稳定，导致弹飞方向反直觉）
+    ///   - positionInfluence 从 0.6 降至 0.2，法线权重大幅提升
     /// </summary>
-    private Vector2 CalcLaunchDirection(Vector2 incomingVelocity, Vector2 contactPos, Vector2 correctedNormal)
+    private Vector2 CalcLaunchDirection(Vector2 contactPos, Vector2 correctedNormal)
     {
         if (tricksterOverride)
         {
             return tricksterDirection;
         }
 
-        // ── 方向1：来向反弹（结合修正法线） ──
-        Vector2 incomingDir = -incomingVelocity.normalized;
-        Vector2 reflectDir = Vector2.Reflect(incomingDir, correctedNormal);
+        // ── 主方向：碰撞面修正法线 ──
+        Vector2 baseDir = correctedNormal;
 
-        // 如果反射结果朝下（不合理），回退到法线方向
-        if (reflectDir.y < 0.1f)
-        {
-            reflectDir = correctedNormal;
-        }
-
-        // ── 方向2：位置偏移 ──
+        // ── 辅助方向：位置偏移（微弱水平修正） ──
         Vector2 platformCenter = (Vector2)transform.position + boxCollider.offset;
         Vector2 offsetDir = (contactPos - platformCenter);
 
@@ -448,17 +512,22 @@ public class BouncyPlatform : ControllableLevelElement
         if (halfSize.x > 0.01f) offsetDir.x /= halfSize.x;
         if (halfSize.y > 0.01f) offsetDir.y /= halfSize.y;
 
-        // 如果偏移太小（正中间），给一个随机水平扰动防止纯垂直弹
-        if (Mathf.Abs(offsetDir.x) < 0.1f && Mathf.Abs(offsetDir.y) < 0.1f)
+        // 位置偏移只取水平分量，垂直方向完全由法线决定
+        Vector2 horizontalOffset = new Vector2(offsetDir.x, 0f);
+
+        // 如果偏移太小（正中间），不加水平修正，纯法线方向
+        if (Mathf.Abs(horizontalOffset.x) < 0.1f)
         {
-            offsetDir.x = Random.value > 0.5f ? 0.5f : -0.5f;
-            offsetDir.y = 1f;
+            horizontalOffset = Vector2.zero;
+        }
+        else
+        {
+            horizontalOffset = horizontalOffset.normalized;
         }
 
-        Vector2 posDir = offsetDir.normalized;
-
-        // ── 混合两个方向 ──
-        Vector2 launchDir = Vector2.Lerp(reflectDir, posDir, positionInfluence).normalized;
+        // ── 混合：法线为主 + 微弱水平偏移 ──
+        Vector2 launchDir = baseDir + horizontalOffset * positionInfluence;
+        launchDir = launchDir.normalized;
 
         // 保证最小向上分量（防止贴地滑行）
         if (launchDir.y < minUpwardComponent)
@@ -480,6 +549,9 @@ public class BouncyPlatform : ControllableLevelElement
     /// 1. 将碰撞法线与平台自身的 Up 方向做混合
     /// 2. 过滤极端的 X 轴法线，强制使用平台 Up
     /// 3. 最终法线归一化后用于弹射方向计算
+    /// 
+    /// S38: normalBlendWithUp 从 0.4 提升到 0.6，
+    /// 使法线更偏向平台 Up 方向，弹射更自然。
     /// </summary>
     private Vector2 CalcCorrectedNormal(Collision2D collision)
     {
@@ -547,6 +619,7 @@ public class BouncyPlatform : ControllableLevelElement
         tricksterOverride = false;
         isAnimating = false;
         isLaunching = false;
+        launchCooldownTimer = 0f;
 
         // S36: 恢复原始颜色
         if (spriteRenderer != null) spriteRenderer.color = originalColor;
@@ -568,15 +641,14 @@ public class BouncyPlatform : ControllableLevelElement
             Vector3 center = transform.position + (Vector3)col.offset;
             Vector2 halfSize = col.size * 0.5f;
 
+            // S38: 只绘制向上的弹射方向指示（法线为主的设计理念）
             Gizmos.color = new Color(1, 0.5f, 0, 0.8f);
-            Gizmos.DrawRay(center + Vector3.up * halfSize.y, Vector3.up * 1.5f);
-            Gizmos.DrawRay(center + Vector3.down * halfSize.y, Vector3.down * 1.0f);
-            Gizmos.DrawRay(center + Vector3.left * halfSize.x, Vector3.left * 1.0f);
-            Gizmos.DrawRay(center + Vector3.right * halfSize.x, Vector3.right * 1.0f);
+            Gizmos.DrawRay(center + Vector3.up * halfSize.y, Vector3.up * 2f);
 
-            Gizmos.color = new Color(1, 0.5f, 0, 0.4f);
-            Gizmos.DrawRay(center + new Vector3(-halfSize.x, halfSize.y, 0), new Vector3(-1, 1, 0).normalized * 1.2f);
-            Gizmos.DrawRay(center + new Vector3(halfSize.x, halfSize.y, 0), new Vector3(1, 1, 0).normalized * 1.2f);
+            // 微弱侧向指示
+            Gizmos.color = new Color(1, 0.5f, 0, 0.3f);
+            Gizmos.DrawRay(center + new Vector3(-halfSize.x, halfSize.y, 0), new Vector3(-0.3f, 1, 0).normalized * 1.5f);
+            Gizmos.DrawRay(center + new Vector3(halfSize.x, halfSize.y, 0), new Vector3(0.3f, 1, 0).normalized * 1.5f);
 
             Gizmos.color = Color.cyan;
             Gizmos.DrawRay(center, transform.up * 1.5f);

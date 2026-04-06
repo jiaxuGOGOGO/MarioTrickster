@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 44c (OneWayPlatform 连续 '-' 合并为长条平台) |
+| **最新 Session** | Session 45 (Doc-as-Code 动态文档同步引擎 DocsAutomatorWindow) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S44c 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S45 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S44c 将 ASCII 关卡中连续的 '-' 字符合并为一个长条 OneWayPlatform，从根源消除拼接问题（S+Space 失效、边缘掉落、物理抖动）。同时更新 AI_PROMPT_WORKFLOW.md 和 PhysicsMetrics.cs 注释。修改 3 个文件。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S45 新增 `DocsAutomatorWindow.cs` 编辑器工具（菜单 MarioTrickster → Docs Automator）。功能1 Sync Docs：一键读取 PhysicsMetrics 常量刷新三个 MD 文档的物理数值。功能2 Copy Prompt：一键生成含最新物理常量+设计铁律的关卡系统提示词并复制到剪贴板。确认三个文档（Testing Guide / PHYSICS_METRICS_GUIDE / LevelStudio_DesignGuide）数值已在 S43b 中修正为正确值。新增 1 个文件。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S45 Doc-as-Code 动态文档同步引擎 (DocsAutomatorWindow: Sync Docs + Copy Prompt) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S44c OneWayPlatform 连续 '-' 合并为长条平台 + 提示词文档同步 | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S44b OneWayPlatform S+Space 下落修复 (多平台同时 IgnoreCollision) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S44 敌人穿地掉落修复 (isTrigger/groundLayer/视碰分离) | ⏳ 代码已推送，待用户 Unity 验证 |

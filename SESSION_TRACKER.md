@@ -171,7 +171,47 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 ---
 
-## 6. 文档导航
+## 6. 视碰分离架构白盒操作指南 (S37/S38)
+
+> **核心原则**：Root.localScale 永远锁定 (1,1,1)，绝对不要缩放根物体！
+> 碰撞体尺寸通过 `BoxCollider2D.size` 设置（来源于 `PhysicsMetrics` 常量），
+> 视觉大小通过 `Visual.localScale` 设置。两者独立，互不干扰。
+
+### 层级结构
+
+```
+Root (GameObject)           ← 承载 BoxCollider2D + 脚本组件
+  └─ Visual (GameObject)     ← 承载 SpriteRenderer，控制视觉大小/形变动画
+```
+
+### 操作对照表
+
+| 操作 | 应该操作谁 | 原因 |
+|------|-----------|------|
+| **移动位置**（拖拽重新布局） | **Root 母体** | Root 承载 BoxCollider2D，移动 Root = 移动碰撞体 + Visual 一起走。如果只移动 Visual，碰撞体还在原位，玩家会“踩空气” |
+| **调整视觉大小**（换素材后美术适配） | **Visual 子物体** | Visual.localScale 控制视觉大小，不影响碰撞体。碰撞体尺寸由 PhysicsMetrics 常量锁定 |
+| **调整碰撞体大小** | **修改 PhysicsMetrics.cs 常量** | 禁止手动拖拽碰撞体大小，必须改源头常量，否则下次生成关卡会覆盖回去 |
+| **旋转** | **Root 母体** | 旋转 Root 会同时旋转碰撞体和视觉，保持一致 |
+
+### 安全操作流程
+
+1. 在 Scene 视图中选中物体 → 看 Hierarchy 确认选中的是 **Root**（最顶层）
+2. 用 **Move 工具（W）** 拖拽 Root 到目标位置
+3. 如果需要调整视觉大小，展开 Root → 选中 **Visual** 子节点 → 用 **Scale 工具（R）** 调整
+4. **绝对不要**用 Scale 工具缩放 Root 母体
+
+### 常见错误与排查
+
+| 现象 | 可能原因 | 修复方法 |
+|------|----------|----------|
+| 角色踩在空气上，视觉上没踩到平台 | 只移动了 Visual，Root 没动 | 选中 Root 重新拖拽 |
+| 碰撞体比视觉大/小很多 | 手动改了 BoxCollider2D.size | 恢复为 PhysicsMetrics 常量值 |
+| 缩放 Root 后碰撞体异常 | Root.localScale 不是 (1,1,1) | 设回 (1,1,1)，用 Visual.localScale 调视觉 |
+| 形变动画不播放 | visualTransform 未赋值 | Inspector 中拖拽 Visual 到 visualTransform 插槽 |
+
+---
+
+## 7. 文档导航
 
 | 文档 | 一句话职责 |
 |------|-----------|
@@ -184,7 +224,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 ---
 
-## 7. 新对话开场模板
+## 8. 新对话开场模板
 
 ```text
 GitHub Token: ghp_你的token

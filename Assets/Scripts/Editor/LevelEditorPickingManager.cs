@@ -157,7 +157,8 @@ public static class LevelEditorPickingManager
     ///   1. 名称为 "Visual"
     ///   2. 自身带有 SpriteRenderer
     ///   3. 父级带有 Collider2D
-    ///   4. 父级带有 [SelectionBase] 标记的核心脚本
+    ///   4. 父级带有 [SelectionBase] 标记的核心脚本，
+    ///      或父级是纯几何方块（无任何自定义 MonoBehaviour，仅有 Collider2D）
     /// </summary>
     private static bool IsTargetVisualNode(Transform child, Transform parent)
     {
@@ -173,8 +174,7 @@ public static class LevelEditorPickingManager
         if (parent.GetComponent<Collider2D>() == null)
             return false;
 
-        // 条件 4: 父级必须有 [SelectionBase] 标记的核心脚本
-        // 检查所有已知的 [SelectionBase] 基类和独立类
+        // 条件 4a: 父级有 [SelectionBase] 标记的核心脚本
         if (parent.GetComponent<LevelElementBase>() != null) return true;
         if (parent.GetComponent<ControllablePropBase>() != null) return true;
         if (parent.GetComponent<MarioController>() != null) return true;
@@ -186,6 +186,13 @@ public static class LevelEditorPickingManager
         if (parent.GetComponent<GoalZone>() != null) return true;
         if (parent.GetComponent<KillZone>() != null) return true;
         if (parent.GetComponent<MovingPlatform>() != null) return true;
+
+        // 条件 4b: 纯几何方块（Ground/Platform/Wall）— 由 CreateBlock 生成，
+        // 没有任何自定义 MonoBehaviour，仅有 Transform + Collider2D。
+        // 结构特征：父级只有一个子节点（Visual），且无自定义脚本。
+        MonoBehaviour[] scripts = parent.GetComponents<MonoBehaviour>();
+        if (scripts.Length == 0 && parent.childCount == 1)
+            return true;
 
         return false;
     }

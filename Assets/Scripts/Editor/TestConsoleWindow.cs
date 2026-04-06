@@ -1762,7 +1762,8 @@ public class TestConsoleWindow : EditorWindow
             BoxCollider2D killCol = killZone.AddComponent<BoxCollider2D>();
             killCol.size = new Vector2(levelWidth + 30f, 2f);
             killCol.isTrigger = true;
-            killZone.AddComponent<KillZone>();
+            KillZone kz = killZone.AddComponent<KillZone>();
+            kz.SetFallbackY(-13f); // S48b: Y 坐标兜底阈值（KillZone 在 y=-8，再留 5 格余量）
 
             Undo.RegisterCreatedObjectUndo(killZone, "Create KillZone");
             Debug.Log("[TestConsole] Created KillZone below level");

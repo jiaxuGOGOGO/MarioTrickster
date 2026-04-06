@@ -83,7 +83,8 @@ public class TestSceneBuilder : Editor
         BoxCollider2D killCol = killZone.AddComponent<BoxCollider2D>();
         killCol.size = new Vector2(totalLength + 20, 2);
         killCol.isTrigger = true;
-        killZone.AddComponent<KillZone>();
+        KillZone kz = killZone.AddComponent<KillZone>();
+        kz.SetFallbackY(-15f); // S48b: Y 坐标兜底阈值（KillZone 在 y=-10，再留 5 格余量）
 
         // ═══════════════════════════════════════════════════
         // Mario (起始位置在 Stage 1)

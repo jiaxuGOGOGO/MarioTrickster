@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 44 (敌人穿地掉落修复: isTrigger + groundLayer + 视碰分离) |
+| **最新 Session** | Session 44b (OneWayPlatform S+Space 下落修复: 多平台同时 IgnoreCollision) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S44 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S44b 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S44 修复 SimpleEnemy/BouncingEnemy 生成后穿过地面掉落的问题。根因: AsciiLevelGenerator 中敌人的 CreateBlock 调用传入 isTrigger=true，导致碰撞体是触发器无法站在地面上。同时修复 SimpleEnemy 缺少 groundLayer 设置导致边缘/墙壁检测失效、TestSceneBuilder 中敌人缺少视碰分离架构。修改 4 个文件。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S44b 修复 ASCII 关卡中 OneWayPlatform S+Space 无法下落的问题。根因: TryDropThroughPlatform 只对第一个检测到的 OneWayPlatform 调用 AllowDropThrough 就 return，但 ASCII 关卡中每个 '-' 字符生成独立的 OneWayPlatform，Mario 跨在多个平台交界处时未被忽略的相邻平台仍阻挡下落。修复: 对所有检测到的 OneWayPlatform 都调用 AllowDropThrough。修改 1 个文件。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -110,7 +110,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9C：火陷阱 | 碰到向后退，不向上飞 |
 | 🔄 | 测试 9D：弹跳怪 | **S44重点验证**: 弹跳怪站在地面上弹跳、碰到有击退，踩踏消灭 |
 | 🔄 | 测试 9E：弹跳平台 | **S39重点验证**：(1)从上方落下应向上弹，侧面蹭到不触发 (2)每次弹跳高度一致（不再先高后矮） (3)按住 Space 蓄力大跳 1.4x (4)Trickster L键操控仍正常 (5)冻结期角色不滑动 |
-| 🔄 | 测试 9F：单向平台 | S+Space 下落，单独S不落 |
+| 🔄 | 测试 9F：单向平台 | **S44b重点验证**: ASCII关卡中 S+Space 下落（站在平台中间和交界处都测试），单独S不落 |
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S44b OneWayPlatform S+Space 下落修复 (多平台同时 IgnoreCollision) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S44 敌人穿地掉落修复 (isTrigger/groundLayer/视碰分离) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S43 关卡生成验证系统全面修复 + S43b 行业对标审计 + 文档一致性修复 | ⏳ 代码+文档已推送，待用户 Unity 验证 |
 | **紧急** | S39 方案 C 弹跳平台重构（按键驱动大跳+状态机锁+Kinematic Freeze+微抬坐标） | ⏳ 代码已推送，待用户 Unity 验证 |

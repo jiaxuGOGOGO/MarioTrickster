@@ -96,16 +96,23 @@ public static class MarioInteractionHelper
     /// 检测 Mario 脚下是否有 OneWayPlatform，有则触发定向忽略碰撞下落
     /// S41: 获取 Mario 的 Collider2D 传给 AllowDropThrough，实现定向穿透
     /// </summary>
+     /// S44: 修复 ASCII 关卡中多个相邻 OneWayPlatform 时 S+Space 无法下落的问题。
+    /// 根因：旧版只对第一个检测到的平台调用 AllowDropThrough 就 return，
+    /// 但 Mario 可能同时站在多个紧密排列的平台交界处，
+    /// 未被忽略的相邻平台仍然阻挡 Mario 下落。
+    /// 修复：对所有检测到的 OneWayPlatform 都调用 AllowDropThrough。
     private static bool TryDropThroughPlatform(GameObject marioObj)
     {
         BoxCollider2D marioCol = marioObj.GetComponent<BoxCollider2D>();
         if (marioCol == null) return false;
-
         Vector2 checkPos = (Vector2)marioObj.transform.position
             + Vector2.down * (marioCol.bounds.extents.y + PLATFORM_CHECK_DISTANCE);
         Vector2 checkSize = new Vector2(marioCol.bounds.size.x * 0.8f, PLATFORM_CHECK_DISTANCE * 2f);
-
         Collider2D[] hits = Physics2D.OverlapBoxAll(checkPos, checkSize, 0f);
+        bool found = false;
+        // S44: 对所有检测到的 OneWayPlatform 都调用 AllowDropThrough，
+        // 而不是只处理第一个。ASCII 关卡中每个 '-' 字符生成一个独立的
+        // OneWayPlatform，Mario 可能同时跨在多个平台上。
         foreach (Collider2D hit in hits)
         {
             OneWayPlatform owp = hit.GetComponent<OneWayPlatform>();
@@ -114,11 +121,10 @@ public static class MarioInteractionHelper
                 // S41: 传入 Mario 碰撞体，实现 Physics2D.IgnoreCollision 定向穿透
                 owp.AllowDropThrough(marioCol);
                 Debug.Log($"[MarioInteraction] S+Jump 组合键：从单向平台 {hit.gameObject.name} 下落");
-                return true;
+                found = true;
             }
         }
-
-        return false;
+        return found;
     }
 
     /// <summary>

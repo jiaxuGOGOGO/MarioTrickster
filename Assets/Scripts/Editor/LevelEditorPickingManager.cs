@@ -1,29 +1,30 @@
 using UnityEngine;
 using UnityEditor;
+using System.Collections.Generic;
+using System.Linq;
 
 /// <summary>
 /// 关卡编辑器拾取管理器 — 解决 S37 视碰分离架构下框选(marquee select)同时选中 Root 和 Visual 的问题
 ///
-/// 核心机制:
-///   - 监听 Selection.selectionChanged 事件，在选中后自动过滤
-///   - Root 模式(默认): 框选/点选到 Visual 时，自动替换为其父级 Root
+/// 核心机制 (v3 — Selection 后处理 + delayCall 安全赋值):
+///   - 监听 Selection.selectionChanged 事件
+///   - Root 模式(默认): 选中 Visual 时，延迟一帧替换为其父级 Root
 ///   - Visual 模式: 不做任何过滤，Visual 可被直接选中
-///   - 使用 [InitializeOnLoad] 实现自愈：每次编译自动注册事件
-///   - 使用 EditorPrefs 持久化当前模式，跨 Session 保持一致
 ///
-/// 为什么不用 SceneVisibilityManager.DisablePicking:
-///   Root 节点只有 BoxCollider2D 没有 Renderer，当 Visual 被 DisablePicking 后，
-///   框选的矩形检测找不到任何可拾取的 Renderer，导致整个物体框选不到。
-///   因此改用 Selection 后处理：让 Visual 保持可拾取，选中后再替换为 Root。
+/// 防崩溃四重保险:
+///   1. _isProcessingSelection 防重入锁 — 防止 Selection.objects 赋值触发死循环
+///   2. EditorApplication.delayCall 延迟赋值 — 绕过 GUI 重绘时序冲突，防 Inspector 闪烁报错
+///   3. HashSet&lt;Object&gt; 天然去重 — 防止多个 Visual 指向同一 Root 导致重复
+///   4. go.scene.IsValid() 过滤 — 防止拦截 Project 窗口中的预制体资产点击
 ///
 /// 白名单识别规则（避免误伤）:
-///   只过滤满足以下条件的 Visual 子节点:
-///   1. 名称为 "Visual"
+///   1. 必须在有效场景中（非 Project 窗口资产）
 ///   2. 自身带有 SpriteRenderer
-///   3. 父级带有 Collider2D
-///   4. 父级带有核心脚本，或父级是纯几何方块（无 MonoBehaviour + 单子节点）
+///   3. 有父节点
+///   4. 父级带有 Collider2D
+///   5. 父级带有核心脚本，或父级是纯几何方块（无 MonoBehaviour + 单子节点）
 ///
-/// Session 41: 新增 (v2 — Selection 后处理策略)
+/// Session 41: 新增 (v3)
 /// </summary>
 [InitializeOnLoad]
 public static class LevelEditorPickingManager
@@ -32,11 +33,11 @@ public static class LevelEditorPickingManager
     // 常量
     // ═══════════════════════════════════════════════════
     private const string PREF_KEY = "MarioTrickster_PickingMode";
-    // 0 = Root 模式 (默认, 框选 Visual 自动替换为 Root)
-    // 1 = Visual 模式 (不做过滤)
+    // 0 = Root 模式 (默认)
+    // 1 = Visual 模式
 
-    // 防重入标记 — 避免 SetSelection 触发 selectionChanged 导致无限递归
-    private static bool _isProcessing;
+    // 防重入锁（极度重要：防止修改 Selection 时触发死循环）
+    private static bool _isProcessingSelection = false;
 
     // ═══════════════════════════════════════════════════
     // 静态构造 — [InitializeOnLoad] 入口
@@ -78,57 +79,47 @@ public static class LevelEditorPickingManager
 
     private static void OnSelectionChanged()
     {
-        // Visual 模式下不做任何过滤
-        if (!IsRootMode)
+        // 1. 防重入拦截 + Visual 模式放行
+        if (_isProcessingSelection || !IsRootMode)
             return;
 
-        // 防重入
-        if (_isProcessing)
+        if (Selection.objects == null || Selection.objects.Length == 0)
             return;
 
-        // PlayMode 下不干预
-        if (EditorApplication.isPlaying)
-            return;
+        bool needRedirection = false;
 
-        // Prefab Mode 下放行
-        if (UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage() != null)
-            return;
+        // 2. 使用 HashSet 天然去重，防止框选多个 Visual 导致重复添加同一个 Root
+        HashSet<Object> newSelection = new HashSet<Object>();
 
-        GameObject[] selected = Selection.gameObjects;
-        if (selected == null || selected.Length == 0)
-            return;
-
-        bool changed = false;
-        GameObject[] filtered = new GameObject[selected.Length];
-
-        for (int i = 0; i < selected.Length; i++)
+        foreach (var obj in Selection.objects)
         {
-            GameObject go = selected[i];
-            Transform parent = go.transform.parent;
+            GameObject go = obj as GameObject;
 
-            // 检查是否为需要过滤的 Visual 节点
-            if (parent != null && IsTargetVisualNode(go.transform, parent))
+            // 如果选中的是场景里的 Visual 节点，进行拦截和替换
+            if (go != null && IsVisualNode(go))
             {
-                // 替换为父级 Root
-                filtered[i] = parent.gameObject;
-                changed = true;
+                newSelection.Add(go.transform.parent.gameObject);
+                needRedirection = true;
             }
             else
             {
-                filtered[i] = go;
+                // 不是 Visual 节点，保持原样
+                newSelection.Add(obj);
             }
         }
 
-        if (changed)
+        // 3. 只有真正发生"偷梁换柱"时，才去修改 Selection
+        if (needRedirection)
         {
-            // 去重：多个 Visual 可能指向同一个 Root
-            var uniqueSet = new System.Collections.Generic.HashSet<GameObject>(filtered);
-            var uniqueArray = new GameObject[uniqueSet.Count];
-            uniqueSet.CopyTo(uniqueArray);
+            var finalArray = newSelection.ToArray();
 
-            _isProcessing = true;
-            Selection.objects = uniqueArray;
-            _isProcessing = false;
+            // 4. 极其关键：延迟一帧赋值，绕过 Unity 底层的 GUI 绘制时序冲突
+            EditorApplication.delayCall += () =>
+            {
+                _isProcessingSelection = true;   // 上锁
+                Selection.objects = finalArray;   // 重新选中 Root
+                _isProcessingSelection = false;   // 解锁
+            };
         }
     }
 
@@ -137,28 +128,28 @@ public static class LevelEditorPickingManager
     // ═══════════════════════════════════════════════════
 
     /// <summary>
-    /// 白名单识别：判断一个子节点是否为需要过滤的 Visual 节点。
-    /// 条件：
-    ///   1. 名称为 "Visual"
-    ///   2. 自身带有 SpriteRenderer
-    ///   3. 父级带有 Collider2D
-    ///   4. 父级带有核心脚本，或父级是纯几何方块
+    /// 判断一个 GameObject 是否为需要拦截的 Visual 节点。
     /// </summary>
-    private static bool IsTargetVisualNode(Transform child, Transform parent)
+    private static bool IsVisualNode(GameObject go)
     {
-        // 条件 1: 名称必须是 "Visual"
-        if (child.name != "Visual")
+        // 过滤 1: 不在当前场景里（Project 窗口中的预制体资产），放行
+        if (!go.scene.IsValid())
             return false;
 
-        // 条件 2: 自身必须有 SpriteRenderer
-        if (child.GetComponent<SpriteRenderer>() == null)
+        // 过滤 2: 自身没有 SpriteRenderer，放行
+        if (go.GetComponent<SpriteRenderer>() == null)
             return false;
 
-        // 条件 3: 父级必须有 Collider2D
+        // 过滤 3: 没有父节点，放行
+        Transform parent = go.transform.parent;
+        if (parent == null)
+            return false;
+
+        // 过滤 4: 父级没有 Collider2D，放行
         if (parent.GetComponent<Collider2D>() == null)
             return false;
 
-        // 条件 4a: 父级有核心脚本
+        // 过滤 5a: 父级有核心脚本 — 确认是受我们架构管辖的节点
         if (parent.GetComponent<LevelElementBase>() != null) return true;
         if (parent.GetComponent<ControllablePropBase>() != null) return true;
         if (parent.GetComponent<MarioController>() != null) return true;
@@ -171,7 +162,7 @@ public static class LevelEditorPickingManager
         if (parent.GetComponent<KillZone>() != null) return true;
         if (parent.GetComponent<MovingPlatform>() != null) return true;
 
-        // 条件 4b: 纯几何方块（Ground/Platform/Wall）— 由 CreateBlock 生成，
+        // 过滤 5b: 纯几何方块（Ground/Platform/Wall）— 由 CreateBlock 生成，
         // 没有任何自定义 MonoBehaviour，仅有 Transform + Collider2D。
         MonoBehaviour[] scripts = parent.GetComponents<MonoBehaviour>();
         if (scripts.Length == 0 && parent.childCount == 1)

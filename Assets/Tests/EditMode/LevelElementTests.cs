@@ -539,7 +539,9 @@ public class LevelElementTests
             System.Reflection.BindingFlags.Instance);
         if (awakeMethod != null) awakeMethod.Invoke(oneWay, null);
 
-        Assert.DoesNotThrow(() => oneWay.AllowDropThrough(),
+        // S43: AllowDropThrough 需要 playerCollider 参数（S41 改为 Physics2D.IgnoreCollision 方案）
+        // 传入 null 测试防御性检查（方法内部第一行就是 null guard）
+        Assert.DoesNotThrow(() => oneWay.AllowDropThrough(null),
             "AllowDropThrough 不应抛出异常");
 
         Object.DestroyImmediate(go);

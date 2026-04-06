@@ -109,8 +109,9 @@ public static class PhysicsMetrics
     /// S41 校准: 宽度从 1.8 → 1.0
     public static readonly Vector2 COLLAPSE_COLLIDER_SIZE = new Vector2(1.0f, 0.4f);
 
-    /// <summary>单向平台碰撞体（1x1 网格对齐，确保 ASCII 连续 - 无缝拼接）</summary>
+    /// <summary>单向平台碰撞体基准尺寸（单格宽度）</summary>
     /// S41 校准: 宽度从 1.8 → 1.0
+    /// S44c: 连续 '-' 现在会被合并为一个长条平台，实际碰撞体宽度 = width * ONEWAY_COLLIDER_SIZE.x
     public static readonly Vector2 ONEWAY_COLLIDER_SIZE = new Vector2(1.0f, 0.25f);
 
     /// <summary>移动平台碰撞体</summary>

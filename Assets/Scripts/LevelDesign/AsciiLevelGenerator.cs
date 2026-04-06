@@ -110,7 +110,9 @@ public static class AsciiLevelGenerator
             { 'P', SpawnPendulumTrap },
             { 'B', SpawnBouncyPlatform },
             { 'C', SpawnCollapsingPlatform },
-            { '-', SpawnOneWayPlatform },
+            // S44c: '-' 不再逐字符生成，改为在解析循环中合并连续 '-' 为一个长条平台
+            // { '-', SpawnOneWayPlatform },  // 已移至 MergeAndSpawnOneWayPlatforms
+            { '-', (x, y) => { } },  // 占位：实际生成由合并逻辑处理
             { 'E', SpawnBouncingEnemy },
             { 'F', SpawnFakeWall },
             { 'H', SpawnHiddenPassage },
@@ -189,6 +191,9 @@ public static class AsciiLevelGenerator
             string line = lines[row];
             // Y 坐标: 第一行在最上面（Y = height - 1），最后一行在最下面（Y = 0）
             int worldY = height - 1 - row;
+
+            // S44c: 先合并连续 '-' 为长条 OneWayPlatform
+            MergeAndSpawnOneWayPlatforms(line, worldY);
 
             for (int col = 0; col < line.Length; col++)
             {
@@ -445,20 +450,76 @@ public static class AsciiLevelGenerator
         go.AddComponent<CollapsingPlatform>();
     }
 
-    private static void SpawnOneWayPlatform(int x, int y)
+    // [AI防坑警告] S44c: OneWayPlatform 不再逐字符生成。
+    // 连续的 '-' 会被 MergeAndSpawnOneWayPlatforms 合并为一个长条平台。
+    // 如果恢复逐字符生成，会导致 S+Space 下落失效（需要同时 IgnoreCollision 多个碰撞体）、
+    // 边缘掉落、物理抖动等一系列拼接问题。
+    // 旧版 SpawnOneWayPlatform(int x, int y) 已废弃，保留注释供参考。
+
+    /// <summary>
+    /// S44c: 扫描一行中连续的 '-' 字符，合并为单个长条 OneWayPlatform。
+    /// 解决多个独立小平台拼接导致的 S+Space 失效、边缘掉落、物理抖动等问题。
+    /// </summary>
+    private static void MergeAndSpawnOneWayPlatforms(string line, int worldY)
     {
-        // Session 32: 单向平台碰撞体使用 PhysicsMetrics 标准尺寸
-        GameObject go = CreateBlock("OneWayPlatform", x, y, COLOR_ONEWAY, ELEMENT_SORTING, true, false);
-        // S37: 视觉缩放操作 Visual 子节点
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.3f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null)
+        int col = 0;
+        while (col < line.Length)
         {
-            col.size = PhysicsMetrics.ONEWAY_COLLIDER_SIZE;
-            col.usedByEffector = true;
+            if (line[col] == '-')
+            {
+                // 向右扫描连续的 '-'
+                int startCol = col;
+                while (col < line.Length && line[col] == '-')
+                {
+                    col++;
+                }
+                int width = col - startCol;
+                SpawnMergedOneWayPlatform(startCol, worldY, width);
+            }
+            else
+            {
+                col++;
+            }
         }
+    }
+
+    /// <summary>
+    /// S44c: 生成一个合并后的长条 OneWayPlatform。
+    /// 位置 = 连续段的中心点，碰撞体和视觉宽度 = width × CELL_SIZE。
+    /// </summary>
+    private static void SpawnMergedOneWayPlatform(int startX, int y, int width)
+    {
+        // 计算中心位置：startX 是左端格子坐标，中心 = startX + (width - 1) / 2.0
+        float centerX = startX * CELL_SIZE + (width - 1) * CELL_SIZE * 0.5f;
+        float centerY = y * CELL_SIZE;
+
+        // 创建根物体（命名包含起始坐标和宽度，便于调试）
+        GameObject go = new GameObject($"OneWayPlatform_{startX}_{y}_w{width}");
+        go.transform.position = new Vector3(centerX, centerY, 0);
+        go.transform.parent = rootTransform;
+        go.layer = groundLayerIndex;
+
+        // S37: Visual 子节点
+        GameObject visual = new GameObject("Visual");
+        visual.transform.SetParent(go.transform, false);
+        visual.transform.localPosition = Vector3.zero;
+        // 视觉宽度 = width 格 × CELL_SIZE，高度保持薄片
+        visual.transform.localScale = new Vector3(width * CELL_SIZE, CELL_SIZE * 0.3f, 1f);
+
+        SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
+        sr.sprite = CreateWhiteBoxSprite();
+        sr.color = COLOR_ONEWAY;
+        sr.sortingOrder = ELEMENT_SORTING;
+
+        // 碰撞体：宽度 = width × CELL_SIZE，高度保持 PhysicsMetrics 标准
+        BoxCollider2D col = go.AddComponent<BoxCollider2D>();
+        col.size = new Vector2(width * PhysicsMetrics.ONEWAY_COLLIDER_SIZE.x, PhysicsMetrics.ONEWAY_COLLIDER_SIZE.y);
+        col.usedByEffector = true;
+
         go.AddComponent<PlatformEffector2D>();
         go.AddComponent<OneWayPlatform>();
+
+        Debug.Log($"[AsciiLevelGen] Merged OneWayPlatform at ({startX},{y}), width={width}");
     }
 
     private static void SpawnBouncingEnemy(int x, int y)

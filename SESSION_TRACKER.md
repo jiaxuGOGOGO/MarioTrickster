@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 48 (Registry char 序列化 bug 修复 — string 代理 + HideFlags + 完整性校验) |
+| **最新 Session** | Session 48b (KillZone 三重死亡检测 — OnTriggerStay2D + Y 坐标兜底) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S48 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S48b 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S48 修复 `AsciiElementRegistry.cs`: Unity 不序列化 char 类型，导致 Domain Reload 后 entries 全部丢失为 '\0'，Generator 输出 Unknown char + 0 objects。三层修复: (1) AsciiElementEntry.asciiChar 从 char 字段改为 string 序列化代理+属性 (2) CreateDefaultInstance 加 HideFlags.HideAndDontSave (3) GetDefault 加 entries 完整性校验+自愈。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S48b 修复 `KillZone.cs`: 角色掉出屏幕后不触发死亡/重置。三重检测: (1) OnTriggerEnter2D 标准触发 (2) OnTriggerStay2D 安全网 (3) Update Y坐标兜底。同步修改 TestConsoleWindow + TestSceneBuilder 设置 fallbackY。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -103,7 +103,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 5：道具操控 | 融入后红/灰连线；方向键磁吸切换；L 触发红线目标 |
 | ✅ | 测试 6：扫描技能 | Q 键脉冲+文字正常 |
 | 🔄 | 测试 6.5：镜头 | 走完全部 Stage 镜头始终跟随 |
-| 🔄 | 测试 7：胜负判定 | **S44重点验证**: SimpleEnemy 站在地面上巡逻、碰敌有击退 + 终点有胜利画面 |
+| 🔄 | 测试 7：胜负判定 | **S48b重点验证**: 掉出屏幕后应触发死亡重置画面 + SimpleEnemy 巡逻碰敌击退 + 终点胜利画面 |
 | ✅ | 测试 8：暂停 | ESC 暂停/恢复 |
 | 🔄 | 测试 9A：地刺 | 碰到有合理击退 |
 | 🔄 | 测试 9B：摆锤 | Trickster L键可控制 |
@@ -135,7 +135,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **紧急** | S48 Registry char 序列化 bug 修复 (string 代理 + HideFlags + 完整性校验) | ⏳ 代码已推送，待用户 Unity 验证 |
+| **紧急** | S48b KillZone 三重死亡检测 (OnTriggerStay2D + Y 坐标兜底) | ⏳ 代码已推送，待用户 Unity 验证 |
+| **紧急** | S48 Registry char 序列化 bug 修复 (string 代理 + HideFlags + 完整性校验) | ✅ 已验证，29 objects 正常生成 |
 | **紧急** | S47 L2 BFS 可达性验证器 + Auto-Prompting 纠错闭环 (LevelReachabilityAnalyzer) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S46 Data-Driven Registry 关卡元素字典中心化解耦 (AsciiElementRegistry + Generator/Validator 重构) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S45 Doc-as-Code 动态文档同步引擎 (DocsAutomatorWindow: Sync Docs + Copy Prompt) | ⏳ 代码已推送，待用户 Unity 验证 |

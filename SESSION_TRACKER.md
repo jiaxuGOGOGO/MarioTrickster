@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 46 (Data-Driven Registry 关卡元素字典中心化解耦) |
+| **最新 Session** | Session 47 (L2 BFS 可达性验证器 + Auto-Prompting 纠错闭环) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S46 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S47 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S46 新增 `AsciiElementRegistry.cs` (ScriptableObject)，中心化管理 ASCII 字符到关卡元素的映射。重构 `AsciiLevelGenerator.cs`：用 Registry + spawnMap 替代硬编码 charMap 字典，保留所有 Spawn 方法和 S44c OneWayPlatform 合并逻辑。重构 `AsciiLevelValidator.cs`：用 Registry.GetSolidChars()/GetHazardChars() 替代硬编码 HashSet，保留所有 S35/S43 检查方法。更新 PhysicsMetrics.cs 扩展指南注释。新增 1 文件，修改 3 文件。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S47 新增 `LevelReachabilityAnalyzer.cs`：纯网格 BFS 图搜索验证 M→G 可达性。状态转移规则基于 PhysicsMetrics 跳跃极限（水平 5 格、垂直 2 格），支持 JumpBoost 弹跳增益、招物线约束、头顶阻挡检测。不可达时自动生成纠错话术并复制到剪贴板（Auto-Prompting）。已集成到 Generator 的 L1 验证后。新增 1 文件，修改 1 文件。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S47 L2 BFS 可达性验证器 + Auto-Prompting 纠错闭环 (LevelReachabilityAnalyzer) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S46 Data-Driven Registry 关卡元素字典中心化解耦 (AsciiElementRegistry + Generator/Validator 重构) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S45 Doc-as-Code 动态文档同步引擎 (DocsAutomatorWindow: Sync Docs + Copy Prompt) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S44c OneWayPlatform 连续 '-' 合并为长条平台 + 提示词文档同步 | ⏳ 代码已推送，待用户 Unity 验证 |

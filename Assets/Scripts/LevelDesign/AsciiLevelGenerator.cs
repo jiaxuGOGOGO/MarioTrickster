@@ -202,18 +202,31 @@ public static class AsciiLevelGenerator
 
         // Session 32: 生成前自动验证模板的物理可行性
         // Session 43: 支持片段模式验证（片段不要求 M/G）
+        // L1: 静态结构检查（间隙/高台/出生安全/弹跳净空/陷阱缓冲）
         var validationResult = AsciiLevelValidator.ValidateTemplate(template, isSnippet);
         if (validationResult.HasErrors)
         {
-            Debug.LogError($"[AsciiLevelGen] ⚠️ Template has physical issues!\n{validationResult.GetReport()}");
+            Debug.LogError($"[AsciiLevelGen] ⚠️ L1 Template has physical issues!\n{validationResult.GetReport()}");
         }
         else if (validationResult.HasWarnings)
         {
-            Debug.LogWarning($"[AsciiLevelGen] Template has warnings:\n{validationResult.GetReport()}");
+            Debug.LogWarning($"[AsciiLevelGen] L1 Template has warnings:\n{validationResult.GetReport()}");
         }
         else
         {
-            Debug.Log("[AsciiLevelGen] ✅ Template validation passed.");
+            Debug.Log("[AsciiLevelGen] ✅ L1 Template validation passed.");
+        }
+
+        // Session 47: L2 BFS 可达性验证（图搜索：M → G 路径是否存在）
+        var reachResult = LevelReachabilityAnalyzer.Analyze(template, isSnippet);
+        if (!reachResult.IsReachable)
+        {
+            Debug.LogError($"[AsciiLevelGen] ❌ L2 BFS: {reachResult.GetReport()}");
+            LevelReachabilityAnalyzer.CopyErrorToClipboard(reachResult);
+        }
+        else if (!isSnippet)
+        {
+            Debug.Log($"[AsciiLevelGen] ✅ L2 BFS: {reachResult.GetReport()}");
         }
 
         if (clearExisting) ClearGeneratedLevel();

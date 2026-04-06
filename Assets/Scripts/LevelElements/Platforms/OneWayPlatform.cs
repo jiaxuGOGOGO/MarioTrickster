@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -17,11 +18,18 @@ using UnityEngine;
 ///   - InputManager 在检测到 S+Space 同时按下时调用 AllowDropThrough()
 ///   - 单独按 S 不再触发下落，避免移动时误操作
 ///
-/// S41 修复:
+/// S41 修复（终极方案 — 定向忽略碰撞）:
 ///   - S37 视碰分离后 Root.localScale 保持 (1,1,1)，碰撞体实际厚度从 0.075 变为 0.25
-///   - 原 rotationalOffset=180 翻转方案在碰撞体变厚后失效（Mario 嵌入碰撞体内部无法穿出）
-///   - 改为临时禁用碰撞体（boxCollider.enabled = false），彻底消除碰撞
-///   - 这样 Physics2D.BoxCast 也检测不到此平台，Mario 的 _grounded 正确变为 false
+///   - 原 rotationalOffset=180 翻转方案在碰撞体变厚后失效
+///   - collider.enabled=false 方案会让平台对整个物理世界消失（敌人/Trickster 也会掉落）
+///   - 终极方案：Physics2D.IgnoreCollision 定向忽略 Mario↔平台 的碰撞
+///     只有触发下落的 Mario 穿过，其他实体（敌人、Trickster）不受影响
+///   - 参考《空洞骑士》《蔚蓝》等顶尖 2D 平台跳跃游戏的标准做法
+/// 
+/// // [AI防坑警告] 不要用 collider.enabled=false 或 rotationalOffset=180 实现下落！
+/// // collider.enabled=false 会让平台对所有物体消失，多实体场景下是灾难。
+/// // rotationalOffset=180 在 S37 视碰分离后碰撞体变厚时会卡脚。
+/// // 唯一正确方案是 Physics2D.IgnoreCollision 定向忽略特定玩家碰撞体。
 /// 
 /// 扩展/删除指南: 删除此文件不影响其他脚本
 /// Session 15: 关卡设计系统新增
@@ -31,16 +39,12 @@ using UnityEngine;
 public class OneWayPlatform : LevelElementBase
 {
     [Header("=== 单向平台设置 ===")]
-    [Tooltip("玩家按下组合键后禁用碰撞的时长")]
+    [Tooltip("定向忽略碰撞的持续时长（秒），需足够让玩家穿过碰撞体厚度")]
     [SerializeField] private float dropThroughDuration = 0.35f;
 
     // 组件
     private BoxCollider2D boxCollider;
     private PlatformEffector2D effector;
-
-    // 状态
-    private bool isDropThrough;
-    private float dropTimer;
 
     private void Awake()
     {
@@ -57,38 +61,51 @@ public class OneWayPlatform : LevelElementBase
         effector.surfaceArc = 170f; // 允许从侧面略微进入
     }
 
-    private void Update()
+    /// <summary>
+    /// 允许指定玩家从平台上方穿过落下（定向忽略碰撞）
+    /// 由 MarioInteractionHelper.TryDropThroughPlatform 调用，传入 Mario 的碰撞体
+    /// 
+    /// S41: 使用 Physics2D.IgnoreCollision 只让触发者穿过，
+    ///       平台对其他所有实体（敌人、Trickster 等）保持坚固
+    /// </summary>
+    /// <param name="playerCollider">触发下落的玩家碰撞体</param>
+    public void AllowDropThrough(Collider2D playerCollider)
     {
-        if (isDropThrough)
-        {
-            dropTimer -= Time.deltaTime;
-            if (dropTimer <= 0f)
-            {
-                isDropThrough = false;
-                boxCollider.enabled = true; // S41: 恢复碰撞体
-            }
-        }
+        if (playerCollider == null || boxCollider == null) return;
+        StartCoroutine(DropThroughRoutine(playerCollider));
     }
 
     /// <summary>
-    /// 允许玩家从平台上方穿过落下
-    /// 由 InputManager 在检测到 S+Jump 组合键时通过 MarioInteractionHelper 调用
-    /// Session 19: 改为组合键触发，避免误操作
-    /// S41: 改为临时禁用碰撞体（替代 rotationalOffset 翻转，兼容 S37 视碰分离）
+    /// 定向忽略碰撞协程：
+    /// 1. 开启 Mario↔平台 的碰撞忽略
+    /// 2. 等待足够时间让玩家穿过碰撞体
+    /// 3. 恢复碰撞（否则 Mario 再也踩不上这块板）
     /// </summary>
-    public void AllowDropThrough()
+    private IEnumerator DropThroughRoutine(Collider2D playerCollider)
     {
-        if (isDropThrough) return;
-        isDropThrough = true;
-        dropTimer = dropThroughDuration;
-        boxCollider.enabled = false; // S41: 临时禁用碰撞体，让 Mario 穿过
+        // 开启定向穿透：物理引擎只忽略这两个碰撞体之间的碰撞
+        Physics2D.IgnoreCollision(playerCollider, boxCollider, true);
+
+        // 等待足够时间让玩家彻底掉出碰撞体厚度
+        yield return new WaitForSeconds(dropThroughDuration);
+
+        // 安全验证并恢复碰撞
+        if (playerCollider != null && boxCollider != null)
+        {
+            Physics2D.IgnoreCollision(playerCollider, boxCollider, false);
+        }
     }
 
     public override void OnLevelReset()
     {
-        isDropThrough = false;
-        dropTimer = 0f;
-        boxCollider.enabled = true; // S41: 重置时恢复碰撞体
+        // 停止所有协程，确保不会有残留的忽略状态
+        StopAllCoroutines();
+
+        // 恢复碰撞体状态（以防协程被中断时碰撞仍被忽略）
+        if (boxCollider != null)
+        {
+            boxCollider.enabled = true; // 确保碰撞体启用
+        }
     }
 
     private void OnDrawGizmos()

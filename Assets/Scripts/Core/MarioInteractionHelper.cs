@@ -19,6 +19,10 @@ using UnityEngine;
 ///   
 ///   使用 OverlapBox 检测脚下平台，OverlapCircle 检测周围通道
 ///   不需要挂载到任何 GameObject，由 InputManager 直接调用
+///
+/// S41 更新:
+///   AllowDropThrough 改为 Physics2D.IgnoreCollision 定向忽略碰撞，
+///   需要传入 Mario 的 Collider2D，由 TryDropThroughPlatform 负责获取并传递。
 /// </summary>
 public static class MarioInteractionHelper
 {
@@ -89,7 +93,8 @@ public static class MarioInteractionHelper
     }
 
     /// <summary>
-    /// 检测 Mario 脚下是否有 OneWayPlatform，有则触发下落
+    /// 检测 Mario 脚下是否有 OneWayPlatform，有则触发定向忽略碰撞下落
+    /// S41: 获取 Mario 的 Collider2D 传给 AllowDropThrough，实现定向穿透
     /// </summary>
     private static bool TryDropThroughPlatform(GameObject marioObj)
     {
@@ -106,7 +111,8 @@ public static class MarioInteractionHelper
             OneWayPlatform owp = hit.GetComponent<OneWayPlatform>();
             if (owp != null)
             {
-                owp.AllowDropThrough();
+                // S41: 传入 Mario 碰撞体，实现 Physics2D.IgnoreCollision 定向穿透
+                owp.AllowDropThrough(marioCol);
                 Debug.Log($"[MarioInteraction] S+Jump 组合键：从单向平台 {hit.gameObject.name} 下落");
                 return true;
             }

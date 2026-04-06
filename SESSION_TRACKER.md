@@ -86,7 +86,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阶段** | Sprint 2 游戏体验提升 |
 | **编译状态** | ⏳ S41 全部代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S41 包含两部分：(1) LevelEditorPickingManager v3 — Selection 后处理策略，框选 Visual 自动替换为 Root，支持 Root/Visual 模式切换（Test Console Toggle），delayCall+防重入锁+HashSet去重+scene.IsValid 四重安全。(2) OneWayPlatform S+Space 下落修复 — S37 视碰分离后碰撞体变厚导致 rotationalOffset=180 失效，改为临时禁用碰撞体。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S41 包含两部分：(1) LevelEditorPickingManager v3 — Selection 后处理策略，框选 Visual 自动替换为 Root，支持 Root/Visual 模式切换（Test Console Toggle）。(2) OneWayPlatform S+Space 下落修复 — Physics2D.IgnoreCollision 定向忽略碰撞（终极方案），只让触发者穿过，其他实体不受影响。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 

@@ -39,7 +39,14 @@ using System.Collections.Generic;
 /// </summary>
 public static class AsciiLevelGenerator
 {
-    // ═══════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════
+    // S41: Editor 侧回调事件 — 运行时脚本不能直接引用 Editor 类，
+    // 通过此事件解耦，由 LevelEditorPickingManager 在 Editor 侧订阅。
+    // ═════════════════════════════════════════════════
+    /// <summary>关卡生成/换肤完成后触发，Editor 侧用于同步 Picking 状态</summary>
+    public static System.Action OnLevelGenerated;
+
+    // ═════════════════════════════════════════════════
     // 常量
     // ═══════════════════════════════════════════════════
     // [AI防坑警告] CELL_SIZE 必须与 PhysicsMetrics.CELL_SIZE 保持一致！
@@ -186,10 +193,8 @@ public static class AsciiLevelGenerator
 
         Debug.Log($"[AsciiLevelGen] Level generated: {root.transform.childCount} objects from {height} rows.");
 
-        // S41: 生成完毕后主动同步 Picking 状态，一次上锁，零性能损耗
-#if UNITY_EDITOR
-        LevelEditorPickingManager.SyncState();
-#endif
+        // S41: 通知 Editor 侧同步 Picking 状态（运行时脚本不能直接引用 Editor 类，通过事件解耦）
+        OnLevelGenerated?.Invoke();
 
         return root;
     }
@@ -690,10 +695,8 @@ public static class AsciiLevelGenerator
 
         Debug.Log($"[AsciiLevelGen] Theme '{theme.themeName}' applied: {replacedCount} sprites replaced.");
 
-        // S41: 换肤后重新同步 Picking 状态（换肤可能新增 SpriteAutoFit 等组件）
-#if UNITY_EDITOR
-        LevelEditorPickingManager.SyncState();
-#endif
+        // S41: 通知 Editor 侧同步 Picking 状态
+        OnLevelGenerated?.Invoke();
     }
 
     /// <summary>

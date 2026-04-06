@@ -48,6 +48,8 @@ public static class LevelEditorPickingManager
     {
         // 每次打开新场景，自动恢复锁定状态，无视 Git 本地差异
         EditorSceneManager.sceneOpened += OnSceneOpened;
+        // 订阅 AsciiLevelGenerator 的生成/换肤完成事件（运行时→Editor 解耦桥梁）
+        AsciiLevelGenerator.OnLevelGenerated += SyncState;
         // 编译完成后也同步一次（覆盖域重载场景）
         EditorApplication.delayCall += SyncState;
     }

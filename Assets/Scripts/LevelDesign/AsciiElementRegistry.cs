@@ -13,6 +13,13 @@ using System.Collections.Generic;
 /// 不依赖任何 Prefab。Registry 的职责是提供字符分类元数据（IsSolid/IsHazard/JumpBoost），
 /// 不是 Prefab 仓库。Inspector 中无需拖入任何 Prefab。
 ///
+/// [AI防坑警告] S48 修复: Unity 序列化系统不支持 char 类型字段。
+/// AsciiElementEntry.asciiChar 原为 char 类型，Unity 序列化/反序列化时会丢失为 '\0'，
+/// 导致 charMap 构建后所有字符都找不到匹配，生成器输出 "Unknown char" 并生成 0 个对象。
+/// 修复方案：改用 string 类型 (_asciiCharStr) 作为序列化代理，运行时通过属性 AsciiChar 转为 char。
+/// 同时为 CreateDefaultInstance 的临时对象设置 HideFlags.HideAndDontSave 防止 Unity 干扰，
+/// 并在 GetDefault 中添加 entries 完整性校验作为最终防线。
+///
 /// 设计原则:
 ///   - ScriptableObject 资产，可在 Inspector 中可视化编辑字符分类
 ///   - 每个元素定义包含：ASCII字符、元素名、物理属性标记（IsSolid/IsHazard/JumpBoost）
@@ -60,21 +67,30 @@ public class AsciiElementRegistry : ScriptableObject
         foreach (var entry in entries)
         {
             if (entry == null) continue;
-            if (_charLookup.ContainsKey(entry.asciiChar))
+
+            // [AI防坑警告] S48: 使用 AsciiChar 属性（从 string 代理转换），而非直接访问字段。
+            char c = entry.AsciiChar;
+            if (c == '\0')
             {
-                Debug.LogWarning($"[AsciiElementRegistry] Duplicate char '{entry.asciiChar}' " +
+                Debug.LogWarning($"[AsciiElementRegistry] Entry '{entry.elementName}' has empty/null asciiChar, skipping.");
+                continue;
+            }
+
+            if (_charLookup.ContainsKey(c))
+            {
+                Debug.LogWarning($"[AsciiElementRegistry] Duplicate char '{c}' " +
                                  $"for '{entry.elementName}', skipping.");
                 continue;
             }
-            _charLookup[entry.asciiChar] = entry;
+            _charLookup[c] = entry;
 
             if (entry.isSolid)
-                _solidCharsCache.Add(entry.asciiChar);
+                _solidCharsCache.Add(c);
             else
-                _airCharsCache.Add(entry.asciiChar);
+                _airCharsCache.Add(c);
 
             if (entry.isHazard)
-                _hazardCharsCache.Add(entry.asciiChar);
+                _hazardCharsCache.Add(c);
         }
     }
 
@@ -144,20 +160,60 @@ public class AsciiElementRegistry : ScriptableObject
     private static AsciiElementRegistry _defaultInstance;
 
     /// <summary>
+    /// 内置默认 entries 的数量（19 个元素）。
+    /// 用于 GetDefault 中的完整性校验。
+    /// </summary>
+    private const int BUILTIN_ENTRY_COUNT = 19;
+
+    /// <summary>
     /// 获取默认 Registry 实例。
     /// 优先从 Resources 加载资产；如果不存在，则创建内置默认实例。
     /// 这确保了即使没有创建 ScriptableObject 资产，系统也能正常工作。
+    ///
+    /// [AI防坑警告] S48: 三层防御机制
+    ///   1. Fake Null 防御：用 ReferenceEquals + Unity == null 双重检查
+    ///   2. 完整性校验：检查 entries 数组长度和首条目 AsciiChar 是否有效
+    ///   3. 自愈：校验失败时强制重建默认实例
     /// </summary>
     public static AsciiElementRegistry GetDefault()
     {
-        if (_defaultInstance != null) return _defaultInstance;
+        // [AI防坑警告] S48: 防御 Fake Null（Unity 已销毁但 C# 引用残留）
+        // ScriptableObject.CreateInstance 创建的非持久化对象可能在 Domain Reload 后被 Unity GC。
+        // 必须同时检查 C# 引用和 Unity 对象有效性。
+        if (_defaultInstance != null)
+        {
+            // S48: 完整性校验 — 确保 entries 没有被 Unity 序列化系统清空
+            if (_defaultInstance.entries != null &&
+                _defaultInstance.entries.Length > 0 &&
+                _defaultInstance.entries[0] != null &&
+                _defaultInstance.entries[0].AsciiChar != '\0')
+            {
+                return _defaultInstance;
+            }
+
+            // entries 被破坏（Unity 序列化 char 丢失），强制重建
+            Debug.LogWarning("[AsciiElementRegistry] S48: Default instance entries corrupted " +
+                             "(likely Unity serialization destroyed char fields). Rebuilding...");
+            _defaultInstance = null;
+        }
 
         // 尝试从 Resources 加载
         _defaultInstance = Resources.Load<AsciiElementRegistry>("AsciiElementRegistry");
         if (_defaultInstance != null)
         {
-            _defaultInstance.BuildCache();
-            return _defaultInstance;
+            // S48: 对 Resources 加载的资产也做完整性校验
+            if (_defaultInstance.entries != null &&
+                _defaultInstance.entries.Length > 0 &&
+                _defaultInstance.entries[0] != null &&
+                _defaultInstance.entries[0].AsciiChar != '\0')
+            {
+                _defaultInstance.BuildCache();
+                return _defaultInstance;
+            }
+
+            Debug.LogWarning("[AsciiElementRegistry] S48: Resources asset has corrupted entries. " +
+                             "Falling back to built-in defaults.");
+            _defaultInstance = null;
         }
 
         // 创建内置默认实例（与原始硬编码完全一致）
@@ -169,10 +225,20 @@ public class AsciiElementRegistry : ScriptableObject
     /// 创建包含所有内置元素定义的默认实例。
     /// 这些定义与 S44c 之前 AsciiLevelGenerator.InitCharMap() 和
     /// AsciiLevelValidator.solidChars/airChars/hazardChars 中的硬编码完全一致。
+    ///
+    /// [AI防坑警告] S48: 设置 HideFlags.HideAndDontSave 防止 Unity 序列化系统
+    /// 干扰这个临时内存对象。Unity 不支持序列化 char 类型，如果 Unity 尝试
+    /// 序列化/反序列化此对象，所有 asciiChar 字段会丢失为 '\0'。
     /// </summary>
     public static AsciiElementRegistry CreateDefaultInstance()
     {
         var registry = ScriptableObject.CreateInstance<AsciiElementRegistry>();
+
+        // [AI防坑警告] S48: 必须设置 HideFlags 防止 Unity 序列化干扰！
+        // 没有这个标记，Unity 可能在 Domain Reload、Undo、场景切换等操作中
+        // 对此对象进行序列化/反序列化，导致 char 字段丢失。
+        registry.hideFlags = HideFlags.HideAndDontSave;
+
         registry.entries = new AsciiElementEntry[]
         {
             // ── 地形（Solid）──
@@ -221,12 +287,46 @@ public class AsciiElementRegistry : ScriptableObject
 ///
 /// [AI防坑警告] 本项目不使用 Prefab，所有元素由 AsciiLevelGenerator 的 Spawn 方法
 /// 用 new GameObject 白盒生成。此数据结构仅提供字符分类元数据，不要添加 Prefab 字段。
+///
+/// [AI防坑警告] S48: Unity 序列化系统不支持 char 类型。
+/// asciiChar 字段使用 string (_asciiCharStr) 作为序列化代理。
+/// 代码中通过 AsciiChar 属性访问 char 值，通过 asciiChar setter 设置值。
+/// 这确保了无论是 Inspector 编辑的资产还是代码创建的实例，char 值都不会丢失。
 /// </summary>
 [System.Serializable]
 public class AsciiElementEntry
 {
-    [Tooltip("ASCII 字符（在模板中使用的单个字符）")]
-    public char asciiChar;
+    // [AI防坑警告] S48: Unity 不序列化 char 类型！
+    // 使用 string 作为序列化代理，运行时通过属性转换为 char。
+    // Inspector 中显示为单字符文本框，直观且安全。
+    [Tooltip("ASCII 字符（在模板中使用的单个字符，如 # ^ M G）")]
+    [SerializeField]
+    private string _asciiCharStr = "";
+
+    /// <summary>
+    /// ASCII 字符的读写属性。
+    /// 读取时从序列化代理 _asciiCharStr 转换为 char。
+    /// 设置时同步更新 _asciiCharStr。
+    /// </summary>
+    public char asciiChar
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(_asciiCharStr))
+                return _asciiCharStr[0];
+            return '\0';
+        }
+        set
+        {
+            _asciiCharStr = value.ToString();
+        }
+    }
+
+    /// <summary>
+    /// 便捷只读属性，与 asciiChar getter 等价。
+    /// 供 BuildCache 等内部方法使用，语义更清晰。
+    /// </summary>
+    public char AsciiChar => asciiChar;
 
     [Tooltip("元素名称（与 Generator 中 SpawnMap 的 key 一致，如 Ground, SpikeTrap, BouncingEnemy）")]
     public string elementName = "";

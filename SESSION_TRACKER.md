@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 38 (弹跳平台五修：法线方向+持续弹跳+空中二次防护+固定垂直分量+序列化警告修复) |
+| **最新 Session** | Session 39 (方案 C: 按键驱动大跳 Skill-Based Bounce — 状态机锁+Kinematic Freeze+微抬坐标+Super Bounce) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S38 代码已推送，待用户 Unity 编译验证 |
+| **编译状态** | ⏳ S39 代码已推送，待用户 Unity 编译验证 |
 | **阻塞** | 无 |
-| **交接说明** | S38 共五次修复：(1)弹射方向改为法线为主；(2)OnCollisionStay2D持续弹跳；(3)hasLeftPlatform+IsGrounded双重防护防空中二次弹射；(4)固定垂直分量修复“第一下矮弹后续高弹”；(5)删除子类重复的spriteRenderer/originalColor声明修复序列化警告。MarioController未修改。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S39 方案 C 重构弹跳平台：(1)彻底删除 OnCollisionStay2D，用 enum State{Idle,Bouncing,Cooldown} 状态机锁替代，根治"先高后矮"Bug；(2)PrepareBounce 设 rb.isKinematic=true 熔断物理引擎干扰；(3)ExecuteBounce 微抬坐标 0.05f 脱离碰撞重叠区；(4)严格法线检测 avgNormal.y>0.5 只接受从上方落下；(5)按键驱动大跳 IsJumpHeld→superBounceMultiplier 1.4x；(6)MarioController 新增 IsJumpHeld 公共属性+Kinematic Freeze+微抬坐标+击退/死亡恢复 isKinematic。修改文件：BouncyPlatform.cs、MarioController.cs、TestSceneBuilder.cs。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -109,7 +109,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9B：摆锤 | Trickster L键可控制 |
 | 🔄 | 测试 9C：火陷阱 | 碰到向后退，不向上飞 |
 | 🔄 | 测试 9D：弹跳怪 | 碰到有击退，踩踏消灭 |
-| 🔄 | 测试 9E：弹跳平台 | **S38重点验证**：(1)从上方跳上去应向上弹 (2)持续弹跳不停 (3)不会弹到反方向 + S22核心+S36增强手感 |
+| 🔄 | 测试 9E：弹跳平台 | **S39重点验证**：(1)从上方落下应向上弹，侧面蹭到不触发 (2)每次弹跳高度一致（不再先高后矮） (3)按住 Space 蓄力大跳 1.4x (4)Trickster L键操控仍正常 (5)冻结期角色不滑动 |
 | 🔄 | 测试 9F：单向平台 | S+Space 下落，单独S不落 |
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
@@ -135,7 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **紧急** | S38 弹跳平台三修（法线方向+持续弹跳+TestSceneBuilder S37适配） | ⏳ 代码已推送，待用户 Unity 验证 |
+| **紧急** | S39 方案 C 弹跳平台重构（按键驱动大跳+状态机锁+Kinematic Freeze+微抬坐标） | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S37 视碰分离架构重构（Root→Visual 父子层级，18 文件） | ✅ 自动化测试 109/109 通过，待手动 PlayMode 验证 |
 | **紧急** | S36 弹跳平台 Game Feel 增强（平台动画+角色形变+半重力顶点） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S35 关卡布局安全性修复（模板+片段+验证器） | ✅ 代码已推送，待用户 Unity 验证 |

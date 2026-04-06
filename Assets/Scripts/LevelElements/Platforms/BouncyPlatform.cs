@@ -7,40 +7,50 @@ using System.Collections;
 /// 框架定位: ControllableLevelElement
 /// 分类: Platform | 标签: Controllable, AffectsPhysics, Resettable
 /// 
-/// 核心机制（两段式弹射 + 法线方向弹飞 + 持续弹跳）:
-///   玩家碰撞平台后，弹射方向以碰撞面法线为主：
-///   1. 法线弹射：碰撞面法线决定弹射主方向（从上方落下→向上弹，从侧面碰→斜向弹）
+/// 核心机制（方案 C: 按键驱动的互动式大跳 Skill-Based Bounce）:
+///   玩家从上方落到平台后，弹射方向以碰撞面法线为主：
+///   1. 法线弹射：碰撞面法线决定弹射主方向（从上方落下→向上弹）
 ///   2. 位置偏移：玩家相对平台中心的偏移提供微弱水平修正
-///      - 落在平台左半边 → 微弱向左偏移
-///      - 落在平台右半边 → 微弱向右偏移
-///      - 落在平台正中间 → 纯法线方向
-///   3. 持续弹跳：角色落回平台后会自动重新弹射（OnCollisionStay2D），
-///      不会出现"弹一次就停"的问题
+///   3. 按键驱动大跳：
+///      - 保底标准弹跳 (Normal Bounce, 1.0x)：玩家什么都不按，获得绝对固定的标准弹射高度
+///      - 主动蓄力大跳 (Super Bounce, 1.4x)：玩家在 comedyDelay 冻结期内按住跳跃键(Space)
+///        则获得额外弹射力，把被动等待变成炫技 QTE 微操
 ///   
 /// Session 22 重构：两段式弹射协程
 ///   整个弹射流程由 LaunchSequence 协程统一管理：
 ///   
 ///   阶段1 - 蓄力冻结期（Comedy Delay）:
-///     碰撞瞬间 → mario.PrepareBounce() 冻结角色
+///     碰撞瞬间 → mario.PrepareBounce() 冻结角色（Kinematic Freeze）
 ///     → 挤压动画 + WaitForSeconds(comedyDelay)
 ///     → 期间 Trickster 可按 L 操控修改弹力
+///     → 期间 Mario 可按住 Space 蓄力大跳
 ///   
 ///   阶段2 - 发射:
-///     延迟结束 → 计算最终弹力（含 Trickster 操控加成）
+///     延迟结束 → 微抬角色坐标脱离碰撞重叠区
+///     → 计算最终弹力（含 Trickster 操控加成 / 玩家大跳加成）
 ///     → mario.ExecuteBounce(finalVelocity) 注入绝对速度
 ///     → MarioController 进入 _isBouncing 飞行期
 ///     → 落地或碰墙自动解除，恢复正常控制
 ///   
-///   优势：
-///     - 时序逻辑集中在一个协程中，不再分散在 OnCollisionEnter2D / Update / ExecuteLaunch
-///     - 蓄力冻结和抛物线飞行是两个独立阶段，互不冲突
-///     - WaitForSeconds 使用缓存实例，避免协程中 GC 分配
+/// Session 39 重构（方案 C）：
+///   问题修复:
+///     1. "先高后矮" Bug → 彻底删除 OnCollisionStay2D，改用状态机锁
+///        enum State { Idle, Bouncing, Cooldown }，只有 Idle 状态下 Enter 才受理
+///     2. 蓄力冻结期物理引擎偷偷施加排斥力 → Kinematic Freeze 熔断物理
+///        PrepareBounce 时设置 rb.isKinematic = true，发射时恢复
+///     3. 碰撞体重叠导致发射后被吸回 → 发射瞬间微抬角色坐标 0.05f
+///     4. 侧面蹭到也被弹飞 → 严格法线检测，只有从上方落下才触发
+///   新增:
+///     - 按键驱动大跳（Super Bounce）：冻结期按住 Space 获得 1.4x 弹射力
+///     - 喜剧效果纯走视觉层：所有 squash/stretch 操作 visualTransform.localScale
+///       BoxCollider2D 尺寸永远锁定不变
 ///   
 ///   Trickster操控: 在蓄力冻结期按 L 键改变弹射方向或力度
 /// 
 /// Inspector 可调参数:
 ///   - bounceForce: 基础弹射力
 ///   - bounceForceMultiplier: 弹射力倍率
+///   - superBounceMultiplier: 按住跳跃键时的大跳倍率（默认 1.4x）
 ///   - positionInfluence: 位置偏移对弹射方向的影响权重
 ///   - comedyDelay: 碰撞后冻结时间（蓄力期）
 /// 
@@ -50,33 +60,14 @@ using System.Collections;
 /// Session 20: 碰撞法线修正 + BounceStun 抛物线保留
 /// Session 21: SetFrameVelocity 绝对速度注入 + maxSpeed 截断跳过
 /// Session 22: 两段式弹射协程重构
-///   - 废除 Update 手动计时器，改用 LaunchSequence 协程统一管理
-///   - 碰撞瞬间调用 mario.PrepareBounce() 冻结角色
-///   - 延迟结束调用 mario.ExecuteBounce(velocity) 注入绝对速度
-///   - WaitForSeconds 缓存实例避免 GC
-///   - Trickster 操控窗口在蓄力冻结期内
-///
 /// Session 36: 弹跳平台 Game Feel 增强（业界最佳实践）
-///   参考来源:
-///     - GameMaker Kitchen "10 Levels of Platformer Jumping": 弹跳平台 squash/stretch
-///     - Dawnosaur "Improve Your Platformer Jump": 视觉反馈和冲击粒子
-///     - "Secrets of Springs" (GDC): 阻尼简谐运动、过冲效果、体积守恒
-///     - YouTube "Unity 2D Spring Like Mario": 直接速度覆盖保证一致性
-///   改动:
-///     - 增强 squash/stretch 动画参数（更明显的压缩和拉伸）
-///     - 拉伸动画添加三段式过冲回弹（弹簧物理感）
-///     - 弹射瞬间颜色闪白反馈（冲击感）
-///     - comedyDelay 0.25→0.15（更紧凑的节奏）
-///
 /// Session 38: 弹跳方向修正 + 持续弹跳 + 方向自然化
-///   问题修复:
-///     1. 弹回方向不自然 → 改为碰撞面法线为主方向，位置偏移仅做微弱水平修正
-///     2. 弹一次可能跳过去弹回来 → 废除 relativeVelocity 反射，直接用法线
-///     3. 弹一次落地就不动了 → 新增 OnCollisionStay2D 持续弹跳检测
-///   设计理念:
-///     - 弹跳平台的行为应该像蹦床：踩上去就弹，方向始终以表面法线为主
-///     - 参考 Super Mario Bros 弹簧：始终向上弹，不会弹到奇怪的方向
-///     - 持续弹跳是弹跳平台的核心体验，不应该弹一次就停
+/// Session 39: 方案 C 重构 — 按键驱动大跳 + 状态机锁 + Kinematic Freeze
+///   - 彻底删除 OnCollisionStay2D，用状态机锁替代
+///   - Kinematic Freeze 熔断蓄力冻结期物理干扰
+///   - 微抬坐标脱离碰撞重叠区
+///   - 严格法线检测（只有从上方落下才触发）
+///   - 按键驱动大跳（Super Bounce, 1.4x）
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class BouncyPlatform : ControllableLevelElement
@@ -94,6 +85,10 @@ public class BouncyPlatform : ControllableLevelElement
     [Tooltip("最大弹射力")]
     [SerializeField] private float maxBounceForce = 50f;
 
+    [Header("=== S39: 按键驱动大跳 (Super Bounce) ===")]
+    [Tooltip("玩家在蓄力冻结期按住跳跃键时的弹射力倍率。1.0=无加成，1.4=推荐值")]
+    [SerializeField] private float superBounceMultiplier = 1.4f;
+
     [Header("=== 弹射方向 (S38: 法线为主) ===")]
     [Tooltip("位置偏移对弹射方向的影响权重。0=纯法线弹射，1=纯位置偏移。推荐0.15-0.3")]
     [SerializeField, Range(0f, 1f)] private float positionInfluence = 0.2f;
@@ -108,9 +103,17 @@ public class BouncyPlatform : ControllableLevelElement
     [Tooltip("X 轴法线绝对值超过此阈值时视为极端侧面碰撞，强制修正")]
     [SerializeField] private float extremeNormalXThreshold = 0.85f;
 
+    [Header("=== S39: 严格法线检测 ===")]
+    [Tooltip("碰撞法线 Y 分量必须小于此阈值才视为从上方落下（注意：法线指向碰撞者，平台视角法线朝上对应 Mario 视角法线朝下）")]
+    [SerializeField] private float topHitNormalThreshold = -0.5f;
+
     [Header("=== 喜剧延迟（蓄力冻结期） ===")]
-    [Tooltip("碰撞后的冻结时间（秒）。期间角色被冻结，Trickster 可操控。0=立即弹射")]
+    [Tooltip("碰撞后的冻结时间（秒）。期间角色被冻结，Trickster 可操控，Mario 可蓄力大跳。0=立即弹射")]
     [SerializeField] private float comedyDelay = 0.15f;
+
+    [Header("=== S39: 状态机冷却 ===")]
+    [Tooltip("弹射完成后的冷却时间（秒），期间不接受新的碰撞触发")]
+    [SerializeField] private float cooldownDuration = 0.15f;
 
     [Header("=== 相机震动 ===")]
     [Tooltip("弹射时是否触发相机震动")]
@@ -142,6 +145,7 @@ public class BouncyPlatform : ControllableLevelElement
     // S37: 视碰分离 — 视觉代理节点
     // [AI防坑警告] 所有 squash/stretch 动画必须操作 visualTransform.localScale，
     // 绝对不要操作根物体的 transform.localScale！
+    // BoxCollider2D 尺寸必须死死锁定，喜剧效果纯走视觉层。
     [Header("S37: 视碰分离")]
     [Tooltip("视觉子节点的 Transform。为空时自动回退到自身 Transform。")]
     public Transform visualTransform;
@@ -150,10 +154,18 @@ public class BouncyPlatform : ControllableLevelElement
     // 协程时序：OnCollisionEnter2D → PrepareBounce(冻结) → WaitForSeconds → ExecuteBounce(发射)
     // 不要用 AddForce 替代 ExecuteBounce — AddForce 会被 MarioController._frameVelocity 写入覆盖。
     // 不要用 rb.velocity = xxx 替代 ExecuteBounce — 同理，下一帧 FixedUpdate 会读回并截断。
+
+    // ═══════════════════════════════════════════════════════
+    // S39: 状态机锁 — 彻底替代 OnCollisionStay2D + hasLeftPlatform + launchCooldownTimer
+    // [AI防坑警告] 只有 Idle 状态下 OnCollisionEnter2D 才受理弹射。
+    // Bouncing 和 Cooldown 期间一律 return，彻底断绝连环鬼畜弹。
+    // 不要重新引入 OnCollisionStay2D！那是"先高后矮" Bug 的根源。
+    // ═══════════════════════════════════════════════════════
+    private enum BounceState { Idle, Bouncing, Cooldown }
+    private BounceState _state = BounceState.Idle;
+
     // 状态
     private Vector3 originalScale;
-    private bool isAnimating;
-    private bool isLaunching; // 是否正在执行弹射序列（防止重复触发）
 
     // 当前活跃的弹射协程（用于 OnLevelReset 中止）
     private Coroutine activeLaunchCoroutine;
@@ -168,24 +180,14 @@ public class BouncyPlatform : ControllableLevelElement
 
     // P1-P7: 缓存 WaitForSeconds 实例，避免协程中每次 new 产生 GC
     private WaitForSeconds cachedComedyWait;
-
-    // S38: 持续弹跳冷却 — 防止角色还在空中就被 Stay 重新弹射
-    // 根因：弹射动画 stretchDuration=0.25s 结束后 isLaunching=false，
-    // 但角色到达顶点时间 v/g=22/80=0.275s，刚好比动画长一点。
-    // 如果碰撞体没有完全脱离平台，Stay 会在角色刚过顶点时触发二次弹射，
-    // 导致"第一下低后续高"的叠加速度问题。
-    // 解决方案：用 hasLeftPlatform 标记角色是否已经离开过平台，
-    // Stay 只在角色"离开后重新落回"时才触发。
-    private float launchCooldownTimer;
-    private const float LAUNCH_COOLDOWN = 0.05f;
-    private bool hasLeftPlatform = true; // 初始为 true，允许第一次 Enter 触发
+    private WaitForSeconds cachedCooldownWait;
 
     protected override void Awake()
     {
         propName = "弹跳平台";
         elementCategory = ElementCategory.Platform;
         elementTags = ElementTag.Controllable | ElementTag.AffectsPhysics | ElementTag.Resettable;
-        elementDescription = "碰撞后弹飞的平台";
+        elementDescription = "碰撞后弹飞的平台（按住跳跃键可蓄力大跳）";
 
         base.Awake();
 
@@ -205,6 +207,7 @@ public class BouncyPlatform : ControllableLevelElement
 
         // 缓存 WaitForSeconds（P7: 避免协程中 GC 分配）
         cachedComedyWait = new WaitForSeconds(comedyDelay);
+        cachedCooldownWait = new WaitForSeconds(cooldownDuration);
     }
 
     private void Start()
@@ -212,90 +215,48 @@ public class BouncyPlatform : ControllableLevelElement
         cachedCamera = FindObjectOfType<CameraController>();
     }
 
-    private void Update()
-    {
-        // S38: 冷却计时器递减
-        if (launchCooldownTimer > 0f)
-        {
-            launchCooldownTimer -= Time.deltaTime;
-        }
-    }
-
     // ─────────────────────────────────────────────────────
     #region 碰撞入口
 
-    // [AI防坑警告] S38 重构：碰撞入口拆分为 Enter + Stay 双通道。
-    // OnCollisionEnter2D 处理首次碰撞弹射。
-    // OnCollisionStay2D 处理角色落回平台后的持续弹射（解决"弹一次就停"的问题）。
-    // 两者共用 TryLaunch() 方法，由 isLaunching + launchCooldownTimer 双重防护防止重复触发。
+    // [AI防坑警告] S39 重构：彻底删除 OnCollisionStay2D 和 OnCollisionExit2D。
+    // 只保留 OnCollisionEnter2D 作为唯一碰撞入口。
+    // 状态机锁（Idle/Bouncing/Cooldown）替代了之前的 isLaunching + hasLeftPlatform + launchCooldownTimer。
+    // 不要重新引入 Stay2D！那是"先高后矮" Bug 和连环鬼畜弹的根源。
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        TryLaunch(collision);
-    }
-
-    /// <summary>
-    /// S38: 持续弹跳检测。角色弹起后落回同一平台时，
-    /// OnCollisionEnter2D 可能不会重新触发（Unity 物理特性），
-    /// 因此需要 OnCollisionStay2D 作为补充检测通道。
-    /// 
-    /// S38 修正：必须满足 hasLeftPlatform=true 才允许 Stay 触发弹射。
-    /// 这防止角色弹起后碰撞体没有完全脱离平台时，在空中被二次弹射
-    /// （导致"第一下低后续高"的叠加速度问题）。
-    /// 
-    /// 触发条件：
-    ///   - 角色已经离开过平台后重新落回（hasLeftPlatform=true）
-    ///   - 当前没有弹射序列在进行（!isLaunching）
-    ///   - 冷却已结束（launchCooldownTimer <= 0）
-    ///   - 碰撞对象有 MarioController 且 grounded=true（真正落地）
-    ///   - 碰撞对象正在下落或静止（velocity.y <= 0.1f）
-    /// </summary>
-    private void OnCollisionStay2D(Collision2D collision)
-    {
-        // 正在弹射中或冷却中，跳过
-        if (isLaunching || launchCooldownTimer > 0f) return;
-
-        // 角色还没离开过平台，不允许 Stay 触发（防止空中二次弹射）
-        if (!hasLeftPlatform) return;
+        // S39: 状态机锁 — 只有 Idle 状态才受理
+        if (_state != BounceState.Idle) return;
 
         Rigidbody2D targetRb = collision.gameObject.GetComponent<Rigidbody2D>();
         if (targetRb == null) return;
 
-        // 只在角色下落或静止时触发（防止上升途中误弹）
-        if (targetRb.velocity.y > 0.1f) return;
-
-        // 额外检测：Mario 必须真正 grounded（不是空中擦边）
-        MarioController mario = collision.gameObject.GetComponent<MarioController>();
-        if (mario != null && !mario.IsGrounded) return;
-
-        TryLaunch(collision);
-    }
-
-    /// <summary>
-    /// S38: 角色离开平台时标记 hasLeftPlatform=true。
-    /// 这样下次 Stay 检测到角色重新落回时才允许触发弹射。
-    /// </summary>
-    private void OnCollisionExit2D(Collision2D collision)
-    {
-        if (collision.gameObject.GetComponent<Rigidbody2D>() != null)
+        // S39: 严格法线检测 — 只有从上方落下才触发弹射
+        // 碰撞法线是从平台指向 Mario 的方向，Mario 从上方落下时法线朝上（normal.y > 0）
+        // 但 Unity 2D 中 collision 在 BouncyPlatform 上收到的 normal 是指向 BouncyPlatform 的
+        // 即 Mario 从上方砸下来时，BouncyPlatform 收到的法线 Y < 0（指向下方，即 Mario 砸下来的方向）
+        // 所以我们检查法线 Y 分量：对于 BouncyPlatform 来说，从上方碰撞的法线 Y < -0.5
+        // 
+        // 注意：Unity 2D 碰撞法线的方向取决于哪个物体接收事件。
+        // 在 BouncyPlatform 的 OnCollisionEnter2D 中，contact.normal 指向的是
+        // 将碰撞体推开的方向（即从 BouncyPlatform 指向 Mario）。
+        // 所以 Mario 从上方落下时，法线朝上，normal.y > 0。
+        if (collision.contactCount > 0)
         {
-            hasLeftPlatform = true;
+            Vector2 avgNormal = Vector2.zero;
+            for (int i = 0; i < collision.contactCount; i++)
+            {
+                avgNormal += collision.GetContact(i).normal;
+            }
+            avgNormal /= collision.contactCount;
+
+            // 法线 Y > 0.5 表示 Mario 从上方落下（法线从平台指向 Mario，即朝上）
+            if (avgNormal.y < 0.5f)
+            {
+                // 不是从上方落下，忽略（防止侧面蹭到也被弹飞）
+                return;
+            }
         }
-    }
-
-    /// <summary>
-    /// S38: 统一弹射入口。Enter 和 Stay 共用此方法。
-    /// </summary>
-    private void TryLaunch(Collision2D collision)
-    {
-        // 防止重复触发（已有弹射序列在进行中）
-        if (isLaunching) return;
-
-        // 冷却中
-        if (launchCooldownTimer > 0f) return;
-
-        Rigidbody2D targetRb = collision.gameObject.GetComponent<Rigidbody2D>();
-        if (targetRb == null) return;
 
         MarioController mario = collision.gameObject.GetComponent<MarioController>();
         TricksterController trickster = collision.gameObject.GetComponent<TricksterController>();
@@ -315,9 +276,6 @@ public class BouncyPlatform : ControllableLevelElement
         // Session 20: 碰撞法线修正
         Vector2 correctedNormal = CalcCorrectedNormal(collision);
 
-        // 标记角色还没离开平台（防止 Stay 在弹射动画结束后空中二次触发）
-        hasLeftPlatform = false;
-
         // 启动弹射序列协程
         activeLaunchCoroutine = StartCoroutine(
             LaunchSequence(targetRb, mario, trickster, contactPos, correctedNormal));
@@ -326,25 +284,20 @@ public class BouncyPlatform : ControllableLevelElement
     #endregion
 
     // ─────────────────────────────────────────────────────
-    #region 两段式弹射协程 (Session 22)
+    #region 两段式弹射协程 (Session 22 / S39 重构)
 
     // [AI防坑警告] 这是弹射的核心协程，时序严格不可打乱！
-    // 必须先 PrepareBounce(冻结) → 等待 comedyDelay → 再 ExecuteBounce(发射)。
+    // 必须先 PrepareBounce(Kinematic冻结) → 等待 comedyDelay → 微抬坐标 → ExecuteBounce(发射)。
     // 如果跳过冻结直接发射，角色当帧可能还有重力累积的旧速度，弹射轨道会被污染。
     // cachedComedyWait 在 Awake 中缓存，协程中禁止 new WaitForSeconds（P1-P7 GC 规范）。
     /// <summary>
     /// 两段式弹射协程：统一管理蓄力冻结 → 发射的完整时序。
     /// 
-    /// 阶段1（蓄力冻结期）:
-    ///   - 碰撞瞬间调用 mario.PrepareBounce() 冻结角色
-    ///   - 播放挤压动画
-    ///   - yield return cachedComedyWait 等待喜剧延迟
-    ///   - 期间 Trickster 可按 L 操控修改 bounceForceMultiplier
-    /// 
-    /// 阶段2（发射）:
-    ///   - 计算最终弹力（含 Trickster 操控加成）
-    ///   - 调用 mario.ExecuteBounce(finalVelocity) 注入绝对速度
-    ///   - 播放弹跳动画 + 相机震动
+    /// S39 重构要点：
+    ///   - 状态机锁：进入时 _state = Bouncing，发射后 _state = Cooldown，冷却结束 _state = Idle
+    ///   - Kinematic Freeze：冻结期 rb.isKinematic = true，熔断物理引擎的穿透恢复力
+    ///   - 微抬坐标：发射瞬间 rb.position += Vector2.up * 0.05f，脱离碰撞重叠区
+    ///   - 按键驱动大跳：冻结期结束时检查 mario.IsJumpHeld，决定是否施加 superBounceMultiplier
     /// 
     /// P1-P7 合规:
     ///   - WaitForSeconds 使用 Awake 中缓存的实例（避免 GC）
@@ -354,13 +307,15 @@ public class BouncyPlatform : ControllableLevelElement
     private IEnumerator LaunchSequence(Rigidbody2D targetRb, MarioController mario,
         TricksterController trickster, Vector2 contactPos, Vector2 correctedNormal)
     {
-        isLaunching = true;
+        _state = BounceState.Bouncing;
 
         // ══════════════════════════════════════════════════
-        // 阶段1：蓄力冻结
+        // 阶段1：蓄力冻结（Kinematic Freeze）
         // ══════════════════════════════════════════════════
 
-        // 冻结角色
+        // S39: Kinematic Freeze — 熔断物理引擎的干预
+        // 单单把速度设为零是不够的，重力和穿透恢复力依然在底层偷偷结算。
+        // 设置 isKinematic = true 彻底冻结 Rigidbody，让物理引擎无法施加任何力。
         if (mario != null)
         {
             mario.PrepareBounce();
@@ -369,6 +324,7 @@ public class BouncyPlatform : ControllableLevelElement
         {
             // 非 Mario 角色（Trickster 等）：直接冻结 rb
             targetRb.velocity = Vector2.zero;
+            targetRb.isKinematic = true;
         }
 
         if (trickster != null)
@@ -377,6 +333,7 @@ public class BouncyPlatform : ControllableLevelElement
         }
 
         // 挤压动画（内联，避免嵌套协程）
+        // [AI防坑警告] 所有动画操作 visualTransform.localScale，不操作根物体！
         if (comedyDelay > 0f)
         {
             Vector3 squashedScale = new Vector3(
@@ -407,18 +364,21 @@ public class BouncyPlatform : ControllableLevelElement
         // 计算弹射力度（含 Trickster 操控加成）
         float force = bounceForce * bounceForceMultiplier;
         if (tricksterOverride) force *= tricksterForceMult;
+
+        // S39: 按键驱动大跳 — 冻结期结束时检查玩家是否按住跳跃键
+        // 如果按住了 Space，施加 superBounceMultiplier（默认 1.4x）
+        bool isSuperBounce = false;
+        if (mario != null && mario.IsJumpHeld && !tricksterOverride)
+        {
+            force *= superBounceMultiplier;
+            isSuperBounce = true;
+        }
+
         force = Mathf.Clamp(force, minBounceForce, maxBounceForce);
 
         // S38 修正：固定垂直分量 + 独立水平分量
-        // 根因：旧逻辑 launchDir*force 会因碰撞角度不同导致垂直分量变化，
-        // 第一次从斜上方碰撞时法线有水平分量，导致 launchDir.y < 1，
-        // 垂直弹射力 = force * launchDir.y < force，看起来“矮”。
-        // 后续 Stay 触发时角色垂直落回，法线纯向上，launchDir.y ≈ 1，
-        // 垂直弹射力 = force，看起来“高”。
-        //
-        // 修复：垂直分量始终固定为 force，水平分量由方向计算独立提供。
-        // 这样无论从哪个角度碰撞，弹跳高度始终一致，
-        // 同时保留微弱的水平偏移感（落在平台边缘时微微偏向一侧）。
+        // 垂直分量始终固定为 force，水平分量由方向计算独立提供。
+        // 这样无论从哪个角度碰撞，弹跳高度始终一致。
         Vector2 launchVelocity;
         if (tricksterOverride)
         {
@@ -433,6 +393,10 @@ public class BouncyPlatform : ControllableLevelElement
             launchVelocity = new Vector2(horizontalForce, verticalForce);
         }
 
+        // S39: 微抬坐标 — 发射瞬间将角色 Y 坐标微抬 0.05f
+        // 瞬间脱离碰撞体重叠区，拒绝物理引擎的排斥力干扰
+        targetRb.position += Vector2.up * 0.05f;
+
         // 执行弹射
         if (mario != null)
         {
@@ -440,17 +404,19 @@ public class BouncyPlatform : ControllableLevelElement
         }
         else
         {
-            // 非 Mario 角色：直接设置 rb.velocity
+            // 非 Mario 角色：恢复物理后直接设置 rb.velocity
+            targetRb.isKinematic = false;
             targetRb.velocity = launchVelocity;
         }
 
-        // 相机震动
+        // 相机震动（大跳时震动更强）
         if (enableCameraShake && cachedCamera != null)
         {
-            cachedCamera.Shake(shakeDuration, shakeMagnitude);
+            float shakeMultiplier = isSuperBounce ? 1.5f : 1f;
+            cachedCamera.Shake(shakeDuration * shakeMultiplier, shakeMagnitude * shakeMultiplier);
         }
 
-        Debug.Log($"[BouncyPlatform] 弹飞 {targetRb.gameObject.name}, 方向={launchDir}, 速度={launchVelocity}, 力度={force}, Trickster操控={tricksterOverride}");
+        Debug.Log($"[BouncyPlatform] 弹飞 {targetRb.gameObject.name}, 方向={launchDir}, 速度={launchVelocity}, 力度={force}, SuperBounce={isSuperBounce}, Trickster操控={tricksterOverride}");
 
         // S36: 弹射闪白反馈（Secrets of Springs: 视觉冲击感）
         if (enableFlashOnBounce && spriteRenderer != null)
@@ -459,14 +425,17 @@ public class BouncyPlatform : ControllableLevelElement
         }
 
         // S36: 增强弹跳拉伸动画（内联，含过冲效果）
+        // [AI防坑警告] 所有动画操作 visualTransform.localScale，不操作根物体！
         // 业界参考: GameMaker Kitchen — 弹跳平台被踩时 image_yscale=0 然后 lerp 回弹
         // Secrets of Springs — velocity nudge 产生过冲效果
         {
             Vector3 currentScale = visualTransform.localScale;
             // 拉伸目标（平台变窄变高，体积守恒）
+            // S39: 大跳时拉伸更夸张（视觉反馈区分普通弹跳和大跳）
+            float stretchMult = isSuperBounce ? 1.3f : 1f;
             Vector3 stretchedScale = new Vector3(
-                originalScale.x * (1 - squashAmount * 0.6f),
-                originalScale.y * (1 + squashAmount * stretchOvershoot),
+                originalScale.x * (1 - squashAmount * 0.6f * stretchMult),
+                originalScale.y * (1 + squashAmount * stretchOvershoot * stretchMult),
                 originalScale.z);
 
             float t = 0f;
@@ -518,11 +487,14 @@ public class BouncyPlatform : ControllableLevelElement
             if (spriteRenderer != null) spriteRenderer.color = originalColor;
         }
 
-        isLaunching = false;
+        // S39: 状态机 → Cooldown（冷却期，防止动画刚结束就被再次触发）
+        _state = BounceState.Cooldown;
         activeLaunchCoroutine = null;
 
-        // S38: 启动冷却，防止协程刚结束就被 Stay 立即重新触发
-        launchCooldownTimer = LAUNCH_COOLDOWN;
+        yield return cachedCooldownWait;
+
+        // S39: 冷却结束 → Idle（可以接受下一次碰撞）
+        _state = BounceState.Idle;
     }
 
     #endregion
@@ -536,13 +508,7 @@ public class BouncyPlatform : ControllableLevelElement
     /// 设计理念（参考 Super Mario Bros 弹簧 + Celeste 弹射台）：
     ///   弹跳平台的行为应该像蹦床，弹射方向由碰撞面法线决定：
     ///   - 从上方落下 → 法线朝上 → 向上弹（最常见场景）
-    ///   - 从侧面碰撞 → 法线朝侧 → 斜向弹飞
     ///   - 位置偏移仅提供微弱水平修正，避免纯垂直弹跳的单调感
-    /// 
-    /// 废除旧逻辑：
-    ///   - 不再使用 collision.relativeVelocity 做反射计算
-    ///     （relativeVelocity 在 Unity 2D 中方向不稳定，导致弹飞方向反直觉）
-    ///   - positionInfluence 从 0.6 降至 0.2，法线权重大幅提升
     /// </summary>
     private Vector2 CalcLaunchDirection(Vector2 contactPos, Vector2 correctedNormal)
     {
@@ -668,9 +634,7 @@ public class BouncyPlatform : ControllableLevelElement
 
         visualTransform.localScale = originalScale;
         tricksterOverride = false;
-        isAnimating = false;
-        isLaunching = false;
-        launchCooldownTimer = 0f;
+        _state = BounceState.Idle;
 
         // S36: 恢复原始颜色
         if (spriteRenderer != null) spriteRenderer.color = originalColor;

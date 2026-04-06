@@ -49,6 +49,19 @@ using UnityEngine;
 ///     - 弹射飞行期也启用半重力顶点（不需要 jumpHeld）
 ///     - 角色 Squash & Stretch 形变：蓄力压扁、弹射拉伸、落地压扁
 ///     - 视碰分离：通过 visualTransform.localScale 实现（S37 重构）
+///
+/// Session 39 重构（方案 C: 按键驱动大跳 Skill-Based Bounce）:
+///   - 新增 IsJumpHeld 公共只读属性，供 BouncyPlatform 在 comedyDelay 结束时
+///     查询玩家是否按住跳跃键，决定是否施加 superBounceMultiplier
+///   - PrepareBounce() 增加 Kinematic Freeze：rb.isKinematic = true
+///     彻底熔断物理引擎的穿透恢复力和重力干扰
+///   - ExecuteBounce() 增加：
+///     1. 恢复 rb.isKinematic = false
+///     2. 微抬坐标 rb.position += Vector2.up * 0.05f 脱离碰撞重叠区
+///     3. 绝对速度覆写（拒绝 AddForce）
+///   - 蓄力冻结期不再吞掉 jumpHeld 状态（只吞 jumpPressedThisFrame），
+///     让 InputManager 持续维护 jumpHeld 的真实状态，
+///     BouncyPlatform 可在延迟结束时准确读取
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -166,9 +179,9 @@ public class MarioController : MonoBehaviour
     private bool _isBouncing;         // 抛物线飞行中
 
     // ── S36: 角色弹射形变 (Squash & Stretch) ─────────────
-    // 业界参考: GameMaker Kitchen —10 Levels of Platformer Jumping”
+    // 业界参考: GameMaker Kitchen —10 Levels of Platformer Jumping"
     //   弹跳时角色拉伸（Y 放大、X 缩小），落地时压扁（Y 缩小、X 放大）
-    // Dawnosaur “Improve Your Platformer Jump” — visual juice
+    // Dawnosaur "Improve Your Platformer Jump" — visual juice
     // 实现：通过 visualTransform.localScale 实现（S37 视碰分离），不影响碰撞体
     private bool _bounceSquashActive;       // 是否正在播放形变动画
     private float _bounceSquashTimer;       // 形变动画计时器
@@ -189,6 +202,12 @@ public class MarioController : MonoBehaviour
     public bool IsMoving      => Mathf.Abs(_frameVelocity.x) > 0.1f;
     public bool IsFacingRight => isFacingRight;
     public Vector2 Velocity   => _frameVelocity;
+
+    // S39: 暴露跳跃键按住状态，供 BouncyPlatform 在 comedyDelay 结束时查询
+    // 用于按键驱动大跳（Super Bounce）：冻结期按住 Space → 1.4x 弹射力
+    // [AI防坑警告] 此属性只读，jumpHeld 的写入权归 InputManager（通过 OnJumpPressed/OnJumpReleased）。
+    // 绝对不要在 PrepareBounce 中清除 jumpHeld！蓄力冻结期必须保留 jumpHeld 的真实状态。
+    public bool IsJumpHeld => jumpHeld;
 
     // ── 事件 ──────────────────────────────────────────────
     public System.Action OnJump;
@@ -242,7 +261,9 @@ public class MarioController : MonoBehaviour
             }
         }
 
-        // Session 22: 蓄力冻结期忽略跳跃输入
+        // Session 22 / S39: 蓄力冻结期忽略跳跃触发（jumpPressedThisFrame），
+        // 但保留 jumpHeld 的真实状态！jumpHeld 由 InputManager 维护，
+        // BouncyPlatform 在 comedyDelay 结束时通过 IsJumpHeld 查询。
         if (_isPreparingBounce)
         {
             jumpPressedThisFrame = false;
@@ -284,7 +305,11 @@ public class MarioController : MonoBehaviour
             return;
         }
 
-        // ── Session 22: 蓄力冻结期 — 强制零速度，不做任何物理计算 ──
+        // ── Session 22 / S39: 蓄力冻结期 — Kinematic Freeze ──
+        // [AI防坑警告] isKinematic = true 已在 PrepareBounce() 中设置。
+        // 此处仍需强制零速度作为双重保险，因为 isKinematic 的 Rigidbody
+        // 仍然可以通过 rb.velocity 赋值产生位移（kinematic body 的 velocity
+        // 用于 MovePosition 插值）。
         if (_isPreparingBounce)
         {
             _frameVelocity = Vector2.zero;
@@ -573,6 +598,12 @@ public class MarioController : MonoBehaviour
         _isPreparingBounce = false;
         _isBouncing = false;
 
+        // S39: 击退时恢复 Kinematic（如果在蓄力冻结期被击退）
+        if (rb.isKinematic)
+        {
+            rb.isKinematic = false;
+        }
+
         _isKnockbackStunned = true;
         _knockbackStunTimer = duration > 0f ? duration : knockbackStunDuration;
     }
@@ -580,20 +611,28 @@ public class MarioController : MonoBehaviour
     #endregion
 
     // ─────────────────────────────────────────────────────
-    #region Session 22: 两段式弹射接口
+    #region Session 22 / S39: 两段式弹射接口
 
     // [AI防坑警告] PrepareBounce 和 ExecuteBounce 是成对的两段式接口。
     // PrepareBounce 必须在碰撞瞬间调用，ExecuteBounce 必须在 comedyDelay 后调用。
     // 不要试图合并成一个方法或用 AddForce 替代 — AddForce 会被下一帧的
     // _frameVelocity 写入覆盖，导致弹射力完全丢失。
     /// <summary>
-    /// 阶段1：蓄力冻结。碰到弹跳平台时由 BouncyPlatform 调用。
+    /// 阶段1：蓄力冻结（Kinematic Freeze）。碰到弹跳平台时由 BouncyPlatform 调用。
+    /// 
+    /// S39 重构：
+    ///   - rb.isKinematic = true：彻底熔断物理引擎的穿透恢复力和重力干扰
+    ///     单单把速度设为零是不够的，Unity 物理引擎在 FixedUpdate 之间
+    ///     仍会对重叠的碰撞体施加分离力，导致角色在冻结期被偷偷推开
+    ///   - 保留 jumpHeld 状态：不清除 jumpHeld，让 InputManager 持续维护
+    ///     BouncyPlatform 在 comedyDelay 结束时通过 IsJumpHeld 查询
     /// 
     /// 效果：
     ///   - 进入 _isPreparingBounce 状态
+    ///   - rb.isKinematic = true（Kinematic Freeze）
     ///   - FixedUpdate 中强制 _frameVelocity = Vector2.zero 和 rb.velocity = Vector2.zero
-    ///   - Update 中忽略跳跃输入
-    ///   - 角色完全冻结在平台上，不受重力影响，不滑落
+    ///   - Update 中忽略跳跃触发（但保留 jumpHeld）
+    ///   - 角色完全冻结在平台上，不受任何物理力影响
     /// 
     /// 由 BouncyPlatform.LaunchSequence 协程在碰撞瞬间调用。
     /// </summary>
@@ -606,12 +645,17 @@ public class MarioController : MonoBehaviour
         _frameVelocity = Vector2.zero;
         rb.velocity = Vector2.zero;
 
+        // S39: Kinematic Freeze — 熔断物理引擎的干预
+        // 极其重要：临时变成运动学刚体，物理引擎无法对其施加任何力
+        // （包括重力、穿透恢复力、碰撞响应力等）
+        rb.isKinematic = true;
+
         // 清除平台速度（弹射后不再跟随平台）
         _lastPlatformVelocity = Vector2.zero;
         _onPlatform = false;
         _platformVelocity = Vector2.zero;
 
-        // S36: 蓄力冻结时角色压扁（视觉上“被弹簧压住”的感觉）
+        // S36: 蓄力冻结时角色压扁（视觉上"被弹簧压住"的感觉）
         if (visualTransform != null)
         {
             visualTransform.localScale = new Vector3(LandSquashX, LandSquashY, 1f);
@@ -620,6 +664,11 @@ public class MarioController : MonoBehaviour
 
     /// <summary>
     /// 阶段2：执行弹射。喜剧延迟结束后由 BouncyPlatform 调用。
+    /// 
+    /// S39 重构：
+    ///   1. 恢复 rb.isKinematic = false（解除 Kinematic Freeze）
+    ///   2. 微抬坐标 rb.position += Vector2.up * 0.05f（脱离碰撞重叠区）
+    ///   3. 绝对速度覆写到 _frameVelocity 和 rb.velocity
     /// 
     /// 效果：
     ///   - 解除 _isPreparingBounce
@@ -636,6 +685,13 @@ public class MarioController : MonoBehaviour
         _isPreparingBounce = false;
         _isBouncing = true;
 
+        // S39: 恢复物理引擎（解除 Kinematic Freeze）
+        rb.isKinematic = false;
+
+        // S39: 微抬坐标 — 瞬间脱离碰撞体重叠区，拒绝排斥力干扰
+        // 0.05f 足够脱离重叠但不会产生可见的位移跳跃
+        rb.position += Vector2.up * 0.05f;
+
         // 绝对速度注入
         _frameVelocity = launchVelocity;
         rb.velocity = launchVelocity;
@@ -644,7 +700,7 @@ public class MarioController : MonoBehaviour
         _endedJumpEarly = false;
         _jumpToConsume = false;
 
-        // S36: 弹射瞬间角色拉伸（视觉上“被弹飞”的感觉）
+        // S36: 弹射瞬间角色拉伸（视觉上"被弹飞"的感觉）
         _bounceSquashActive = true;
         _bounceSquashTimer = 0f;
         _landSquashActive = false;
@@ -678,7 +734,7 @@ public class MarioController : MonoBehaviour
     /// 
     /// 业界参考:
     ///   - GameMaker Kitchen "10 Levels of Platformer Jumping": 角色形变是弹跳手感的核心
-    ///   - Dawnosaur: 弹射拉伸 + 落地压扁 = “juice”
+    ///   - Dawnosaur: 弹射拉伸 + 落地压扁 = "juice"
     ///   - Secrets of Springs: 过冲回弹的简谐运动
     /// 
     /// 实现原理:
@@ -768,6 +824,12 @@ public class MarioController : MonoBehaviour
         // 死亡时解除所有弹射状态
         _isPreparingBounce = false;
         _isBouncing = false;
+
+        // S39: 死亡时恢复 Kinematic（如果在蓄力冻结期死亡）
+        if (rb.isKinematic)
+        {
+            rb.isKinematic = false;
+        }
 
         // S36: 重置形变状态
         _bounceSquashActive = false;

@@ -535,7 +535,17 @@ public class TestSceneBuilder : Editor
         // --- 9E: BouncyPlatform (弹跳平台) ---
         float s9e = s9d + s9SubWidth;
         CreateSubSign(s9e + s9SubWidth / 2f, "9E: BOUNCY PLATFORM",
-            "Mario: land on any side = bounce in surface normal direction\nBounce force adjustable (bounceForce + bounceForceMultiplier)\nComedy delay(0.25s): freeze + squash animation\nTrickster(L): override direction + increase force during freeze\n[S19] Contact-normal based directional bounce\n[S20] Normal correction for corner collisions\n[S22] Two-phase bounce: PrepareBounce(freeze) → ExecuteBounce(launch)\n     Momentum preservation: airFriction + bounceAirAcceleration\n     Auto-release on landing or wall hit",
+            "[S39] Skill-Based Bounce (Scheme C):\n" +
+            "  Normal Bounce (1.0x): land from above, no input needed\n" +
+            "  Super Bounce (1.4x): hold Space during comedy delay\n" +
+            "  State machine lock: Idle → Bouncing → Cooldown → Idle\n" +
+            "  Kinematic Freeze during comedy delay (no physics interference)\n" +
+            "  Micro-lift on launch (escape collision overlap)\n" +
+            "  Strict top-hit normal check (side collisions ignored)\n" +
+            "Trickster(L): override direction + 1.8x force during freeze\n" +
+            "[S22] Two-phase: PrepareBounce(freeze) → ExecuteBounce(launch)\n" +
+            "     Momentum preservation: airFriction + bounceAirAcceleration\n" +
+            "     Auto-release on landing or wall hit",
             stage9.transform);
 
         // S38: BouncyPlatform 适配 S37 视碰分离架构
@@ -560,7 +570,7 @@ public class TestSceneBuilder : Editor
         BouncyPlatform bouncyPlatComp = bouncyPlatform.AddComponent<BouncyPlatform>();
         bouncyPlatComp.visualTransform = bouncyVisual.transform;
         bouncyPlatform.transform.parent = stage9.transform;
-        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (S38: normal-based bounce + continuous bouncing)", stage9.transform);
+        CreateSubLabel(s9e + 4, -1f, "Bouncy Platform (S39: Skill-Based Bounce — hold Space for Super Bounce)", stage9.transform);
 
         // --- 9F: OneWayPlatform (单向平台) ---
         float s9f = s9e + s9SubWidth;

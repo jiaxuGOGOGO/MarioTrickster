@@ -39,6 +39,16 @@ using UnityEngine;
 ///   - HandleDirection 动能保留：飞行期超速时引入微弱空气阻力自然衰减，
 ///     允许微弱空中转向但不突破当前超速上限
 ///   - 落地或碰墙自动解除 _isBouncing，恢复正常移动逻辑
+///
+/// Session 36: 弹跳平台 Game Feel 增强
+///   参考来源:
+///     - GameMaker Kitchen "10 Levels of Platformer Jumping"
+///     - Dawnosaur "Improve Your Platformer Jump"
+///     - "Secrets of Springs" (GDC): 阻尼简谐运动、过冲效果
+///   改动:
+///     - 弹射飞行期也启用半重力顶点（不需要 jumpHeld）
+///     - 角色 Squash & Stretch 形变：蓄力压扁、弹射拉伸、落地压扁
+///     - 视碰分离：通过 spriteRenderer.transform.localScale 实现
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
 [RequireComponent(typeof(BoxCollider2D))]
@@ -147,7 +157,23 @@ public class MarioController : MonoBehaviour
     private bool _isPreparingBounce;  // 蓄力冻结中
     private bool _isBouncing;         // 抛物线飞行中
 
-    // ── 朝向 ──────────────────────────────────────────────
+    // ── S36: 角色弹射形变 (Squash & Stretch) ─────────────
+    // 业界参考: GameMaker Kitchen —10 Levels of Platformer Jumping”
+    //   弹跳时角色拉伸（Y 放大、X 缩小），落地时压扁（Y 缩小、X 放大）
+    // Dawnosaur “Improve Your Platformer Jump” — visual juice
+    // 实现：通过 spriteRenderer.transform.localScale 实现，不影响碰撞体
+    private bool _bounceSquashActive;       // 是否正在播放形变动画
+    private float _bounceSquashTimer;       // 形变动画计时器
+    private const float BounceStretchDuration = 0.3f;  // 形变动画总时长
+    private const float BounceStretchY = 1.25f;        // 拉伸 Y 倍率
+    private const float BounceStretchX = 0.8f;         // 拉伸 X 倍率（体积守恒）
+    private const float LandSquashY = 0.75f;           // 落地压扁 Y
+    private const float LandSquashX = 1.2f;            // 落地压扁 X
+    private const float LandSquashDuration = 0.15f;    // 落地压扁时长
+    private bool _landSquashActive;
+    private float _landSquashTimer;
+
+    // ── 朝向 ──────────────────────────────────────────────────
     private bool isFacingRight = true;
 
     // ── 公共属性 ──────────────────────────────────────────
@@ -217,6 +243,9 @@ public class MarioController : MonoBehaviour
 
         UpdateFacing();
         UpdateAnimator();
+
+        // S36: 角色弹射形变动画更新
+        UpdateBounceSquashStretch();
     }
 
     private void FixedUpdate()
@@ -328,6 +357,18 @@ public class MarioController : MonoBehaviour
 
             // Session 22: 落地时解除飞行期
             _isBouncing = false;
+
+            // S36: 落地压扁形变（仅当下落速度超过阈值时触发，避免小跳也压扁）
+            if (Mathf.Abs(_frameVelocity.y) > 3f)
+            {
+                _landSquashActive = true;
+                _landSquashTimer = 0f;
+                _bounceSquashActive = false;
+                if (spriteRenderer != null)
+                {
+                    spriteRenderer.transform.localScale = new Vector3(LandSquashX, LandSquashY, 1f);
+                }
+            }
 
             OnGroundedChanged?.Invoke(true, Mathf.Abs(_frameVelocity.y));
         }
@@ -487,6 +528,15 @@ public class MarioController : MonoBehaviour
                 // 效果：跳跃弧线顶部更平缓，给玩家更多时间调整落点
                 gravity *= apexGravityMultiplier;
             }
+            else if (_isBouncing && Mathf.Abs(_frameVelocity.y) < apexThreshold * 1.5f)
+            {
+                // S36: 弹射飞行期半重力顶点
+                // 业界参考: Dawnosaur "Improve Your Platformer Jump" — Jump Hang
+                // 弹射后不需要按住跳跃键也能获得顶点悬浮感
+                // 使用 1.5x apexThreshold 让弹射弧线顶部更宽广的区域受益
+                // 效果：弹射弧线顶部更平缓、更有弹性，给玩家更多空中调整时间
+                gravity *= apexGravityMultiplier;
+            }
 
             _frameVelocity.y = Mathf.MoveTowards(
                 _frameVelocity.y, -maxFallSpeed, gravity * Time.fixedDeltaTime);
@@ -545,6 +595,12 @@ public class MarioController : MonoBehaviour
         _lastPlatformVelocity = Vector2.zero;
         _onPlatform = false;
         _platformVelocity = Vector2.zero;
+
+        // S36: 蓄力冻结时角色压扁（视觉上“被弹簧压住”的感觉）
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.transform.localScale = new Vector3(LandSquashX, LandSquashY, 1f);
+        }
     }
 
     /// <summary>
@@ -572,6 +628,15 @@ public class MarioController : MonoBehaviour
         // 重置跳跃状态（防止弹射后立即触发跳跃）
         _endedJumpEarly = false;
         _jumpToConsume = false;
+
+        // S36: 弹射瞬间角色拉伸（视觉上“被弹飞”的感觉）
+        _bounceSquashActive = true;
+        _bounceSquashTimer = 0f;
+        _landSquashActive = false;
+        if (spriteRenderer != null)
+        {
+            spriteRenderer.transform.localScale = new Vector3(BounceStretchX, BounceStretchY, 1f);
+        }
     }
 
     #endregion
@@ -591,6 +656,66 @@ public class MarioController : MonoBehaviour
         animator.SetBool("IsGrounded", _grounded);
         animator.SetFloat("Speed", Mathf.Abs(_frameVelocity.x));
         animator.SetFloat("VerticalSpeed", _frameVelocity.y);
+    }
+
+    /// <summary>
+    /// S36: 角色弹射 Squash & Stretch 形变动画更新。
+    /// 
+    /// 业界参考:
+    ///   - GameMaker Kitchen "10 Levels of Platformer Jumping": 角色形变是弹跳手感的核心
+    ///   - Dawnosaur: 弹射拉伸 + 落地压扁 = “juice”
+    ///   - Secrets of Springs: 过冲回弹的简谐运动
+    /// 
+    /// 实现原理:
+    ///   通过 spriteRenderer.transform.localScale 实现视觉形变，
+    ///   不影响 BoxCollider2D 的碰撞体尺寸（视碰分离）。
+    ///   形变动画使用 Lerp 平滑回弹到原始尺寸。
+    /// </summary>
+    private void UpdateBounceSquashStretch()
+    {
+        if (spriteRenderer == null) return;
+
+        // 弹射拉伸动画：从拉伸状态平滑回弹到原始尺寸
+        if (_bounceSquashActive)
+        {
+            _bounceSquashTimer += Time.deltaTime;
+            float progress = _bounceSquashTimer / BounceStretchDuration;
+
+            if (progress >= 1f)
+            {
+                spriteRenderer.transform.localScale = Vector3.one;
+                _bounceSquashActive = false;
+            }
+            else
+            {
+                // 使用 SmoothStep 让回弹更自然
+                float t = Mathf.SmoothStep(0f, 1f, progress);
+                float scaleX = Mathf.Lerp(BounceStretchX, 1f, t);
+                float scaleY = Mathf.Lerp(BounceStretchY, 1f, t);
+                spriteRenderer.transform.localScale = new Vector3(scaleX, scaleY, 1f);
+            }
+            return; // 拉伸动画优先于压扁动画
+        }
+
+        // 落地压扁动画：从压扁状态平滑回弹到原始尺寸
+        if (_landSquashActive)
+        {
+            _landSquashTimer += Time.deltaTime;
+            float progress = _landSquashTimer / LandSquashDuration;
+
+            if (progress >= 1f)
+            {
+                spriteRenderer.transform.localScale = Vector3.one;
+                _landSquashActive = false;
+            }
+            else
+            {
+                float t = Mathf.SmoothStep(0f, 1f, progress);
+                float scaleX = Mathf.Lerp(LandSquashX, 1f, t);
+                float scaleY = Mathf.Lerp(LandSquashY, 1f, t);
+                spriteRenderer.transform.localScale = new Vector3(scaleX, scaleY, 1f);
+            }
+        }
     }
 
     #endregion
@@ -628,6 +753,11 @@ public class MarioController : MonoBehaviour
         // 死亡时解除所有弹射状态
         _isPreparingBounce = false;
         _isBouncing = false;
+
+        // S36: 重置形变状态
+        _bounceSquashActive = false;
+        _landSquashActive = false;
+        if (spriteRenderer != null) spriteRenderer.transform.localScale = Vector3.one;
 
         OnDeath?.Invoke();
         rb.velocity = Vector2.zero;

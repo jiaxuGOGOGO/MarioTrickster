@@ -56,6 +56,18 @@ using System.Collections;
 ///   - 延迟结束调用 mario.ExecuteBounce(velocity) 注入绝对速度
 ///   - WaitForSeconds 缓存实例避免 GC
 ///   - Trickster 操控窗口在蓄力冻结期内
+///
+/// Session 36: 弹跳平台 Game Feel 增强（业界最佳实践）
+///   参考来源:
+///     - GameMaker Kitchen "10 Levels of Platformer Jumping": 弹跳平台 squash/stretch
+///     - Dawnosaur "Improve Your Platformer Jump": 视觉反馈和冲击粒子
+///     - "Secrets of Springs" (GDC): 阻尼简谐运动、过冲效果、体积守恒
+///     - YouTube "Unity 2D Spring Like Mario": 直接速度覆盖保证一致性
+///   改动:
+///     - 增强 squash/stretch 动画参数（更明显的压缩和拉伸）
+///     - 拉伸动画添加三段式过冲回弹（弹簧物理感）
+///     - 弹射瞬间颜色闪白反馈（冲击感）
+///     - comedyDelay 0.25→0.15（更紧凑的节奏）
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class BouncyPlatform : ControllableLevelElement
@@ -89,7 +101,7 @@ public class BouncyPlatform : ControllableLevelElement
 
     [Header("=== 喜剧延迟（蓄力冻结期） ===")]
     [Tooltip("碰撞后的冻结时间（秒）。期间角色被冻结，Trickster 可操控。0=立即弹射")]
-    [SerializeField] private float comedyDelay = 0.25f;
+    [SerializeField] private float comedyDelay = 0.15f;
 
     [Header("=== 相机震动 ===")]
     [Tooltip("弹射时是否触发相机震动")]
@@ -97,13 +109,26 @@ public class BouncyPlatform : ControllableLevelElement
     [SerializeField] private float shakeDuration = 0.15f;
     [SerializeField] private float shakeMagnitude = 0.25f;
 
-    [Header("=== 动画设置 ===")]
-    [SerializeField] private float squashAmount = 0.35f;
-    [SerializeField] private float squashDuration = 0.06f;
-    [SerializeField] private float stretchDuration = 0.12f;
+    [Header("=== 动画设置 (S36: 业界最佳实践增强) ===")]
+    [Tooltip("挤压幅度（0-1），越大弹跳平台压缩越明显")]
+    [SerializeField] private float squashAmount = 0.5f;
+    [Tooltip("挤压动画时长（秒），配合 comedyDelay 使用")]
+    [SerializeField] private float squashDuration = 0.1f;
+    [Tooltip("弹起拉伸+回弹动画总时长（秒）")]
+    [SerializeField] private float stretchDuration = 0.25f;
+    [Tooltip("弹起拉伸过冲倍率，>1 产生弹簧过冲效果（Secrets of Springs: velocity nudge）")]
+    [SerializeField] private float stretchOvershoot = 1.3f;
+
+    [Header("=== 弹射视觉反馈 (S36: Game Feel Juice) ===")]
+    [Tooltip("弹射瞬间平台颜色闪白，增强冲击感")]
+    [SerializeField] private bool enableFlashOnBounce = true;
+    [SerializeField] private Color flashColor = Color.white;
+    [SerializeField] private float flashDuration = 0.08f;
 
     // 组件
     private BoxCollider2D boxCollider;
+    private SpriteRenderer spriteRenderer;  // S36: 用于弹射闪白反馈
+    private Color originalColor;             // S36: 缓存原始颜色
 
     // [AI防坑警告] 弹射全流程由 LaunchSequence 协程统一管理，不要拆回 Update 手动计时器！
     // 协程时序：OnCollisionEnter2D → PrepareBounce(冻结) → WaitForSeconds → ExecuteBounce(发射)
@@ -140,6 +165,10 @@ public class BouncyPlatform : ControllableLevelElement
         boxCollider = GetComponent<BoxCollider2D>();
         boxCollider.isTrigger = false;
         originalScale = transform.localScale;
+
+        // S36: 缓存 SpriteRenderer 和原始颜色（用于弹射闪白反馈）
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        if (spriteRenderer != null) originalColor = spriteRenderer.color;
 
         // 缓存 WaitForSeconds（P7: 避免协程中 GC 分配）
         cachedComedyWait = new WaitForSeconds(comedyDelay);
@@ -299,12 +328,21 @@ public class BouncyPlatform : ControllableLevelElement
 
         Debug.Log($"[BouncyPlatform] 弹飞 {targetRb.gameObject.name}, 方向={launchDir}, 速度={launchVelocity}, 力度={force}, Trickster操控={tricksterOverride}");
 
-        // 弹跳拉伸动画（内联）
+        // S36: 弹射闪白反馈（Secrets of Springs: 视觉冲击感）
+        if (enableFlashOnBounce && spriteRenderer != null)
+        {
+            spriteRenderer.color = flashColor;
+        }
+
+        // S36: 增强弹跳拉伸动画（内联，含过冲效果）
+        // 业界参考: GameMaker Kitchen — 弹跳平台被踩时 image_yscale=0 然后 lerp 回弹
+        // Secrets of Springs — velocity nudge 产生过冲效果
         {
             Vector3 currentScale = transform.localScale;
+            // 拉伸目标（平台变窄变高，体积守恒）
             Vector3 stretchedScale = new Vector3(
-                originalScale.x * (1 - squashAmount * 0.5f),
-                originalScale.y * (1 + squashAmount * 0.5f),
+                originalScale.x * (1 - squashAmount * 0.6f),
+                originalScale.y * (1 + squashAmount * stretchOvershoot),
                 originalScale.z);
 
             float t = 0f;
@@ -312,13 +350,48 @@ public class BouncyPlatform : ControllableLevelElement
             {
                 t += Time.deltaTime;
                 float progress = t / stretchDuration;
-                if (progress < 0.5f)
-                    transform.localScale = Vector3.Lerp(currentScale, stretchedScale, progress * 2f);
+
+                if (progress < 0.3f)
+                {
+                    // 第一段（0-30%）：快速拉伸到过冲位置
+                    float p = progress / 0.3f;
+                    transform.localScale = Vector3.Lerp(currentScale, stretchedScale, p);
+                }
+                else if (progress < 0.6f)
+                {
+                    // 第二段（30-60%）：从过冲回弹到原始尺寸
+                    float p = (progress - 0.3f) / 0.3f;
+                    transform.localScale = Vector3.Lerp(stretchedScale, originalScale, p);
+                }
                 else
-                    transform.localScale = Vector3.Lerp(stretchedScale, originalScale, (progress - 0.5f) * 2f);
+                {
+                    // 第三段（60-100%）：微小二次回弹（弹簧感）
+                    float p = (progress - 0.6f) / 0.4f;
+                    Vector3 microBounce = new Vector3(
+                        originalScale.x * (1 + squashAmount * 0.15f),
+                        originalScale.y * (1 - squashAmount * 0.15f),
+                        originalScale.z);
+                    if (p < 0.5f)
+                        transform.localScale = Vector3.Lerp(originalScale, microBounce, p * 2f);
+                    else
+                        transform.localScale = Vector3.Lerp(microBounce, originalScale, (p - 0.5f) * 2f);
+                }
+
+                // S36: 闪白淡出
+                if (enableFlashOnBounce && spriteRenderer != null && t < flashDuration)
+                {
+                    float flashProgress = t / flashDuration;
+                    spriteRenderer.color = Color.Lerp(flashColor, originalColor, flashProgress);
+                }
+                else if (enableFlashOnBounce && spriteRenderer != null)
+                {
+                    spriteRenderer.color = originalColor;
+                }
+
                 yield return null;
             }
             transform.localScale = originalScale;
+            if (spriteRenderer != null) spriteRenderer.color = originalColor;
         }
 
         isLaunching = false;
@@ -459,6 +532,9 @@ public class BouncyPlatform : ControllableLevelElement
         tricksterOverride = false;
         isAnimating = false;
         isLaunching = false;
+
+        // S36: 恢复原始颜色
+        if (spriteRenderer != null) spriteRenderer.color = originalColor;
     }
 
     #endregion

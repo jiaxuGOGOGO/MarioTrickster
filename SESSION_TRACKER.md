@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 35 (关卡布局安全性修复：模板 M/T 间距 + 弹跳净空 + 陷阱缓冲 + 验证器增强) |
+| **最新 Session** | Session 36 (弹跳平台 Game Feel 增强：平台 Squash/Stretch/闪白 + 角色弹射形变 + 弹射飞行期半重力顶点) |
 | **日期** | 2026-04-06 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ✅ S35 修改 4 个文件，+271/-21 行，待用户 Unity 验证 |
+| **编译状态** | ✅ S36 修改 2 个文件，+218/-12 行，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S35 修复用户反馈的关卡布局异常（GIF 中弹跳平台上方有陷阱、M/T 重叠、陷阱紧贴着陆区）。修改范围：PhysicsMetrics 新增 3 个安全常量，AsciiLevelGenerator 修正 2 个内置模板，AsciiLevelValidator 新增 3 条验证规则，LevelSnippetLibrary 修正 3 个片段。零运行时代码修改，仅影响编辑器和关卡生成。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S36 基于 YouTube/GDC/GameMaker Kitchen 业界最佳实践优化弹跳平台手感。BouncyPlatform: 增强 squash/stretch 动画、弹射闪白反馈、缩放过冲。MarioController: 弹射飞行期半重力顶点、角色 Squash & Stretch 形变（蓄力压扁/弹射拉伸/落地压扁）。视碰分离，不触碰两段式弹射核心逻辑。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -96,7 +96,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
-| 🔄 | 测试 1：Mario 基础移动 | WASD + Space，手感不变，单独按S不触发下落 |
+| 🔄 | 测试 1：Mario 基础移动 | WASD + Space，手感不变，单独按S不触发下落，S36落地压扁仅高速下落触发 |
 | 🔄 | 测试 2：Trickster 移动 | 方向键移动正常；融入后方向键切换目标不移动 |
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |
 | ✅ | 测试 4：伪装系统 | P 伪装/解除，O/I 切换 |
@@ -109,12 +109,12 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9B：摆锤 | Trickster L键可控制 |
 | 🔄 | 测试 9C：火陷阱 | 碰到向后退，不向上飞 |
 | 🔄 | 测试 9D：弹跳怪 | 碰到有击退，踩踏消灭 |
-| 🔄 | 测试 9E：弹跳平台 | **S22核心**：冻结~0.25s → 完整抛物线 → 空中可微弱转向 → 落地/碰墙恢复 |
+| 🔄 | 测试 9E：弹跳平台 | **S22核心+S36增强**：冻结时角色压扁+平台压缩 → 弹射时角色拉伸+平台拉伸+闪白 → 顶点有滑翔感 → 落地压扁回弹 |
 | 🔄 | 测试 9F：单向平台 | S+Space 下落，单独S不落 |
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
-| 🔄 | 场景生成 | Clear + Build 后标签正常，S35 模板布局安全性修复 |
+| 🔄 | 场景生成 | Clear + Build 后标签正常，S35 布局安全 + S36 弹跳手感 |
 | ✅ | EditMode 自动化 | 59/59 通过 |
 | ✅ | PlayMode 自动化 | 21/21 通过 |
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S36 弹跳平台 Game Feel 增强（平台动画+角色形变+半重力顶点） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S35 关卡布局安全性修复（模板+片段+验证器） | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S33 Level Builder ↔ Teleport/Cheats 联动 + 动态锚点系统 | ✅ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S32 视碰分离与关卡度量转译系统 | ✅ 代码已推送，待用户 Unity 验证 |

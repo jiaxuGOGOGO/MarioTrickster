@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 54 (S54: 手感预设管理系统 Preset Manager) |
+| **最新 Session** | Session 55 (S55: Z字攀爬塔 ASCII 模板物理可行性修复) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S54 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S55 模板已更新，待用户 Unity 粘贴 Build 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S54 手感预设管理系统：PhysicsConfigSOEditor 新增 Preset Manager UI，支持 Save/Load/Delete 预设。预设以 JSON 格式存储在 Assets/PhysicsPresets/ 文件夹。加载预设支持 Undo (Ctrl+Z)。仅修改 Editor 脚本 1 个文件，不触碰任何运行时逻辑。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S55 仅修改 `LevelDesign_References/ASCII_Templates.md` 中的模板 2（Z字攀爬塔）。零代码变更，不触碰任何 .cs 文件。原模板三个物理缺陷已修正：(1) 平台从 1 格加宽到 4 格；(2) 敌人从平台下方移到上方（重力落到平台上巡逻）；(3) 平台间距从超限缩减到安全范围（垂直 2 格、水平间隙 3 格）。用户需在 Unity Level Studio 中粘贴新模板 Build 验证。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -152,10 +152,12 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 远期 | 音效系统 / 动画完善 / 主菜单 UI | 未开始 |
 
 <details>
-<summary>📦 历史基建存档（S26-S53，已冻结，点击展开）</summary>
+<summary>📦 历史基建存档（S26-S55，已冻结，点击展开）</summary>
 
 | Session | 描述 | 状态 |
 |---------|------|------|
+| S55 | Z字攀爬塔 ASCII 模板物理可行性修复（零代码变更） | ⏳ 待验证 |
+| S54 | 手感预设管理系统 Preset Manager | ⏳ 待验证 |
 | S53 | PhysicsMetrics Facade 统一真理源 + TAS 轨迹耗时预警 | ⏳ 待验证 |
 | S52 | 柔性测试降级 + PhysicsConfigSO 手感面板 + BaseHazard 基类 | ⏳ 待验证 |
 | S51 | 零代码数据驱动测试管线 DDPT | ⏳ 待验证 |
@@ -498,3 +500,37 @@ GitHub Token: ghp_你的token
 - 严格遵守所有 `[AI防坑警告]` 注释
 - `SnapToTarget()` 调用链完整保留
 - `[System.NonSerialized]` 确保序列化隔离
+
+## [2026-04-07] S55: Z字攀爬塔 ASCII 模板物理可行性修复
+
+### 问题诊断
+
+用户测试发现模板 2（Z字攀爬塔）Build 后"只有一个平台一个敌人"，实际生成了多个元素但完全不可玩。经逐行分析 ASCII 模板与 `AsciiLevelGenerator.cs` 转换逻辑，确认**根因是 ASCII 模板设计缺陷，非转换代码 bug**。转换代码忠实地按字符位置生成了所有元素。
+
+| 缺陷 | 原模板表现 | 物理后果 |
+|------|-----------|---------|
+| **平台仅 1 格宽** | 每个平台只有单个 `=` | 角色碰撞体宽 0.8 格，几乎无法站稳 |
+| **敌人在平台下方** | `e` 在 `=` 的下一行（ASCII 下一行 = 更低的 worldY） | 敌人生成在平台下方空中，因重力直接掉落 |
+| **平台间距超限** | 左右交错间距约 9 格水平 + 3 格垂直 | 远超 MAX_JUMP_DISTANCE=4.5 和 MAX_JUMP_HEIGHT=2.5 |
+
+### 修复方案
+
+重新设计 ASCII 模板，保持 Z 字攀爬设计意图，修正所有物理约束：
+
+| 参数 | 原值 | 新值 | 安全上限 |
+|------|------|------|---------|
+| 平台宽度 | 1 格 | 4 格 (`====`) | — |
+| 垂直间距 | 3+ 格 | 2 格 | 2 格 |
+| 水平间隙 | 9+ 格 | 3 格 | 4 格 |
+| 敌人位置 | 平台下方 1 行 | 平台上方 1 行 | — |
+
+新模板经 Python 脚本逐跳验证，所有路径均在安全范围内。
+
+### 修改文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `LevelDesign_References/ASCII_Templates.md` | 重写模板 2 的 ASCII 布局 + 新增 S55 重新设计说明和物理验证段落 |
+
+### 零代码变更
+本次仅修改 Markdown 模板文件，不触碰任何 .cs 文件。用户需在 Unity Level Studio 中粘贴新模板 Build 验证。

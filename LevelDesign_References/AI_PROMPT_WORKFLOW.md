@@ -160,9 +160,13 @@ GitHub Token: [你的Token]
 
 1. **保存 AI 回复**：把网页 AI 的完整回复复制到一个文本文件，保存到项目目录（如 `ai_reply.md`）。
 
-2. **运行一键导入脚本**：
+2. **运行一键导入脚本**（把 `--source` 后的内容替换为你的实际截图来源）：
    ```bash
-   python3 LevelDesign_References/import_template.py ai_reply.md --source "截图来源描述"
+   # 示例：截图来自 B 站视频
+   python3 LevelDesign_References/import_template.py ai_reply.md --source "B站 Celeste B面速通视频截图"
+
+   # 如果懒得写来源，可以不加 --source，默认填“网页 AI 视觉拆解”
+   python3 LevelDesign_References/import_template.py ai_reply.md
    ```
 
    脚本自动完成以下全部操作：

@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 55 (S55: Z字攀爬塔 ASCII 模板物理可行性修复) |
+| **最新 Session** | Session 55b (S55b: ASCII 模板物理验证闭环机制) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S55 模板已更新，待用户 Unity 粘贴 Build 验证 |
+| **编译状态** | ⏳ S55b 已推送，待用户验证 |
 | **阻塞** | 无 |
-| **交接说明** | S55 仅修改 `LevelDesign_References/ASCII_Templates.md` 中的模板 2（Z字攀爬塔）。零代码变更，不触碰任何 .cs 文件。原模板三个物理缺陷已修正：(1) 平台从 1 格加宽到 4 格；(2) 敌人从平台下方移到上方（重力落到平台上巡逻）；(3) 平台间距从超限缩减到安全范围（垂直 2 格、水平间隙 3 格）。用户需在 Unity Level Studio 中粘贴新模板 Build 验证。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S55b 新增 `validate_ascii_template.py` 物理验证器，更新 `AI_PROMPT_WORKFLOW.md` 在路线 A/B 中加入强制验证步骤和物理防坑规则。零 .cs 代码变更。未来 AI 生成模板后必须运行 `python3 LevelDesign_References/validate_ascii_template.py` 确认零致命错误后才能提交。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -156,6 +156,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | Session | 描述 | 状态 |
 |---------|------|------|
+| S55b | ASCII 模板物理验证闭环机制（验证器 + 工作流防坑规则） | ⏳ 待验证 |
 | S55 | Z字攀爬塔 ASCII 模板物理可行性修复（零代码变更） | ⏳ 待验证 |
 | S54 | 手感预设管理系统 Preset Manager | ⏳ 待验证 |
 | S53 | PhysicsMetrics Facade 统一真理源 + TAS 轨迹耗时预警 | ⏳ 待验证 |
@@ -534,3 +535,46 @@ GitHub Token: ghp_你的token
 
 ### 零代码变更
 本次仅修改 Markdown 模板文件，不触碰任何 .cs 文件。用户需在 Unity Level Studio 中粘贴新模板 Build 验证。
+
+## [2026-04-07] S55b: ASCII 模板物理验证闭环机制
+
+### 问题背景
+
+S55 修复了 T02 模板的三个物理缺陷后，用户提出核心问题：**如何避免未来搜集的参考关卡反复出现同类问题？** 审计全部 8 个模板后发现，T02 的问题模式（敌人在平台下方、平台过窄、间距超限）是 AI 生成 ASCII 模板时的系统性通病。
+
+### 根因分析
+
+| 通病 | 原因 | 影响范围 |
+|------|------|---------|
+| 敌人在平台下方 | AI 不理解 ASCII 坐标系（第 1 行 = 最高 worldY） | T02（已修复） |
+| 平台仅 1 格宽 | AI 倾向用单字符表示元素，不考虑碰撞体尺寸 | T01/T06/T07/T08（多为设计意图） |
+| 间距超出跳跃极限 | AI 不做物理验证，凭视觉感觉布局 | T02（已修复） |
+| 缺少闭环验证 | 生成后无自动检查，直到 Unity Build 才发现 | 所有模板 |
+
+### 解决方案：三层防线
+
+**第一层：源头防坑（AI 指令加固）**
+- 在 `AI_PROMPT_WORKFLOW.md` 路线 A 步骤 3 和路线 B 提示词中新增 **物理防坑规则**：
+  1. 主要站立面平台 >= 3 格宽
+  2. 敌人必须在平台上方行（行号更小 = 更高 worldY）
+  3. 逐步验证跳跃路径
+  4. 行宽一致性
+
+**第二层：自动验证（Python 验证器）**
+- 新增 `LevelDesign_References/validate_ascii_template.py`，9 项检查：
+  P1 行宽一致性 / P2 起终点存在 / P3 禁止空格 / P4 字符合法 / P5 平台宽度 / P6 敌人支撑 / P7 跳跃可达 / P8 起点支撑 / P9 终点可达
+- 路线 A 新增步骤 3.5 强制运行验证器
+- 路线 B 第三步新增验证器运行步骤
+
+**第三层：用户 Unity 实测（已有）**
+- 粘贴 Build 后在 Unity 中 Play 测试
+
+### 修改文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `LevelDesign_References/validate_ascii_template.py` | 新增 ASCII 模板物理验证器（~300 行 Python） |
+| `LevelDesign_References/AI_PROMPT_WORKFLOW.md` | 路线 A 新增物理防坑规则 + 步骤 3.5 自动验证；路线 B 新增防坑规则 + 验证步骤 |
+
+### 零代码变更
+本次不触碰任何 .cs 文件。

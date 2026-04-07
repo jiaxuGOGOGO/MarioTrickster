@@ -4,20 +4,45 @@
 
 ---
 
-## 0. 敏捷协作新规（S23 起生效，最高优先级）
+## 0. 敏捷协作新规（S53 起生效：全面转向设计驱动）
 
-> **核心理念**：文档更新不创造价值，代码才创造价值。把算力集中在发现问题和解决问题上。
+> **核心宪章：停止预见性基建，设计优先。架构必须是隐形的。**
 
-### 第一层：日常必做（耗能 < 5%）
+### AI 的角色定位（S53 起）
+
+从本 Session 起，AI 从“系统架构师”转变为用户的**“关卡设计助手 + 按需机制实现者”**。
+
+| 规则 | 说明 |
+|------|------|
+| **禁止主动基建** | 严禁 AI 主动提出底层重构、解耦、测试管线升级。135 个测试 + 柔性断言已足够兜底。 |
+| **JIT 按需开发** | 只有当用户在拼关卡时明确说“我需要一个新机制（如锯片）”，AI 才允许写代码。由设计倒推代码。 |
+| **低摩擦交付** | 新增机制时，AI 静默处理所有底层逻辑（继承基类、更新 Registry 等）。对用户只说“在文本框打 Z 生成锯片”，不用底层名词增加认知负担。 |
+| **消除摩擦力** | 若用户调优参数导致验证器/辅助线报错打断设计心流，AI 的唯一任务是“极简微创手术”抹平报错，让系统顺应用户的设计直觉。 |
+| **风险透明** | AI 仍应主动提醒实际风险（如验证器发现不可达路径），但以“一句话提醒”的方式，不展开技术细节。 |
+
+### 基建状态总结（S53 冻结线）
+
+以下基建已完备，不再追加：
+
+| 基建 | 状态 |
+|------|------|
+| 物理度量系统 (PhysicsMetrics Facade + PhysicsConfigSO) | S53 完成，唯一真理源已打通 |
+| 柔性测试管线 (TAS + 135 个测试 + 耗时预警) | S50-S53 稳定 |
+| 视碰分离架构 | S37 已固化 |
+| 关卡生成/验证/可视化全链路 | S32-S48 已闭环 |
+| 实时手感面板 | S52 已交付 |
+| 陷阱基类 (BaseHazard) | S52 已就绪，等待设计驱动扩展 |
+
+### 日常必做（保留，耗能 < 5%）
 
 每次 `git push` 前，**仅更新本文件**的以下三处，绝不触碰其他任何长文档：
 1. **§1 状态总览** — 更新 Session 号和一句话描述
-2. **§3 回归标记** — 受影响的测试项打 🔄
+2. **§2 回归标记** — 受影响的测试项打 🔄
 3. **§4 待办队列** — 更新任务状态
 
-防回归检查全面交给本地 **135 个自动化测试**兜底（S52 未新增测试数量，但将现有 2 个 TAS 测试降级为柔性模式），不再手动维护复杂交叉验证表格。
+防回归检查全面交给本地 **135 个自动化测试**兜底，不再手动维护复杂交叉验证表格。
 
-### 第二层：Git 替代历史，代码即文档
+### Git 替代历史，代码即文档
 
 - 历史记录全靠**详细的 Git Commit Message**，不再写 Session 历史到 Progress_Summary
 - 新对话主动通过 `git log --oneline -n 10` 回溯近期变更
@@ -25,32 +50,18 @@
 
 ### 核心防坑机制：`// [AI防坑警告]` 源码注释
 
-对于容易被新对话改坏的核心底层逻辑，**必须直接在 `.cs` 源码对应方法上方写中文警告注释**。格式：
+对于容易被新对话改坏的核心底层逻辑，**必须直接在 `.cs` 源码对应方法上方写中文警告注释**。这是**跨对话防退化的最强武器**。
 
-```csharp
-// [AI防坑警告] 这里是两段式弹射的核心逻辑，不要用 bounceStunTimer 替代。
-// 蓄力冻结期(_isPreparingBounce)和飞行期(_isBouncing)必须分开处理。
-// 如果合并会导致 HandleDirection 的 maxSpeed 截断在冻结期就生效，破坏抛物线。
-// 修改前请先理解完整的弹射流程：碰撞→PrepareBounce()→冻结→ExecuteBounce()→飞行→落地解除
-```
+### 集中归档（仅限用户指令触发）
 
-这是**跨对话防退化的最强武器**，比任何文档都可靠，因为 AI 修改代码时一定会读到它。
-
-### 第三层：集中归档（仅限用户指令触发）
-
-只有当用户明确发送 **"执行文档大同步"** 时，才去全量更新以下文档：
-- `MarioTrickster_Progress_Summary.md`
-- `MASTER_TRACKER.md`
-- `MarioTrickster_Testing_Guide.md`
-
-**日常开发中绝对不碰这三个文件。**
+只有当用户明确发送 **“执行文档大同步”** 时，才去全量更新 Progress_Summary / MASTER_TRACKER / Testing_Guide。**日常开发中绝对不碰这三个文件。**
 
 ### 性能编码自检（P1-P7，保留但精简）
 
 每次写新代码时脑中过一遍，推送前跑一次 grep：
 
 | 编号 | 一句话规则 |
-|------|-----------|
+|------|----------|
 | P1 | OnGUI 中禁止 `new GUIStyle`，用类字段惰性初始化 |
 | P2 | Update/FixedUpdate 中禁止 `FindObjectsOfType`，缓存引用 |
 | P3 | OnRenderObject 必须 `if (Camera.current != Camera.main) return` |
@@ -67,7 +78,7 @@ grep -rn 'new Material' Assets/Scripts/ | grep -v 'Awake\|Start\|Setup'
 grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|Setup'
 ```
 
-### 其他保留规则（精简版）
+### 其他保留规则
 
 - **Session 编号**：产生代码修改时 +1，仅回答问题不加
 - **Git 规范**：master 分支，英文 commit，首行概述 + 空行 + 详细列表
@@ -131,40 +142,42 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 ## 4. 待办队列
 
-> 用户消息中指定的任务优先级最高。
+> **S53 起：设计优先。** 用户的关卡设计需求是唯一的任务源。
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **紧急** | S53 PhysicsMetrics Facade 统一真理源 + TAS 轨迹耗时预警 | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S52 柔性测试降级 + PhysicsConfigSO 实时手感面板 + BaseHazard 陷阱基类基建 | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S51 零代码数据驱动测试管线 DDPT (TasReplayData Wrapper + TestCaseSource + TAS 状态 UI + F12 落盘 + 2 个 JSON 录像) | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S50 TAS 录播系统落地 (InputRecorder RLE 压缩 + 3 个 E2E 极速跑图测试 + 10x 物理加速) | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S49 全自动测试基建铺路 (IInputProvider 输入解耦 + AutomatedInputProvider + KeyboardInputProvider) | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S48c KillZone 日志刷屏修复 (single-kill guard + freeze dead body) | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S48b KillZone 三重死亡检测 (OnTriggerStay2D + Y 坐标兜底) | ✅ 检测生效，但日志刷屏 → S48c 修复 |
-| **紧急** | S48 Registry char 序列化 bug 修复 (string 代理 + HideFlags + 完整性校验) | ✅ 已验证，29 objects 正常生成 |
-| **紧急** | S47 L2 BFS 可达性验证器 + Auto-Prompting 纠错闭环 (LevelReachabilityAnalyzer) | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S46 Data-Driven Registry 关卡元素字典中心化解耦 (AsciiElementRegistry + Generator/Validator 重构) | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S45 Doc-as-Code 动态文档同步引擎 (DocsAutomatorWindow: Sync Docs + Copy Prompt) | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S44c OneWayPlatform 连续 '-' 合并为长条平台 + 提示词文档同步 | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S44b OneWayPlatform S+Space 下落修复 (多平台同时 IgnoreCollision) | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S44 敌人穿地掉落修复 (isTrigger/groundLayer/视碰分离) | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S43 关卡生成验证系统全面修复 + S43b 行业对标审计 + 文档一致性修复 | ⏳ 代码+文档已推送，待用户 Unity 验证 |
-| **紧急** | S39 方案 C 弹跳平台重构（按键驱动大跳+状态机锁+Kinematic Freeze+微抬坐标） | ⏳ 代码已推送，待用户 Unity 验证 |
-| **普通** | LEVEL_DESIGN_SYSTEM.md 新增关卡参数调整入口导航章节 | ✅ 已完成并推送 |
-| **紧急** | S41 LevelEditorPickingManager v3 + OneWayPlatform IgnoreCollision + PhysicsMetrics 终极校准 | ⏳ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S40 [SelectionBase] 修复框选选到 Visual 子节点问题（11 个文件） | ✅ 已完成，S41 进一步优化 |
-| **紧急** | S37 视碰分离架构重构（Root→Visual 父子层级，18 文件） | ✅ 自动化测试 109/109 通过，待手动 PlayMode 验证 |
-| **紧急** | S36 弹跳平台 Game Feel 增强（平台动画+角色形变+半重力顶点） | ✅ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S35 关卡布局安全性修复（模板+片段+验证器） | ✅ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S33 Level Builder ↔ Teleport/Cheats 联动 + 动态锚点系统 | ✅ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S32 视碰分离与关卡度量转译系统 | ✅ 代码已推送，待用户 Unity 验证 |
-| **紧急** | S26b Level Studio 精简 (删除AI分析器，重写为纯本地三合一) | ✅ 已完成，待用户 Unity 验证 |
-| **P1** | 关卡设计系统完善 | ✅ Level Studio + 工作流文档 + 物理度量系统已交付 |
-| **P1** | 音效系统 (Audio) | 未开始 |
-| P2 | 动画系统完善 | 未开始 |
-| P2 | 主菜单 UI | 未开始 |
-| **下一步** | S54 陷阱爆兵：BaseHazard 新陷阱类型扩展（旋转锯片 + 摆锤等）+ 更复杂关卡 E2E 测试 | 待定 |
+| **最高** | **回归初心（纯关卡设计）**：打开 Level Studio，用 ASCII 纯凭直觉拼凑关卡，只关注好不好玩。 | 🚀 立即执行 |
+| **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |
+| **按需** | 参数调优：拖动 PhysicsConfigSO 滑块调手感，若触发报错则由 AI 微创手术抹平。 | 待触发 |
+| 远期 | 音效系统 / 动画完善 / 主菜单 UI | 未开始 |
+
+<details>
+<summary>📦 历史基建存档（S26-S53，已冻结，点击展开）</summary>
+
+| Session | 描述 | 状态 |
+|---------|------|------|
+| S53 | PhysicsMetrics Facade 统一真理源 + TAS 轨迹耗时预警 | ⏳ 待验证 |
+| S52 | 柔性测试降级 + PhysicsConfigSO 手感面板 + BaseHazard 基类 | ⏳ 待验证 |
+| S51 | 零代码数据驱动测试管线 DDPT | ⏳ 待验证 |
+| S50 | TAS 录播系统 (10x 物理加速) | ⏳ 待验证 |
+| S49 | IInputProvider 输入解耦 | ⏳ 待验证 |
+| S48-S48c | KillZone 三重检测 + 日志修复 + Registry 序列化 | ✅/⏳ |
+| S47 | BFS 可达性验证器 | ⏳ 待验证 |
+| S46 | Data-Driven Registry | ⏳ 待验证 |
+| S45 | Doc-as-Code 文档同步引擎 | ⏳ 待验证 |
+| S44-S44c | OneWayPlatform 合并 + 下落修复 + 敌人穿地修复 | ⏳ 待验证 |
+| S43 | 关卡生成验证系统修复 + 行业对标 | ⏳ 待验证 |
+| S41 | LevelEditorPickingManager v3 | ⏳ 待验证 |
+| S40 | [SelectionBase] 框选修复 | ✅ |
+| S39 | 弹跳平台重构 | ⏳ 待验证 |
+| S37 | 视碰分离架构重构 | ✅ 109/109 |
+| S36 | 弹跳平台 Game Feel | ⏳ 待验证 |
+| S35 | 关卡布局安全性修复 | ⏳ 待验证 |
+| S33 | Level Builder 联动 | ⏳ 待验证 |
+| S32 | 视碰分离与度量转译 | ⏳ 待验证 |
+| S26b | Level Studio 精简 | ✅ |
+
+</details>
 
 ---
 

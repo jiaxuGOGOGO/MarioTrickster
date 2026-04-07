@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 52 (S52: 柔性测试降级 + PhysicsConfigSO 实时手感面板 + BaseHazard 陷阱基类基建) |
+| **最新 Session** | Session 53 (S53: PhysicsMetrics Facade 统一真理源 + TAS 轨迹耗时预警) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S52 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S53 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S52 柔性测试降级 + 手感面板 + 陷阱基建：(1) **柔性测试降级**: `TasReplayData` 新增 `strictPositionCheck` 字段（默认 false），`S51_DataDrivenTasTests` 改为条件断言——false 时只断言"角色存活+胜利触发"，彻底跳过 0.05f 坐标校验，允许手感调优期老录像跌跌撞撞跑完不报错。(2) **PhysicsConfigSO 实时手感面板**: 新增 `PhysicsConfigSO : ScriptableObject` 将 MarioController 16 个手感参数提取为 SO，支持 PlayMode 拖动滑块实时调优，Inspector 底部显示推导值（跳跃高度/距离），SO 为 null 时回退本地字段（零行为变化）。(3) **BaseHazard 陷阱基类**: 新增 `BaseHazard` 抽象基类统一陷阱接口，`KillZone` 重构为继承 BaseHazard，S48b/c 三重检测+防刷屏完整保留。基类顶部写有 `[机制扩展指南]` 注释教导未来新陷阱如何继承。S50 10x 加速、S37 视碰分离、S39 弹射手感完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S53 PhysicsMetrics Facade 统一真理源 + TAS 轨迹耗时预警：(1) **PhysicsMetrics Facade**: 跳跃极限值 (MAX_JUMP_HEIGHT/MAX_JUMP_DISTANCE/MIN_JUMP_HEIGHT/COYOTE_BONUS_DISTANCE/MAX_GAP_WITH_COYOTE/APEX_*) 从 const 升级为 static property，优先从 PhysicsConfigSO 实时推导，SO 为 null 时回退 S32 原始默认值。碰撞体尺寸常量和关卡设计安全约束保持 const 不变。(2) **JumpArcVisualizer 实时监听**: 参数读取优先级 PhysicsConfigSO > MarioController > 本地默认值，拖动 SO 滑块时 Scene 视图弧线实时重绘。(3) **PhysicsConfigSOEditor 升级**: 参数变化时自动 SceneView.RepaintAll()，显示 Facade 联动状态指示器。(4) **TAS 轨迹耗时预警**: TasReplayData 新增 expectedDurationSeconds 字段，S51 柔性模式下若实际耗时偏差率超过 20% 输出黄色警告（不阻断但提醒），兼容旧录像自动从 frames duration 推算。所有已固化逻辑完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -114,9 +114,9 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
-| 🔄 | 场景生成 | **S48重点验证**: ASCII Build 后应正常生成所有元素（不再 Unknown char）+ 单向平台长条 + 敌人不掉落 + S43 验证器 + S35 布局安全 |
+| 🔄 | 场景生成 | **S53重点验证**: ASCII Build + 验证器现在读取动态跳跃极限值，确认生成和验证行为不变 |
 | ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
-| 🔄 | PlayMode 自动化 | **S52重点验证**: 26/26 通过（S52 柔性测试降级后现有录像仍应绿灯） |
+| 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
 
 ---
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S53 PhysicsMetrics Facade 统一真理源 + TAS 轨迹耗时预警 | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S52 柔性测试降级 + PhysicsConfigSO 实时手感面板 + BaseHazard 陷阱基类基建 | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S51 零代码数据驱动测试管线 DDPT (TasReplayData Wrapper + TestCaseSource + TAS 状态 UI + F12 落盘 + 2 个 JSON 录像) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S50 TAS 录播系统落地 (InputRecorder RLE 压缩 + 3 个 E2E 极速跑图测试 + 10x 物理加速) | ⏳ 代码已推送，待用户 Unity 验证 |
@@ -163,7 +164,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **P1** | 音效系统 (Audio) | 未开始 |
 | P2 | 动画系统完善 | 未开始 |
 | P2 | 主菜单 UI | 未开始 |
-| **下一步** | S53 更复杂关卡 E2E 测试: 弹跳平台/地刺/敌人 JSON 录像 + PhysicsConfigSO 实测调优 + 新陷阱类型扩展 | 待定 |
+| **下一步** | S54 陷阱爆兵：BaseHazard 新陷阱类型扩展（旋转锯片 + 摆锤等）+ 更复杂关卡 E2E 测试 | 待定 |
 
 ---
 

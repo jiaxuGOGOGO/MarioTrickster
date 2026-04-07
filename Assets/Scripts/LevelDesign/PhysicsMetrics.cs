@@ -1,8 +1,16 @@
 using UnityEngine;
 
 /// <summary>
-/// 物理度量常量中心 — 关卡设计系统的"物理真相源"
+/// 物理度量中心 — 关卡设计系统的"唯一真理源" (Single Source of Truth)
 /// 
+/// S53 Facade 改造：跳跃极限值从静态常量升级为动态 Facade 属性。
+/// 当项目中存在 PhysicsConfigSO 资产时，所有跳跃极限值自动从 SO 的当前参数实时推导。
+/// 当 SO 不存在时，回退到 S32 原始硬编码默认值（零行为变化）。
+///
+/// 效果：当你在 Inspector 中拖动"跳跃力滑块"时——
+///   不仅手感变了，整个项目的验证器、报错红线、Scene 视图里的辅助画线，
+///   会瞬间、全部自动对齐到新的跨度标准。
+///
 /// 核心理念（视碰分离 Visual-Collision Decoupling）：
 ///   白盒关卡的碰撞体尺寸就是物理真相，换素材时只替换视觉不调布局。
 ///   所有关卡元素的物理尺寸由本类统一定义，任何生成器/编辑器必须引用此处常量。
@@ -15,27 +23,62 @@ using UnityEngine;
 ///   - DiGRA "You Say Jump I Say How High": 21特征跳跃模型，重力归一化
 ///   - Gamasutra 控制手感文章: 重力+空中控制联合调优
 ///
-/// 度量体系（基于 MarioController 精确物理公式演算）：
-///   - 重力加速度 (fallAcceleration): 80 units/s²
-///   - 跳跃初速度 (jumpPower): 20 units/s
-///   - 最大水平速度 (maxSpeed): 9 units/s
-///   - 松开跳跃键重力倍率 (jumpEndEarlyGravityModifier): 3x
-///   - Coyote Time: 0.15s
-///
-///   公式推导：
-///     H_max = v² / (2g) = 20² / (2×80) = 2.5 格
-///     t_peak = v / g = 20 / 80 = 0.25 秒
-///     t_total = 2 × t_peak = 0.5 秒
-///     D_max = maxSpeed × t_total = 9 × 0.5 = 4.5 格
-///     H_min = v² / (2 × g × modifier) = 20² / (2×80×3) = 0.833 格
-///     D_coyote = maxSpeed × coyoteTime = 9 × 0.15 = 1.35 格
-///
 /// Session 32: 视碰分离与关卡度量转译系统
+/// Session 53: PhysicsMetrics Facade — 动态读取 PhysicsConfigSO 推导值
 /// </summary>
 public static class PhysicsMetrics
 {
     // ═══════════════════════════════════════════════════
-    // 网格与PPU标准
+    // S53: PhysicsConfigSO 动态绑定（Facade 核心）
+    // ═══════════════════════════════════════════════════
+
+    // [AI防坑警告] _activeConfig 是整个 Facade 的数据源。
+    // 所有跳跃极限属性优先从此 SO 实时推导，为 null 时回退到硬编码默认值。
+    // 加载策略与 MarioController 一致：Resources.Load<PhysicsConfigSO>("PhysicsConfig")。
+    // 不要手动赋值 _activeConfig，使用 ActiveConfig 属性自动懒加载。
+    private static PhysicsConfigSO _activeConfig;
+    private static bool _configSearched;
+
+    /// <summary>
+    /// S53: 当前活跃的 PhysicsConfigSO 实例。
+    /// 懒加载：首次访问时从 Resources 自动加载，找不到则为 null（回退默认值）。
+    /// 编辑器中 SO 被修改时，推导值自动更新（因为每次访问都从 SO 实时计算）。
+    /// </summary>
+    public static PhysicsConfigSO ActiveConfig
+    {
+        get
+        {
+            if (!_configSearched)
+            {
+                _activeConfig = Resources.Load<PhysicsConfigSO>("PhysicsConfig");
+                _configSearched = true;
+            }
+            return _activeConfig;
+        }
+    }
+
+    /// <summary>
+    /// S53: 手动注入 PhysicsConfigSO（供测试或特殊场景使用）。
+    /// 注入后，所有跳跃极限值立即切换到该 SO 的推导值。
+    /// 传入 null 可重置为自动加载模式。
+    /// </summary>
+    public static void SetActiveConfig(PhysicsConfigSO config)
+    {
+        _activeConfig = config;
+        _configSearched = config != null;
+    }
+
+    /// <summary>
+    /// S53: 强制重新搜索 PhysicsConfigSO（用于 SO 资产创建/删除后刷新）。
+    /// </summary>
+    public static void RefreshConfig()
+    {
+        _configSearched = false;
+        _activeConfig = null;
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 网格与PPU标准（绝对不变）
     // ═══════════════════════════════════════════════════
 
     /// <summary>每个 ASCII 字符对应的世界单位大小（绝对锁死，不可修改）</summary>
@@ -56,7 +99,7 @@ public static class PhysicsMetrics
     public const int STANDARD_PPU_32 = 32;
 
     // ═══════════════════════════════════════════════════
-    // 角色碰撞体"黄金宽容比例"（The Generous Hitbox）
+    // 角色碰撞体"黄金宽容比例"（The Generous Hitbox）（绝对不变）
     // ═══════════════════════════════════════════════════
 
     // [AI防坑警告] 角色碰撞体必须小于视觉sprite！
@@ -86,7 +129,7 @@ public static class PhysicsMetrics
     public const float TRICKSTER_COLLIDER_OFFSET_Y = -0.025f;
 
     // ═══════════════════════════════════════════════════
-    // 地形碰撞体标准尺寸
+    // 地形碰撞体标准尺寸（绝对不变）
     // ═══════════════════════════════════════════════════
 
     /// <summary>地面/墙壁方块碰撞体（死死锁定 1x1，绝不修改）</summary>
@@ -141,34 +184,78 @@ public static class PhysicsMetrics
     public static readonly Vector2 GOAL_COLLIDER_SIZE = new Vector2(1f, 3f);
 
     // ═══════════════════════════════════════════════════
-    // 跳跃能力极限（基于 MarioController 精确物理公式演算）
+    // 跳跃能力极限 — S53 Facade: 动态读取 PhysicsConfigSO
     // ═══════════════════════════════════════════════════
 
-    // [AI防坑警告] 以下数值是从 MarioController 的物理参数用公式算出的真实极限。
-    // 修改 MarioController 的 jumpPower/fallAcceleration/maxSpeed 后必须同步更新此处。
-    // 公式:
-    //   H_max = v² / (2g) = 20² / (2×80) = 2.5
-    //   t_total = 2 × (v/g) = 2 × (20/80) = 0.5s
-    //   D_max = maxSpeed × t_total = 9 × 0.5 = 4.5
-    //   H_min = v² / (2 × g × modifier) = 20² / (2×80×3) = 0.833
+    // [AI防坑警告] S53 改造：以下值从 const 升级为 static property (Facade)。
+    // 当 ActiveConfig (PhysicsConfigSO) 存在时，实时从 SO 参数推导。
+    // 当 ActiveConfig 为 null 时，回退到 S32 原始硬编码默认值。
+    // 所有消费者（验证器、可视化器、报错信息）无需改代码，自动获得动态值。
+    //
+    // 回退默认值与 S32 原始 const 完全一致：
+    //   MAX_JUMP_HEIGHT = 2.5f
+    //   MAX_JUMP_DISTANCE = 4.5f
+    //   MIN_JUMP_HEIGHT = 0.833f
+    //   COYOTE_BONUS_DISTANCE = 1.35f
+    //   MAX_GAP_WITH_COYOTE = 5.85f
 
-    /// <summary>原地最高跳跃高度（格）— jumpPower²/(2*fallAcceleration) = 20²/(2*80) = 2.5</summary>
-    public const float MAX_JUMP_HEIGHT = 2.5f;
+    /// <summary>原地最高跳跃高度（格）— jumpPower²/(2*fallAcceleration)</summary>
+    public static float MAX_JUMP_HEIGHT
+    {
+        get
+        {
+            var cfg = ActiveConfig;
+            return cfg != null ? cfg.DerivedMaxJumpHeight : DEFAULT_MAX_JUMP_HEIGHT;
+        }
+    }
 
-    /// <summary>满速平跳最大水平距离（格）— maxSpeed * 2 * (jumpPower/fallAcceleration) = 9*0.5 = 4.5</summary>
-    public const float MAX_JUMP_DISTANCE = 4.5f;
+    /// <summary>满速平跳最大水平距离（格）— maxSpeed * 2 * (jumpPower/fallAcceleration)</summary>
+    public static float MAX_JUMP_DISTANCE
+    {
+        get
+        {
+            var cfg = ActiveConfig;
+            return cfg != null ? cfg.DerivedMaxJumpDistance : DEFAULT_MAX_JUMP_DISTANCE;
+        }
+    }
 
-    /// <summary>短跳最低高度（格）— 立即松开跳跃键: jumpPower²/(2*fallAcceleration*modifier) = 0.833</summary>
-    public const float MIN_JUMP_HEIGHT = 0.833f;
+    /// <summary>短跳最低高度（格）— jumpPower²/(2*fallAcceleration*jumpEndEarlyGravityModifier)</summary>
+    public static float MIN_JUMP_HEIGHT
+    {
+        get
+        {
+            var cfg = ActiveConfig;
+            return cfg != null ? cfg.DerivedMinJumpHeight : DEFAULT_MIN_JUMP_HEIGHT;
+        }
+    }
 
-    /// <summary>Coyote Time 额外水平距离（格）— maxSpeed * coyoteTime = 9*0.15 = 1.35</summary>
-    public const float COYOTE_BONUS_DISTANCE = 1.35f;
+    /// <summary>Coyote Time 额外水平距离（格）— maxSpeed * coyoteTime</summary>
+    public static float COYOTE_BONUS_DISTANCE
+    {
+        get
+        {
+            var cfg = ActiveConfig;
+            return cfg != null ? cfg.DerivedCoyoteBonusDistance : DEFAULT_COYOTE_BONUS_DISTANCE;
+        }
+    }
 
-    /// <summary>含 Coyote Time 的最大可跨越间隙（格）— 4.5 + 1.35 = 5.85</summary>
-    public const float MAX_GAP_WITH_COYOTE = 5.85f;
+    /// <summary>含 Coyote Time 的最大可跨越间隙（格）— MAX_JUMP_DISTANCE + COYOTE_BONUS_DISTANCE</summary>
+    public static float MAX_GAP_WITH_COYOTE
+    {
+        get
+        {
+            return MAX_JUMP_DISTANCE + COYOTE_BONUS_DISTANCE;
+        }
+    }
+
+    // ── S53: 回退默认值（与 S32 原始 const 完全一致）──
+    private const float DEFAULT_MAX_JUMP_HEIGHT = 2.5f;
+    private const float DEFAULT_MAX_JUMP_DISTANCE = 4.5f;
+    private const float DEFAULT_MIN_JUMP_HEIGHT = 0.833f;
+    private const float DEFAULT_COYOTE_BONUS_DISTANCE = 1.35f;
 
     // ═══════════════════════════════════════════════════
-    // 半重力跳跃顶点参数（Celeste 风格增强）
+    // 半重力跳跃顶点参数 — S53 Facade: 动态读取 PhysicsConfigSO
     // ═══════════════════════════════════════════════════
 
     // 业界参考：Celeste 容错机制 #3 "Halved-Gravity Jump Peak"
@@ -180,14 +267,34 @@ public static class PhysicsMetrics
     // 额外滞空时间: 0.05秒，额外水平距离: 0.45格
 
     /// <summary>顶点区域速度阈值：当 |velocity.y| < 此值时视为跳跃顶点</summary>
-    public const float APEX_VELOCITY_THRESHOLD = 2.0f;
+    public static float APEX_VELOCITY_THRESHOLD
+    {
+        get
+        {
+            var cfg = ActiveConfig;
+            return cfg != null ? cfg.apexThreshold : 2.0f;
+        }
+    }
 
     /// <summary>顶点区域重力倍率（0.5 = 半重力，与 Celeste 一致）</summary>
-    public const float APEX_GRAVITY_MULTIPLIER = 0.5f;
+    public static float APEX_GRAVITY_MULTIPLIER
+    {
+        get
+        {
+            var cfg = ActiveConfig;
+            return cfg != null ? cfg.apexGravityMultiplier : 0.5f;
+        }
+    }
 
     // ═══════════════════════════════════════════════════
-    // 关卡设计安全约束（供 AI 提示词和编辑器验证使用）
+    // 关卡设计安全约束（供 AI 提示词和编辑器验证使用）（绝对不变）
     // ═══════════════════════════════════════════════════
+
+    // [AI防坑警告] 以下安全约束是设计层面的硬限制，不随物理参数变化。
+    // 它们定义了"安全关卡"的标准，即使物理参数变了，
+    // 关卡设计的安全间隙/高台上限仍由这些常量控制。
+    // 验证器会用动态的 MAX_JUMP_HEIGHT/MAX_JUMP_DISTANCE 做物理可达性判断，
+    // 但 ASCII_MAX_GAP/ASCII_MAX_HEIGHT 是设计约束，保持 const。
 
     // 设计哲学（来自 Reverse Design: Super Mario World）：
     //   "每个间隙和高台都应该在物理上可跨越，并留有容错空间。
@@ -203,7 +310,7 @@ public static class PhysicsMetrics
     public const int ASCII_EXTREME_HEIGHT = 3;
 
     // ═══════════════════════════════════════════════════
-    // 关卡布局安全约束（S35 新增，供验证器和模板设计使用）
+    // 关卡布局安全约束（S35 新增，供验证器和模板设计使用）（绝对不变）
     // ═══════════════════════════════════════════════════
 
     // 业界参考：
@@ -236,11 +343,12 @@ public static class PhysicsMetrics
     public const int HAZARD_LANDING_BUFFER = 1;
 
     // ═══════════════════════════════════════════════════
-    // 工具方法
+    // 工具方法 — S53: 已升级为动态值
     // ═══════════════════════════════════════════════════
 
     /// <summary>
     /// 根据难度百分比计算对应的间隙宽度（格数）
+    /// S53: 现在使用动态 MAX_JUMP_DISTANCE，随 SO 参数变化。
     /// </summary>
     /// <param name="difficultyPercent">难度百分比 (0~1)，1=极限</param>
     /// <returns>对应的间隙格数</returns>
@@ -252,6 +360,7 @@ public static class PhysicsMetrics
 
     /// <summary>
     /// 根据难度百分比计算对应的高台高度（格数）
+    /// S53: 现在使用动态 MAX_JUMP_HEIGHT，随 SO 参数变化。
     /// </summary>
     public static float HeightForDifficulty(float difficultyPercent)
     {
@@ -260,6 +369,7 @@ public static class PhysicsMetrics
 
     /// <summary>
     /// 验证一个间隙是否在物理上可跨越
+    /// S53: 现在使用动态 MAX_JUMP_HEIGHT/MAX_GAP_WITH_COYOTE/MAX_JUMP_DISTANCE，随 SO 参数变化。
     /// </summary>
     /// <param name="gapWidth">间隙宽度（格数）</param>
     /// <param name="heightDifference">高度差（正=向上跳，负=向下跳）</param>
@@ -310,6 +420,7 @@ public static class PhysicsMetrics
     //   - 危险物碰撞体应小于视觉（宽容感）
     //   - 平台类碰撞体宽度应 = 1.0格（1x1 网格对齐，确保 ASCII 连续字符无缝拼接）
     //   - 移动平台等独立实体不拼接，可使用更大宽度
-    //   - 新增的跳跃能力修改必须同步更新本文件的跳跃极限常量
+    //   - S53 后：修改 PhysicsConfigSO 的跳跃/重力参数，本文件的跳跃极限会自动同步
+    //     不再需要手动更新 MAX_JUMP_HEIGHT 等值！
     //
 }

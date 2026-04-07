@@ -10,6 +10,11 @@ using UnityEngine;
 ///   4. 红色虚线：极限标注线（最大高度、最大距离）
 ///   5. 白色网格：格子刻度线
 ///
+/// S53 改造：参数读取优先级
+///   1. PhysicsConfigSO（通过 PhysicsMetrics.ActiveConfig）— 编辑器实时调参时自动同步
+///   2. MarioController（通过 SerializedObject 反射）— 兼容无 SO 场景
+///   3. 本地 SerializeField 默认值 — 最终兜底
+///
 /// 使用方法：
 ///   1. 在 Scene 视图里把 Mario 拖到悬崖边
 ///   2. 看身前的抛物线有没有够到对面平台
@@ -30,6 +35,7 @@ using UnityEngine;
 ///   - Celeste: 半重力跳跃顶点让弧线更平缓
 ///
 /// Session 32: 视碰分离与关卡度量转译系统
+/// Session 53: PhysicsConfigSO 实时监听 + PhysicsMetrics Facade 联动
 /// </summary>
 [ExecuteInEditMode]
 public class JumpArcVisualizer : MonoBehaviour
@@ -44,8 +50,8 @@ public class JumpArcVisualizer : MonoBehaviour
     [Tooltip("抛物线采样点数（越多越平滑）")]
     [SerializeField, Range(20, 100)] private int arcResolution = 60;
 
-    [Header("=== 物理参数（自动从 MarioController 读取）===")]
-    [Tooltip("跳跃初速度（如果场景中有 MarioController 会自动同步）")]
+    [Header("=== 物理参数（S53: 自动从 PhysicsConfigSO 或 MarioController 读取）===")]
+    [Tooltip("跳跃初速度（优先从 PhysicsConfigSO 读取）")]
     [SerializeField] private float jumpPower = 20f;
 
     [Tooltip("重力加速度")]
@@ -76,15 +82,15 @@ public class JumpArcVisualizer : MonoBehaviour
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        // 尝试从 MarioController 同步参数
-        SyncFromMarioController();
+        // 尝试同步参数
+        SyncPhysicsParams();
     }
 
     private void OnDrawGizmos()
     {
         if (!showArcs) return;
 
-        SyncFromMarioController();
+        SyncPhysicsParams();
 
         Vector3 origin = transform.position;
         // 碰撞体底部中心作为起跳点
@@ -225,10 +231,11 @@ public class JumpArcVisualizer : MonoBehaviour
         }
     }
 
-    /// <summary>绘制网格刻度线</summary>
+    /// <summary>绘制网格刻度线 — S53: 使用 PhysicsMetrics 动态值</summary>
     private void DrawGridOverlay(Vector3 origin)
     {
         Gizmos.color = gridColor;
+        // S53: 从 PhysicsMetrics Facade 读取动态值（随 SO 参数实时变化）
         float maxH = PhysicsMetrics.MAX_JUMP_HEIGHT + 1f;
         float maxD = PhysicsMetrics.MAX_JUMP_DISTANCE + 1f;
 
@@ -249,9 +256,10 @@ public class JumpArcVisualizer : MonoBehaviour
         }
     }
 
-    /// <summary>绘制极限标注线</summary>
+    /// <summary>绘制极限标注线 — S53: 使用 PhysicsMetrics 动态值</summary>
     private void DrawLimitAnnotations(Vector3 origin)
     {
+        // S53: 从 PhysicsMetrics Facade 读取动态值
         // 最大高度水平线
         Gizmos.color = limitLineColor;
         float maxH = PhysicsMetrics.MAX_JUMP_HEIGHT;
@@ -271,7 +279,7 @@ public class JumpArcVisualizer : MonoBehaviour
         Gizmos.DrawLine(dBottomL, dTopL);
 
 #if UNITY_EDITOR
-        // 文字标注
+        // 文字标注 — S53: 使用 PhysicsMetrics 动态值
         UnityEditor.Handles.color = verticalArcColor;
         UnityEditor.Handles.Label(origin + new Vector3(0.2f, maxH + 0.2f, 0),
             $"Max Height: {maxH:F1} units");
@@ -288,11 +296,44 @@ public class JumpArcVisualizer : MonoBehaviour
         // 半重力顶点区域标注
         UnityEditor.Handles.color = new Color(0.8f, 0.4f, 1f, 0.6f);
         UnityEditor.Handles.Label(origin + new Vector3(-3f, maxH - 0.3f, 0),
-            $"Apex Zone: |vy| < {apexThreshold:F1}, gravity × {apexGravityMultiplier:F1}");
+            $"Apex Zone: |vy| < {apexThreshold:F1}, gravity x {apexGravityMultiplier:F1}");
+
+        // S53: 数据源指示器 — 让设计师知道当前参数来自哪里
+        string source = PhysicsMetrics.ActiveConfig != null ? "PhysicsConfigSO" : "Default";
+        UnityEditor.Handles.color = new Color(0.6f, 0.6f, 0.6f, 0.5f);
+        UnityEditor.Handles.Label(origin + new Vector3(-3f, -0.8f, 0),
+            $"[Source: {source}]");
 #endif
     }
 
-    /// <summary>尝试从同物体的 MarioController 同步物理参数</summary>
+    /// <summary>
+    /// S53: 统一参数同步方法。
+    /// 优先级：PhysicsConfigSO > MarioController > 本地默认值。
+    /// 
+    /// 当 PhysicsConfigSO 存在时，直接从 SO 读取所有手感参数，
+    /// 确保 Scene 视图中的弧线与运行时的实际物理完全一致。
+    /// 当 SO 不存在时，回退到从 MarioController 反射读取（兼容旧流程）。
+    /// </summary>
+    private void SyncPhysicsParams()
+    {
+        // S53: 优先从 PhysicsConfigSO 读取
+        PhysicsConfigSO config = PhysicsMetrics.ActiveConfig;
+        if (config != null)
+        {
+            jumpPower = config.jumpPower;
+            gravity = config.fallAcceleration;
+            maxSpeed = config.maxSpeed;
+            jumpEndEarlyGravityModifier = config.jumpEndEarlyGravityModifier;
+            apexThreshold = config.apexThreshold;
+            apexGravityMultiplier = config.apexGravityMultiplier;
+            return;
+        }
+
+        // 回退：从 MarioController 同步参数
+        SyncFromMarioController();
+    }
+
+    /// <summary>尝试从同物体的 MarioController 同步物理参数（兼容无 SO 场景）</summary>
     private void SyncFromMarioController()
     {
         if (cachedMario == null)

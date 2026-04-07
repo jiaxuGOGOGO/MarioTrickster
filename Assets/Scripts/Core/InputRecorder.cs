@@ -65,6 +65,14 @@ public class TasReplayData
     /// </summary>
     public bool strictPositionCheck = false;
 
+    /// <summary>
+    /// S53 轨迹耗时预警：录制时的预期通关时间（秒）。
+    /// 从 frames 中所有 duration 之和 * fixedDeltaTime(0.02s) 自动计算。
+    /// 回放时若实际耗时偏差率超过阈值，控制台输出黄色警告。
+    /// 值为 0 表示未记录（兼容旧录像，跳过耗时预警）。
+    /// </summary>
+    public float expectedDurationSeconds;
+
     /// <summary>录制时的描述/备注（可选）</summary>
     public string description = "";
 }
@@ -331,7 +339,13 @@ public class InputRecorder : MonoBehaviour
             data.expectedFinalPosY = mario.transform.position.y;
         }
 
-        data.description = $"Recorded at {System.DateTime.Now:yyyy-MM-dd HH:mm:ss}, {_recordedFrames.Count} segments";
+        // S53: 自动计算预期通关时间（所有帧 duration 之和 * fixedDeltaTime）
+        int totalFrames = 0;
+        foreach (var f in _recordedFrames)
+            totalFrames += f.duration;
+        data.expectedDurationSeconds = totalFrames * Time.fixedDeltaTime;
+
+        data.description = $"Recorded at {System.DateTime.Now:yyyy-MM-dd HH:mm:ss}, {_recordedFrames.Count} segments, {data.expectedDurationSeconds:F2}s expected";
 
         // 序列化
         string json = ExportReplayData(data);

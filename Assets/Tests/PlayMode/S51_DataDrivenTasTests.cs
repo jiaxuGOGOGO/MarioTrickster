@@ -48,6 +48,11 @@ public class S51_DataDrivenTasTests
     private const float TEST_TIMESCALE = 10f;
     private const float TEST_TIMEOUT_SECONDS = 15f; // 真实时间超时
     private const float POSITION_TOLERANCE = 0.05f; // 防脱轨坐标误差阈值
+
+    // S53: 轨迹耗时预警阈值
+    // 柔性模式下，若实际回放耗时与预期耗时的偏差率超过此值，输出黄色警告。
+    // 20% 偏差率是“不阻断但提醒”的软防御，表示手感调整可能已显著影响关卡节奏。
+    private const float DURATION_DEVIATION_WARN_THRESHOLD = 0.20f;
     private const string GROUND_LAYER = "Ground";
     private const string REPLAY_SUBDIR = "Tests/LevelReplays";
 
@@ -204,6 +209,7 @@ public class S51_DataDrivenTasTests
 
         // ── Step 8: 等待序列执行完毕（带 Timeout 防死锁）──
         float startTime = Time.realtimeSinceStartup;
+        float gameTimeStart = Time.time; // S53: 记录游戏时间起点（受 timeScale 影响，用于耗时预警）
         bool won = false;
 
         gm.OnGameOver += (winner) =>
@@ -289,6 +295,44 @@ public class S51_DataDrivenTasTests
                 $"实际最终位置 ({finalPos.x:F3}, {finalPos.y:F3}), " +
                 $"录像预期 ({replayData.expectedFinalPosX:F3}, {replayData.expectedFinalPosY:F3})。" +
                 $"核心断言已通过：角色存活={health.CurrentHealth > 0}, 胜利触发={won}");
+
+            // ── S53: 轨迹耗时预警（柔性模式专属）──
+            // 计算实际游戏时间与预期时间的偏差率。
+            // 若偏差率超过 DURATION_DEVIATION_WARN_THRESHOLD，输出黄色警告。
+            // 这是“不阻断但提醒”的软防御：手感调整可能已显著影响关卡节奏。
+            float gameTimeEnd = Time.time;
+            float actualGameDuration = gameTimeEnd - gameTimeStart;
+
+            // 优先使用 JSON 中记录的 expectedDurationSeconds；
+            // 若旧录像未记录（=0），从 frames 的 duration 总和推算
+            float expectedDuration = replayData.expectedDurationSeconds;
+            if (expectedDuration <= 0f)
+            {
+                int totalFrames = 0;
+                foreach (var f in replayData.frames)
+                    totalFrames += f.duration;
+                expectedDuration = totalFrames * 0.02f; // fixedDeltaTime = 0.02s
+            }
+
+            if (expectedDuration > 0f)
+            {
+                float deviation = Mathf.Abs(actualGameDuration - expectedDuration) / expectedDuration;
+                if (deviation > DURATION_DEVIATION_WARN_THRESHOLD)
+                {
+                    Debug.LogWarning(
+                        $"[{testName}] S53 轨迹耗时预警: " +
+                        $"实际游戏时间 {actualGameDuration:F2}s vs 预期 {expectedDuration:F2}s, " +
+                        $"偏差率 {deviation:P1} 超过阈值 {DURATION_DEVIATION_WARN_THRESHOLD:P0}。" +
+                        $"手感调整可能已显著影响关卡节奏，建议检查当前 PhysicsConfigSO 参数。");
+                }
+                else
+                {
+                    Debug.Log(
+                        $"[{testName}] S53 耗时校验通过: " +
+                        $"实际 {actualGameDuration:F2}s vs 预期 {expectedDuration:F2}s, " +
+                        $"偏差率 {deviation:P1}");
+                }
+            }
         }
 
         Debug.Log($"[S51 DDPT] === PASSED: {testName} ===");

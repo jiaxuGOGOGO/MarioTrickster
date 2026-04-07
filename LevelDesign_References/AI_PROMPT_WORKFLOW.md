@@ -179,11 +179,18 @@ GitHub Token: [你的Token]
    > **如果验证失败**：脚本会自动回滚并告诉你哪里有问题。修复 AI 回复文件中的 ASCII 矩阵后重新运行即可。
    >
    > **可选参数**（加在命令末尾）：
+   >
+   > | 模式 | 写入文件 | git commit | git push | 用途 |
+   > |------|---------|------------|----------|------|
+   > | 正常（无参数） | ✅ | ✅ | ✅ | 日常使用 |
+   > | `--no-push` | ✅ | ✅ | ❌ | 先本地确认，没问题后手动 `git push` |
+   > | `--dry-run` | ❌ | ❌ | ❌ | 只看 AI 回复能否被正确解析 |
+   >
    > ```bash
-   > # 预览模式：只看解析结果，不写入任何文件
+   > # 预览模式：什么都不改，只打印解析结果
    > python3 LevelDesign_References/import_template.py ai_reply.md --dry-run
    >
-   > # 调试模式：写入文件并 commit，但不 push 到远程
+   > # 调试模式：写入本地文件并 commit，但不推送到 GitHub
    > python3 LevelDesign_References/import_template.py ai_reply.md --source "B站截图" --no-push
    > ```
 

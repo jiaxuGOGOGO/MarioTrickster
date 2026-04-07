@@ -15,7 +15,7 @@
 2. **§3 回归标记** — 受影响的测试项打 🔄
 3. **§4 待办队列** — 更新任务状态
 
-防回归检查全面交给本地 **114 个自动化测试**兜底，不再手动维护复杂交叉验证表格。
+防回归检查全面交给本地 **135 个自动化测试**兜底，不再手动维护复杂交叉验证表格。
 
 ### 第二层：Git 替代历史，代码即文档
 
@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 50 (S50: TAS 录播系统落地 — InputRecorder RLE 压缩录制器 + 首个极速 E2E 跑图测试闭环) |
+| **最新 Session** | Session 51 (S51: 零代码数据驱动测试管线 DDPT — TasReplayData Wrapper + TestCaseSource 动态数据源 + TAS 状态可视化 UI + F12 一键落盘) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S50 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S51 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S50 TAS 录播系统落地：新增 `InputRecorder.cs`（RLE 压缩录制器，F10 录制/F11 导出 JSON，典型压缩比 40:1+）和 `S50_AutoRunE2ETests.cs`（3 个 PlayMode E2E 测试：平地跑图/跳坑跑图/RLE 压缩验证）。测试使用 `Time.timeScale=10` 加速物理（不修改 fixedDeltaTime，Edy 最佳实践），配合 `AutomatedInputProvider` 注入 TAS 帧序列，形成完整的 Record→Compress→Replay→Assert 闭环。所有原有 S37 视碰分离架构、S39 弹射物理手感、S49 输入解耦逻辑完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S51 零代码数据驱动测试管线 (DDPT)：(1) `InputRecorder.cs` 升级 — 新增 `TasReplayData` Wrapper 类（解决 JsonUtility 顶层 List 限制）、`ImportFromJson` 静态反序列化、F12 一键落盘到 `Assets/Tests/LevelReplays/`、TAS 状态可视化 UI（REC/TAS REPLAY 10x 指示器，P1 合规惰性初始化 GUIStyle）。(2) `S51_DataDrivenTasTests.cs` — 零代码数据驱动测试工厂，使用 `TestCaseSource` + `TestCaseData.Returns(null)` 自动扫描 LevelReplays 目录 JSON 文件生成测试用例，双重断言（胜利触发 + 防脱轨坐标校验 ≤0.05f）。(3) 两份 JSON 录像文件（FlatRun + JumpOverPit）从 S50 硬编码测试提取。S50 的 10x 加速策略（不改 fixedDeltaTime）、S37 视碰分离、S39 弹射物理手感完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -116,16 +116,16 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S48重点验证**: ASCII Build 后应正常生成所有元素（不再 Unknown char）+ 单向平台长条 + 敌人不掉落 + S43 验证器 + S35 布局安全 |
 | ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
-| 🔄 | PlayMode 自动化 | **S50重点验证**: 24/24 通过（新增 3 个 E2E 测试） |
+| 🔄 | PlayMode 自动化 | **S51重点验证**: 26/26 通过（S51 新增 2 个数据驱动 TAS 测试） |
 
 ---
 
 ## 3. 自动化测试（安全网）
 
 - **EditMode**: 109 个（结构/静态逻辑验证，S37 全量通过）
-- **PlayMode**: 24 个（运行时行为验证，S50 新增 3 个 E2E 测试）
+- **PlayMode**: 26 个（运行时行为验证，S51 新增 2 个数据驱动 TAS 测试）
 - **运行方式**: `MarioTrickster → Run Tests → Export Full Report (All)` 导出到 `TestReport.txt`
-- **总计 133 个测试**（EditMode 109 + PlayMode 24）作为防回归兖底
+- **总计 135 个测试**（EditMode 109 + PlayMode 26）作为防回归兜底
 
 ---
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S51 零代码数据驱动测试管线 DDPT (TasReplayData Wrapper + TestCaseSource + TAS 状态 UI + F12 落盘 + 2 个 JSON 录像) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S50 TAS 录播系统落地 (InputRecorder RLE 压缩 + 3 个 E2E 极速跑图测试 + 10x 物理加速) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S49 全自动测试基建铺路 (IInputProvider 输入解耦 + AutomatedInputProvider + KeyboardInputProvider) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S48c KillZone 日志刷屏修复 (single-kill guard + freeze dead body) | ⏳ 代码已推送，待用户 Unity 验证 |
@@ -161,7 +162,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **P1** | 音效系统 (Audio) | 未开始 |
 | P2 | 动画系统完善 | 未开始 |
 | P2 | 主菜单 UI | 未开始 |
-| **下一步** | S51 TAS 录播系统增强: JSON 反序列化导入 + 更复杂关卡 E2E 测试 (弹跳平台/地刺/敌人) | 待定 |
+| **下一步** | S52 更复杂关卡 E2E 测试: 弹跳平台/地刺/敌人 JSON 录像 + 自动化回归覆盖率提升 | 待定 |
 
 ---
 
@@ -183,6 +184,9 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 全局 | F5 | 快速重启 |
 | 全局 | Ctrl+T | 打开 Test Console 窗口 |
 | 全局 | F9 | 无冷却模式（调试） |
+| 全局 | F10 | TAS 录制开始/停止 |
+| 全局 | F11 | TAS 导出 JSON 到控制台 |
+| 全局 | F12 | TAS 一键落盘（S51: 保存到 LevelReplays） |
 | 回合结束 | R/N | 重启/下一回合 |
 
 ---

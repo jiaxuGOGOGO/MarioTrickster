@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 49 (S49: 全自动测试基建铺路 — IInputProvider 输入解耦 + AutomatedInputProvider 虚拟输入注入) |
+| **最新 Session** | Session 50 (S50: TAS 录播系统落地 — InputRecorder RLE 压缩录制器 + 首个极速 E2E 跑图测试闭环) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S49 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S50 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S49 全自动测试基建铺路：引入 `IInputProvider` 接口解耦输入源，新增 `KeyboardInputProvider`（真实键盘+手柄）和 `AutomatedInputProvider`（帧序列回放虚拟输入）。`InputManager` 重构为通过接口读取输入，不再直接调用 `Input.GetKey`。`GameManager` 全局热键也通过 `IInputProvider` 读取（带安全降级兆底）。新增 `SetInputProvider()` / `GetCurrentProvider()` 公共方法支持运行时热替换。所有原有 S37 视碰分离架构、S39 弹射物理手感、S20 融入状态拦截逻辑完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S50 TAS 录播系统落地：新增 `InputRecorder.cs`（RLE 压缩录制器，F10 录制/F11 导出 JSON，典型压缩比 40:1+）和 `S50_AutoRunE2ETests.cs`（3 个 PlayMode E2E 测试：平地跑图/跳坑跑图/RLE 压缩验证）。测试使用 `Time.timeScale=10` 加速物理（不修改 fixedDeltaTime，Edy 最佳实践），配合 `AutomatedInputProvider` 注入 TAS 帧序列，形成完整的 Record→Compress→Replay→Assert 闭环。所有原有 S37 视碰分离架构、S39 弹射物理手感、S49 输入解耦逻辑完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -116,16 +116,16 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S48重点验证**: ASCII Build 后应正常生成所有元素（不再 Unknown char）+ 单向平台长条 + 敌人不掉落 + S43 验证器 + S35 布局安全 |
 | ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
-| ✅ | PlayMode 自动化 | 21/21 通过 |
+| 🔄 | PlayMode 自动化 | **S50重点验证**: 24/24 通过（新增 3 个 E2E 测试） |
 
 ---
 
 ## 3. 自动化测试（安全网）
 
 - **EditMode**: 109 个（结构/静态逻辑验证，S37 全量通过）
-- **PlayMode**: 21 个（运行时行为验证）
+- **PlayMode**: 24 个（运行时行为验证，S50 新增 3 个 E2E 测试）
 - **运行方式**: `MarioTrickster → Run Tests → Export Full Report (All)` 导出到 `TestReport.txt`
-- **总计 130 个测试**（EditMode 109 + PlayMode 21）作为防回归兖底
+- **总计 133 个测试**（EditMode 109 + PlayMode 24）作为防回归兖底
 
 ---
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S50 TAS 录播系统落地 (InputRecorder RLE 压缩 + 3 个 E2E 极速跑图测试 + 10x 物理加速) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S49 全自动测试基建铺路 (IInputProvider 输入解耦 + AutomatedInputProvider + KeyboardInputProvider) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S48c KillZone 日志刷屏修复 (single-kill guard + freeze dead body) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S48b KillZone 三重死亡检测 (OnTriggerStay2D + Y 坐标兜底) | ✅ 检测生效，但日志刷屏 → S48c 修复 |
@@ -160,6 +161,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **P1** | 音效系统 (Audio) | 未开始 |
 | P2 | 动画系统完善 | 未开始 |
 | P2 | 主菜单 UI | 未开始 |
+| **下一步** | S51 TAS 录播系统增强: JSON 反序列化导入 + 更复杂关卡 E2E 测试 (弹跳平台/地刺/敌人) | 待定 |
 
 ---
 

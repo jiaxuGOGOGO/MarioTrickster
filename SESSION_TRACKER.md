@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 48c (KillZone 日志刷屏修复 — single-kill guard + freeze dead body) |
+| **最新 Session** | Session 49 (S49: 全自动测试基建铺路 — IInputProvider 输入解耦 + AutomatedInputProvider 虚拟输入注入) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S48c 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S49 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S48c 修复 `KillZone.cs` 日志刷屏: 角色死后 OnTriggerStay2D 和 Y兜底每帧重复调用 TakeDamage 导致 Console 爆炸。修复: (1) HashSet killedSet 保证每角色只击杀一次 (2) 统一 Kill() 入口先检查 HP>0 再 log (3) 死后 rb.simulated=false 冻结尸体。三重检测(Enter/Stay/Y兜底)仍保留。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S49 全自动测试基建铺路：引入 `IInputProvider` 接口解耦输入源，新增 `KeyboardInputProvider`（真实键盘+手柄）和 `AutomatedInputProvider`（帧序列回放虚拟输入）。`InputManager` 重构为通过接口读取输入，不再直接调用 `Input.GetKey`。`GameManager` 全局热键也通过 `IInputProvider` 读取（带安全降级兆底）。新增 `SetInputProvider()` / `GetCurrentProvider()` 公共方法支持运行时热替换。所有原有 S37 视碰分离架构、S39 弹射物理手感、S20 融入状态拦截逻辑完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -96,8 +96,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
-| 🔄 | 测试 1：Mario 基础移动 | WASD + Space，手感不变，单独按S不触发下落，S36落地压扁仅高速下落触发 |
-| 🔄 | 测试 2：Trickster 移动 | 方向键移动正常；融入后方向键切换目标不移动 |
+| 🔄 | 测试 1：Mario 基础移动 | **S49重点验证**: WASD + Space，手感不变（输入解耦后行为完全一致），单独按S不触发下落，S36落地压扁仅高速下落触发 |
+| 🔄 | 测试 2：Trickster 移动 | **S49重点验证**: 方向键移动正常；融入后方向键切换目标不移动（输入解耦后行为完全一致） |
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |
 | ✅ | 测试 4：伪装系统 | P 伪装/解除，O/I 切换 |
 | 🔄 | 测试 5：道具操控 | 融入后红/灰连线；方向键磁吸切换；L 触发红线目标 |
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S49 全自动测试基建铺路 (IInputProvider 输入解耦 + AutomatedInputProvider + KeyboardInputProvider) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S48c KillZone 日志刷屏修复 (single-kill guard + freeze dead body) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S48b KillZone 三重死亡检测 (OnTriggerStay2D + Y 坐标兜底) | ✅ 检测生效，但日志刷屏 → S48c 修复 |
 | **紧急** | S48 Registry char 序列化 bug 修复 (string 代理 + HideFlags + 完整性校验) | ✅ 已验证，29 objects 正常生成 |

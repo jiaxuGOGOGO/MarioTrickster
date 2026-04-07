@@ -100,9 +100,14 @@ public class GameManager : MonoBehaviour
     private void Update()
     {
         // ===== 全局按键检测（不受游戏状态限制）=====
+        // S49: 通过 InputManager 的 IInputProvider 读取全局按键，
+        // 实现自动化测试时可注入虚拟全局按键。
+        // 回退兜底：如果 inputManager 未设置，仍使用 Input.GetKeyDown（安全降级）。
+        IInputProvider gip = inputManager != null ? inputManager.GetCurrentProvider() : null;
 
         // 暂停/恢复键 - 在 Playing 和 Paused 状态下都可用
-        if (Input.GetKeyDown(KeyCode.Escape))
+        bool pauseDown = gip != null ? gip.GetPauseDown() : Input.GetKeyDown(KeyCode.Escape);
+        if (pauseDown)
         {
             if (currentState == GameState.Playing || currentState == GameState.Paused)
             {
@@ -111,13 +116,15 @@ public class GameManager : MonoBehaviour
         }
 
         // 快速重启 - 任何状态下都可用
-        if (Input.GetKeyDown(KeyCode.F5))
+        bool restartDown = gip != null ? gip.GetRestartDown() : Input.GetKeyDown(KeyCode.F5);
+        if (restartDown)
         {
             RestartLevel();
         }
 
         // B025: 冷却取消开关 (F9 键切换)
-        if (Input.GetKeyDown(KeyCode.F9))
+        bool noCooldownDown = gip != null ? gip.GetNoCooldownToggleDown() : Input.GetKeyDown(KeyCode.F9);
+        if (noCooldownDown)
         {
             ToggleNoCooldown();
         }
@@ -131,11 +138,13 @@ public class GameManager : MonoBehaviour
         // 回合结束后的按键检测
         if (currentState == GameState.RoundOver)
         {
-            if (Input.GetKeyDown(KeyCode.R))
+            bool restartRound = gip != null ? gip.GetRestartRoundDown() : Input.GetKeyDown(KeyCode.R);
+            bool nextRound = gip != null ? gip.GetNextRoundDown() : Input.GetKeyDown(KeyCode.N);
+            if (restartRound)
             {
                 RestartLevel();
             }
-            else if (Input.GetKeyDown(KeyCode.N))
+            else if (nextRound)
             {
                 ResetRound();
             }

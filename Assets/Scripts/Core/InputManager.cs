@@ -4,6 +4,13 @@ using UnityEngine.InputSystem;
 /// <summary>
 /// 本地双人输入管理器
 ///
+/// S49 重构：输入解耦（全自动测试基建）
+///   - 引入 IInputProvider 接口，将键盘/手柄读取抽象为可替换的输入源
+///   - 默认使用 KeyboardInputProvider（真实键盘+手柄输入）
+///   - 自动化测试时通过 SetInputProvider() 注入 AutomatedInputProvider
+///   - 所有组合键逻辑（S+Jump 下落穿越）和分发逻辑保持不变
+///   - 原有的 DispatchP1/DispatchP2/LateReset 逻辑完全保留
+///
 /// 键盘方案：
 ///   P1 (Mario)    : WASD 移动 | Space 跳跃 | Q 扫描
 ///                   S+Space（下+跳）: 单向平台下落（Session 19 改为组合键）
@@ -27,6 +34,11 @@ using UnityEngine.InputSystem;
 ///   - 融入状态下方向键拦截：不再作为移动输入，而是转发给 TricksterController.OnDirectionInput()
 ///   - 融入状态下方向键不产生 moveInput，防止打破融入状态
 ///   - 上方向键在融入状态下也作为磁吸切换方向（不触发跳跃）
+/// Session 49 更新（全自动测试基建）：
+///   - 引入 IInputProvider 接口解耦输入源
+///   - ReadP1/ReadP2 不再直接调用 Input.GetKey，改为通过 _inputProvider 读取
+///   - 新增 SetInputProvider() 公共方法，支持运行时热替换输入源
+///   - 新增 GetCurrentProvider() 供测试代码查询当前输入源
 ///
 /// 使用方式：挂载到 Managers 对象，在 Inspector 中拖入 Mario 和 Trickster 引用
 /// </summary>
@@ -39,9 +51,12 @@ public class InputManager : MonoBehaviour
     [Header("调试")]
     [SerializeField] private bool showDebugInput = false;
 
-    // ── 手柄 ──────────────────────────────────────────────
-    private Gamepad gamepad1;
-    private Gamepad gamepad2;
+    // ── S49: 输入提供者（可替换的输入源）──────────────────────
+    // [AI防坑警告] _inputProvider 是所有输入读取的唯一入口。
+    // 绝对不要在 ReadP1/ReadP2 中直接调用 Input.GetKey()！
+    // 所有键盘/手柄读取已迁移到 KeyboardInputProvider 中。
+    // 自动化测试通过 SetInputProvider(new AutomatedInputProvider(...)) 注入虚拟输入。
+    private IInputProvider _inputProvider;
 
     // ── P1 输入状态 ────────────────────────────────────────
     private Vector2 p1Move;
@@ -72,6 +87,12 @@ public class InputManager : MonoBehaviour
 
     private void Start()
     {
+        // S49: 默认使用键盘输入提供者
+        if (_inputProvider == null)
+        {
+            _inputProvider = new KeyboardInputProvider();
+        }
+
         // 自动查找 Mario 的扫描技能
         if (marioController != null)
         {
@@ -82,7 +103,15 @@ public class InputManager : MonoBehaviour
     // ─────────────────────────────────────────────────────
     private void Update()
     {
-        DetectGamepads();
+        // S49: 确保 inputProvider 已初始化（防御 Start 未执行的边界情况）
+        if (_inputProvider == null)
+        {
+            _inputProvider = new KeyboardInputProvider();
+        }
+
+        // S49: 更新输入源（手柄检测 / 自动化帧推进）
+        UpdateInputProvider();
+
         ReadP1();
         ReadP2();
         DispatchP1();
@@ -91,13 +120,23 @@ public class InputManager : MonoBehaviour
     }
 
     // ─────────────────────────────────────────────────────
-    #region 手柄检测
+    #region S49: 输入源管理
 
-    private void DetectGamepads()
+    /// <summary>
+    /// 更新输入源的内部状态。
+    /// KeyboardInputProvider: 检测手柄连接
+    /// AutomatedInputProvider: 推进帧计数器
+    /// </summary>
+    private void UpdateInputProvider()
     {
-        var pads = Gamepad.all;
-        gamepad1 = pads.Count > 0 ? pads[0] : null;
-        gamepad2 = pads.Count > 1 ? pads[1] : null;
+        if (_inputProvider is KeyboardInputProvider kbProvider)
+        {
+            kbProvider.UpdateGamepads();
+        }
+        else if (_inputProvider is AutomatedInputProvider autoProvider)
+        {
+            autoProvider.Tick();
+        }
     }
 
     #endregion
@@ -105,36 +144,26 @@ public class InputManager : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region P1 (Mario) 输入
 
+    // [AI防坑警告] ReadP1 的所有输入读取必须通过 _inputProvider 接口。
+    // 组合键逻辑（S+Jump 下落穿越）保留在此方法中，因为这是 InputManager 的职责。
+    // _inputProvider 只负责提供原子输入信号，不做组合判断。
     private void ReadP1()
     {
-        float h = 0f, v = 0f;
-
-        if (Input.GetKey(KeyCode.D)) h += 1f;
-        if (Input.GetKey(KeyCode.A)) h -= 1f;
-        if (Input.GetKey(KeyCode.W)) v += 1f;
-        if (Input.GetKey(KeyCode.S)) v -= 1f;
-
-        if (gamepad1 != null)
-        {
-            Vector2 s = gamepad1.leftStick.ReadValue();
-            if (s.magnitude > 0.1f) { h = s.x; v = s.y; }
-        }
+        float h = _inputProvider.GetP1Horizontal();
+        float v = _inputProvider.GetP1Vertical();
 
         p1Move = new Vector2(Mathf.Clamp(h, -1f, 1f), Mathf.Clamp(v, -1f, 1f));
 
-        bool jumpKey = Input.GetKey(KeyCode.Space)
-                    || (gamepad1 != null && gamepad1.buttonSouth.isPressed);
+        bool jumpHeld = _inputProvider.GetP1JumpHeld();
 
-        p1JumpDown = jumpKey && !p1WasJumpHeld;
-        p1JumpHeld = jumpKey;
+        p1JumpDown = jumpHeld && !p1WasJumpHeld;
+        p1JumpHeld = jumpHeld;
 
         // S键持续按住状态
-        p1SHeld = Input.GetKey(KeyCode.S)
-                || (gamepad1 != null && gamepad1.dpad.down.isPressed);
+        p1SHeld = _inputProvider.GetP1SHeld();
 
         // 扫描（Q 键 / 手柄东键 B/○）
-        if (Input.GetKeyDown(KeyCode.Q)
-            || (gamepad1 != null && gamepad1.buttonEast.wasPressedThisFrame))
+        if (_inputProvider.GetP1ScanDown())
             p1ScanDown = true;
 
         // Session 19: S+Jump 组合键检测（单向平台下落）
@@ -146,8 +175,7 @@ public class InputManager : MonoBehaviour
 
         // Session 17/19: S键下蹲交互（隐藏通道传送）
         // 只在 S 键单独按下（不与 Jump 组合）时触发
-        if (Input.GetKeyDown(KeyCode.S)
-            || (gamepad1 != null && gamepad1.dpad.down.wasPressedThisFrame))
+        if (_inputProvider.GetP1SDown())
         {
             // 标记为待处理，在 Dispatch 中判断是否被组合键消费
             p1DownInteractDown = true;
@@ -159,21 +187,12 @@ public class InputManager : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region P2 (Trickster) 输入
 
+    // [AI防坑警告] ReadP2 的所有输入读取必须通过 _inputProvider 接口。
+    // Session 20 的融入状态拦截逻辑保留在 DispatchP2 中（不在此处）。
     private void ReadP2()
     {
-        float h = 0f, v = 0f;
-
-        if (Input.GetKey(KeyCode.RightArrow)) h += 1f;
-        if (Input.GetKey(KeyCode.LeftArrow))  h -= 1f;
-        // Session 20: 上下方向键也读取（用于磁吸切换的垂直方向）
-        if (Input.GetKey(KeyCode.UpArrow))    v += 1f;
-        if (Input.GetKey(KeyCode.DownArrow))  v -= 1f;
-
-        if (gamepad2 != null)
-        {
-            Vector2 s = gamepad2.leftStick.ReadValue();
-            if (s.magnitude > 0.1f) { h = s.x; v = s.y; }
-        }
+        float h = _inputProvider.GetP2Horizontal();
+        float v = _inputProvider.GetP2Vertical();
 
         // Session 20: 保存原始方向输入（含上下），用于磁吸切换
         p2RawDirection = new Vector2(Mathf.Clamp(h, -1f, 1f), Mathf.Clamp(v, -1f, 1f));
@@ -182,37 +201,30 @@ public class InputManager : MonoBehaviour
         p2Move = new Vector2(Mathf.Clamp(h, -1f, 1f), 0f);
 
         // Session 20: 检测方向键刚按下（单帧事件，用于磁吸切换触发）
-        if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.LeftArrow)
-            || Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.DownArrow))
+        if (_inputProvider.GetP2DirectionDown())
         {
             p2DirectionDown = true;
         }
 
-        bool jumpKey = Input.GetKey(KeyCode.UpArrow)
-                    || Input.GetKey(KeyCode.RightControl)
-                    || Input.GetKey(KeyCode.Keypad0)
-                    || (gamepad2 != null && gamepad2.buttonSouth.isPressed);
+        bool jumpHeld = _inputProvider.GetP2JumpHeld();
 
-        p2JumpDown = jumpKey && !p2WasJumpHeld;
-        p2JumpHeld = jumpKey;
+        p2JumpDown = jumpHeld && !p2WasJumpHeld;
+        p2JumpHeld = jumpHeld;
 
         // 伪装（P 键）
-        if (Input.GetKeyDown(KeyCode.P)
-            || (gamepad2 != null && gamepad2.buttonWest.wasPressedThisFrame))
+        if (_inputProvider.GetP2DisguiseDown())
             p2DisguiseDown = true;
 
         // 切换形态（O = 下一个, I = 上一个）
-        if (Input.GetKeyDown(KeyCode.O)
-            || (gamepad2 != null && gamepad2.rightShoulder.wasPressedThisFrame))
-        { p2SwitchDown = true; p2SwitchDir = 1f; }
-
-        if (Input.GetKeyDown(KeyCode.I)
-            || (gamepad2 != null && gamepad2.leftShoulder.wasPressedThisFrame))
-        { p2SwitchDown = true; p2SwitchDir = -1f; }
+        float switchDir = _inputProvider.GetP2SwitchDirection();
+        if (Mathf.Abs(switchDir) > 0.01f)
+        {
+            p2SwitchDown = true;
+            p2SwitchDir = switchDir;
+        }
 
         // 操控道具（L 键）
-        if (Input.GetKeyDown(KeyCode.L)
-            || (gamepad2 != null && gamepad2.buttonNorth.wasPressedThisFrame))
+        if (_inputProvider.GetP2AbilityDown())
             p2AbilityDown = true;
     }
 
@@ -342,6 +354,27 @@ public class InputManager : MonoBehaviour
 
     public void SetTricksterController(TricksterController c) => tricksterController = c;
 
+    /// <summary>
+    /// S49: 热替换输入源。
+    /// 
+    /// 正常游戏时使用 KeyboardInputProvider（默认）。
+    /// 自动化测试时注入 AutomatedInputProvider。
+    /// 
+    /// 用法：
+    ///   inputManager.SetInputProvider(new AutomatedInputProvider(sequence));
+    /// 
+    /// 传入 null 会回退到 KeyboardInputProvider。
+    /// </summary>
+    public void SetInputProvider(IInputProvider provider)
+    {
+        _inputProvider = provider ?? new KeyboardInputProvider();
+    }
+
+    /// <summary>
+    /// S49: 获取当前输入源（供测试代码查询状态）。
+    /// </summary>
+    public IInputProvider GetCurrentProvider() => _inputProvider;
+
     #endregion
 
     // ─────────────────────────────────────────────────────
@@ -350,13 +383,14 @@ public class InputManager : MonoBehaviour
     private void OnGUI()
     {
         if (!showDebugInput) return;
-        GUILayout.BeginArea(new Rect(10, 10, 280, 200));
+        GUILayout.BeginArea(new Rect(10, 10, 280, 220));
         GUILayout.Label($"P1 Move: {p1Move}  JumpHeld: {p1JumpHeld}  Scan: {p1ScanDown}");
         GUILayout.Label($"P1 SHeld: {p1SHeld}  DropThrough: {p1DropThroughDown}");
         GUILayout.Label($"P2 Move: {p2Move}  JumpHeld: {p2JumpHeld}  Blended: {(tricksterController != null ? tricksterController.IsFullyBlended.ToString() : "N/A")}");
         GUILayout.Label($"P2 Disguise: {p2DisguiseDown}  Ability: {p2AbilityDown}  DirSwitch: {p2DirectionDown}");
-        GUILayout.Label($"Pad1: {(gamepad1 != null ? gamepad1.displayName : "None")}");
-        GUILayout.Label($"Pad2: {(gamepad2 != null ? gamepad2.displayName : "None")}");
+        // S49: 显示当前输入源类型
+        string providerName = _inputProvider != null ? _inputProvider.GetType().Name : "None";
+        GUILayout.Label($"InputProvider: {providerName}");
         GUILayout.EndArea();
     }
 

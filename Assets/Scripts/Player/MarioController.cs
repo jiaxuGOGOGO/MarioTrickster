@@ -68,7 +68,16 @@ using UnityEngine;
 [SelectionBase] // S37 视碰分离: 确保框选时选中 Root 而非 Visual 子节点
 public class MarioController : MonoBehaviour
 {
-    // ── 移动 ──────────────────────────────────────────────
+    // ── S52: PhysicsConfigSO 实时手感面板 ──────────────────
+    // [AI防坑警告] physicsConfig 是可选的 ScriptableObject 引用。
+    // 当赋值时，所有手感参数优先从 SO 读取（支持 PlayMode 实时调参）。
+    // 当为 null 时，回退到下方的本地 [SerializeField] 值（零行为变化）。
+    // 绝对不要删除下方的本地字段！它们是 SO 为空时的兜底默认值。
+    [Header("S52: 实时手感面板 (可选)")]
+    [Tooltip("拖入 PhysicsConfigSO 资产即可启用 PlayMode 实时调参。为空时使用下方本地值。")]
+    [SerializeField] private PhysicsConfigSO physicsConfig;
+
+    // ── 移动 ──────────────────────────────────────────────────────────────────────
     [Header("移动")]
     [Tooltip("最大水平速度")]
     [SerializeField] private float maxSpeed = 9f;
@@ -161,8 +170,8 @@ public class MarioController : MonoBehaviour
     private bool _coyoteUsable;
     private float _timeJumpWasPressed;
 
-    private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + jumpBuffer;
-    private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + coyoteTime;
+    private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + JumpBuffer;
+    private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + CoyoteTime;
 
     // ── 击退 stun 状态 (Session 16: B023) ─────────────────
     private bool _isKnockbackStunned;
@@ -210,6 +219,28 @@ public class MarioController : MonoBehaviour
     // 绝对不要在 PrepareBounce 中清除 jumpHeld！蓄力冻结期必须保留 jumpHeld 的真实状态。
     public bool IsJumpHeld => jumpHeld;
 
+    // ── S52: SO 读取属性（每帧从 SO 读取最新值，SO 为 null 时回退到本地字段）──
+    // [AI防坑警告] 这些属性是所有物理计算的唯一参数来源。
+    // 不要直接读取本地字段（maxSpeed, jumpPower 等），必须通过这些属性读取。
+    // 这样当 physicsConfig 被赋值时，PlayMode 实时调参才能生效。
+    private float MaxSpeed => physicsConfig != null ? physicsConfig.maxSpeed : maxSpeed;
+    private float Acceleration => physicsConfig != null ? physicsConfig.acceleration : acceleration;
+    private float GroundDeceleration => physicsConfig != null ? physicsConfig.groundDeceleration : groundDeceleration;
+    private float AirDeceleration => physicsConfig != null ? physicsConfig.airDeceleration : airDeceleration;
+    private float GroundingForce => physicsConfig != null ? physicsConfig.groundingForce : groundingForce;
+    private float JumpPower => physicsConfig != null ? physicsConfig.jumpPower : jumpPower;
+    private float MaxFallSpeed => physicsConfig != null ? physicsConfig.maxFallSpeed : maxFallSpeed;
+    private float FallAcceleration => physicsConfig != null ? physicsConfig.fallAcceleration : fallAcceleration;
+    private float JumpEndEarlyGravityModifier => physicsConfig != null ? physicsConfig.jumpEndEarlyGravityModifier : jumpEndEarlyGravityModifier;
+    private float CoyoteTime => physicsConfig != null ? physicsConfig.coyoteTime : coyoteTime;
+    private float JumpBuffer => physicsConfig != null ? physicsConfig.jumpBuffer : jumpBuffer;
+    private float ApexThreshold => physicsConfig != null ? physicsConfig.apexThreshold : apexThreshold;
+    private float ApexGravityMultiplier => physicsConfig != null ? physicsConfig.apexGravityMultiplier : apexGravityMultiplier;
+    private float AirFriction => physicsConfig != null ? physicsConfig.airFriction : airFriction;
+    private float BounceAirAcceleration => physicsConfig != null ? physicsConfig.bounceAirAcceleration : bounceAirAcceleration;
+    private float KnockbackStunDuration => physicsConfig != null ? physicsConfig.knockbackStunDuration : knockbackStunDuration;
+    private float GrounderDistance => physicsConfig != null ? physicsConfig.grounderDistance : grounderDistance;
+
     // ── 事件 ──────────────────────────────────────────────
     public System.Action OnJump;
     public System.Action<bool, float> OnGroundedChanged;
@@ -231,6 +262,12 @@ public class MarioController : MonoBehaviour
             visualTransform = spriteRenderer.transform;
         if (visualTransform == null)
             visualTransform = transform;
+
+        // S52: 如果 Inspector 未手动赋值 physicsConfig，尝试从 Resources 自动加载
+        if (physicsConfig == null)
+        {
+            physicsConfig = Resources.Load<PhysicsConfigSO>("PhysicsConfig");
+        }
 
         rb.gravityScale = 0f;
         rb.freezeRotation = true;
@@ -299,7 +336,7 @@ public class MarioController : MonoBehaviour
             if (_frameVelocity.y <= 0f)
             {
                 _frameVelocity.y = Mathf.MoveTowards(
-                    _frameVelocity.y, -maxFallSpeed, fallAcceleration * Time.fixedDeltaTime);
+                    _frameVelocity.y, -MaxFallSpeed, FallAcceleration * Time.fixedDeltaTime);
             }
 
             rb.velocity = _frameVelocity;
@@ -369,12 +406,12 @@ public class MarioController : MonoBehaviour
         bool groundHit = Physics2D.BoxCast(
             boxCollider.bounds.center,
             new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.down, grounderDistance, groundLayer);
+            0f, Vector2.down, GrounderDistance, groundLayer);
 
         bool ceilingHit = Physics2D.BoxCast(
             boxCollider.bounds.center,
             new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.up, grounderDistance, groundLayer);
+            0f, Vector2.up, GrounderDistance, groundLayer);
 
         Physics2D.queriesStartInColliders = prev;
 
@@ -444,7 +481,7 @@ public class MarioController : MonoBehaviour
         _timeJumpWasPressed = 0;
         _bufferedJumpUsable = false;
         _coyoteUsable = false;
-        _frameVelocity.y = jumpPower;
+        _frameVelocity.y = JumpPower;
         OnJump?.Invoke();
     }
 
@@ -475,7 +512,7 @@ public class MarioController : MonoBehaviour
         {
             float absX = Mathf.Abs(_frameVelocity.x);
 
-            if (absX > maxSpeed)
+            if (absX > MaxSpeed)
             {
                 // 超速飞行中：保留动能
                 if (Mathf.Abs(moveInput.x) > 0.01f)
@@ -485,7 +522,7 @@ public class MarioController : MonoBehaviour
                     _frameVelocity.x = Mathf.MoveTowards(
                         _frameVelocity.x,
                         moveInput.x * currentCap,
-                        bounceAirAcceleration * Time.fixedDeltaTime);
+                        BounceAirAcceleration * Time.fixedDeltaTime);
                     // 确保不突破上限
                     _frameVelocity.x = Mathf.Clamp(_frameVelocity.x, -currentCap, currentCap);
                 }
@@ -494,7 +531,7 @@ public class MarioController : MonoBehaviour
                     // 无输入：微弱空气阻力自然衰减
                     _frameVelocity.x = Mathf.MoveTowards(
                         _frameVelocity.x, 0f,
-                        airFriction * Time.fixedDeltaTime);
+                        AirFriction * Time.fixedDeltaTime);
                 }
             }
             else
@@ -504,14 +541,14 @@ public class MarioController : MonoBehaviour
                 if (Mathf.Abs(moveInput.x) > 0.01f)
                 {
                     _frameVelocity.x = Mathf.MoveTowards(
-                        _frameVelocity.x, moveInput.x * maxSpeed,
-                        acceleration * Time.fixedDeltaTime);
+                        _frameVelocity.x, moveInput.x * MaxSpeed,
+                        Acceleration * Time.fixedDeltaTime);
                 }
                 else
                 {
                     _frameVelocity.x = Mathf.MoveTowards(
                         _frameVelocity.x, 0f,
-                        airDeceleration * Time.fixedDeltaTime);
+                        AirDeceleration * Time.fixedDeltaTime);
                 }
             }
             return;
@@ -521,12 +558,12 @@ public class MarioController : MonoBehaviour
         if (Mathf.Abs(moveInput.x) > 0.01f)
         {
             _frameVelocity.x = Mathf.MoveTowards(
-                _frameVelocity.x, moveInput.x * maxSpeed,
-                acceleration * Time.fixedDeltaTime);
+                _frameVelocity.x, moveInput.x * MaxSpeed,
+                Acceleration * Time.fixedDeltaTime);
         }
         else
         {
-            float decel = _grounded ? groundDeceleration : airDeceleration;
+            float decel = _grounded ? GroundDeceleration : AirDeceleration;
             _frameVelocity.x = Mathf.MoveTowards(
                 _frameVelocity.x, 0f,
                 decel * Time.fixedDeltaTime);
@@ -551,36 +588,36 @@ public class MarioController : MonoBehaviour
     {
         if (_grounded && _frameVelocity.y <= 0f)
         {
-            _frameVelocity.y = groundingForce;
+            _frameVelocity.y = GroundingForce;
         }
         else
         {
-            float gravity = fallAcceleration;
+            float gravity = FallAcceleration;
 
             if (_endedJumpEarly && _frameVelocity.y > 0)
             {
                 // 提前松开跳跃键：高重力快速截断跳跃
-                gravity *= jumpEndEarlyGravityModifier;
+                gravity *= JumpEndEarlyGravityModifier;
             }
-            else if (jumpHeld && Mathf.Abs(_frameVelocity.y) < apexThreshold)
+            else if (jumpHeld && Mathf.Abs(_frameVelocity.y) < ApexThreshold)
             {
                 // Session 32: 半重力跳跃顶点
                 // 长按跳跃键 + 接近跳跃顶点 → 重力减半
                 // 效果：跳跃弧线顶部更平缓，给玩家更多时间调整落点
-                gravity *= apexGravityMultiplier;
+                gravity *= ApexGravityMultiplier;
             }
-            else if (_isBouncing && Mathf.Abs(_frameVelocity.y) < apexThreshold * 1.5f)
+            else if (_isBouncing && Mathf.Abs(_frameVelocity.y) < ApexThreshold * 1.5f)
             {
                 // S36: 弹射飞行期半重力顶点
                 // 业界参考: Dawnosaur "Improve Your Platformer Jump" — Jump Hang
                 // 弹射后不需要按住跳跃键也能获得顶点悬浮感
                 // 使用 1.5x apexThreshold 让弹射弧线顶部更宽广的区域受益
                 // 效果：弹射弧线顶部更平缓、更有弹性，给玩家更多空中调整时间
-                gravity *= apexGravityMultiplier;
+                gravity *= ApexGravityMultiplier;
             }
 
             _frameVelocity.y = Mathf.MoveTowards(
-                _frameVelocity.y, -maxFallSpeed, gravity * Time.fixedDeltaTime);
+                _frameVelocity.y, -MaxFallSpeed, gravity * Time.fixedDeltaTime);
         }
     }
 
@@ -606,7 +643,7 @@ public class MarioController : MonoBehaviour
         }
 
         _isKnockbackStunned = true;
-        _knockbackStunTimer = duration > 0f ? duration : knockbackStunDuration;
+        _knockbackStunTimer = duration > 0f ? duration : KnockbackStunDuration;
     }
 
     #endregion

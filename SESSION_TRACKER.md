@@ -15,7 +15,7 @@
 2. **§3 回归标记** — 受影响的测试项打 🔄
 3. **§4 待办队列** — 更新任务状态
 
-防回归检查全面交给本地 **135 个自动化测试**兜底，不再手动维护复杂交叉验证表格。
+防回归检查全面交给本地 **135 个自动化测试**兜底（S52 未新增测试数量，但将现有 2 个 TAS 测试降级为柔性模式），不再手动维护复杂交叉验证表格。
 
 ### 第二层：Git 替代历史，代码即文档
 
@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 51 (S51: 零代码数据驱动测试管线 DDPT — TasReplayData Wrapper + TestCaseSource 动态数据源 + TAS 状态可视化 UI + F12 一键落盘) |
+| **最新 Session** | Session 52 (S52: 柔性测试降级 + PhysicsConfigSO 实时手感面板 + BaseHazard 陷阱基类基建) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S51 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S52 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S51 零代码数据驱动测试管线 (DDPT)：(1) `InputRecorder.cs` 升级 — 新增 `TasReplayData` Wrapper 类（解决 JsonUtility 顶层 List 限制）、`ImportFromJson` 静态反序列化、F12 一键落盘到 `Assets/Tests/LevelReplays/`、TAS 状态可视化 UI（REC/TAS REPLAY 10x 指示器，P1 合规惰性初始化 GUIStyle）。(2) `S51_DataDrivenTasTests.cs` — 零代码数据驱动测试工厂，使用 `TestCaseSource` + `TestCaseData.Returns(null)` 自动扫描 LevelReplays 目录 JSON 文件生成测试用例，双重断言（胜利触发 + 防脱轨坐标校验 ≤0.05f）。(3) 两份 JSON 录像文件（FlatRun + JumpOverPit）从 S50 硬编码测试提取。S50 的 10x 加速策略（不改 fixedDeltaTime）、S37 视碰分离、S39 弹射物理手感完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S52 柔性测试降级 + 手感面板 + 陷阱基建：(1) **柔性测试降级**: `TasReplayData` 新增 `strictPositionCheck` 字段（默认 false），`S51_DataDrivenTasTests` 改为条件断言——false 时只断言"角色存活+胜利触发"，彻底跳过 0.05f 坐标校验，允许手感调优期老录像跌跌撞撞跑完不报错。(2) **PhysicsConfigSO 实时手感面板**: 新增 `PhysicsConfigSO : ScriptableObject` 将 MarioController 16 个手感参数提取为 SO，支持 PlayMode 拖动滑块实时调优，Inspector 底部显示推导值（跳跃高度/距离），SO 为 null 时回退本地字段（零行为变化）。(3) **BaseHazard 陷阱基类**: 新增 `BaseHazard` 抽象基类统一陷阱接口，`KillZone` 重构为继承 BaseHazard，S48b/c 三重检测+防刷屏完整保留。基类顶部写有 `[机制扩展指南]` 注释教导未来新陷阱如何继承。S50 10x 加速、S37 视碰分离、S39 弹射手感完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -96,14 +96,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
-| 🔄 | 测试 1：Mario 基础移动 | **S49重点验证**: WASD + Space，手感不变（输入解耦后行为完全一致），单独按S不触发下落，S36落地压扁仅高速下落触发 |
+| 🔄 | 测试 1：Mario 基础移动 | **S52重点验证**: WASD + Space 手感不变（PhysicsConfigSO 默认值与原硬编码一致），单独按S不触发下落，S36落地压扁仅高速下落触发 |
 | 🔄 | 测试 2：Trickster 移动 | **S49重点验证**: 方向键移动正常；融入后方向键切换目标不移动（输入解耦后行为完全一致） |
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |
 | ✅ | 测试 4：伪装系统 | P 伪装/解除，O/I 切换 |
 | 🔄 | 测试 5：道具操控 | 融入后红/灰连线；方向键磁吸切换；L 触发红线目标 |
 | ✅ | 测试 6：扫描技能 | Q 键脉冲+文字正常 |
 | 🔄 | 测试 6.5：镜头 | 走完全部 Stage 镜头始终跟随 |
-| 🔄 | 测试 7：胜负判定 | **S48c重点验证**: 掉出屏幕后应触发死亡(仅1条日志) + RoundOver 画面 + SimpleEnemy 巡逻碰敌击退 + 终点胜利画面 |
+| 🔄 | 测试 7：胜负判定 | **S52重点验证**: 掉出屏幕后应触发死亡(仅1条日志，KillZone 继承 BaseHazard 后行为不变) + RoundOver 画面 + 终点胜利画面 |
 | ✅ | 测试 8：暂停 | ESC 暂停/恢复 |
 | 🔄 | 测试 9A：地刺 | 碰到有合理击退 |
 | 🔄 | 测试 9B：摆锤 | Trickster L键可控制 |
@@ -116,7 +116,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S48重点验证**: ASCII Build 后应正常生成所有元素（不再 Unknown char）+ 单向平台长条 + 敌人不掉落 + S43 验证器 + S35 布局安全 |
 | ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
-| 🔄 | PlayMode 自动化 | **S51重点验证**: 26/26 通过（S51 新增 2 个数据驱动 TAS 测试） |
+| 🔄 | PlayMode 自动化 | **S52重点验证**: 26/26 通过（S52 柔性测试降级后现有录像仍应绿灯） |
 
 ---
 
@@ -135,6 +135,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **紧急** | S52 柔性测试降级 + PhysicsConfigSO 实时手感面板 + BaseHazard 陷阱基类基建 | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S51 零代码数据驱动测试管线 DDPT (TasReplayData Wrapper + TestCaseSource + TAS 状态 UI + F12 落盘 + 2 个 JSON 录像) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S50 TAS 录播系统落地 (InputRecorder RLE 压缩 + 3 个 E2E 极速跑图测试 + 10x 物理加速) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S49 全自动测试基建铺路 (IInputProvider 输入解耦 + AutomatedInputProvider + KeyboardInputProvider) | ⏳ 代码已推送，待用户 Unity 验证 |
@@ -162,7 +163,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **P1** | 音效系统 (Audio) | 未开始 |
 | P2 | 动画系统完善 | 未开始 |
 | P2 | 主菜单 UI | 未开始 |
-| **下一步** | S52 更复杂关卡 E2E 测试: 弹跳平台/地刺/敌人 JSON 录像 + 自动化回归覆盖率提升 | 待定 |
+| **下一步** | S53 更复杂关卡 E2E 测试: 弹跳平台/地刺/敌人 JSON 录像 + PhysicsConfigSO 实测调优 + 新陷阱类型扩展 | 待定 |
 
 ---
 

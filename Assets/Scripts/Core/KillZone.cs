@@ -7,20 +7,23 @@ using System.Collections.Generic;
 /// 使用方式: 挂载到关卡底部的长条GameObject上，需要BoxCollider2D(isTrigger=true)
 ///
 /// S48b: 三重死亡检测 —
-///   1. OnTriggerEnter2D: 标准进入检测
-///   2. OnTriggerStay2D: 安全网（防止 Enter 被跳过的边界情况）
-///   3. Update fallback: Y 坐标兜底（防止 Trigger 完全不触发的极端情况）
+///   1. OnTriggerEnter2D: 标准进入检测（继承自 BaseHazard）
+///   2. OnTriggerStay2D: 安全网（继承自 BaseHazard）
+///   3. Update fallback: Y 坐标兜底（KillZone 独有，防止 Trigger 完全不触发的极端情况）
 ///
 /// S48c: 防刷屏修复 —
-///   - 每个角色只触发一次 TakeDamage，用 HashSet 记录已击杀对象
-///   - 死亡后冻结角色 Rigidbody2D（防止继续下坠刷日志）
+///   - 每个角色只触发一次 TakeDamage，由 BaseHazard 的 HashSet 统一管理
+///   - 死亡后冻结角色 Rigidbody2D（由 BaseHazard.FreezeRigidbody 处理）
+///
+/// S52: 重构为继承 BaseHazard 基类 —
+///   - Trigger 碰撞检测和防刷屏保护由基类统一处理
+///   - KillZone 保留独有的 Update Y 坐标兜底检测
+///   - 所有 S48b/c 行为完全保留，零行为变化
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 [SelectionBase] // S37 视碰分离: 确保框选时选中 Root 而非 Visual 子节点
-public class KillZone : MonoBehaviour
+public class KillZone : BaseHazard
 {
-    [SerializeField] private int damage = 999;
-
     // [AI防坑警告] fallbackY 是 Update 兜底检测的 Y 阈值。
     // 当角色低于此 Y 值时直接判定死亡，不依赖 Trigger 碰撞。
     // 默认 -15 足够低，不会误杀正常游戏中的角色。
@@ -30,8 +33,10 @@ public class KillZone : MonoBehaviour
     // P2: 缓存 PlayerHealth 引用，避免每帧 FindObjectsOfType
     private PlayerHealth[] cachedPlayers;
 
-    // S48c: 已击杀角色集合，防止同一角色被重复 TakeDamage 导致日志刷屏
-    private readonly HashSet<PlayerHealth> killedSet = new HashSet<PlayerHealth>();
+    // S48c: KillZone 独有的已击杀集合（用于 Update 兜底检测）
+    // 注意：Trigger 碰撞的防刷屏由 BaseHazard._processedSet 处理
+    // 此集合仅用于 Update fallback 路径，两者互不干扰
+    private readonly HashSet<PlayerHealth> killedByFallback = new HashSet<PlayerHealth>();
 
     /// <summary>设置 Y 坐标兜底阈值（由 TestConsoleWindow / TestSceneBuilder 调用）</summary>
     public void SetFallbackY(float y) { fallbackY = y; }
@@ -48,16 +53,30 @@ public class KillZone : MonoBehaviour
         cachedPlayers = FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None);
     }
 
-    private void OnTriggerEnter2D(Collider2D other)
+    // ═══════════════════════════════════════════════════
+    // 重写 BaseHazard 虚方法
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// KillZone 的伤害逻辑：一击必杀（999 伤害）。
+    /// 继承自 BaseHazard，由 Trigger 碰撞自动调用。
+    /// </summary>
+    protected override void OnHazardTriggered(PlayerHealth health)
     {
-        TryKill(other);
+        health.TakeDamage(GetDamage());
     }
 
-    // S48b: 安全网 — 防止高速穿越或物理引擎跳帧导致 Enter 未触发
-    private void OnTriggerStay2D(Collider2D other)
+    /// <summary>
+    /// KillZone 击杀后的日志。
+    /// </summary>
+    protected override void OnPlayerKilled(PlayerHealth health)
     {
-        TryKill(other);
+        Debug.Log($"[KillZone] {health.gameObject.name} 掉入深渊！");
     }
+
+    // ═══════════════════════════════════════════════════
+    // KillZone 独有：Update Y 坐标兜底检测 (S48b)
+    // ═══════════════════════════════════════════════════
 
     private void Update()
     {
@@ -69,40 +88,20 @@ public class KillZone : MonoBehaviour
         for (int i = 0; i < cachedPlayers.Length; i++)
         {
             PlayerHealth health = cachedPlayers[i];
-            if (health != null && !killedSet.Contains(health) &&
+            if (health != null && health.CurrentHealth > 0 &&
+                !HasProcessed(health) && !killedByFallback.Contains(health) &&
                 health.transform.position.y < fallbackY)
             {
-                Kill(health);
+                killedByFallback.Add(health);
+                health.TakeDamage(GetDamage());
+                Debug.Log($"[KillZone] {health.gameObject.name} 掉入深渊！(Y坐标兜底)");
+
+                // S48c: 冻结角色 Rigidbody，防止尸体继续下坠刷日志
+                if (health.CurrentHealth <= 0)
+                {
+                    FreezeRigidbody(health);
+                }
             }
-        }
-    }
-
-    private void TryKill(Collider2D other)
-    {
-        PlayerHealth health = other.GetComponent<PlayerHealth>();
-        if (health != null && !killedSet.Contains(health))
-        {
-            Kill(health);
-        }
-    }
-
-    /// <summary>
-    /// S48c: 统一击杀入口 — 确保每个角色只被处理一次
-    /// </summary>
-    private void Kill(PlayerHealth health)
-    {
-        if (health.CurrentHealth <= 0) return;
-
-        killedSet.Add(health);
-        health.TakeDamage(damage);
-        Debug.Log($"[KillZone] {health.gameObject.name} 掉入深渊！");
-
-        // S48c: 冻结角色 Rigidbody，防止尸体继续下坠刷日志
-        Rigidbody2D rb = health.GetComponent<Rigidbody2D>();
-        if (rb != null)
-        {
-            rb.velocity = Vector2.zero;
-            rb.simulated = false;
         }
     }
 }

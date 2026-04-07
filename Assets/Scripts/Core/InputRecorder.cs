@@ -57,6 +57,14 @@ public class TasReplayData
     /// <summary>录制结束时 Mario 的最终 Y 坐标（用于防脱轨校验）</summary>
     public float expectedFinalPosY;
 
+    /// <summary>
+    /// S52 柔性测试降级：是否启用严格坐标校验。
+    /// 当 false 时，测试只断言"角色存活 + 触发胜利"，彻底跳过 0.05f 坐标误差校验。
+    /// 这允许开发者微调手感时，只要老录像能跌跌撞撞跑完就不会报错。
+    /// 默认 false（柔性模式），仅在需要精确回放验证时设为 true。
+    /// </summary>
+    public bool strictPositionCheck = false;
+
     /// <summary>录制时的描述/备注（可选）</summary>
     public string description = "";
 }

@@ -119,5 +119,6 @@
     "asciiLevel": "..................\n..................\n..................\n..................\nM................G\n######...#########",
     "expectedFinalPosX": 17.0,
     "expectedFinalPosY": 1.5,
-    "description": "S50 JumpOverPit: Mario runs right, jumps over a 3-tile pit, and reaches the goal."
+    "strictPositionCheck": false,
+    "description": "S50 JumpOverPit: Mario runs right, jumps over a 3-tile pit, and reaches the goal. (S52: flexible mode)"
 }

@@ -16,7 +16,7 @@ using UnityEngine.TestTools;
 //   1. 零代码扩展：新增测试只需丢一个 JSON 文件到 LevelReplays 目录
 //   2. 使用 TasReplayData Wrapper（S51 新增）反序列化 JSON
 //   3. TestCaseSource + TestCaseData.Returns(null) 解决 UnityTest 兼容性
-//   4. 双重断言：① 触发胜利 ② 防脱轨坐标校验（误差 <= 0.05f）
+//   4. S52 柔性断言：① 角色存活 + 触发胜利（必选）② 坐标校验（仅当 strictPositionCheck=true 时启用）
 //   5. 10x 物理加速（只改 timeScale，不改 fixedDeltaTime）
 //   6. Timeout 防死锁 + 严格 Teardown 恢复 timeScale
 //
@@ -242,39 +242,53 @@ public class S51_DataDrivenTasTests
         Assert.IsTrue(won || gm.CurrentState == GameState.RoundOver,
             $"[{testName}] Mario 应该触发胜利判定（GameState: {gm.CurrentState}, won: {won}）");
 
-        // ── Step 11: 断言 2 — 防脱轨坐标校验 ──
-        Vector3 finalPos = mario.transform.position;
-        float dx = Mathf.Abs(finalPos.x - replayData.expectedFinalPosX);
-        float dy = Mathf.Abs(finalPos.y - replayData.expectedFinalPosY);
-
-        // 注意：防脱轨断言使用宽松阈值，因为 10x 加速下物理步数增多
-        // 可能导致微小的浮点误差累积。0.05f 足以检测严重的脱轨问题。
-        // 如果胜利已触发，坐标校验仅作为警告日志（不 fail），
-        // 因为 GoalZone 触发时 Mario 的精确位置取决于碰撞检测时机。
-        if (won)
+        // ── Step 11: 断言 2 — S52 柔性防脱轨坐标校验 ──
+        // [AI防坑警告] S52 柔性测试降级：
+        // 当 JSON 中 strictPositionCheck == false（默认值）时，彻底跳过坐标校验！
+        // 只断言核心目标：角色存活 + 触发胜利。
+        // 这允许开发者微调手感时，只要老录像能跌跌撞撞跑完就不会报错。
+        // 仅当 strictPositionCheck == true 时才启用严格的 0.05f 坐标误差校验。
+        if (replayData.strictPositionCheck)
         {
-            if (dx > POSITION_TOLERANCE || dy > POSITION_TOLERANCE)
+            Vector3 finalPos = mario.transform.position;
+            float dx = Mathf.Abs(finalPos.x - replayData.expectedFinalPosX);
+            float dy = Mathf.Abs(finalPos.y - replayData.expectedFinalPosY);
+
+            if (won)
             {
-                Debug.LogWarning($"[{testName}] 防脱轨警告: 实际坐标 ({finalPos.x:F3}, {finalPos.y:F3}) " +
-                    $"与预期 ({replayData.expectedFinalPosX:F3}, {replayData.expectedFinalPosY:F3}) " +
-                    $"偏差 (dx={dx:F3}, dy={dy:F3}) 超过阈值 {POSITION_TOLERANCE}。" +
-                    $"因胜利已触发，此为非致命警告。");
+                // 胜利已触发时，坐标偏差仅作为警告（GoalZone 触发位置取决于碰撞时机）
+                if (dx > POSITION_TOLERANCE || dy > POSITION_TOLERANCE)
+                {
+                    Debug.LogWarning($"[{testName}] 防脱轨警告: 实际坐标 ({finalPos.x:F3}, {finalPos.y:F3}) " +
+                        $"与预期 ({replayData.expectedFinalPosX:F3}, {replayData.expectedFinalPosY:F3}) " +
+                        $"偏差 (dx={dx:F3}, dy={dy:F3}) 超过阈值 {POSITION_TOLERANCE}。" +
+                        $"因胜利已触发，此为非致命警告。");
+                }
+                else
+                {
+                    Debug.Log($"[{testName}] 防脱轨校验通过: " +
+                        $"实际 ({finalPos.x:F3}, {finalPos.y:F3}), " +
+                        $"预期 ({replayData.expectedFinalPosX:F3}, {replayData.expectedFinalPosY:F3}), " +
+                        $"偏差 (dx={dx:F3}, dy={dy:F3})");
+                }
             }
             else
             {
-                Debug.Log($"[{testName}] 防脱轨校验通过: " +
-                    $"实际 ({finalPos.x:F3}, {finalPos.y:F3}), " +
-                    $"预期 ({replayData.expectedFinalPosX:F3}, {replayData.expectedFinalPosY:F3}), " +
-                    $"偏差 (dx={dx:F3}, dy={dy:F3})");
+                // 胜利未触发 + 严格模式：坐标校验为硬断言
+                Assert.LessOrEqual(dx, POSITION_TOLERANCE,
+                    $"[{testName}] 防脱轨断言失败 (X): 实际 {finalPos.x:F3}, 预期 {replayData.expectedFinalPosX:F3}, 偏差 {dx:F3}");
+                Assert.LessOrEqual(dy, POSITION_TOLERANCE,
+                    $"[{testName}] 防脱轨断言失败 (Y): 实际 {finalPos.y:F3}, 预期 {replayData.expectedFinalPosY:F3}, 偏差 {dy:F3}");
             }
         }
         else
         {
-            // 胜利未触发时，坐标校验为硬断言
-            Assert.LessOrEqual(dx, POSITION_TOLERANCE,
-                $"[{testName}] 防脱轨断言失败 (X): 实际 {finalPos.x:F3}, 预期 {replayData.expectedFinalPosX:F3}, 偏差 {dx:F3}");
-            Assert.LessOrEqual(dy, POSITION_TOLERANCE,
-                $"[{testName}] 防脱轨断言失败 (Y): 实际 {finalPos.y:F3}, 预期 {replayData.expectedFinalPosY:F3}, 偏差 {dy:F3}");
+            // S52 柔性模式：跳过坐标校验，仅记录实际位置供调试
+            Vector3 finalPos = mario.transform.position;
+            Debug.Log($"[{testName}] S52 柔性模式: 坐标校验已跳过。" +
+                $"实际最终位置 ({finalPos.x:F3}, {finalPos.y:F3}), " +
+                $"录像预期 ({replayData.expectedFinalPosX:F3}, {replayData.expectedFinalPosY:F3})。" +
+                $"核心断言已通过：角色存活={health.CurrentHealth > 0}, 胜利触发={won}");
         }
 
         Debug.Log($"[S51 DDPT] === PASSED: {testName} ===");

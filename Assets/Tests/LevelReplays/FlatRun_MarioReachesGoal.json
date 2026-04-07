@@ -27,5 +27,6 @@
     "asciiLevel": "...............\n...............\n...............\nM.............G\n###############",
     "expectedFinalPosX": 14.0,
     "expectedFinalPosY": 1.5,
-    "description": "S50 FlatRun: Mario runs right on flat terrain to reach the goal."
+    "strictPositionCheck": false,
+    "description": "S50 FlatRun: Mario runs right on flat terrain to reach the goal. (S52: flexible mode)"
 }

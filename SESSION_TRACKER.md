@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 53 (S53: PhysicsMetrics Facade 统一真理源 + TAS 轨迹耗时预警) |
+| **最新 Session** | Session 54 (S54: 手感预设管理系统 Preset Manager) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S53 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S54 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S53 PhysicsMetrics Facade 统一真理源 + TAS 轨迹耗时预警：(1) **PhysicsMetrics Facade**: 跳跃极限值 (MAX_JUMP_HEIGHT/MAX_JUMP_DISTANCE/MIN_JUMP_HEIGHT/COYOTE_BONUS_DISTANCE/MAX_GAP_WITH_COYOTE/APEX_*) 从 const 升级为 static property，优先从 PhysicsConfigSO 实时推导，SO 为 null 时回退 S32 原始默认值。碰撞体尺寸常量和关卡设计安全约束保持 const 不变。(2) **JumpArcVisualizer 实时监听**: 参数读取优先级 PhysicsConfigSO > MarioController > 本地默认值，拖动 SO 滑块时 Scene 视图弧线实时重绘。(3) **PhysicsConfigSOEditor 升级**: 参数变化时自动 SceneView.RepaintAll()，显示 Facade 联动状态指示器。(4) **TAS 轨迹耗时预警**: TasReplayData 新增 expectedDurationSeconds 字段，S51 柔性模式下若实际耗时偏差率超过 20% 输出黄色警告（不阻断但提醒），兼容旧录像自动从 frames duration 推算。所有已固化逻辑完全不变。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S54 手感预设管理系统：PhysicsConfigSOEditor 新增 Preset Manager UI，支持 Save/Load/Delete 预设。预设以 JSON 格式存储在 Assets/PhysicsPresets/ 文件夹。加载预设支持 Undo (Ctrl+Z)。仅修改 Editor 脚本 1 个文件，不触碰任何运行时逻辑。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 

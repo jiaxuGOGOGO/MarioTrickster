@@ -80,13 +80,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 48b (KillZone 三重死亡检测 — OnTriggerStay2D + Y 坐标兜底) |
+| **最新 Session** | Session 48c (KillZone 日志刷屏修复 — single-kill guard + freeze dead body) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S48b 代码已推送，待用户 Unity 验证 |
+| **编译状态** | ⏳ S48c 代码已推送，待用户 Unity 验证 |
 | **阻塞** | 无 |
-| **交接说明** | S48b 修复 `KillZone.cs`: 角色掉出屏幕后不触发死亡/重置。三重检测: (1) OnTriggerEnter2D 标准触发 (2) OnTriggerStay2D 安全网 (3) Update Y坐标兜底。同步修改 TestConsoleWindow + TestSceneBuilder 设置 fallbackY。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S48c 修复 `KillZone.cs` 日志刷屏: 角色死后 OnTriggerStay2D 和 Y兜底每帧重复调用 TakeDamage 导致 Console 爆炸。修复: (1) HashSet killedSet 保证每角色只击杀一次 (2) 统一 Kill() 入口先检查 HP>0 再 log (3) 死后 rb.simulated=false 冻结尸体。三重检测(Enter/Stay/Y兜底)仍保留。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -103,7 +103,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 5：道具操控 | 融入后红/灰连线；方向键磁吸切换；L 触发红线目标 |
 | ✅ | 测试 6：扫描技能 | Q 键脉冲+文字正常 |
 | 🔄 | 测试 6.5：镜头 | 走完全部 Stage 镜头始终跟随 |
-| 🔄 | 测试 7：胜负判定 | **S48b重点验证**: 掉出屏幕后应触发死亡重置画面 + SimpleEnemy 巡逻碰敌击退 + 终点胜利画面 |
+| 🔄 | 测试 7：胜负判定 | **S48c重点验证**: 掉出屏幕后应触发死亡(仅1条日志) + RoundOver 画面 + SimpleEnemy 巡逻碰敌击退 + 终点胜利画面 |
 | ✅ | 测试 8：暂停 | ESC 暂停/恢复 |
 | 🔄 | 测试 9A：地刺 | 碰到有合理击退 |
 | 🔄 | 测试 9B：摆锤 | Trickster L键可控制 |
@@ -135,7 +135,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **紧急** | S48b KillZone 三重死亡检测 (OnTriggerStay2D + Y 坐标兜底) | ⏳ 代码已推送，待用户 Unity 验证 |
+| **紧急** | S48c KillZone 日志刷屏修复 (single-kill guard + freeze dead body) | ⏳ 代码已推送，待用户 Unity 验证 |
+| **紧急** | S48b KillZone 三重死亡检测 (OnTriggerStay2D + Y 坐标兜底) | ✅ 检测生效，但日志刷屏 → S48c 修复 |
 | **紧急** | S48 Registry char 序列化 bug 修复 (string 代理 + HideFlags + 完整性校验) | ✅ 已验证，29 objects 正常生成 |
 | **紧急** | S47 L2 BFS 可达性验证器 + Auto-Prompting 纠错闭环 (LevelReachabilityAnalyzer) | ⏳ 代码已推送，待用户 Unity 验证 |
 | **紧急** | S46 Data-Driven Registry 关卡元素字典中心化解耦 (AsciiElementRegistry + Generator/Validator 重构) | ⏳ 代码已推送，待用户 Unity 验证 |

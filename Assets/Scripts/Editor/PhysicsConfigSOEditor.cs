@@ -165,7 +165,7 @@ public class PhysicsConfigSOEditor : Editor
     private void DrawPresetManager(PhysicsConfigSO config)
     {
         // 标题栏
-        EditorGUILayout.LabelField("🎮 手感预设管理 (Preset Manager)", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("[Preset] 手感预设管理 (Preset Manager)", EditorStyles.boldLabel);
 
         // 刷新预设列表
         if (_presetsNeedRefresh)
@@ -177,7 +177,7 @@ public class PhysicsConfigSOEditor : Editor
         // ── 保存预设 ──
         EditorGUILayout.BeginHorizontal();
         _newPresetName = EditorGUILayout.TextField("预设名称", _newPresetName);
-        if (GUILayout.Button("💾 保存", GUILayout.Width(60)))
+        if (GUILayout.Button("Save", GUILayout.Width(60)))
         {
             if (string.IsNullOrWhiteSpace(_newPresetName))
             {
@@ -202,7 +202,7 @@ public class PhysicsConfigSOEditor : Editor
             _selectedPresetIndex = EditorGUILayout.Popup("已保存预设", _selectedPresetIndex, _presetNames);
 
             // 加载按钮
-            if (GUILayout.Button("📂 加载", GUILayout.Width(60)))
+            if (GUILayout.Button("Load", GUILayout.Width(60)))
             {
                 if (_selectedPresetIndex >= 0 && _selectedPresetIndex < _presetNames.Length)
                 {
@@ -211,7 +211,7 @@ public class PhysicsConfigSOEditor : Editor
             }
 
             // 删除按钮
-            if (GUILayout.Button("🗑", GUILayout.Width(30)))
+            if (GUILayout.Button("X", GUILayout.Width(30)))
             {
                 if (_selectedPresetIndex >= 0 && _selectedPresetIndex < _presetNames.Length)
                 {
@@ -240,14 +240,14 @@ public class PhysicsConfigSOEditor : Editor
         else
         {
             EditorGUILayout.HelpBox(
-                "暂无已保存的预设。输入名称（如"轻盈版"、"重手感"）后点击保存。",
+                "暂无已保存的预设。输入名称（如 轻盈版、重手感）后点击保存。",
                 MessageType.None);
         }
 
         // 刷新按钮
         EditorGUILayout.BeginHorizontal();
         GUILayout.FlexibleSpace();
-        if (GUILayout.Button("🔄 刷新列表", GUILayout.Width(80)))
+        if (GUILayout.Button("Refresh", GUILayout.Width(80)))
         {
             _presetsNeedRefresh = true;
         }

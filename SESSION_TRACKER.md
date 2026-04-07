@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 55b (S55b: ASCII 模板物理验证闭环机制) |
+| **最新 Session** | Session 55c (S55c: 路线 B 一键导入脚本 + 工作流精简) |
 | **日期** | 2026-04-07 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S55b 已推送，待用户验证 |
+| **编译状态** | ⏳ S55c 已推送，待用户验证 |
 | **阻塞** | 无 |
-| **交接说明** | S55b 新增 `validate_ascii_template.py` 物理验证器，更新 `AI_PROMPT_WORKFLOW.md` 在路线 A/B 中加入强制验证步骤和物理防坑规则。零 .cs 代码变更。未来 AI 生成模板后必须运行 `python3 LevelDesign_References/validate_ascii_template.py` 确认零致命错误后才能提交。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S55c 新增 `import_template.py` 一键导入脚本，将路线 B 第三步的 5 个手动操作自动化为 1 行命令。同时修正了路线 B 复制指引的措辞歧义。零 .cs 代码变更。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -156,6 +156,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | Session | 描述 | 状态 |
 |---------|------|------|
+| S55c | 路线 B 一键导入脚本 + 工作流精简 | ⏳ 待验证 |
 | S55b | ASCII 模板物理验证闭环机制（验证器 + 工作流防坑规则） | ⏳ 待验证 |
 | S55 | Z字攀爬塔 ASCII 模板物理可行性修复（零代码变更） | ⏳ 待验证 |
 | S54 | 手感预设管理系统 Preset Manager | ⏳ 待验证 |
@@ -575,6 +576,34 @@ S55 修复了 T02 模板的三个物理缺陷后，用户提出核心问题：**
 |------|---------|
 | `LevelDesign_References/validate_ascii_template.py` | 新增 ASCII 模板物理验证器（~300 行 Python） |
 | `LevelDesign_References/AI_PROMPT_WORKFLOW.md` | 路线 A 新增物理防坑规则 + 步骤 3.5 自动验证；路线 B 新增防坑规则 + 验证步骤 |
+
+### 零代码变更
+本次不触碰任何 .cs 文件。
+
+## [2026-04-07] S55c: 路线 B 一键导入脚本 + 工作流精简
+
+### 问题背景
+
+路线 B 第三步"人工闭环操作"需要 5 个手动步骤（追加模板 → 运行验证 → 更新登记簿 3 处 → git push），操作繁琐且容易遗漏。同时第一步和第二步的"复制黑名单"措辞存在歧义。
+
+### 解决方案
+
+1. **一键导入脚本** `import_template.py`：将 5 个手动步骤自动化为 1 行命令
+   ```bash
+   python3 LevelDesign_References/import_template.py ai_reply.md --source "来源"
+   ```
+   脚本自动：解析 AI 回复 → 追加模板（自动编号）→ 物理验证（失败自动回滚）→ 更新登记簿 3 处 → git push
+
+2. **复制指引消歧**：第一步改为表格明确说明该复制【快速复制区】和【已探索灵感来源】两个区块
+
+3. **第三步精简**：从 5 步手动操作改为 2 步（保存文件 + 运行脚本）
+
+### 修改文件
+
+| 文件 | 变更内容 |
+|------|---------|
+| `LevelDesign_References/import_template.py` | 新增一键导入脚本（~250 行 Python） |
+| `LevelDesign_References/AI_PROMPT_WORKFLOW.md` | 路线 B 第一步消歧 + 第三步精简为一键脚本 |
 
 ### 零代码变更
 本次不触碰任何 .cs 文件。

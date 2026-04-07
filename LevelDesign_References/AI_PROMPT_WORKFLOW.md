@@ -156,16 +156,27 @@ GitHub Token: [你的Token]
 4. 【一键防重登记指纹】：格式严格为 `T编号_[机制A] + [机制B]（核心博弈体验）`。
 ```
 
-### 第三步：人工闭环操作（极度重要！）
+### 第三步：一键导入（只需 2 步）
 
-拿到网页 AI 回复后，你**必须**手动完成以下操作：
-1. 把生成的 ASCII 矩阵追加到 `LevelDesign_References/ASCII_Templates.md` 末尾。
-2. ❗ **运行物理验证器** (S55 新增)：`python3 LevelDesign_References/validate_ascii_template.py`
-   - 出现 ❌ 致命错误时必须先修复（常见：敌人在平台下方、行宽不一致、包含空格）
-   - ⚠️ 警告可忽略（如 1 格宽精确跳跃平台）
-3. 把【一键防重登记指纹】追加到 `LevelDesign_References/TEMPLATE_REGISTRY.md` 的【完整登记表】和【快速复制区】中。
-4. 在【已探索灵感来源】中记录截图来源。
-5. `git add . && git commit -m "feat(Level): 视觉拆解新关卡" && git push`。
+1. **保存 AI 回复**：把网页 AI 的完整回复复制到一个文本文件，保存到项目目录（如 `ai_reply.md`）。
+
+2. **运行一键导入脚本**：
+   ```bash
+   python3 LevelDesign_References/import_template.py ai_reply.md --source "截图来源描述"
+   ```
+
+   脚本自动完成以下全部操作：
+   - ✅ 解析 AI 回复，提取 ASCII 矩阵 + 动态参数 + 缺失机制 + 防重指纹
+   - ✅ 追加到 `ASCII_Templates.md`（自动编号）
+   - ✅ 运行物理验证器（致命错误时自动回滚并提示修复）
+   - ✅ 更新 `TEMPLATE_REGISTRY.md`（完整登记表 + 快速复制区 + 已探索灵感来源）
+   - ✅ `git add + commit + push`
+
+   > **如果验证失败**：脚本会自动回滚并告诉你哪里有问题。修复 AI 回复文件中的 ASCII 矩阵后重新运行即可。
+   >
+   > **可选参数**：
+   > - `--dry-run`：只解析不写入（预览模式）
+   > - `--no-push`：只 commit 不 push（调试用）
 
 ---
 

@@ -178,9 +178,14 @@ GitHub Token: [你的Token]
 
    > **如果验证失败**：脚本会自动回滚并告诉你哪里有问题。修复 AI 回复文件中的 ASCII 矩阵后重新运行即可。
    >
-   > **可选参数**：
-   > - `--dry-run`：只解析不写入（预览模式）
-   > - `--no-push`：只 commit 不 push（调试用）
+   > **可选参数**（加在命令末尾）：
+   > ```bash
+   > # 预览模式：只看解析结果，不写入任何文件
+   > python3 LevelDesign_References/import_template.py ai_reply.md --dry-run
+   >
+   > # 调试模式：写入文件并 commit，但不 push 到远程
+   > python3 LevelDesign_References/import_template.py ai_reply.md --source "B站截图" --no-push
+   > ```
 
 ---
 

@@ -92,6 +92,20 @@ public abstract class BaseHazard : MonoBehaviour
         TryProcess(other);
     }
 
+    // S57b: 角色离开危险区域后，从 _processedSet 中移除，
+    // 允许非致命 hazard（如 SawBlade）在角色再次进入时重新触发伤害。
+    // 对 KillZone 无影响：一击必杀后角色已死亡，不会再离开。
+    // [AI防坑警告] 此 Exit 回调与 Enter/Stay 的 _processedSet 配合使用，
+    // 不要删除，否则非致命 hazard 会变成“只伤害一次”。
+    protected virtual void OnTriggerExit2D(Collider2D other)
+    {
+        PlayerHealth health = other.GetComponent<PlayerHealth>();
+        if (health != null)
+        {
+            _processedSet.Remove(health);
+        }
+    }
+
     // ═══════════════════════════════════════════════════
     // 核心处理流程
     // ═══════════════════════════════════════════════════

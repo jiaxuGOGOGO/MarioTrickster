@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 57 (S57: 运行时内存溢出防护 — MemoryGuard + QualitySettings 降级 + 场景切换资源释放) |
+| **最新 Session** | Session 57b (S57b: Element Palette 补全 S56 新增的 5 个元素按钮) |
 | **日期** | 2026-04-08 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S57 已推送，待用户验证 |
+| **编译状态** | ⏳ S57b 已推送，待用户验证 |
 | **阻塞** | 无 |
-| **交接说明** | S57 修复运行时内存溢出崩溃问题。新增 MemoryGuard.cs 自动注册 Application.lowMemory 回调，紧急释放资源+降级画质；Standalone 默认画质从 Ultra(5) 降到 Medium(2)；场景切换前调用 Resources.UnloadUnusedAssets()；PendulumTrap 材质改为静态共享；GL/OnGUI 绘制段数优化。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S57b 在 TestConsoleWindow 的 Element Palette 中补全 S56 遗漏的 5 个元素按钮（SawBlade/@、FlyingEnemy/f、ConveyorBelt/<、Checkpoint/S、BreakableBlock/X），现在全部 22 个已有元素均可通过 Palette 在 Scene 中手动摆放。仅追加 DrawPaletteButton 调用，零核心逻辑变更。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -156,6 +156,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | Session | 描述 | 状态 |
 |---------|------|------|
+| S57b | Element Palette 补全 S56 新增的 5 个元素按钮（@f<SX） | ⏳ 待验证 |
 | S57 | 运行时内存溢出防护：MemoryGuard + QualitySettings 降级 + 场景切换资源释放 | ⏳ 待验证 |
 | S56 | ASCII 关卡元素扩展：锯片(@) 飞行敌人(f) 传送带(<) 检查点(S) 可破坏方块(X) | ⏳ 待验证 |
 | S55c | 路线 B 一键导入脚本 + 工作流精简 | ⏳ 待验证 |

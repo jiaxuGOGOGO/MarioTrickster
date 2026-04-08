@@ -129,6 +129,15 @@ public static class LevelEditorPickingManager
 
     /// <summary>
     /// 判断一个 GameObject 是否为需要拦截的 Visual 节点。
+    ///
+    /// S57b 重构：将过滤 5 从“硬编码类型白名单”改为“结构特征检测”。
+    /// 过滤 1-4 已经非常严格（场景内 + 有 SpriteRenderer + 有父节点 + 父级有 Collider2D），
+    /// 满足这些条件的节点在我们的项目中只可能是 AsciiLevelGenerator.CreateBlock 生成的
+    /// "Root → Visual" 视碰分离结构。因此过滤 5 只需确认节点名称为 "Visual"
+    /// 且父级挂在 AsciiLevel_Root 下即可，无需逐类型维护白名单。
+    ///
+    /// 这样以后新增任何元素（无论继承什么基类），只要通过 CreateBlock 生成，
+    /// Picking 模式就自动生效，不会再遗漏。
     /// </summary>
     private static bool IsVisualNode(GameObject go)
     {
@@ -149,27 +158,19 @@ public static class LevelEditorPickingManager
         if (parent.GetComponent<Collider2D>() == null)
             return false;
 
-        // 过滤 5a: 父级有核心脚本 — 确认是受我们架构管辖的节点
-        if (parent.GetComponent<LevelElementBase>() != null) return true;
-        if (parent.GetComponent<ControllablePropBase>() != null) return true;
+        // 过滤 5: 结构特征检测（替代旧版硬编码白名单）
+        // 条件 A: 节点名称为 "Visual"（CreateBlock 统一命名）
+        if (go.name != "Visual")
+            return false;
+
+        // 条件 B: 父级挂在 AsciiLevel_Root 下，或父级是角色节点（Mario/Trickster）
+        Transform grandParent = parent.parent;
+        if (grandParent != null && grandParent.name == "AsciiLevel_Root")
+            return true;
+
+        // 条件 C: 角色节点（没有挂在 AsciiLevel_Root 下，但仍然是视碰分离结构）
         if (parent.GetComponent<MarioController>() != null) return true;
         if (parent.GetComponent<TricksterController>() != null) return true;
-        if (parent.GetComponent<SimpleEnemy>() != null) return true;
-        if (parent.GetComponent<Breakable>() != null) return true;
-        if (parent.GetComponent<Collectible>() != null) return true;
-        if (parent.GetComponent<DamageDealer>() != null) return true;
-        if (parent.GetComponent<GoalZone>() != null) return true;
-        if (parent.GetComponent<KillZone>() != null) return true;
-        if (parent.GetComponent<MovingPlatform>() != null) return true;
-        // S57b: S56 新增元素中不继承 LevelElementBase 的类型
-        if (parent.GetComponent<BaseHazard>() != null) return true;   // SawBlade 等继承 BaseHazard
-        if (parent.GetComponent<FlyingEnemy>() != null) return true;  // FlyingEnemy 直接继承 MonoBehaviour
-
-        // 过滤 5b: 纯几何方块（Ground/Platform/Wall）— 由 CreateBlock 生成，
-        // 没有任何自定义 MonoBehaviour，仅有 Transform + Collider2D。
-        MonoBehaviour[] scripts = parent.GetComponents<MonoBehaviour>();
-        if (scripts.Length == 0 && parent.childCount == 1)
-            return true;
 
         return false;
     }

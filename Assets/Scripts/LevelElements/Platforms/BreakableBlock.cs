@@ -48,10 +48,12 @@ public class BreakableBlock : LevelElementBase
         MarioController mario = collision.gameObject.GetComponent<MarioController>();
         if (mario == null) return;
 
-        // 检查是否从下方撞击（接触法线指向下方 = 玩家在下面）
+        // [AI防坑警告] 法线方向：在 OnCollisionEnter2D 中，contact.normal 从碰撞发起者指向接收者。
+        // Mario 从下方顶撞时，normal 从 Mario(下) 指向 Block(上)，所以 normal.y > 0。
+        // 项目惯例：normal.y > 0.5 = 从下方撞击（参考 Breakable.cs），normal.y < -0.5 = 从上方踩踏。
         foreach (ContactPoint2D contact in collision.contacts)
         {
-            if (contact.normal.y < -breakThreshold)
+            if (contact.normal.y > breakThreshold)
             {
                 Break();
                 return;

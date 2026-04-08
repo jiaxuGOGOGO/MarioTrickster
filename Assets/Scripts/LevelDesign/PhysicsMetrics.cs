@@ -180,6 +180,20 @@ public static class PhysicsMetrics
     /// <summary>可破坏方块碰撞体</summary>
     public static readonly Vector2 BREAKABLE_BLOCK_COLLIDER_SIZE = Vector2.one;
 
+    // ── S56 新增碰撞体常量 ──
+
+    /// <summary>旋转锯片碰撞体（圆形近似，比视觉略小=宽容感）</summary>
+    public static readonly Vector2 SAW_BLADE_COLLIDER_SIZE = new Vector2(0.7f, 0.7f);
+
+    /// <summary>飞行敌人碰撞体（与弹跳怪一致）</summary>
+    public static readonly Vector2 FLYING_ENEMY_COLLIDER_SIZE = new Vector2(0.8f, 0.8f);
+
+    /// <summary>传送带碰撞体（1x1 网格对齐，确保 ASCII 连续字符无缝拼接）</summary>
+    public static readonly Vector2 CONVEYOR_BELT_COLLIDER_SIZE = new Vector2(1.0f, 0.3f);
+
+    /// <summary>检查点碰撞体（Trigger，比视觉稍大便于触发）</summary>
+    public static readonly Vector2 CHECKPOINT_COLLIDER_SIZE = new Vector2(0.8f, 1.2f);
+
     /// <summary>终点区域碰撞体</summary>
     public static readonly Vector2 GOAL_COLLIDER_SIZE = new Vector2(1f, 3f);
 

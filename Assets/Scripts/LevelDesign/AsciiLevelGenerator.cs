@@ -31,6 +31,11 @@ using System.Collections.Generic;
 ///   'e' = 简单敌人 (SimpleEnemy)
 ///   '>' = 移动平台 (MovingPlatform, 水平)
 ///   'W' = 墙壁方块 (Wall Block)
+///   '@' = 旋转锯片 (SawBlade)                    [S56 新增]
+///   'f' = 飞行敌人 (FlyingEnemy)                  [S56 新增]
+///   '<' = 传送带 (ConveyorBelt, 向左)            [S56 新增]
+///   'S' = 检查点 (Checkpoint)                    [S56 新增]
+///   'X' = 可破坏方块 (BreakableBlock)              [S56 新增]
 ///
 /// 扩展方式 (S46 Data-Driven):
 ///   1. 在 AsciiElementRegistry 资产中添加新字符条目
@@ -78,6 +83,12 @@ public static class AsciiLevelGenerator
     private static readonly Color COLOR_COLLECT   = new Color(1.00f, 0.85f, 0.20f);   // 金色
     private static readonly Color COLOR_GOAL      = new Color(0.20f, 1.00f, 0.40f);   // 亮绿
     private static readonly Color COLOR_MOVING    = new Color(0.50f, 0.50f, 0.90f);   // 蓝紫
+    // S56 新增元素颜色
+    private static readonly Color COLOR_SAWBLADE   = new Color(0.70f, 0.70f, 0.70f);   // 银灰
+    private static readonly Color COLOR_FLYING     = new Color(0.85f, 0.40f, 0.85f);   // 紫粉
+    private static readonly Color COLOR_CONVEYOR   = new Color(0.60f, 0.60f, 0.40f);   // 橄榄绿
+    private static readonly Color COLOR_CHECKPOINT = new Color(0.20f, 0.80f, 0.90f);   // 青蓝
+    private static readonly Color COLOR_BREAKABLE  = new Color(0.75f, 0.55f, 0.30f);   // 土棕
     private static readonly Color COLOR_MARIO     = new Color(0.90f, 0.20f, 0.20f);   // 红色
     private static readonly Color COLOR_TRICKSTER = new Color(0.50f, 0.20f, 0.80f);   // 紫色
 
@@ -123,6 +134,12 @@ public static class AsciiLevelGenerator
             { "Collectible",        SpawnCollectible },
             { "SimpleEnemy",        SpawnSimpleEnemy },
             { "MovingPlatform",     SpawnMovingPlatform },
+            // S56 新增元素
+            { "SawBlade",           SpawnSawBlade },
+            { "FlyingEnemy",        SpawnFlyingEnemy },
+            { "ConveyorBelt",       SpawnConveyorBelt },
+            { "Checkpoint",         SpawnCheckpoint },
+            { "BreakableBlock",     SpawnBreakableBlock },
         };
     }
 
@@ -334,7 +351,9 @@ public static class AsciiLevelGenerator
             "B = Bouncy   C = Collapse   - = OneWay\n" +
             "E = BounceEnemy  e = SimpleEnemy\n" +
             "F = FakeWall  H = HiddenPassage  o = Collectible\n" +
-            "> = MovingPlatform";
+            "> = MovingPlatform\n" +
+            "@ = SawBlade  f = FlyingEnemy  < = ConveyorBelt\n" +
+            "S = Checkpoint  X = BreakableBlock";
     }
 
     // ═══════════════════════════════════════════════════
@@ -649,6 +668,65 @@ public static class AsciiLevelGenerator
         BoxCollider2D col = go.GetComponent<BoxCollider2D>();
         if (col != null) col.size = PhysicsMetrics.MOVING_COLLIDER_SIZE;
         MovingPlatform mp = go.AddComponent<MovingPlatform>();
+    }
+
+    // ═══════════════════════════════════════════════════
+    // S56 新增 Spawn 方法
+    // ═══════════════════════════════════════════════════
+
+    private static void SpawnSawBlade(int x, int y)
+    {
+        // 旋转锯片：非实体 + Trigger（使用 BaseHazard 的 OnTriggerEnter2D）
+        GameObject go = CreateBlock("SawBlade", x, y, COLOR_SAWBLADE, ELEMENT_SORTING, false, true);
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.SAW_BLADE_COLLIDER_SIZE;
+        go.AddComponent<SawBlade>();
+    }
+
+    private static void SpawnFlyingEnemy(int x, int y)
+    {
+        // 飞行敌人：非实体 + 非 Trigger（使用 OnCollisionEnter2D 处理踩踏/伤害）
+        // Kinematic Rigidbody2D（飞行敌人不受重力，位置由脚本控制）
+        GameObject go = CreateBlock("FlyingEnemy", x, y, COLOR_FLYING, ELEMENT_SORTING, false, false);
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.FLYING_ENEMY_COLLIDER_SIZE;
+        Rigidbody2D rb = go.AddComponent<Rigidbody2D>();
+        rb.bodyType = RigidbodyType2D.Kinematic;
+        rb.freezeRotation = true;
+        go.AddComponent<FlyingEnemy>();
+    }
+
+    private static void SpawnConveyorBelt(int x, int y)
+    {
+        // 传送带：实体 + 非 Trigger（玩家可站立，使用 OnCollisionStay2D 施加推力）
+        GameObject go = CreateBlock("ConveyorBelt", x, y, COLOR_CONVEYOR, GROUND_SORTING + 1, true, false);
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE, CELL_SIZE * 0.3f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.CONVEYOR_BELT_COLLIDER_SIZE;
+        go.AddComponent<ConveyorBelt>();
+    }
+
+    private static void SpawnCheckpoint(int x, int y)
+    {
+        // 检查点：非实体 + Trigger（玩家触碰激活）
+        GameObject go = CreateBlock("Checkpoint", x, y, COLOR_CHECKPOINT, ELEMENT_SORTING, false, true);
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 1.2f, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.CHECKPOINT_COLLIDER_SIZE;
+        go.AddComponent<Checkpoint>();
+    }
+
+    private static void SpawnBreakableBlock(int x, int y)
+    {
+        // 可破坏方块：实体 + 非 Trigger（玩家可站立，从下方撞击破坏）
+        GameObject go = CreateBlock("BreakableBlock", x, y, COLOR_BREAKABLE, GROUND_SORTING + 1, true, false);
+        // 视觉与地面方块一致大小
+        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE, CELL_SIZE, 1f);
+        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
+        if (col != null) col.size = PhysicsMetrics.BREAKABLE_BLOCK_COLLIDER_SIZE;
+        go.AddComponent<BreakableBlock>();
     }
 
     // ═══════════════════════════════════════════════════

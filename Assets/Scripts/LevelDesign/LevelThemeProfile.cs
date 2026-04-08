@@ -71,6 +71,12 @@ public class LevelThemeProfile : ScriptableObject
         new ElementSpriteMapping { elementKey = "GoalZone" },
         new ElementSpriteMapping { elementKey = "Collectible" },
         new ElementSpriteMapping { elementKey = "SimpleEnemy" },
+        // S56 新增元素
+        new ElementSpriteMapping { elementKey = "SawBlade" },
+        new ElementSpriteMapping { elementKey = "FlyingEnemy" },
+        new ElementSpriteMapping { elementKey = "ConveyorBelt" },
+        new ElementSpriteMapping { elementKey = "Checkpoint" },
+        new ElementSpriteMapping { elementKey = "BreakableBlock" },
     };
 
     [Header("=== 角色 ===")]

@@ -163,7 +163,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（19 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 19;
+    private const int BUILTIN_ENTRY_COUNT = 24;
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -268,6 +268,13 @@ public class AsciiElementRegistry : ScriptableObject
             // ── 敌人（非实体，非 hazard — 原始 Validator 中敌人在 airChars 而非 hazardChars）──
             new AsciiElementEntry { asciiChar = 'E', elementName = "BouncingEnemy", isSolid = false, isHazard = false, jumpBoost = 1f },
             new AsciiElementEntry { asciiChar = 'e', elementName = "SimpleEnemy",   isSolid = false, isHazard = false, jumpBoost = 0f },
+
+            // ── S56 新增元素 ──
+            new AsciiElementEntry { asciiChar = '@', elementName = "SawBlade",       isSolid = false, isHazard = true,  jumpBoost = 0f },
+            new AsciiElementEntry { asciiChar = 'f', elementName = "FlyingEnemy",    isSolid = false, isHazard = false, jumpBoost = 0f },
+            new AsciiElementEntry { asciiChar = '<', elementName = "ConveyorBelt",   isSolid = true,  isHazard = false, jumpBoost = 0f },
+            new AsciiElementEntry { asciiChar = 'S', elementName = "Checkpoint",     isSolid = false, isHazard = false, jumpBoost = 0f },
+            new AsciiElementEntry { asciiChar = 'X', elementName = "BreakableBlock", isSolid = true,  isHazard = false, jumpBoost = 0f },
         };
         registry.BuildCache();
         return registry;

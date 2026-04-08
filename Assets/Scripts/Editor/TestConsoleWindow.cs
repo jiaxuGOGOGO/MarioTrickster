@@ -1373,7 +1373,8 @@ public class TestConsoleWindow : EditorWindow
         EditorGUILayout.LabelField(
             "<b>#</b>=地面  <b>=</b>=平台  <b>W</b>=墙壁  <b>.</b>=空气  <b>M</b>=Mario  <b>T</b>=Trickster  <b>G</b>=终点\n" +
             "<b>^</b>=地刺  <b>~</b>=火焰  <b>P</b>=摆锤  <b>B</b>=弹跳平台  <b>C</b>=崩塔平台  <b>-</b>=单向平台\n" +
-            "<b>E</b>=弹跳怪  <b>e</b>=巡逻怪  <b>></b>=移动平台  <b>F</b>=伪装墙  <b>H</b>=隐藏通道  <b>o</b>=金币",
+            "<b>E</b>=弹跳怪  <b>e</b>=巡逻怪  <b>></b>=移动平台  <b>F</b>=伪装墙  <b>H</b>=隐藏通道  <b>o</b>=金币\n" +
+            "<b>@</b>=锯片  <b>f</b>=飞行敌人  <b><</b>=传送带  <b>S</b>=检查点  <b>X</b>=可破坏方块",
             refStyle);
         EditorGUILayout.EndVertical();
 

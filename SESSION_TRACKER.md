@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 57b (S57b: Element Palette 补全 + Picking 重构 + ConveyorBelt 修复) |
+| **最新 Session** | Session 57b (S57b: Palette补全 + Picking重构 + ConveyorBelt修复 + BaseHazard重复伤害修复) |
 | **日期** | 2026-04-08 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
 | **编译状态** | ⏳ S57b 已推送，待用户验证 |
 | **阻塞** | 无 |
-| **交接说明** | S57b 共五笔提交：(1) Element Palette 补全 5 个元素按钮；(2) Picking 白名单补全；(3) IsVisualNode 重构为结构特征检测；(4) ConveyorBelt 修复：AddForce 改为 SetPlatformVelocity 速度注入，修复传送带推力被 HandleDirection 覆盖的问题；(5) SESSION_TRACKER 同步。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S57b 共七笔提交：(1) Element Palette 补全 5 个元素按钮；(2) Picking 白名单补全；(3) IsVisualNode 重构为结构特征检测；(4) ConveyorBelt 修复：AddForce→SetPlatformVelocity；(5) BaseHazard 修复：添加 OnTriggerExit2D 清除 _processedSet，修复 SawBlade 等非致命 hazard 只能伤害一次的问题；(6-7) SESSION_TRACKER 同步。接班 AI 请先 `git log --oneline -n 8`。 |
 
 ---
 
@@ -156,7 +156,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | Session | 描述 | 状态 |
 |---------|------|------|
-| S57b | Palette补全 + Picking重构 + ConveyorBelt修复(AddForce→SetPlatformVelocity) | ⏳ 待验证 |
+| S57b | Palette补全 + Picking重构 + ConveyorBelt修复 + BaseHazard重复伤害修复 | ⏳ 待验证 |
 | S57 | 运行时内存溢出防护：MemoryGuard + QualitySettings 降级 + 场景切换资源释放 | ⏳ 待验证 |
 | S56 | ASCII 关卡元素扩展：锯片(@) 飞行敌人(f) 传送带(<) 检查点(S) 可破坏方块(X) | ⏳ 待验证 |
 | S55c | 路线 B 一键导入脚本 + 工作流精简 | ⏳ 待验证 |

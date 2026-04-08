@@ -469,6 +469,7 @@ public class TestConsoleWindow : EditorWindow
         DrawPaletteButton("Spike Trap", '^', new Color(0.85f, 0.25f, 0.25f));
         DrawPaletteButton("Fire Trap", '~', new Color(1f, 0.5f, 0.1f));
         DrawPaletteButton("Pendulum", 'P', new Color(0.7f, 0.45f, 0.2f));
+        DrawPaletteButton("SawBlade", '@', new Color(0.7f, 0.7f, 0.7f));
         EditorGUILayout.EndHorizontal();
 
         // 平台类
@@ -478,6 +479,7 @@ public class TestConsoleWindow : EditorWindow
         DrawPaletteButton("Collapse", 'C', new Color(0.8f, 0.65f, 0.3f));
         DrawPaletteButton("OneWay", '-', new Color(0.5f, 0.75f, 0.9f));
         DrawPaletteButton("Moving", '>', new Color(0.5f, 0.5f, 0.9f));
+        DrawPaletteButton("Conveyor", '<', new Color(0.6f, 0.6f, 0.4f));
         EditorGUILayout.EndHorizontal();
 
         // 敌人类
@@ -485,6 +487,7 @@ public class TestConsoleWindow : EditorWindow
         EditorGUILayout.BeginHorizontal();
         DrawPaletteButton("Bounce Enemy", 'E', new Color(0.9f, 0.2f, 0.6f));
         DrawPaletteButton("Simple Enemy", 'e', new Color(0.9f, 0.2f, 0.6f));
+        DrawPaletteButton("Flying Enemy", 'f', new Color(0.85f, 0.4f, 0.85f));
         EditorGUILayout.EndHorizontal();
 
         // 通道/墙壁类
@@ -500,6 +503,7 @@ public class TestConsoleWindow : EditorWindow
         DrawPaletteButton("Ground", '#', new Color(0.55f, 0.55f, 0.55f));
         DrawPaletteButton("Platform", '=', new Color(0.7f, 0.7f, 0.7f));
         DrawPaletteButton("Wall", 'W', new Color(0.4f, 0.4f, 0.4f));
+        DrawPaletteButton("Breakable", 'X', new Color(0.75f, 0.55f, 0.3f));
         EditorGUILayout.EndHorizontal();
 
         // 其他
@@ -507,6 +511,7 @@ public class TestConsoleWindow : EditorWindow
         EditorGUILayout.BeginHorizontal();
         DrawPaletteButton("Collectible", 'o', new Color(1f, 0.85f, 0.2f));
         DrawPaletteButton("Goal Zone", 'G', new Color(0.2f, 1f, 0.4f));
+        DrawPaletteButton("Checkpoint", 'S', new Color(0.2f, 0.8f, 0.9f));
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.EndVertical();

@@ -54,6 +54,9 @@ public class PendulumTrap : ControllableLevelElement
     private float damageCooldown;
     private const float DAMAGE_COOLDOWN_TIME = 0.5f;
 
+    // S57: 静态共享绳索材质（避免每个 PendulumTrap 实例都 new Material）
+    private static Material s_sharedRopeMaterial;
+
     // Trickster覆盖
     private bool tricksterOverride;
     private float tricksterSpeedMult = 1f;
@@ -87,7 +90,18 @@ public class PendulumTrap : ControllableLevelElement
         lineRenderer.positionCount = 2;
         lineRenderer.startWidth = ropeWidth;
         lineRenderer.endWidth = ropeWidth;
-        lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+        // S57: 使用静态共享材质，避免每个实例都创建新 Material
+        if (s_sharedRopeMaterial == null)
+        {
+            Shader sh = Shader.Find("Sprites/Default");
+            if (sh != null)
+            {
+                s_sharedRopeMaterial = new Material(sh);
+                s_sharedRopeMaterial.hideFlags = HideFlags.HideAndDontSave;
+            }
+        }
+        if (s_sharedRopeMaterial != null)
+            lineRenderer.material = s_sharedRopeMaterial;
         lineRenderer.startColor = ropeColor;
         lineRenderer.endColor = ropeColor;
         lineRenderer.sortingOrder = 4;

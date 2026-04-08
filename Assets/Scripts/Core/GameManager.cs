@@ -281,6 +281,8 @@ public class GameManager : MonoBehaviour
     public void RestartLevel()
     {
         Time.timeScale = 1f;
+        // S57: 场景切换前释放未使用资源，降低内存峰值
+        Resources.UnloadUnusedAssets();
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
@@ -288,6 +290,8 @@ public class GameManager : MonoBehaviour
     public void LoadNextLevel()
     {
         Time.timeScale = 1f;
+        // S57: 场景切换前释放未使用资源
+        Resources.UnloadUnusedAssets();
         if (!string.IsNullOrEmpty(nextLevelScene))
         {
             SceneManager.LoadScene(nextLevelScene);
@@ -303,6 +307,8 @@ public class GameManager : MonoBehaviour
     public void ReturnToMainMenu()
     {
         Time.timeScale = 1f;
+        // S57: 场景切换前释放未使用资源
+        Resources.UnloadUnusedAssets();
         SceneManager.LoadScene(mainMenuScene);
     }
 

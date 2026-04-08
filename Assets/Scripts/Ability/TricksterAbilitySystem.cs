@@ -77,7 +77,8 @@ public class TricksterAbilitySystem : MonoBehaviour
     [SerializeField] private bool showRuntimeGizmo = true;
 
     [Tooltip("Gizmo 圆的线段数（越大越圆滑，越小越省性能）")]
-    [SerializeField] private int gizmoSegments = 32;
+    // S57: 从 32 降到 24 段，减少 GL 顶点数，降低 GFX 内存压力
+    [SerializeField] private int gizmoSegments = 24;
 
     [Header("=== 调试 ===")]
     [SerializeField] private bool showDebugInfo = false;

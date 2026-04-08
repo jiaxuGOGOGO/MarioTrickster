@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 56 (S56: ASCII 关卡元素扩展 — 新增 5 种机关/敌人/道具) |
+| **最新 Session** | Session 57 (S57: 运行时内存溢出防护 — MemoryGuard + QualitySettings 降级 + 场景切换资源释放) |
 | **日期** | 2026-04-08 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S56 已推送，待用户验证 |
+| **编译状态** | ⏳ S57 已推送，待用户验证 |
 | **阻塞** | 无 |
-| **交接说明** | S56 新增 5 个 ASCII 关卡元素：`@`锯片 `f`飞行敌人 `<`传送带 `S`检查点 `X`可破坏方块。严格遵循六步扩展流程（PhysicsMetrics→Registry→Generator→ThemeProfile→SnippetLibrary→TestConsole速查表），零破坏性修改。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S57 修复运行时内存溢出崩溃问题。新增 MemoryGuard.cs 自动注册 Application.lowMemory 回调，紧急释放资源+降级画质；Standalone 默认画质从 Ultra(5) 降到 Medium(2)；场景切换前调用 Resources.UnloadUnusedAssets()；PendulumTrap 材质改为静态共享；GL/OnGUI 绘制段数优化。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -156,6 +156,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | Session | 描述 | 状态 |
 |---------|------|------|
+| S57 | 运行时内存溢出防护：MemoryGuard + QualitySettings 降级 + 场景切换资源释放 | ⏳ 待验证 |
 | S56 | ASCII 关卡元素扩展：锯片(@) 飞行敌人(f) 传送带(<) 检查点(S) 可破坏方块(X) | ⏳ 待验证 |
 | S55c | 路线 B 一键导入脚本 + 工作流精简 | ⏳ 待验证 |
 | S55b | ASCII 模板物理验证闭环机制（验证器 + 工作流防坑规则） | ⏳ 待验证 |

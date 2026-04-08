@@ -370,7 +370,8 @@ public class ScanAbility : MonoBehaviour
             : new Color(0.2f, 0.5f, 1f, pulseAlpha * 0.3f);
 
         // 用多个矩形近似绘制圆环（OnGUI 的限制）
-        int segments = 36;
+        // S57: 从 36 降到 24 段，减少 OnGUI 中 GUI.DrawTexture 调用次数，降低内存压力
+        int segments = 24;
         float angleStep = 360f / segments;
         float lineWidthScreen = pulseLineWidth * (edgeScreen.x - center.x) / Mathf.Max(pulseRadius, 0.01f);
         lineWidthScreen = Mathf.Max(2f, lineWidthScreen);

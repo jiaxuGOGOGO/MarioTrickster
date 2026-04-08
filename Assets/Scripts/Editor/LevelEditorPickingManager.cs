@@ -161,6 +161,9 @@ public static class LevelEditorPickingManager
         if (parent.GetComponent<GoalZone>() != null) return true;
         if (parent.GetComponent<KillZone>() != null) return true;
         if (parent.GetComponent<MovingPlatform>() != null) return true;
+        // S57b: S56 新增元素中不继承 LevelElementBase 的类型
+        if (parent.GetComponent<BaseHazard>() != null) return true;   // SawBlade 等继承 BaseHazard
+        if (parent.GetComponent<FlyingEnemy>() != null) return true;  // FlyingEnemy 直接继承 MonoBehaviour
 
         // 过滤 5b: 纯几何方块（Ground/Platform/Wall）— 由 CreateBlock 生成，
         // 没有任何自定义 MonoBehaviour，仅有 Transform + Collider2D。

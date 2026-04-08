@@ -110,8 +110,11 @@ public static class AsciiLevelGenerator
     {
         spawnMap = new Dictionary<string, System.Action<int, int>>
         {
-            { "Ground",             SpawnGround },
-            { "Platform",           SpawnPlatform },
+            // [AI防坑警告] S57b: Ground 和 Platform 不再逐字符生成。
+            // 连续的 '#' 和 '=' 会被 MergeAndSpawnSolidBlocks 合并为一个长条方块。
+            // 如果恢复逐字符生成，会导致大量独立小方块拼接，性能差、物理抽动、Scene视图混乱。
+            { "Ground",             (x, y) => { } },  // 占位：实际生成由合并逻辑处理
+            { "Platform",           (x, y) => { } },  // 占位：实际生成由合并逻辑处理
             { "Wall",               SpawnWall },
             { "Air",                (x, y) => { } },  // 空气，不生成
             { "Space",              (x, y) => { } },  // 空格也视为空气
@@ -268,7 +271,11 @@ public static class AsciiLevelGenerator
             // Y 坐标: 第一行在最上面（Y = height - 1），最后一行在最下面（Y = 0）
             int worldY = height - 1 - row;
 
-            // S44c: 先合并连续 '-' 为长条 OneWayPlatform
+            // S57b: 先合并连续 '#' 和 '=' 为长条方块
+            MergeAndSpawnSolidBlocks(line, worldY, '#', "Ground", COLOR_GROUND, GROUND_SORTING);
+            MergeAndSpawnSolidBlocks(line, worldY, '=', "Platform", COLOR_PLATFORM, GROUND_SORTING + 1);
+
+            // S44c: 合并连续 '-' 为长条 OneWayPlatform
             MergeAndSpawnOneWayPlatforms(line, worldY);
 
             for (int col = 0; col < line.Length; col++)
@@ -423,6 +430,7 @@ public static class AsciiLevelGenerator
     // 生成方法（每个字符对应一个）
     // ═══════════════════════════════════════════════════
 
+    // [AI防坑警告] S57b: SpawnGround / SpawnPlatform 已被合并逻辑替代，保留供 Element Palette 单个生成时使用。
     private static void SpawnGround(int x, int y)
     {
         CreateBlock("Ground", x, y, COLOR_GROUND, GROUND_SORTING, true, false);
@@ -431,6 +439,71 @@ public static class AsciiLevelGenerator
     private static void SpawnPlatform(int x, int y)
     {
         CreateBlock("Platform", x, y, COLOR_PLATFORM, GROUND_SORTING + 1, true, false);
+    }
+
+    /// <summary>
+    /// S57b: 扫描一行中连续的指定字符，合并为单个长条实体方块。
+    /// 通用方法，支持 Ground('#') 和 Platform('=') 等实体方块类型。
+    /// 参考 S44c MergeAndSpawnOneWayPlatforms 的设计模式。
+    /// </summary>
+    private static void MergeAndSpawnSolidBlocks(string line, int worldY, char targetChar,
+        string blockName, Color color, int sortingOrder)
+    {
+        int col = 0;
+        while (col < line.Length)
+        {
+            if (col < line.Length && line[col] == targetChar)
+            {
+                // 向右扫描连续的目标字符
+                int startCol = col;
+                while (col < line.Length && line[col] == targetChar)
+                {
+                    col++;
+                }
+                int width = col - startCol;
+                SpawnMergedSolidBlock(startCol, worldY, width, blockName, color, sortingOrder);
+            }
+            else
+            {
+                col++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// S57b: 生成一个合并后的长条实体方块。
+    /// 位置 = 连续段的中心点，碰撞体和视觉宽度 = width × CELL_SIZE。
+    /// 命名约定: "{blockName}_{startX}_{y}_w{width}"，ExtractElementKey 提取前缀仍为 blockName，主题系统完全兼容。
+    /// </summary>
+    private static void SpawnMergedSolidBlock(int startX, int y, int width,
+        string blockName, Color color, int sortingOrder)
+    {
+        // 计算中心位置
+        float centerX = startX * CELL_SIZE + (width - 1) * CELL_SIZE * 0.5f;
+        float centerY = y * CELL_SIZE;
+
+        // 创建根物体
+        GameObject go = new GameObject($"{blockName}_{startX}_{y}_w{width}");
+        go.transform.position = new Vector3(centerX, centerY, 0);
+        go.transform.parent = rootTransform;
+        go.layer = groundLayerIndex;
+
+        // S37: Visual 子节点
+        GameObject visual = new GameObject("Visual");
+        visual.transform.SetParent(go.transform, false);
+        visual.transform.localPosition = Vector3.zero;
+        visual.transform.localScale = new Vector3(width * CELL_SIZE, CELL_SIZE, 1f);
+
+        SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
+        sr.sprite = CreateWhiteBoxSprite();
+        sr.color = color;
+        sr.sortingOrder = sortingOrder;
+
+        // 碰撞体：宽度 = width，高度 = 1
+        BoxCollider2D col = go.AddComponent<BoxCollider2D>();
+        col.size = new Vector2(width, 1f);
+
+        Debug.Log($"[AsciiLevelGen] Merged {blockName} at ({startX},{y}), width={width}");
     }
 
     private static void SpawnWall(int x, int y)

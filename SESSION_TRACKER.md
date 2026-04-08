@@ -97,7 +97,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阶段** | Sprint 2 游戏体验提升 |
 | **编译状态** | ⏳ S57b 已推送，待用户验证 |
 | **阻塞** | 无 |
-| **交接说明** | S57b 共两笔提交：(1) TestConsoleWindow Element Palette 补全 S56 遗漏的 5 个元素按钮；(2) LevelEditorPickingManager 白名单补全 BaseHazard、FlyingEnemy，修复 S56 新元素无法正常切换 Root/Visual Picking 模式的问题。接班 AI 请先 `git log --oneline -n 5`。 |
+| **交接说明** | S57b 共四笔提交：(1) Element Palette 补全 5 个元素按钮；(2) Picking 白名单补全 BaseHazard/FlyingEnemy；(3) 重构 IsVisualNode — 将硬编码白名单替换为结构特征检测（节点名“Visual” + 祖父节点“AsciiLevel_Root”），以后新增元素自动支持 Picking，不再需要手动维护白名单；(4) SESSION_TRACKER 同步。接班 AI 请先 `git log --oneline -n 5`。 |
 
 ---
 
@@ -156,7 +156,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | Session | 描述 | 状态 |
 |---------|------|------|
-| S57b | Element Palette 补全 5 个元素按钮 + Picking 白名单补全 BaseHazard/FlyingEnemy | ⏳ 待验证 |
+| S57b | Element Palette 补全 + Picking 重构（硬编码白名单 → 结构特征检测，永不遗漏） | ⏳ 待验证 |
 | S57 | 运行时内存溢出防护：MemoryGuard + QualitySettings 降级 + 场景切换资源释放 | ⏳ 待验证 |
 | S56 | ASCII 关卡元素扩展：锯片(@) 飞行敌人(f) 传送带(<) 检查点(S) 可破坏方块(X) | ⏳ 待验证 |
 | S55c | 路线 B 一键导入脚本 + 工作流精简 | ⏳ 待验证 |

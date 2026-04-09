@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58j (S58j: 概念锚点工单——高精度像素+手绘描边风) |
+| **最新 Session** | Session 58k (S58k: 美术指引彻底重写为并列菜单) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
-| **阶段** | Sprint 2 游戏体验提升 — 概念锚点工单已派发（基于用户参考图），等待本地出图 |
-| **编译状态** | ✅ 零代码变更，仅更新 PROMPT_RECIPES + 存入参考图 |
+| **阶段** | Sprint 2 游戏体验提升 — 美术操作菜单就绪，等待用户选择下一步 |
+| **编译状态** | ✅ 零代码变更，仅文档重写 |
 | **阻塞** | 无 |
-| **交接说明** | S58j 用户上传了风格参考图（高精度像素+手绘描边田园风，类似 Little Witch in the Woods / Eastward）。已完成：① 分析参考图视觉特征（色彩体系、描边风格、光影、纹理），将俯视角 RPG 风格翻译为横版侧视角。② 更新 `PROMPT_RECIPES.md` 概念锚点蓝图：新的中英文 Prompt（强调 hand-drawn outlines + warm pastoral + varied green shades）+ ComfyUI 参数（LoRA 强度降至 0.8 保留手绘感，CFG 升至 7.0，新增 IPAdapter 垂图建议）。③ 将参考图存入 `Assets/Art/Reference/style_reference_original.webp`。用户下一步：在本地 ComfyUI 中用 IPAdapter 喂入参考图 + 新 Prompt 出图，满意后记录 Seed，保存为 `Reference_Anchor.png`。 |
+| **交接说明** | S58k 彻底重写了 `ART_PIPELINE_GUIDE.md`，从原来的“强制流水线”改为“并列菜单”结构：菜单 1 确立/更换画风、菜单 2 喂书蒸馏、菜单 3 批量生产资产，三件事随时可做、同时可做、不强制排序。每个菜单都包含“怎么找 AI”和“你接下来要干嘛”两部分，消除了原来的“绕来绕去不知道该做什么”问题。用户下一步：打开 `ART_PIPELINE_GUIDE.md`，选一个菜单开始做。 |
 
 ---
 

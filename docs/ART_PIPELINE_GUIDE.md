@@ -5,41 +5,13 @@
 
 ---
 
-## 🏛️ 第零区：物理基建与度量衡 (ART_BIBLE 核心)
+## 🏛️ 第零区与第一区：物理基建与画风规范
 
-### 0.1 核心度量 (Physics Truth)
-项目采用 **1 Unit = 1 Grid Cell** 的标准，这是所有物理计算和关卡布局的基石。所有美术素材的导入设置必须严格遵守以下 PPU (Pixels Per Unit) 规范，以确保像素完美对齐。
-
-| 参数 | 值 | 说明 |
-| :--- | :--- | :--- |
-| **CELL_SIZE** | `1.0f` | 每个 ASCII 字符对应的世界单位大小，绝对锁死，不可修改。|
-| **STANDARD_PPU** | `32` | 标准像素密度。导入素材时必须将图片的 PPU 设为此值，确保 1 个网格单位对应 32x32 像素。|
-| **素材分辨率** | `32x32 px` (地形), `48x48 px` 或 `64x64 px` (角色/敌人) | 单格地形素材应为 32x32 像素。角色/敌人素材建议预留更多空间（如 48x48 或 64x64 像素），但其核心逻辑区域（碰撞体）必须对齐 32x32 的网格基准。|
-
-### 0.2 视碰分离 (Visual-Collision Decoupling)
-`MarioTrickster` 采用严格的视碰分离架构，确保游戏物理行为与视觉表现的独立性。这意味着：
-- **碰撞体 (Collision)**: 代表游戏的物理真相，其尺寸由 `PhysicsMetrics.cs` 严格定义和锁定。**绝不允许手动修改碰撞体尺寸**，否则将破坏游戏物理一致性。
-- **视觉 (Visual)**: 纯粹的装饰层，通过 `Visual` 子物体的 `transform.localScale` 进行适配和调整。美术素材的缩放、形变动画等均作用于此层，不影响物理碰撞。
-- **黄金法则**: 角色碰撞体必须略小于视觉 Sprite。这是顶级平台跳跃游戏（如 Celeste）提升手感的关键设计，能有效防止角色在贴墙下落时卡顿、起跳时头部微擦天花板导致跳跃被截断等问题，为玩家提供“宽容感”。
-
----
-
-## 🎨 第一区：画风与视觉规范 (ART_BIBLE 核心)
-
-### 1.1 目标画风 (Art Style)
-- **风格**: 高质量 2D 像素艺术 (High-quality 2D Pixel Art)。
-- **色调**: 鲜明、对比度高，能够清晰区分背景与前景元素，确保游戏可玩性。
-- **背景**: AI 出图时必须强制使用 **纯色背景** (例如 `#00FF00` 绿幕或纯黑)。**严禁使用渐变背景**，以防止抠图时出现毛刺或不干净的边缘，影响素材质量。
-
-### 1.2 资产分类与适配规范
-不同的美术资产类型在导入和处理时有不同的规范，以适应其在游戏中的物理和视觉表现。
-
-| 资产类型 | 重心 (Pivot) | 适配模式 (FitMode) | 物理特性与用途 |
-| :--- | :--- | :--- | :--- |
-| **地形 (Ground/Wall)** | Center (0.5, 0.5) | **Tiled** | 1x1 矩形碰撞体，Sprite 以原始尺寸平铺填满碰撞体区域，适用于可重复贴图的地面、墙壁、平台等，确保无缝拼接且不拉伸变形。|
-| **角色/敌人 (Entity)** | **Bottom Center (0.5, 0)** | **Scaled** | 碰撞体略小于视觉 Sprite，重心锁定在脚底，防止角色/敌人滑步。Sprite 会被拉伸以匹配碰撞体尺寸，适用于角色、敌人等不可重复的独立 Sprite。|
-| **特效 (VFX)** | Center (0.5, 0.5) | **Simple** | 居中对齐，通常无碰撞体或碰撞体为 Trigger，不考虑地面摩擦。适用于粒子效果、光效等视觉表现。|
-| **道具 (Prop)** | Bottom Center (0.5, 0) | Scaled | 碰撞体略小于视觉 Sprite，重心在底部，提供良好的放置感。Sprite 会被拉伸以匹配碰撞体尺寸。|
+> **⚠️ 核心规范已抽离至 `docs/ART_BIBLE.md`**
+> 
+> 为了遵循 DRY (Don't Repeat Yourself) 原则，关于项目的物理度量（PPU=32、视碰分离）、画风目标（纯色背景防毛刺）以及各类资产的重心/适配模式（Tiled/Scaled/SlicedNineSlice），请**统一以 `docs/ART_BIBLE.md` 为唯一真理源**。
+> 
+> 本指南将专注于**工作流执行**与**工具链使用**。
 
 ---
 
@@ -48,7 +20,8 @@
 ### 2.1 提示词万能公式 (The Master Formula)
 所有用于生成 `MarioTrickster` 美术资产的提示词，必须包含以下“防崩坏”后缀，以确保生成结果符合项目规范并易于后期处理：
 
-> `[Subject], 2D side-scrolling game sprite, pixel art, flat color background, isolated, full body, consistent lighting, high contrast, sharp edges --no shading gradients, --no blur`
+> `[Subject], 2D side-scrolling game sprite, pixel art, flat color background, isolated, full body, consistent lighting, high contrast, sharp edges`
+> *(注：如果使用 Midjourney，请在末尾加上 `--no shading gradients, --no blur`；如果使用 ComfyUI，请将这些词放入负向提示词节点。)*
 
 - `[Subject]`: 描述你想要生成的具体内容，例如 `Mario character`, `Ghostly trickster`, `stone block` 等。
 - `2D side-scrolling game sprite`: 明确指定游戏类型和资产形式。
@@ -75,17 +48,9 @@
 
 ### 2.4 AI 工具最佳实践 (基于社区经验)
 
-#### 2.4.1 Midjourney (v6/v7)
-- **宽高比 (`--ar`)**: 对于单帧素材使用 `--ar 1:1`。对于序列帧（Sprite Sheet），根据帧数使用 `--ar 4:1` (4帧) 或 `--ar 8:1` (8帧)。
-- **风格化 (`--s`)**: 像素艺术需要较低的风格化以保持边缘锐利。建议设置 `--s 50` 到 `--s 100`。
-- **混乱度 (`--c`)**: 为了保持角色在不同动作间的一致性，使用较低的混乱度 `--c 0` 到 `--c 10`。
-- **平铺 (`--tile`)**: 仅在生成地形（Ground、Wall）等需要无缝拼接的素材时使用。
-
-#### 2.4.2 ComfyUI (SDXL + Pixel Art LoRA)
-- **模型**: `sd_xl_base_1.0.safetensors` + `pixel-art-xl-v1.1.safetensors` (LoRA 强度: Model 1.2, CLIP 1.0)
-- **采样器**: Steps: 8, CFG: 1.5, Sampler: `lcm`, Scheduler: `normal`
-- **正向提示词后缀**: `(flat shading:1.2), (minimalist:1.4)`
-- **后处理**: 生成 512x512 图像后，使用 ImageMagick 的 `nearest-neighbor` 算法缩放至目标尺寸（如 32x32 或 64x64），以保持像素完美。
+> **⚠️ 详细参数已抽离至 `prompts/PROMPT_RECIPES.md`**
+> 
+> 关于 Midjourney 的具体参数（`--ar`, `--s`, `--c`, `--tile`）以及 ComfyUI 的节点配置（模型、LoRA、采样器、后处理），请直接参考配方库文档。那里记录了针对不同实体类型的具体应用示例。
 
 ---
 
@@ -129,7 +94,7 @@
 > 1. 读取并蒸馏 PDF，提取绝对不可违背的比例、体块、动作帧数规则。
 > 2. Clone 我的仓库，在本地初始化创建 `docs/ART_BIBLE.md` 和 `prompts/PROMPT_RECIPES.md`。
 > 3. 将提取的规矩按结构化 Markdown 写入 `ART_BIBLE.md`。
-> 4. 执行 Commit 并 Push 到 `main` 分支。Commit Msg 规范：`feat(bible): init v1.0 from [书名]`。
+> 4. 执行 Commit 并 Push 到 `master` 分支。Commit Msg 规范：`feat(bible): init v1.0 from [书名]`。
 > 5. 成功推送后，向我汇报你初始化的 3 条最核心规则。"
 
 #### 3.3.2 防污染的 PR 合并 (喂新书时使用)
@@ -140,11 +105,11 @@
 > 
 > **请严格执行以下 GitOps 流程，绝不允许直接推送到 main 分支：**
 > 
-> 1. **Fetch**：拉取 `main` 分支最新的 `docs/ART_BIBLE.md`。
+> 1. **Fetch**：拉取 `master` 分支最新的 `docs/ART_BIBLE.md`。
 > 2. **Diff & Resolve**：对比新书知识与现有宪法。**【绝对红线】**：如果发生规则冲突，必须以『最适合 Unity 横版、最防滑步』为唯一准则强制抉择，绝不缝合！
-> 3. **Branch**：基于 `main` 新建一个分支，例如 `feature/merge-[书名]`。
+> 3. **Branch**：基于 `master` 新建一个分支，例如 `feature/merge-[书名]`。
 > 4. **Commit & Push**：将吸收新知识后的完整 Markdown 推送到该新分支，并在文档修改处打上 `> [TA 合并注：...]` 解释理由。
-> 5. **Pull Request**：调用 GitHub API 创建一个 PR 到 main 分支。在 PR 描述中清晰列出：**“我废弃了新书里的哪些规则？我修改了宪法里的哪些旧红线？”**
+> 5. **Pull Request**：调用 GitHub API 创建一个 PR 到 master 分支。在 PR 描述中清晰列出：**“我废弃了新书里的哪些规则？我修改了宪法里的哪些旧红线？”**
 > 
 > 提交 PR 后把链接发我，我去 Code Review。"
 
@@ -156,9 +121,9 @@
 > 
 > **请执行流水线操作：**
 > 
-> 1. **Fetch**：拉取 `main` 分支最新的 `docs/ART_BIBLE.md`。
+> 1. **Fetch**：拉取 `master` 分支最新的 `docs/ART_BIBLE.md`。
 > 2. **生成蓝图**：基于宪法，输出该动作的总帧数、极值帧切分、建议喂给 ControlNet 的最优模具（如 OpenPose/Canny）、以及带纯色去底和防崩坏命令的英文万能 Prompt 公式。
-> 3. **Push 存档**：把这份蓝图直接 Append (追加) 写入 `main` 分支的 `prompts/PROMPT_RECIPES.md`。
+> 3. **Push 存档**：把这份蓝图直接 Append (追加) 写入 `master` 分支的 `prompts/PROMPT_RECIPES.md`。
 > 4. **Commit Msg**：`feat(recipes): add prompt blueprint for [资产名称]`。
 > 
 > 推送完成后，直接在对话框里把写好的中英文对照 Prompt 发给我，我去本地出图。"

@@ -19,7 +19,7 @@ public class AI_SpriteSlicer : EditorWindow
 {
     private Texture2D sourceTexture;
     private int colCount = 8; 
-    private int sliceType = 0; // 0: 角色/敌人(底部重心), 1: 视效特效(中心重心)
+    private int sliceType = 0; // 0: 角色/敌人(底部重心), 1: 视效特效(中心重心), 2: 地形/平台(中心重心)
 
     [MenuItem("MarioTrickster/Art Pipeline/一键工业化切图 (强制执行 ArtBible 规范)")]
     public static void ShowWindow()
@@ -33,7 +33,7 @@ public class AI_SpriteSlicer : EditorWindow
         
         sourceTexture = (Texture2D)EditorGUILayout.ObjectField("AI 序列长图", sourceTexture, typeof(Texture2D), false);
         colCount = EditorGUILayout.IntField("目标帧数 (列):", colCount);
-        sliceType = EditorGUILayout.Popup("资产物理类型:", sliceType, new string[] { "实体角色/敌人 (Bottom Center 防滑步)", "纯特效 VFX (Center 居中)" });
+        sliceType = EditorGUILayout.Popup("资产物理类型:", sliceType, new string[] { "实体角色/敌人 (Bottom Center 防滑步)", "纯特效 VFX (Center 居中)", "地形/平台 (Center 居中, 适用于 Tiled)" });
 
         if (GUILayout.Button("🔥 一键扣除纯色底并精准切片"))
         {
@@ -74,7 +74,7 @@ public class AI_SpriteSlicer : EditorWindow
             SpriteMetaData smd = new SpriteMetaData();
             
             // 3. 彻底封杀横版平台滑步！根据物理类型死锁重心 (ART_BIBLE 规范)
-            // 0: Entity (Bottom Center), 1: VFX (Center)
+            // 0: Entity (Bottom Center), 1: VFX (Center), 2: Environment (Center)
             smd.pivot = (sliceType == 0) ? new Vector2(0.5f, 0.0f) : new Vector2(0.5f, 0.5f); 
             smd.alignment = (sliceType == 0) ? (int)SpriteAlignment.BottomCenter : (int)SpriteAlignment.Center;
             

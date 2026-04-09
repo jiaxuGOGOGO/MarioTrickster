@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58b (S58b: 美术管线全面优化 — 提示词配方扩展至全实体覆盖 + 社区经验整合) |
+| **最新 Session** | Session 58c (S58c: 美术管线文档交叉校验清洗 — 消除文档与源码矛盾) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ✅ S58b 文档优化完成，无代码变更 |
+| **编译状态** | ✅ S58c 清洗完成，涉及 3 份文档 + 1 份脚本 |
 | **阻塞** | 无 |
-| **交接说明** | S58b 基于需求核对全面优化美术管线文档：① `PROMPT_RECIPES.md` 从 5 个泛化配方扩展至覆盖项目全部 20+ 种实体（角色/敌人/地形/平台/陷阱/交互物），每个配方含 Midjourney 参数和 ComfyUI 参数。② `ART_PIPELINE_GUIDE.md` 重写为四区结构（物理基建→画风规范→AI出图红线→GitOps工作流），整合 Reddit/GitHub 社区最佳实践（ControlNet Lineart+Canny、Pixel-Art-XL LoRA、nearest-neighbor 缩放等）。③ 新增维护规范：画风一致性检查清单、素材命名规范、版本管理策略。④ 项目改造建议已提出，待用户确认后执行。 |
+| **交接说明** | S58c 对 S58/S58b 新增的美术管线文档进行交叉校验清洗，发现并修复 10 个矛盾点：① FitMode 术语统一为源码实际值 (Tiled/Scaled/SlicedNineSlice)。② ART_PIPELINE_GUIDE 的第零区、第一区改为引用 ART_BIBLE，消除 DRY 违规。③ AI 工具参数改为引用 PROMPT_RECIPES，消除双重定义。④ BouncyPlatform/CollapsingPlatform/MovingPlatform 的适配模式从错误的 Sliced 修正为 Scaled。⑤ MovingPlatform 像素尺寸从 64x16 修正为 80x13（匹配 PhysicsMetrics 2.5x0.4 units）。⑥ 万能公式中明确区分 Midjourney `--no` 和 ComfyUI 负向提示词。⑦ PROMPT_RECIPES 描述从“已跑通”改为“待验证”。⑧ GitOps 指令中的 main 统一修正为 master。⑨ AI_SpriteSlicer 新增“地形/平台”类型选项。⑩ ART_BIBLE 资产分类表与 SpriteAutoFit.cs 实际枚举值对齐。 |
 
 ---
 

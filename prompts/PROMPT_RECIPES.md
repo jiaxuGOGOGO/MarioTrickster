@@ -1,7 +1,7 @@
 # MarioTrickster 提示词配方库 (PROMPT_RECIPES)
 
 > **Validated Prompt Blueprints for All Entities**
-> 本文档记录了已在项目中跑通、符合 `ART_BIBLE.md` 规范的出图配方。它涵盖了项目当前支持的所有 20+ 种实体类型，并提供了针对主流 AI 工具（Midjourney、ComfyUI）的具体参数建议。
+> 本文档记录了基于项目规范设计的推荐出图配方（待实际验证后标记为 ✅）。它涵盖了项目当前支持的所有 20+ 种实体类型，并提供了针对主流 AI 工具（Midjourney、ComfyUI）的具体参数建议。
 
 ---
 
@@ -49,9 +49,9 @@
 | **Ground / Wall** (基础地形) | Tiled | Tiled | `2D platformer ground block, pixel art, 32x32, stone texture, mossy, seamless tileable, flat background, isolated, sharp edges --tile --s 50 --no blur, gradient` |
 | **Platform** (普通平台) | Tiled | Tiled | `2D platformer floating platform block, pixel art, 32x32, wooden planks texture, seamless tileable horizontally, flat background, isolated --tile --s 50 --no blur` |
 | **OneWayPlatform** (单向平台) | Tiled | Tiled | `2D platformer thin one-way platform, pixel art, 32x8, metal grating texture, seamless tileable horizontally, flat background, isolated --s 50 --no blur` |
-| **BouncyPlatform** (弹跳平台) | Scaled | Sliced | `2D platformer bouncy mushroom platform, pixel art, 32x32, rubbery texture, flat background, isolated, sharp edges --s 60 --no blur` |
-| **CollapsingPlatform** (崩塌平台) | Scaled | Sliced | `2D platformer cracked stone platform, pixel art, 32x32, crumbling texture, flat background, isolated, sharp edges --s 50 --no blur` |
-| **MovingPlatform** (移动平台) | Scaled | Sliced | `2D platformer mechanical moving platform, pixel art, 64x16, metallic texture with yellow caution stripes, flat background, isolated --s 60 --no blur` |
+| **BouncyPlatform** (弹跳平台) | Scaled | Scaled | `2D platformer bouncy mushroom platform, pixel art, 32x32, rubbery texture, flat background, isolated, sharp edges --s 60 --no blur` |
+| **CollapsingPlatform** (崩塌平台) | Scaled | Scaled | `2D platformer cracked stone platform, pixel art, 32x32, crumbling texture, flat background, isolated, sharp edges --s 50 --no blur` |
+| **MovingPlatform** (移动平台) | Scaled | Scaled | `2D platformer mechanical moving platform, pixel art, 80x13, metallic texture with yellow caution stripes, flat background, isolated --s 60 --no blur` |
 | **ConveyorBelt** (传送带) | Tiled | Tiled | `2D platformer conveyor belt segment, pixel art, 32x16, industrial mechanical texture, seamless tileable horizontally, flat background, isolated --tile --s 50 --no blur` |
 | **BreakableBlock** (可破坏方块) | Tiled | Tiled | `2D platformer fragile brick block, pixel art, 32x32, cracked terracotta texture, flat background, isolated, sharp edges --s 50 --no blur` |
 | **FakeWall** (伪装墙) | Tiled | Tiled | `2D platformer illusion wall block, pixel art, 32x32, slightly faded stone texture, seamless tileable, flat background, isolated --tile --s 50 --no blur` |

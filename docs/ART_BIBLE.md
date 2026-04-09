@@ -34,8 +34,9 @@
 | :--- | :--- | :--- | :--- |
 | **地形 (Ground/Wall)** | Center (0.5, 0.5) | **Tiled** | 1x1 矩形，无缝拼接 |
 | **角色/敌人 (Entity)** | **Bottom Center (0.5, 0)** | **Scaled** | 防滑步锁死，重心在脚底 |
-| **特效 (VFX)** | Center (0.5, 0.5) | **Simple** | 居中对齐，不考虑地面摩擦 |
-| **道具 (Prop)** | Bottom Center | Scaled | 放置感，与地面贴合 |
+| **UI/边框平台** | Center (0.5, 0.5) | **SlicedNineSlice** | 九宫格拉伸，保持边框不形变 |
+| **特效 (VFX)** | Center (0.5, 0.5) | **无 (不挂载 SpriteAutoFit)** | 居中对齐，不考虑地面摩擦 |
+| **道具 (Prop)** | Bottom Center (0.5, 0) | **Scaled** | 放置感，与地面贴合 |
 
 ---
 
@@ -43,7 +44,9 @@
 
 ### 3.1 提示词万能公式 (The Master Formula)
 所有提示词必须包含以下“防崩坏”后缀：
-`[Subject], 2D side-scrolling game sprite, pixel art, flat color background, isolated, full body, consistent lighting, high contrast, sharp edges --no shading gradients, --no blur`
+`[Subject], 2D side-scrolling game sprite, pixel art, flat color background, isolated, full body, consistent lighting, high contrast, sharp edges`
+
+*(注：如果使用 Midjourney，请在末尾加上 `--no shading gradients, --no blur`；如果使用 ComfyUI，请将这些词放入负向提示词节点。)*
 
 ### 3.2 动作帧数标准
 - **Idle (待机)**: 4-6 帧

@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58f (S58f: 流水线就绪度检查 — 快捷指令速查卡 + 概念锚点目录 + 架构分析报告) |
+| **最新 Session** | Session 58g (S58g: 画风一致性与多版本切换架构) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 — 美术基建封顶，流水线就绪 |
-| **编译状态** | ✅ S58f 就绪度检查完成，流水线全绿 |
+| **编译状态** | ✅ S58g 画风架构文档完成，ART_BIBLE 新增第四区引用 |
 | **阻塞** | 无 |
-| **交接说明** | S58f 盘点全流水线就绪度并补齐缺失环节：① ART_PIPELINE_GUIDE 新增「快捷指令速查卡」，提供三个一句话触发的快捷指令（喂书蒸馏/概念锚点/批量生产）。② 新增 `Assets/Art/Reference/` 目录用于存放概念锚点 Mockup 图。③ 新增 `docs/ARCHITECTURE_ANALYSIS.md` 架构分析报告，确认单仓架构为最优解。现在用户可以直接开始喂书蒸馏。 |
+| **交接说明** | S58g 新增 `docs/STYLE_CONSISTENCY_ARCHITECTURE.md`：① 画风一致性三层锁定体系（语义锁定 + 结构引导 + 模型适配），含 Denoising Strength 甜区 0.35-0.55、Seed 锁定法、IPAdapter 概念锚点。② 多画风版本切换架构：基于现有 `LevelThemeProfile.cs` 的扩展方案 + SpriteAtlas Variant 进阶方案。③ ART_BIBLE 新增第四区引用。用户现在可以开始喂书蒸馏并确保画风一致性。 |
 
 ---
 

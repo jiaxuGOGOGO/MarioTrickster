@@ -98,12 +98,13 @@
 
 | 实体名称 | 资产类型 | 目标帧数 | 提示词配方 (Prompt Recipe) |
 | :--- | :--- | :--- | :--- |
-| **Concept_Anchor** (概念锚点) | Mockup | 1 | **[EN]** `A 2D side-scrolling platformer game mockup screenshot, pixel art. A Mario-like character with red cap and blue overalls standing on a floating stone platform. Vibrant green mossy ground below. Bright blue sky background. High contrast, sharp edges, consistent lighting, minimalist style. --ar 16:9 --s 80 --no blur, gradient, realistic, 3d render, UI, text`<br>**[CN]** `一张2D横版平台跳跃游戏假截图，像素艺术。一个戴红帽子穿蓝背带裤的类似马里奥的角色站在悬浮的石头平台上。下方是鲜艳的绿色长满苔藓的地面。明亮的蓝色天空背景。高对比度，锐利边缘，一致的光照，极简风格。`<br>**[ComfyUI]** `(flat shading:1.2), (minimalist:1.4)` |
+| **Concept_Anchor** (概念锚点) | Mockup | 1 | **[EN]** `A 2D side-scrolling platformer game mockup screenshot, high definition pixel art, hand-drawn outlines. A small adventurer character standing on a floating stone platform. Lush green grass with varied shades and small flowers. Detailed wooden textures and stone walls in the background. Warm pastoral atmosphere, soft top-left lighting, dark semi-transparent shadows. Crisp edges, no anti-aliasing. --ar 16:9 --s 100 --v 6.0 --no blur, gradient, realistic, 3d render, UI, text, isometric, top-down`<br>**[CN]** `一张2D横版平台跳跃游戏假截图，高精度像素艺术，手绘感黑边。一个小冒险家角色站在悬浮的石头平台上。郁郁葱葱的绿草，带有深浅变化和小花点缀。背景有精细的木质纹理和石墙。温暖的田园氛围，柔和的左上角光照，深色半透明阴影。锐利的边缘，无抗锯齿。`<br>**[ComfyUI]** `(high definition pixel art:1.3), (hand-drawn dark outlines:1.2), (warm pastoral atmosphere:1.1)` |
 
 ### ComfyUI 概念锚点生成建议：
-1. **大模型**: `sd_xl_base_1.0.safetensors`
-2. **LoRA**: `pixel-art-xl-v1.1.safetensors` (强度: Model 1.2, CLIP 1.0)
+1. **大模型**: `sd_xl_base_1.0.safetensors` (或任何擅长手绘/二次元的 XL 大模型，如 `Animagine XL`)
+2. **LoRA**: `pixel-art-xl-v1.1.safetensors` (强度: Model 0.8, CLIP 0.8) - 稍微降低强度以保留手绘感
 3. **采样器**: `euler_ancestral`, Scheduler: `normal`
-4. **步数/CFG**: `Steps: 30`, `CFG: 6.0`
+4. **步数/CFG**: `Steps: 30-40`, `CFG: 7.0`
 5. **分辨率**: `1024x576` (生成后如果需要可缩放)
-6. **后续操作**: 生成满意的图后，**务必记录下该图的 Seed 值**，作为后续角色生成的锁定 Seed。
+6. **风格垫图**: **强烈建议**将你那张俯视角参考图拖入 `IPAdapter` 节点，权重设为 `0.6-0.8`，让 AI 自动吸取它的色彩和描边特征。
+7. **后续操作**: 生成满意的横版截图后，**务必记录下该图的 Seed 值**，作为后续角色生成的锁定 Seed。这张横版图将成为新的 `Reference_Anchor.png`。

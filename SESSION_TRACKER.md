@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58i (S58i: 美术指引大白话重写 + 画风替换指令) |
+| **最新 Session** | Session 58j (S58j: 概念锚点工单——高精度像素+手绘描边风) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
-| **阶段** | Sprint 2 游戏体验提升 — 美术指引已重写，等待用户确立画风偏好 |
-| **编译状态** | ✅ 零代码变更，仅文档优化 |
+| **阶段** | Sprint 2 游戏体验提升 — 概念锚点工单已派发（基于用户参考图），等待本地出图 |
+| **编译状态** | ✅ 零代码变更，仅更新 PROMPT_RECIPES + 存入参考图 |
 | **阻塞** | 无 |
-| **交接说明** | S58i 对 `ART_PIPELINE_GUIDE.md` 进行了三项重大优化：**① 重写 §3.1 日常工作流为端到端闭环**，明确每一步谁做什么（你 vs AI vs Unity 自动化），覆盖从“发指令”到“素材入库”的全过程，特别补充了 Step 2“本地出图不满意时如何反馈给 AI 调整”的反馈循环。**② 重写 §3.4 快捷指令为大白话版**，每个指令补充“为什么要做”和“你需要准备什么”，指令 1 改为先问用户风格偏好再出 Prompt。**③ 新增指令 4「整体画风推翻重来」**，覆盖“做到一半想换风格”场景，并在顶部补充“锚点不是枷锁”说明。用户下一步：告诉 AI 想要什么风格（或上传参考图），然后触发指令 1 确立锚点。 |
+| **交接说明** | S58j 用户上传了风格参考图（高精度像素+手绘描边田园风，类似 Little Witch in the Woods / Eastward）。已完成：① 分析参考图视觉特征（色彩体系、描边风格、光影、纹理），将俯视角 RPG 风格翻译为横版侧视角。② 更新 `PROMPT_RECIPES.md` 概念锚点蓝图：新的中英文 Prompt（强调 hand-drawn outlines + warm pastoral + varied green shades）+ ComfyUI 参数（LoRA 强度降至 0.8 保留手绘感，CFG 升至 7.0，新增 IPAdapter 垂图建议）。③ 将参考图存入 `Assets/Art/Reference/style_reference_original.webp`。用户下一步：在本地 ComfyUI 中用 IPAdapter 喂入参考图 + 新 Prompt 出图，满意后记录 Seed，保存为 `Reference_Anchor.png`。 |
 
 ---
 

@@ -134,7 +134,16 @@
     *   **BiRefNet**：目前（2025-2026）公认的开源去底 SOTA（State of the Art）。对毛发、半透明材质（如玻璃、特效）的边缘保留极好，实测 500 张商品图毛发精度达 94%。RTX 4070 跑它只需 ~1.4 秒。
     *   **RMBG-2.0**：Bria AI 最新开源模型，性能与 BiRefNet 接近（~1.2 秒），是极佳的备选。
     *   *注：首次在节点中选择模型并运行时，ComfyUI 会自动从 HuggingFace 下载模型文件到 `models/RMBG/` 目录，无需手动下载。*
-*   **像素风特化备选**：如果你的游戏是纯像素风（Pixel Art），建议在 Manager 中额外安装 `ComfyUI-TransparencyBackgroundRemover`（作者：Limbicnation），它专门针对游戏精灵图优化，能完美保留锐利的像素边缘而不产生模糊过渡。
+*   **像素风特化备选**：如果你的游戏是纯像素风（Pixel Art），建议在 Manager 中额外安装 `ComfyUI-TransparencyBackgroundRemover`（作者：Limbicnation）。它专门针对游戏精灵图优化，能完美保留锐利的像素边缘而不产生模糊过渡。
+    *   **安装注意**：安装后，需要进入 `ComfyUI\custom_nodes\ComfyUI-TransparencyBackgroundRemover` 目录，双击运行 `install.bat` 安装 `scikit-learn` 依赖。如果不装，节点也能跑，但精度会从 100% 降到 85-90%。
+    *   **节点名称**：在画布双击搜索 `TransparencyBackgroundRemover`。
+    *   **像素风最佳参数**：
+        *   `edge_detection_mode`: 选 `PIXEL_ART`（或 `AUTO`）
+        *   `tolerance`: 调低到 `10-20`（背景颜色容差）
+        *   `edge_sensitivity`: 调高到 `0.9-1.0`（保留更多边缘细节）
+        *   `dither_handling`: 设为 `True`（专门处理像素风的抖动图案）
+        *   `scaling_method`: 必须选 `NEAREST`（最近邻插值，防止像素变糊）
+        *   `output_size`: 选 8 的倍数（如 `256x256` 或 `512x512`）
 
 **3.2 云端炼丹炉 (LoRA 训练)**
 

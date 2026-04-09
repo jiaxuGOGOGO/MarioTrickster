@@ -54,7 +54,7 @@
 
 **1.2 安装 ComfyUI Manager**
 
-> **✅ 已装确认**：启动 ComfyUI 后，如果网页右下角菜单面板里有 `Manager` 按钮，请直接跳过本节。
+> **✅ 已装确认**：启动 ComfyUI 后，如果网页**右上角**能看到绿色的 `Manager` 按钮，请直接跳过本节。
 
 这是 ComfyUI 的"应用商店"，用于一键安装缺失节点和更新插件。
 
@@ -64,7 +64,7 @@
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git
     ```
     > ℹ️ 如果提示 `git 不是内部或外部命令`，说明 Git 未安装或未加入系统 PATH。请回到步骤 0 安装 Git。
-*   **验证**：关闭 ComfyUI 控制台黑框，重新双击 `run_nvidia_gpu.bat` 启动。在浏览器界面右下角的菜单面板中，你应该能看到新增的 `Manager` 按钮。点击它就能看到插件管理界面。
+*   **验证**：关闭 ComfyUI 控制台黑框，重新双击 `run_nvidia_gpu.bat` 启动。在浏览器界面**右上角**，你应该能看到绿色的 `Manager` 按钮。点击它就能看到插件管理界面。
 
 **1.3 下载大模型 (Checkpoint)**
 
@@ -88,7 +88,7 @@
 
 ### 2. 必备插件与模型配置
 
-点击右下角的 `Manager` → `Custom Nodes Manager`，搜索并安装以下核心插件。安装完成后，点击 `Restart` 重启 ComfyUI。
+点击**右上角**绿色的 `Manager` 按钮 → `Custom Nodes Manager`，搜索并安装以下核心插件。安装完成后，点击 `Restart` 重启 ComfyUI。
 
 **2.1 IPAdapter Plus (垫图抽卡核心)**
 
@@ -198,7 +198,7 @@
 | 双击 `run_nvidia_gpu.bat` 闪退 | 显卡驱动过旧，不支持 CUDA 13.0 | 前往 [NVIDIA 官网](https://www.nvidia.com/download/index.aspx) 更新到最新驱动 |
 | 控制台报错 `torch not compiled with CUDA` | 下载了错误的 Portable 版本 | 确认下载的是 `nvidia` 版而非 `cpu` 版 |
 | 启动后浏览器白屏 | 页面未加载完成 | 等待 30 秒后刷新，或手动访问 `http://127.0.0.1:8188` |
-| Manager 按钮不出现 | ComfyUI-Manager 未正确克隆 | 检查 `custom_nodes\ComfyUI-Manager\` 文件夹是否存在且非空 |
+| 右上角没有 Manager 按钮 | ComfyUI-Manager 未正确克隆 | 检查 `custom_nodes\ComfyUI-Manager\` 文件夹是否存在且非空，重启 ComfyUI |
 | 跑图时报 `CUDA out of memory` | 生成分辨率过高或同时加载模型过多 | RTX 4070 建议生成分辨率不超过 1024×1024；关闭其他占用显存的程序 |
 | IPAdapter 报错 `ClipVision model not found` | CLIP Vision 模型文件名不对 | 确认文件名为 `CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors`（注意大小写和连字符） |
 | ControlNet 出图全黑或无效果 | 选错了控制类型 | ProMax 统一版需要配合 `SetUnionControlNetType` 节点指定控制类型（如 openpose/canny/depth） |

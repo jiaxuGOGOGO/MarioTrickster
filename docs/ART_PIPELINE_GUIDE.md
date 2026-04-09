@@ -88,7 +88,15 @@
 
 ### 2. 必备插件与模型配置
 
-点击**右上角**绿色的 `Manager` 按钮 → `Custom Nodes Manager`，搜索并安装以下核心插件。安装完成后，点击 `Restart` 重启 ComfyUI。
+以下插件均通过 ComfyUI Manager 一键安装。如果你第一次用 Manager 装插件，请按以下步骤操作：
+
+> **📖 Manager 安装插件通用流程（每个插件都是这个流程）**
+> 1. 点击网页**右上角**绿色的 `Manager` 按钮 → 弹出管理面板
+> 2. 点击 `Custom Nodes Manager`（自定义节点管理器）
+> 3. 在顶部搜索框中输入插件名称（如 `IPAdapter`）
+> 4. 在搜索结果中找到目标插件，点击右侧的 `Install` 按钮
+> 5. 等待安装完成（状态变为 `Installed`）
+> 6. 所有插件装完后，点击面板底部的 `Restart` 按钮重启 ComfyUI（可以装完所有插件再一次性重启）
 
 **2.1 IPAdapter Plus (垫图抽卡核心)**
 
@@ -98,7 +106,7 @@
 
 用于将参考图的风格或角色特征完美迁移到新图中，相当于“一张图版的 LoRA”。
 
-*   **插件安装**：在 Manager 中搜索 `ComfyUI_IPAdapter_plus` 并安装（作者：cubiq）。
+*   **插件安装**：按上方「通用流程」操作，搜索框输入 `IPAdapter`，找到 `ComfyUI_IPAdapter_plus`（作者：cubiq），点击 `Install`。
 *   **下载配套模型**：插件本身只是代码，还需要下载以下模型文件才能工作：
 
 | 模型文件 | 放置目录 | 文件大小 | 下载地址 |

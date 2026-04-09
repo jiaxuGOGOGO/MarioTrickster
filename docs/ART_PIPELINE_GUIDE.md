@@ -29,7 +29,9 @@
 
 推荐使用官方的 Windows 一键解压版，它自带了独立的 Python 3.13 和 CUDA 13.0 环境，无需配置复杂的系统依赖。你的 RTX 4070 完美支持 CUDA 13.0。
 
-*   **下载地址**：前往 [ComfyUI 官方下载页](https://www.comfy.org/download) 或 [GitHub Releases](https://github.com/Comfy-Org/ComfyUI/releases)，下载 `ComfyUI_windows_portable_nvidia.7z`。
+*   **下载地址**：前往 [GitHub Releases](https://github.com/Comfy-Org/ComfyUI/releases) 或 [ComfyUI 官方下载页](https://www.comfy.org/download)，下载 **`ComfyUI_windows_portable_nvidia.7z`**（不带 cu126 后缀的默认版，约 1.77GB）。
+
+    > ⚠️ **不要下载** `ComfyUI_windows_portable_nvidia_cu126.7z`。那是给老显卡/老驱动的降级兼容包。你的 RTX 4070 用默认版性能更好。
 *   **解压与启动**：
     1.  右键点击下载的 `.7z` 文件 → 选择 `7-Zip` → `解压到“ComfyUI_windows_portable_nvidia\”`。
     2.  将解压出的文件夹移动到剩余空间大于 **50GB** 的固态硬盘根目录（如 `D:\ComfyUI_windows_portable`）。避免放在桌面或含中文的路径下。

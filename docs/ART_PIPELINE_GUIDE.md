@@ -82,7 +82,19 @@
 ### 3.3 商业价值远景 (Gumroad 资产包)
 当你把这个游戏做完时，你 GitHub 仓库里的这套被 AI 迭代了无数个版本、跑通了所有 Bug 的 `ART_BIBLE.md` 和提示词配方库，就是一套**极其昂贵的《2D 游戏 AI 工业母机白皮书与资产包》**。这完美回到了 K2B-OS 的初衷：你不仅做出了游戏，还能把这套“会下金蛋的管线”打包在 Gumroad 上出售！
 
-### 3.4 GitOps 核心指令 (AI 与用户协作模式)
+### 3.4 快捷指令速查卡 (Quick Command Cheat Sheet)
+为了让你能立刻开始喂书和出图，我为你准备了三个一句话触发的快捷指令。你只需复制并在对话框中发送给我即可：
+
+**指令 1：喂书蒸馏 (防污染 PR)**
+> "Manus，我上传了一本新教程/设定集。请执行『防污染 PR 合并』流程：提取其中的优秀 Prompt 和参数，对比 `ART_BIBLE`，以『最防滑步』为唯一准则解决冲突，绝不缝合。然后发 PR 给我 Review。"
+
+**指令 2：确立概念锚点 (Mockup 工单)**
+> "Manus，我要确立本项目的基准画风。请给我派发一张『概念锚点 Mockup』工单，包含主角和基础地形，输出中英文 Prompt 和 ComfyUI 参数建议。这张图将存入 `Assets/Art/Reference/`。"
+
+**指令 3：批量生产 (具体资产工单)**
+> "Manus，我要生产一组具体资产：[填写资产名称，如 弹跳怪跳跃]。请执行『带存档的工单派发』流程：拉取最新宪法，输出蓝图（帧数/极值帧/ControlNet模具/中英对照Prompt），追加到 `PROMPT_RECIPES.md` 并 Push 存档。然后把 Prompt 发给我。"
+
+### 3.5 GitOps 核心指令详解 (底层逻辑)
 
 #### 3.3.1 创世 Commit (仅在项目初始化时使用)
 **核心目的**: 让 AI 帮你搭建项目知识库的基础结构，并写入第一版核心规则。
@@ -140,6 +152,7 @@
 
 ```
 Assets/Art/
+├── Reference/     ← 存放概念锚点 (Mockup 截图)，作为后续出图的 IPAdapter 风格参考
 ├── Characters/    ← Mario, Trickster (校验 Pivot.y == 0)
 ├── Enemies/       ← SimpleEnemy, BouncingEnemy, FlyingEnemy (校验 Pivot.y == 0)
 ├── Environment/   ← Ground, Wall, Platform, OneWay, Conveyor... (校验 Pivot.y == 0.5)

@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58h (S58h: 概念锚点 Mockup 工单派发) |
+| **最新 Session** | Session 58i (S58i: 美术指引大白话重写 + 画风替换指令) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
-| **阶段** | Sprint 2 游戏体验提升 — 概念锚点工单已派发，等待用户本地出图 |
-| **编译状态** | ✅ 零代码变更，仅追加 PROMPT_RECIPES.md 概念锚点蓝图 |
+| **阶段** | Sprint 2 游戏体验提升 — 美术指引已重写，等待用户确立画风偏好 |
+| **编译状态** | ✅ 零代码变更，仅文档优化 |
 | **阻塞** | 无 |
-| **交接说明** | S58h 在 `PROMPT_RECIPES.md` 追加了「概念锚点 Mockup」蓝图区块，包含：① 完整中英文 Prompt（16:9 假游戏截图，Mario + 石头平台 + 绿色地面 + 蓝天）。② ComfyUI 全参数建议（SDXL + pixel-art-xl LoRA + euler_ancestral + Steps 30 / CFG 6.0）。③ Midjourney 参数（--ar 16:9 --s 80 --no blur,gradient,realistic,3d render）。用户下一步：在本地 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 |
+| **交接说明** | S58i 对 `ART_PIPELINE_GUIDE.md` 进行了三项重大优化：**① 重写 §3.1 日常工作流为端到端闭环**，明确每一步谁做什么（你 vs AI vs Unity 自动化），覆盖从“发指令”到“素材入库”的全过程，特别补充了 Step 2“本地出图不满意时如何反馈给 AI 调整”的反馈循环。**② 重写 §3.4 快捷指令为大白话版**，每个指令补充“为什么要做”和“你需要准备什么”，指令 1 改为先问用户风格偏好再出 Prompt。**③ 新增指令 4「整体画风推翻重来」**，覆盖“做到一半想换风格”场景，并在顶部补充“锚点不是枷锁”说明。用户下一步：告诉 AI 想要什么风格（或上传参考图），然后触发指令 1 确立锚点。 |
 
 ---
 

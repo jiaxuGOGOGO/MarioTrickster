@@ -48,13 +48,21 @@
 
 *(注：如果使用 Midjourney，请在末尾加上 `--no shading gradients, --no blur`；如果使用 ComfyUI，请将这些词放入负向提示词节点。)*
 
-### 3.2 动作帧数标准
+### 3.2 ComfyUI 出图参数分轨声明 (防噪点雷区)
+- **加速模型专属轨** (LCM/Lightning/Turbo): `Steps: 6-8`, `CFG: 1.5-2.0`
+- **标准模型专属轨** (常规 SDXL): `Steps: 25-30`, `CFG: 5.0-7.0`
+
+### 3.3 ControlNet 模具分轨 (防骨折雷区)
+- **非生物/硬表面实体** (地形、陷阱等): 使用 **Lineart + Canny** 组合。
+- **生物关节角色** (Mario、Trickster、Enemy 等连续动作): **必须强制加入 DWPose / OpenPose 模具！** 仅靠线稿无法锁死人物重心的动态偏移。
+
+### 3.4 动作帧数标准
 - **Idle (待机)**: 4-6 帧
 - **Run (跑步)**: 8 帧 (必须符合 PPU 步幅，防止滑步)
 - **Jump (跳跃)**: 3 阶段 (起跳、最高点、下落)
 - **Attack (攻击)**: 5-8 帧 (含前摇与收招)
 
-### 3.3 自动化切片红线
+### 3.5 自动化切片红线
 - **禁止手动切片**: 必须使用 `AI_SpriteSlicer.cs` 脚本。
 - **重心死锁**: 角色类资产切片时，Pivot 强制设为 `Bottom Center`。
 - **像素完美**: Filter Mode 必须设为 `Point (no filter)`。

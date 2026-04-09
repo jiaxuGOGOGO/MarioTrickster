@@ -19,10 +19,17 @@
 基于社区验证的 ComfyUI 工作流，推荐以下节点配置：
 - **大模型**: `sd_xl_base_1.0.safetensors`
 - **LoRA**: `pixel-art-xl-v1.1.safetensors` (强度: Model 1.2, CLIP 1.0)
-- **采样器 (KSampler)**: Steps: 8, CFG: 1.5, Sampler: `lcm`, Scheduler: `normal`
+- **采样器 (KSampler) 分轨声明 (防噪点雷区)**:
+  - **加速模型专属轨** (如 LCM/Lightning/Turbo): `Steps: 6-8`, `CFG: 1.5-2.0`, Sampler: `lcm`, Scheduler: `normal`
+  - **标准模型专属轨** (常规 SDXL): `Steps: 25-30`, `CFG: 5.0-7.0`, Sampler: `euler_ancestral`, Scheduler: `normal`
 - **正向提示词后缀**: `(flat shading:1.2), (minimalist:1.4)`
 - **负向提示词**: `text, watermark, blurry, deformed, depth of field, realistic, 3d render, frame`
 - **后处理**: 生成 512x512 图像后，使用 ImageMagick 的 `nearest-neighbor` 算法缩放至目标尺寸（如 32x32 或 64x64），以保持像素完美。
+
+### 3. ControlNet 模具分轨 (防骨折雷区)
+在生成特定资产时，必须使用 ControlNet 锁定结构：
+- **非生物/硬表面实体** (地形、平台、陷阱、交互物): 使用 **Lineart + Canny** 组合，锁定边缘和轮廓。
+- **生物关节角色** (Mario、Trickster、Enemy 等所有带连续动作的角色): **必须强制加入 DWPose / OpenPose 模具！** 仅靠线稿无法锁死人物重心的动态偏移，会导致动画帧间骨折或滑步。
 
 ---
 

@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58c (S58c: 美术管线文档交叉校验清洗 — 消除文档与源码矛盾) |
+| **最新 Session** | Session 58d (S58d: 终极补丁封顶 — ComfyUI分轨 + ControlNet模具 + TA_AssetValidator双重防御塔) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
-| **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ✅ S58c 清洗完成，涉及 3 份文档 + 1 份脚本 |
+| **阶段** | Sprint 2 游戏体验提升 — 美术基建封顶 |
+| **编译状态** | ✅ S58d 封顶完成，新增 1 份 C# 脚本 + 6 个 .gitkeep + 3 份文档更新 |
 | **阻塞** | 无 |
-| **交接说明** | S58c 对 S58/S58b 新增的美术管线文档进行交叉校验清洗，发现并修复 10 个矛盾点：① FitMode 术语统一为源码实际值 (Tiled/Scaled/SlicedNineSlice)。② ART_PIPELINE_GUIDE 的第零区、第一区改为引用 ART_BIBLE，消除 DRY 违规。③ AI 工具参数改为引用 PROMPT_RECIPES，消除双重定义。④ BouncyPlatform/CollapsingPlatform/MovingPlatform 的适配模式从错误的 Sliced 修正为 Scaled。⑤ MovingPlatform 像素尺寸从 64x16 修正为 80x13（匹配 PhysicsMetrics 2.5x0.4 units）。⑥ 万能公式中明确区分 Midjourney `--no` 和 ComfyUI 负向提示词。⑦ PROMPT_RECIPES 描述从“已跑通”改为“待验证”。⑧ GitOps 指令中的 main 统一修正为 master。⑨ AI_SpriteSlicer 新增“地形/平台”类型选项。⑩ ART_BIBLE 资产分类表与 SpriteAutoFit.cs 实际枚举值对齐。 |
+| **交接说明** | S58d 执行三个终极补丁封顶美术基建：① **补丁 1 ComfyUI 分轨**: ART_BIBLE + PROMPT_RECIPES 新增加速模型轨 (Steps:6-8, CFG:1.5-2.0) 与标准模型轨 (Steps:25-30, CFG:5.0-7.0) 分轨声明。② **补丁 2 ControlNet 模具修正**: 硬表面实体用 Lineart+Canny，生物关节角色强制 DWPose/OpenPose。③ **补丁 3 TA_AssetValidator.cs 双重防御塔**: 事前拦截 (AssetPostprocessor.OnPreprocessTexture 强制 PPU=32/Point/无压缩) + 主动扫描 (MenuItem 一键合规巡检 PPU/Filter/Pivot)。④ 新增 Assets/Art/ 标准化目录结构 (Characters/Enemies/Environment/Hazards/UI/VFX) + .gitkeep 占位符。⑤ ART_PIPELINE_GUIDE 第四区重写为工具链协作流程图。美术基建正式封顶，可开始 MVP 资产生产。 |
 
 ---
 

@@ -130,26 +130,44 @@
 
 ---
 
-## ⚙️ 第四区：项目改造建议 (Unity 自动化脚本)
+## ⚙️ 第四区：项目基建与自动化工具链
 
-为了更好地支持上述 GitOps 美术资产生产管线，项目已进行了以下改造：
+### 4.1 资产目录结构 (Assets/Art/)
+所有美术素材必须导入到以下标准化目录，`TA_AssetValidator` 的事前拦截仅对 `Assets/Art/` 目录生效：
 
-### 4.1 `AI_SpriteSlicer.cs` (自动化切片母机)
+```
+Assets/Art/
+├── Characters/    ← Mario, Trickster (校验 Pivot.y == 0)
+├── Enemies/       ← SimpleEnemy, BouncingEnemy, FlyingEnemy (校验 Pivot.y == 0)
+├── Environment/   ← Ground, Wall, Platform, OneWay, Conveyor... (校验 Pivot.y == 0.5)
+├── Hazards/       ← SpikeTrap, FireTrap, SawBlade, Pendulum... (校验 Pivot.y == 0.5)
+├── UI/            ← 界面元素、HUD
+└── VFX/           ← 粒子特效、光效
+```
 
-该脚本已添加到 `Assets/Scripts/Editor/AI_SpriteSlicer.cs`，并通过 Unity 编辑器菜单 `MarioTrickster/Art Pipeline/一键工业化切图 (强制执行 ArtBible 规范)` 暴露。它强制执行 `ART_BIBLE` 中定义的所有切片规范，包括 PPU、Filter Mode、Sprite Type、Pivot 等，极大地简化了美术导入流程并确保了规范一致性。
+### 4.2 `TA_AssetValidator.cs` (双重防御塔)
 
-**建议**: 
-- 在导入任何新的美术序列帧长图后，都应使用此工具进行切片，而非 Unity 默认的切片功能。
-- 熟悉其参数设置（如 `目标帧数 (列)` 和 `资产物理类型`），以适应不同资产的需求。
+该脚本位于 `Assets/Scripts/Editor/TA_AssetValidator.cs`，提供两层防御：
 
-### 4.2 `docs/ART_BIBLE.md` 与 `prompts/PROMPT_RECIPES.md`
+**防御塔 1 — 事前拦截 (AssetPostprocessor.OnPreprocessTexture)**：当任何新图片被拖入 `Assets/Art/` 目录时，自动强制执行：PPU=32、AlphaIsTransparency=ON、FilterMode=Point、Compression=Uncompressed、MeshType=FullRect。不给人类犯错的机会。
 
-这两个 Markdown 文件已创建并推送到仓库的 `docs/` 和 `prompts/` 目录下。它们是项目美术规范和提示词配方的核心文档。
+**防御塔 2 — 主动扫描 (MenuItem “一键合规巡检”)**：通过菜单 `MarioTrickster/Art Pipeline/一键合规巡检` 触发，扫描 `Assets/Art/` 下所有贴图，校验 PPU、FilterMode、切片 Pivot。如有违规，报红错截停。
 
-**建议**: 
-- 定期查阅 `ART_BIBLE.md`，确保对项目美术规范有清晰的理解。
-- 在生成新资产前，优先查阅 `PROMPT_RECIPES.md`，看是否有类似的已验证配方可供参考或修改。
-- 每次成功生成新资产并验证其在游戏中的表现后，务必将对应的提示词和关键参数追加到 `PROMPT_RECIPES.md` 中，形成项目知识积累。
+### 4.3 `AI_SpriteSlicer.cs` (自动化切片母机)
+
+通过菜单 `MarioTrickster/Art Pipeline/一键工业化切图` 触发。支持三种资产类型：实体角色/敌人 (Bottom Center)、纯特效 VFX (Center)、地形/平台 (Center)。强制执行 PPU=32、Point 滤镜、无压缩。
+
+### 4.4 工具链协作流程
+
+```
+拖入图片 → [TA_AssetValidator 事前拦截] → 自动强制 PPU/Filter/Alpha
+    ↓
+使用 AI_SpriteSlicer 切片 → 强制 Pivot + 帧切割
+    ↓
+点击“一键合规巡检” → [TA_AssetValidator 主动扫描] → 全工程校验
+    ↓
+通过 → git commit + push
+```
 
 ---
 *Last Updated: 2026-04-09 by Manus TA*

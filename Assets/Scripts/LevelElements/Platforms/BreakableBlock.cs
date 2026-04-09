@@ -23,6 +23,7 @@ public class BreakableBlock : LevelElementBase
     private bool isBroken;
     private Vector3 originalPosition;
     private Transform visualTransform;
+    private Vector3 originalVisualScale = Vector3.one;
 
     protected override void OnEnable()
     {
@@ -38,6 +39,9 @@ public class BreakableBlock : LevelElementBase
         Transform vis = transform.Find("Visual");
         if (vis != null)
             visualTransform = vis;
+
+        if (visualTransform != null)
+            originalVisualScale = visualTransform.localScale;
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
@@ -107,8 +111,8 @@ public class BreakableBlock : LevelElementBase
         if (visualTransform != null)
         {
             visualTransform.gameObject.SetActive(true);
-            // 恢复原始缩放
-            visualTransform.localScale = Vector3.one;
+            // 恢复原始缩放（保留编辑器中手动调整过的 Visual 尺寸）
+            visualTransform.localScale = originalVisualScale;
         }
         else
         {

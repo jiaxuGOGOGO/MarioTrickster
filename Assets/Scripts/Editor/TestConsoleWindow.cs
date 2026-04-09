@@ -198,12 +198,14 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(4);
 
-        // ── S41: Picking Mode Toggle ──
-        // Root 模式(默认): 框选只选 Root，Visual 不可拾取，适合批量移动/旋转
-        // Visual 模式: 框选可选到 Visual，适合单独调整视觉大小
+        // ── S41/S57c: Picking + Size Sync Toolbar ──
+        // Root 模式(默认): 点击/框选最终只选 Root，适合移动/旋转/批量摆放
+        // Visual 模式: 点击/框选最终只选 Visual，适合单独调视觉大小
+        // Size Sync: 在视碰分离结构下同步 Visual.localScale ↔ Root.BoxCollider2D.size
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
         EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
         bool isRootMode = LevelEditorPickingManager.IsRootMode;
+        bool isSizeSyncEnabled = LevelEditorPickingManager.IsSizeSyncEnabled;
         GUILayout.Label("Picking:", GUILayout.Width(50));
         GUI.color = isRootMode ? new Color(0.4f, 0.9f, 0.4f) : Color.white;
         if (GUILayout.Toggle(isRootMode, "Root (移动/旋转)", EditorStyles.toolbarButton) && !isRootMode)
@@ -215,6 +217,13 @@ public class TestConsoleWindow : EditorWindow
         {
             LevelEditorPickingManager.SetMode(false);
         }
+
+        GUI.color = isSizeSyncEnabled ? new Color(1f, 0.85f, 0.35f) : Color.white;
+        if (GUILayout.Toggle(isSizeSyncEnabled, "Size Sync (视碰同步)", EditorStyles.toolbarButton) != isSizeSyncEnabled)
+        {
+            LevelEditorPickingManager.SetSizeSyncEnabled(!isSizeSyncEnabled);
+        }
+
         GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();
         EditorGUI.EndDisabledGroup();

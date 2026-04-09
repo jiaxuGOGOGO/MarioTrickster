@@ -31,6 +31,7 @@ public class FlyingEnemy : MonoBehaviour
     private float timer;
     private bool isDead;
     private Transform visualTransform;
+    private Vector3 originalVisualScale = Vector3.one;
 
     private void Awake()
     {
@@ -40,6 +41,9 @@ public class FlyingEnemy : MonoBehaviour
         Transform vis = transform.Find("Visual");
         if (vis != null)
             visualTransform = vis;
+
+        if (visualTransform != null)
+            originalVisualScale = visualTransform.localScale;
 
         // 确保碰撞体不是 Trigger（需要 OnCollisionEnter2D）
         BoxCollider2D col = GetComponent<BoxCollider2D>();
@@ -142,8 +146,6 @@ public class FlyingEnemy : MonoBehaviour
         BoxCollider2D col = GetComponent<BoxCollider2D>();
         if (col != null) col.enabled = true;
         if (visualTransform != null)
-            visualTransform.localScale = new Vector3(
-                PhysicsMetrics.CELL_SIZE * 0.8f,
-                PhysicsMetrics.CELL_SIZE * 0.8f, 1f);
+            visualTransform.localScale = originalVisualScale;
     }
 }

@@ -203,6 +203,7 @@ public class MarioController : MonoBehaviour
     private const float LandSquashDuration = 0.15f;    // 落地压扁时长
     private bool _landSquashActive;
     private float _landSquashTimer;
+    private Vector3 _baseVisualScale = Vector3.one;
 
     // ── 朝向 ──────────────────────────────────────────────────
     private bool isFacingRight = true;
@@ -262,6 +263,8 @@ public class MarioController : MonoBehaviour
             visualTransform = spriteRenderer.transform;
         if (visualTransform == null)
             visualTransform = transform;
+
+        _baseVisualScale = visualTransform.localScale;
 
         // S52: 如果 Inspector 未手动赋值 physicsConfig，尝试从 Resources 自动加载
         if (physicsConfig == null)
@@ -444,7 +447,7 @@ public class MarioController : MonoBehaviour
                 _bounceSquashActive = false;
                 if (visualTransform != null)
                 {
-                    visualTransform.localScale = new Vector3(LandSquashX, LandSquashY, 1f);
+                    visualTransform.localScale = GetScaledVisual(new Vector2(LandSquashX, LandSquashY));
                 }
             }
 
@@ -696,7 +699,7 @@ public class MarioController : MonoBehaviour
         // S36: 蓄力冻结时角色压扁（视觉上"被弹簧压住"的感觉）
         if (visualTransform != null)
         {
-            visualTransform.localScale = new Vector3(LandSquashX, LandSquashY, 1f);
+            visualTransform.localScale = GetScaledVisual(new Vector2(LandSquashX, LandSquashY));
         }
     }
 
@@ -744,7 +747,7 @@ public class MarioController : MonoBehaviour
         _landSquashActive = false;
         if (visualTransform != null)
         {
-            visualTransform.localScale = new Vector3(BounceStretchX, BounceStretchY, 1f);
+            visualTransform.localScale = GetScaledVisual(new Vector2(BounceStretchX, BounceStretchY));
         }
     }
 
@@ -757,6 +760,14 @@ public class MarioController : MonoBehaviour
     {
         if (moveInput.x > 0.01f && !isFacingRight)       { isFacingRight = true;  spriteRenderer.flipX = false; }
         else if (moveInput.x < -0.01f && isFacingRight)  { isFacingRight = false; spriteRenderer.flipX = true;  }
+    }
+
+    private Vector3 GetScaledVisual(Vector2 xyMultiplier)
+    {
+        return new Vector3(
+            _baseVisualScale.x * xyMultiplier.x,
+            _baseVisualScale.y * xyMultiplier.y,
+            _baseVisualScale.z);
     }
 
     private void UpdateAnimator()
@@ -792,7 +803,7 @@ public class MarioController : MonoBehaviour
 
             if (progress >= 1f)
             {
-                visualTransform.localScale = Vector3.one;
+                visualTransform.localScale = _baseVisualScale;
                 _bounceSquashActive = false;
             }
             else
@@ -801,7 +812,7 @@ public class MarioController : MonoBehaviour
                 float t = Mathf.SmoothStep(0f, 1f, progress);
                 float scaleX = Mathf.Lerp(BounceStretchX, 1f, t);
                 float scaleY = Mathf.Lerp(BounceStretchY, 1f, t);
-                visualTransform.localScale = new Vector3(scaleX, scaleY, 1f);
+                visualTransform.localScale = GetScaledVisual(new Vector2(scaleX, scaleY));
             }
             return; // 拉伸动画优先于压扁动画
         }
@@ -814,7 +825,7 @@ public class MarioController : MonoBehaviour
 
             if (progress >= 1f)
             {
-                visualTransform.localScale = Vector3.one;
+                visualTransform.localScale = _baseVisualScale;
                 _landSquashActive = false;
             }
             else
@@ -822,7 +833,7 @@ public class MarioController : MonoBehaviour
                 float t = Mathf.SmoothStep(0f, 1f, progress);
                 float scaleX = Mathf.Lerp(LandSquashX, 1f, t);
                 float scaleY = Mathf.Lerp(LandSquashY, 1f, t);
-                visualTransform.localScale = new Vector3(scaleX, scaleY, 1f);
+                visualTransform.localScale = GetScaledVisual(new Vector2(scaleX, scaleY));
             }
         }
     }
@@ -872,7 +883,7 @@ public class MarioController : MonoBehaviour
         // S36: 重置形变状态
         _bounceSquashActive = false;
         _landSquashActive = false;
-        if (visualTransform != null) visualTransform.localScale = Vector3.one;
+        if (visualTransform != null) visualTransform.localScale = _baseVisualScale;
 
         OnDeath?.Invoke();
         rb.velocity = Vector2.zero;

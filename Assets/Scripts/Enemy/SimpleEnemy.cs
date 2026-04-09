@@ -34,6 +34,7 @@ public class SimpleEnemy : MonoBehaviour
 
     // S37: 视碰分离 — 视觉代理节点
     private Transform visualTransform;
+    private Vector3 originalVisualScale = Vector3.one;
 
     // 状态
     private int moveDirection;
@@ -61,6 +62,8 @@ public class SimpleEnemy : MonoBehaviour
             visualTransform = spriteRenderer.transform;
         else
             visualTransform = transform;
+
+        originalVisualScale = visualTransform != null ? visualTransform.localScale : Vector3.one;
 
         rb.gravityScale = 3f;
         rb.freezeRotation = true;
@@ -186,7 +189,10 @@ public class SimpleEnemy : MonoBehaviour
         rb.bodyType = RigidbodyType2D.Kinematic;
 
         // S37: 视碰分离 — 压扁动画操作视觉节点
-        visualTransform.localScale = new Vector3(visualTransform.localScale.x, 0.2f, visualTransform.localScale.z);
+        visualTransform.localScale = new Vector3(
+            originalVisualScale.x,
+            originalVisualScale.y * 0.2f,
+            originalVisualScale.z);
 
         // 禁用碰撞
         boxCollider.enabled = false;

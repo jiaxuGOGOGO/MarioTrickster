@@ -42,6 +42,7 @@ public class BouncingEnemy : ControllableLevelElement
 
     // S37: 视碰分离 — 视觉代理节点
     private Transform visualTransform;
+    private Vector3 originalVisualScale = Vector3.one;
 
     // 状态
     private float bounceTimer;
@@ -82,6 +83,7 @@ public class BouncingEnemy : ControllableLevelElement
         // S37: 视碰分离 — 视觉代理节点兼容回退
         SpriteRenderer sr = GetComponentInChildren<SpriteRenderer>();
         visualTransform = sr != null ? sr.transform : transform;
+        originalVisualScale = visualTransform != null ? visualTransform.localScale : Vector3.one;
 
         currentHealth = maxHealth;
         bounceTimer = bounceInterval;
@@ -214,7 +216,8 @@ public class BouncingEnemy : ControllableLevelElement
         boxCollider.enabled = true;
         rb.simulated = true;
         transform.position = initialPosition;
-        visualTransform.localScale = Vector3.one;
+        if (visualTransform != null)
+            visualTransform.localScale = originalVisualScale;
         gameObject.SetActive(true);
         tricksterOverride = false;
     }

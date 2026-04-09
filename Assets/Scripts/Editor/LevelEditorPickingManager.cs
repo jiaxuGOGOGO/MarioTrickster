@@ -1,177 +1,393 @@
-using UnityEngine;
-using UnityEditor;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor;
+using UnityEngine;
 
 /// <summary>
-/// 关卡编辑器拾取管理器 — 解决 S37 视碰分离架构下框选(marquee select)同时选中 Root 和 Visual 的问题
+/// 关卡编辑器拾取管理器。
 ///
-/// 核心机制 (v3 — Selection 后处理 + delayCall 安全赋值):
-///   - 监听 Selection.selectionChanged 事件
-///   - Root 模式(默认): 选中 Visual 时，延迟一帧替换为其父级 Root
-///   - Visual 模式: 不做任何过滤，Visual 可被直接选中
+/// 核心职责（v4）：
+///   1. Root 模式：无论点击/框选到 Visual，最终都重定向到 Root，方便移动/旋转。
+///   2. Visual 模式：无论点击/框选到 Root，最终都重定向到 Visual，避免 Root + Visual 同时被选中。
+///   3. Size Sync 模式：在视碰分离结构下，保持 Visual.localScale 与 Root.BoxCollider2D.size 的
+///      原始比例联动；编辑哪一侧，另一侧都按比例同步，且不会改动角色 Root.localScale。
 ///
-/// 防崩溃四重保险:
-///   1. _isProcessingSelection 防重入锁 — 防止 Selection.objects 赋值触发死循环
-///   2. EditorApplication.delayCall 延迟赋值 — 绕过 GUI 重绘时序冲突，防 Inspector 闪烁报错
-///   3. HashSet&lt;Object&gt; 天然去重 — 防止多个 Visual 指向同一 Root 导致重复
-///   4. go.scene.IsValid() 过滤 — 防止拦截 Project 窗口中的预制体资产点击
-///
-/// 白名单识别规则（避免误伤）:
-///   1. 必须在有效场景中（非 Project 窗口资产）
-///   2. 自身带有 SpriteRenderer
-///   3. 有父节点
-///   4. 父级带有 Collider2D
-///   5. 父级带有核心脚本，或父级是纯几何方块（无 MonoBehaviour + 单子节点）
-///
-/// Session 41: 新增 (v3)
+/// 设计原则：
+///   - 只处理标准的 Root -> Visual 结构。
+///   - 不依赖具体元素类型白名单，后续新增机关只要沿用该结构即可自动生效。
+///   - Root.localScale 从不参与角色/机关的视碰分离同步，避免破坏 Mario / Trickster 的核心逻辑。
 /// </summary>
 [InitializeOnLoad]
 public static class LevelEditorPickingManager
 {
-    // ═══════════════════════════════════════════════════
-    // 常量
-    // ═══════════════════════════════════════════════════
     private const string PREF_KEY = "MarioTrickster_PickingMode";
-    // 0 = Root 模式 (默认)
+    private const string PREF_KEY_SIZE_SYNC = "MarioTrickster_PickingSizeSync";
+
+    // 0 = Root 模式（默认）
     // 1 = Visual 模式
+    private static bool _isProcessingSelection;
 
-    // 防重入锁（极度重要：防止修改 Selection 时触发死循环）
-    private static bool _isProcessingSelection = false;
+    private struct SizeSyncState
+    {
+        public Vector3 baseVisualScale;
+        public Vector2 baseColliderSize;
+        public Vector3 lastVisualScale;
+        public Vector2 lastColliderSize;
+    }
 
-    // ═══════════════════════════════════════════════════
-    // 静态构造 — [InitializeOnLoad] 入口
-    // ═══════════════════════════════════════════════════
+    private struct VisualColliderPair
+    {
+        public GameObject root;
+        public Transform visual;
+        public BoxCollider2D collider;
+    }
+
+    private static readonly Dictionary<int, SizeSyncState> SizeSyncStates = new Dictionary<int, SizeSyncState>();
+
     static LevelEditorPickingManager()
     {
         Selection.selectionChanged += OnSelectionChanged;
+        EditorApplication.update += OnEditorUpdate;
     }
 
-    // ═══════════════════════════════════════════════════
-    // 公共 API
-    // ═══════════════════════════════════════════════════
+    /// <summary>当前是否为 Root 模式（点击/框选最终都选 Root）。</summary>
+    public static bool IsRootMode => EditorPrefs.GetInt(PREF_KEY, 0) == 0;
 
-    /// <summary>当前是否为 Root 模式（框选 Visual 自动替换为 Root）</summary>
-    public static bool IsRootMode
-    {
-        get { return EditorPrefs.GetInt(PREF_KEY, 0) == 0; }
-    }
+    /// <summary>当前是否启用视碰尺寸联动。</summary>
+    public static bool IsSizeSyncEnabled => EditorPrefs.GetBool(PREF_KEY_SIZE_SYNC, false);
 
-    /// <summary>设置拾取模式</summary>
-    /// <param name="rootMode">true = Root 模式, false = Visual 模式</param>
+    /// <summary>设置拾取模式。</summary>
     public static void SetMode(bool rootMode)
     {
         EditorPrefs.SetInt(PREF_KEY, rootMode ? 0 : 1);
+        OnSelectionChanged();
+    }
+
+    /// <summary>设置尺寸联动开关。</summary>
+    public static void SetSizeSyncEnabled(bool enabled)
+    {
+        EditorPrefs.SetBool(PREF_KEY_SIZE_SYNC, enabled);
+
+        if (!enabled)
+            SizeSyncStates.Clear();
+        else
+            CaptureCurrentSelectionState();
     }
 
     /// <summary>
-    /// 保留公共 SyncState 接口以兼容已注入的钩子调用（AsciiLevelGenerator 事件等）。
-    /// Selection 后处理策略下此方法为空操作。
+    /// 保留公共 SyncState 接口以兼容既有调用。
+    /// 这里改为刷新当前选择缓存，确保新生成元素立刻接入拾取/尺寸联动。
     /// </summary>
     public static void SyncState()
     {
-        // Selection 后处理策略不需要预扫描，保留空方法避免编译错误
+        CaptureCurrentSelectionState();
     }
-
-    // ═══════════════════════════════════════════════════
-    // Selection 后处理
-    // ═══════════════════════════════════════════════════
 
     private static void OnSelectionChanged()
     {
-        // 1. 防重入拦截 + Visual 模式放行
-        if (_isProcessingSelection || !IsRootMode)
+        if (_isProcessingSelection)
             return;
 
-        if (Selection.objects == null || Selection.objects.Length == 0)
+        Object[] currentSelection = Selection.objects;
+        if (currentSelection == null || currentSelection.Length == 0)
+        {
+            SizeSyncStates.Clear();
             return;
+        }
 
         bool needRedirection = false;
+        HashSet<Object> redirectedSelection = new HashSet<Object>();
 
-        // 2. 使用 HashSet 天然去重，防止框选多个 Visual 导致重复添加同一个 Root
-        HashSet<Object> newSelection = new HashSet<Object>();
-
-        foreach (var obj in Selection.objects)
+        foreach (Object obj in currentSelection)
         {
-            GameObject go = obj as GameObject;
-
-            // 如果选中的是场景里的 Visual 节点，进行拦截和替换
-            if (go != null && IsVisualNode(go))
+            if (obj is GameObject go && TryMapSelectionForCurrentMode(go, out GameObject mappedGo))
             {
-                newSelection.Add(go.transform.parent.gameObject);
-                needRedirection = true;
+                redirectedSelection.Add(mappedGo);
+                needRedirection |= mappedGo != go;
             }
             else
             {
-                // 不是 Visual 节点，保持原样
-                newSelection.Add(obj);
+                redirectedSelection.Add(obj);
             }
         }
 
-        // 3. 只有真正发生"偷梁换柱"时，才去修改 Selection
-        if (needRedirection)
+        if (!needRedirection)
         {
-            var finalArray = newSelection.ToArray();
+            CaptureCurrentSelectionState();
+            return;
+        }
 
-            // 4. 极其关键：延迟一帧赋值，绕过 Unity 底层的 GUI 绘制时序冲突
-            EditorApplication.delayCall += () =>
+        Object[] finalArray = redirectedSelection.ToArray();
+        EditorApplication.delayCall += () =>
+        {
+            _isProcessingSelection = true;
+            Selection.objects = finalArray;
+            _isProcessingSelection = false;
+            CaptureCurrentSelectionState();
+        };
+    }
+
+    private static bool TryMapSelectionForCurrentMode(GameObject go, out GameObject mappedGo)
+    {
+        mappedGo = go;
+
+        if (IsRootMode)
+        {
+            if (IsVisualNode(go))
             {
-                _isProcessingSelection = true;   // 上锁
-                Selection.objects = finalArray;   // 重新选中 Root
-                _isProcessingSelection = false;   // 解锁
+                mappedGo = go.transform.parent.gameObject;
+                return true;
+            }
+
+            return false;
+        }
+
+        if (TryGetVisualChild(go, out GameObject visualChild))
+        {
+            mappedGo = visualChild;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void OnEditorUpdate()
+    {
+        if (Application.isPlaying || !IsSizeSyncEnabled)
+        {
+            if (SizeSyncStates.Count > 0)
+                SizeSyncStates.Clear();
+            return;
+        }
+
+        Dictionary<int, VisualColliderPair> selectedPairs = CollectSelectedPairs();
+        PruneSizeSyncStates(selectedPairs);
+
+        foreach (KeyValuePair<int, VisualColliderPair> kv in selectedPairs)
+        {
+            SyncPairIfNeeded(kv.Key, kv.Value);
+        }
+    }
+
+    private static Dictionary<int, VisualColliderPair> CollectSelectedPairs()
+    {
+        Dictionary<int, VisualColliderPair> pairs = new Dictionary<int, VisualColliderPair>();
+
+        foreach (GameObject go in Selection.gameObjects)
+        {
+            if (!TryGetVisualColliderPair(go, out VisualColliderPair pair))
+                continue;
+
+            int rootId = pair.root.GetInstanceID();
+            pairs[rootId] = pair;
+        }
+
+        return pairs;
+    }
+
+    private static bool TryGetVisualColliderPair(GameObject go, out VisualColliderPair pair)
+    {
+        pair = default;
+        if (go == null || !go.scene.IsValid())
+            return false;
+
+        GameObject root = null;
+        GameObject visual = null;
+
+        if (IsVisualNode(go))
+        {
+            visual = go;
+            root = go.transform.parent != null ? go.transform.parent.gameObject : null;
+        }
+        else if (TryGetVisualChild(go, out GameObject visualChild))
+        {
+            root = go;
+            visual = visualChild;
+        }
+
+        if (root == null || visual == null)
+            return false;
+
+        BoxCollider2D collider = root.GetComponent<BoxCollider2D>();
+        if (collider == null)
+            return false;
+
+        pair = new VisualColliderPair
+        {
+            root = root,
+            visual = visual.transform,
+            collider = collider,
+        };
+        return true;
+    }
+
+    private static void CaptureCurrentSelectionState()
+    {
+        SizeSyncStates.Clear();
+
+        if (!IsSizeSyncEnabled || Application.isPlaying)
+            return;
+
+        Dictionary<int, VisualColliderPair> selectedPairs = CollectSelectedPairs();
+        foreach (KeyValuePair<int, VisualColliderPair> kv in selectedPairs)
+        {
+            Transform visual = kv.Value.visual;
+            BoxCollider2D collider = kv.Value.collider;
+            SizeSyncStates[kv.Key] = new SizeSyncState
+            {
+                baseVisualScale = visual.localScale,
+                baseColliderSize = collider.size,
+                lastVisualScale = visual.localScale,
+                lastColliderSize = collider.size,
             };
         }
     }
 
-    // ═══════════════════════════════════════════════════
-    // 白名单识别
-    // ═══════════════════════════════════════════════════
-
-    /// <summary>
-    /// 判断一个 GameObject 是否为需要拦截的 Visual 节点。
-    ///
-    /// S57b 重构：将过滤 5 从“硬编码类型白名单”改为“结构特征检测”。
-    /// 过滤 1-4 已经非常严格（场景内 + 有 SpriteRenderer + 有父节点 + 父级有 Collider2D），
-    /// 满足这些条件的节点在我们的项目中只可能是 AsciiLevelGenerator.CreateBlock 生成的
-    /// "Root → Visual" 视碰分离结构。因此过滤 5 只需确认节点名称为 "Visual"
-    /// 且父级挂在 AsciiLevel_Root 下即可，无需逐类型维护白名单。
-    ///
-    /// 这样以后新增任何元素（无论继承什么基类），只要通过 CreateBlock 生成，
-    /// Picking 模式就自动生效，不会再遗漏。
-    /// </summary>
-    private static bool IsVisualNode(GameObject go)
+    private static void PruneSizeSyncStates(Dictionary<int, VisualColliderPair> selectedPairs)
     {
-        // 过滤 1: 不在当前场景里（Project 窗口中的预制体资产），放行
-        if (!go.scene.IsValid())
+        if (SizeSyncStates.Count == 0)
+            return;
+
+        List<int> staleKeys = SizeSyncStates.Keys.Where(key => !selectedPairs.ContainsKey(key)).ToList();
+        foreach (int key in staleKeys)
+            SizeSyncStates.Remove(key);
+    }
+
+    private static void SyncPairIfNeeded(int rootId, VisualColliderPair pair)
+    {
+        if (pair.visual == null || pair.collider == null)
+            return;
+
+        Vector3 currentVisualScale = pair.visual.localScale;
+        Vector2 currentColliderSize = pair.collider.size;
+
+        if (!SizeSyncStates.TryGetValue(rootId, out SizeSyncState state))
+        {
+            SizeSyncStates[rootId] = new SizeSyncState
+            {
+                baseVisualScale = currentVisualScale,
+                baseColliderSize = currentColliderSize,
+                lastVisualScale = currentVisualScale,
+                lastColliderSize = currentColliderSize,
+            };
+            return;
+        }
+
+        bool visualChanged = !ApproximatelyXY(currentVisualScale, state.lastVisualScale);
+        bool colliderChanged = !Approximately(currentColliderSize, state.lastColliderSize);
+
+        if (!visualChanged && !colliderChanged)
+            return;
+
+        if (visualChanged && !colliderChanged)
+        {
+            ApplyColliderFromVisual(pair, state, currentVisualScale);
+        }
+        else if (colliderChanged && !visualChanged)
+        {
+            ApplyVisualFromCollider(pair, state, currentColliderSize);
+        }
+        else
+        {
+            if (Selection.activeGameObject == pair.visual.gameObject)
+                ApplyColliderFromVisual(pair, state, currentVisualScale);
+            else
+                ApplyVisualFromCollider(pair, state, currentColliderSize);
+        }
+
+        state.lastVisualScale = pair.visual.localScale;
+        state.lastColliderSize = pair.collider.size;
+        SizeSyncStates[rootId] = state;
+    }
+
+    private static void ApplyColliderFromVisual(VisualColliderPair pair, SizeSyncState state, Vector3 currentVisualScale)
+    {
+        Vector2 targetSize = new Vector2(
+            state.baseColliderSize.x * SafeRatio(currentVisualScale.x, state.baseVisualScale.x),
+            state.baseColliderSize.y * SafeRatio(currentVisualScale.y, state.baseVisualScale.y));
+
+        if (Approximately(pair.collider.size, targetSize))
+            return;
+
+        Undo.RecordObject(pair.collider, "Sync Collider Size From Visual");
+        pair.collider.size = targetSize;
+        EditorUtility.SetDirty(pair.collider);
+    }
+
+    private static void ApplyVisualFromCollider(VisualColliderPair pair, SizeSyncState state, Vector2 currentColliderSize)
+    {
+        float scaleX = state.baseVisualScale.x * SafeRatio(currentColliderSize.x, state.baseColliderSize.x);
+        float scaleY = state.baseVisualScale.y * SafeRatio(currentColliderSize.y, state.baseColliderSize.y);
+
+        Vector3 targetScale = new Vector3(scaleX, scaleY, pair.visual.localScale.z);
+        if (ApproximatelyXY(pair.visual.localScale, targetScale))
+            return;
+
+        Undo.RecordObject(pair.visual, "Sync Visual Scale From Collider");
+        pair.visual.localScale = targetScale;
+        EditorUtility.SetDirty(pair.visual);
+    }
+
+    private static float SafeRatio(float current, float baseline)
+    {
+        if (Mathf.Approximately(baseline, 0f))
+            return 1f;
+
+        return Mathf.Abs(current / baseline);
+    }
+
+    private static bool TryGetVisualChild(GameObject root, out GameObject visual)
+    {
+        visual = null;
+        if (root == null || !root.scene.IsValid())
             return false;
 
-        // 过滤 2: 自身没有 SpriteRenderer，放行
+        Transform visualTransform = root.transform.Find("Visual");
+        if (visualTransform == null)
+            return false;
+
+        if (visualTransform.parent != root.transform)
+            return false;
+
+        if (visualTransform.GetComponent<SpriteRenderer>() == null)
+            return false;
+
+        if (root.GetComponent<Collider2D>() == null)
+            return false;
+
+        visual = visualTransform.gameObject;
+        return true;
+    }
+
+    private static bool IsVisualNode(GameObject go)
+    {
+        if (go == null || !go.scene.IsValid())
+            return false;
+
+        if (go.name != "Visual")
+            return false;
+
         if (go.GetComponent<SpriteRenderer>() == null)
             return false;
 
-        // 过滤 3: 没有父节点，放行
         Transform parent = go.transform.parent;
         if (parent == null)
             return false;
 
-        // 过滤 4: 父级没有 Collider2D，放行
-        if (parent.GetComponent<Collider2D>() == null)
+        Collider2D rootCollider = parent.GetComponent<Collider2D>();
+        if (rootCollider == null)
             return false;
 
-        // 过滤 5: 结构特征检测（替代旧版硬编码白名单）
-        // 条件 A: 节点名称为 "Visual"（CreateBlock 统一命名）
-        if (go.name != "Visual")
-            return false;
+        return parent.Find("Visual") == go.transform;
+    }
 
-        // 条件 B: 父级挂在 AsciiLevel_Root 下，或父级是角色节点（Mario/Trickster）
-        Transform grandParent = parent.parent;
-        if (grandParent != null && grandParent.name == "AsciiLevel_Root")
-            return true;
+    private static bool Approximately(Vector2 a, Vector2 b)
+    {
+        return Mathf.Abs(a.x - b.x) < 0.0001f && Mathf.Abs(a.y - b.y) < 0.0001f;
+    }
 
-        // 条件 C: 角色节点（没有挂在 AsciiLevel_Root 下，但仍然是视碰分离结构）
-        if (parent.GetComponent<MarioController>() != null) return true;
-        if (parent.GetComponent<TricksterController>() != null) return true;
-
-        return false;
+    private static bool ApproximatelyXY(Vector3 a, Vector3 b)
+    {
+        return Mathf.Abs(a.x - b.x) < 0.0001f && Mathf.Abs(a.y - b.y) < 0.0001f;
     }
 }

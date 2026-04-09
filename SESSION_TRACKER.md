@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 57b (S57b: Palette补全 + Picking重构 + 多项修复 + Ground/Platform合并) |
-| **日期** | 2026-04-08 |
+| **最新 Session** | Session 57c (S57c: Picking 选取收口 + Size Sync 联动 + Visual 缩放回写修复) |
+| **日期** | 2026-04-09 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S57b 已推送，待用户验证 |
+| **编译状态** | ⏳ S57c 本地完成，待用户验证 |
 | **阻塞** | 无 |
-| **交接说明** | S57b 共十一笔提交：(1) Element Palette 补全 5 个元素按钮；(2) Picking 白名单补全；(3) IsVisualNode 重构为结构特征检测；(4) ConveyorBelt 修复：AddForce→SetPlatformVelocity；(5) BaseHazard 修复：OnTriggerExit2D 清除 _processedSet；(6) BreakableBlock 修复：法线方向反转；(7) Ground(#)/Platform(=) 水平合并：连续同类字符合并为单个长条方块，参考 S44c OneWayPlatform 模式，性能+物理稳定性提升；(8-11) SESSION_TRACKER 同步。接班 AI 请先 `git log --oneline -n 12`。 |
+| **交接说明** | S57c 聚焦编辑器视碰分离工作流收尾：① `LevelEditorPickingManager` 改为双模式重定向，Visual 模式下点击/框选 Visual 最终只保留 Visual，不再混入 Root；Root 模式保持选 Root。② 工具栏新增 `Size Sync (视碰同步)` 开关，可在 `Visual.localScale` 与 `Root.BoxCollider2D.size` 间按初始比例双向联动，且不会去缩放 Mario/Trickster 的 Root。③ 顺手修复一批“手动调大 Visual 后被运行时/重置写回”的相似问题：`MarioController`、`SimpleEnemy`、`FlyingEnemy`、`BouncingEnemy`、`BreakableBlock` 现都基于初始视觉缩放做形变/恢复。接班 AI 请先 `git log --oneline -n 12` 并重点查看上述 7 个文件。 |
 
 ---
 
@@ -126,6 +126,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S56重点验证**: ASCII Build 新字符(@f<SX)能正确生成对应元素，旧字符行为不变 |
+| 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
 | ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
 | 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
 
@@ -147,6 +148,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **最高** | **回归初心（纯关卡设计）**：打开 Level Studio，用 ASCII 纯凭直觉拼凑关卡，只关注好不好玩。 | 🚀 立即执行 |
+| **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |
 | **按需** | 参数调优：拖动 PhysicsConfigSO 滑块调手感，若触发报错则由 AI 微创手术抹平。 | 待触发 |
 | 远期 | 音效系统 / 动画完善 / 主菜单 UI | 未开始 |

@@ -9,6 +9,11 @@
 
 在给 Manus 发指令前，请确保你的本地厨房已经配齐了以下工具。如果已经搞定，请直接跳到【每日开工启动】。本指南基于 2026 年最新稳定版环境编写，针对 **RTX 4070 (12GB VRAM)** 显卡优化。
 
+> **📂 路径约定**
+> 本文档中所有路径以 `{ComfyUI根目录}` 代替你实际的安装位置。请根据你的实际情况替换，例如：
+> - 如果你解压到了 `E:\ComfyUI\ComfyUI_windows_portable_nvidia\ComfyUI_windows_portable`，那么 `{ComfyUI根目录}` = 这个路径
+> - 如果你解压到了 `D:\ComfyUI_windows_portable`，那么 `{ComfyUI根目录}` = `D:\ComfyUI_windows_portable`
+
 > **💻 你的硬件配置评估**
 > RTX 4070 拥有 12GB VRAM，完全满足 SDXL 模型的运行需求。实测可以在 1024×1024 分辨率下流畅跑图，同时叠加 IPAdapter + ControlNet 也不会爆显存。是运行本项目全部管线的理想配置。
 
@@ -34,7 +39,7 @@
     > ⚠️ **不要下载** `ComfyUI_windows_portable_nvidia_cu126.7z`。那是给老显卡/老驱动的降级兼容包。你的 RTX 4070 用默认版性能更好。
 *   **解压与启动**：
     1.  右键点击下载的 `.7z` 文件 → 选择 `7-Zip` → `解压到“ComfyUI_windows_portable_nvidia\”`。
-    2.  将解压出的文件夹移动到剩余空间大于 **50GB** 的固态硬盘根目录（如 `D:\ComfyUI_windows_portable`）。避免放在桌面或含中文的路径下。
+    2.  将解压出的文件夹移动到剩余空间大于 **50GB** 的固态硬盘（如 `E:\ComfyUI\` 下）。避免放在桌面或含中文的路径下。解压后的文件夹路径即为你的 `{ComfyUI根目录}`。
     3.  进入文件夹，双击运行 `run_nvidia_gpu.bat`。
     4.  首次启动会自动下载必要组件，可能需要 2–5 分钟。完成后控制台会显示 `To see the GUI go to: http://127.0.0.1:8188`，浏览器会自动打开。
 *   **硬件要求**：
@@ -55,7 +60,7 @@
 
 *   **安装方法**：打开命令提示符（按 `Win + R`，输入 `cmd`，回车），依次执行以下命令：
     ```bash
-    cd D:\ComfyUI_windows_portable\ComfyUI\custom_nodes
+    cd {ComfyUI根目录}\ComfyUI\custom_nodes
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git
     ```
     > ℹ️ 如果提示 `git 不是内部或外部命令`，说明 Git 未安装或未加入系统 PATH。请回到步骤 0 安装 Git。
@@ -73,7 +78,7 @@
 | `Animagine XL V3` | 二次元微调 | ~6.5GB | [Civitai 搜索](https://civitai.com/models/260267) | 推荐。动漫/手绘风格效果极佳 |
 | `AAM XL AnimeMix` | 二次元微调 | ~6.5GB | [Civitai 搜索](https://civitai.com/) | 备选。另一种动漫风格取向 |
 
-*   **放置路径**：将下载的 `.safetensors` 文件放入 `D:\ComfyUI_windows_portable\ComfyUI\models\checkpoints\` 目录下。
+*   **放置路径**：将下载的 `.safetensors` 文件放入 `{ComfyUI根目录}\ComfyUI\models\checkpoints\` 目录下。
 *   **下载提示**：文件较大，建议使用迅雷或 IDM 等下载工具加速。HuggingFace 直链可直接粘贴到下载工具中。
 
 ### 2. 必备插件与模型配置
@@ -117,7 +122,7 @@
 | 备选：分体版 | `diffusers_xl_depth_full.safetensors` | ~2.5GB | 同上 | 仅深度图控制 |
 | 备选：分体版 | `thibaud_xl_openpose.safetensors` | ~2.5GB | 同上 | 仅骨架姿势控制 |
 
-*   **放置路径**：将下载的模型文件放入 `D:\ComfyUI_windows_portable\ComfyUI\models\controlnet\` 目录。
+*   **放置路径**：将下载的模型文件放入 `{ComfyUI根目录}\ComfyUI\models\controlnet\` 目录。
 
 > 💡 **RTX 4070 用户建议**：直接下载 ProMax 统一版即可。12GB 显存跑它完全没问题，而且一个模型就能覆盖本项目所有用到的控制类型（骨架、线稿、深度）。
 
@@ -154,7 +159,7 @@
 全部安装完成后，你的文件目录应该长这样：
 
 ```
-D:\ComfyUI_windows_portable\
+{ComfyUI根目录}\
 ├─ ComfyUI\
 │   ├─ models\
 │   │   ├─ checkpoints\

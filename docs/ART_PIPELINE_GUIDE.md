@@ -6,6 +6,25 @@
 
 ---
 
+## 🛠️ 第 0 步：本地渲染终端准备清单 (仅需做一次)
+
+在给 Manus 发指令前，请确保你的本地厨房已经配齐了以下工具。如果已经搞定，请直接跳到【菜单 1】。
+
+### 1. 核心引擎与大模型
+- **安装 ComfyUI**：推荐下载官方 [ComfyUI Portable (Windows)](https://github.com/comfyanonymous/ComfyUI/releases) 一键解压版。
+- **安装 ComfyUI Manager**：在 `custom_nodes` 目录下 `git clone https://github.com/ltdrdata/ComfyUI-Manager`，用于后续一键安装缺失节点。
+- **下载大模型 (Checkpoint)**：去 Civitai 下载 `sd_xl_base_1.0.safetensors` 或你喜欢的二次元/手绘风 XL 模型，放入 `models/checkpoints/`。
+
+### 2. 必备插件 (通过 ComfyUI Manager 搜索安装)
+- **IPAdapter Plus** (`ComfyUI_IPAdapter_plus`)：用于【菜单 2】的垫图抽卡。需同时下载对应的 CLIP Vision 模型和 IPAdapter XL 权重。
+- **ControlNet 节点**：用于【菜单 3】的防滑步骨架锁定。需下载 SDXL 对应的 OpenPose 和 Canny 模型放入 `models/controlnet/`。
+
+### 3. 辅助工具链
+- **去底工具**：推荐使用 [remove.bg](https://www.remove.bg/) 或 Photoshop 一键抠图，用于将 ComfyUI 出图的纯色背景变为透明 PNG。
+- **云端炼丹炉**：注册 [LiblibAI](https://www.liblib.art/) 或 [Civitai](https://civitai.com/) 账号，用于在【菜单 2】收集齐 30 张图后在线训练 LoRA。
+
+---
+
 ## 菜单 1：喂书蒸馏 —— 建立「参数级配方库」 (有牛逼教程时随时做)
 
 **🤔 怎么让蒸馏效果最大化且不递减？**

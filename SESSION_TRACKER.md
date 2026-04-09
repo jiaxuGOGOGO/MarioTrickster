@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58s (S58s: 扩写步骤 0 准备清单超详细版) |
+| **最新 Session** | Session 58s (S58s: 步骤 0 超详细版 + 去底工具升级) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
-| **阶段** | Sprint 2 游戏体验提升 — ART_PIPELINE_GUIDE.md 步骤 0 已扩写为超详细版，针对 RTX 4070 (12GB) 优化 |
+| **阶段** | Sprint 2 游戏体验提升 — ART_PIPELINE_GUIDE.md 步骤 0 已完善，去底工具从 remove.bg 升级为 ComfyUI-RMBG + BiRefNet |
 | **编译状态** | ✅ 零代码变更，仅文档更新 |
 | **阻塞** | 无 |
-| **交接说明** | S58s 将 ART_PIPELINE_GUIDE.md 步骤 0 从简略清单扩写为完整的新手安装教程。新增内容包括：(1) 前置工具表格 (7-Zip/Git)。(2) ComfyUI Portable 逐步安装流程。(3) RTX 4070 硬件配置评估表。(4) 所有模型文件的具体名称/大小/下载链接/放置路径表格。(5) ControlNet Union ProMax 统一版推荐。(6) 安装完成后的目录结构自检图。(7) 常见问题排查表。追加更新：为每个组件添加了「✅ 已装确认」快速自检方法，已装组件可直接跳过。 |
+| **交接说明** | S58s 将 ART_PIPELINE_GUIDE.md 步骤 0 从简略清单扩写为完整新手安装教程，并全面升级去底工具方案。主要更新：(1) 步骤 0 扩写为超详细版（前置工具/ComfyUI/模型/插件逐步教程 + RTX 4070 优化 + 自检清单 + FAQ）。(2) 为每个组件添加「✅ 已装确认」快速自检方法。(3) 明确 CUDA 版本选择（下载 nvidia.7z 而非 cu126）。(4) 去底工具从 remove.bg 升级为 ComfyUI-RMBG 节点（集成 BiRefNet/RMBG-2.0/BEN2 等 SOTA 模型，完全本地、免费、无限量，不离开工作流）。(5) 增加像素风特化备选 TransparencyBackgroundRemover。 |
 
 ---
 

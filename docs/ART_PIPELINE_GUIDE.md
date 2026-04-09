@@ -123,8 +123,22 @@
 
 ### 3. 辅助工具链
 
-*   **去底工具**：推荐使用在线服务 [remove.bg](https://www.remove.bg/)（每月免费 50 张），或在 Photoshop 中使用一键抠图功能。这用于将 ComfyUI 生成的纯色背景图处理为透明 PNG，以便导入 Unity。
-*   **云端炼丹炉 (LoRA 训练)**：当你在探索期积累了 30 张以上满意的同风格图片后，可以注册 [LiblibAI](https://www.liblib.art/)（国内访问友好）或 [Civitai](https://civitai.com/) 账号。使用它们的在线训练服务（Civitai SDXL LoRA 训练起步价 500 Buzz ≈ $5），上传你的图片集，训练一个专属的 Style LoRA，从而在后续量产中彻底固化画风。
+**3.1 去底工具（生成透明 PNG 导入 Unity）**
+
+> **✅ 已装确认**：在 ComfyUI 画布双击搜索 `RMBG`，能搜到 `RMBG Node` 说明已装。
+
+废弃在线服务（如 remove.bg），全面转向 **ComfyUI 内置全自动去底**。出图即透明 PNG，零成本、无限量、不离开工作流。
+
+*   **插件安装**：在 Manager 中搜索 `ComfyUI-RMBG`（作者：1038lab）并安装。这是一个集成了目前所有最强开源去底模型的超级节点。
+*   **模型选择（节点内切换）**：
+    *   **BiRefNet**：目前（2025-2026）公认的开源去底 SOTA（State of the Art）。对毛发、半透明材质（如玻璃、特效）的边缘保留极好，实测 500 张商品图毛发精度达 94%。RTX 4070 跑它只需 ~1.4 秒。
+    *   **RMBG-2.0**：Bria AI 最新开源模型，性能与 BiRefNet 接近（~1.2 秒），是极佳的备选。
+    *   *注：首次在节点中选择模型并运行时，ComfyUI 会自动从 HuggingFace 下载模型文件到 `models/RMBG/` 目录，无需手动下载。*
+*   **像素风特化备选**：如果你的游戏是纯像素风（Pixel Art），建议在 Manager 中额外安装 `ComfyUI-TransparencyBackgroundRemover`（作者：Limbicnation），它专门针对游戏精灵图优化，能完美保留锐利的像素边缘而不产生模糊过渡。
+
+**3.2 云端炼丹炉 (LoRA 训练)**
+
+当你在探索期积累了 30 张以上满意的同风格图片后，可以注册 [LiblibAI](https://www.liblib.art/)（国内访问友好）或 [Civitai](https://civitai.com/) 账号。使用它们的在线训练服务（Civitai SDXL LoRA 训练起步价 500 Buzz ≈ $5），上传你的图片集，训练一个专属的 Style LoRA，从而在后续量产中彻底固化画风。
 
 ### 4. 安装完成自检清单
 

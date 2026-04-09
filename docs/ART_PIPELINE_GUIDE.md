@@ -16,10 +16,10 @@
 
 在开始安装 ComfyUI 之前，请确保以下两个基础工具已安装到你的 Windows 系统中。
 
-| 工具 | 用途 | 下载地址 | 安装说明 |
-|------|------|----------|----------|
-| **7-Zip** | 解压 ComfyUI 的 `.7z` 压缩包 | [7-zip.org](https://www.7-zip.org/) | 下载 64-bit Windows x64 版本，双击安装，一路下一步即可 | **✅ 已装确认**：右键任意文件，菜单中有 `7-Zip` 选项 |
-| **Git** | 克隆 ComfyUI Manager 和插件 | [git-scm.com](https://git-scm.com/downloads) | 下载 Windows 版，安装时全部保持默认选项即可。 | **✅ 已装确认**：在 CMD 中输入 `git --version` 能输出版本号 |
+| 工具 | 用途 | 下载地址 | 安装说明 | ✅ 已装？如何确认 |
+|------|------|----------|----------|------------------|
+| **7-Zip** | 解压 ComfyUI 的 `.7z` 压缩包 | [7-zip.org](https://www.7-zip.org/) | 下载 64-bit Windows x64 版本，双击安装，一路下一步即可 | 右键任意文件，弹出菜单中能看到 `7-Zip` 选项就说明已装，跳过 |
+| **Git** | 克隆 ComfyUI Manager 和插件 | [git-scm.com](https://git-scm.com/downloads) | 下载 Windows 版，安装时全部保持默认选项即可 | 按 `Win + R` 输入 `cmd` 回车打开黑框，输入 `git --version` 回车。如果显示类似 `git version 2.xx.x` 的文字就说明已装，跳过。如果显示 `不是内部或外部命令` 则需要安装 |
 
 ### 1. 核心引擎与大模型
 

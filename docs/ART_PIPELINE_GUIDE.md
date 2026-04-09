@@ -60,7 +60,7 @@
 
 *   **安装方法**：打开命令提示符（按 `Win + R`，输入 `cmd`，回车），依次执行以下命令：
     ```bash
-    cd {ComfyUI根目录}\ComfyUI\custom_nodes
+    cd /d {ComfyUI根目录}\ComfyUI\custom_nodes
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git
     ```
     > ℹ️ 如果提示 `git 不是内部或外部命令`，说明 Git 未安装或未加入系统 PATH。请回到步骤 0 安装 Git。

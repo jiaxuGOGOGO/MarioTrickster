@@ -7,20 +7,150 @@
 
 ## 🛠️ 步骤 0：本地渲染终端准备清单 (仅需做一次)
 
-在给 Manus 发指令前，请确保你的本地厨房已经配齐了以下工具。如果已经搞定，请直接跳到【每日开工启动】。
+在给 Manus 发指令前，请确保你的本地厨房已经配齐了以下工具。如果已经搞定，请直接跳到【每日开工启动】。本指南基于 2026 年最新稳定版环境编写，针对 **RTX 4070 (12GB VRAM)** 显卡优化。
+
+> **💻 你的硬件配置评估**
+> RTX 4070 拥有 12GB VRAM，完全满足 SDXL 模型的运行需求。实测可以在 1024×1024 分辨率下流畅跑图，同时叠加 IPAdapter + ControlNet 也不会爆显存。是运行本项目全部管线的理想配置。
+
+### 0. 前置工具（确认已安装）
+
+在开始安装 ComfyUI 之前，请确保以下两个基础工具已安装到你的 Windows 系统中。
+
+| 工具 | 用途 | 下载地址 | 安装说明 |
+|------|------|----------|----------|
+| **7-Zip** | 解压 ComfyUI 的 `.7z` 压缩包 | [7-zip.org](https://www.7-zip.org/) | 下载 64-bit Windows x64 版本，双击安装，一路下一步即可 |
+| **Git** | 克隆 ComfyUI Manager 和插件 | [git-scm.com](https://git-scm.com/downloads) | 下载 Windows 版，安装时全部保持默认选项即可。安装完成后在 CMD 中输入 `git --version` 确认输出版本号 |
 
 ### 1. 核心引擎与大模型
-- **安装 ComfyUI**：推荐下载官方 [ComfyUI Portable (Windows)](https://github.com/comfyanonymous/ComfyUI/releases) 一键解压版。
-- **安装 ComfyUI Manager**：在 `custom_nodes` 目录下 `git clone https://github.com/ltdrdata/ComfyUI-Manager`，用于后续一键安装缺失节点。
-- **下载大模型 (Checkpoint)**：去 Civitai 下载 `sd_xl_base_1.0.safetensors` 或你喜欢的二次元/手绘风 XL 模型，放入 `models/checkpoints/`。
 
-### 2. 必备插件 (通过 ComfyUI Manager 搜索安装)
-- **IPAdapter Plus** (`ComfyUI_IPAdapter_plus`)：用于垫图抽卡。需同时下载对应的 CLIP Vision 模型和 IPAdapter XL 权重。
-- **ControlNet 节点**：用于防滑步骨架锁定。需下载 SDXL 对应的 OpenPose、Canny、Depth 模型放入 `models/controlnet/`。
+**1.1 安装 ComfyUI (Portable 版)**
+
+推荐使用官方的 Windows 一键解压版，它自带了独立的 Python 3.13 和 CUDA 13.0 环境，无需配置复杂的系统依赖。你的 RTX 4070 完美支持 CUDA 13.0。
+
+*   **下载地址**：前往 [ComfyUI 官方下载页](https://www.comfy.org/download) 或 [GitHub Releases](https://github.com/Comfy-Org/ComfyUI/releases)，下载 `ComfyUI_windows_portable_nvidia.7z`。
+*   **解压与启动**：
+    1.  右键点击下载的 `.7z` 文件 → 选择 `7-Zip` → `解压到“ComfyUI_windows_portable_nvidia\”`。
+    2.  将解压出的文件夹移动到剩余空间大于 **50GB** 的固态硬盘根目录（如 `D:\ComfyUI_windows_portable`）。避免放在桌面或含中文的路径下。
+    3.  进入文件夹，双击运行 `run_nvidia_gpu.bat`。
+    4.  首次启动会自动下载必要组件，可能需要 2–5 分钟。完成后控制台会显示 `To see the GUI go to: http://127.0.0.1:8188`，浏览器会自动打开。
+*   **硬件要求**：
+
+| 项目 | 最低要求 | 你的配置 (RTX 4070) | 备注 |
+|------|----------|----------------------|------|
+| GPU | NVIDIA 2018年+ | RTX 4070 (Ada Lovelace) | 完美支持 |
+| VRAM | 8GB | 12GB | SDXL 模型舒适运行，叠加 ControlNet + IPAdapter 无压力 |
+| 系统内存 | 16GB | 建议 32GB | 内存不足时模型加载会明显变慢 |
+| 硬盘空间 | 50GB | 建议预留 80GB+ | ComfyUI 本体 ~2GB，模型文件会占大量空间 |
+| 显卡驱动 | 最新稳定版 | 前往 [NVIDIA 驱动下载](https://www.nvidia.com/download/index.aspx) 更新 | 驱动过旧可能导致 CUDA 13.0 无法启动 |
+
+**1.2 安装 ComfyUI Manager**
+
+这是 ComfyUI 的"应用商店"，用于一键安装缺失节点和更新插件。
+
+*   **安装方法**：打开命令提示符（按 `Win + R`，输入 `cmd`，回车），依次执行以下命令：
+    ```bash
+    cd D:\ComfyUI_windows_portable\ComfyUI\custom_nodes
+    git clone https://github.com/ltdrdata/ComfyUI-Manager.git
+    ```
+    > ℹ️ 如果提示 `git 不是内部或外部命令`，说明 Git 未安装或未加入系统 PATH。请回到步骤 0 安装 Git。
+*   **验证**：关闭 ComfyUI 控制台黑框，重新双击 `run_nvidia_gpu.bat` 启动。在浏览器界面右下角的菜单面板中，你应该能看到新增的 `Manager` 按钮。点击它就能看到插件管理界面。
+
+**1.3 下载大模型 (Checkpoint)**
+
+本项目基于 SDXL 架构，你需要下载基础模型或风格化微调模型。单个 Checkpoint 文件约 6–7GB。
+
+| 模型名称 | 类型 | 文件大小 | 下载地址 | 说明 |
+|----------|------|----------|----------|------|
+| `sd_xl_base_1.0.safetensors` | 官方底模 | ~6.9GB | [HuggingFace 直链](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors) | 必装。所有 SDXL 工作流的基础 |
+| `Animagine XL V3` | 二次元微调 | ~6.5GB | [Civitai 搜索](https://civitai.com/models/260267) | 推荐。动漫/手绘风格效果极佳 |
+| `AAM XL AnimeMix` | 二次元微调 | ~6.5GB | [Civitai 搜索](https://civitai.com/) | 备选。另一种动漫风格取向 |
+
+*   **放置路径**：将下载的 `.safetensors` 文件放入 `D:\ComfyUI_windows_portable\ComfyUI\models\checkpoints\` 目录下。
+*   **下载提示**：文件较大，建议使用迅雷或 IDM 等下载工具加速。HuggingFace 直链可直接粘贴到下载工具中。
+
+### 2. 必备插件与模型配置
+
+点击右下角的 `Manager` → `Custom Nodes Manager`，搜索并安装以下核心插件。安装完成后，点击 `Restart` 重启 ComfyUI。
+
+**2.1 IPAdapter Plus (垫图抽卡核心)**
+
+用于将参考图的风格或角色特征完美迁移到新图中，相当于“一张图版的 LoRA”。
+
+*   **插件安装**：在 Manager 中搜索 `ComfyUI_IPAdapter_plus` 并安装（作者：cubiq）。
+*   **下载配套模型**：插件本身只是代码，还需要下载以下模型文件才能工作：
+
+| 模型文件 | 放置目录 | 文件大小 | 下载地址 |
+|----------|----------|----------|----------|
+| `CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors` | `ComfyUI\models\clip_vision\` | ~3.9GB | [HuggingFace](https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors)，下载后重命名为此文件名 |
+| `ip-adapter-plus_sdxl_vit-h.safetensors` | `ComfyUI\models\ipadapter\` | ~848MB | [HuggingFace SDXL 目录](https://huggingface.co/h94/IP-Adapter/tree/main/sdxl_models) |
+| `ip-adapter-plus-face_sdxl_vit-h.safetensors` | `ComfyUI\models\ipadapter\` | ~848MB | 同上 |
+
+> ℹ️ `ipadapter` 文件夹需要手动创建：在 `ComfyUI\models\` 目录下新建名为 `ipadapter` 的文件夹。
+
+**2.2 ControlNet 节点 (防滑步与透视锁定)**
+
+用于锁定角色的骨架姿势（OpenPose/DWPose）或场景的边缘轮廓（Canny/Depth/Lineart），防止 AI 生成时肢体崩坏或透视走样。
+
+*   **预处理器插件**：在 Manager 中搜索 `ComfyUI's ControlNet Auxiliary Preprocessors`（作者：Fannovel16）并安装。这个插件包含了提取骨架和线稿所需的全部算法（DWPose、Canny、Depth、Lineart 等），首次使用时会自动下载对应的小型检测模型。
+*   **下载 ControlNet 模型**：
+
+| 方案 | 模型文件 | 大小 | 下载地址 | 说明 |
+|------|----------|------|----------|------|
+| **推荐：统一版 (ProMax)** | `diffusion_pytorch_model_promax.safetensors` | ~6.6GB | [HuggingFace (xinsir)](https://huggingface.co/xinsir/controlnet-union-sdxl-1.0/tree/main) | 一个模型支持 12 种控制类型（OpenPose/Canny/Depth/Lineart/Scribble 等），省去下载十几个单体模型的麻烦 |
+| 备选：分体版 | `diffusers_xl_canny_full.safetensors` | ~2.5GB | [HuggingFace (lllyasviel)](https://huggingface.co/lllyasviel/sd_control_collection/tree/main) | 仅 Canny 边缘检测 |
+| 备选：分体版 | `diffusers_xl_depth_full.safetensors` | ~2.5GB | 同上 | 仅深度图控制 |
+| 备选：分体版 | `thibaud_xl_openpose.safetensors` | ~2.5GB | 同上 | 仅骨架姿势控制 |
+
+*   **放置路径**：将下载的模型文件放入 `D:\ComfyUI_windows_portable\ComfyUI\models\controlnet\` 目录。
+
+> 💡 **RTX 4070 用户建议**：直接下载 ProMax 统一版即可。12GB 显存跑它完全没问题，而且一个模型就能覆盖本项目所有用到的控制类型（骨架、线稿、深度）。
 
 ### 3. 辅助工具链
-- **去底工具**：推荐使用 [remove.bg](https://www.remove.bg/) 或 Photoshop 一键抠图，用于将 ComfyUI 出图的纯色背景变为透明 PNG。
-- **云端炼丹炉**：注册 [LiblibAI](https://www.liblib.art/) 或 [Civitai](https://civitai.com/) 账号，用于收集齐 30 张图后在线训练专属 Style LoRA。
+
+*   **去底工具**：推荐使用在线服务 [remove.bg](https://www.remove.bg/)（每月免费 50 张），或在 Photoshop 中使用一键抠图功能。这用于将 ComfyUI 生成的纯色背景图处理为透明 PNG，以便导入 Unity。
+*   **云端炼丹炉 (LoRA 训练)**：当你在探索期积累了 30 张以上满意的同风格图片后，可以注册 [LiblibAI](https://www.liblib.art/)（国内访问友好）或 [Civitai](https://civitai.com/) 账号。使用它们的在线训练服务（Civitai SDXL LoRA 训练起步价 500 Buzz ≈ $5），上传你的图片集，训练一个专属的 Style LoRA，从而在后续量产中彻底固化画风。
+
+### 4. 安装完成自检清单
+
+全部安装完成后，你的文件目录应该长这样：
+
+```
+D:\ComfyUI_windows_portable\
+├─ ComfyUI\
+│   ├─ models\
+│   │   ├─ checkpoints\
+│   │   │   └─ sd_xl_base_1.0.safetensors          (~6.9GB)
+│   │   ├─ clip_vision\
+│   │   │   └─ CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors  (~3.9GB)
+│   │   ├─ controlnet\
+│   │   │   └─ diffusion_pytorch_model_promax.safetensors   (~6.6GB)
+│   │   ├─ ipadapter\                          ← 手动创建
+│   │   │   ├─ ip-adapter-plus_sdxl_vit-h.safetensors       (~848MB)
+│   │   │   └─ ip-adapter-plus-face_sdxl_vit-h.safetensors  (~848MB)
+│   │   └─ loras\                              ← 后续放自己训练的 Style LoRA
+│   ├─ custom_nodes\
+│   │   ├─ ComfyUI-Manager\                    ← git clone 安装
+│   │   ├─ ComfyUI_IPAdapter_plus\              ← Manager 一键安装
+│   │   └─ comfyui_controlnet_aux\              ← Manager 一键安装
+│   └─ ...
+├─ python_embeded\                         ← 自带 Python，勿动
+├─ run_nvidia_gpu.bat                      ← 双击启动
+└─ run_cpu.bat
+```
+
+**模型文件总占空间约 20GB**（底模 6.9 + CLIP 3.9 + ControlNet 6.6 + IPAdapter 1.7）。加上 ComfyUI 本体和插件，总共预留 **30GB** 即可开工。
+
+### 5. 常见问题排查
+
+| 现象 | 可能原因 | 解决方法 |
+|------|----------|----------|
+| 双击 `run_nvidia_gpu.bat` 闪退 | 显卡驱动过旧，不支持 CUDA 13.0 | 前往 [NVIDIA 官网](https://www.nvidia.com/download/index.aspx) 更新到最新驱动 |
+| 控制台报错 `torch not compiled with CUDA` | 下载了错误的 Portable 版本 | 确认下载的是 `nvidia` 版而非 `cpu` 版 |
+| 启动后浏览器白屏 | 页面未加载完成 | 等待 30 秒后刷新，或手动访问 `http://127.0.0.1:8188` |
+| Manager 按钮不出现 | ComfyUI-Manager 未正确克隆 | 检查 `custom_nodes\ComfyUI-Manager\` 文件夹是否存在且非空 |
+| 跑图时报 `CUDA out of memory` | 生成分辨率过高或同时加载模型过多 | RTX 4070 建议生成分辨率不超过 1024×1024；关闭其他占用显存的程序 |
+| IPAdapter 报错 `ClipVision model not found` | CLIP Vision 模型文件名不对 | 确认文件名为 `CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors`（注意大小写和连字符） |
+| ControlNet 出图全黑或无效果 | 选错了控制类型 | ProMax 统一版需要配合 `SetUnionControlNetType` 节点指定控制类型（如 openpose/canny/depth） |
 
 ---
 

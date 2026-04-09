@@ -97,7 +97,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阶段** | Sprint 2 游戏体验提升 — ART_PIPELINE_GUIDE.md 步骤 0 已扩写为超详细版，针对 RTX 4070 (12GB) 优化 |
 | **编译状态** | ✅ 零代码变更，仅文档更新 |
 | **阻塞** | 无 |
-| **交接说明** | S58s 将 ART_PIPELINE_GUIDE.md 步骤 0 从简略清单扩写为完整的新手安装教程。新增内容包括：(1) 前置工具表格 (7-Zip/Git)。(2) ComfyUI Portable 逐步安装流程。(3) RTX 4070 硬件配置评估表。(4) 所有模型文件的具体名称/大小/下载链接/放置路径表格。(5) ControlNet Union ProMax 统一版推荐。(6) 安装完成后的目录结构自检图。(7) 常见问题排查表。 |
+| **交接说明** | S58s 将 ART_PIPELINE_GUIDE.md 步骤 0 从简略清单扩写为完整的新手安装教程。新增内容包括：(1) 前置工具表格 (7-Zip/Git)。(2) ComfyUI Portable 逐步安装流程。(3) RTX 4070 硬件配置评估表。(4) 所有模型文件的具体名称/大小/下载链接/放置路径表格。(5) ControlNet Union ProMax 统一版推荐。(6) 安装完成后的目录结构自检图。(7) 常见问题排查表。追加更新：为每个组件添加了「✅ 已装确认」快速自检方法，已装组件可直接跳过。 |
 
 ---
 

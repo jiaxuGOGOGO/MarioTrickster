@@ -18,12 +18,14 @@
 
 | 工具 | 用途 | 下载地址 | 安装说明 |
 |------|------|----------|----------|
-| **7-Zip** | 解压 ComfyUI 的 `.7z` 压缩包 | [7-zip.org](https://www.7-zip.org/) | 下载 64-bit Windows x64 版本，双击安装，一路下一步即可 |
-| **Git** | 克隆 ComfyUI Manager 和插件 | [git-scm.com](https://git-scm.com/downloads) | 下载 Windows 版，安装时全部保持默认选项即可。安装完成后在 CMD 中输入 `git --version` 确认输出版本号 |
+| **7-Zip** | 解压 ComfyUI 的 `.7z` 压缩包 | [7-zip.org](https://www.7-zip.org/) | 下载 64-bit Windows x64 版本，双击安装，一路下一步即可 | **✅ 已装确认**：右键任意文件，菜单中有 `7-Zip` 选项 |
+| **Git** | 克隆 ComfyUI Manager 和插件 | [git-scm.com](https://git-scm.com/downloads) | 下载 Windows 版，安装时全部保持默认选项即可。 | **✅ 已装确认**：在 CMD 中输入 `git --version` 能输出版本号 |
 
 ### 1. 核心引擎与大模型
 
 **1.1 安装 ComfyUI (Portable 版)**
+
+> **✅ 已装确认**：如果你电脑里已经有 `ComfyUI_windows_portable` 文件夹，且双击 `run_nvidia_gpu.bat` 能正常打开网页，请直接跳过本节。
 
 推荐使用官方的 Windows 一键解压版，它自带了独立的 Python 3.13 和 CUDA 13.0 环境，无需配置复杂的系统依赖。你的 RTX 4070 完美支持 CUDA 13.0。
 
@@ -45,6 +47,8 @@
 
 **1.2 安装 ComfyUI Manager**
 
+> **✅ 已装确认**：启动 ComfyUI 后，如果网页右下角菜单面板里有 `Manager` 按钮，请直接跳过本节。
+
 这是 ComfyUI 的"应用商店"，用于一键安装缺失节点和更新插件。
 
 *   **安装方法**：打开命令提示符（按 `Win + R`，输入 `cmd`，回车），依次执行以下命令：
@@ -56,6 +60,8 @@
 *   **验证**：关闭 ComfyUI 控制台黑框，重新双击 `run_nvidia_gpu.bat` 启动。在浏览器界面右下角的菜单面板中，你应该能看到新增的 `Manager` 按钮。点击它就能看到插件管理界面。
 
 **1.3 下载大模型 (Checkpoint)**
+
+> **✅ 已装确认**：检查 `ComfyUI\models\checkpoints\` 目录下是否已有 `sd_xl_base_1.0.safetensors` 或其他 SDXL 模型（文件大小通常在 6GB 以上）。
 
 本项目基于 SDXL 架构，你需要下载基础模型或风格化微调模型。单个 Checkpoint 文件约 6–7GB。
 
@@ -74,6 +80,10 @@
 
 **2.1 IPAdapter Plus (垫图抽卡核心)**
 
+> **✅ 已装确认**：
+> 1. 插件：在 ComfyUI 画布空白处双击，搜索 `IPAdapter Advanced`，能搜到说明插件已装。
+> 2. 模型：检查 `models\clip_vision\` 下是否有 `CLIP-ViT-H-14...`，以及 `models\ipadapter\` 下是否有 `ip-adapter-plus_sdxl...`。
+
 用于将参考图的风格或角色特征完美迁移到新图中，相当于“一张图版的 LoRA”。
 
 *   **插件安装**：在 Manager 中搜索 `ComfyUI_IPAdapter_plus` 并安装（作者：cubiq）。
@@ -88,6 +98,10 @@
 > ℹ️ `ipadapter` 文件夹需要手动创建：在 `ComfyUI\models\` 目录下新建名为 `ipadapter` 的文件夹。
 
 **2.2 ControlNet 节点 (防滑步与透视锁定)**
+
+> **✅ 已装确认**：
+> 1. 插件：画布空白处双击，搜索 `DWPreprocessor`，能搜到说明预处理器已装。
+> 2. 模型：检查 `models\controlnet\` 下是否有 `diffusion_pytorch_model_promax.safetensors`。
 
 用于锁定角色的骨架姿势（OpenPose/DWPose）或场景的边缘轮廓（Canny/Depth/Lineart），防止 AI 生成时肢体崩坏或透视走样。
 

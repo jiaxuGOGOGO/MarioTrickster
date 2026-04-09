@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 57c (S57c: Picking 选取收口 + Size Sync 联动 + Visual 缩放回写修复) |
+| **最新 Session** | Session 58 (S58: K2B-OS GitOps 美术管线集成 + ART_BIBLE + AI_SpriteSlicer) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ⏳ S57c 本地完成，待用户验证 |
+| **编译状态** | ✅ S58 本地完成，美术管线已就绪 |
 | **阻塞** | 无 |
-| **交接说明** | S57c 聚焦编辑器视碰分离工作流收尾：① `LevelEditorPickingManager` 改为双模式重定向，Visual 模式下点击/框选 Visual 最终只保留 Visual，不再混入 Root；Root 模式保持选 Root。② 工具栏新增 `Size Sync (视碰同步)` 开关，可在 `Visual.localScale` 与 `Root.BoxCollider2D.size` 间按初始比例双向联动，且不会去缩放 Mario/Trickster 的 Root。③ 顺手修复一批“手动调大 Visual 后被运行时/重置写回”的相似问题：`MarioController`、`SimpleEnemy`、`FlyingEnemy`、`BouncingEnemy`、`BreakableBlock` 现都基于初始视觉缩放做形变/恢复。接班 AI 请先 `git log --oneline -n 12` 并重点查看上述 7 个文件。 |
+| **交接说明** | S58 集成 K2B-OS GitOps 美术管线：① 新增 `docs/ART_BIBLE.md` (美术宪法) 锁定 PPU=32、视碰分离、重心死锁等规范。② 新增 `prompts/PROMPT_RECIPES.md` (提示词配方库) 记录已验证的出图 Prompt。③ 新增 `Assets/Scripts/Editor/AI_SpriteSlicer.cs` (切片母机) 实现一键工业化切图，强制执行宪法规范。④ 建议后续出图严格遵循 `ART_BIBLE` 中的万能公式。 |
 
 ---
 
@@ -147,7 +147,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **回归初心（纯关卡设计）**：打开 Level Studio，用 ASCII 纯凭直觉拼凑关卡，只关注好不好玩。 | 🚀 立即执行 |
+| **最高** | **GitOps 美术实战**：使用 `PROMPT_RECIPES.md` 中的配方在 ComfyUI/Midjourney 出图，并用 `AI_SpriteSlicer` 一键切片。 | 🚀 立即执行 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |
 | **按需** | 参数调优：拖动 PhysicsConfigSO 滑块调手感，若触发报错则由 AI 微创手术抹平。 | 待触发 |

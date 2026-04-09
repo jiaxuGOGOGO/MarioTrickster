@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58k (S58k: 美术指引彻底重写为并列菜单) |
+| **最新 Session** | Session 58l (S58l: 新增风格保真与防衰减最佳实践文档) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
-| **阶段** | Sprint 2 游戏体验提升 — 美术操作菜单就绪，等待用户选择下一步 |
-| **编译状态** | ✅ 零代码变更，仅文档重写 |
+| **阶段** | Sprint 2 游戏体验提升 — 美术管线文档体系完善，等待用户本地出图 |
+| **编译状态** | ✅ 零代码变更，仅文档新增 |
 | **阻塞** | 无 |
-| **交接说明** | S58k 彻底重写了 `ART_PIPELINE_GUIDE.md`，从原来的“强制流水线”改为“并列菜单”结构：菜单 1 确立/更换画风、菜单 2 喂书蒸馏、菜单 3 批量生产资产，三件事随时可做、同时可做、不强制排序。每个菜单都包含“怎么找 AI”和“你接下来要干嘛”两部分，消除了原来的“绕来绕去不知道该做什么”问题。用户下一步：打开 `ART_PIPELINE_GUIDE.md`，选一个菜单开始做。 |
+| **交接说明** | S58l 新增了 `docs/STYLE_FIDELITY_BEST_PRACTICES.md`，基于 ComfyUI 官方手册、Reddit 社区、Prompting Systems 等多源研究，系统回答了"蒸馏效果如何最大化、传递到本地 AI 会不会衰减、如何避免反复调参"三个核心问题。核心结论：探索期用 IPAdapter 垫图快速验证 → 凑齐 30-50 张满意效果图后训练专属 Style LoRA → 量产期加载 LoRA 一键出图，彻底告别反复调参。同时在 `ART_PIPELINE_GUIDE.md` 菜单 2 中添加了指向该文档的进阶链接。用户下一步：按 `ART_PIPELINE_GUIDE.md` 菜单 1 确立概念锚点（已有 Prompt 蓝图在 `PROMPT_RECIPES.md`），或直接开始探索期出图。 |
 
 ---
 

@@ -73,39 +73,19 @@
 - **重心死锁**: `AI_SpriteSlicer` 脚本会根据资产类型强制设置 Sprite 的 Pivot。角色/敌人等实体资产的 Pivot 强制设为 `Bottom Center (0.5, 0)`，特效类资产设为 `Center (0.5, 0.5)`。**严禁手动修改此逻辑**，否则会导致动画滑步和物理表现异常。
 - **像素完美**: `AI_SpriteSlicer` 脚本会强制将导入的 Sprite 的 Filter Mode 设为 `Point (no filter)`，确保像素艺术的清晰度，避免模糊。
 
-### 2.4 已验证的提示词配方 (PROMPT_RECIPES 示例)
-以下是已在项目中验证通过的提示词配方，可作为新资产生成的参考。
+### 2.4 AI 工具最佳实践 (基于社区经验)
 
-#### 2.4.1 角色类 (Entities)
-- **资产名称**: `Mario_Idle_Run`
-- **目标帧数**: 8 帧 (Run) / 4 帧 (Idle)
-- **重心**: Bottom Center (0.5, 0)
-- **提示词 (Prompt)**:
-  > `Mario character, 2D platformer sprite sheet, pixel art, 32x32 base, running animation, 8 frames, side view, red cap, blue overalls, flat green background, isolated, sharp edges, high contrast --no shading gradients`
-- **技术参数**: PPU=32, Filter=Point, Compression=None.
+#### 2.4.1 Midjourney (v6/v7)
+- **宽高比 (`--ar`)**: 对于单帧素材使用 `--ar 1:1`。对于序列帧（Sprite Sheet），根据帧数使用 `--ar 4:1` (4帧) 或 `--ar 8:1` (8帧)。
+- **风格化 (`--s`)**: 像素艺术需要较低的风格化以保持边缘锐利。建议设置 `--s 50` 到 `--s 100`。
+- **混乱度 (`--c`)**: 为了保持角色在不同动作间的一致性，使用较低的混乱度 `--c 0` 到 `--c 10`。
+- **平铺 (`--tile`)**: 仅在生成地形（Ground、Wall）等需要无缝拼接的素材时使用。
 
-- **资产名称**: `Trickster_Float`
-- **目标帧数**: 6 帧 (Floating)
-- **重心**: Center (0.5, 0.5)
-- **提示词 (Prompt)**:
-  > `Ghostly trickster character, 2D platformer sprite, pixel art, floating animation, 6 frames, purple ethereal glow, semi-transparent, flat black background, isolated, sharp pixel edges --no blur`
-
-#### 2.4.2 地形与环境 (Environment)
-- **资产名称**: `Ground_Block_A`
-- **适配模式**: Tiled
-- **提示词 (Prompt)**:
-  > `2D platformer ground block, pixel art, 32x32, stone texture, mossy, seamless tileable, flat background, isolated, sharp edges`
-
-- **资产名称**: `Spike_Trap_Metal`
-- **重心**: Bottom Center (0.5, 0)
-- **提示词 (Prompt)**:
-  > `Sharp metal spikes, 2D platformer hazard, pixel art, 32x32, rusty metal, flat green background, isolated, sharp edges`
-
-#### 2.4.3 特效与 UI (VFX & UI)
-- **资产名称**: `VFX_Scan_Pulse`
-- **重心**: Center (0.5, 0.5)
-- **提示词 (Prompt)**:
-  > `Circular energy pulse, 2D game VFX, pixel art, expanding ring, cyan glow, 8 frames, flat black background, isolated, sharp edges`
+#### 2.4.2 ComfyUI (SDXL + Pixel Art LoRA)
+- **模型**: `sd_xl_base_1.0.safetensors` + `pixel-art-xl-v1.1.safetensors` (LoRA 强度: Model 1.2, CLIP 1.0)
+- **采样器**: Steps: 8, CFG: 1.5, Sampler: `lcm`, Scheduler: `normal`
+- **正向提示词后缀**: `(flat shading:1.2), (minimalist:1.4)`
+- **后处理**: 生成 512x512 图像后，使用 ImageMagick 的 `nearest-neighbor` 算法缩放至目标尺寸（如 32x32 或 64x64），以保持像素完美。
 
 ---
 
@@ -129,9 +109,14 @@
    - 更新 `SESSION_TRACKER.md` 中的状态和待办。
    - `git push` 将更改推送到远程仓库。
 
-### 3.2 GitOps 核心指令 (AI 与用户协作模式)
+### 3.2 维护与一致性保障
+- **画风一致性检查**: 每次生成新素材后，必须与现有素材放在同一场景中对比。检查色调、对比度、像素颗粒大小是否一致。
+- **素材命名规范**: 遵循 `[EntityName]_[Action]_[Direction]` 的格式，例如 `Mario_Run_Right`。
+- **版本管理**: 所有素材源文件（如 Aseprite 的 `.ase` 文件）和导出的 PNG 文件都必须纳入 Git 版本控制。
 
-#### 3.2.1 创世 Commit (仅在项目初始化时使用)
+### 3.3 GitOps 核心指令 (AI 与用户协作模式)
+
+#### 3.3.1 创世 Commit (仅在项目初始化时使用)
 **核心目的**: 让 AI 帮你搭建项目知识库的基础结构，并写入第一版核心规则。
 
 > **💬 [附带仓库授权/链接 + 上传第 1 本 PDF，发送以下指令]：**
@@ -147,7 +132,7 @@
 > 4. 执行 Commit 并 Push 到 `main` 分支。Commit Msg 规范：`feat(bible): init v1.0 from [书名]`。
 > 5. 成功推送后，向我汇报你初始化的 3 条最核心规则。"
 
-#### 3.2.2 防污染的 PR 合并 (喂新书时使用)
+#### 3.3.2 防污染的 PR 合并 (喂新书时使用)
 **核心目的**: 在引入新知识时，防止 AI 悄悄修改底层规则。通过 Pull Request (PR) 机制，由用户审批后才能合入主干，确保核心规范的稳定性。
 
 > **💬 [上传新书 PDF，发送以下指令]：**
@@ -163,7 +148,7 @@
 > 
 > 提交 PR 后把链接发我，我去 Code Review。"
 
-#### 3.2.3 带存档的工单派发 (生产具体图纸时使用)
+#### 3.3.3 带存档的工单派发 (生产具体图纸时使用)
 **核心目的**: 规范化美术资产的生产流程，确保每次出图都遵循 `ART_BIBLE`，并将成功的配方永久存档。
 
 > **💬 [不需要传书，直接发送以下指令]：**
@@ -177,14 +162,6 @@
 > 4. **Commit Msg**：`feat(recipes): add prompt blueprint for [资产名称]`。
 > 
 > 推送完成后，直接在对话框里把写好的中英文对照 Prompt 发给我，我去本地出图。"
-
-### 3.3 提示词工程最佳实践 (Prompt Engineering Best Practices)
-- **明确性**: 提示词应尽可能具体，避免模糊不清的描述。例如，与其说 `a character`, 不如说 `a Mario-like character`。
-- **一致性**: 始终使用万能公式，并保持风格描述的一致性。例如，如果项目是 `pixel art`，就不要在某些提示词中混入 `realistic`。
-- **迭代与优化**: 提示词不是一蹴而就的。通过小步快跑、不断调整提示词并观察生成结果，逐步优化。
-- **负面提示词**: 充分利用负面提示词 (`--no`) 来排除不希望出现的效果，例如 `--no blur`, `--no text`, `--no watermark`。
-- **参考图**: 在条件允许的情况下，提供参考图作为 AI 的视觉输入，可以更精确地控制生成结果的风格和细节。
-- **多模态工具**: 结合使用 ControlNet 等工具，对姿态、边缘、深度等进行精确控制，尤其是在生成角色动画序列时。
 
 ---
 

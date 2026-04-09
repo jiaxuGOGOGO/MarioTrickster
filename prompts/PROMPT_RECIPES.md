@@ -1,110 +1,92 @@
-# MarioTrickster 提示词配方库 (PROMPT_RECIPES)
+# MarioTrickster 提示词与节点配方库 (PROMPT_RECIPES)
 
-> **Validated Prompt Blueprints for All Entities**
-> 本文档记录了基于项目规范设计的推荐出图配方（待实际验证后标记为 ✅）。它涵盖了项目当前支持的所有 20+ 种实体类型，并提供了针对主流 AI 工具（Midjourney、ComfyUI）的具体参数建议。
-
----
-
-## 🛠️ AI 工具通用参数设置
-
-### 1. Midjourney (v6/v7) 最佳实践
-在使用 Midjourney 生成像素艺术时，除了核心提示词外，必须附加以下参数以确保风格一致性和可用性：
-- **宽高比 (`--ar`)**: 对于单帧素材使用 `--ar 1:1`。对于序列帧（Sprite Sheet），根据帧数使用 `--ar 4:1` (4帧) 或 `--ar 8:1` (8帧)。
-- **风格化 (`--s`)**: 像素艺术需要较低的风格化以保持边缘锐利。建议设置 `--s 50` 到 `--s 100`。
-- **混乱度 (`--c`)**: 为了保持角色在不同动作间的一致性，使用较低的混乱度 `--c 0` 到 `--c 10`。
-- **平铺 (`--tile`)**: 仅在生成地形（Ground、Wall）等需要无缝拼接的素材时使用。
-- **负面提示 (`--no`)**: 必须包含 `--no blur, gradient, shading, 3d, realistic, text, watermark`。
-
-### 2. ComfyUI (SDXL + Pixel Art LoRA) 最佳实践
-基于社区验证的 ComfyUI 工作流，推荐以下节点配置：
-- **大模型**: `sd_xl_base_1.0.safetensors`
-- **LoRA**: `pixel-art-xl-v1.1.safetensors` (强度: Model 1.2, CLIP 1.0)
-- **采样器 (KSampler) 分轨声明 (防噪点雷区)**:
-  - **加速模型专属轨** (如 LCM/Lightning/Turbo): `Steps: 6-8`, `CFG: 1.5-2.0`, Sampler: `lcm`, Scheduler: `normal`
-  - **标准模型专属轨** (常规 SDXL): `Steps: 25-30`, `CFG: 5.0-7.0`, Sampler: `euler_ancestral`, Scheduler: `normal`
-- **正向提示词后缀**: `(flat shading:1.2), (minimalist:1.4)`
-- **负向提示词**: `text, watermark, blurry, deformed, depth of field, realistic, 3d render, frame`
-- **后处理**: 生成 512x512 图像后，使用 ImageMagick 的 `nearest-neighbor` 算法缩放至目标尺寸（如 32x32 或 64x64），以保持像素完美。
-
-### 3. ControlNet 模具分轨 (防骨折雷区)
-在生成特定资产时，必须使用 ControlNet 锁定结构：
-- **非生物/硬表面实体** (地形、平台、陷阱、交互物): 使用 **Lineart + Canny** 组合，锁定边缘和轮廓。
-- **生物关节角色** (Mario、Trickster、Enemy 等所有带连续动作的角色): **必须强制加入 DWPose / OpenPose 模具！** 仅靠线稿无法锁死人物重心的动态偏移，会导致动画帧间骨折或滑步。
+> **⚠️ 工业化管线 V3.0 专属核心知识库**
+> 本文档是 Manus TA 的"大脑"。所有通过【菜单 1：喂书蒸馏】学到的知识，都将严格按以下「5 个知识抽屉」归档。下发工单时，Manus 将从这里抓取参数并分发给 ComfyUI 的对应节点。
 
 ---
 
-## 🏃 角色与敌人 (Entities)
+## 🗄️ 抽屉 1：🧍‍♂️ [解剖与形态]
+*(记录：头身比、防断肢、多角度姿势、角色特征)*
 
-所有角色和敌人必须遵循 **Bottom Center (0.5, 0)** 的重心规范，以防止滑步。
-
-| 实体名称 | 资产类型 | 目标帧数 | 提示词配方 (Prompt Recipe) |
-| :--- | :--- | :--- | :--- |
-| **Mario** (主角) | Scaled | 8 (Run), 4 (Idle) | **[EN]** `Mario-like character, 2D platformer sprite sheet, pixel art, running animation sequence, side view, red cap, blue overalls, flat green background, isolated, sharp edges, high contrast --ar 8:1 --s 50 --no blur, gradient`<br>**[CN]** `类似马里奥的角色，2D平台游戏序列帧，像素艺术，跑步动画序列，侧视图，红帽子，蓝背带裤，纯绿背景，独立主体，锐利边缘，高对比度`<br>**[ComfyUI]** `(flat shading:1.2), (minimalist:1.4)` |
-| **Trickster** (幽灵形态) | Scaled | 6 (Float) | `Ghostly trickster character, 2D platformer sprite sheet, pixel art, floating animation, purple ethereal glow, semi-transparent body, flat black background, isolated, sharp pixel edges --ar 6:1 --s 80 --no blur, realistic` |
-| **SimpleEnemy** (基础巡逻怪) | Scaled | 4 (Walk) | `Cute slime monster, 2D platformer enemy sprite sheet, pixel art, walking animation, side view, green color, flat pink background, isolated, sharp edges --ar 4:1 --s 50 --no blur, gradient` |
-| **BouncingEnemy** (弹跳怪) | Scaled | 3 (Jump) | `Spring-loaded robot enemy, 2D platformer sprite sheet, pixel art, jumping animation (squat, extend, fall), side view, metallic texture, flat blue background, isolated --ar 3:1 --s 60 --no blur, realistic` |
-| **FlyingEnemy** (飞行怪) | Scaled | 4 (Fly) | `Bat creature, 2D platformer enemy sprite sheet, pixel art, flying animation, flapping wings, side view, dark purple, flat yellow background, isolated --ar 4:1 --s 50 --no blur, gradient` |
+- **Mario 主角基准**：`(red cap:1.2), (blue overalls:1.2), side view, 2D platformer character`
+- **Trickster 幽灵基准**：`(semi-transparent body:1.3), floating, purple ethereal glow`
+- **通用防畸变负面 (Text Prompt)**：`deformed, extra limbs, bad anatomy, missing fingers, text, watermark`
 
 ---
 
-## 🧱 地形与平台 (Environment & Platforms)
+## 🗄️ 抽屉 2：📐 [透视与物件]
+*(记录：等距视角、静物结构、平台拼接规律)*
 
-地形元素通常需要无缝拼接，必须遵循 **Center (0.5, 0.5)** 重心和 **Tiled** 适配模式。
-
-| 实体名称 | 资产类型 | 适配模式 | 提示词配方 (Prompt Recipe) |
-| :--- | :--- | :--- | :--- |
-| **Ground / Wall** (基础地形) | Tiled | Tiled | `2D platformer ground block, pixel art, 32x32, stone texture, mossy, seamless tileable, flat background, isolated, sharp edges --tile --s 50 --no blur, gradient` |
-| **Platform** (普通平台) | Tiled | Tiled | `2D platformer floating platform block, pixel art, 32x32, wooden planks texture, seamless tileable horizontally, flat background, isolated --tile --s 50 --no blur` |
-| **OneWayPlatform** (单向平台) | Tiled | Tiled | `2D platformer thin one-way platform, pixel art, 32x8, metal grating texture, seamless tileable horizontally, flat background, isolated --s 50 --no blur` |
-| **BouncyPlatform** (弹跳平台) | Scaled | Scaled | `2D platformer bouncy mushroom platform, pixel art, 32x32, rubbery texture, flat background, isolated, sharp edges --s 60 --no blur` |
-| **CollapsingPlatform** (崩塌平台) | Scaled | Scaled | `2D platformer cracked stone platform, pixel art, 32x32, crumbling texture, flat background, isolated, sharp edges --s 50 --no blur` |
-| **MovingPlatform** (移动平台) | Scaled | Scaled | `2D platformer mechanical moving platform, pixel art, 80x13, metallic texture with yellow caution stripes, flat background, isolated --s 60 --no blur` |
-| **ConveyorBelt** (传送带) | Tiled | Tiled | `2D platformer conveyor belt segment, pixel art, 32x16, industrial mechanical texture, seamless tileable horizontally, flat background, isolated --tile --s 50 --no blur` |
-| **BreakableBlock** (可破坏方块) | Tiled | Tiled | `2D platformer fragile brick block, pixel art, 32x32, cracked terracotta texture, flat background, isolated, sharp edges --s 50 --no blur` |
-| **FakeWall** (伪装墙) | Tiled | Tiled | `2D platformer illusion wall block, pixel art, 32x32, slightly faded stone texture, seamless tileable, flat background, isolated --tile --s 50 --no blur` |
+- **横版跳跃视角锁定 (Text Prompt)**：`side-scrolling platformer, side view`
+- **防视角偏移负面 (Text Prompt)**：`isometric, top-down view, 3d render, perspective`
+- **地形无缝拼接规则**：
+  - 基础地面 (Ground)：必须为 `32x32`，生成时需附带 `--tile` (Midjourney) 或使用 ComfyUI 的 Seamless 节点。
+  - 平台 (Platform)：必须水平方向无缝拼接。
+- **物件结构模具 (ControlNet)**：
+  - 静态地形、陷阱、交互物：**强制启用 `Lineart` 或 `Canny` 预处理器**，锁定边缘轮廓。
 
 ---
 
-## ⚠️ 陷阱与机关 (Hazards & Mechanics)
+## 🗄️ 抽屉 3：🏃 [动画与物理]
+*(记录：关键帧数、运动模糊、防滑步约束)*
 
-陷阱的碰撞体通常小于视觉尺寸，以提供玩家容错空间。
+- **通用防滑步原则**：
+  - 所有角色/敌人：切图时重心必须锁死在 **Bottom Center (0.5, 0)**。
+  - 所有地形/陷阱：切图时重心通常为 **Center (0.5, 0.5)**。
+- **动画结构模具 (ControlNet)**：
+  - 所有带连续动作的生物关节角色（跑、跳、受击）：**强制启用 `DWPose` / `OpenPose` 预处理器**！仅靠线稿无法锁死人物重心的动态偏移，会导致帧间骨折或滑步。
+- **基准帧数**：
+  - 跑步 (Run)：8 帧
+  - 待机 (Idle) / 行走 (Walk) / 飞行 (Fly)：4 帧
+  - 跳跃 (Jump)：3 帧 (起跳、伸展、下落)
 
-| 实体名称 | 资产类型 | 重心 | 提示词配方 (Prompt Recipe) |
-| :--- | :--- | :--- | :--- |
-| **SpikeTrap** (地刺) | Scaled | Bottom Center | `Sharp metal spikes, 2D platformer hazard, pixel art, 32x32, rusty metal, pointing upwards, flat green background, isolated, sharp edges --s 50 --no blur` |
-| **FireTrap** (火焰陷阱) | Scaled | Bottom Center | `Roaring campfire flame, 2D platformer hazard sprite sheet, pixel art, 4 frames animation, bright orange and yellow, flat black background, isolated --ar 4:1 --s 80 --no blur` |
-| **PendulumTrap** (摆锤) | Scaled | Center | `Heavy spiked iron ball, 2D platformer hazard, pixel art, 32x32, dark metal texture, flat white background, isolated, sharp edges --s 60 --no blur` |
-| **SawBlade** (旋转锯片) | Scaled | Center | `Circular mechanical saw blade, 2D platformer hazard, pixel art, 32x32, spinning motion blur effect, silver metal, flat green background, isolated --s 70 --no blur` |
+---
+
+## 🗄️ 抽屉 4：🎨 [光影与材质]
+*(记录：特定材质画法、边缘光、全局色调、专属 LoRA 触发词)*
+
+- **探索期基准画风 (参考图提取)**：
+  - 正向：`(high definition pixel art:1.3), (hand-drawn dark outlines:1.2), (warm pastoral atmosphere:1.1), crisp edges, no anti-aliasing`
+  - 负向：`blur, gradient, realistic, UI`
+- **默认像素风后处理**：生成后必须使用 `nearest-neighbor` 算法缩放至目标尺寸，保持像素完美。
 
 ---
 
-## ✨ 交互物与 UI (Interactables & UI)
+## 🗄️ 抽屉 5：⚙️ [AI 硬核参数]
+*(记录：CFG 甜区、Denoising 比例、采样器建议)*
 
-| 实体名称 | 资产类型 | 重心 | 提示词配方 (Prompt Recipe) |
-| :--- | :--- | :--- | :--- |
-| **Collectible** (收集物/金币) | Scaled | Center | `Shiny gold coin, 2D platformer collectible sprite sheet, pixel art, 4 frames spinning animation, bright yellow, flat black background, isolated --ar 4:1 --s 60 --no blur` |
-| **Checkpoint** (检查点/旗帜) | Scaled | Bottom Center | `Red checkpoint flag on a pole, 2D platformer object sprite sheet, pixel art, 4 frames waving animation, flat blue background, isolated --ar 4:1 --s 50 --no blur` |
-| **GoalZone** (终点门) | Scaled | Bottom Center | `Ornate wooden door, 2D platformer level exit, pixel art, 32x64, glowing magical aura, flat green background, isolated, sharp edges --s 80 --no blur` |
-| **HiddenPassage** (隐藏通道入口) | Scaled | Bottom Center | `Dark mysterious cave entrance, 2D platformer object, pixel art, 32x32, stone archway, flat pink background, isolated --s 60 --no blur` |
+- **探索期垫图抽卡 (IPAdapter)**：
+  - 权重建议：`0.6 - 0.8` (吸取色彩和描边，但不完全复制结构)
+- **标准 SDXL 节点配置 (KSampler)**：
+  - 大模型：`sd_xl_base_1.0.safetensors` 或 `Animagine XL`
+  - 步数 (Steps)：`30 - 40`
+  - 提示词引导系数 (CFG)：`5.0 - 7.0` (甜区，太高会烧图，太低会模糊)
+  - 采样器：`euler_ancestral`
+  - 调度器：`normal`
+- **加速模型专属轨 (LCM/Turbo)**：
+  - 步数 (Steps)：`6 - 8`
+  - CFG：`1.5 - 2.0`
+  - 采样器：`lcm`
 
 ---
+
+## 🎯 附：探索期抽卡起点 (Exploration Base Prompt)
+
+> **⚠️ 菜单 2 专用：第一张风格探索图纸**
+> 目标：拿着这个 Prompt 疯狂抽卡，直到攒够 30 张满意的图去炼专属 Style LoRA。
+
+**[Text Prompt 节点]**
+`A 2D side-scrolling platformer game mockup screenshot, (high definition pixel art:1.3), (hand-drawn dark outlines:1.2), (warm pastoral atmosphere:1.1). A small adventurer character standing on a floating stone platform. Lush green grass with varied shades and small flowers. Detailed wooden textures and stone walls in the background. Soft top-left lighting, dark semi-transparent shadows. Crisp edges, no anti-aliasing.`
+
+**[Negative Prompt 节点]**
+`text, watermark, blurry, deformed, realistic, 3d render, gradient, isometric, top-down view, UI`
+
+**[KSampler 节点]**
+- Steps: `35`
+- CFG: `7.0`
+- Sampler: `euler_ancestral`
+
+**[IPAdapter 节点]**
+- 放入你提供的参考图，Weight 设为 `0.7`。
+
 *Last Updated: 2026-04-09 by Manus TA*
-
-## 🎯 探索期起点 (Exploration Base Prompt)
-
-> **⚠️ 菜单 2 专用：探索期抽卡起点**
-> 这是基于你上传的参考图（高精度像素+手绘描边）蒸馏出的**第一张风格探索图纸**。它包含主角和基础地形，用于在【探索期】确立整体氛围。
-> **你的目标不是只出这一张图，而是拿着这个 Prompt 疯狂抽卡，直到攒够 30 张满意的图去炼专属 Style LoRA。**
-
-| 实体名称 | 资产类型 | 目标帧数 | 提示词配方 (Prompt Recipe) |
-| :--- | :--- | :--- | :--- |
-| **Concept_Anchor** (概念锚点) | Mockup | 1 | **[EN]** `A 2D side-scrolling platformer game mockup screenshot, high definition pixel art, hand-drawn outlines. A small adventurer character standing on a floating stone platform. Lush green grass with varied shades and small flowers. Detailed wooden textures and stone walls in the background. Warm pastoral atmosphere, soft top-left lighting, dark semi-transparent shadows. Crisp edges, no anti-aliasing. --ar 16:9 --s 100 --v 6.0 --no blur, gradient, realistic, 3d render, UI, text, isometric, top-down`<br>**[CN]** `一张2D横版平台跳跃游戏假截图，高精度像素艺术，手绘感黑边。一个小冒险家角色站在悬浮的石头平台上。郁郁葱葱的绿草，带有深浅变化和小花点缀。背景有精细的木质纹理和石墙。温暖的田园氛围，柔和的左上角光照，深色半透明阴影。锐利的边缘，无抗锯齿。`<br>**[ComfyUI]** `(high definition pixel art:1.3), (hand-drawn dark outlines:1.2), (warm pastoral atmosphere:1.1)` |
-
-### ComfyUI 概念锚点生成建议：
-1. **大模型**: `sd_xl_base_1.0.safetensors` (或任何擅长手绘/二次元的 XL 大模型，如 `Animagine XL`)
-2. **LoRA**: `pixel-art-xl-v1.1.safetensors` (强度: Model 0.8, CLIP 0.8) - 稍微降低强度以保留手绘感
-3. **采样器**: `euler_ancestral`, Scheduler: `normal`
-4. **步数/CFG**: `Steps: 30-40`, `CFG: 7.0`
-5. **分辨率**: `1024x576` (生成后如果需要可缩放)
-6. **风格垫图**: **强烈建议**将你那张俯视角参考图拖入 `IPAdapter` 节点，权重设为 `0.6-0.8`，让 AI 自动吸取它的色彩和描边特征。
-7. **后续操作**: 生成满意的横版截图后，保存下来。继续调整 Prompt 或垫图，直到凑齐 30 张同风格图集，拿去训练 `Trickster_Style_LoRA`。

@@ -170,7 +170,9 @@ D:\ComfyUI_windows_portable\
 │   ├─ custom_nodes\
 │   │   ├─ ComfyUI-Manager\                    ← git clone 安装
 │   │   ├─ ComfyUI_IPAdapter_plus\              ← Manager 一键安装
-│   │   └─ comfyui_controlnet_aux\              ← Manager 一键安装
+│   │   ├─ comfyui_controlnet_aux\              ← Manager 一键安装
+│   │   ├─ ComfyUI-RMBG\                        ← Manager 一键安装（去底主力）
+│   │   └─ ComfyUI-TransparencyBackgroundRemover\  ← 可选，像素风专用
 │   └─ ...
 ├─ python_embeded\                         ← 自带 Python，勿动
 ├─ run_nvidia_gpu.bat                      ← 双击启动

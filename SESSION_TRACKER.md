@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58 (S58: K2B-OS GitOps 美术管线集成 + ART_BIBLE + AI_SpriteSlicer) |
+| **最新 Session** | Session 58b (S58b: 美术管线全面优化 — 提示词配方扩展至全实体覆盖 + 社区经验整合) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 |
-| **编译状态** | ✅ S58 本地完成，美术管线已就绪 |
+| **编译状态** | ✅ S58b 文档优化完成，无代码变更 |
 | **阻塞** | 无 |
-| **交接说明** | S58 集成 K2B-OS GitOps 美术管线：① 新增 `docs/ART_BIBLE.md` (美术宪法) 锁定 PPU=32、视碰分离、重心死锁等规范。② 新增 `prompts/PROMPT_RECIPES.md` (提示词配方库) 记录已验证的出图 Prompt。③ 新增 `Assets/Scripts/Editor/AI_SpriteSlicer.cs` (切片母机) 实现一键工业化切图，强制执行宪法规范。④ 建议后续出图严格遵循 `ART_BIBLE` 中的万能公式。 |
+| **交接说明** | S58b 基于需求核对全面优化美术管线文档：① `PROMPT_RECIPES.md` 从 5 个泛化配方扩展至覆盖项目全部 20+ 种实体（角色/敌人/地形/平台/陷阱/交互物），每个配方含 Midjourney 参数和 ComfyUI 参数。② `ART_PIPELINE_GUIDE.md` 重写为四区结构（物理基建→画风规范→AI出图红线→GitOps工作流），整合 Reddit/GitHub 社区最佳实践（ControlNet Lineart+Canny、Pixel-Art-XL LoRA、nearest-neighbor 缩放等）。③ 新增维护规范：画风一致性检查清单、素材命名规范、版本管理策略。④ 项目改造建议已提出，待用户确认后执行。 |
 
 ---
 

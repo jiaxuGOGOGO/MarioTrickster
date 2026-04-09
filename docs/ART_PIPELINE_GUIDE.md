@@ -80,6 +80,11 @@
 
 *   **放置路径**：将下载的 `.safetensors` 文件放入 `{ComfyUI根目录}\ComfyUI\models\checkpoints\` 目录下。
 *   **下载提示**：文件较大，建议使用迅雷或 IDM 等下载工具加速。HuggingFace 直链可直接粘贴到下载工具中。
+*   **放完后验证**：
+    1.  如果 ComfyUI 正在运行，关闭控制台黑框，重新双击 `run_nvidia_gpu.bat` 启动（新放入的模型需要重启才能识别）。
+    2.  在浏览器界面中，在画布空白处双击 → 搜索 `Load Checkpoint` → 拖出节点。
+    3.  点击节点上的模型下拉菜单，应该能看到你刚放入的 `sd_xl_base_1.0.safetensors`。如果看到了，说明模型已正确识别，本步完成。
+    4.  如果下拉菜单为空，请检查文件是否放对了目录（必须是 `models\checkpoints\` 而不是 `models\` 根目录）。
 
 ### 2. 必备插件与模型配置
 

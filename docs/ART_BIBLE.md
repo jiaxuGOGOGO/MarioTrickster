@@ -1,7 +1,12 @@
 # MarioTrickster 美术宪法 (ART_BIBLE)
 
-> **Single Source of Truth for Art Assets**
+> **K2B-OS: Single Source of Truth for Art Assets**
 > 本文档定义了项目美术素材的绝对规范。所有 AI 出图、素材导入、切片逻辑必须严格遵守此规范，以确保“视碰分离”架构下的物理一致性。
+> 
+> **【蒸馏溯源】**
+> 本宪法由 Manus TA 蒸馏自以下核心教程/书籍，规则冲突时已由 AI 自动解决：
+> 1. 《蒸馏书籍出图实践.md》 (K2B-OS GitOps 核心架构与防滑步铁律)
+> *(后续喂入新书时，将在此处追加溯源记录)*
 
 ---
 
@@ -72,8 +77,8 @@
 ## 🔄 第四区：维护与增量合并 (GitOps)
 
 1. **Fetch**: 每次出图前，先 `git pull` 获取最新宪法。
-2. **Diff**: 喂新书/新参考图给 AI 时，若规则冲突，以“最防滑步”为准。
-3. **Push**: 成功的出图配方必须追加到 `PROMPT_RECIPES.md`。
+2. **Diff & Resolve (防污染核武器)**: 喂新书/新参考图给 AI 时，**【绝对红线】**：如果发生规则冲突，必须以『最适合 Unity 横版、最防滑步』为唯一准则强制抉择，**绝不缝合！**
+3. **Push & PR**: 成功的出图配方必须追加到 `PROMPT_RECIPES.md`。修改宪法必须通过 Pull Request 审批。
 
 ---
 *Last Updated: 2026-04-09 by Manus TA*

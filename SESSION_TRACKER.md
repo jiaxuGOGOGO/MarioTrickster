@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58d (S58d: 终极补丁封顶 — ComfyUI分轨 + ControlNet模具 + TA_AssetValidator双重防御塔) |
+| **最新 Session** | Session 58e (S58e: 蒸馏文档深度融合 — 溯源追踪 + 绝不缝合铁律 + 中英对照配方 + 商业远景) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
 | **阶段** | Sprint 2 游戏体验提升 — 美术基建封顶 |
-| **编译状态** | ✅ S58d 封顶完成，新增 1 份 C# 脚本 + 6 个 .gitkeep + 3 份文档更新 |
+| **编译状态** | ✅ S58e 蒸馏融合完成，3 份文档更新 |
 | **阻塞** | 无 |
-| **交接说明** | S58d 执行三个终极补丁封顶美术基建：① **补丁 1 ComfyUI 分轨**: ART_BIBLE + PROMPT_RECIPES 新增加速模型轨 (Steps:6-8, CFG:1.5-2.0) 与标准模型轨 (Steps:25-30, CFG:5.0-7.0) 分轨声明。② **补丁 2 ControlNet 模具修正**: 硬表面实体用 Lineart+Canny，生物关节角色强制 DWPose/OpenPose。③ **补丁 3 TA_AssetValidator.cs 双重防御塔**: 事前拦截 (AssetPostprocessor.OnPreprocessTexture 强制 PPU=32/Point/无压缩) + 主动扫描 (MenuItem 一键合规巡检 PPU/Filter/Pivot)。④ 新增 Assets/Art/ 标准化目录结构 (Characters/Enemies/Environment/Hazards/UI/VFX) + .gitkeep 占位符。⑤ ART_PIPELINE_GUIDE 第四区重写为工具链协作流程图。美术基建正式封顶，可开始 MVP 资产生产。 |
+| **交接说明** | S58e 深度蒸馏用户上传的《蒸馏书籍出图实践.md》，将遗漏精华融入现有文档：① ART_BIBLE 新增「蒸馏溯源」章节，记录宪法知识来源，后续喂新书时自动追加。② ART_BIBLE 第四区强化“绝不缝合”铁律，明确写入“最防滑步为唯一准则”。③ ART_BIBLE + ART_PIPELINE_GUIDE 全面引入 K2B-OS 品牌标识。④ PROMPT_RECIPES 配方新增中英文对照格式 ([EN]/[CN]/[ComfyUI])，以 Mario 主角为模板。⑤ ART_PIPELINE_GUIDE 新增“商业价值远景 (Gumroad 资产包)”章节。 |
 
 ---
 

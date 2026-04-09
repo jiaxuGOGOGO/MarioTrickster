@@ -39,7 +39,7 @@
 
 | 实体名称 | 资产类型 | 目标帧数 | 提示词配方 (Prompt Recipe) |
 | :--- | :--- | :--- | :--- |
-| **Mario** (主角) | Scaled | 8 (Run), 4 (Idle) | `Mario-like character, 2D platformer sprite sheet, pixel art, running animation sequence, side view, red cap, blue overalls, flat green background, isolated, sharp edges, high contrast --ar 8:1 --s 50 --no blur, gradient` |
+| **Mario** (主角) | Scaled | 8 (Run), 4 (Idle) | **[EN]** `Mario-like character, 2D platformer sprite sheet, pixel art, running animation sequence, side view, red cap, blue overalls, flat green background, isolated, sharp edges, high contrast --ar 8:1 --s 50 --no blur, gradient`<br>**[CN]** `类似马里奥的角色，2D平台游戏序列帧，像素艺术，跑步动画序列，侧视图，红帽子，蓝背带裤，纯绿背景，独立主体，锐利边缘，高对比度`<br>**[ComfyUI]** `(flat shading:1.2), (minimalist:1.4)` |
 | **Trickster** (幽灵形态) | Scaled | 6 (Float) | `Ghostly trickster character, 2D platformer sprite sheet, pixel art, floating animation, purple ethereal glow, semi-transparent body, flat black background, isolated, sharp pixel edges --ar 6:1 --s 80 --no blur, realistic` |
 | **SimpleEnemy** (基础巡逻怪) | Scaled | 4 (Walk) | `Cute slime monster, 2D platformer enemy sprite sheet, pixel art, walking animation, side view, green color, flat pink background, isolated, sharp edges --ar 4:1 --s 50 --no blur, gradient` |
 | **BouncingEnemy** (弹跳怪) | Scaled | 3 (Jump) | `Spring-loaded robot enemy, 2D platformer sprite sheet, pixel art, jumping animation (squat, extend, fall), side view, metallic texture, flat blue background, isolated --ar 3:1 --s 60 --no blur, realistic` |

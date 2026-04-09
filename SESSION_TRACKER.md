@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58g (S58g: 画风一致性与多版本切换架构) |
+| **最新 Session** | Session 58h (S58h: 概念锚点 Mockup 工单派发) |
 | **日期** | 2026-04-09 |
 | **分支** | master |
-| **阶段** | Sprint 2 游戏体验提升 — 美术基建封顶，流水线就绪 |
-| **编译状态** | ✅ S58g 画风架构文档完成，ART_BIBLE 新增第四区引用 |
+| **阶段** | Sprint 2 游戏体验提升 — 概念锚点工单已派发，等待用户本地出图 |
+| **编译状态** | ✅ 零代码变更，仅追加 PROMPT_RECIPES.md 概念锚点蓝图 |
 | **阻塞** | 无 |
-| **交接说明** | S58g 新增 `docs/STYLE_CONSISTENCY_ARCHITECTURE.md`：① 画风一致性三层锁定体系（语义锁定 + 结构引导 + 模型适配），含 Denoising Strength 甜区 0.35-0.55、Seed 锁定法、IPAdapter 概念锚点。② 多画风版本切换架构：基于现有 `LevelThemeProfile.cs` 的扩展方案 + SpriteAtlas Variant 进阶方案。③ ART_BIBLE 新增第四区引用。用户现在可以开始喂书蒸馏并确保画风一致性。 |
+| **交接说明** | S58h 在 `PROMPT_RECIPES.md` 追加了「概念锚点 Mockup」蓝图区块，包含：① 完整中英文 Prompt（16:9 假游戏截图，Mario + 石头平台 + 绿色地面 + 蓝天）。② ComfyUI 全参数建议（SDXL + pixel-art-xl LoRA + euler_ancestral + Steps 30 / CFG 6.0）。③ Midjourney 参数（--ar 16:9 --s 80 --no blur,gradient,realistic,3d render）。用户下一步：在本地 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 |
 
 ---
 
@@ -147,7 +147,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **GitOps 美术实战**：使用 `PROMPT_RECIPES.md` 中的配方在 ComfyUI/Midjourney 出图，并用 `AI_SpriteSlicer` 一键切片。 | 🚀 立即执行 |
+| **最高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
+| **高** | **批量资产生产**：概念锚点确立后，使用 IPAdapter 喂入锚点图 + PROMPT_RECIPES 配方批量出图，用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待概念锚点确立 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |
 | **按需** | 参数调优：拖动 PhysicsConfigSO 滑块调手感，若触发报错则由 AI 微创手术抹平。 | 待触发 |

@@ -89,3 +89,21 @@
 
 ---
 *Last Updated: 2026-04-09 by Manus TA*
+
+## 🎯 概念锚点 (Concept Anchor Mockup)
+
+> **⚠️ 必做：基准画风确立**
+> 这是项目的基准画风测试图。它包含主角（Mario）和基础地形（Ground/Platform），用于确立整个游戏的色彩对比度、像素颗粒大小和整体氛围。
+> 出图后，请保存为 `Assets/Art/Reference/Reference_Anchor.png`。后续所有生成必须将此图作为 IPAdapter 的风格参考输入，以确保画风绝对一致。
+
+| 实体名称 | 资产类型 | 目标帧数 | 提示词配方 (Prompt Recipe) |
+| :--- | :--- | :--- | :--- |
+| **Concept_Anchor** (概念锚点) | Mockup | 1 | **[EN]** `A 2D side-scrolling platformer game mockup screenshot, pixel art. A Mario-like character with red cap and blue overalls standing on a floating stone platform. Vibrant green mossy ground below. Bright blue sky background. High contrast, sharp edges, consistent lighting, minimalist style. --ar 16:9 --s 80 --no blur, gradient, realistic, 3d render, UI, text`<br>**[CN]** `一张2D横版平台跳跃游戏假截图，像素艺术。一个戴红帽子穿蓝背带裤的类似马里奥的角色站在悬浮的石头平台上。下方是鲜艳的绿色长满苔藓的地面。明亮的蓝色天空背景。高对比度，锐利边缘，一致的光照，极简风格。`<br>**[ComfyUI]** `(flat shading:1.2), (minimalist:1.4)` |
+
+### ComfyUI 概念锚点生成建议：
+1. **大模型**: `sd_xl_base_1.0.safetensors`
+2. **LoRA**: `pixel-art-xl-v1.1.safetensors` (强度: Model 1.2, CLIP 1.0)
+3. **采样器**: `euler_ancestral`, Scheduler: `normal`
+4. **步数/CFG**: `Steps: 30`, `CFG: 6.0`
+5. **分辨率**: `1024x576` (生成后如果需要可缩放)
+6. **后续操作**: 生成满意的图后，**务必记录下该图的 Seed 值**，作为后续角色生成的锁定 Seed。

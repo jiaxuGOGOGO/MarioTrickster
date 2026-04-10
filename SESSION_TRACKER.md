@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 60 (美术蒸馏 GitHub 落库闭环整改) |
+| **最新 Session** | Session 61 (美术蒸馏回查补丁 + GitHub 真推送复核) |
 | **日期** | 2026-04-10 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流修正 — 修复菜单 1 只产出附件不入 GitHub 的断点，补齐蒸馏落库 / 记账 / 提交 / 推送闭环 |
-| **编译状态** | ✅ 无代码编译变更；已更新文档、配方库与会话记录，并准备推送到 GitHub |
+| **阶段** | Sprint 2 美术生产工作流修正 — 回查两本教程蒸馏是否按原始意图完整落库，补齐遗漏规则，并确认提交真实同步到 GitHub 远端 |
+| **编译状态** | ✅ 无代码编译变更；已补写配方缺漏、更新会话记录，并执行远端同步复核 |
 | **阻塞** | 无 |
-| **交接说明** | S60 将此前两次教程蒸馏结果正式落库到 `prompts/PROMPT_RECIPES.md`，并修订 `docs/ART_PIPELINE_GUIDE.md`：菜单 1 现强制执行“仓库内改文件 → 检查 git diff → 更新 SESSION_TRACKER → commit → push origin/master”的完整链路；同时把 `tmp_ocr/` 与 `tmp_pdf_findings_stage*.txt` 写入 `.gitignore`，避免临时 OCR/摘录文件污染 Git 状态，确保用户能直接在 GitHub 上看到蒸馏成果。 |
+| **交接说明** | S61 回查发现：`cab5ea4` 虽已在本地生成，但远端 `origin/master` 尚未前进，说明此前闭环停在“本地 ahead 1”。本次已补写第二本教程遗漏的 `check_front_and_side_when_lost` 复杂姿势回切校验规则到 `prompts/PROMPT_RECIPES.md`，并将以新的提交把本地积压改动一并推送到 GitHub，完成真正可见的远端闭环。 |
 
 ---
 
@@ -105,7 +105,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 > 用户测试时逐项快速验证。AI 修复代码后只需在此标记受影响项。
 >
-> **S60 说明**：本次为美术工作流与文档闭环整改，**未改动运行时代码**；下表状态保持不变，仅补充 GitHub 落库规范。
+> **S61 说明**：本次为美术蒸馏回查与远端同步复核，**未改动运行时代码**；下表状态保持不变，仅补写配方缺漏并核实 GitHub 落库结果。
 
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
@@ -150,7 +150,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **最高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
-| **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S60） |
+| **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S61，含远端复核） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`。 | ✅ 已完成 |
 | **高** | **批量资产生产**：概念锚点确立后，使用 IPAdapter 喂入锚点图 + PROMPT_RECIPES 配方批量出图，用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待概念锚点确立 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |

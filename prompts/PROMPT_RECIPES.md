@@ -47,6 +47,7 @@
 - **动作发力顺序 (Pose 约束)**：`action_order_crush_to_stretch`, `show_preload_before_release`, `jump_point_full_body_stretch`
 - **重心与运动线 (Pose 约束)**：`trace_center_of_gravity_shift`, `movement_reference_line_lock`, `waist_rises_first_head_detours`
 - **接触受压校验 (Pose / Lineart)**：`sitting_contact_compression`, `buttocks_sink_on_seat`, `knee_to_heel_not_overextended`
+- **复杂姿势回切校验 (Pose / Lineart)**：`check_front_and_side_when_lost`；当 `pose_complexity=high`、`limb_overlap=high` 或 `foreshortening_confusion=true` 时，允许先回切 `front_view_structure_check` / `side_view_structure_check` 验证骨架，再返回目标姿势。
 - **与纯侧视规则的场景分治**：当场景标签包含 `gameplay_sprite` 时，继续遵守 `pure side view`，但允许在侧视骨架内执行 `crush_to_stretch` 与 `center_of_gravity_shift`；当场景标签包含 `pose_study`、`concept_motion_sheet`、`animation_keypose_sheet` 时，可放开为多视角动作分析。
 - **基准帧数**：跑步 8 帧，待机/行走/飞行 4 帧，跳跃 3 帧。
 

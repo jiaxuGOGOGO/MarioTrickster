@@ -127,6 +127,12 @@
 | **髪3束分割法則（松岡）** | `hair_3_sections_bangs_side_back, hair_flow_from_crown_whorl, hair_volume_outside_head_atari, head_roundness_under_hair, male_hair_upward_then_down_flow, male_stray_hair_flyaway`；髪を前髪/サイド/後ろ髪の3束に分割；つむじ起点；頭部の丸みを意識；男性髪は頭頂部で一度上に向かい下に流れる | Text Prompt + Lineart 参考図 |
 | **髪型→性格連想テーブル（松岡）** | `female_short_hair_cheerful_active, female_medium_hair_calm_mature, female_long_hair_feminine_wave_soft, female_bun_hair_back_line_clear, male_short_hair_clean_fresh, male_medium_hair_ear_hidden_outward_tips, male_long_hair_wild_arrangement, female_hair_inward_gentle, male_hair_outward_active`；髪型/髪の流れ方向→性格連想 | Text Prompt |
 | **年齢別顔変化法則（松岡）** | `infant_face_round_chin_small_eyes_below_center, teen_face_elongating_chin_sharpening, adult_face_oval_eyes_horizontal, elder_face_cheekbone_chin_prominent_wrinkles, wrinkle_20s_none, wrinkle_40s_forehead_nasolabial, wrinkle_60s_eye_corner_mouth, wrinkle_80s_deep_all_areas`；年齢別の顔変化+シワ段階法則 | 角色蓝图年齢分支 + Text Prompt |
+| **球体意識法則（砂糖）** | `every_circle_is_a_sphere, sphere_cross_section_for_direction, head_as_squashed_sphere, direction_over_accuracy`；全ての丸を球体として意識して描く；球に断面線を入れて向きを明示；頭=上下から潰れた球体；正確さより方向感が重要 | 草図底稿 / Lineart 参考図 |
+| **フラワーサック胴体法則（砂糖）** | `flour_sack_torso_metaphor, rubber_bag_stretch_squash, ribcage_pelvis_fixed_size_bag_stretches`；胴体=「中身の詰まった袋」として動勢を表現；胸郭球と骨盤球は固定サイズ、間のゴム袋が伸縮；海外アニメーター標準メタファー。既有 `contract_stretch_rule` と互補：全身弯曲法則 vs 胴体特化メカニズム（高价值重复） | DWPose / OpenPose + Lineart 参考図 |
+| **胸骨盤独立回転法則（砂糖）** | `ribcage_pelvis_independent_rotation, torso_twist_creates_gesture, tilt_angle_diff_equals_gesture_intensity`；胸郭と骨盤は独立して動く→間の胴部が伸び縮み；胸郭の向き≠骨盤の向き→ねじれが動勢を生む；傾き角度差=動勢の強さ。既有 `torso_3block_twist` と互補：3分割ひねり=激しい動作、本条=基本原理（高价值重复） | DWPose / OpenPose + Lineart 参考図 |
+| **円柱四肢法則（砂糖）** | `limbs_as_flexible_cylinders, wrapping_line_shows_direction, organic_curves_for_limbs, leg_cylinder_taper_to_ankle, arm_as_one_or_two_cylinders_impression_based, hand_as_mitten`；腕脚=伸び縮みする円柱；ラッピングラインで方向を示す；人体は有機的→曲線で描く；脚は足首に向かって細くなる；腕は印象に応じて1本or2本の円柱；手はミトン程度にざっくり | Lineart 参考図 + DWPose |
+| **Loomis簡略化頭部法則（砂糖）** | `loomis_simplified, cranial_sphere_plus_facial_plane_cut, neck_as_cylinder, face_cross_line_for_direction`；頭を脳頭蓋（球体）+顔面頭蓋（平面カット）に分割；側頭部をナイフで切り落とした断面=側面；首=筒；十字線で顔の方向を示す | 草図底稿 / Lineart 参考図 |
+| **パンツ法骨盤方向確認法則（砂糖）** | `pants_visualization_for_pelvis_direction, waist_circle_plus_leg_root_circles`；骨盤の向きが不明な時、パンツを履かせたイメージで確認；ウエスト部分の円+2本の脚付け根の円→骨盤の向き・傾きが明確に | 草図底稿 / DWPose |
 
 ### 🗄️ 抽屉 2：📐 [透视与物件]
 
@@ -156,6 +162,9 @@
 | **魚眼パース法則（松岡）** | `fisheye_perspective, circular_distortion_line, body_fits_in_circle, extreme_foreshortening`；魚眼=円形ラインの効いたパース表現。**场景分治**：`gameplay_sprite`=使用禁止；`promo_art / key_visual / boss_intro`=使用可 | Text Prompt + Lineart 参考図 |
 | **前面太線パース強調法則（松岡）** | `foreground_thicker_line_weight, 3_depth_layers_front_mid_back, front_detail_thick_line_back_thin_line`；前面/中面/後面の3部分に分けて遠近感；最前面を太い線で描くとパース強調。**場景分治（線幅）**：batch間統一性は維持しつつ、単一フレーム内の前後レイヤーでは線太さに差をつけてOK | Lineart 参考図 + Text Prompt |
 | **前后肢体透视缩放** | `forward_limb_larger, backward_limb_smaller, perspective_exaggeration_on_limbs`；前伸手臂/腿画大（近大远小）；后伸手臂/腿画小；远处的手可轻微夸张缩小 | Text Prompt + Lineart 参考图 |
+| **円柱圧縮法則（砂糖）** | `cylinder_foreshortening, shorter_length_wider_cross_section, foreshortened_cylinder_ellipse_larger`；円柱が手前に向かってくる→圧縮発生：長さが短くなり+断面の楕円が大きく見える。既有 `forward_limb_larger` のメカニズム解説（高价值重复） | Lineart 参考図 + Text Prompt |
+| **関節オーバーラップ深度法則（砂糖）** | `overlap_at_joints, depth_without_wrapping_lines, curve_direction_at_joint_shows_depth, knee_as_gap_between_two_cylinders`；関節端にオーバーラップラインを引くだけで円柱の向きを示せる（ラッピングライン不要）；カーブの向きで円柱の向きが変わる→奥行き表現；膝=2本の円柱の間のギャップ。既有 `overlap_creates_depth` の具体テクニック（高价值重复） | Lineart 参考図 + DWPose |
+| **Cカーブ方向=円柱方向法則（砂糖）** | `C_curve_direction_per_limb_segment, commit_to_direction_even_if_uncertain`；各パーツ（腕/脛/足首/脚つけ根）のCカーブの向き=そのセグメントの3D方向；微妙な角度でも「真っすぐにしておこう」はNG→方向をコミットする；間違えたら逆にすればいい | Lineart 参考図 + DWPose |
 
 ### 🗄️ 抽屉 3：🏃 [动画与物理]
 
@@ -198,6 +207,15 @@
 | **足の構造3ブロック法則（松岡）** | `foot_3block_toes_instep_heel, inner_ankle_higher_than_outer, foot_arch_structure, female_foot_cone_toes_smooth, male_foot_square_toes_bony`；足を「指」「甲」「かかと」の3ブロックに分割；内くるぶし>外くるぶし；男女の足の描き分け | Text Prompt + Lineart 参考図 |
 | **4基本感情の筋肉方向法則（松岡）** | `joy_muscles_outward_relax, anger_muscles_center_converge, sadness_brow_inner_up_outer_down_eyes_vacant, surprise_brow_up_eyes_wide_mouth_round`；笑い=筋肉外側にゆるむ、怒り=中心に寄る、悲しみ=眉頭上反り眉尻下がり、驚き=眉上がり目見開き | Text Prompt |
 | **アングル×感情相性テーブル（松岡）** | `low_angle_anger_confidence_cool, high_angle_sadness_shyness_cute, male_expression_subtle_restrained, female_expression_dynamic_exaggerated, high_angle_gaze_up_tension, high_angle_gaze_down_calm`；アオリ=威圧感/怒りと相性良、フカン=弱さ/悲しみと相性良；男性表情=控えめ、女性表情=ダイナミック | Text Prompt |
+| **LoA（Line of Action）印象駆動法則（砂糖）【核心規則】** | `LoA_first_detail_last, single_dominant_LoA_curve, LoA_curve_type = {C_back_arch / S_dynamic / reverse_C_lean_back / C_crouch}, exaggerate_LoA_curve, LoA_iteration_allowed, verb_driven_LoA = {arching / bending / stretching / twisting / crouching}`；LoA=全身を貫く1本の印象線→最初に決定；実際のポーズより印象を誇張したカーブを採用してOK；何度でも描き直し可；動詞（反る/伸びる/曲がる）でLoAの性格を決定。**場景分治**：`gesture_study / animation_keypose / concept_sketch` = 本法則（印象駆動LoA先行）；`character_sheet / model_sheet / turnaround` = 松岡アタリ法則（解剖精度ベース） | DWPose / OpenPose backbone curve + Text Prompt |
+| **CSI線質理論（砂糖）【核心規則】** | `CSI_line_vocabulary = {C: curve / S: s_curve / I: straight}, C_S_softness_organic_feminine_relaxed, I_hardness_tension_power_masculine_artificial, CSI_mix_ratio_controls_impression`；人体のあらゆるラインをC/S/Iの3種類に分類；C/S=やわらかさ/有機的/女性性、I=硬さ/緊張/男性性；キャラの性格/シーンの雰囲気でCSI比率を調整。松岡 `male_angular_straight_lines, female_curved_soft_lines` の上位メカニズム（高价值重复） | Text Prompt + Lineart 参考図 |
+| **CSI性別/世界観比率テーブル（砂糖）** | `female_char_C_S_70pct_I_30pct, male_char_I_60pct_C_S_40pct, power_scene_I_ratio_up, relax_scene_C_S_ratio_up, world_CSI_ratio_unified_across_project`；女性キャラ=C/S多め(70%)+I少なめ(30%)；男性キャラ=I多め(60%)+C/S少なめ(40%)；力強いシーン=I比率UP；リラックスシーン=C/S比率UP；プロジェクト全体でCSI比率を統一→世界観のトーン統一。MarioTrickster=カートゥーン→C/S主体+I(陷阱/人工物) | Text Prompt |
+| **ジェスチャー3段階ワークフロー法則（砂糖）** | `gesture_to_volume_pipeline, three_pass_workflow = {pass1_LoA_mass / pass2_cylinder_volume / pass3_flow_detail}, additive_drawing_workflow = LoA → +head → +ribcage → +pelvis → +limbs → +ground_contact, full_workflow = LoA(CSI) → spheres → rubber_bag → cylinders → overlap → flesh`；Pass1=LoA+球体(頭/胸/骨盤)+棒線→Pass2=円柱(腕/脚)+ラッピングライン→Pass3=フロー意識+ディテール；1分ジェスチャー=Pass1のみ、2分=+Pass2 | DWPose / OpenPose + Lineart 参考図 |
+| **印象誇張法則（砂糖）** | `exaggerate_LoA_curve, self_impression_as_ground_truth, gesture_impression_gt_photographic_accuracy, impression_changes_each_time_OK`；実際のポーズより受けた印象を強調した曲線を採用；自分の印象が基準（写真精度ではない）；同じポーズでも見るたびに印象が変わってOK。**場景分治**：動的ポーズ/ジェスチャー=本法則；設定稿/モデルシート=解剖精度優先 | Text Prompt + DWPose / OpenPose |
+| **フロー意識法則（砂糖）** | `draw_verbs_not_nouns, flow_over_parts, continuous_rhythm_line, LoA_before_contour, contour_supports_gesture`；名詞(パーツ名)に意識が行くとフローが止まる→動詞(動き)を描く；全身を貫くリズム=フロー；輪郭はLoAの後→輪郭は印象を支えるもの | DWPose / OpenPose + Text Prompt |
+| **エンターテインメントゾーン法則（砂糖）** | `entertainment_zone, rule_compliance_plus_creative_intent, two_pass_workflow = pass1_gesture_creative → pass2_anatomy_check_rule`；ルール(解剖学/パース)とクリエイティブ(印象/感情)のバランスが取れた場所=エンターテインメントゾーン；Pass1=クリエイティブに印象を描く→Pass2=ルールで解剖チェック | Text Prompt + DWPose / OpenPose |
+| **かたまりの印象法則（砂糖）** | `silhouette_as_mass_impression, CSI_applied_to_clothing_folds, CSI_ratio_matches_character_impression`；シルエット全体を1つの塊として見る→直線と曲線の組み合わせで印象を表現；服のシワにもCSI適用；硬いキャラ=I多め、柔らかいキャラ=C/S多め | Text Prompt + Lineart 参考図 |
+| **服の3段階ワークフロー法則（砂糖）** | `clothing_workflow = gesture_mannequin → nude_anatomy → clothed_character`；服を着せると立体感が消える問題の解決策：①素体(球体/円柱)→②裸体(解剖)→③着衣；②-A=服の中の裸を描く / ②-B=オーバーラップと円柱を利用して服を描く | Lineart 参考図 + Text Prompt |
 
 ### 🗄️ 抽屉 4：🎨 [光影与材质]
 
@@ -300,3 +318,4 @@
 *Hart Distillation: 2026-04-10 — Christopher Hart《Figure It Out! Drawing Essential Poses》16 条新增 + 2 条高价值重复合并*
 *Telecom Distillation: 2026-04-10 — Telecom Animation Film《アニメーション・バイブル》13 条新增 + 2 条高价值重复 + 1 条帧数修订*
 *Matsuoka Distillation: 2026-04-10 — 松岡伸治《イラスト・漫画のためのキャラクター描画教室》45 条新增（解剖30 / 透视8 / 动画7）+ 20 条高价值重复合并 + 2 条场景分治仲裁（头身比 / 线宽）*
+*Satou Distillation: 2026-04-10 — 砂糖ふくろう《10パーセントの力で描くはじめてのジェスチャードローイング》21 条新增（动画10 / 解剖7 / 透视4）+ 5 条高价值重复 + 1 条场景分治仲裁（印象駆動 vs 解剖精度）*

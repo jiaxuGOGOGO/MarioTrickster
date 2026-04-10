@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 62 (蒸馏落库协议增强整合 + 提交流程模板化) |
+| **最新 Session** | Session 63 (Hart《Figure It Out!》蒸馏落库：解剖+透视+动画+光影 16条新增) |
 | **日期** | 2026-04-10 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流修正 — 在保留双轨主骨架的前提下，整合外部实践中对防遗漏、区分式去冗余、四段验收与提交留痕真正有用的部分，强化蒸馏结果向 ComfyUI 与 Unity 资产的可传递性 |
-| **编译状态** | ✅ 无代码编译变更；已完成主配方库、独立协议文档与 PR 模板更新，并随本次提交推送远端 |
+| **阶段** | Sprint 2 美术生产工作流 — 首次实战蒸馏落库闭环，将 Christopher Hart 的姿势绘画教程转化为 16 条可执行规则并写入双轨配方库 |
+| **编译状态** | ✅ 无代码编译变更；已完成 `prompts/PROMPT_RECIPES.md` 蒸馏落库 + `docs/ART_PIPELINE_GUIDE.md` 文档改进，并随本次提交推送远端 |
 | **阻塞** | 无 |
-| **交接说明** | S62 不另起新体系，而是在 `prompts/PROMPT_RECIPES.md` 现有双轨架构上追加“蒸馏落库增强协议”，把强制入库核查清单、高价值重复识别、冗余判定标准、蒸馏→落库→出图→Unity 四段验收，以及 commit/PR 必带“本次蒸馏入库清单”的要求正式写入仓库；同时新增 `docs/DISTILLATION_PROTOCOL.md` 与 `.github/PULL_REQUEST_TEMPLATE.md` 作为长期执行载体，并以本次提交完成远端闭环。 |
+| **交接说明** | S63 对 Christopher Hart《Figure It Out! Drawing Essential Poses》执行领域精细化无损蒸馏。全书 9 章 151 页深度扫描，提取 16 条新增规则 + 2 条高价值重复合并，分别归入解剖与形态(7条)、透视与物件(6条)、动画与物理(5条)、光影与材质(1条)。冲突仲裁通过场景分治解决，无待确认疑点。另对 `docs/ART_PIPELINE_GUIDE.md` 进行了角色分工说明改进，消除菜单 1/2/3 的使用困惑。 |
 
 ---
 
@@ -105,7 +105,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 > 用户测试时逐项快速验证。AI 修复代码后只需在此标记受影响项。
 >
-> **S62 说明**：本次为蒸馏协议增强与提交留痕规范化，**未改动运行时代码**；下表状态保持不变，仅更新美术蒸馏与落库文档体系。
+> **S63 说明**：本次为美术教程蒸馏落库（Hart《Figure It Out!》），**未改动运行时代码**；下表状态保持不变。
 
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
@@ -150,7 +150,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **最高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
-| **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62，协议增强与提交模板已并入闭环） |
+| **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏实战闭环） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`。 | ✅ 已完成 |
 | **高** | **批量资产生产**：概念锚点确立后，使用 IPAdapter 喂入锚点图 + PROMPT_RECIPES 配方批量出图，用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待概念锚点确立 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |

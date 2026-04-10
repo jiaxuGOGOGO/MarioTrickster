@@ -86,6 +86,13 @@
 | **风格化高度** | `heroic=8_head`, `fashion=9_12_head`, `stylized_floor>=7.5_head` | 角色蓝图风格分支 |
 | **上肢定位** | `elbow_at_rib_bottom, wrist_at_crotch, fingertips_mid_thigh` | DWPose / OpenPose 骨架校验 |
 | **儿童体型** | `child_large_head, child_narrow_shoulders, child_neck_narrower_than_jaw, child_chest_lt_waist, child_short_fingers, child_hips_eq_shoulders, child_slight_knock_knee` | 角色年龄分支 |
+| **头颈联动单元** | `head_neck_unit, head_tilt_neck_crimp, head_turn_neck_asymmetry`；头向左倾→左颈褶皱；头前倾→后颈与上背融合(显长)；头后仰→后颈褶皱(显短)；头左转→左颈短右颈长 | DWPose / OpenPose 骨架校验 + Text Prompt |
+| **骨架弧线法则** | `limb_subtle_curves, no_straight_limbs, shoulder_extends_beyond_torso`；四肢必须用微弧线画，禁止直线（否则僵硬）；肩膀延伸超出躯干框架 | DWPose / OpenPose 骨架校验 + Lineart 参考图 |
+| **性别体型差异（补充）** | `male_shoulder_gt_hip, female_hip_eq_shoulder, male_brow_ridge_prominent`；男性肩宽>臀宽，女性臀宽≈肩宽；男性眉骨突出；女性下颌线柔化 | 角色蓝图基础值 + Text Prompt |
+| **收缩拉伸法则【核心规则】** | `contract_stretch_rule, bend_side_compress, opposite_side_stretch, line_of_action_toward_contract`；身体弯向一侧→弯曲侧收缩(褶皱/堆叠/距离短)，对侧拉伸(光滑/拉长/距离大)；Line of Action 弯向收缩侧。**场景分治**：动画帧用 `action_order_crush_to_stretch`，静态姿势/设定稿用本规则 | DWPose / OpenPose + Lineart 参考图 + Text Prompt |
+| **肩臀对齐与角度差** | `shoulder_hip_angle_offset, weight_leg_hip_up_shoulder_down, five_alignment_lines`；自然站姿中肩线和臀线必须有角度差（平行=僵硬）；重心腿侧臀部抬高→同侧肩膀下沉；5 条对齐线即使不均匀也大部分保持对齐 | DWPose / OpenPose 骨架校验 + Text Prompt |
+| **肩膀随手臂联动** | `shoulder_follows_arm, arm_raise_shoulder_raise, arm_raise_same_side_contract`；手臂抬起→同侧肩膀跟着抬起→同侧躯干收缩→对侧拉伸 | DWPose / OpenPose 骨架校验 |
+| **膝关节偏移与腿部深度** | `thigh_past_shin_at_knee, near_knee_past_far_knee, foundation_leg_straight`；侧面视角腿锁定时大腿在膝盖处突出超过小腿；一个膝盖在另一个前面=深度感；支撑腿保持直立 | DWPose / OpenPose + Lineart 参考图 |
 
 ### 🗄️ 抽屉 2：📐 [透视与物件]
 
@@ -101,6 +108,15 @@
 - **物件结构模具（ControlNet）**：静态地形、陷阱、交互物 **强制启用 `Lineart` 或 `Canny` 预处理器**，锁定边缘轮廓。
 - **角色头部结构校验（ControlNet）**：当场景标签包含 `head_study`, `portrait_sheet`, `promo_art`, `3_4_validation` 时，允许启用 `Lineart` 锁头部大形；当场景标签包含 `gameplay_sprite` 时，**禁止**用 3/4 头部参考覆盖纯侧视蓝图。
 
+| 规则簇 | 可执行 Tag / 数值 / 约束 | 节点落点 |
+| :--- | :--- | :--- |
+| **中线偏移深度法则【核心规则】** | `center_line_shift_depth, center_line_off_center_equals_rotation, front_view_center_straight_3q_center_curved`；正面中线居中=扁平；中线偏移=暗示身体转动=深度；中线越偏离中心→转动越大→深度越强；正面中线笔直，3/4视角中线变成凹凸曲线 | Lineart 参考图 + Text Prompt |
+| **重叠深度法则【核心规则】** | `overlap_creates_depth, near_overlaps_far, overlap_invasion_rule, more_overlap_more_depth`；重叠=最重要的深度暗示；近处身体部分遮挡远处部分；重叠线“入侵”相邻区域(肩线入侵上臂/上臂线入侵前臂/胸线重叠远侧手臂)；越多重叠→越强深度感 | Lineart 参考图 + Text Prompt + DWPose |
+| **四面不等大法则** | `four_sides_unequal, show_multiple_sides_for_depth, primary_surface_largest`；人物有4个面(front/left/back/right)；3/4视角时各面大小不等；主要面最大，远离观众的面更窄；展示越多不同面→深度越强 | Text Prompt + Lineart 参考图 |
+| **隐藏半身深度法则** | `hidden_half_depth, near_side_full_far_side_partial, concealment_suggests_depth`；隐藏人物远侧=创造深度错觉；近侧手臂/腿完全可见，远侧只部分可见 | Lineart 参考图 + Text Prompt |
+| **侧面视角深度增强** | `side_view_depth_enhancement, side_center_line_inward, head_slight_3q_in_side, feet_angle_outward_in_side`；严格侧面=扁平；深度增强方法：①Center Line从边缘稍微后移→露出远侧一小条身体；②头部从纯侧面转向微3/4；③脚微微外展。**场景分治**：`gameplay_sprite` 继续遵守 pure side view（但允许脚微外展作为微调）；`concept_art / character_sheet / promo_art` 使用全套深度增强 | Lineart 参考图 + DWPose + Text Prompt |
+| **前后肢体透视缩放** | `forward_limb_larger, backward_limb_smaller, perspective_exaggeration_on_limbs`；前伸手臂/腿画大（近大远小）；后伸手臂/腿画小；远处的手可轻微夸张缩小 | Text Prompt + Lineart 参考图 |
+
 ### 🗄️ 抽屉 3：🏃 [动画与物理]
 
 *(记录：关键帧数、运动模糊、防滑步约束)*
@@ -109,10 +125,18 @@
 - **动画结构模具（ControlNet）**：所有带连续动作的生物关节角色（跑、跳、受击）**强制启用 `DWPose` / `OpenPose` 预处理器**。
 - **动作发力顺序（Pose 约束）**：`action_order_crush_to_stretch`, `show_preload_before_release`, `jump_point_full_body_stretch`
 - **重心与运动线（Pose 约束）**：`trace_center_of_gravity_shift`, `movement_reference_line_lock`, `waist_rises_first_head_detours`
-- **接触受压校验（Pose / Lineart）**：`sitting_contact_compression`, `buttocks_sink_on_seat`, `knee_to_heel_not_overextended`
+- **接触受压校验（Pose / Lineart）**：`sitting_contact_compression`, `buttocks_sink_on_seat`, `knee_to_heel_not_overextended`, `seated_thigh_flatten_on_surface`（Hart 补充：大腿与椅面接触时被压扁）
 - **复杂姿势回切校验（Pose / Lineart）【核心规则】**：`check_front_and_side_when_lost`；当 `pose_complexity=high`、`limb_overlap=high` 或 `foreshortening_confusion=true` 时，允许先回切 `front_view_structure_check` / `side_view_structure_check` 验证骨架，再返回目标姿势。
 - **与纯侧视规则的场景分治**：当场景标签包含 `gameplay_sprite` 时，继续遵守 `pure side view`，但允许在侧视骨架内执行 `crush_to_stretch` 与 `center_of_gravity_shift`；当场景标签包含 `pose_study`、`concept_motion_sheet`、`animation_keypose_sheet` 时，可放开为多视角动作分析。
 - **基准帧数**：跑步 8 帧，待机/行走/飞行 4 帧，跳跃 3 帧。
+
+| 规则簇 | 可执行 Tag / 数值 / 约束 | 节点落点 |
+| :--- | :--- | :--- |
+| **对立力量法则（Contrapposto）【核心规则】** | `opposing_forces, upper_lower_body_counter_direction, contrapposto, major_force_structural, minor_force_aesthetic`；上半身和下半身力量方向相反；力量从脚底向上传递，每个关节是方向改变节点；Major Forces 影响躯干核心（结构性），Minor Forces 影响四肢（装饰性） | DWPose / OpenPose 骨架校验 + Text Prompt |
+| **自然站姿 S 曲线法则** | `natural_pose_s_curve, torso_outward_arc_legs_inward_arc, counterbalancing_curves, no_stiff_straight_pose`；自然站姿用曲线（躯干向外弧+腿向内弧=反向平衡）；直线站姿=僵硬/像要倒；Line of Action = S曲线或反S曲线 | DWPose / OpenPose 骨架校验 + Text Prompt |
+| **脊柱曲线法则** | `spine_curved_not_straight, spine_determines_upper_lower_relation, back_view_spine_s_curve`；直脊柱=僵硬，弯曲脊柱=自然；Center Line 沿背部是曲线而非直线；脊柱决定上下半身位置关系 | DWPose / OpenPose 骨架校验 + Lineart 参考图 |
+| **坐姿重心与接触压缩（补充）** | `seated_gravity_on_hips, seated_upper_body_free`；坐姿重心在臀部（非脚）；坐姿中上半身更自由（不需要平衡）；躯干仍遵循对立力量规则 | DWPose / OpenPose + Lineart 参考图 |
+| **步行躯干反转法则** | `walking_torso_counter_rotation, leg_forward_torso_rotates_away, abdomen_line_shows_rotation`；腿前迨时躯干向反方向旋转；腹部线条表达躯干转动；后腿被前腿重叠+轻微阴影 | DWPose / OpenPose 骨架校验 + Text Prompt |
 
 ### 🗄️ 抽屉 4：🎨 [光影与材质]
 
@@ -123,6 +147,10 @@
   - 负向：`blur, gradient, realistic, UI`
 - **默认像素风后处理**：生成后必须使用 `nearest-neighbor` 算法缩放至目标尺寸。
 - **风格漂移抑制**：批量资产生产时，每连续生成 `3-5` 个资产必须回看概念锚点；结构锁定优先发生在前 `30%-40%` 步数；图生图或局部重绘时 `denoising` 建议保持在 `0.20-0.40`，高于 `0.50` 视为高风险漂移区。
+
+| 规则簇 | 可执行 Tag / 数值 / 约束 | 节点落点 |
+| :--- | :--- | :--- |
+| **战略性阴影深度法则** | `strategic_shadow_for_depth, shadow_implies_3d, light_shadow_not_heavy_handed`；阴影让物体看起来立体（只有立体物体才能遮挡光源）；避免重手法，几处战略性阴影即可；后腿/远侧肢体加轻微阴影暗示深度 | Text Prompt + 后处理/手动修图 |
 
 ### 🗄️ 抽屉 5：⚙️ [AI 硬核参数]
 
@@ -204,3 +232,4 @@
 ```
 
 *Last Updated: 2026-04-10 by Manus TA*
+*Hart Distillation: 2026-04-10 — Christopher Hart《Figure It Out! Drawing Essential Poses》16 条新增 + 2 条高价值重复合并*

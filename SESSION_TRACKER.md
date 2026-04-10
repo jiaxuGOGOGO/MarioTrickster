@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 63 (Hart《Figure It Out!》蒸馏落库：解剖+透视+动画+光影 16条新增) |
+| **最新 Session** | Session 64 (Telecom《アニメーション・バイブル》蒸馏落库：动画+解剖+参数 13条新增 + 1条帧数修订) |
 | **日期** | 2026-04-10 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流 — 首次实战蒸馏落库闭环，将 Christopher Hart 的姿势绘画教程转化为 16 条可执行规则并写入双轨配方库 |
-| **编译状态** | ✅ 无代码编译变更；已完成 `prompts/PROMPT_RECIPES.md` 蒸馏落库 + `docs/ART_PIPELINE_GUIDE.md` 文档改进，并随本次提交推送远端 |
+| **阶段** | Sprint 2 美术生产工作流 — 第二次蒸馏落库闭环，将 Telecom Animation Film 的日本动画制作教科书转化为 13 条新增规则 + 1 条帧数修订并写入双轨配方库 |
+| **编译状态** | ✅ 无代码编译变更；已完成 `prompts/PROMPT_RECIPES.md` 蒸馏落库，并随本次提交推送远端 |
 | **阻塞** | 无 |
-| **交接说明** | S63 对 Christopher Hart《Figure It Out! Drawing Essential Poses》执行领域精细化无损蒸馏。全书 9 章 151 页深度扫描，提取 16 条新增规则 + 2 条高价值重复合并，分别归入解剖与形态(7条)、透视与物件(6条)、动画与物理(5条)、光影与材质(1条)。冲突仲裁通过场景分治解决，无待确认疑点。另对 `docs/ART_PIPELINE_GUIDE.md` 进行了角色分工说明改进，消除菜单 1/2/3 的使用困惑。 |
+| **交接说明** | S64 对 Telecom Animation Film《アニメーション・バイブル》执行领域精细化无损蒸馏。全书 7 章 222 页深度扫描，提取 13 条新增规则 + 2 条高价值重复 + 1 条帧数修订。主要归入动画与物理(11条)、解剖与形态(1条)、AI硬核参数(1条)。关键修订：行走帧数 4→6–8、跳跃帧数 3→5–8、新增攻击 6 帧。新增运动曲线/帧间距/循环闭合/行走四要素/走跑区分/情绪行走/Follow-Through/转头层级/Anticipation/VFX循环/コマ打ち换算等核心动画规则。旧帧数(4帧行走/3帧跳跃)降级为超简版备注。 |
 
 ---
 
@@ -105,7 +105,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 > 用户测试时逐项快速验证。AI 修复代码后只需在此标记受影响项。
 >
-> **S63 说明**：本次为美术教程蒸馏落库（Hart《Figure It Out!》），**未改动运行时代码**；下表状态保持不变。
+> **S64 说明**：本次为美术教程蒸馏落库（Telecom《アニメーション・バイブル》），**未改动运行时代码**；下表状态保持不变。帧数修订仅影响未来 sprite sheet 制作规格，不影响现有运行时行为。
 
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
@@ -150,7 +150,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **最高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
-| **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏实战闭环） |
+| **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`。 | ✅ 已完成 |
 | **高** | **批量资产生产**：概念锚点确立后，使用 IPAdapter 喂入锚点图 + PROMPT_RECIPES 配方批量出图，用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待概念锚点确立 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |

@@ -93,6 +93,7 @@
 | **肩臀对齐与角度差** | `shoulder_hip_angle_offset, weight_leg_hip_up_shoulder_down, five_alignment_lines`；自然站姿中肩线和臀线必须有角度差（平行=僵硬）；重心腿侧臀部抬高→同侧肩膀下沉；5 条对齐线即使不均匀也大部分保持对齐 | DWPose / OpenPose 骨架校验 + Text Prompt |
 | **肩膀随手臂联动** | `shoulder_follows_arm, arm_raise_shoulder_raise, arm_raise_same_side_contract`；手臂抬起→同侧肩膀跟着抬起→同侧躯干收缩→对侧拉伸 | DWPose / OpenPose 骨架校验 |
 | **膝关节偏移与腿部深度** | `thigh_past_shin_at_knee, near_knee_past_far_knee, foundation_leg_straight`；侧面视角腿锁定时大腿在膝盖处突出超过小腿；一个膝盖在另一个前面=深度感；支撑腿保持直立 | DWPose / OpenPose + Lineart 参考图 |
+| **角色崩坏防治三锚点法则** | `anti_off_model_3_anchors, head_size_locked_across_frames, face_cross_position_locked, eye_gap_locked, nose_mouth_gap_locked, line_weight_uniform_across_batch`；头部大小=全身比例基准单位，帧间/批次间不可变；脸部三锚点：十字线位置 + 眼距 + 鼻嘴距 = 帧间必须一致；线条粗细必须全 Cut/全批次统一 | Lineart 参考图 + sprite sheet QA |
 
 ### 🗄️ 抽屉 2：📐 [透视与物件]
 
@@ -128,7 +129,8 @@
 - **接触受压校验（Pose / Lineart）**：`sitting_contact_compression`, `buttocks_sink_on_seat`, `knee_to_heel_not_overextended`, `seated_thigh_flatten_on_surface`（Hart 补充：大腿与椅面接触时被压扁）
 - **复杂姿势回切校验（Pose / Lineart）【核心规则】**：`check_front_and_side_when_lost`；当 `pose_complexity=high`、`limb_overlap=high` 或 `foreshortening_confusion=true` 时，允许先回切 `front_view_structure_check` / `side_view_structure_check` 验证骨架，再返回目标姿势。
 - **与纯侧视规则的场景分治**：当场景标签包含 `gameplay_sprite` 时，继续遵守 `pure side view`，但允许在侧视骨架内执行 `crush_to_stretch` 与 `center_of_gravity_shift`；当场景标签包含 `pose_study`、`concept_motion_sheet`、`animation_keypose_sheet` 时，可放开为多视角动作分析。
-- **基准帧数**：跑步 8 帧，待机/行走/飞行 4 帧，跳跃 3 帧。
+- **基准帧数（修订版）**：行走 6–8 帧/步（循环 8 帧 = 2 步），跑步 4–7 帧/步（循环 8–14 帧），跳跃 5–8 帧，攻击 6 帧，待机/飞行 4 帧。旧值（行走 4 帧/跳跃 3 帧）降级为“超简版备注，仅限极端省帧场景”。
+  > **帧数修订原因**：Telecom Animation Bible 确认行走最小可用 5–6 帧/步（含重心转移中间帧），跳跃最小 5 帧（含蓄力 + 着地冲击），攻击最小 6 帧（Anticipation + Strike + Recovery）。
 
 | 规则簇 | 可执行 Tag / 数值 / 约束 | 节点落点 |
 | :--- | :--- | :--- |
@@ -137,6 +139,17 @@
 | **脊柱曲线法则** | `spine_curved_not_straight, spine_determines_upper_lower_relation, back_view_spine_s_curve`；直脊柱=僵硬，弯曲脊柱=自然；Center Line 沿背部是曲线而非直线；脊柱决定上下半身位置关系 | DWPose / OpenPose 骨架校验 + Lineart 参考图 |
 | **坐姿重心与接触压缩（补充）** | `seated_gravity_on_hips, seated_upper_body_free`；坐姿重心在臀部（非脚）；坐姿中上半身更自由（不需要平衡）；躯干仍遵循对立力量规则 | DWPose / OpenPose + Lineart 参考图 |
 | **步行躯干反转法则** | `walking_torso_counter_rotation, leg_forward_torso_rotates_away, abdomen_line_shows_rotation`；腿前迨时躯干向反方向旋转；腹部线条表达躯干转动；后腿被前腿重叠+轻微阴影 | DWPose / OpenPose 骨架校验 + Text Prompt |
+| **运动曲线法则（Arc of Motion）【核心规则】** | `arc_of_motion, all_body_parts_follow_arcs, no_linear_interpolation, head_arc_walk, hand_arc_swing`；所有身体部位运动必须沿弧线轨迹；中间帧不能是两关键帧的线性混合；头/手/脚的帧间轨迹必须是平滑弧线；偏离弧线 = 视觉卡顿 | DWPose / OpenPose 骨架校验 + sprite sheet QA |
+| **帧间距（Spacing）速度控制法则** | `spacing_controls_speed, accel_sparse_decel_dense, loop_equal_spacing, heavy_object_abrupt_accel, light_object_gradual_accel`；加速 = 帧间距从小到大（密→疏）；减速 = 帧间距从大到小（疏→密）；循环动画必须等间距；重物加减速短促，轻物加减速绵长 | sprite sheet 帧位置规划 + AnimationClip timing |
+| **循环动画闭合法则** | `loop_last_frame_seamless, loop_equal_spacing_mandatory, walk_loop_8f_standard, run_loop_8_14f`；循环 sprite sheet 最后帧必须无缝接回第一帧；循环段必须等间距；行走循环标准 8 帧（2步）；跑步循环 8–14 帧 | sprite sheet QA + AnimationClip WrapMode |
+| **行走四要素法则** | `walk_4_elements, walk_vertical_bounce, heel_first_landing, arm_opposite_leg, center_of_gravity_over_support_foot`；(1)上下动：中间帧体最高，交叉帧体最低；(2)脚运：脚跟先着地 = 正常走，脚尖先着地 = 潜行；(3)手臂反向：右脚前→左手前（同侧手脚同向 = AI 常见错误）；(4)重心平衡：每帧重心必须在支撑脚上方 | DWPose / OpenPose 骨架校验 + sprite sheet QA |
+| **走跑区分法则** | `walk_has_double_support_frame, run_has_airborne_frame, walk_stable_run_unstable`；走路 = 至少 1 帧双脚着地（安定）；跑步 = 至少 1 帧双脚离地（不安定/连续跳跃）；跑步 = Squash（着地下沉）+ Stretch（伸展上升）交替 | DWPose / OpenPose + sprite sheet QA |
+| **情绪行走参数表** | `emotion_walk_params, stride_vertical_bounce_arm_swing_lean`；自信走：上下动大 + 脚高抬 + 后仰；氮丧走：步幅小 + 手臂不摆 + 脚不离地；愤怒走：前倾 + 大步 + 手臂大摆；潜行：脚尖着地 + 8 帧/步。体型：胖 = 上下动大 + 步幅小；年龄：幼儿 = 步幅极小 + 手臂前伸，老人 = 前倾 + 不伸展 | DWPose / OpenPose + Text Prompt 情绪标签 |
+| **Follow-Through（跟随延迟）法则** | `follow_through_delay, soft_appendage_lag_2_3f, cloth_wave_propagation, hair_tip_lags_head`；所有柔软附属物（头发/斗篷/尾巴/裙摆）必须有 Follow-Through 延迟；末端延迟 2–3 帧追随主体运动；布料飘动 = 波峰沿布面方向传递（非随机抖动） | sprite sheet QA + Text Prompt |
+| **转头动画层级法则** | `head_turn_hierarchy, gaze_leads_head_leads_body, nose_arc_not_linear`；转头 = 视线先行 > 头先行 > 体跟随；鼻尖沿弧线旋转（非直线平移）；头/体/颈同速旋转 = 机器人感 | DWPose / OpenPose + sprite sheet QA |
+| **Anticipation（预备动作）法则** | `anticipation_before_fast_action, attack_rhythm_antic_strike_recovery, antic_dense_strike_sparse_recovery_dense`；所有快速动作前必须有预备帧；攻击节奏：Anticipation（蓄力 2–3 帧，慢）→ Strike（打击 1–2 帧，极快）→ Recovery（收势 1 帧，慢）；帧间距：蓄力密→打击疏→收势密 | sprite sheet 帧数规划 + DWPose / OpenPose |
+| **VFX 循环法则（烟/火/水）** | `smoke_loop_ball_upward, fire_loop_6f_silhouette_stable_interior_random, smoke_dissipate_expand_not_shrink, water_splash_sphere_particles`；烟循环：球状山部分向上传递 + 均等间距 + 轮廓一致；火焰循环：6 帧标准 + 整体轮廓不变 + 内部随机变化 + 火焰块向上送；烟消散：扩散→粒子化→消失（不是缩小） | sprite sheet VFX + Text Prompt |
+| **S&S 适度使用约束（补充）** | `squash_stretch_moderation, no_overuse_ss, micro_ss_for_expression`；Squash & Stretch 不能过度使用，适度使用 = 有节奏感；微表情级 S&S（惊讶缩伸/握拳皱拉）也能增加生动感。与现有 `action_order_crush_to_stretch` 互补，不替代 | Text Prompt + sprite sheet QA |
 
 ### 🗄️ 抽屉 4：🎨 [光影与材质]
 
@@ -163,6 +176,10 @@
   - 提示词引导系数（CFG）：`5.0 - 7.0`
   - 采样器：`euler_ancestral`，调度器：`normal`
 - **批量一致性保护**：连续批量出图时，建议在批次之间执行 `Purge Cache`；当需要冻结风格时，优先锁 `seed + LoRA + concept anchor` 组合，而不是只盯 Prompt 文案。
+
+| 规则簇 | 可执行 Tag / 数值 / 约束 | 节点落点 |
+| :--- | :--- | :--- |
+| **コマ打ち帧数换算表** | `koma_uchi_system, 1koma_24fps_full, 2koma_12fps_tv_standard, 3koma_8fps_tv_economy`；1コマ打ち = 24 画/秒（Full Animation）；2コマ打ち = 12 画/秒（TV 标准）；3コマ打ち = 8 画/秒（TV 省帧）。游戏 60fps 换算：2コマ = 每 5 帧换 1 张 = 12fps；3コマ = 每 7–8 帧换 1 张 = 8fps。Unity AnimationClip SampleRate 应匹配コマ打ち设定 | AnimationClip 参数 + sprite sheet 帧数规划 |
 
 ---
 
@@ -233,3 +250,4 @@
 
 *Last Updated: 2026-04-10 by Manus TA*
 *Hart Distillation: 2026-04-10 — Christopher Hart《Figure It Out! Drawing Essential Poses》16 条新增 + 2 条高价值重复合并*
+*Telecom Distillation: 2026-04-10 — Telecom Animation Film《アニメーション・バイブル》13 条新增 + 2 条高价值重复 + 1 条帧数修订*

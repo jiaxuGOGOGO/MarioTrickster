@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 58s (S58s: 步骤 0 超详细版 + 去底工具升级) |
-| **日期** | 2026-04-09 |
+| **最新 Session** | Session 59 (LoRA 训练路线研究与决策报告) |
+| **日期** | 2026-04-10 |
 | **分支** | master |
-| **阶段** | Sprint 2 游戏体验提升 — ART_PIPELINE_GUIDE.md 步骤 0 已完善，去底工具从 remove.bg 升级为 ComfyUI-RMBG + BiRefNet |
-| **编译状态** | ✅ 零代码变更，仅文档更新 |
+| **阶段** | Sprint 2 游戏体验提升 — 完成 LoRA 在线训练 vs 本地/云端自训研究，结合 RTX 4070 条件输出决策报告 |
+| **编译状态** | ✅ 零代码变更，仅新增研究文档与会话记录更新 |
 | **阻塞** | 无 |
-| **交接说明** | S58s 将 ART_PIPELINE_GUIDE.md 步骤 0 从简略清单扩写为完整新手安装教程，并全面升级去底工具方案。主要更新：(1) 步骤 0 扩写为超详细版（前置工具/ComfyUI/模型/插件逐步教程 + RTX 4070 优化 + 自检清单 + FAQ）。(2) 为每个组件添加「✅ 已装确认」快速自检方法。(3) 明确 CUDA 版本选择（下载 nvidia.7z 而非 cu126）。(4) 去底工具从 remove.bg 升级为 ComfyUI-RMBG 节点（集成 BiRefNet/RMBG-2.0/BEN2 等 SOTA 模型，完全本地、免费、无限量，不离开工作流）。(5) 增加像素风特化备选 TransparencyBackgroundRemover。 |
+| **交接说明** | S59 新增 `LoRA_Training_Decision_Report.md`，围绕“是否必须在网站付费训练 Style LoRA”完成详细研究与决策建议。主要内容：(1) 汇总 Civitai / LiblibAI 在线训练、Kohya 本地自训、Runpod 云 GPU 自训与继续探索不训练四条路线。 (2) 结合官方资料、硬件分析与社区讨论，对效果上限、控制力、摩擦成本、性价比做横向比较。 (3) 纳入用户本地 RTX 4070（12GB 档位）条件，说明本地训练已具备现实可行性，但仍受 12GB 级约束。 (4) 明确在线训练更偏“省时省心的风格固化加速器”，而非唯一正确答案。 |
 
 ---
 
@@ -148,6 +148,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **最高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
+| **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`。 | ✅ 已完成 |
 | **高** | **批量资产生产**：概念锚点确立后，使用 IPAdapter 喂入锚点图 + PROMPT_RECIPES 配方批量出图，用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待概念锚点确立 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |

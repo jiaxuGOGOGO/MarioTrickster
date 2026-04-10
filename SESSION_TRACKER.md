@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 69 (Peter Han《Dynamic Bible》蒸留落庫：透视8条+光影4条+解剖3条 新増 + 5条高价値重複 + 2条純重複剔除 + 0条冲突仲裁) |
+| **最新 Session** | Session 70 (吉田誠治《TIPS! 絵が描きたくなるヒント集》蒸留落庫：光影19条+透视7条 新增 + 4条高价値重複 + 3条純重複剔除 + 1条场景分治仲裁) |
 | **日期** | 2026-04-10 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流 — 第七次蒸馏落库闭環，Peter Han《Dynamic Bible》(59頁) 转化为 14 条新増規則 + 5 条高価値重複 + 2 条純重複剔除并写入双軌配方庫 |
-| **编译状态** | ✅ 无代码编译变更；已完成 `prompts/PROMPT_RECIPES.md` 第七次蒸馏落库（Peter Han），并随本次提交推送远端 |
+| **阶段** | Sprint 2 美术生产工作流 — 第八次蒸馏落库闭環，吉田誠治《TIPS! 絵が描きたくなるヒント集》(163頁) 转化为 26 条新增規則 + 4 条高価値重複 + 3 条純重複剔除 + 1 条场景分治仲裁并写入双軌配方庫 |
+| **编译状态** | ✅ 无代码编译变更；已完成 `prompts/PROMPT_RECIPES.md` 第八次蒸馏落库（吉田誠治），并随本次提交推送远端 |
 | **阻塞** | 无 |
-| **交接说明** | S69 对 Peter Han《Dynamic Bible》(59頁/12章) 执行领域精细化无损蒸馏。全书 Foundation(5 Core Shapes/Form Language) + Plants + Entomology + Bone Structure + Land Animals + Birds + Marine Life + Locomotives + Automobiles + Military + Aviation + Weapons + Cloth 深度扫描。提取 14 条新増規則 + 5 条高価値重複 + 2 条純重複剔除。主要归入：📐透视与物件(8条新増)=5 Core Shapes万物構築法/Center Line→Contour体積伝達WF/Side View First→3/4 View通用設計WF/Draw Through穿透式構築法/Form Relationships 5種形体関係/Cut Away切割構築法/Balloon on a String生物構築法/Reference Points通用比例測定；🎨光影与材質(4条新増)=3種表面材質システム(Shiny/Matte/Weathered)/Focal Point→Core Shadow→Detail Application WF/Shadow Grouping陰影分組法/Pinch&Peak+Ribbon布料褶皺定位法；🧍解剖与形態(3条新増)=Rule of 1/3動物通用3部分法則/Blending Forms+Segmentation形体融合法/Exaggeration for Iconic Sketch。高価値重複5条：5 Core Shapes↔OCHABI 2stage/Center Line↔砂糖・みにまる wrapping_line/Focal Point WF↔OCHABI caravaggio/Pinch&Peak↔みにまる wrinkle_5_types/Exaggeration↔砂糖・みにまる。純重複剔除2条：Line Weight前景加粗=松岡完全等価/Overlap creates depth=既存完全等価。冲突仲裁0条（全規則兼容）。 |
+|| **交接说明** | S70 对吉田誠治《TIPS! 絵が描きたくなるヒント集》(163頁/5章) 执行领域精细化无损蒸馏。全书 第1章パース(透视基礎/消失点/画角/斜面/人物パース) + 第2章陰影(直接光/反射光/SSS/3光源WF/空気遠近法/色決定/配色/透明感) + 第3章資料(建物寸法/照明) + 第4章メイキング(厚塗りWF/雲/水/森/岩) + 第5章実例 深度扫描。提取 26 条新增規則 + 4 条高価値重複 + 3 条純重複剔除。主要归入：🎨光影与材質(19条新增)=直接光2色塗り分け/反射光影色/SSS応用/3光源WF/順光逆光テーブル/見せ場集中描写/6種空気遠近法/レイリーミー散乱/色決定/配色比率/彩度メリハリ/地面明度/木漏れ日ピンホール/透明感3要素/抜け感空間/時間天候ライティング/室内照明リアリズム/厚塗りWF/雲描写/水3要素/森描写レイヤー/岩石材質/夜景描写；📐透视与物件(7条新增)=投影図法アイソメトリック使い分け/消失点配置安全/画角印象選択/斜面パース消失点/人物パース接地/タンジェント回避/構図6タイプ。高価値重複4条：消失点安全↔OCHABI 1point_perspective/見せ場集中↔Peter Han focal_point/地面明度↔OCHABI floor_base_value/岩石材質↔Peter Han weathered。純重複剔除3条：影の中の反射光=OCHABI完全等価/シルエット読み取り=みにまる完全等価/オーバーラップ深度=Peter Han完全等価。场景分治仲裁1条：アイソメトリック投影=gameplay_sprite禁止/tilemap_design許可。 |
 
 ---
 
@@ -105,7 +105,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 > 用户测试时逐项快速验证。AI 修复代码后只需在此标记受影响项。
 >
-> **S69 说明**：本次为美术教程蒸馏落库（Peter Han《Dynamic Bible》），**未改动运行时代码**；下表状态保持不变。新增规则仅影响未来角色设计/出图配方，不影响现有运行时行为。新增的 5 Core Shapes 万物構築法、Center Line→Contour 体積伝達WF、3種表面材質システム、Shadow Grouping 等将显著提升未来硬表面アセット(車両/武器/陳列)と生物キャラ(モンスター/動物)の出图構造精度と材質表現力。
+> **S70 说明**：本次为美术教程蒸馏落库（吉田誠治《TIPS! 絵が描きたくなるヒント集》），**未改动运行时代码**；下表状态保持不变。新增规则仅影响未来场景背景/光影设计/出图配方，不影响现有运行时行为。新增的 3光源ライティングWF、6種空気遠近法・時間天候ライティング変化テーブル・水3要素描写法則・構図6タイプ選択等将显著提升未来场景背景(森/岩/水/夜景)とライティング設計の出图品質。场景分治仲裁1条：アイソメトリック投影=gameplay_sprite禁止/tilemap_design許可。
 
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
@@ -150,7 +150,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **最高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
-| **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏） |
+| **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`。 | ✅ 已完成 |
 | **高** | **批量资产生产**：概念锚点确立后，使用 IPAdapter 喂入锚点图 + PROMPT_RECIPES 配方批量出图，用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待概念锚点确立 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |

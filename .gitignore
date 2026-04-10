@@ -97,3 +97,8 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# Manus art distillation temporary files (do not version)
+tmp_ocr/
+tmp_pdf_findings_stage*.txt
+tmp_pdf_findings_*.txt

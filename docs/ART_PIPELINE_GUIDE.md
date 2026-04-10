@@ -246,7 +246,25 @@
 >    - 若跨优先级，高优先级（如防滑步）直接秒杀低优先级。
 >    - 若同优先级，请执行**场景分治**（例如：静态物件用规则A，动态角色用规则B，打上标签共存）。
 >    - 若无法分治，请向我派发**【A/B实测工单】**，让我各出3张图进Unity跑一下，谁看着舒服留谁。
-> 3. 只提炼能生效的 Tag、数值和节点约束。绝不写散文。将提炼的规则更新到 `prompts/PROMPT_RECIPES.md`，并在被否决的旧规则旁标注废弃原因。"
+> 3. 只提炼能生效的 Tag、数值和节点约束。绝不写散文。将提炼的规则**直接写入仓库内** `prompts/PROMPT_RECIPES.md`，并在被否决的旧规则旁标注废弃原因。
+> 4. **强制 GitHub 闭环**：完成蒸馏后，必须继续执行 `git diff -- prompts/PROMPT_RECIPES.md` 确认仓库里已有真实改动；随后同步更新 `SESSION_TRACKER.md` 的最新 Session / 回归验证影响说明 / 待办队列；然后提交 commit 并 push 到 `origin/master`。
+> 5. 对话框里必须明确回报：`已修改文件列表`、`commit hash`、`是否已推送到 GitHub`。如果只有附件、没有仓库提交与推送，视为**任务未完成**。"
+
+### 菜单 1：GitHub 闭环验收（强制）
+
+| 阶段 | 必做动作 | 验收信号 |
+|------|----------|----------|
+| **A. 落库** | 在仓库工作区内直接修改 `prompts/PROMPT_RECIPES.md` | `git diff -- prompts/PROMPT_RECIPES.md` 能看到差异 |
+| **B. 记账** | 同步更新 `SESSION_TRACKER.md` 的 **最新 Session / 回归验证说明 / 待办队列** | 会话记录能解释这次蒸馏改了什么 |
+| **C. 清洁** | 临时 OCR、摘录、草稿只作过程文件；不把它们当成主成果提交 | 工作区不会被临时文件淹没 |
+| **D. 入库** | `git add` → `git commit` → `git push origin master` | GitHub 仓库页面可见最新提交 |
+| **E. 回报** | 回复中给出 **修改文件 + commit hash + 推送结果** | 用户可直接去 GitHub 核对 |
+
+> **一句话判定**：`附件 ≠ GitHub 变更`。只有**仓库文件已改、commit 已生成、远端已推送**，菜单 1 才算真正完成。
+
+> **推荐提交信息模板**：`docs(art): close distillation-to-github loop and sync prompt recipes`
+
+> **推荐结果回报模板**：`已落库：PROMPT_RECIPES.md / SESSION_TRACKER.md / ART_PIPELINE_GUIDE.md；已提交：<commit_hash>；已推送：GitHub 可见。`
 
 ---
 

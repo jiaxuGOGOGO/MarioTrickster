@@ -91,19 +91,21 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 59 (LoRA 训练路线研究与决策报告) |
+| **最新 Session** | Session 60 (美术蒸馏 GitHub 落库闭环整改) |
 | **日期** | 2026-04-10 |
 | **分支** | master |
-| **阶段** | Sprint 2 游戏体验提升 — 完成 LoRA 在线训练 vs 本地/云端自训研究，结合 RTX 4070 条件输出决策报告 |
-| **编译状态** | ✅ 零代码变更，仅新增研究文档与会话记录更新 |
+| **阶段** | Sprint 2 美术生产工作流修正 — 修复菜单 1 只产出附件不入 GitHub 的断点，补齐蒸馏落库 / 记账 / 提交 / 推送闭环 |
+| **编译状态** | ✅ 无代码编译变更；已更新文档、配方库与会话记录，并准备推送到 GitHub |
 | **阻塞** | 无 |
-| **交接说明** | S59 新增 `LoRA_Training_Decision_Report.md`，围绕“是否必须在网站付费训练 Style LoRA”完成详细研究与决策建议。主要内容：(1) 汇总 Civitai / LiblibAI 在线训练、Kohya 本地自训、Runpod 云 GPU 自训与继续探索不训练四条路线。 (2) 结合官方资料、硬件分析与社区讨论，对效果上限、控制力、摩擦成本、性价比做横向比较。 (3) 纳入用户本地 RTX 4070（12GB 档位）条件，说明本地训练已具备现实可行性，但仍受 12GB 级约束。 (4) 明确在线训练更偏“省时省心的风格固化加速器”，而非唯一正确答案。 |
+| **交接说明** | S60 将此前两次教程蒸馏结果正式落库到 `prompts/PROMPT_RECIPES.md`，并修订 `docs/ART_PIPELINE_GUIDE.md`：菜单 1 现强制执行“仓库内改文件 → 检查 git diff → 更新 SESSION_TRACKER → commit → push origin/master”的完整链路；同时把 `tmp_ocr/` 与 `tmp_pdf_findings_stage*.txt` 写入 `.gitignore`，避免临时 OCR/摘录文件污染 Git 状态，确保用户能直接在 GitHub 上看到蒸馏成果。 |
 
 ---
 
 ## 2. 回归验证清单
 
 > 用户测试时逐项快速验证。AI 修复代码后只需在此标记受影响项。
+>
+> **S60 说明**：本次为美术工作流与文档闭环整改，**未改动运行时代码**；下表状态保持不变，仅补充 GitHub 落库规范。
 
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
@@ -148,6 +150,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **最高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
+| **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S60） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`。 | ✅ 已完成 |
 | **高** | **批量资产生产**：概念锚点确立后，使用 IPAdapter 喂入锚点图 + PROMPT_RECIPES 配方批量出图，用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待概念锚点确立 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |

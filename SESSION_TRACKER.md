@@ -94,10 +94,10 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **最新 Session** | Session 82 (LoRA 风格绑定卡 + 菜单3继承差量入口) |
 | **日期** | 2026-04-11 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流 — 已在 `prompts/PROMPT_RECIPES.md` 顶部新增 `### 🗃️ [已固化 LoRA 资产名录]`，把菜单2.5的交接物从“只报 LoRA 文件名”升级为“LoRA 文件名 + Trigger Words + Optimal Weight + Specific Negative Prompts + 默认继承合同”；同时已在 `docs/ART_PIPELINE_GUIDE.md` 将菜单3改造成“继承资产 + 动态差量”的极简入口，要求系统静默补齐 ComfyUI 四区节点参数。 |
+| **阶段** | Sprint 2 美术生产工作流 — 已在 `prompts/PROMPT_RECIPES.md` 顶部新增 `### 🗃️ [已固化 LoRA 资产名录]`，把菜单2.5的交接物从“只报 LoRA 文件名”升级为“LoRA 文件名 + Trigger Words + Optimal Weight + Specific Negative Prompts + 默认继承合同”；同时已在 `docs/ART_PIPELINE_GUIDE.md` 将菜单3改造成“继承资产 + 动态差量”的极简入口，并补明菜单2.5的正式顺序为“先登记、再择一验证：可先做首轮试跑，也可直接把菜单3首次实战当测试单，但未回填验证字段前状态只能是 `验证中`”。 |
 | **编译状态** | ✅ 无代码编译变更；已更新 `prompts/PROMPT_RECIPES.md`、`docs/ART_PIPELINE_GUIDE.md` 与本文件，可直接提交推送 |
 | **阻塞** | ⏳ 等待用户在第一张正式 LoRA 落地后，按新版登记册先固化一张真实风格卡，再用新版“菜单3极简工单口令”发起一次继承差量派单，以验证跨会话无损续跑是否稳定 |
-| **交接说明** | S82 起，菜单2.5的闭环标准不再是“LoRA 训练完成”，而是“LoRA 已登记入 `PROMPT_RECIPES.md` 顶部名录并完成推送”；菜单3默认不再要求用户重写整段背景，只需报 `继承资产 + 实体蓝图 + 动态差量 + 输出要求`，系统必须后台静默查表补齐 `LoRA 文件名 / Trigger Words / Optimal Weight / Specific Negative Prompts / 默认继承范围`，再输出隔离好的 `LoRA / Prompt / ControlNet / KSampler` 工单图纸。 |
+| **交接说明** | S82 起，菜单2.5的闭环标准不再是“LoRA 训练完成”，而是“LoRA 已登记入 `PROMPT_RECIPES.md` 顶部名录并完成推送”；若 `Optimal Weight / Specific Negative Prompts` 尚未得到，就先写 `待验证`，并把状态标成 `验证中`。此时允许直接进入菜单3，把首张正式工单当“带产出的验证单”；但跑完后必须把实测出的甜区与专属去污词反写回登记册，之后该底座才可升级为 `可量产`。菜单3默认不再要求用户重写整段背景，只需报 `继承资产 + 实体蓝图 + 动态差量 + 输出要求`，系统必须后台静默查表补齐 `LoRA 文件名 / Trigger Words / Optimal Weight / Specific Negative Prompts / 默认继承范围`，再输出隔离好的 `LoRA / Prompt / ControlNet / KSampler` 工单图纸。 |
 
 ---
 
@@ -149,7 +149,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **LoRA 登记册 + 菜单3极简口令首轮实测**：待第一张正式 LoRA 产出后，必须先把风格卡固化进 `prompts/PROMPT_RECIPES.md` 顶部的 `### 🗃️ [已固化 LoRA 资产名录]`，再用“继承资产 + 动态差量”极简口令跑一轮菜单3，验证跨会话是否还能自动补齐 `Trigger Words / Optimal Weight / Specific Negative Prompts / ControlNet 约束`。 | 🚀 等待用户产出第一张正式 LoRA 后发起首轮实测 |
+| **最高** | **LoRA 登记册 + 菜单3极简口令首轮实测**：待第一张正式 LoRA 产出后，必须先把风格卡固化进 `prompts/PROMPT_RECIPES.md` 顶部的 `### 🗃️ [已固化 LoRA 资产名录]`；若来不及单独做首轮试跑，则允许直接用“继承资产 + 动态差量”极简口令跑第一轮菜单3，并把该单视为验证单，完成后再回填 `Optimal Weight / Specific Negative Prompts`。 | 🚀 等待用户产出第一张正式 LoRA 后发起首轮实测 |
 | **高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
 | **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏 + S71 Telecom第二輪深度蒸留 + S72 室井康雄蒸留 + S73 バニリゾ蒸留 + S74 テレコムBible蒸留 + S75 室井康雄第二輪蒸留 + S76 松岡伸治《エフェクトグラフィックス》蒸留） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`。 | ✅ 已完成 |

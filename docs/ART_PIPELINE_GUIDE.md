@@ -342,12 +342,15 @@
 | 参数名 | 推荐设定值 | 设定理由 |
 | :--- | :--- | :--- |
 | **Model Type** | `Style` | 极其重要！选 Character 会导致模型过度拟合特定角色，导致地形出图崩坏。 |
-| **Base Model** | `SDXL 1.0` | 保证 500 Buzz 的基础定价。 |
+| **Base Model** | `SDXL 1.0 (Distilled/Predictive) - FP32-SFW` | ⚠️ **必须选这个！** 绝对不要选 CUSTOM，否则成本翻倍（1000 Buzz 起步）且极易失败。 |
+| **Resolution** | `1024` | ⚠️ **必须改！** 默认可能是 512，但 SDXL 必须用 1024，否则细节全丢。 |
+| **Sample Media Prompts** | 手动填入测试词 | ⚠️ **必须改！** 删掉自动生成的风景词，填入：`Image #1: trickster_style, Mario-like character, running pose`<br>`Image #2: trickster_style, underground cave tileset`<br>`Image #3: trickster_style, green mushroom enemy` |
 | **Epochs** | `10` | Style LoRA 需要多轮次才能吃透画风。 |
 | **Network Dim (Rank)** | `64` | 像素艺术需要足够的维度来记忆边缘硬度和色彩块面。 |
 | **Network Alpha** | `32` | 保持为 Dim 的一半，防止权重爆炸。 |
-| **Optimizer** | `Prodigy` 或 `Adafactor` | 适合 Style 训练的自适应优化器。 |
-| **Trigger Word** | `trickster_style` | 核心触发词。 |
+| **Optimizer** | `Prodigy` | 选 Prodigy 后，下面的 Unet LR 和 Text Encoder LR 保持 `1` 即可（它会自动调节）。 |
+| **Shuffle Tags** | `勾选` | 增强泛化能力，让 AI 理解特征组合。 |
+| **Keep Tokens** | `1` | 确保触发词 `trickster_style` 始终在最前面不被洗牌打乱。 |
 
 *注：训练完成后，请下载最后三个 Epoch（如 Epoch 8, 9, 10）的 `.safetensors` 文件，放入本地 ComfyUI 的 `models/loras/` 目录下。*
 

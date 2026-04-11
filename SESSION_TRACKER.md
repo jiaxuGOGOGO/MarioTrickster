@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 81 (菜单2.5→3 单一接棒入口) |
+| **最新 Session** | Session 82 (LoRA 风格绑定卡 + 菜单3继承差量入口) |
 | **日期** | 2026-04-11 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流 — 已将菜单2从“测试模式 / 生产模式”双入口收敛为“单一固定入口 + 目标强度说明”，并进一步把菜单2.5→3收敛为“单一接棒入口 + LoRA 登记 + 前序上下文无损续跑”；菜单3返工默认改为整份修正版工单，必要时附最多 3 条关键改动摘要；`Sample Media Prompts` 数量规则已定稿为“默认 3 类，生产覆盖时扩到 4–5 类，一般不超过 5 类”。 |
-| **编译状态** | ✅ 无代码编译变更；已更新 `docs/ART_PIPELINE_GUIDE.md` 与本文件，当前准备做仓库校验、提交与推送 |
-| **阻塞** | ⏳ 等待用户用新版“菜单2统一入口”起一轮需求，并在 LoRA 落地后再用新版“菜单2.5→3 单一接棒入口”续跑一次，以验证“无损继承前序目标、参考、约束”的口径是否稳定 |
-| **交接说明** | S81 起，新对话默认让用户直接走“菜单2”统一入口，不再先二选一报“测试模式 / 生产模式”；当 LoRA 训练完成后，菜单2.5→3 也不再给第二套测试/正式口令，而是统一只补 `LoRA 文件名 + 触发词`，并要求把菜单2已确认的目标、参考与约束无损继承到菜单3；即便这轮只是先验证方向，只要 LoRA 已落地，也照样走这条统一入口，再由系统下发轻量版菜单3工单；若用户未特别说明 `Sample Media Prompts` 数量，则默认按 3 类给出最小测试集，只有当用户明确要求扩大生产覆盖面时才扩到 4–5 类；除非用户明确要求最小改动，否则菜单3返工直接重发完整修正版工单。 |
+| **阶段** | Sprint 2 美术生产工作流 — 已在 `prompts/PROMPT_RECIPES.md` 顶部新增 `### 🗃️ [已固化 LoRA 资产名录]`，把菜单2.5的交接物从“只报 LoRA 文件名”升级为“LoRA 文件名 + Trigger Words + Optimal Weight + Specific Negative Prompts + 默认继承合同”；同时已在 `docs/ART_PIPELINE_GUIDE.md` 将菜单3改造成“继承资产 + 动态差量”的极简入口，要求系统静默补齐 ComfyUI 四区节点参数。 |
+| **编译状态** | ✅ 无代码编译变更；已更新 `prompts/PROMPT_RECIPES.md`、`docs/ART_PIPELINE_GUIDE.md` 与本文件，可直接提交推送 |
+| **阻塞** | ⏳ 等待用户在第一张正式 LoRA 落地后，按新版登记册先固化一张真实风格卡，再用新版“菜单3极简工单口令”发起一次继承差量派单，以验证跨会话无损续跑是否稳定 |
+| **交接说明** | S82 起，菜单2.5的闭环标准不再是“LoRA 训练完成”，而是“LoRA 已登记入 `PROMPT_RECIPES.md` 顶部名录并完成推送”；菜单3默认不再要求用户重写整段背景，只需报 `继承资产 + 实体蓝图 + 动态差量 + 输出要求`，系统必须后台静默查表补齐 `LoRA 文件名 / Trigger Words / Optimal Weight / Specific Negative Prompts / 默认继承范围`，再输出隔离好的 `LoRA / Prompt / ControlNet / KSampler` 工单图纸。 |
 
 ---
 
@@ -149,11 +149,11 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **菜单2/菜单3 新版闭环实测**：按 `ART_PIPELINE_GUIDE.md` 的新版双模式流程，先用“菜单2-测试模式”跑一次最小闭环，确认固定口令 → 测试工单 → 菜单3修正版工单的默认协作路径足够顺滑；其中 LoRA 训练测试词默认按 3 类抽样，必要时再扩到 4–5 类。 | 🚀 等待用户发起第一轮测试对话 |
+| **最高** | **LoRA 登记册 + 菜单3极简口令首轮实测**：待第一张正式 LoRA 产出后，必须先把风格卡固化进 `prompts/PROMPT_RECIPES.md` 顶部的 `### 🗃️ [已固化 LoRA 资产名录]`，再用“继承资产 + 动态差量”极简口令跑一轮菜单3，验证跨会话是否还能自动补齐 `Trigger Words / Optimal Weight / Specific Negative Prompts / ControlNet 约束`。 | 🚀 等待用户产出第一张正式 LoRA 后发起首轮实测 |
 | **高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
 | **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏 + S71 Telecom第二輪深度蒸留 + S72 室井康雄蒸留 + S73 バニリゾ蒸留 + S74 テレコムBible蒸留 + S75 室井康雄第二輪蒸留 + S76 松岡伸治《エフェクトグラフィックス》蒸留） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`。 | ✅ 已完成 |
-| **高** | **批量资产生产**：概念锚点确立后，先用菜单2测试模式低成本验证方向，再切菜单2生产模式积累满意样本；满 30 张后训练全局 Style LoRA，再按菜单3分流模板批量出图，并用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待用户跑通测试模式并确认生产基准 |
+| **高** | **批量资产生产**：概念锚点确立后，先用菜单2统一入口低成本验证方向，再积累满意样本训练全局 Style LoRA；LoRA 落地后必须先登记入册，再按菜单3“继承资产 + 动态差量”模板批量出图，并用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待用户确认生产基准并完成首张可登记 LoRA |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |
 | **按需** | 参数调优：拖动 PhysicsConfigSO 滑块调手感，若触发报错则由 AI 微创手术抹平。 | 待触发 |

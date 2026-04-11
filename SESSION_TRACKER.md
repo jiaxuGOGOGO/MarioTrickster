@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 89 (美术白话入口联动闭环增强) |
+| **最新 Session** | Session 90 (极速续接首页总表 + 旧版优秀提示词后台保留准则增强) |
 | **日期** | 2026-04-12 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流 — 已进一步把“前端大白话入口 → 后端阶段识别 → 落库位置 → 推送触发条件”正式写死进主指南与配方库，确保它不是只会说人话的前端包装，而是真正联动到仓库记忆的后台闭环。 |
-| **编译状态** | ✅ 无代码编译变更；本次仅更新 `docs/ART_PIPELINE_GUIDE.md`、`prompts/PROMPT_RECIPES.md` 与本文件，准备提交推送 |
+| **阶段** | Sprint 2 美术生产工作流 — 已把“新对话默认同时提供仓库地址 + token + 当前任务”的极速续接规则写入仓库首页与配方库，并新增七类白话入口的首页总表，进一步把前台简化入口与后台质量规则绑定成可读档、可落库、可推送的统一导航。 |
+| **编译状态** | ✅ 无代码编译变更；本次仅更新 `README.md`、`prompts/PROMPT_RECIPES.md` 与本文件，准备提交推送 |
 | **阻塞** | ⏳ 美术主线阻塞不变；下一步仍只缺 `MarioTrickster_Style_epoch_10.safetensors` 的本地验证结果，包括触发词甜区、推荐权重与专属去污词 |
-| **交接说明** | S89 起，所有美术白话入口都必须同步满足四件事：**识别阶段、产出交付物、决定落库位置、判断何时推送**。并新增“高价值内容防清洗”硬规则：凡是能提升出图稳定性、减少失真或避免返工的规则、参数甜区、失败模式、负面禁区、锚点 Seed 与四区图纸，只能并入更完整版本，不能为了精简文案而删掉。风格 LoRA 主线仍围绕 `MarioTrickster_Style_epoch_10.safetensors` 的本地验证展开，验证完成后需回填 `Optimal Weight`、`Specific Negative Prompts` 等字段，再进入正式量产。 |
+| **交接说明** | S90 起，默认新对话续接模板改为**开场直接提供仓库地址 + token + 当前任务**，以减少中途补条件。与此同时，前台虽然可以继续压缩成大白话入口，但后台必须保留旧版高价值约束：**静态资产 / 动画序列 / 透视场景分流**、`LoRA / Prompt / ControlNet / KSampler` 四区隔离、`物理防滑步 > 空间透视正确 > 光影材质表现` 优先级，以及所有能减少返工的失败模式、参数甜区、负面禁区与锚点 Seed。删减旧提示词时，必须以**项目效率与质量不降级**为前提。风格 LoRA 主线仍围绕 `MarioTrickster_Style_epoch_10.safetensors` 的本地验证展开，验证完成后需回填 `Optimal Weight`、`Specific Negative Prompts` 等字段，再进入正式量产。 |
 
 ---
 
@@ -150,8 +150,9 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **最高** | **`trickster_style` 本地验证闭环**：用户已完成首个自然语言 LoRA 登记，当前主任务转为验证 `MarioTrickster_Style_epoch_10.safetensors` 的触发词甜区、推荐权重、污染模式与专属去污词，并把结论回填到配方库名录。 | 🚀 等待用户发起“这个 LoRA 练完了，告诉我怎么在本地验证触发词、权重和污染”类白话验证请求 |
-| **高** | **换号续接极简化**：新对话先给仓库地址读档，继续写回 GitHub 时按需再补 token，避免让用户重复解释上下文或背模板。 | ✅ 已完成（S88 已写入 `ART_PIPELINE_GUIDE.md`、`PROMPT_RECIPES.md` 与本文件） |
+| **高** | **换号续接极速化**：新对话默认直接提供仓库地址 + token + 当前任务，避免中途补条件；仓库首页还需给出“七类白话入口 / 是否必须落库 / 落到哪 / 何时自动 push”的一页总表。 | ✅ 已完成（S90 已写入 `README.md`、`PROMPT_RECIPES.md` 与本文件） |
 | **高** | **白话入口后端联动闭环**：从“从零开始”“探索 30 张”“Civitai 页面填写”“本地验证”“登记入库”到“正式量产”，都必须对应后端阶段、落库位置与推送触发条件，不能只留前端口令。 | ✅ 已完成（S89 已写入 `ART_PIPELINE_GUIDE.md`、`PROMPT_RECIPES.md` 与本文件） |
+| **高** | **旧版优秀提示词后台保留**：允许前台对白话入口做极简化，但后台必须按项目效率与质量原则保留仍有价值的旧规则，禁止把四区隔离、分流逻辑、结构保护、参数甜区与失败模式一起清洗掉。 | ✅ 已完成（S90 已写入 `PROMPT_RECIPES.md` 与本文件） |
 | **高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
 | **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏 + S71 Telecom第二輪深度蒸留 + S72 室井康雄蒸留 + S73 バニリゾ蒸留 + S74 テレコムBible蒸留 + S75 室井康雄第二輪蒸留 + S76 松岡伸治《エフェクトグラフィックス》蒸留） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`；本轮又把“本地训练参数 / Civitai 页面填写 / 训练排障”三类求助入口补进白话速查表，避免用户重复追问同类问题。 | ✅ 已完成 |

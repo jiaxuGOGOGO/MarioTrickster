@@ -1,85 +1,100 @@
-# LoRA 训练与菜单3衔接指南
+# LoRA 训练与菜单3无缝衔接指南
 
-本文档对比了当前主流平台的 LoRA 训练成本，并提供了从 30 张画风样本图到 ComfyUI 菜单3 批量出图的完整操作指引。
-
-## 一、训练平台成本对比 (2026年4月数据)
-
-在选择训练平台时，核心考量在于你的使用频率。LiblibAI 和 Civitai 采用了完全不同的计费逻辑。
-
-| 平台 | 计费模式 | 单次训练成本 | 免费额度与门槛 | 适用人群 |
-|---|---|---|---|---|
-| **Civitai** | 按次付费 (Buzz) | 500 Buzz (约 ¥3.5) [1] | 每日做任务可领 200+ 免费 Buzz [2] | **偶尔训练 1-2 个模型的人**（甚至可以白嫖） |
-| **LiblibAI** | 会员制 + 积分 | 30-50 积分 (约 ¥3-5) [3] | 必须开通会员（最低 ¥399/年）才能训练 [4] | **高频训练的专业创作者** |
-
-**结论与建议：**
-对于当前项目（只需要训练 1 个全局 Style LoRA），**强烈建议使用 Civitai**。你只需要注册账号，利用初始赠送的 Buzz 或做两天日常任务，就能**完全免费**完成这次训练。而 LiblibAI 虽然单次只要 3 块钱，但门槛是必须先充值 399 元的年费会员。
+> **K2B-OS: Advanced Art Pipeline Extension**
+> 本文档定义了 MarioTrickster 项目从「菜单2：风格探索（IPAdapter）」向「菜单3：量产下发（LoRA）」跨越时的**成本预算规划**与**无缝衔接实操指引**。
 
 ---
 
-## 二、Civitai 免费训练操作指引
+## 1. LoRA 需求盘点与预算规划
 
-请按照以下步骤，将你跑出的 30 张图炼制成专属的 Style LoRA。
+基于项目的实体蓝图库（22 个核心实体）和多画风架构规划，我们对 Civitai 线上训练成本（500 Buzz/次）进行了精确的沙盘推演。
 
-### 1. 准备数据集
-1. 在你的电脑上新建一个文件夹，命名为 `trickster_style_dataset`。
-2. 把你刚才在 ComfyUI 跑出来的 30 张最满意的画风图放进去。
-3. **不需要打标签（Caption）**：因为我们训练的是全局画风（Style LoRA），不是特定角色。不打标签会让模型把这 30 张图里的所有共性（描边、色彩、阴影）全部吸收到一个触发词里。
-4. 把这个文件夹压缩成一个 `.zip` 文件。
+**前置条件：**
+- **月度预算**：¥88/月（购买 2 次 5000 积分的 Civitai 账号）= **10000 Buzz/月**
+- **单次训练成本**：500 Buzz（使用 SDXL 1.0 官方底模）
+- **每月可用训练次数**：20 次
 
-### 2. 在 Civitai 发起训练
-1. 访问 [Civitai 官网](https://civitai.com/) 并注册/登录账号。
-2. 点击右上角的 **Create** 按钮，选择 **Train a LoRA**。
-3. **模型类型**：选择 **Style**（非常重要，不要选 Character）。
-4. **上传数据**：把刚才的 `.zip` 压缩包拖拽上传。
-5. **基础模型 (Base Model)**：选择 **SDXL 1.0**（这会花费 500 Buzz，如果你选其他自定义模型会涨到 1000 Buzz）。
+### 1.1 核心需求定调（当前阶段：最少 1 个，最多 3 个）
 
-### 3. 关键训练参数设置
-在 Training Parameters 区域，修改以下核心参数以保证画风学习效果：
+对于当前的 MarioTrickster 项目，**绝不需要为每个怪物或陷阱单独训练 LoRA**。所有的角色、地形、陷阱、交互物都共享一套底层视觉规则（描边、色彩、阴影、材质质感）。
 
-| 参数名 | 推荐值 | 说明 |
-|---|---|---|
-| **Epochs** | 10 | 训练轮数。Style LoRA 需要多跑几轮才能吃透画风。 |
-| **Network Dim (Rank)** | 32 或 64 | 决定模型能记住多少细节。画风比较简单选 32，细节多选 64。 |
-| **Network Alpha** | 16 或 32 | 通常设置为 Dim 的一半。 |
-| **Trigger Word** | `trickster_style` | 触发词。以后在提示词里写这个词，就能召唤出你的画风。 |
+根据管线推进深度，LoRA 需求分为三档：
 
-设置完毕后，点击 **Submit** 提交训练。通常需要等待 30-60 分钟。
+| 优先级 | LoRA 名称 | 用途与覆盖范围 | 预估迭代次数 | 消耗 Buzz | 占月预算比 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **第一档（当前必须）** | `trickster_style` | 锁定 30 张画风图的全局视觉共性。覆盖当前所有 22 个实体蓝图。 | 3-4 次 | 1500-2000 | 15-20% |
+| **第二档（中期推荐）** | `trickster_vfx` | 专门处理火焰、爆炸、雷电等 VFX 资产。因特效视觉语言与实体差异过大，建议剥离。 | 2-4 次 | 1000-2000 | 10-20% |
+| **第三档（后期扩展）** | `trickster_retro_8bit` | 配合 `LevelThemeProfile` 实现多画风切换（如 8-bit 复古风皮肤）。 | 4-6 次 | 2000-3000 | 20-30% |
 
-### 4. 下载与测试
-训练完成后，Civitai 会生成 10 个 Epoch 的模型文件（对应你设置的 10 轮）。
-1. 下载最后三个 Epoch 的文件（比如 Epoch 8, 9, 10）。
-2. 把它们放到你本地 ComfyUI 的 `models/loras/` 目录下。
+**预算结论**：
+每月 10000 Buzz 的预算极其充裕。即使按最奢侈的全量扩展方案（3 个 LoRA + 14 次迭代），也只会用掉 70% 的预算。**当前阶段，你只需要花费 1500-2000 Buzz 训练并调优 `trickster_style` 这一个全局画风 LoRA，即可立即打通菜单3的量产管线。**
 
 ---
 
-## 三、如何衔接菜单3（批量出图）
+## 2. 菜单2 → 菜单3 衔接痛点剖析
 
-当你的 LoRA 文件（例如 `trickster_style_e10.safetensors`）放入 `models/loras/` 目录后，你就可以正式进入菜单3的生产环节了。
+在之前的流程中，从菜单2（30张画风图出炉）到菜单3（角色量产）之间存在断层，主要痛点在于：
+1. **不确定 Civitai 训练参数**，怕浪费 Buzz。
+2. **不知道训练完后，ComfyUI 的节点该怎么连**。
+3. **不知道提示词（Prompt）该怎么改**。
 
-### 1. 菜单3 的核心变化
-在菜单3的工单中，我们将**彻底抛弃 IPAdapter 和参考图**。取而代之的是一个极其干净的管线：
-
-**底模 (SDXL) → 加载 LoRA (你的画风) → 提示词 (实体蓝图) → 出图**
-
-### 2. 提示词的写法变化
-你不再需要写那一大堆冗长的画风描述词（如 `cel shading`, `thick black outlines`），因为这些特征已经全部被压缩进了你的 LoRA 里。
-
-**新的提示词公式：**
-`[触发词] + [实体蓝图词] + [动作/环境描述]`
-
-**示例：**
-`trickster_style, 1boy, mario, red hat, blue overalls, running in a green forest, top-down view`
-
-### 3. 下一步行动
-当你把训练好的 LoRA 文件放进 ComfyUI 目录后，请回复我：
-> “LoRA 已就绪，文件名为 `trickster_style_e10.safetensors`。请给我下发菜单3的【角色测试工单】。”
-
-我会为你生成一份全新的、带有 `Load LoRA` 节点的极简版 ComfyUI 连线图纸。
+以下是针对这三个痛点的标准解法。
 
 ---
 
-## 参考资料
-[1] Civitai Education. "SDXL LoRAs Training Guide - CivitAI Trainer". https://civitai.com/articles/14024/sdxl-loras-training-guide-civitai-trainer
-[2] Civitai Education. "A guide to earning your 200+ daily (blue) buzz". https://civitai.com/articles/10006/a-guide-to-earning-your-200-daily-blue-buzz
-[3] Flowith Blog. "Liblib.art 2026 FAQ: Model Upload, LoRA Training, Copyright Policy, and API Access Explained". https://flowith.io/blog/liblib-art-2026-faq-model-upload-lora-training-copyright-api
-[4] 知乎. "LiblibAI哩布哩布AI：满血不收费的ai生图真的来了！". https://zhuanlan.zhihu.com/p/687566650
+## 3. Civitai 训练实战参数（防浪费指南）
+
+请将菜单2跑出的 30 张最满意的画风图放入 `trickster_style_dataset` 文件夹并压缩为 `.zip`。**不需要打标签（Caption）**，因为我们要模型吸收这 30 张图里的所有全局共性。
+
+在 Civitai 发起训练时，请严格遵守以下参数设置以确保一次成功（或最多微调 1-2 次）：
+
+| 参数名 | 推荐设定值 | 设定理由 |
+| :--- | :--- | :--- |
+| **Model Type** | `Style` | 极其重要！选 Character 会导致模型过度拟合某个特定角色，导致地形和陷阱出图崩坏。 |
+| **Base Model** | `SDXL 1.0` | 保证 500 Buzz 的基础定价。 |
+| **Epochs** | `10` | Style LoRA 需要多轮次才能吃透画风。Civitai 会保存每个 Epoch 的版本供你挑选。 |
+| **Network Dim (Rank)** | `64` | 像素艺术虽然看似简单，但边缘硬度、色彩块面等特征需要足够的维度来记忆。 |
+| **Network Alpha** | `32` | 保持为 Dim 的一半，防止权重爆炸。 |
+| **Optimizer** | `Prodigy` 或 `Adafactor` | 适合 Style 训练的自适应优化器。 |
+| **Trigger Word** | `trickster_style` | 核心触发词。 |
+
+*注：训练完成后，请下载最后三个 Epoch（如 Epoch 8, 9, 10）的 `.safetensors` 文件，放入本地 ComfyUI 的 `models/loras/` 目录下进行 A/B 测试。*
+
+---
+
+## 4. 菜单3：无缝衔接的管线改造
+
+当你拿到 `trickster_style_e10.safetensors` 后，管线将发生质变。我们将**彻底抛弃菜单2中臃肿的 IPAdapter 和垫图**。
+
+### 4.1 节点架构的物理隔离
+
+在菜单3中，ComfyUI 的节点连线必须遵循以下“十字交叉”双轨架构：
+
+1. **底层骨架（Checkpoint）**：`SDXL 1.0 Base`。
+2. **画风注入（Load LoRA 节点）**：串联在 Checkpoint 之后，加载 `trickster_style_e10.safetensors`，权重建议设为 `0.8 - 1.0`。
+3. **结构约束（ControlNet 节点）**：如果是角色，走 `DWPose`；如果是硬表面陷阱，走 `Lineart`。
+4. **语义交叉（Text Prompt）**：见下文。
+
+### 4.2 提示词（Prompt）的减负与重构
+
+在菜单2中，为了逼出画风，你可能写了大量的 `pixel art, 16-bit, cel shading, thick black outlines, flat colors`。
+在菜单3中，这些词**全部删除**。它们已经被固化在 LoRA 里了。
+
+**新版 Prompt 公式：**
+`[LoRA 触发词] + [实体蓝图词 (What)] + [技法抽屉词 (How)] + [环境/视角描述]`
+
+**实战对比（以 Mario 为例）：**
+
+*❌ 菜单2（旧版臃肿写法）：*
+> 16-bit pixel art, retro game style, cel shading, thick black outlines, flat colors, Mario-like character, red cap, blue overalls, running, dynamic pose, anti-aliasing...
+
+*✅ 菜单3（新版清爽写法）：*
+> trickster_style, Mario-like character, red cap, blue overalls, running, contract_stretch_rule, opposite_side_stretch, side_view_depth_enhancement, white background.
+
+### 4.3 衔接启动指令
+
+当你把 LoRA 文件放入本地目录后，只需在对话框中对我发送以下指令，我就会为你下发第一张【菜单3标准工单】：
+
+> **“LoRA 已就绪，文件名为 `trickster_style_e10.safetensors`。请按双轨架构给我下发菜单3的【主角跑动测试工单】。”**
+
+我会严格按照 `WORKORDER_QA_STANDARD.md` 的四区格式，为你输出可直接复制的极简节点图纸。

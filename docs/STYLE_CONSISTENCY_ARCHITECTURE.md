@@ -18,7 +18,8 @@
 ### 1.2 结构引导层 (Structural Guidance)
 当需要生成同一角色的不同动作或不同场景时，纯文本生成（Txt2Img）的漂移率极高。必须引入图像到图像（Img2Img）和 ControlNet 技术 [1]。
 
-- **概念锚点 (Concept Anchor)**：在项目初期，生成一张完美的“假游戏截图”或“角色基准图”，存入 `Assets/Art/Reference/`。后续所有生成必须将此图作为 IPAdapter 的风格参考输入 [2]。
+- **概念锚点 (Concept Anchor)**：在项目初期，生成一张完美的“假游戏截图”或“角色基准图”，存入 `Assets/Art/Reference/`。
+- **IPAdapter 的使用边界**：仅在初期风格探索阶段（菜单2）使用 IPAdapter。**由于其概率性特征借用的本质，在生成连续动画序列帧时会导致严重的特征漂移和闪烁**。一旦画风确立，必须转为训练专属 Style LoRA [2]。
 - **Denoising Strength 甜区**：在进行 Img2Img 动作转换时，重绘幅度（Denoising Strength）应严格控制在 **0.35 - 0.55** 之间。低于此值动作无法改变，高于此值角色特征会丢失 [1]。
 - **ControlNet 模具**：对于生物关节角色，强制使用 DWPose 或 OpenPose 锁定骨骼位置；对于硬表面物体，使用 Lineart 和 Canny 锁定轮廓 [1]。
 

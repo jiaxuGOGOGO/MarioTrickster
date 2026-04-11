@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 86 (训练入口澄清：线上训练 + 本地验证) |
-| **日期** | 2026-04-11 |
+| **最新 Session** | Session 87 (首个自然语言 LoRA 登记闭环) |
+| **日期** | 2026-04-12 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流 — 已将 `docs/ART_PIPELINE_GUIDE.md` 和 `prompts/PROMPT_RECIPES.md` 的训练入口进一步澄清为更贴近真实使用习惯的版本：主路径明确改为“探索出 30 张 → Civitai 在线训练 → 本地验证 → 登记入库 → 正式量产”，并把“本地自训 LoRA”降级为备用入口，避免用户把“在线训练”和“本地验证”混成一件事。 |
-| **编译状态** | ✅ 无代码编译变更；已更新 `prompts/PROMPT_RECIPES.md`、`docs/ART_PIPELINE_GUIDE.md` 与本文件，可直接提交推送 |
-| **阻塞** | ⏳ 无流程性阻塞；下一步只等用户直接用“Civitai 页面怎么填”“LoRA 练完后怎么本地验证”或“按参考风格先在本地跑 30 张探索图”类白话句式发起真实请求，以验证新主路径在跨会话中的稳定性 |
-| **交接说明** | S86 起，训练相关自然语言入口不再默认把用户导向“本地训练 LoRA”。系统必须优先把相关问题识别成更真实的工作流：用户先说“按这个参考风格，先在本地给我跑 30 张探索图，我拿去炼 LoRA”，再说“我要用 Civitai 练这个 LoRA，直接告诉我页面每一项怎么填”，然后说“这个 LoRA 练完了，告诉我怎么在本地验证触发词、权重和污染”，验证通过后再说“我炼完 LoRA 了，文件名是 A，触发词是 B。帮我登记”。只有当用户明确说明要用自己电脑显卡直接训练时，才进入“本地自训 LoRA”辅助入口。 |
+| **阶段** | Sprint 2 美术生产工作流 — 用户已用自然语言完成首个真实 LoRA 登记请求：`MarioTrickster_Style_epoch_10.safetensors` / Trigger `trickster_style`。系统已将其正式登记入 `prompts/PROMPT_RECIPES.md` 顶部名录，并把状态明确为“已训练完成，待本地验证”。 |
+| **编译状态** | ✅ 无代码编译变更；本次仅更新 `prompts/PROMPT_RECIPES.md` 与本文件，准备提交推送 |
+| **阻塞** | ⏳ 当前无登记阻塞；下一步只缺该 LoRA 的本地验证结果，包括触发词甜区、推荐权重与专属去污词 |
+| **交接说明** | S87 起，`trickster_style` 已从“预设占位 LoRA 卡”提升为“用户确认训练完成并正式登记入库的真实资产卡”。后续如用户说“这个 LoRA 练完了，告诉我怎么在本地验证触发词、权重和污染”，应直接围绕 `MarioTrickster_Style_epoch_10.safetensors` 展开本地验证；验证完成后需回填 `Optimal Weight`、`Specific Negative Prompts` 等字段，再进入正式量产。 |
 
 ---
 
@@ -149,11 +149,11 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **训练入口澄清后首轮实测**：当前速查表已明确主路径为“从零开始 / 喂书 / 探索 30 张炼 LoRA / Civitai 在线训练 / 本地验证 / LoRA 登记 / 正式量产”，并将“本地自训 LoRA”降为备用入口。下一步只需等待用户直接用任一白话句式发起真实任务，系统即应后台静默映射到正确流程。 | 🚀 等待用户直接发起首条线上训练、本地验证或量产白话任务 |
+| **最高** | **`trickster_style` 本地验证闭环**：用户已完成首个自然语言 LoRA 登记，当前主任务转为验证 `MarioTrickster_Style_epoch_10.safetensors` 的触发词甜区、推荐权重、污染模式与专属去污词，并把结论回填到配方库名录。 | 🚀 等待用户发起“这个 LoRA 练完了，告诉我怎么在本地验证触发词、权重和污染”类白话验证请求 |
 | **高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
 | **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏 + S71 Telecom第二輪深度蒸留 + S72 室井康雄蒸留 + S73 バニリゾ蒸留 + S74 テレコムBible蒸留 + S75 室井康雄第二輪蒸留 + S76 松岡伸治《エフェクトグラフィックス》蒸留） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`；本轮又把“本地训练参数 / Civitai 页面填写 / 训练排障”三类求助入口补进白话速查表，避免用户重复追问同类问题。 | ✅ 已完成 |
-| **高** | **批量资产生产**：概念锚点确立后，先用“探索 30 张炼 LoRA”的白话入口低成本验证方向，再积累满意样本训练全局 Style LoRA；LoRA 落地后必须先登记入册，再用“做一组某某资产”的白话入口批量出图，并用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待用户确认生产基准并完成首张可登记 LoRA |
+| **高** | **批量资产生产**：概念锚点确立后，先用“探索 30 张炼 LoRA”的白话入口低成本验证方向，再积累满意样本训练全局 Style LoRA；LoRA 落地后必须先登记入册，再用“做一组某某资产”的白话入口批量出图，并用 `AI_SpriteSlicer` 一键切片。 | ⏳ `trickster_style` 已登记，等待完成本地验证后进入正式量产 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |
 | **按需** | 参数调优：拖动 PhysicsConfigSO 滑块调手感，若触发报错则由 AI 微创手术抹平。 | 待触发 |

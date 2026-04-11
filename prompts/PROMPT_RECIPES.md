@@ -388,10 +388,12 @@
 
 *(记录：特定材质画法、边缘光、全局色调、专属 LoRA 触发词)*
 
-- **探索期基准画风**：
-  - 正向：`(high definition pixel art:1.3), (hand-drawn dark outlines:1.2), (warm pastoral atmosphere:1.1), crisp edges, no anti-aliasing`
-  - 负向：`blur, gradient, realistic, UI`
-- **默认像素风后处理**：生成后必须使用 `nearest-neighbor` 算法缩放至目标尺寸。
+- **基准画风（S81确立 · 吉卜力BG × BD描边 × 游戏俯瞰）**：
+  - 正向：`masterpiece, best quality, anime background art, (thick black outlines:1.3), (hand-drawn ink outlines:1.2), (cel shading:1.2), (flat color fill:1.1), (limited color palette:1.1), (simplified shadow 2-tone:1.2), (cool blue shadow:1.1), warm natural color scheme, earthy tones, no gradient shading, no realistic rendering, game asset background, 2D side-scroller environment`
+  - 负向：`(worst quality:1.4), (low quality:1.4), blurry, gradient shading, realistic, photorealistic, 3D render, smooth airbrush, no outlines, soft edges, anti-aliasing, text, watermark, oversaturated, HDR, lens flare, bloom, multiple light sources, complex shadows`
+  - 参考图：`Assets/Art/Reference/StyleRef/` 目录下 3 张（海滩俯瞰/海滩村落/田园小镇）
+  - ~~旧：像素风 `(high definition pixel art:1.3)`~~ → **废弃原因**：参考图确立后画风定位为动画背景描边风，非像素风。
+- **默认后处理**：无需 nearest-neighbor 缩放（已非像素风）；批量出图后统一用 ComfyUI 的 Upscale 节点做 1.5x 超分。
 - **风格漂移抑制**：批量资产生产时，每连续生成 `3-5` 个资产必须回看概念锚点；结构锁定优先发生在前 `30%-40%` 步数；图生图或局部重绘时 `denoising` 建议保持在 `0.20-0.40`，高于 `0.50` 视为高风险漂移区。
 
 | 规则簇 | 可执行 Tag / 数值 / 约束 | 节点落点 |

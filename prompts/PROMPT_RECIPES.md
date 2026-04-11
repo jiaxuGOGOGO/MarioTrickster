@@ -205,6 +205,8 @@
 | **動画クリンナップ法則（テレコムBible）** | `line_art_cleanup, rough_to_clean_single_line, eyes_nose_mouth_focus_accuracy`；原画草稿→清潔な単線の最終線稿への標準化作業。核心：原画の意図を無損で清晰な単線に変換、目/鼻/口の造型精度を特に注意。**AI出図ルール**：`clean line art, precise facial features, single weight outline` | ControlNet (Lineart) |
 | **キャラ崩れ防止法則（テレコムBible）** | `character_consistency_in_motion, jaw_shape_lock, eyebrow_shape_lock, head_turn_feature_preservation`；動的シーケンス(振り向き等)の中割りで、下顎(アゴ)と眉毛の形状を原画と厳密に一致させる。「山型」下顎等の変形を防止。既有 `face_3_quarter_rule`（Hart）=静的3/4、本条=動的一致性（補完関係）。**AI出図ルール**：`consistent jaw shape, consistent eyebrow shape, head turn consistency` | IPAdapter + ControlNet |
 
+<!-- INSERT_ANATOMY_RULES_HERE -->
+
 ### 🗄️ 抽屉 2：📐 [透视与物件]
 
 *(记录：等距视角、静物结构、平台拼接规律)*
@@ -276,6 +278,8 @@
 | **フォーカス送り（ラックフォーカス）法則（テレコムBible）** | `rack_focus, focus_pull, selective_focus, shallow_dof, bokeh_transition`；一カット内で焦点を別の景深の物体に平滑に転移。失焦レイヤーにぼかし処理、焦点切替に平滑過渡フレームが必要。★ゲーム内カットシーン演出に直結。**AI出図ルール**：`rack focus, shallow depth of field, bokeh background, focus transition` | Text Prompt + 後処理 |
 | **組み線（前景背景合成）法則（テレコムBible）** | `composite_line_kumi_sen, holdout_matte, foreground_background_separation, occlusion_boundary_line`；キャラクターが背景物体と接触/遮散時に「組み線」で分界を定義。着色時の色溢出防止と正確な前後関係を確保。既有 `cel_layer_separation`（Telecom2）=レイヤー分離、本条=遮散境界線の具体処理（補完関係）。**AI出図ルール**：`clear occlusion boundary, foreground background separation line` | ControlNet (Lineart) + マスク処理 |
 | **マルチプレーン・カメラ法則（テレコムBible）** | `multiplane_camera, parallax_scrolling, 2_5D_depth_effect, near_layer_fast_far_layer_slow`；前景/中景/背景を異なる距離の平面に配置。カメラ移動時、近くのレイヤー=速く、遠く=遅く→強烈な深度感と視差効果。既有 `6種空気遠近法`（吉田）=空気遠近、本条=物理的レイヤー位移速度差（補完関係）。★★Unity Parallaxスクロールに直結。**AI出図ルール**：`multiplane parallax, foreground midground background layers, depth parallax scrolling` | ComfyUIレイヤー分離生成 + Unity Parallax |
+
+<!-- INSERT_PERSPECTIVE_RULES_HERE -->
 
 ### 🗄️ 抽屉 3：🏃 [动画与物理]
 
@@ -378,6 +382,8 @@
 | **エフェクトのタイミング・リズム法則（松岡エフェクトグラフィックス）** | `effect_timing_rhythm, effect_impact_anticipation, effect_ease_in_out, effect_snappy_impact_slow_dissipation, effect_frame_timing_table`；エフェクトのタイミング：衝撃前のアンティシペーション→スナッピーなインパクト→ンーインアウトで消滅。既有 `コマ打ち帧数換算表`（テレコム）=帧数管理、本条=エフェクトタイミング・リズム専用（補完関係）。**AI出図ルール**：`effect anticipation, snappy impact, slow dissipation ease out` | sprite sheet VFX + AnimateDiff |
 | **エフェクトのゲーム内実装優先度テーブル（松岡エフェクトグラフィックス）【核心規則】** | `effect_game_priority_table, hit_effect_highest_priority, jump_land_effect_high, idle_effect_low, effect_budget_allocation, effect_complexity_vs_performance`；ゲーム内エフェクト実装優先度：①ヒットエフェクト(最高優先)②ジャンプ着地(高優先)③待機エフェクト(低優先)。エフェクト複雑度とパフォーマンスのトレードオフ。既有 `cel_layer_separation_for_unity`（Telecom2）=レイヤー分離、本条=ゲーム内エフェクト優先度管理（補完関係）。★★MarioTricksterのエフェクト実装に直結。**AI出図ルール**：`hit effect high detail, jump land effect medium detail, idle effect simple loop` | Unity VFX + sprite sheet 優先度設定 |
 
+<!-- INSERT_ANIMATION_RULES_HERE -->
+
 ### 🗄️ 抽屉 4：🎨 [光影与材质]
 
 *(记录：特定材质画法、边缘光、全局色调、专属 LoRA 触发词)*
@@ -477,6 +483,8 @@
 | **星々キラキラエフェクト法則（松岡エフェクトグラフィックス）** | `stars_twinkling_effect, beautiful_star_lines, night_sky_sparkle, star_cross_highlight`；星のキラキラ=美しい線+十字ハイライト；夜空表現の基本。既有 `twinkle_light_strong_center`（松岡）=キラキラ光全般、本条=星専用キラキラ（補完関係）。**AI出図ルール**：`twinkling stars, night sky sparkle, star cross highlight` | Text Prompt |
 | **炎の基本形法則（松岡エフェクトグラフィックス）** | `fire_basic_shape_irregular, flame_base_wide_tip_narrow, fire_shape_variation_wind_gravity`；炎の基本形状=不規則+底広先細；風と重力で形状変化。既有 `flame_flicker_S_curve`（松岡）=炎のS字揺らめき、本条=炎の基本形状（補完関係）。**AI出図ルール**：`fire basic shape, flame base wide tip narrow, irregular fire shape` | Text Prompt + VFX |
 
+<!-- INSERT_LIGHTING_RULES_HERE -->
+
 ### 🗄️ 抽屉 5：⚙️ [AI 硬核参数]
 
 *(记录：CFG 甜区、Denoising 比例、采样器建议)*
@@ -501,6 +509,8 @@
 | **フレーム宽高比テーブル（テレコムBible）** | `aspect_ratio_table, SD_4_3_1_33_1, HD_16_9_1_78_1, cinema_1_85_1`；動画業界標準アスペクト比：標準(4:3=1.33:1)、高清(16:9=1.78:1)、映画(1.85:1)。ComfyUI出図サイズに直接適用可能。★KSampler解像度設定に直結 | KSampler解像度設定 |
 
 ---
+
+<!-- INSERT_PARAMS_RULES_HERE -->
 
 ## 👾 下半部：实体蓝图库（What）
 

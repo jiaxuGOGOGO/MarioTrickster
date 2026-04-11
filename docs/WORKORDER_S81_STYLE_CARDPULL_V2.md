@@ -105,23 +105,23 @@
 
 ## 三、傻瓜式连线指南（从左到右）
 
-请严格按照以下“端口对端口”的说明拖拽连线：
+每行表示一根线：从左边节点的 **输出口（右侧）** 拖到右边节点的 **输入口（左侧）**。
 
-| 起点节点 | 起点端口 | 终点节点 | 终点端口 |
+| 从这个节点 | 的输出口▶（节点右侧） | 拖线到这个节点 | 的◀输入口（节点左侧） |
 |---|---|---|---|
-| Checkpoint加载器 | **模型 (MODEL)** | IPAdapter 统一加载器 | **model** |
-| Checkpoint加载器 | **CLIP** | CLIP文本编码 (正面) | **clip** |
-| Checkpoint加载器 | **CLIP** | CLIP文本编码 (负面) | **clip** |
-| Checkpoint加载器 | **VAE** | VAE解码 | **vae** |
-| IPAdapter 统一加载器 | **model** | IPAdapter | **model** |
-| IPAdapter 统一加载器 | **ipadapter** | IPAdapter | **ipadapter** |
-| 加载图像 | **图像 (IMAGE)** | IPAdapter | **image** |
-| IPAdapter | **MODEL** | K采样器 | **模型 (model)** |
-| CLIP文本编码 (正面) | **条件 (CONDITIONING)** | K采样器 | **正面条件 (positive)** |
-| CLIP文本编码 (负面) | **条件 (CONDITIONING)** | K采样器 | **负面条件 (negative)** |
-| 空Latent图像 | **LATENT** | K采样器 | **Latent图像 (latent_image)** |
-| K采样器 | **LATENT** | VAE解码 | **samples** |
-| VAE解码 | **图像 (IMAGE)** | 保存图像 | **images** |
+| Checkpoint加载器 | 输出口▶ **模型** | IPAdapter 统一加载器 | ◀输入口 **model** |
+| Checkpoint加载器 | 输出口▶ **CLIP** | CLIP文本编码（正面） | ◀输入口 **clip** |
+| Checkpoint加载器 | 输出口▶ **CLIP** | CLIP文本编码（负面） | ◀输入口 **clip** |
+| Checkpoint加载器 | 输出口▶ **VAE** | VAE解码 | ◀输入口 **vae** |
+| IPAdapter 统一加载器 | 输出口▶ **model** | IPAdapter | ◀输入口 **model** |
+| IPAdapter 统一加载器 | 输出口▶ **ipadapter** | IPAdapter | ◀输入口 **ipadapter** |
+| 加载图像 | 输出口▶ **图像 (IMAGE)** | IPAdapter | ◀输入口 **image** |
+| IPAdapter | 输出口▶ **MODEL** | K采样器 | ◀输入口 **模型** |
+| CLIP文本编码（正面） | 输出口▶ **条件 (CONDITIONING)** | K采样器 | ◀输入口 **正面条件** |
+| CLIP文本编码（负面） | 输出口▶ **条件 (CONDITIONING)** | K采样器 | ◀输入口 **负面条件** |
+| 空Latent图像 | 输出口▶ **LATENT** | K采样器 | ◀输入口 **Latent图像** |
+| K采样器 | 输出口▶ **LATENT** | VAE解码 | ◀输入口 **Latent** |
+| VAE解码 | 输出口▶ **图像 (IMAGE)** | 保存图像 | ◀输入口 **图片** |
 
 ---
 

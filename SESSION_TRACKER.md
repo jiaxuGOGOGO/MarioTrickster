@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 77 (菜单2→菜单3无缝衔接优化与 LoRA 预算规划) |
+| **最新 Session** | Session 78 (菜单2→菜单3对话驱动补位与动态换点优化) |
 | **日期** | 2026-04-11 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流 — 完成 Civitai LoRA 训练成本测算与管线改造，明确 22 个实体共用 1 个全局 Style LoRA，重写 LORA_TRAINING_GUIDE.md 废弃菜单2 IPAdapter 垫图流程，确立菜单3极简双轨架构。 |
-| **编译状态** | ✅ 无代码编译变更；已更新 `LORA_TRAINING_GUIDE.md` 和本文件，准备推送到远端 |
-| **阻塞** | ⏳ 等待用户在 Civitai 完成 `trickster_style` 训练并下载文件 |
-| **交接说明** | S78 将等待用户回复“LoRA 已就绪”指令，随后下发菜单3的第一张【主角跑动测试工单】。 |
+| **阶段** | Sprint 2 美术生产工作流 — 已将菜单2、菜单2.5、菜单3重写为“对话驱动补位”模式：由 Manus 在流程中主动回报【当前位点 / 待补槽位 / 应替换字段 / 下一条可复制口令】，用户无需一次写满提示词，即可边测边推进换轨。 |
+| **编译状态** | ✅ 无代码编译变更；已更新 `docs/ART_PIPELINE_GUIDE.md` 与本文件，准备做仓库校验与推送 |
+| **阻塞** | ⏳ 等待用户执行一次菜单2测试模式，或在 `trickster_style` LoRA 就绪后触发菜单2.5 → 菜单3正式换轨 |
+| **交接说明** | S79 起，新对话应优先按 `ART_PIPELINE_GUIDE.md` 的动态补位卡协议响应：先判定用户处于菜单2/2.5/3哪一步，再只回报需要替换的槽位与下一条可复制消息。 |
 
 ---
 
@@ -149,10 +149,11 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
+| **最高** | **菜单2→菜单3 对话驱动实测**：按 `ART_PIPELINE_GUIDE.md` 新增的动态补位卡协议，先用“测试模式”跑一次最小闭环，确认 Manus 能正确回报【当前位点 / 待补槽位 / 下一条可复制口令 / 应替换字段】。 | 🚀 等待用户发起第一轮测试对话 |
+| **高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
 | **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏 + S71 Telecom第二輪深度蒸留 + S72 室井康雄蒸留 + S73 バニリゾ蒸留 + S74 テレコムBible蒸留 + S75 室井康雄第二輪蒸留 + S76 松岡伸治《エフェクトグラフィックス》蒸留） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`。 | ✅ 已完成 |
-| **高** | **批量资产生产**：概念锚点确立后，使用 IPAdapter 喂入锚点图 + PROMPT_RECIPES 配方批量出图，用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待概念锚点确立 |
+| **高** | **批量资产生产**：概念锚点确立后，先在菜单2完成画风抽卡并积累满意样本，满 30 张后训练全局 Style LoRA；随后按菜单3分流模板批量出图，并用 `AI_SpriteSlicer` 一键切片。 | ⏳ 等待用户跑通菜单2测试模式并完成 LoRA 换轨 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |
 | **按需** | 参数调优：拖动 PhysicsConfigSO 滑块调手感，若触发报错则由 AI 微创手术抹平。 | 待触发 |

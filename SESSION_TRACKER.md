@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 87 (首个自然语言 LoRA 登记闭环) |
+| **最新 Session** | Session 88 (换号续接白话口令补丁) |
 | **日期** | 2026-04-12 |
 | **分支** | master |
-| **阶段** | Sprint 2 美术生产工作流 — 用户已用自然语言完成首个真实 LoRA 登记请求：`MarioTrickster_Style_epoch_10.safetensors` / Trigger `trickster_style`。系统已将其正式登记入 `prompts/PROMPT_RECIPES.md` 顶部名录，并把状态明确为“已训练完成，待本地验证”。 |
-| **编译状态** | ✅ 无代码编译变更；本次仅更新 `prompts/PROMPT_RECIPES.md` 与本文件，准备提交推送 |
-| **阻塞** | ⏳ 当前无登记阻塞；下一步只缺该 LoRA 的本地验证结果，包括触发词甜区、推荐权重与专属去污词 |
-| **交接说明** | S87 起，`trickster_style` 已从“预设占位 LoRA 卡”提升为“用户确认训练完成并正式登记入库的真实资产卡”。后续如用户说“这个 LoRA 练完了，告诉我怎么在本地验证触发词、权重和污染”，应直接围绕 `MarioTrickster_Style_epoch_10.safetensors` 展开本地验证；验证完成后需回填 `Optimal Weight`、`Specific Negative Prompts` 等字段，再进入正式量产。 |
+| **阶段** | Sprint 2 美术生产工作流 — 在保留 `trickster_style` 待本地验证主线不变的前提下，已把“存档 / 读档 / GitHub 地址 / token 按需补充”的极简白话续接规则正式补入主指南与配方库摘要。 |
+| **编译状态** | ✅ 无代码编译变更；本次仅更新 `docs/ART_PIPELINE_GUIDE.md`、`prompts/PROMPT_RECIPES.md` 与本文件，准备提交推送 |
+| **阻塞** | ⏳ 美术主线阻塞不变；下一步仍只缺 `MarioTrickster_Style_epoch_10.safetensors` 的本地验证结果，包括触发词甜区、推荐权重与专属去污词 |
+| **交接说明** | S88 起，新对话若要无缝续上，默认口令应改为“先给 GitHub 仓库地址让我读档；若后续需要继续提交/推送但当前环境认证失效，再按需补 token”。AI 不得要求用户重复回忆长上下文。风格 LoRA 主线仍围绕 `MarioTrickster_Style_epoch_10.safetensors` 的本地验证展开，验证完成后需回填 `Optimal Weight`、`Specific Negative Prompts` 等字段，再进入正式量产。 |
 
 ---
 
@@ -150,6 +150,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
 | **最高** | **`trickster_style` 本地验证闭环**：用户已完成首个自然语言 LoRA 登记，当前主任务转为验证 `MarioTrickster_Style_epoch_10.safetensors` 的触发词甜区、推荐权重、污染模式与专属去污词，并把结论回填到配方库名录。 | 🚀 等待用户发起“这个 LoRA 练完了，告诉我怎么在本地验证触发词、权重和污染”类白话验证请求 |
+| **高** | **换号续接极简化**：新对话先给仓库地址读档，继续写回 GitHub 时按需再补 token，避免让用户重复解释上下文或背模板。 | ✅ 已完成（S88 已写入 `ART_PIPELINE_GUIDE.md`、`PROMPT_RECIPES.md` 与本文件） |
 | **高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
 | **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏 + S71 Telecom第二輪深度蒸留 + S72 室井康雄蒸留 + S73 バニリゾ蒸留 + S74 テレコムBible蒸留 + S75 室井康雄第二輪蒸留 + S76 松岡伸治《エフェクトグラフィックス》蒸留） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`；本轮又把“本地训练参数 / Civitai 页面填写 / 训练排障”三类求助入口补进白话速查表，避免用户重复追问同类问题。 | ✅ 已完成 |
@@ -277,17 +278,15 @@ Root (GameObject)           ← 承载 BoxCollider2D + 脚本组件
 ## 8. 新对话开场模板
 
 ```text
-GitHub Token: ghp_你的token
-仓库：https://github.com/jiaxuGOGOGO/MarioTrickster
-
-请先用 Token 克隆仓库，读取根目录的 SESSION_TRACKER.md 获取当前状态和待办。
-
+我换号了，要继续上次项目。
+仓库地址：https://github.com/你的用户名/你的仓库
+你先读档接上当前进度继续；如果要写回仓库但现在缺认证，你再告诉我补 token。
 本次任务：[你的需求]
-
-积分提醒：请在我积分接近300时暂停，优先更新 SESSION_TRACKER.md 并推送。
 ```
 
-> AI 收到后：克隆 → 读本文件 → `git log --oneline -n 10` 回溯近期变更 → 执行任务 → 推送前只更新本文件
+> 如果你明确知道这次认证也失效了，也可以直接在下一行补：`GitHub Token: ghp_你的token`
+>
+> AI 收到后：先用仓库地址读档续上 → 读取本文件与 `prompts/PROMPT_RECIPES.md` → `git log --oneline -n 10` 回溯近期变更 → 执行任务 → 只有在继续提交/推送且当前环境缺认证时才索取 token
 
 ## [2026-04-04] Level Studio 教程与关卡设计指南
 - 编写了详尽的 `LevelStudio_DesignGuide.md`，包含 Test Console 的完整使用教程。

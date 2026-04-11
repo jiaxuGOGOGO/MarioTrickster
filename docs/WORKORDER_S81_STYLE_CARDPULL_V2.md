@@ -23,29 +23,33 @@
 
 ## 二、ComfyUI 节点配置图纸（精确到中文 UI 端口）
 
-请在 ComfyUI 画布空白处双击，搜索并拉出以下 **8 个节点**。不要遗漏任何一个。
+请在 ComfyUI 画布空白处双击，搜索并拉出以下 **9 个节点**（每个编号对应一个独立节点，必须单独拉出）。不要遗漏任何一个。
 
 ### 1. 基础大模型加载
 **节点名**：`Checkpoint加载器（简易）` (CheckpointLoaderSimple)
 - **模型**：选择 `sd_xl_base_1.0.safetensors`（你本地已有的模型）
 
-### 2. IPAdapter 核心加载组（旧工单漏掉的关键前置）
-**节点名 A**：`IPAdapter Unified Loader` (IPAdapter 统一加载器)
-- **preset**：选择 `STANDARD (SDXL)`
+### 2. IPAdapter 模型加载器（旧工单漏掉的关键前置）
+**节点名**：`IPAdapter Unified Loader` (IPAdapter 统一加载器)
+- **preset**：将默认的 `STANDARD (medium strength)` 改为 `PLUS (high strength)`
+  - *为什么选 PLUS：因为你本地安装的是 `ip-adapter-plus_sdxl_vit-h.safetensors`，STANDARD 会找 `ip-adapter_sdxl_vit-h.safetensors`（你没有这个文件，会报错）。*
+- 其他保持默认即可。
 - *说明：这个节点会自动帮你加载配套的 CLIP Vision 和 IPAdapter 模型，省去手动连线的麻烦。*
 
-**节点名 B**：`加载图像` (Load Image)
-- **image**：点击 `choose file to upload`，上传你的第一张参考图。
+### 3. 参考图加载（独立节点，不属于 IPAdapter）
+**节点名**：`加载图像` (Load Image)
+- **image**：点击 `choose file to upload`（或 `选择文件上传`），上传你的第一张参考图。
+- *说明：这是一个通用的图片加载节点，和 IPAdapter 是两个完全独立的节点。你需要单独拉出来，然后用连线把它的输出口接到 IPAdapter 的 image 输入口。*
 
-### 3. IPAdapter 应用节点
+### 4. IPAdapter 应用节点
 **节点名**：`IPAdapter` (IPAdapter Advanced)
 - **weight (权重)**：将默认的 `1.00` 改为 `0.65`
 - **weight_type (权重类型)**：将默认的 `standard` 改为 `linear`
 - **start_at (起始步)**：保持 `0.000`
 - **end_at (结束步)**：将默认的 `1.000` 改为 `0.850`
 
-### 4. 提示词编码组
-**节点名 A**：`CLIP文本编码` (CLIPTextEncode) —— **作为正面条件**
+### 5. 正面提示词
+**节点名**：`CLIP文本编码` (CLIPTextEncode) —— 拉出第一个，作为 **正面条件**
 - **文本框填入**：
   ```text
   masterpiece, best quality, anime background art, 
@@ -58,7 +62,9 @@
   top-down view, sandy beach, turquoise ocean waves, white foam lines, scattered rocks, coastal cliffs, green bushes on rocks, water transparency showing seabed
   ```
 
-**节点名 B**：`CLIP文本编码` (CLIPTextEncode) —— **作为负面条件**
+### 5b. 负面提示词
+**节点名**：`CLIP文本编码` (CLIPTextEncode) —— 拉出第二个，作为 **负面条件**
+- *说明：和第 5 步是同一种节点，但你需要拉出两个，一个填正向词、一个填反向词，分别接到 K采样器的不同端口。*
 - **文本框填入**：
   ```text
   (worst quality:1.4), (low quality:1.4), (normal quality:1.2),
@@ -70,13 +76,13 @@
   deformed, extra limbs, bad anatomy
   ```
 
-### 5. 画幅设置（旧工单漏掉的关键节点）
+### 6. 画幅设置（旧工单漏掉的关键节点）
 **节点名**：`空Latent图像` (EmptyLatentImage)
 - **宽度 (width)**：改为 `1024`
 - **高度 (height)**：改为 `1536`
 - **批次大小 (batch_size)**：保持 `1`
 
-### 6. 核心采样器
+### 7. 核心采样器
 **节点名**：`K采样器` (KSampler)
 - **种子 (seed)**：保持随机（如果出好图，在控制台看一眼种子记下来）
 - **生成后控制 (control_after_generate)**：保持 `randomize`
@@ -86,9 +92,13 @@
 - **调度器 (scheduler)**：将默认的 `simple` 改为 `normal`
 - **降噪 (denoise)**：保持 `1.00`
 
-### 7. 解码与保存
-**节点名 A**：`VAE解码` (VAEDecode)
-**节点名 B**：`保存图像` (SaveImage)
+### 8. 解码
+**节点名**：`VAE解码` (VAEDecode)
+- 保持默认即可。
+
+### 9. 保存图像
+**节点名**：`保存图像` (SaveImage)
+- **文件名前缀 (filename_prefix)**：建议改为 `S81_style_` 方便后续筛选。
 
 ---
 

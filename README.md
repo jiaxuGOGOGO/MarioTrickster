@@ -13,6 +13,8 @@
 | 🎯 你的目标 | 📄 应该看哪个文档？ | 🤖 AI 会看吗？ |
 |:---|:---|:---|
 | **开启新对话 / 提交测试反馈** | 👉 [**SESSION_TRACKER.md**](./SESSION_TRACKER.md) | **每次对话必读入口** |
+| **以后所有更新 / 升级 / 优化对话该怎么开局** | 👉 [**docs/STANDARD_CONVERSATION_PROTOCOL.md**](./docs/STANDARD_CONVERSATION_PROTOCOL.md) | **项目级协作宪章** |
+| **直接复制哪一条标准提示词模板** | 👉 [**prompts/STANDARD_PROJECT_PROMPTS.md**](./prompts/STANDARD_PROJECT_PROMPTS.md) | **新对话默认模板库** |
 | **纵览全局：设计规划 vs 实现进度** | 👉 [**MASTER_TRACKER.md**](./MASTER_TRACKER.md) | AI 自动同步更新 |
 | 查阅所有历史Bug、功能清单、文件结构 | 👉 [**MarioTrickster_Progress_Summary.md**](./MarioTrickster_Progress_Summary.md) | AI 按需深度读取 |
 | 怎么在 Unity 里测试？键位是什么？ | 👉 [**MarioTrickster_Testing_Guide.md**](./MarioTrickster_Testing_Guide.md) | 用户测试手册 |
@@ -23,16 +25,18 @@
 
 ## ⚡ 新对话极速续接与美术白话入口总表
 
-如果你的目标是**换号 / 换窗口后直接续上，不想中途再补条件**，推荐把**仓库地址、可用 token、当前任务**一次给全。这样 AI 可以先读档，再在需要时直接提交与推送；如果这轮最终没有写回仓库，token 只是备用，不影响执行。
+如果你的目标是**换号 / 换窗口后直接续上，不想中途再补条件**，推荐先阅读 [`docs/STANDARD_CONVERSATION_PROTOCOL.md`](./docs/STANDARD_CONVERSATION_PROTOCOL.md)，再从 [`prompts/STANDARD_PROJECT_PROMPTS.md`](./prompts/STANDARD_PROJECT_PROMPTS.md) 里复制对应模板。对于绝大多数“更新 / 升级 / 优化项目”的新对话，**默认优先使用标准模板，而不是临时自由发挥**。
 
-> **默认极速续接模板**
+如果本轮还涉及读档、落库或可能的提交 / 推送，推荐把**仓库地址、可用 token、当前任务**一次给全。这样 AI 可以先读档，再在需要时直接提交与推送；如果这轮最终没有写回仓库，token 只是备用，不影响执行。
+
+> **默认极速续接模板**（完整版模板库见 [`prompts/STANDARD_PROJECT_PROMPTS.md`](./prompts/STANDARD_PROJECT_PROMPTS.md)）
 >
 > ```text
-> 我换号了，要继续上次项目。
+> 我换号了，要继续 MarioTrickster 上次项目。
 > 仓库地址：https://github.com/你的用户名/你的仓库
 > token：<你的可用 token>
 > 本次任务：[你的当前需求]
-> 请先读档接上当前进度继续，并按项目效率与质量优先原则处理；凡是形成可复用结论的内容，都要落库并在完成后推送。
+> 请严格按 MarioTrickster 标准对话协议执行：先读取 `SESSION_TRACKER.md`，再按任务类型补读相关文档；先判断当前阶段、主阻塞、默认入口与任务边界，再给出分阶段计划；执行时不要无故发散；凡是形成可复用结论的内容都要落库，完成条件允许时再提交并推送。
 > ```
 
 | 续接 / 生产入口 | AI 后端默认识别 | 是否必须落库 | 默认落到哪 | 何时自动 push |
@@ -86,6 +90,7 @@ graph TD
 3. 阅读 [测试指南](./MarioTrickster_Testing_Guide.md) 了解如何一键生成测试场景
 
 **如果你是 AI 助手：**
-1. 请立即读取 [SESSION_TRACKER.md](./SESSION_TRACKER.md) 获取最新状态和本次任务
-2. 在积分接近警戒线时，务必优先更新文档并推送代码
-3. 推送前必须执行 `SESSION_TRACKER.md` §0.3 联动更新矩阵，确保所有文档同步
+1. 请先读取 [SESSION_TRACKER.md](./SESSION_TRACKER.md)，再遵守 [标准对话协议](./docs/STANDARD_CONVERSATION_PROTOCOL.md)
+2. 新对话优先从 [标准提示词模板库](./prompts/STANDARD_PROJECT_PROMPTS.md) 选择对应模板执行
+3. 在积分接近警戒线时，务必优先更新文档并推送代码
+4. 推送前必须执行 `SESSION_TRACKER.md` §0.3 联动更新矩阵，确保所有文档同步

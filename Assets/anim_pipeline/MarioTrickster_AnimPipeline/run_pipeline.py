@@ -42,6 +42,13 @@ try:
 except ImportError:
     HAS_KNOWLEDGE = False
 
+# 产出物适配器（可选依赖，缺失时跳过自动适配）
+try:
+    import asset_adapter
+    HAS_ADAPTER = True
+except ImportError:
+    HAS_ADAPTER = False
+
 # 从 config_manager 加载配置
 config_data = config_manager.load_config()
 DEFAULT_CONFIG = {
@@ -782,6 +789,21 @@ def postprocess_video(video_path, config):
     print(f"  元数据:       {meta_path}")
     print(f"{'='*50}")
 
+    # 自动适配：改名 + 复制到 Art 仓库约定目录
+    if HAS_ADAPTER:
+        _action = config.get("_action_type", "unknown")
+        _character = config.get("_character", "trickster")
+        _asset_type = config.get("_asset_type", "character")
+        if _action != "unknown":
+            print(f"\n[产出物适配] 正在将产出物适配到 Art 仓库...")
+            adapt_result = asset_adapter.adapt_output(
+                str(output_dir), _action, _character, _asset_type
+            )
+            if adapt_result:
+                print(f"  [产出物适配] ✓ 已适配: {adapt_result['sheet']}")
+            else:
+                print(f"  [产出物适配] △ 适配未执行，产出物保留在原位")
+
 
 # ============================================================
 # 主流程
@@ -1063,6 +1085,13 @@ def main():
     parser.add_argument("--no-bg-remove", action="store_true", help="跳过去背景步骤")
     parser.add_argument("--timeout", type=int, default=600, help="生成超时秒数 (默认: 600)")
     parser.add_argument("--postprocess-only", action="store_true", help="仅执行后处理（跳过 ComfyUI 生成）")
+    parser.add_argument("--character", type=str, default="trickster",
+                        help="角色名，用于产出物命名和目录分类 (默认: trickster)")
+    parser.add_argument("--asset-type", type=str, default="character",
+                        choices=["character", "enemy", "environment", "hazard", "vfx", "prop", "ui"],
+                        help="资产类型，决定产出物放入 Art 仓库的哪个子目录 (默认: character)")
+    parser.add_argument("--no-adapt", action="store_true",
+                        help="跳过产出物自动适配（不复制到 Art 仓库）")
     parser.add_argument("--list-actions", action="store_true", help="列出所有可用动作类型及其 Mixamo 建议")
 
     args = parser.parse_args()
@@ -1089,6 +1118,13 @@ def main():
     if args.pixel_size: config["pixel_size"] = args.pixel_size
     if args.palette: config["palette_colors"] = args.palette
     if args.no_bg_remove: config["remove_bg"] = False
+
+    # 注入动作类型和角色名到 config，供产出物适配器使用
+    config["_action_type"] = args.action
+    config["_character"] = args.character
+    config["_asset_type"] = args.asset_type
+    if getattr(args, "no_adapt", False):
+        config["_action_type"] = "unknown"  # 禁用适配器
 
     # 知识驱动的首次参数优化：根据 action 类型自动应用蒸馏知识中的最优参数
     # 只在用户未手动指定对应参数时才生效，手动指定的优先级最高

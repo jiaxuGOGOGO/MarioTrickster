@@ -1,10 +1,12 @@
 {
   "_meta": {
     "title": "MarioTrickster 蒸馏知识库",
-    "version": "2.1.0",
+    "version": "2.2.0",
+    "style_version": "1.0.0",
+    "style_version_note": "画风单源化：本文件是机器侧画风参数的唯一真理源。PROMPT_RECIPES.md 为人类可读知识总账本，机器出图参数以本文件为准。蒸馏新书后，AI 自动将影响出图的参数同步写入本文件。",
     "source": "PROMPT_RECIPES.md 全量蒸馏 + trickster_style LoRA 实测结论 + PDF 书籍蒸馏",
     "description": "驱动首次出图参数优化、Prompt 增强和智能质检的统一知识源。管线自动热加载。",
-    "how_to_add": "上传 PDF 后蒸馏结论按分区追加，管线下次运行自动生效。"
+    "how_to_add": "上传 PDF 后蒸馏结论按分区追加，管线下次运行自动生效。画风相关参数变更后 style_version 递增。"
   },
 
   "style": {

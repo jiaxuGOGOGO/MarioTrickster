@@ -3,7 +3,9 @@
 **项目名称**：MarioTrickster（非对称对抗平台跳跃游戏）
 **技术栈**：Unity 2022.3 LTS (2D Core)、C#、Rider、GitHub、ComfyUI / Stable Diffusion
 **仓库地址**：`https://github.com/jiaxuGOGOGO/MarioTrickster`
-**本地路径**：`E:\unity project\exercise1\MarioTrickster`
+**默认执行路径（当前仓库维护环境）**：`/home/ubuntu/MarioTrickster`
+**用户本地示例路径（如在 Windows 本机操作）**：`E:\unity project\exercise1\MarioTrickster`
+**默认分支**：`master`
 
 > 更新时间：2026-04-02 (Session 12)
 > 文件名：`AI_WORKFLOW.md`（原 `与 AI 高效协作开发工作流指南.md`）
@@ -130,7 +132,7 @@ git pull
 完整流程是：
 > 对话快结束 → 用 1.2 让 AI 存档（自动推送到 GitHub） → 下次开新对话 → 用 1.1 标准模板让 AI 先读档、判阶段、给计划，再执行
 
-**核心设计**：AI 每次新对话先读 `SESSION_TRACKER.md`，并遵守 `docs/STANDARD_CONVERSATION_PROTOCOL.md`；随后再按任务类型补读专项文档。你开新对话时**不需要手动复制粘贴任何长内容**，只需要优先提供：仓库地址、Token（若可能提交/推送）与本次任务，并从 `prompts/STANDARD_PROJECT_PROMPTS.md` 复制对应模板。
+**核心设计**：AI 每次新对话先读 `SESSION_TRACKER.md`，并遵守 `docs/STANDARD_CONVERSATION_PROTOCOL.md`；随后再按任务类型补读专项文档。当前 `prompts/STANDARD_PROJECT_PROMPTS.md` 已经把 **仓库地址、默认执行路径 `/home/ubuntu/MarioTrickster`、默认分支 `master`、必读文档入口与 push 后远程 SHA 校验要求** 固化进模板骨架，所以你开新对话时通常**不需要手动复制粘贴任何长内容，也不需要重复填写这些稳定信息**；原则上只需补充：**本次任务 / 本次反馈 / 补充要求**。只有当当前环境认证失效且本轮确实需要远程推送时，才再补新的 token。
 
 ### 1.1 标准新对话模板
 

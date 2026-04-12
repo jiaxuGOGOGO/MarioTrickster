@@ -34,7 +34,7 @@
 | 仓库名称 | GitHub 地址 | 核心职责 | 包含内容 |
 |---------|------------|----------|---------|
 | **主仓库** (Game Project) | jiaxuGOGOGO/MarioTrickster | 游戏逻辑代码、关卡设计、核心配置 | `Assets/Scripts/`, `Assets/Scenes/`, `Assets/Tests/`, 核心设计文档 |
-| **美术仓库** (Art Project) | jiaxuGOGOGO/tyu | 美术源文件、最终导出的 Sprite、参考图、美术管线文档 | `Assets/Art/`, `pose_references/`, `prompts/`, `research/`, 美术相关 `docs/` |
+| **美术仓库** (Art Project) | jiaxuGOGOGO/MarioTrickster-Art | 美术源文件、最终导出的 Sprite、参考图、美术管线文档 | `Assets/Art/`, `pose_references/`, `prompts/`, `research/`, 美术相关 `docs/` |
 
 ### 2. 迁移范围清单
 
@@ -62,7 +62,7 @@
 3. 编写并应用路径过滤规则，保留上述指定的目录和文件。
 
 ### 步骤 2：推送到 tyu 仓库
-1. 将过滤后的本地仓库关联到目标空仓库 `https://github.com/jiaxuGOGOGO/tyu.git`。
+1. 将过滤后的本地仓库关联到目标空仓库 `https://github.com/jiaxuGOGOGO/MarioTrickster-Art.git`。
 2. 推送代码及历史记录到 `tyu` 仓库的 `main` 分支。
 
 ### 步骤 3：清理主仓库并建立 Submodule 关联

@@ -117,6 +117,8 @@ tmp_pdf_findings_*.txt
 *.mov
 *.mkv
 *.webm
+# 但动画管线的驱动视频素材需要入库
+!Assets/anim_pipeline/MarioTrickster_AnimPipeline/assets/videos/*.mp4
 
 # 测试临时输出
 test_output/

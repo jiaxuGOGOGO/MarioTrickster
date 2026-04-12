@@ -6,18 +6,21 @@
 
 ## 1. 必须锁定的全局设置
 
-在开始跑这 30 张图之前，请在 ComfyUI 中把以下参数**固定死，整轮不要动**：
+在开始跑这 30 张图之前，请确认 ComfyUI 中以下参数已**固定死，整轮不要动**。
+以下为你的实际工作流配置（已从截图确认）：
 
-| 参数 | 推荐默认值（如果你没有偏好） | 你的实际值（请记录） |
-|---|---|---|
-| **大模型 (Checkpoint)** | `sd_xl_base_1.0.safetensors` 或你常用的二次元/游戏底模 | |
-| **采样器 (Sampler)** | `euler_ancestral` 或 `dpmpp_2m` | |
-| **调度器 (Scheduler)** | `karras` | |
-| **步数 (Steps)** | `30` | |
-| **CFG Scale** | `7.0` | |
-| **分辨率 (Resolution)** | `1024 x 1024` | |
-| **全局负面词 (Negative)** | `photorealistic, realistic shading, 3d render, blurry, muddy colors, messy lines, text, watermark, logo, cropped, low contrast, noisy details` | |
-| **LoRA 模型** | `MarioTrickster_Style_epoch_10.safetensors` | |
+| 参数 | 锁定值 |
+|---|---|
+| **大模型 (Checkpoint)** | `sd_xl_base_1.0.safetensors` |
+| **采样器 (Sampler)** | `euler_ancestral` |
+| **调度器 (Scheduler)** | `normal` |
+| **步数 (Steps)** | `35` |
+| **CFG Scale** | `8.0` |
+| **分辨率 (Resolution)** | `1024 x 1536`（竖版） |
+| **降噪 (Denoise)** | `1.00` |
+| **Seed 控制** | `fixed`（生成后控制已锁定） |
+| **全局负面词 (Negative)** | `(worst quality:1.4), (low quality:1.4), (normal quality:1.0), blurry, gradient shading, realistic, photorealistic, 3d render, smooth airbrush, no outlines, soft edges, anti-aliasing, text, watermark, signature, UI elements, oversaturated, HDR, lens flare, bloom, multiple light sources, complex shadows, deformed, extra limbs, bad anatomy` |
+| **LoRA 模型** | `MarioTrickster_Style_epoch_10.safetensors` |
 
 ---
 
@@ -83,9 +86,9 @@
 
 ```text
 我已经按 `trickster_style` 本地验证工单跑完了。
-底模：[你的底模]
-采样器：[你的采样器]
-Steps / CFG：[你的参数]
+底模：sd_xl_base_1.0.safetensors
+采样器：euler_ancestral / normal
+Steps / CFG：35 / 8.0
 Seed：S=[ ] / A=[ ] / C=[ ]
 我跑的是：30 张标准版
 目前结论：

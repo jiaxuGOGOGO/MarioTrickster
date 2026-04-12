@@ -1,6 +1,6 @@
 # `trickster_style` 本地验证执行速查表
 
-> **说明**：这是基于 `TRICKSTER_STYLE_LOCAL_VALIDATION_WORK_ORDER_2026-04-12.md` 展开的 30 张逐张执行清单。你可以直接复制这里的 Prompt 到 ComfyUI 中跑图，跑完按推荐的文件名保存，最后把结果回传给我。
+> **说明**：这是基于 `TRICKSTER_STYLE_LOCAL_VALIDATION_WORK_ORDER_2026-04-12.md` 展开的 30 张逐张执行清单。你可以直接复制这里的 Prompt 到 ComfyUI 中跑图，跑完把 output 文件夹里的图打包发给我即可。
 
 ---
 
@@ -24,79 +24,116 @@
 
 ---
 
-## 2. 逐张执行清单 (共 30 张)
+## 2. 文件命名方案（极简版）
+
+**你只需要在每个题材开头改一次 `保存图像` 节点的文件名前缀，之后 ComfyUI 会自动递增编号。**
+
+整轮只需改 **3 次** 前缀：
+
+| 题材 | 前缀改为 | 该题材跑 10 张后自动生成 |
+|---|---|---|
+| S（静态资产） | `S` | `S_00001_.png` ~ `S_00010_.png` |
+| A（角色动作） | `A` | `A_00001_.png` ~ `A_00010_.png` |
+| C（横版场景） | `C` | `C_00001_.png` ~ `C_00010_.png` |
+
+我这边通过下面的**出图顺序表**来对应每张图的参数，你只要**严格按顺序跑**就行，不用管文件名。
+
+---
+
+## 3. 逐张执行清单（共 30 张，严格按顺序跑）
 
 ### 题材 S：静态资产（地刺）
-**固定 Seed**：请随意填一个数字（如 `111111`），这 10 张图**必须用同一个 Seed**。
 
-| 编号 | 模式 | LoRA 权重 | 正向 Prompt (直接复制) | 预期保存文件名 |
+**开始前**：`保存图像` 节点文件名前缀改为 `S`，K采样器 Seed 填一个数字（如 `111111`），整个 S 题材不要动 Seed。
+
+| 顺序 | 模式 | LoRA 操作 | 权重 | 正向 Prompt（直接复制） |
 |---|---|---|---|---|
-| 1 | **B0 (基线)** | `0` (关闭) | `2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background` | `TSVAL_S_B0_w00_seed[你的seed].png` |
-| 2 | **B1 (隐式)** | `0.6` | `2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background` | `TSVAL_S_B1_w06_seed[你的seed].png` |
-| 3 | **B1 (隐式)** | `0.8` | `2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background` | `TSVAL_S_B1_w08_seed[你的seed].png` |
-| 4 | **B1 (隐式)** | `1.0` | `2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background` | `TSVAL_S_B1_w10_seed[你的seed].png` |
-| 5 | **B2 (弱触发)** | `0.6` | `2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background, trickster_style` | `TSVAL_S_B2_w06_seed[你的seed].png` |
-| 6 | **B2 (弱触发)** | `0.8` | `2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background, trickster_style` | `TSVAL_S_B2_w08_seed[你的seed].png` |
-| 7 | **B2 (弱触发)** | `1.0` | `2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background, trickster_style` | `TSVAL_S_B2_w10_seed[你的seed].png` |
-| 8 | **B3 (强触发)** | `0.6` | `trickster_style, 2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background` | `TSVAL_S_B3_w06_seed[你的seed].png` |
-| 9 | **B3 (强触发)** | `0.8` | `trickster_style, 2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background` | `TSVAL_S_B3_w08_seed[你的seed].png` |
-| 10 | **B3 (强触发)** | `1.0` | `trickster_style, 2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background` | `TSVAL_S_B3_w10_seed[你的seed].png` |
+| 1 | B0 | **Bypass LoRA** | — | `2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background` |
+| 2 | B1 | 恢复 LoRA | `0.6` | （同上，不用改 Prompt） |
+| 3 | B1 | 只改权重 | `0.8` | （同上） |
+| 4 | B1 | 只改权重 | `1.0` | （同上） |
+| 5 | B2 | 改权重 + 改 Prompt | `0.6` | `2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background, trickster_style` |
+| 6 | B2 | 只改权重 | `0.8` | （同上） |
+| 7 | B2 | 只改权重 | `1.0` | （同上） |
+| 8 | B3 | 改权重 + 改 Prompt | `0.6` | `trickster_style, 2D platformer spike trap, side view, centered object, clean black outline, flat color blocks, bright saturated palette, simple readable silhouette, game-ready prop, plain background` |
+| 9 | B3 | 只改权重 | `0.8` | （同上） |
+| 10 | B3 | 只改权重 | `1.0` | （同上） |
+
+> **实际操作量**：Prompt 只需要粘贴 3 次（B0/B1 共用一个、B2 一个、B3 一个），权重改 8 次数字，Bypass 操作 2 次（关一次、开一次）。
 
 ---
 
 ### 题材 A：角色动作（跳跃中帧）
-**固定 Seed**：请换一个新数字（如 `222222`），这 10 张图**必须用同一个 Seed**。
 
-| 编号 | 模式 | LoRA 权重 | 正向 Prompt (直接复制) | 预期保存文件名 |
+**换题材**：`保存图像` 前缀改为 `A`，K采样器 Seed 换一个新数字（如 `222222`）。
+
+| 顺序 | 模式 | LoRA 操作 | 权重 | 正向 Prompt（直接复制） |
 |---|---|---|---|---|
-| 11 | **B0 (基线)** | `0` (关闭) | `cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background` | `TSVAL_A_B0_w00_seed[你的seed].png` |
-| 12 | **B1 (隐式)** | `0.6` | `cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background` | `TSVAL_A_B1_w06_seed[你的seed].png` |
-| 13 | **B1 (隐式)** | `0.8` | `cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background` | `TSVAL_A_B1_w08_seed[你的seed].png` |
-| 14 | **B1 (隐式)** | `1.0` | `cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background` | `TSVAL_A_B1_w10_seed[你的seed].png` |
-| 15 | **B2 (弱触发)** | `0.6` | `cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background, trickster_style` | `TSVAL_A_B2_w06_seed[你的seed].png` |
-| 16 | **B2 (弱触发)** | `0.8` | `cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background, trickster_style` | `TSVAL_A_B2_w08_seed[你的seed].png` |
-| 17 | **B2 (弱触发)** | `1.0` | `cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background, trickster_style` | `TSVAL_A_B2_w10_seed[你的seed].png` |
-| 18 | **B3 (强触发)** | `0.6` | `trickster_style, cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background` | `TSVAL_A_B3_w06_seed[你的seed].png` |
-| 19 | **B3 (强触发)** | `0.8` | `trickster_style, cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background` | `TSVAL_A_B3_w08_seed[你的seed].png` |
-| 20 | **B3 (强触发)** | `1.0` | `trickster_style, cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background` | `TSVAL_A_B3_w10_seed[你的seed].png` |
+| 1 | B0 | **Bypass LoRA** | — | `cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background` |
+| 2 | B1 | 恢复 LoRA | `0.6` | （同上，不用改 Prompt） |
+| 3 | B1 | 只改权重 | `0.8` | （同上） |
+| 4 | B1 | 只改权重 | `1.0` | （同上） |
+| 5 | B2 | 改权重 + 改 Prompt | `0.6` | `cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background, trickster_style` |
+| 6 | B2 | 只改权重 | `0.8` | （同上） |
+| 7 | B2 | 只改权重 | `1.0` | （同上） |
+| 8 | B3 | 改权重 + 改 Prompt | `0.6` | `trickster_style, cartoon trickster character, mid-jump pose, side view, full body, clean black outline, flat color blocks, bright saturated palette, readable silhouette, 2D platformer character frame, plain background` |
+| 9 | B3 | 只改权重 | `0.8` | （同上） |
+| 10 | B3 | 只改权重 | `1.0` | （同上） |
 
 ---
 
 ### 题材 C：横版场景（一小段平台）
-**固定 Seed**：请再换一个新数字（如 `333333`），这 10 张图**必须用同一个 Seed**。
 
-| 编号 | 模式 | LoRA 权重 | 正向 Prompt (直接复制) | 预期保存文件名 |
+**换题材**：`保存图像` 前缀改为 `C`，K采样器 Seed 换一个新数字（如 `333333`）。
+
+| 顺序 | 模式 | LoRA 操作 | 权重 | 正向 Prompt（直接复制） |
 |---|---|---|---|---|
-| 21 | **B0 (基线)** | `0` (关闭) | `2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background` | `TSVAL_C_B0_w00_seed[你的seed].png` |
-| 22 | **B1 (隐式)** | `0.6` | `2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background` | `TSVAL_C_B1_w06_seed[你的seed].png` |
-| 23 | **B1 (隐式)** | `0.8` | `2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background` | `TSVAL_C_B1_w08_seed[你的seed].png` |
-| 24 | **B1 (隐式)** | `1.0` | `2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background` | `TSVAL_C_B1_w10_seed[你的seed].png` |
-| 25 | **B2 (弱触发)** | `0.6` | `2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background, trickster_style` | `TSVAL_C_B2_w06_seed[你的seed].png` |
-| 26 | **B2 (弱触发)** | `0.8` | `2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background, trickster_style` | `TSVAL_C_B2_w08_seed[你的seed].png` |
-| 27 | **B2 (弱触发)** | `1.0` | `2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background, trickster_style` | `TSVAL_C_B2_w10_seed[你的seed].png` |
-| 28 | **B3 (强触发)** | `0.6` | `trickster_style, 2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background` | `TSVAL_C_B3_w06_seed[你的seed].png` |
-| 29 | **B3 (强触发)** | `0.8` | `trickster_style, 2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background` | `TSVAL_C_B3_w08_seed[你的seed].png` |
-| 30 | **B3 (强触发)** | `1.0` | `trickster_style, 2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background` | `TSVAL_C_B3_w10_seed[你的seed].png` |
+| 1 | B0 | **Bypass LoRA** | — | `2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background` |
+| 2 | B1 | 恢复 LoRA | `0.6` | （同上，不用改 Prompt） |
+| 3 | B1 | 只改权重 | `0.8` | （同上） |
+| 4 | B1 | 只改权重 | `1.0` | （同上） |
+| 5 | B2 | 改权重 + 改 Prompt | `0.6` | `2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background, trickster_style` |
+| 6 | B2 | 只改权重 | `0.8` | （同上） |
+| 7 | B2 | 只改权重 | `1.0` | （同上） |
+| 8 | B3 | 改权重 + 改 Prompt | `0.6` | `trickster_style, 2D side-scrolling platformer scene, side view, walkable ground, one raised platform, one simple obstacle, clean black outline, flat color blocks, bright saturated palette, readable gameplay space, simple background` |
+| 9 | B3 | 只改权重 | `0.8` | （同上） |
+| 10 | B3 | 只改权重 | `1.0` | （同上） |
 
 ---
 
-## 3. 跑完后如何回传
+## 4. 顺序号 → 参数对照表（我用来判定，你不用管）
 
-你跑完这 30 张图后，请自己先看一眼，然后**直接复制下面这段话，填好发给我**：
+以下是我收到你的图后用来对照的映射表。你只要保证**每个题材内严格按 1~10 的顺序跑**，我就能自动还原每张图的参数。
+
+| 文件编号 | 模式 | LoRA 权重 | 触发词位置 |
+|---|---|---|---|
+| `_00001_` | B0 基线 | 关闭 | 无 |
+| `_00002_` | B1 隐式 | 0.6 | 无 |
+| `_00003_` | B1 隐式 | 0.8 | 无 |
+| `_00004_` | B1 隐式 | 1.0 | 无 |
+| `_00005_` | B2 弱触发 | 0.6 | 末尾 |
+| `_00006_` | B2 弱触发 | 0.8 | 末尾 |
+| `_00007_` | B2 弱触发 | 1.0 | 末尾 |
+| `_00008_` | B3 强触发 | 0.6 | 开头 |
+| `_00009_` | B3 强触发 | 0.8 | 开头 |
+| `_00010_` | B3 强触发 | 1.0 | 开头 |
+
+---
+
+## 5. 跑完后如何回传
+
+跑完 30 张图后，请把 ComfyUI 的 `output` 文件夹里的 S、A、C 开头的图片**全部打包发给我**，然后复制下面这段话填好：
 
 ```text
 我已经按 `trickster_style` 本地验证工单跑完了。
-底模：sd_xl_base_1.0.safetensors
-采样器：euler_ancestral / normal
-Steps / CFG：35 / 8.0
 Seed：S=[ ] / A=[ ] / C=[ ]
-我跑的是：30 张标准版
+每个题材都严格按 1~10 顺序跑的：是
 目前结论：
 1. 最佳权重：[0.6 / 0.8 / 1.0]
-2. 静态资产表现：[简述，例如：0.8最稳，1.0线稿有点糊]
-3. 角色动作表现：[简述，例如：0.8能看，但没加ControlNet肢体有点飘]
-4. 横版场景表现：[简述，例如：0.8很好，但1.0出现了海滩]
-5. 是否出现污染：[有 / 无；具体是什么，比如红屋顶、沙滩]
+2. 静态资产表现：[简述]
+3. 角色动作表现：[简述]
+4. 横版场景表现：[简述]
+5. 是否出现污染：[有 / 无；具体是什么]
 6. 我怀疑的专属去污词：[比如 beach, red roof]
 ```
 

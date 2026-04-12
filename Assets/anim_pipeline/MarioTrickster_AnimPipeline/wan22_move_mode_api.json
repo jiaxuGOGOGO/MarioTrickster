@@ -1,0 +1,199 @@
+{
+  "_meta": {
+    "title": "MarioTrickster WAN2.2 Animate Move Mode - API Format",
+    "description": "参考图 + 驱动视频 → WanAnimateToVideo → KSampler → VAEDecode → CreateVideo → SaveVideo",
+    "version": "2.0.0",
+    "author": "MarioTrickster Pipeline",
+    "node_chain": "UNETLoader→LoRA→ModelSampling→KSampler | CLIPLoader→TextEncode | VAELoader→WanAnimate+VAEDecode | CLIPVision→Encode | LoadVideo→GetVideoComponents→ImageScale→DWPreprocessor"
+  },
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": { "title": "Load WAN 2.2 Animate 14B Model" }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan"
+    },
+    "_meta": { "title": "Load CLIP Text Encoder (UMT5-XXL)" }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "_meta": { "title": "Load VAE" }
+  },
+  "4": {
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "clip_vision_h.safetensors"
+    },
+    "_meta": { "title": "Load CLIP Vision (ViT-H)" }
+  },
+  "5": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": ["1", 0],
+      "lora_name": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+      "strength_model": 1.0
+    },
+    "_meta": { "title": "Load LightX2V Distill LoRA (4-6 step)" }
+  },
+  "6": {
+    "class_type": "ModelSamplingSD3",
+    "inputs": {
+      "model": ["5", 0],
+      "shift": 8.0
+    },
+    "_meta": { "title": "Model Sampling Shift" }
+  },
+  "10": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "chara_trickster.png"
+    },
+    "_meta": { "title": "Load Reference Image (Trickster)" }
+  },
+  "11": {
+    "class_type": "LoadVideo",
+    "inputs": {
+      "file": "idle_drive.mp4"
+    },
+    "_meta": { "title": "Load Motion Drive Video" }
+  },
+  "12": {
+    "class_type": "GetVideoComponents",
+    "inputs": {
+      "video": ["11", 0]
+    },
+    "_meta": { "title": "Extract Frames from VIDEO" }
+  },
+  "13": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": ["12", 0],
+      "upscale_method": "lanczos",
+      "width": 480,
+      "height": 480,
+      "crop": "center"
+    },
+    "_meta": { "title": "Scale Video Frames to 480x480" }
+  },
+  "14": {
+    "class_type": "DWPreprocessor",
+    "inputs": {
+      "image": ["13", 0],
+      "detect_hand": "enable",
+      "detect_body": "enable",
+      "detect_face": "enable",
+      "resolution": 512,
+      "bbox_detector": "yolox_l.onnx",
+      "pose_estimator": "dw-ll_ucoco_384_bs5.torchscript.pt"
+    },
+    "_meta": { "title": "DWPose - Full Body Pose Extraction" }
+  },
+  "15": {
+    "class_type": "DWPreprocessor",
+    "inputs": {
+      "image": ["13", 0],
+      "detect_hand": "disable",
+      "detect_body": "disable",
+      "detect_face": "enable",
+      "resolution": 512,
+      "bbox_detector": "yolox_l.onnx",
+      "pose_estimator": "dw-ll_ucoco_384_bs5.torchscript.pt"
+    },
+    "_meta": { "title": "DWPose - Face Only Extraction" }
+  },
+  "16": {
+    "class_type": "CLIPVisionEncode",
+    "inputs": {
+      "clip_vision": ["4", 0],
+      "image": ["10", 0]
+    },
+    "_meta": { "title": "Encode Reference Image with CLIP Vision" }
+  },
+  "20": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["2", 0],
+      "text": "A pixel art game character standing idle, subtle breathing animation, slight body sway, relaxed pose, clean sprite style, 2D side-scrolling platformer, solid color background, sharp pixel edges"
+    },
+    "_meta": { "title": "Positive Prompt" }
+  },
+  "21": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["2", 0],
+      "text": "blurry, low quality, worst quality, JPEG artifacts, ugly, deformed, extra fingers, poorly drawn hands, poorly drawn face, disfigured, static image, cluttered background, three legs"
+    },
+    "_meta": { "title": "Negative Prompt" }
+  },
+  "30": {
+    "class_type": "WanAnimateToVideo",
+    "inputs": {
+      "positive": ["20", 0],
+      "negative": ["21", 0],
+      "vae": ["3", 0],
+      "width": 480,
+      "height": 480,
+      "length": 33,
+      "batch_size": 1,
+      "continue_motion_max_frames": 5,
+      "video_frame_offset": 0,
+      "clip_vision_output": ["16", 0],
+      "reference_image": ["10", 0],
+      "face_video": ["15", 0],
+      "pose_video": ["14", 0]
+    },
+    "_meta": { "title": "WAN 2.2 Animate - Move Mode (outputs: pos, neg, latent)" }
+  },
+  "31": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["6", 0],
+      "positive": ["30", 0],
+      "negative": ["30", 1],
+      "latent_image": ["30", 2],
+      "seed": 42,
+      "steps": 6,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0
+    },
+    "_meta": { "title": "KSampler (6 steps with distill LoRA)" }
+  },
+  "32": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["31", 0],
+      "vae": ["3", 0]
+    },
+    "_meta": { "title": "VAE Decode Latent → Images" }
+  },
+  "33": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": ["32", 0],
+      "fps": 16.0
+    },
+    "_meta": { "title": "Create VIDEO from Image Frames" }
+  },
+  "40": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "video": ["33", 0],
+      "filename_prefix": "MarioTrickster_anim",
+      "format": "mp4",
+      "codec": "h264"
+    },
+    "_meta": { "title": "Save Output Video" }
+  }
+}

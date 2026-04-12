@@ -1,0 +1,188 @@
+{
+  "_meta": {
+    "title": "MarioTrickster Mixamo 动作预设库",
+    "description": "基于动画原理蒸馏知识筛选的最佳 Mixamo 动作。每个动作都经过预备动作、跟随动作、重心转移等原则验证。",
+    "usage": "在 Mixamo.com 搜索 search_term，下载 FBX → 用 Blender 渲染为侧视角 MP4 → 输入管线"
+  },
+  "actions": {
+    "idle": {
+      "search_term": "Breathing Idle",
+      "mixamo_id": "breathing-idle",
+      "duration_sec": 3.0,
+      "loop": true,
+      "camera_angle": "side_view",
+      "animation_principles": [
+        "微妙的呼吸起伏体现 Slow In / Slow Out",
+        "重心微微前后摆动体现 Secondary Action"
+      ],
+      "quality_checklist": [
+        "身体有轻微起伏，不是完全静止",
+        "首尾帧姿态一致，可无缝循环",
+        "手臂自然下垂，不贴身"
+      ],
+      "blender_render_settings": {
+        "camera": "orthographic",
+        "camera_distance": 5.0,
+        "rotation_z_deg": 90,
+        "resolution": [480, 480],
+        "fps": 16,
+        "background": "green_screen"
+      }
+    },
+    "run": {
+      "search_term": "Running",
+      "mixamo_id": "running",
+      "duration_sec": 2.0,
+      "loop": true,
+      "camera_angle": "side_view",
+      "animation_principles": [
+        "跑步前有明确的预备蹲 (Anticipation)",
+        "腿部完全伸展时有 Squash & Stretch",
+        "手臂大幅摆动体现 Follow Through",
+        "脚接触地面时有短暂停顿 (Timing)"
+      ],
+      "quality_checklist": [
+        "腿部弯曲角度大于90度（有力量感）",
+        "手臂前后摆动幅度明显",
+        "身体略微前倾",
+        "循环点自然（不是突然跳切）"
+      ],
+      "blender_render_settings": {
+        "camera": "orthographic",
+        "camera_distance": 5.0,
+        "rotation_z_deg": 90,
+        "resolution": [480, 480],
+        "fps": 16,
+        "background": "green_screen"
+      }
+    },
+    "walk": {
+      "search_term": "Walking",
+      "mixamo_id": "walking",
+      "duration_sec": 2.5,
+      "loop": true,
+      "camera_angle": "side_view",
+      "animation_principles": [
+        "脚跟先着地再过渡到脚尖 (Timing)",
+        "对侧手臂自然摆动 (Secondary Action)",
+        "重心左右微移 (Arc)"
+      ],
+      "quality_checklist": [
+        "步伐节奏均匀",
+        "身体不过度前倾",
+        "手臂摆动与腿部协调"
+      ],
+      "blender_render_settings": {
+        "camera": "orthographic",
+        "camera_distance": 5.0,
+        "rotation_z_deg": 90,
+        "resolution": [480, 480],
+        "fps": 16,
+        "background": "green_screen"
+      }
+    },
+    "jump": {
+      "search_term": "Jump",
+      "mixamo_id": "jump",
+      "duration_sec": 2.0,
+      "loop": false,
+      "camera_angle": "side_view",
+      "animation_principles": [
+        "起跳前必须有预备蹲 (Anticipation) — 这是最关键的",
+        "空中身体舒展 (Stretch)",
+        "落地时身体压缩 (Squash)",
+        "手臂向上伸展辅助跳跃 (Secondary Action)"
+      ],
+      "quality_checklist": [
+        "有明显的蹲下→弹起→空中→落地四阶段",
+        "空中停留时间略长于上升和下降（Slow In/Out）",
+        "落地有缓冲动作"
+      ],
+      "blender_render_settings": {
+        "camera": "orthographic",
+        "camera_distance": 6.0,
+        "rotation_z_deg": 90,
+        "resolution": [480, 480],
+        "fps": 16,
+        "background": "green_screen"
+      }
+    },
+    "attack_sword": {
+      "search_term": "Sword And Shield Slash",
+      "mixamo_id": "sword-and-shield-slash",
+      "duration_sec": 1.5,
+      "loop": false,
+      "camera_angle": "side_view_3_4",
+      "animation_principles": [
+        "挥剑前有明确的蓄力后拉 (Anticipation)",
+        "挥剑瞬间速度最快 (Timing — 少帧快动作)",
+        "挥剑后有惯性跟随 (Follow Through & Overlapping Action)",
+        "身体重心从后脚转移到前脚 (Weight Shift)"
+      ],
+      "quality_checklist": [
+        "蓄力动作清晰可见（手臂后拉）",
+        "挥剑轨迹是弧线而非直线 (Arc)",
+        "击中后有短暂停顿（Impact Frame）",
+        "身体有明显的重心前移"
+      ],
+      "blender_render_settings": {
+        "camera": "orthographic",
+        "camera_distance": 5.5,
+        "rotation_z_deg": 75,
+        "resolution": [480, 480],
+        "fps": 16,
+        "background": "green_screen"
+      }
+    },
+    "death": {
+      "search_term": "Dying",
+      "mixamo_id": "dying",
+      "duration_sec": 2.5,
+      "loop": false,
+      "camera_angle": "side_view",
+      "animation_principles": [
+        "受击瞬间有短暂僵直 (Timing)",
+        "倒下过程有 Slow In（加速下落）",
+        "接触地面有轻微弹跳 (Squash & Stretch)"
+      ],
+      "quality_checklist": [
+        "倒下方向一致（向后或向前）",
+        "不是瞬间消失而是有过程",
+        "最终姿态稳定"
+      ],
+      "blender_render_settings": {
+        "camera": "orthographic",
+        "camera_distance": 6.0,
+        "rotation_z_deg": 90,
+        "resolution": [480, 480],
+        "fps": 16,
+        "background": "green_screen"
+      }
+    },
+    "dash": {
+      "search_term": "Fast Run",
+      "mixamo_id": "fast-run",
+      "duration_sec": 1.5,
+      "loop": true,
+      "camera_angle": "side_view",
+      "animation_principles": [
+        "比普通跑步更大的前倾角度",
+        "手臂摆动幅度更大 (Exaggeration)",
+        "步频更快 (Timing)"
+      ],
+      "quality_checklist": [
+        "明显比 run 更快更有力",
+        "身体前倾角度约30-45度",
+        "循环自然"
+      ],
+      "blender_render_settings": {
+        "camera": "orthographic",
+        "camera_distance": 5.0,
+        "rotation_z_deg": 90,
+        "resolution": [480, 480],
+        "fps": 16,
+        "background": "green_screen"
+      }
+    }
+  }
+}

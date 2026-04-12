@@ -1,0 +1,256 @@
+{
+  "_meta": {
+    "title": "MarioTrickster 蒸馏知识库",
+    "version": "1.0.0",
+    "description": "从 PDF 书籍和项目经验蒸馏的结构化知识，用于驱动首次出图参数优化、Prompt 增强和智能质检。新增 PDF 知识时只需往对应分区追加条目，管线自动吸收。",
+    "usage": "由 run_pipeline.py 在构建工作流时自动加载，无需手动调用。",
+    "how_to_add_knowledge": "上传 PDF 后，将蒸馏结论按分区格式追加到对应数组中，管线下次运行自动生效。"
+  },
+
+  "pixel_art_rules": {
+    "_doc": "像素风格核心规则，影响后处理参数和 Prompt 负面词",
+    "palette_guidance": {
+      "min_colors": 16,
+      "max_colors": 48,
+      "sweet_spot": 32,
+      "rule": "游戏角色 sprite 通常 16-48 色，超过 48 色会丢失像素感，低于 16 色会丢失细节"
+    },
+    "pixel_size_guidance": {
+      "min": 2,
+      "max": 8,
+      "sweet_spot_by_resolution": {
+        "480": 4,
+        "320": 3,
+        "640": 5
+      },
+      "rule": "pixel_size = 画布短边 / 120 是经验最优值"
+    },
+    "outline_rules": [
+      "像素角色必须有清晰的 1px 深色轮廓线",
+      "轮廓线颜色应比填充色暗 40-60%",
+      "避免抗锯齿（anti-aliasing），保持硬边"
+    ],
+    "dithering_rules": [
+      "仅在大面积渐变区域使用有序抖动（ordered dithering）",
+      "角色身体不使用抖动，保持色块干净",
+      "阴影过渡可用 2x2 棋盘格抖动"
+    ],
+    "negative_prompt_additions": [
+      "anti-aliased edges",
+      "smooth gradients",
+      "photorealistic",
+      "3D rendered",
+      "blurry outlines"
+    ]
+  },
+
+  "composition_rules": {
+    "_doc": "构图规则，影响首次生成的 width/height 和 Prompt",
+    "canvas_margin": {
+      "top_percent": 10,
+      "bottom_percent": 8,
+      "side_percent": 15,
+      "rule": "角色四周必须留出足够空白，防止裁切。上方留 10% 给跳跃动作，底部留 8% 给落地缓冲"
+    },
+    "character_fill_ratio": {
+      "idle": 0.55,
+      "run": 0.50,
+      "walk": 0.55,
+      "jump": 0.45,
+      "attack_sword": 0.50,
+      "death": 0.45,
+      "dash": 0.50,
+      "rule": "角色占画布面积比，低于此值说明画布太大浪费像素，高于此值说明可能裁切"
+    },
+    "aspect_ratio_by_action": {
+      "idle": [1, 1],
+      "run": [1, 1],
+      "walk": [1, 1],
+      "jump": [3, 4],
+      "attack_sword": [4, 3],
+      "death": [4, 3],
+      "dash": [1, 1],
+      "rule": "某些动作需要非正方形画布。jump 需要纵向空间，attack/death 需要横向空间"
+    }
+  },
+
+  "style_consistency": {
+    "_doc": "画风一致性规则，用于跨动作质检和 Prompt 锚定",
+    "color_temperature": {
+      "target": "warm",
+      "kelvin_range": [5500, 7000],
+      "rule": "MarioTrickster 角色偏暖色调，避免冷蓝色偏移"
+    },
+    "saturation": {
+      "min": 45,
+      "max": 75,
+      "rule": "饱和度保持在 45-75 范围，过低显灰，过高显荧光"
+    },
+    "line_weight": {
+      "target_px": 1,
+      "max_px": 2,
+      "rule": "像素角色轮廓线固定 1px，最多 2px"
+    },
+    "shading_style": "cel_shading_2_tone",
+    "positive_prompt_anchors": [
+      "consistent pixel art style",
+      "cel-shaded 2-tone shading",
+      "warm color palette",
+      "clean sharp pixel edges",
+      "1px dark outline"
+    ],
+    "negative_prompt_anchors": [
+      "inconsistent style",
+      "cold blue tint",
+      "over-saturated neon colors",
+      "thick outlines",
+      "soft shading"
+    ]
+  },
+
+  "action_knowledge": {
+    "_doc": "每个动作的深度蒸馏知识，补充 mixamo_presets.json 中的 animation_principles",
+    "idle": {
+      "critical_frames": ["呼吸最高点", "呼吸最低点"],
+      "common_defects": ["完全静止无呼吸感", "手臂贴身僵硬", "循环跳帧"],
+      "prompt_boost": "subtle chest rise and fall, gentle weight shift, relaxed fingers slightly apart",
+      "optimal_length": 17,
+      "optimal_steps": 6,
+      "optimal_cfg": 1.0
+    },
+    "run": {
+      "critical_frames": ["预备蹲", "推蹬离地", "空中最高点", "着地缓冲"],
+      "common_defects": ["腿部不弯曲像滑步", "手臂不摆动", "无前倾", "循环不自然"],
+      "prompt_boost": "dynamic leg extension with knee bend over 90 degrees, vigorous arm swing, slight forward lean, contact-flight-contact cycle",
+      "optimal_length": 17,
+      "optimal_steps": 8,
+      "optimal_cfg": 1.0
+    },
+    "walk": {
+      "critical_frames": ["脚跟着地", "单脚支撑中点", "脚尖离地"],
+      "common_defects": ["滑步无脚跟过渡", "步伐不均匀", "手臂不协调"],
+      "prompt_boost": "heel-to-toe foot roll, opposite arm swing synchronized with legs, even stride rhythm",
+      "optimal_length": 17,
+      "optimal_steps": 6,
+      "optimal_cfg": 1.0
+    },
+    "jump": {
+      "critical_frames": ["预备蹲", "弹起瞬间", "空中最高点", "下落", "落地缓冲"],
+      "common_defects": ["无预备蹲直接起跳", "空中姿态僵硬", "落地无缓冲"],
+      "prompt_boost": "clear anticipation squat before takeoff, stretched body at apex, compressed landing with knee bend, arms assist upward",
+      "optimal_length": 21,
+      "optimal_steps": 8,
+      "optimal_cfg": 1.2
+    },
+    "attack_sword": {
+      "critical_frames": ["蓄力后拉", "挥剑最快点", "击中停顿", "收招"],
+      "common_defects": ["无蓄力直接挥", "挥剑轨迹是直线", "无击中停顿", "重心不转移"],
+      "prompt_boost": "wind-up pull back before slash, arc trajectory sword swing, impact freeze frame, weight shift from back foot to front foot",
+      "optimal_length": 17,
+      "optimal_steps": 8,
+      "optimal_cfg": 1.2
+    },
+    "death": {
+      "critical_frames": ["受击僵直", "开始倒下", "加速下落", "触地弹跳", "静止"],
+      "common_defects": ["瞬间消失", "倒下方向不一致", "无触地弹跳"],
+      "prompt_boost": "hit stagger freeze, accelerating fall with slow-in, ground contact bounce, final rest pose stable",
+      "optimal_length": 21,
+      "optimal_steps": 8,
+      "optimal_cfg": 1.0
+    },
+    "dash": {
+      "critical_frames": ["极度前倾", "大幅手臂摆动", "快速步频"],
+      "common_defects": ["和普通跑步无区别", "前倾不够", "速度感不足"],
+      "prompt_boost": "extreme forward lean 30-45 degrees, exaggerated arm swing, rapid stride frequency faster than run",
+      "optimal_length": 17,
+      "optimal_steps": 8,
+      "optimal_cfg": 1.0
+    }
+  },
+
+  "generation_presets": {
+    "_doc": "根据蒸馏知识推导的首次生成最优参数，按 action 类型覆盖默认值",
+    "default": {
+      "width": 480,
+      "height": 480,
+      "length": 17,
+      "steps": 6,
+      "cfg": 1.0,
+      "pixel_size": 4,
+      "palette_colors": 32
+    },
+    "jump": {
+      "width": 480,
+      "height": 640,
+      "length": 21,
+      "steps": 8,
+      "cfg": 1.2,
+      "pixel_size": 4,
+      "palette_colors": 32,
+      "_reason": "跳跃需要纵向空间和更多帧来表现四阶段"
+    },
+    "attack_sword": {
+      "width": 640,
+      "height": 480,
+      "length": 17,
+      "steps": 8,
+      "cfg": 1.2,
+      "pixel_size": 4,
+      "palette_colors": 32,
+      "_reason": "攻击需要横向空间展示挥剑弧线，高 cfg 保持细节"
+    },
+    "death": {
+      "width": 640,
+      "height": 480,
+      "length": 21,
+      "steps": 8,
+      "cfg": 1.0,
+      "pixel_size": 4,
+      "palette_colors": 32,
+      "_reason": "死亡倒下需要横向空间和更多帧"
+    },
+    "run": {
+      "width": 480,
+      "height": 480,
+      "length": 17,
+      "steps": 8,
+      "cfg": 1.0,
+      "pixel_size": 4,
+      "palette_colors": 32,
+      "_reason": "跑步动态大，步数提高到 8 保证帧间一致性"
+    }
+  },
+
+  "qc_thresholds": {
+    "_doc": "知识驱动的质检阈值，比硬编码阈值更精准",
+    "crop_edge_margin_ratio": 0.05,
+    "crop_fill_threshold": 0.20,
+    "consistency_max_diff_warning": 20,
+    "consistency_max_diff_critical": 35,
+    "consistency_avg_diff_acceptable": 12,
+    "color_shift_warning": 35,
+    "color_shift_critical": 60,
+    "saturation_loss_warning": 15,
+    "min_opaque_pixel_ratio": 0.10,
+    "max_opaque_pixel_ratio": 0.70
+  },
+
+  "retune_strategy": {
+    "_doc": "智能调参策略：根据问题严重程度和知识库计算调整幅度，而非简单递增",
+    "crop_detected": {
+      "action": "expand_canvas",
+      "method": "根据 composition_rules.aspect_ratio_by_action 计算目标尺寸，而非固定 +16px",
+      "max_dimension": 832
+    },
+    "consistency_low": {
+      "action": "increase_steps",
+      "method": "steps = min(current_steps + ceil((max_diff - threshold) / 5) * 2, 20)",
+      "also_consider": "如果 steps 已经 >= 12 但仍不一致，问题可能在驱动视频而非采样"
+    },
+    "color_shift": {
+      "action": "increase_palette",
+      "method": "palette = min(current_palette + ceil(color_shift / 10) * 8, 128)",
+      "also_consider": "如果偏移 > 60，可能是 prompt 描述不准确而非调色板问题"
+    }
+  }
+}

@@ -1,5 +1,9 @@
 # Trickster 角色跑步动画出图工单
 
+> **⚠️ 必读提醒**
+> 本次为**纯文生图 + 骨架控制**，不需要上传任何参考图到 IPAdapter（因为你截图里的 IPAdapter 已经连好了 Trickster 参考图，保持原样即可）。
+> 你的唯一操作是：**换骨架图 → 出图 → 换骨架图 → 出图**。
+
 ## 一、工单目标与接回定义
 
 本工单旨在通过 ComfyUI 生成 Trickster 角色的 8 帧跑步循环动画（Run Cycle），并确保输出结果能够直接通过项目内置的 `AI_SpriteSlicer` 工具一键导入 Unity。
@@ -15,54 +19,56 @@
 
 ---
 
-## 二、工作流搭建指南（IPAdapter + ControlNet）
+## 二、工作流改造指南（基于你现有的工作流）
 
-为了保证 8 帧动画中角色的服装、武器和特征高度一致，我们将采用 **IPAdapter（锁定角色特征） + ControlNet OpenPose（锁定跑步姿态） + LoRA（锁定画风）** 的组合工作流。
+请对照你发给我的最后一张截图，进行以下 3 步微调：
 
-### 1. 核心节点连线
-请在现有的文生图工作流基础上，添加并连接以下节点：
+### 1. 调整 LoRA 权重
+- **哪个节点**：`加载LoRA`
+- **怎么改**：把 `模型强度` 和 `CLIP强度` 从 `1.00` 改为 **`0.60`**
+- **为什么改**：根据之前的验证结论，角色类资产在 0.6 权重下表现最稳定，1.0 会导致装饰过度夸张。
 
-1. **恢复 IPAdapter**：取消之前 Bypass 的 `IPAdapter Unified Loader` 和 `IPAdapter Advanced` 节点。
-2. **加载参考图**：在 `加载图像` 节点中，上传 Trickster 的角色参考图（红冠头盔、持矛盾的女战士）。
-3. **添加 ControlNet**：
-   - 新建 `Load ControlNet Model` 节点，选择 OpenPose 模型（如 `control-lora-openposeXL`）。
-   - 新建 `ControlNet Apply (Advanced)` 节点。
-   - 将正向/负向 Prompt 连入 ControlNet Apply，再输出给 KSampler。
-4. **加载骨架图**：新建一个 `加载图像` 节点，用于逐帧上传我为你准备的 8 张 OpenPose 骨架图，并连入 ControlNet Apply 的 `image` 输入。
+### 2. 调整 CFG（可选）
+- **哪个节点**：`K采样器`
+- **怎么改**：你截图里是 `6.0`，可以保持不动。
+- **为什么改**：6.0 在甜区内，能让画面更柔和。
 
-### 2. 全局参数设置
-| 参数项 | 设定值 | 说明 |
-|---|---|---|
-| **大模型 (Checkpoint)** | `sd_xl_base_1.0.safetensors` | 保持与验证时一致 |
-| **LoRA 模型** | `MarioTrickster_Style_epoch_10` | 权重设为 **0.6**（角色类推荐权重） |
-| **IPAdapter 权重** | `0.7` ~ `0.8` | 确保角色特征（红冠、矛、盾）被稳定注入 |
-| **ControlNet 权重** | `1.0` | 必须强控制，防止动作变形 |
-| **分辨率** | `512 x 768` | 竖版比例，适合站立/跑步角色 |
-| **采样参数** | Steps: 35, CFG: 8.0, Sampler: euler_ancestral | 沿用你已调好的参数 |
-| **种子 (Seed)** | **固定 (Fixed)** | 8 帧必须使用同一个 Seed，最大程度减少帧间闪烁 |
+### 3. 设置自动保存命名（最省力方案）
+- **哪个节点**：`保存图像`
+- **怎么改**：把 `文件名前缀` 里的内容清空，只填入 **`trickster_run`**
+- **为什么改**：这样 ComfyUI 会自动帮你把 8 帧命名为 `trickster_run_00001_.png` 到 `00008_.png`，你跑图时就**完全不用再管文件名了**。
 
 ---
 
-## 三、提示词配方
+## 三、全程绝对不能动的参数
 
-### 正向提示词 (Positive Prompt)
-> trickster_style, 1girl, spartan warrior, red crested helmet, dark armor, leather skirt, holding spear in right hand, holding round shield in left hand, green eyes, black short hair, running pose, side view, looking right, 2D side-scrolling game sprite, pixel art, flat color background, isolated, full body, consistent lighting, high contrast, sharp edges
+在跑这 8 帧的过程中，以下参数**绝对不能动**，否则会导致帧间闪烁或风格突变：
 
-### 负向提示词 (Negative Prompt)
-> worst quality, blurry, photorealistic, 3d render, shading gradients, isometric, top-down view, bird eye view, multiple girls, deformed limbs, bad anatomy, missing spear, missing shield
-
-*(注：必须包含 `flat color background` 以确保背景纯净，方便后续一键去背。)*
+1. **Seed（种子）**：必须保持你截图里的 `333335`，且控制模式必须是 `fixed`（固定）。
+2. **正向/负向 Prompt**：保持你截图里的内容，一个字都不要改。
+3. **IPAdapter 所有参数**：保持你截图里的 `weight 0.70`、`end_at 0.850` 等，不要动。
+4. **ControlNet 强度**：保持 `1.00`。
 
 ---
 
-## 四、逐帧执行清单
+## 四、逐帧跑图操作节奏（极简循环）
 
-我已经为你生成了 8 张标准的 OpenPose 跑步骨架图（`run_pose_f01.png` 到 `run_pose_f08.png`）。请按以下步骤逐帧出图：
+我已经把 8 张骨架图打包发给你了（`trickster_run_pose_8frames.zip`）。解压后，按以下节奏操作：
 
-1. **锁定 Seed**：在 KSampler 中随便填一个数字，并将模式设为 `fixed`。
-2. **跑第 1 帧**：在 ControlNet 的图像输入节点中，加载 `run_pose_f01.png`，点击出图，保存为 `frame_1.png`。
-3. **跑第 2 帧**：将图像替换为 `run_pose_f02.png`，**不要改 Seed**，点击出图，保存为 `frame_2.png`。
-4. **循环执行**：重复上述操作，直到跑完 8 帧。
+**第 1 帧：**
+1. 在 `加载图像`（连着 ControlNet 的那个）节点中，点击 `选择文件上传`，把解压出来的 8 张图**全部全选上传**。
+2. 确保当前显示的是 **`run_pose_f01.png`**。
+3. 点击 **Queue Prompt** 出图。
+4. （不用管保存，它会自动存为 `trickster_run_00001_.png`）
+
+**第 2 帧：**
+1. 点击 `加载图像` 节点上的 **▶ 右箭头**，切换到 **`run_pose_f02.png`**。
+2. 点击 **Queue Prompt** 出图。
+
+**第 3 帧 ~ 第 8 帧：**
+1. 继续点 **▶ 右箭头** 切换到下一帧（f03、f04...）。
+2. 点击 **Queue Prompt** 出图。
+3. 循环直到跑完 `run_pose_f08.png`。
 
 ---
 

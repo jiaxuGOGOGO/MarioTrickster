@@ -1129,7 +1129,12 @@ def main():
     # 知识驱动的首次参数优化：根据 action 类型自动应用蒸馏知识中的最优参数
     # 只在用户未手动指定对应参数时才生效，手动指定的优先级最高
     if HAS_KNOWLEDGE and not args.postprocess_only:
-        optimal = knowledge_loader.get_optimal_params(args.action, config)
+        optimal = knowledge_loader.get_optimal_params(
+            args.action,
+            config,
+            project_overrides=config_data.get("project_generation_overrides", {}),
+            runtime=config_data.get("runtime", {}),
+        )
         user_overrides = {
             "width": args.width, "height": args.height, "length": args.length,
             "steps": args.steps, "cfg": None, "pixel_size": args.pixel_size,
@@ -1141,7 +1146,26 @@ def main():
                 config[key] = optimal[key]
                 applied.append(f"{key}={optimal[key]}")
         if applied:
-            print(f"[\u77e5\u8bc6\u4f18\u5316] \u9996\u6b21\u751f\u6210\u53c2\u6570\u5df2\u6839\u636e\u84b8\u998f\u77e5\u8bc6\u8c03\u6574: {', '.join(applied)}")
+            print(f"[\u77e5\u8bc6\u4f18\u5316] \u9996\u6b21\u751f\u6210\u53c2\u6570\u5df2\u6839\u636e\u84b8\u998f\u77e5\u8bc6\u4e0e\u9879\u76ee\u6863\u4f4d\u8c03\u6574: {', '.join(applied)}")
+
+    if HAS_KNOWLEDGE:
+        safe_keys = ("width", "height", "length", "steps", "cfg", "pixel_size", "palette_colors")
+        safe_input = {k: config[k] for k in safe_keys if k in config}
+        safe_params, guard = knowledge_loader.get_runtime_safe_params(
+            safe_input,
+            config_data.get("runtime", {}),
+        )
+        clamp_applied = []
+        for key, value in safe_params.items():
+            if key in config and config.get(key) != value:
+                clamp_applied.append(f"{key}={config.get(key)}→{value}")
+                config[key] = value
+        if clamp_applied:
+            print(f"[12GB护栏] 已按项目显存预算收敛参数: {', '.join(clamp_applied)}")
+        elif guard.get("changed"):
+            compact = ", ".join(f"{k}={old}→{new}" for k, old, new in guard["changed"])
+            print(f"[12GB护栏] 已执行规格归一化: {compact}")
+        print(f"[运行档位] profile={guard.get('profile')} vram={guard.get('vram_gb')}GB budget={guard.get('budget')} final={guard.get('final_cost')}")
 
     # 仅后处理模式
     if args.postprocess_only:

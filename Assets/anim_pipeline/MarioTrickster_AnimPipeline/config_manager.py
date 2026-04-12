@@ -79,6 +79,20 @@ DEFAULT_CONFIG_TEMPLATE = {
         "remove_bg": True, "sprite_cols": 8,
         "output_dir": "./output",
     },
+    "runtime": {
+        "project_profile": "mariotrickster_12gb_safe",
+        "vram_gb": 12,
+        "enforce_vram_guard": True,
+    },
+    "project_generation_overrides": {
+        "idle": {"width": 480, "height": 480, "length": 17, "steps": 6},
+        "walk": {"width": 480, "height": 480, "length": 17, "steps": 6},
+        "run": {"width": 480, "height": 480, "length": 17, "steps": 6},
+        "jump": {"width": 416, "height": 544, "length": 17, "steps": 6},
+        "attack_sword": {"width": 544, "height": 416, "length": 17, "steps": 6},
+        "death": {"width": 544, "height": 416, "length": 17, "steps": 6},
+        "dash": {"width": 480, "height": 480, "length": 17, "steps": 6},
+    },
 }
 
 

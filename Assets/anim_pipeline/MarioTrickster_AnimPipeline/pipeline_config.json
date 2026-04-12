@@ -1,0 +1,94 @@
+{
+    "comfyui_root": "",
+    "blender_exe": "",
+    "server": "127.0.0.1:8188",
+    "models": {
+        "unet": {
+            "pattern": "Wan2*Animate*14B*.safetensors",
+            "folder": "diffusion_models"
+        },
+        "clip": {
+            "pattern": "umt5*xxl*.safetensors",
+            "folder": "text_encoders"
+        },
+        "vae": {
+            "pattern": "wan*vae*.safetensors",
+            "folder": "vae"
+        },
+        "clip_vision": {
+            "pattern": "clip_vision_h*.safetensors",
+            "folder": "clip_vision"
+        },
+        "lora": {
+            "pattern": "lightx2v*I2V*14B*.safetensors",
+            "folder": "loras"
+        }
+    },
+    "generation": {
+        "width": 480,
+        "height": 480,
+        "length": 17,
+        "steps": 6,
+        "cfg": 1.0,
+        "sampler": "euler",
+        "scheduler": "simple",
+        "seed": -1,
+        "_note": "length 必须为 4n+1；MarioTrickster 的 12GB 默认安全档为 480x480 / 17帧 / 6步"
+    },
+    "postprocess": {
+        "pixel_size": 4,
+        "palette_colors": 32,
+        "remove_bg": true,
+        "sprite_cols": 8,
+        "output_dir": "./output"
+    },
+    "runtime": {
+        "project_profile": "mariotrickster_12gb_safe",
+        "vram_gb": 12,
+        "enforce_vram_guard": true
+    },
+    "project_generation_overrides": {
+        "idle": {
+            "width": 480,
+            "height": 480,
+            "length": 17,
+            "steps": 6
+        },
+        "walk": {
+            "width": 480,
+            "height": 480,
+            "length": 17,
+            "steps": 6
+        },
+        "run": {
+            "width": 480,
+            "height": 480,
+            "length": 17,
+            "steps": 6
+        },
+        "jump": {
+            "width": 416,
+            "height": 544,
+            "length": 17,
+            "steps": 6
+        },
+        "attack_sword": {
+            "width": 544,
+            "height": 416,
+            "length": 17,
+            "steps": 6
+        },
+        "death": {
+            "width": 544,
+            "height": 416,
+            "length": 17,
+            "steps": 6
+        },
+        "dash": {
+            "width": 480,
+            "height": 480,
+            "length": 17,
+            "steps": 6
+        }
+    }
+}

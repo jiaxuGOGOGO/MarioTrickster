@@ -166,6 +166,16 @@ blender --background --python blender_render_drive_video.py -- \
 | `--palette` | 32 | 调色板颜色数（像素风格通常16-64色） |
 | `--no-bg-remove` | false | 跳过去背景步骤 |
 
+> **12GB 安全档已固化**：默认 `480×480 / 17帧 / 6步` 就是 MarioTrickster 当前的安全起跑线。
+>
+> **项目专属参数入口**：现在可直接在 `pipeline_config.json` 的 `project_generation_overrides` 中按动作写入项目参数；主管线会自动注入这些参数，并在超过 `runtime.vram_gb` 预算时自动收敛，优先压回 **17 帧 / 6 步**，必要时再按比例缩分辨率，避免爆显存。
+
+| 动作 | 12GB 项目安全档 |
+|------|-----------------|
+| `idle` / `walk` / `run` / `dash` | `480×480, 17帧, 6步` |
+| `jump` | `416×544, 17帧, 6步` |
+| `attack_sword` / `death` | `544×416, 17帧, 6步` |
+
 ---
 
 ## 管线架构
@@ -212,7 +222,7 @@ blender --background --python blender_render_drive_video.py -- \
 
 **ComfyUI 连接失败**：确认 ComfyUI 已启动，默认端口 8188。可用 `--server` 指定其他地址。
 
-**显存不足 (OOM)**：降低分辨率 `--width 320 --height 320`，或使用 fp8 量化模型。
+**显存不足 (OOM)**：先确认 `pipeline_config.json` 中 `runtime.vram_gb` 是否与本机一致。现在主管线会自动把超预算参数收敛到项目安全档；若仍然紧张，再手动降到 `--width 320 --height 320`，或使用 fp8 量化模型。
 
 **生成的视频闪烁**：这说明 Move 模式工作正常但参数需要调整。尝试增加 `--steps 10` 或调整 seed。
 

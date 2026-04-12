@@ -1,21 +1,29 @@
 #!/usr/bin/env python3
 """
-knowledge_loader.py v2.1 — MarioTrickster 蒸馏知识加载器
+knowledge_loader.py v2.2 — MarioTrickster 蒸馏知识加载器
 ========================================================
 从 distilled_knowledge.json 加载全量蒸馏知识，为管线提供：
-  1. get_optimal_params(action, base_cfg)  → 首次出图最优参数
-  2. enhance_prompt(action, pos, neg)      → 知识增强 Prompt
-  3. get_qc_thresholds()                   → QC 阈值
-  4. compute_retune(issue, severity, cfg, action) → 智能调参
-  5. get_blender_settings(action)          → Blender 渲染参数
-  6. get_mixamo_preset(action)             → Mixamo 搜索参数
-  7. get_defect_fix_prompt(defect, action) → 缺陷修复 Prompt 补丁
+  1. get_optimal_params(action, base_cfg, project_overrides, runtime) → 首次出图最优参数
+  2. get_runtime_safe_params(params, runtime)                          → 12GB/项目档位显存护栏
+  3. enhance_prompt(action, pos, neg)                                  → 知识增强 Prompt
+  4. get_qc_thresholds()                                               → QC 阈值
+  5. compute_retune(issue, severity, cfg, action)                      → 智能调参
+  6. get_blender_settings(action)                                      → Blender 渲染参数
+  7. get_mixamo_preset(action)                                         → Mixamo 搜索参数
+  8. get_defect_fix_prompt(defect, action)                             → 缺陷修复 Prompt 补丁
 """
 
-import json, math, os
+import json
+import math
+import os
 
 _PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "distilled_knowledge.json")
 _cache = {"data": None, "mtime": 0}
+
+_BASE_12GB_BUDGET = 480 * 480 * 17 * 6
+_DIM_FLOOR = 256
+_MIN_LENGTH = 9
+_MIN_STEPS = 4
 
 
 def _load():
@@ -34,9 +42,120 @@ def get_knowledge():
     return _load()
 
 
+# ── 通用工具 ──
+
+def _align_down_16(value, floor=_DIM_FLOOR):
+    value = max(int(value or floor), floor)
+    return max(floor, (value // 16) * 16)
+
+
+def _normalize_length(value):
+    value = max(int(value or _MIN_LENGTH), _MIN_LENGTH)
+    normalized = ((value - 1) // 4) * 4 + 1
+    return max(_MIN_LENGTH, normalized)
+
+
+def _normalize_steps(value):
+    return max(_MIN_STEPS, int(value or _MIN_STEPS))
+
+
+def _estimate_cost(params):
+    width = int(params.get("width", 480) or 480)
+    height = int(params.get("height", 480) or 480)
+    length = int(params.get("length", 17) or 17)
+    steps = int(params.get("steps", 6) or 6)
+    return width * height * length * steps
+
+
+def get_runtime_safe_params(params, runtime=None):
+    """
+    根据运行档位收敛生成参数，默认以 12GB 显存为安全基线。
+    返回: (safe_params, guard_info)
+    """
+    runtime = dict(runtime or {})
+    safe = dict(params or {})
+    guard = {
+        "changed": [],
+        "vram_gb": float(runtime.get("vram_gb", 12) or 12),
+        "profile": runtime.get("project_profile", "mariotrickster_12gb_safe"),
+    }
+
+    if not runtime.get("enforce_vram_guard", True):
+        return safe, guard
+
+    for dim in ("width", "height"):
+        if dim in safe:
+            new_val = _align_down_16(safe[dim])
+            if new_val != safe[dim]:
+                guard["changed"].append((dim, safe[dim], new_val))
+                safe[dim] = new_val
+
+    if "length" in safe:
+        new_len = _normalize_length(safe["length"])
+        if new_len != safe["length"]:
+            guard["changed"].append(("length", safe["length"], new_len))
+            safe["length"] = new_len
+
+    if "steps" in safe:
+        new_steps = _normalize_steps(safe["steps"])
+        if new_steps != safe["steps"]:
+            guard["changed"].append(("steps", safe["steps"], new_steps))
+            safe["steps"] = new_steps
+
+    vram_gb = max(4.0, guard["vram_gb"])
+    budget = int(_BASE_12GB_BUDGET * (vram_gb / 12.0))
+
+    if vram_gb <= 12:
+        preferred_caps = {"length": 17, "steps": 6}
+    elif vram_gb <= 16:
+        preferred_caps = {"length": 21, "steps": 8}
+    else:
+        preferred_caps = {"length": 33, "steps": 10}
+
+    for key, cap in preferred_caps.items():
+        if key in safe and safe[key] > cap:
+            guard["changed"].append((key, safe[key], cap))
+            safe[key] = cap
+
+    current_cost = _estimate_cost(safe)
+
+    if current_cost > budget and "steps" in safe and safe["steps"] > _MIN_STEPS:
+        target_steps = max(_MIN_STEPS, min(safe["steps"], int(budget / max(1, safe["width"] * safe["height"] * safe["length"])) ))
+        target_steps = max(_MIN_STEPS, target_steps)
+        if target_steps < safe["steps"]:
+            guard["changed"].append(("steps", safe["steps"], target_steps))
+            safe["steps"] = target_steps
+            current_cost = _estimate_cost(safe)
+
+    if current_cost > budget and "length" in safe and safe["length"] > _MIN_LENGTH:
+        target_length = int(budget / max(1, safe["width"] * safe["height"] * safe["steps"]))
+        target_length = _normalize_length(min(safe["length"], target_length))
+        target_length = max(_MIN_LENGTH, target_length)
+        if target_length < safe["length"]:
+            guard["changed"].append(("length", safe["length"], target_length))
+            safe["length"] = target_length
+            current_cost = _estimate_cost(safe)
+
+    if current_cost > budget and "width" in safe and "height" in safe:
+        ratio = math.sqrt(budget / current_cost)
+        new_w = _align_down_16(max(_DIM_FLOOR, int(safe["width"] * ratio)))
+        new_h = _align_down_16(max(_DIM_FLOOR, int(safe["height"] * ratio)))
+        if new_w != safe["width"]:
+            guard["changed"].append(("width", safe["width"], new_w))
+            safe["width"] = new_w
+        if new_h != safe["height"]:
+            guard["changed"].append(("height", safe["height"], new_h))
+            safe["height"] = new_h
+        current_cost = _estimate_cost(safe)
+
+    guard["budget"] = budget
+    guard["final_cost"] = current_cost
+    return safe, guard
+
+
 # ── 1. 首次出图参数 ──
 
-def get_optimal_params(action_type, base_config=None):
+def get_optimal_params(action_type, base_config=None, project_overrides=None, runtime=None):
     kb = _load()
     result = dict(base_config) if base_config else {}
     act = kb.get("actions", {}).get(action_type, {})
@@ -45,11 +164,14 @@ def get_optimal_params(action_type, base_config=None):
     for short, full in mapping.items():
         if short in gen:
             result[full] = gen[short]
-    # 对齐 16 倍数
-    for dim in ("width", "height"):
-        if dim in result:
-            result[dim] = (result[dim] // 16) * 16
-    return result
+
+    override = (project_overrides or {}).get(action_type, {})
+    for key in ("width", "height", "length", "steps", "cfg", "pixel_size", "palette_colors"):
+        if key in override:
+            result[key] = override[key]
+
+    safe_result, _ = get_runtime_safe_params(result, runtime)
+    return safe_result
 
 
 # ── 2. Prompt 增强 ──
@@ -217,7 +339,6 @@ def get_vfx_knowledge(effect_type):
 
 
 # ── 7. 缺陷修复 ──
-
 _DEFECT_FIX = {
     "滑步": "trailing heel kicks up backward first then swings forward in arc, NOT straight slide",
     "slide": "trailing heel kicks up backward first then swings forward in arc, NOT straight slide",
@@ -248,7 +369,6 @@ def get_defect_fix_prompt(defect_keyword, action_type=""):
 
 
 # ── 自测 ──
-
 if __name__ == "__main__":
     kb = get_knowledge()
     print(f"v{kb['_meta']['version']} | style: {kb['style']['visual_identity'][:40]}...")
@@ -265,6 +385,9 @@ if __name__ == "__main__":
 
     p = get_optimal_params("jump", {"width": 480, "height": 480, "steps": 6})
     print(f"\njump params: {p}")
+
+    safe, guard = get_runtime_safe_params({"width": 640, "height": 480, "length": 21, "steps": 8}, {"vram_gb": 12})
+    print(f"\nruntime safe: {safe} | guard={guard}")
 
     print(f"\nwalk rules: {get_core_rules_for_action('walk')}")
     print(f"defect fix '滑步': {get_defect_fix_prompt('滑步', 'walk')}")

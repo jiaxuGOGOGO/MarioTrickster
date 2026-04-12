@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 99（美术管线优化调研 — WAN 2.2 方案落地） |
+| **最新 Session** | Session 100（动画管线 12GB 安全档固化） |
 | **日期** | 2026-04-12 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 关卡主线桥接期 — S99 完成美术管线瓶颈诊断和全网调研，核心结论：LoRA 只能学风格不能学动画，帧间一致性必须靠视频扩散模型（WAN 2.2）解决。已产出 `PIPELINE_OPTIMIZATION_PLAN_2026.md` 落库到美术仓库。 |
-| **编译状态** | ✅ 无代码编译变更；本次为仓库结构迁移 + 协议文档替换 |
-| **阻塞** | ✅ 无。美术分离已完成，接管协议已替换。用户本地执行 `git pull --recurse-submodules` 即可同步。 |
-| **交接说明** | S99 完成：美术管线优化方案 `docs/PIPELINE_OPTIMIZATION_PLAN_2026.md` 已落库到 MarioTrickster-Art 仓库。核心方案：放弃逐帧生成，转向 WAN 2.2 Animate Move（单图+驱动视频→角色动画视频→Sprite Sheet）。蒸馏知识重新定位为风格 LoRA + Prompt 工程 + 评审标准。**默认下一步：搭建 WAN 2.2 ComfyUI 工作流并灰度测试。** |
+| **阶段** | Sprint 2.5 关卡主线桥接期 — S100 将 MarioTrickster 动画管线的 12GB 安全档正式落库，默认 `480×480 / 17帧 / 6步` 固化为项目基线，并新增动作级项目参数覆盖与自动显存护栏。 |
+| **编译状态** | ✅ Python 管线脚本改动，尚未影响 Unity 编译；需用户本地拉取后按既有方式跑一次动画管线烟测。 |
+| **阻塞** | ✅ 无。项目专属参数入口已落到 `pipeline_config.json`，主管线会自动注入并在超预算时收敛。 |
+| **交接说明** | S100 完成：`run_pipeline.py` 已接入 `project_generation_overrides` + `runtime.vram_gb`，`knowledge_loader.py` 新增 12GB 显存护栏，默认会把超预算组合优先压回 **17帧 / 6步**，再按比例收缩分辨率。`jump` / `attack_sword` / `death` 已给出项目安全档。后续若新增动作，只需补 `pipeline_config.json` 对应条目即可。 |
 
 ---
 
@@ -123,6 +123,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
+| 🔄 | 测试 0：动画管线 12GB 烟测 | **S100重点验证**: 默认 `480×480 / 17帧 / 6步` 可直跑；`jump` 自动走 `416×544 / 17帧 / 6步`；手动传入超预算参数时日志出现 `[12GB护栏]` 且不会爆显存 |
 | 🔄 | 测试 1：Mario 基础移动 | **S52重点验证**: WASD + Space 手感不变（PhysicsConfigSO 默认值与原硬编码一致），单独按S不触发下落，S36落地压扁仅高速下落触发 |
 | 🔄 | 测试 2：Trickster 移动 | **S49重点验证**: 方向键移动正常；融入后方向键切换目标不移动（输入解耦后行为完全一致） |
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |

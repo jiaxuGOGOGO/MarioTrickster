@@ -52,52 +52,94 @@ DEFAULT_CONFIG = {
 
 
 # ============================================================
-# Prompt 模板库（从 mixamo_presets.json 动态加载，无需改代码）
+# Prompt 模板库（优先从知识库加载，回退到 mixamo_presets.json）
 # ============================================================
 
 def _load_prompt_templates():
     """
-    从 mixamo_presets.json 动态构建 PROMPT_TEMPLATES。
-    你只需维护 mixamo_presets.json，脚本自动识别所有动作。
-    每个 action 的 positive prompt 由 animation_principles 自动拼装。
+    优先从 distilled_knowledge.json 构建 PROMPT_TEMPLATES（知识驱动版）。
+    回退到 mixamo_presets.json（兼容旧版）。
+    知识库中的 boost 词和画风 Prompt 会在 enhance_prompt 阶段叠加，
+    这里只构建基础模板。
     """
-    presets_file = Path(__file__).parent / "mixamo_presets.json"
-    base_suffix = "clean sprite style, 2D side-scrolling platformer, solid color background, sharp pixel edges"
+    base_suffix = "clean sprite style, 2D side-scrolling platformer, solid color background, sharp edges, thick black outlines"
 
-    # 内置兜底模板（presets 文件不可读时使用）
+    # 内置兜底模板
     fallback = {
         "run": {
-            "positive": f"A pixel art game character running in side view, dynamic running animation with anticipation pose, arms swinging, legs in full stride cycle, {base_suffix}",
+            "positive": f"A game character running in side view, dynamic running animation, arms swinging, legs in full stride, {base_suffix}",
             "negative_extra": "",
             "mixamo_tips": "选择带预备蹲的跑步动画"
         },
         "idle": {
-            "positive": f"A pixel art game character standing idle, subtle breathing animation, slight body sway, relaxed pose, {base_suffix}",
+            "positive": f"A game character standing idle, subtle breathing animation, slight body sway, relaxed pose, {base_suffix}",
             "negative_extra": "",
             "mixamo_tips": "选择 Breathing Idle"
         },
         "jump": {
-            "positive": f"A pixel art game character jumping, anticipation squat to full jump arc, arms raised, dynamic pose, {base_suffix}",
+            "positive": f"A game character jumping, anticipation squat to full jump arc, arms raised, dynamic pose, {base_suffix}",
             "negative_extra": "",
             "mixamo_tips": "选择包含预备蹲的 Jump"
         },
         "walk": {
-            "positive": f"A pixel art game character walking in side view, natural walking cycle, arms gently swinging, {base_suffix}",
+            "positive": f"A game character walking in side view, natural walking cycle, arms gently swinging, {base_suffix}",
             "negative_extra": "",
             "mixamo_tips": "选择 Walking"
         },
         "death": {
-            "positive": f"A pixel art game character falling down defeated, dramatic collapse animation, {base_suffix}",
+            "positive": f"A game character falling down defeated, dramatic collapse animation, {base_suffix}",
             "negative_extra": "",
             "mixamo_tips": "选择 Dying"
         },
+        "attack_sword": {
+            "positive": f"A game character swinging sword, wind-up to strike, impact freeze, {base_suffix}",
+            "negative_extra": "",
+            "mixamo_tips": "选择 Sword And Shield Slash"
+        },
+        "dash": {
+            "positive": f"A game character dashing forward, extreme lean, speed lines, {base_suffix}",
+            "negative_extra": "",
+            "mixamo_tips": "选择 Sprint"
+        },
         "custom": {
-            "positive": f"A pixel art game character performing action, {base_suffix}",
+            "positive": f"A game character performing action, {base_suffix}",
             "negative_extra": "",
             "mixamo_tips": "自定义动作"
         }
     }
 
+    # 优先从知识库构建
+    if HAS_KNOWLEDGE:
+        try:
+            kb = knowledge_loader.get_knowledge()
+            actions = kb.get("actions", {})
+            if actions:
+                templates = {}
+                for action_key, act_data in actions.items():
+                    if action_key.startswith("_"):
+                        continue
+                    boost = act_data.get("boost", "")
+                    mixamo = act_data.get("mixamo", {})
+                    search = mixamo.get("search", action_key)
+                    positive = f"A game character performing {search.lower()} animation in side view"
+                    if boost:
+                        positive += f", {boost}"
+                    positive += f", {base_suffix}"
+                    defects = act_data.get("defects", [])
+                    neg_extra = ", ".join(defects[:3]) if defects else ""
+                    templates[action_key] = {
+                        "positive": positive,
+                        "negative_extra": neg_extra,
+                        "mixamo_tips": f"选择 {search}"
+                    }
+                if "custom" not in templates:
+                    templates["custom"] = fallback["custom"]
+                return templates
+        except Exception:
+            pass
+
+    # 回退到 mixamo_presets.json
+    presets_file = Path(__file__).parent / "mixamo_presets.json"
     try:
         with open(presets_file, encoding="utf-8") as f:
             data = json.load(f)
@@ -108,9 +150,8 @@ def _load_prompt_templates():
     for action_key, action_data in data.get("actions", {}).items():
         search_term = action_data.get("search_term", action_key)
         principles = action_data.get("animation_principles", [])
-        # 将动画原理转为 prompt 描述词
         principles_text = ", ".join(principles) if principles else ""
-        positive = f"A pixel art game character performing {search_term.lower()} animation in side view"
+        positive = f"A game character performing {search_term.lower()} animation in side view"
         if principles_text:
             positive += f", {principles_text}"
         positive += f", {base_suffix}"

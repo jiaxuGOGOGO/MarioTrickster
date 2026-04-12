@@ -1,594 +1,166 @@
 {
   "_meta": {
     "title": "MarioTrickster 蒸馏知识库",
-    "version": "2.0.0",
-    "source": "MarioTrickster-Art/prompts/PROMPT_RECIPES.md (抽屉1-4全量蒸馏)",
-    "description": "从 PROMPT_RECIPES.md 核心规则 + PDF 书籍蒸馏的结构化知识。驱动首次出图参数优化、Prompt 增强和智能质检。",
-    "style_epoch": "S81+ (吉卜力BG × BD描边 × 游戏俯瞰，像素风已废弃)",
-    "usage": "由 knowledge_loader.py 自动加载，run_pipeline.py 在构建工作流时调用。",
-    "how_to_add_knowledge": "上传 PDF 后，将蒸馏结论按分区格式追加到对应数组中，管线下次运行自动生效。"
+    "version": "2.1.0",
+    "source": "PROMPT_RECIPES.md 全量蒸馏 + trickster_style LoRA 实测结论 + PDF 书籍蒸馏",
+    "description": "驱动首次出图参数优化、Prompt 增强和智能质检的统一知识源。管线自动热加载。",
+    "how_to_add": "上传 PDF 后蒸馏结论按分区追加，管线下次运行自动生效。"
   },
 
-  "style_foundation": {
-    "_doc": "S81确立的基准画风，替代旧版 pixel_art_rules（已废弃）",
-    "current_style": "anime_background_art_cel_outline",
-    "deprecated_style": "pixel_art (已废弃，不再使用)",
-    "positive_prompt_base": "masterpiece, best quality, anime background art, (thick black outlines:1.3), (hand-drawn ink outlines:1.2), (cel shading:1.2), (flat color fill:1.1), (limited color palette:1.1), (simplified shadow 2-tone:1.2), (cool blue shadow:1.1), warm natural color scheme, earthy tones, no gradient shading, no realistic rendering, game asset background, 2D side-scroller environment",
-    "negative_prompt_base": "(worst quality:1.4), (low quality:1.4), blurry, gradient shading, realistic, photorealistic, 3D render, smooth airbrush, no outlines, soft edges, anti-aliasing, text, watermark, oversaturated, HDR, lens flare, bloom, multiple light sources, complex shadows",
-    "style_drift_rules": {
-      "anchor_check_interval": "每连续生成 3-5 个资产必须回看概念锚点",
-      "structure_lock_phase": "前 30%-40% 步数锁定结构",
-      "img2img_denoise_safe": [0.20, 0.40],
-      "img2img_denoise_danger": 0.50,
-      "rule": "denoising > 0.50 视为高风险漂移区"
+  "style": {
+    "_doc": "画风定义：以 trickster_style LoRA 实测结论为准",
+    "lora": {
+      "file": "MarioTrickster_Style_epoch_10.safetensors",
+      "trigger": "trickster_style",
+      "weight": {"scene": 0.8, "character": 0.7, "prop": 0.6},
+      "depollute": ["red roof", "cone roof", "isometric", "top-down view", "bird eye view", "orange brick", "orange path", "small character", "tiny figure"]
     },
-    "outline_rules": [
-      "thick black outlines (hand-drawn ink style)",
-      "轮廓线应有粗细变化（线的抑扬）",
-      "CSI线质理论：C(curve)/S(s_curve)=柔软有机, I(straight)=硬度张力",
-      "MarioTrickster = 卡通风 → C/S 主体 + I(陷阱/人工物)"
-    ],
-    "shading_style": "cel_shading_2_tone_simplified_shadow",
-    "color_rules": {
-      "palette": "limited warm natural, earthy tones",
-      "base_70_main_25_accent_5": true,
-      "shadow_color": "cool blue shadow (not pure black)",
-      "highlight": "warm yellow tint in sunlit areas",
-      "saturation_range": [45, 75],
-      "avoid": ["oversaturated neon", "cold blue tint overall", "muddy desaturated"]
+    "visual_identity": "清晰黑色线稿边界、平涂色块、明亮高饱和配色、插画化2D游戏资产",
+    "positive_base": "masterpiece, best quality, 2D side-scroller game sprite, (thick black outlines:1.3), (hand-drawn ink outlines:1.2), (cel shading:1.2), (flat color fill:1.1), (limited color palette:1.1), (simplified shadow 2-tone:1.2), warm natural color scheme, bright saturated colors, game asset, trickster_style",
+    "negative_base": "(worst quality:1.4), (low quality:1.4), blurry, gradient shading, realistic, photorealistic, 3D render, smooth airbrush, no outlines, soft edges, text, watermark, oversaturated, HDR, lens flare, bloom, red roof, cone roof, isometric, top-down view, bird eye view, orange brick, small character, tiny figure",
+    "color": {
+      "palette": "limited warm, bright saturated, earthy tones",
+      "shadow": "cool blue-grey (not pure black)",
+      "avoid": ["oversaturated neon", "cold blue tint", "muddy desaturated"]
+    },
+    "outline": "thick black ink outlines with weight variation (CSI: C/S=organic, I=traps/artificial)",
+    "shading": "cel_shading_2_tone",
+    "denoise_safe": [0.20, 0.40],
+    "denoise_danger": 0.50,
+    "physics": {
+      "cell_size": 1.0,
+      "ppu": 32,
+      "tile_px": 32,
+      "character_px": [48, 64],
+      "entity_pivot": "bottom_center_0.5_0",
+      "terrain_pivot": "center_0.5_0.5"
     }
   },
 
-  "composition_rules": {
-    "_doc": "构图规则 (蒸馏自抽屉2: 透视与构图)",
-    "canvas_margin": {
-      "top_percent": 10,
-      "bottom_percent": 8,
-      "side_percent": 15,
-      "rule": "角色四周必须留出足够空白，防止裁切"
-    },
-    "character_fill_ratio": {
-      "idle": 0.55, "run": 0.50, "walk": 0.55, "jump": 0.45,
-      "attack_sword": 0.50, "death": 0.45, "dash": 0.50
-    },
-    "aspect_ratio_by_action": {
-      "idle": [1, 1], "run": [1, 1], "walk": [1, 1], "jump": [3, 4],
-      "attack_sword": [4, 3], "death": [4, 3], "dash": [1, 1]
-    },
-    "composition_types_6": {
-      "_source": "構図6タイプ選択法則（吉田誠治）",
-      "types": ["center_hinomaru", "rule_of_thirds", "diagonal", "s_curve", "frame_within_frame", "triangle"],
-      "default_for_sprite": "center_hinomaru",
-      "default_for_concept": "rule_of_thirds"
-    },
-    "eye_guidance_layout": {
-      "_source": "目線誘導レイアウト法則（室井）",
-      "rule": "main_subject_large_centered, VP_above_main_subject, contrast_guidance"
-    },
-    "tangent_avoidance": {
-      "_source": "タンジェント回避法則（吉田誠治）",
-      "rule": "never let edges just touch; either separate or overlap"
-    },
-    "depth_spacing_compression": {
-      "_source": "奥行き間距圧縮法則（Telecom2）",
-      "rule": "receding objects closer together, equal spacing kills depth"
-    }
+  "animation_rules": {
+    "_doc": "核心动画规则（蒸馏自 PROMPT_RECIPES.md 抽屉3 + PDF书籍）",
+    "anti_slide": "角色重心锁死 Bottom Center (0.5,0)，最高优先级",
+    "controlnet": "所有带连续动作的生物关节角色强制 DWPose/OpenPose",
+    "contrapposto": {"rule": "对立力量，上下半身反向", "tags": "contrapposto, opposing forces, weight shift"},
+    "arc_of_motion": {"rule": "所有身体部位沿弧线运动，禁止线性插值", "tags": "smooth arc motion, curved trajectory"},
+    "loa": {"rule": "Line of Action=全身贯穿1条印象线，最先决定", "types": {"C": "back_arch", "S": "dynamic", "reverse_C": "lean_back"}},
+    "follow_through": {"rule": "软体附属物延迟2-3帧(发/披风/裙)", "tags": "hair follow-through, cloth wave propagation, flowing cape"},
+    "anticipation": {"rule": "所有快速动作必须有预备帧", "attack": "蓄力2-3帧慢→打击1-2帧极快→收势1帧慢", "jump": "前倾+蹲→起跳必须", "tags": "anticipation squat, wind-up before action"},
+    "squash_stretch": "适度使用，蹲=squash 空中=stretch",
+    "loop_closure": "循环动画末帧无缝接首帧，等间距",
+    "spacing": "加速=疏→密, 减速=密→疏, 循环=等距",
+    "gravity_tilt": {"rule": "完美平衡=静止, 微倾=即将动, 大倾=激烈运动", "tags": "dynamic pose, tilted center of gravity"},
+    "weight_1_5x": "重物画1.5倍大，身体无间隙接触，膝盖弯曲降重心"
   },
 
-  "perspective_rules": {
-    "_doc": "透视规则 (蒸馏自抽屉2)",
-    "vp_safety": {
-      "_source": "消失点配置安全法則（吉田誠治）",
-      "rules": [
-        "VP_outside_frame_safe",
-        "VP_overlap_subject_kills_depth",
-        "2point_VP_too_close_distorts"
-      ]
-    },
-    "camera_angle_table": {
-      "_source": "画角印象選択テーブル（吉田誠治）+ 広角/望遠レンズ効果法則（室井）",
-      "wide_angle": "strong perspective, center focus, immersive (1st person)",
-      "telephoto": "flat, scale emphasis, observational (3rd person)",
-      "standard_slightly_tele": "default for anime, no special intent"
-    },
-    "scene_dispatch": {
-      "gameplay_sprite": "pure side view maintained, negative isometric",
-      "concept_art": "multi-angle allowed, Side View First → 3/4 View workflow",
-      "tilemap_design": "isometric allowed"
-    },
-    "human_scale_reference": {
-      "_source": "人体スケール基準法則（室井）",
-      "door_height_cm": 180,
-      "window_eye_level_cm": 90,
-      "desk_height_cm": 70,
-      "building_height_cm": 400
-    }
-  },
-
-  "animation_core_rules": {
-    "_doc": "动画核心规则 (蒸馏自抽屉3: 动画与物理) — 所有标记为【核心規則】的条目",
-
-    "universal_physics": {
-      "anti_slide": {
-        "rule": "角色/敌人重心锁死在 Bottom Center (0.5, 0)，地形/陷阱重心为 Center (0.5, 0.5)",
-        "priority": "最高优先级"
-      },
-      "controlnet_mandatory": "所有带连续动作的生物关节角色强制启用 DWPose/OpenPose 预处理器",
-      "gravity_axis_tilt": {
-        "_source": "重心軸傾斜ダイナミズム法則（室井）【核心】",
-        "rule": "perfect_balance=static/dead, slight_tilt=about_to_move, large_tilt=intense_motion",
-        "prompt_tags": "dynamic pose, tilted center of gravity, off-balance stance"
-      },
-      "weight_expression_1_5x": {
-        "_source": "重量表現1.5倍法則（室井）【核心】",
-        "rule": "heavy_object_draw_1.5x_size, body_object_no_gap_contact, bent_knees_lowered_center"
-      }
-    },
-
-    "contrapposto": {
-      "_source": "対立力量法則（Contrapposto）【核心規則】",
-      "rule": "opposing_forces, upper_lower_body_counter_direction",
-      "detail": "力量从脚底向上传递，每个关节是方向改变节点；Major Forces=躯干核心(结构性), Minor Forces=四肢(装饰性)",
-      "prompt_tags": "contrapposto, opposing forces, weight shift"
-    },
-
-    "arc_of_motion": {
-      "_source": "運動曲線法則（Arc of Motion）【核心規則】",
-      "rule": "all body parts follow arcs, no linear interpolation",
-      "detail": "头/手/脚的帧间轨迹必须是平滑弧线；偏离弧线=视觉卡顿",
-      "prompt_tags": "smooth arc motion, curved trajectory"
-    },
-
-    "loa_impression_driven": {
-      "_source": "LoA（Line of Action）印象駆動法則（砂糖）【核心規則】",
-      "rule": "LoA=全身贯穿的1条印象线→最先决定",
-      "curve_types": {"C": "back_arch", "S": "dynamic", "reverse_C": "lean_back", "C_crouch": "crouch"},
-      "verb_driven": ["arching", "bending", "stretching", "twisting", "crouching"],
-      "scene_dispatch": "gesture/animation_keypose=本法则, character_sheet/turnaround=解剖精度优先"
-    },
-
-    "csi_line_theory": {
-      "_source": "CSI線質理論（砂糖）【核心規則】",
-      "rule": "C(curve)/S(s_curve)=softness/organic/feminine, I(straight)=hardness/tension/masculine",
-      "mario_trickster_ratio": "cartoon → C/S主体 + I(陷阱/人工物)"
-    },
-
-    "spacing_speed_control": {
-      "_source": "帧间距（Spacing）速度控制法则",
-      "rule": "accel=sparse_to_dense, decel=dense_to_sparse, loop=equal_spacing",
-      "heavy_object": "abrupt accel/decel",
-      "light_object": "gradual accel/decel"
-    },
-
-    "follow_through": {
-      "_source": "Follow-Through（跟随延迟）法则 + 波伝播法則（Telecom2）",
-      "rule": "soft appendage lag 2-3 frames (hair/cape/tail/skirt)",
-      "wave_propagation": "force travels root to tip, each segment delays 1-2 frames",
-      "flag_amplitude": "fixed edge tight ripples → free edge large waves",
-      "prompt_tags": "hair follow-through, cloth wave propagation, flowing cape"
-    },
-
-    "anticipation": {
-      "_source": "Anticipation（预备动作）法则 + ジャンプ予備動作蹲み必須法則（Telecom2）【核心】",
-      "rule": "all fast actions must have anticipation frames",
-      "attack_rhythm": "Anticipation(蓄力2-3帧,慢) → Strike(打击1-2帧,极快) → Recovery(收势1帧,慢)",
-      "jump_mandatory": "forward_lean + crouch before takeoff, landing knee_bend cushion mandatory",
-      "prompt_tags": "anticipation squat, wind-up before action"
-    },
-
-    "squash_stretch": {
-      "_source": "S&S 适度使用约束",
-      "rule": "squash_stretch_moderation, no_overuse, micro_ss_for_expression"
-    },
-
-    "loop_closure": {
-      "_source": "循環動画閉合法則",
-      "rule": "loop last frame seamless to first, loop equal spacing mandatory",
-      "walk_loop": "8 frames standard (2 steps)",
-      "run_loop": "8-14 frames"
-    }
-  },
-
-  "action_knowledge": {
-    "_doc": "每个动作的深度蒸馏知识 (融合 PROMPT_RECIPES.md 核心规则)",
-
+  "actions": {
+    "_doc": "每个动作的蒸馏知识 + Mixamo 预设（合并自 mixamo_presets.json）",
     "idle": {
-      "critical_frames": ["呼吸最高点", "呼吸最低点"],
-      "common_defects": ["完全静止无呼吸感", "手臂贴身僵硬", "循环跳帧"],
-      "prompt_boost": "subtle chest rise and fall, gentle weight shift, relaxed fingers slightly apart, natural S-curve pose, contrapposto weight on one leg",
-      "core_rules_applied": ["contrapposto", "natural_s_curve", "loop_closure"],
-      "optimal_length": 17,
-      "optimal_steps": 6,
-      "optimal_cfg": 1.0,
-      "frame_count_ref": "4 frames (Telecom Bible: 待機/飛行 4帧)"
+      "frames": ["呼吸最高点", "呼吸最低点"],
+      "defects": ["完全静止", "手臂贴身僵硬", "循环跳帧"],
+      "boost": "subtle chest rise and fall, gentle weight shift, relaxed fingers slightly apart, natural S-curve pose, contrapposto weight on one leg",
+      "rules": ["contrapposto", "loop_closure"],
+      "gen": {"w": 480, "h": 480, "len": 17, "steps": 6, "cfg": 1.0},
+      "mixamo": {"search": "Breathing Idle", "loop": true, "duration_sec": 3.0},
+      "blender": {"camera": "orthographic", "distance": 5.0, "rot_z": 90, "res": [480, 480], "fps": 16, "bg": "green_screen"}
     },
     "walk": {
-      "critical_frames": ["脚跟着地(heel strike)", "单脚支撑中点(passing)", "脚尖离地(toe off)", "双脚支撑帧(double support)"],
-      "common_defects": [
-        "滑步无脚跟过渡 (AI最常见错误: 后脚直线前滑而非踵キックバック弧)",
-        "手臂不协调 (右脚前→左手前, 同侧同向=错误)",
-        "无上下动 (中间帧体最高, 交叉帧体最低)",
-        "重心不在支撑脚上方",
-        "循环不闭合"
-      ],
-      "prompt_boost": "heel-to-toe foot roll, opposite arm swing synchronized with legs, vertical bounce at passing position, trailing heel kicks up backward first then swings forward in arc, forward lean, torso counter-rotation, hair follow-through, kicking foot behind",
-      "core_rules_applied": [
-        "walk_4_elements (上下动/脚运/手臂反向/重心平衡)",
-        "walk_heel_kickback_arc【核心】(后脚踵先上后方踢→弧线前摆, 非直线滑)",
-        "walk_7element_checklist【核心】(视线/发/肩/躯干扭/服/蹴脚/重心前倾)",
-        "contrapposto",
-        "loop_closure (8帧=2步标准)",
-        "spacing_equal_for_loop"
-      ],
-      "optimal_length": 17,
-      "optimal_steps": 6,
-      "optimal_cfg": 1.0,
-      "frame_count_ref": "6-8 frames/step, loop 8 frames = 2 steps"
+      "frames": ["heel strike", "passing", "toe off", "double support"],
+      "defects": ["滑步(后脚直线前滑)", "手臂同侧同向", "无上下动", "重心不在支撑脚上方"],
+      "boost": "heel-to-toe foot roll, opposite arm swing, vertical bounce at passing, trailing heel kicks up backward in arc, forward lean, torso counter-rotation, hair follow-through",
+      "rules": ["walk_heel_kickback_arc", "walk_7element_checklist", "contrapposto", "loop_closure"],
+      "gen": {"w": 480, "h": 480, "len": 17, "steps": 6, "cfg": 1.0},
+      "mixamo": {"search": "Walking", "loop": true, "duration_sec": 2.5},
+      "blender": {"camera": "orthographic", "distance": 5.0, "rot_z": 90, "res": [480, 480], "fps": 16, "bg": "green_screen"}
     },
     "run": {
-      "critical_frames": ["预备蹲(contact)", "推蹬离地(push off)", "空中最高点(aerial phase)", "着地缓冲(landing)"],
-      "common_defects": [
-        "腿部不弯曲像滑步",
-        "手臂不摆动",
-        "无前倾 (跑步前倾角度比走路更大)",
-        "无空中帧 (走路=至少1帧双脚着地, 跑步=至少1帧双脚离地)",
-        "循环不自然",
-        "颈部未埋入肩膀"
-      ],
-      "prompt_boost": "dynamic leg extension with knee bend over 90 degrees, vigorous arm swing, forward lean greater than walk, aerial phase both feet off ground, bow-shaped body, neck hidden in shoulders, hair and clothes flowing back with strong follow-through, torso twist greater than walk",
-      "core_rules_applied": [
-        "run_vs_walk_aerial_phase【核心】(跑=空中帧双脚离地, 走=常有一脚接地)",
-        "bow_shape_direction_expression (弓形身体表达前进方向)",
-        "contrapposto + torso_3block_twist",
-        "follow_through (发/服的跟随延迟比走路更大)",
-        "loop_closure (8-14帧)",
-        "run_speed_body_lean_correlation (速度↑→前倾↑→步幅↑→摆臂↑)"
-      ],
-      "optimal_length": 17,
-      "optimal_steps": 8,
-      "optimal_cfg": 1.0,
-      "frame_count_ref": "4-7 frames/step, loop 8-14 frames"
+      "frames": ["contact", "push off", "aerial phase", "landing"],
+      "defects": ["腿不弯曲滑步", "手臂不摆", "无前倾", "无空中帧(双脚离地)"],
+      "boost": "dynamic leg extension knee bend over 90deg, vigorous arm swing, forward lean greater than walk, aerial phase both feet off ground, bow-shaped body, neck hidden in shoulders, strong follow-through",
+      "rules": ["run_aerial_phase", "bow_shape", "contrapposto", "follow_through", "loop_closure"],
+      "gen": {"w": 480, "h": 480, "len": 17, "steps": 8, "cfg": 1.0},
+      "mixamo": {"search": "Running", "loop": true, "duration_sec": 2.0},
+      "blender": {"camera": "orthographic", "distance": 5.0, "rot_z": 90, "res": [480, 480], "fps": 16, "bg": "green_screen"}
     },
     "jump": {
-      "critical_frames": ["预备蹲(anticipation crouch)", "弹起瞬间(takeoff stretch)", "空中最高点(apex)", "下落(descent)", "落地缓冲(landing cushion)"],
-      "common_defects": [
-        "无预备蹲直接起跳 (看起来像漂浮, 非跳跃)",
-        "空中姿态僵硬 (应为全身伸展stretched)",
-        "落地无缓冲 (必须膝盖弯曲吸震)",
-        "无手臂辅助上升动作"
-      ],
-      "prompt_boost": "clear anticipation squat before takeoff with forward lean, stretched body at apex with arms assisting upward, compressed landing with deep knee bend cushion, squash at crouch stretch at apex, arc trajectory not linear",
-      "core_rules_applied": [
-        "jump_anticipation_crouch_mandatory【核心】(前倾+蹲→起跳, 无预备=漂浮感)",
-        "anticipation (蓄力帧密→起跳帧疏→落地帧密)",
-        "squash_stretch (蹲=squash, 空中=stretch)",
-        "arc_of_motion (跳跃轨迹为弧线)",
-        "gravity_axis_tilt (起跳时大幅倾斜)"
-      ],
-      "optimal_length": 21,
-      "optimal_steps": 8,
-      "optimal_cfg": 1.2,
-      "frame_count_ref": "5-8 frames"
+      "frames": ["anticipation crouch", "takeoff stretch", "apex", "descent", "landing cushion"],
+      "defects": ["无预备蹲直接起跳", "空中姿态僵硬", "落地无缓冲"],
+      "boost": "clear anticipation squat before takeoff with forward lean, stretched body at apex arms assisting upward, compressed landing deep knee bend, squash at crouch stretch at apex, arc trajectory",
+      "rules": ["jump_anticipation_mandatory", "squash_stretch", "arc_of_motion"],
+      "gen": {"w": 480, "h": 640, "len": 21, "steps": 8, "cfg": 1.2},
+      "mixamo": {"search": "Jump", "loop": false, "duration_sec": 2.0},
+      "blender": {"camera": "orthographic", "distance": 6.0, "rot_z": 90, "res": [480, 640], "fps": 16, "bg": "green_screen"}
     },
     "attack_sword": {
-      "critical_frames": ["蓄力后拉(wind-up)", "挥剑最快点(strike)", "击中停顿(impact freeze)", "收招(recovery)"],
-      "common_defects": [
-        "无蓄力直接挥 (缺少 anticipation)",
-        "挥剑轨迹是直线 (应为弧线)",
-        "无击中停顿 (impact freeze frame 缺失)",
-        "重心不转移 (应从后脚到前脚)",
-        "剑尖未描绘宽弧"
-      ],
-      "prompt_boost": "wind-up pull back with body twist before slash, wide arc trajectory sword swing, impact freeze frame at contact, weight shift from back foot to front foot, sword tip traces wide arc, 80 percent arm extension at max impact",
-      "core_rules_applied": [
-        "anticipation (蓄力2-3帧慢→打击1-2帧极快→收势1帧慢)",
-        "sword_slash_anticipation_arc (体ねじり+剑上→高速弧→フォロースルー)",
-        "80_percent_extension_max_power【核心】(80%伸展=最大力, 100%=力已释放)",
-        "torso_3block_twist (胸/腹/腰3块分别旋转)",
-        "arc_of_motion"
-      ],
-      "optimal_length": 17,
-      "optimal_steps": 8,
-      "optimal_cfg": 1.2,
-      "frame_count_ref": "6 frames (Anticipation + Strike + Recovery)"
+      "frames": ["wind-up", "strike", "impact freeze", "recovery"],
+      "defects": ["无蓄力直接挥", "挥剑直线非弧线", "无击中停顿", "重心不转移"],
+      "boost": "wind-up pull back with body twist, wide arc sword swing, impact freeze frame, weight shift back to front foot, sword tip traces wide arc, 80pct arm extension at max impact",
+      "rules": ["anticipation", "80pct_extension", "torso_3block_twist", "arc_of_motion"],
+      "gen": {"w": 640, "h": 480, "len": 17, "steps": 8, "cfg": 1.2},
+      "mixamo": {"search": "Sword And Shield Slash", "loop": false, "duration_sec": 2.0},
+      "blender": {"camera": "orthographic", "distance": 6.0, "rot_z": 90, "res": [640, 480], "fps": 16, "bg": "green_screen"}
     },
     "death": {
-      "critical_frames": ["受击僵直(hit stagger)", "开始倒下(fall start)", "加速下落(accelerating fall)", "触地弹跳(ground bounce)", "静止(rest)"],
-      "common_defects": [
-        "瞬间消失 (应有完整倒下过程)",
-        "倒下方向不一致",
-        "无触地弹跳 (重物着地应有微弹)",
-        "无受击僵直帧"
-      ],
-      "prompt_boost": "hit stagger freeze frame, accelerating fall with slow-in timing, ground contact bounce with squash, final rest pose stable, follow-through on hair and clothes during fall",
-      "core_rules_applied": [
-        "anticipation (受击僵直=预备)",
-        "spacing_speed_control (加速下落=帧间距从密到疏)",
-        "squash_stretch (触地=squash, 弹起=stretch)",
-        "follow_through (倒下时发/服的延迟跟随)",
-        "bounce_material_differentiation (角色体型决定弹跳模式)"
-      ],
-      "optimal_length": 21,
-      "optimal_steps": 8,
-      "optimal_cfg": 1.0,
-      "frame_count_ref": "5-8 frames"
+      "frames": ["hit stagger", "fall start", "accelerating fall", "ground bounce", "rest"],
+      "defects": ["瞬间消失", "倒下方向不一致", "无触地弹跳"],
+      "boost": "hit stagger freeze, accelerating fall slow-in, ground contact bounce squash, final rest stable, follow-through hair clothes during fall",
+      "rules": ["anticipation", "spacing", "squash_stretch", "follow_through"],
+      "gen": {"w": 640, "h": 480, "len": 21, "steps": 8, "cfg": 1.0},
+      "mixamo": {"search": "Dying", "loop": false, "duration_sec": 3.0},
+      "blender": {"camera": "orthographic", "distance": 6.0, "rot_z": 90, "res": [640, 480], "fps": 16, "bg": "green_screen"}
     },
     "dash": {
-      "critical_frames": ["极度前倾(extreme lean)", "大幅手臂摆动(exaggerated arm swing)", "快速步频(rapid stride)"],
-      "common_defects": [
-        "和普通跑步无区别 (前倾不够)",
-        "速度感不足 (需要更大的弓形弯曲)",
-        "无speed lines/motion blur暗示"
-      ],
-      "prompt_boost": "extreme forward lean 30-45 degrees, exaggerated arm swing much larger than run, rapid stride frequency faster than run, bow-shaped body expressing extreme speed, speed lines, strong follow-through on all soft elements, center of gravity far ahead of toes",
-      "core_rules_applied": [
-        "run_vs_walk_aerial_phase (dash=更极端的空中帧)",
-        "bow_shape_direction_expression (5阶段中的最大变形)",
-        "run_speed_body_lean_correlation (dash=最大前倾/最大步幅/最大摆臂)",
-        "gravity_axis_tilt (大幅倾斜=激烈运动)"
-      ],
-      "optimal_length": 17,
-      "optimal_steps": 8,
-      "optimal_cfg": 1.0,
-      "frame_count_ref": "4-7 frames/step"
+      "frames": ["extreme lean", "exaggerated arm swing", "rapid stride"],
+      "defects": ["和跑步无区别", "前倾不够", "速度感不足"],
+      "boost": "extreme forward lean 30-45deg, exaggerated arm swing much larger than run, rapid stride, bow-shaped body extreme speed, speed lines, strong follow-through, center of gravity far ahead of toes",
+      "rules": ["bow_shape", "gravity_tilt", "follow_through"],
+      "gen": {"w": 480, "h": 480, "len": 17, "steps": 8, "cfg": 1.0},
+      "mixamo": {"search": "Sprint", "loop": true, "duration_sec": 2.0},
+      "blender": {"camera": "orthographic", "distance": 5.0, "rot_z": 90, "res": [480, 480], "fps": 16, "bg": "green_screen"}
     }
   },
 
-  "vfx_knowledge": {
-    "_doc": "VFX 特效知识 (蒸馏自抽屉3+4的特效相关规则)",
-    "smoke": {
-      "rule": "球状山部分向上传递 + 均等间距 + 轮廓一致",
-      "sphere_decomposition": "大规模烟/爆発=重叠球体集合，各球体山部上移动画",
-      "dissipate": "扩散→粒子化→消失 (不是缩小)",
-      "prompt_tags": "billowing smoke, spherical cloud forms, smoke expanding dissipating"
-    },
-    "fire": {
-      "loop": "6帧标准 + 整体轮廓不变 + 内部随机变化",
-      "color_gradient": "core=white/yellow → mid=orange → outer=red/dark",
-      "s_curve_flicker": "S字カーブで上昇流, 分裂と再生を繰り返す",
-      "prompt_tags": "fire white yellow core, orange mid flame, flame S-curve flicker, fire loop 6 frames"
-    },
-    "explosion": {
-      "silhouette": "flower shape, scattered balance, size variation",
-      "color_time": "flash → fire → smoke progression",
-      "prompt_tags": "explosion flower silhouette, scattered debris, flash then fire then smoke"
-    },
-    "water_splash": {
-      "sequence": "V型飛沫→水柱上升→王冠状拡散→水滴分離→同心円波紋収束",
-      "prompt_tags": "water splash crown sequence, V-shape splash, concentric ripples"
-    },
-    "effect_priority_table": {
-      "_source": "エフェクトのゲーム内実装優先度テーブル【核心】",
-      "hit_effect": "highest priority, high detail",
-      "jump_land_effect": "high priority, medium detail",
-      "idle_effect": "low priority, simple loop"
-    },
-    "effect_lifecycle": {
-      "_source": "エフェクト発生→消滅フロー法則【核心】",
-      "rule": "must specify phase: start/peak/end in prompt",
-      "prompt_tags": "effect start phase, effect peak phase, effect dissipating phase"
-    },
-    "effect_color_3axis": {
-      "_source": "エフェクト色彩3軸法則【核心】",
-      "warm_cool": "fire/explosion=red/orange/yellow, water/ice/lightning=blue/white",
-      "heavy_light": "heavy=opaque dense, light=transparent low opacity",
-      "soft_hard": "soft=rounded edge smoke/cloud, hard=sharp edge lightning/explosion"
-    }
+  "vfx": {
+    "smoke": {"rule": "球状山部上传递+均等间距+轮廓一致, 扩散→粒子化→消失", "tags": "billowing smoke, spherical cloud forms"},
+    "fire": {"rule": "6帧循环+整体轮廓不变+内部随机, core=white/yellow→mid=orange→outer=red", "tags": "fire white yellow core, flame S-curve flicker"},
+    "explosion": {"rule": "花形轮廓+散射平衡+大小变化, flash→fire→smoke", "tags": "explosion flower silhouette, flash then fire then smoke"},
+    "water": {"rule": "V型飛沫→水柱→王冠拡散→水滴分離→同心円波紋", "tags": "water splash crown, concentric ripples"},
+    "priority": {"hit": "highest", "jump_land": "high", "idle": "low"},
+    "color_axis": {"warm_cool": "fire=red/orange, water=blue/white", "heavy_light": "heavy=opaque, light=transparent", "soft_hard": "soft=rounded smoke, hard=sharp lightning"}
   },
 
-  "lighting_material_rules": {
-    "_doc": "光影与材质核心规则 (蒸馏自抽屉4)",
-
-    "three_light_source_wf": {
-      "_source": "3光源ライティングWF（吉田誠治）【核心】",
-      "workflow": [
-        "Step1: 直接光で2色塗り分け (light face=showcase, shadow face=single fill)",
-        "Step2: 反射光追加 (blue tint in shadow, sky reflection)",
-        "Step3: 透過光/SSS追加 (skin terminator=warm orange/pink, backlit leaves=vivid green)"
-      ],
-      "prompt_tags": "direct light 2-color split, blue tinted reflected light in shadow, subsurface scattering warm terminator"
-    },
-
-    "direct_light_2color": {
-      "_source": "直接光2色塗り分け法則（吉田誠治）【核心】",
-      "rule": "decide showcase face first → light direction follows",
-      "sharp_boundary": "strong impression",
-      "soft_boundary": "weak impression"
-    },
-
-    "aerial_perspective_6": {
-      "_source": "6種空気遠近法テクニック（吉田誠治）【核心】",
-      "techniques": [
-        "density_reduction (远景描绘密度降低)",
-        "screen_overlay (远景覆盖天空色)",
-        "contrast_gradient (近景高对比/远景低对比)",
-        "compare_bright_shadow_crush (只压暗影色→清澈空气感)",
-        "blur_DOF (景深模糊)",
-        "combined (组合使用效果最佳)"
-      ]
-    },
-
-    "metal_3_rules": {
-      "_source": "金属の3ルール法則（バニリゾ）【核心】",
-      "rules": [
-        "明暗コントラスト強い",
-        "ハイライト極端に明るい",
-        "明暗境界はっきり (境界=ベースカラーより暗い)"
-      ],
-      "game_assets": "剣/盾/コイン/SawBlade/SpikeTrap",
-      "prompt_tags": "metallic surface, strong contrast, extreme bright highlight, sharp light dark boundary"
-    },
-
-    "time_weather_table": {
-      "_source": "時間天候ライティング変化テーブル（吉田誠治）【核心】",
-      "sunny": "hard shadow, high contrast",
-      "cloudy": "soft shadow, low contrast",
-      "evening": "long shadow, warm haze",
-      "night": "artificial light, soft shadow",
-      "layer_workflow": "base_layer(no shadow) + shadow_layer(time variant) + effect_layer(atmosphere)"
-    },
-
-    "lighting_direction_shadow_table": {
-      "_source": "光源別体陰影方向テーブル（バニリゾ）【核心】",
-      "top_light": "shadow under all protrusions",
-      "upper_right_light": "left side shadow",
-      "side_light": "half face shadow",
-      "bottom_light": "inverted shadow (horror)",
-      "back_light": "silhouette + rim only"
-    },
-
-    "surface_material_3types": {
-      "_source": "3種表面材質システム（Peter Han）",
-      "shiny": "high contrast, form shadow as horizon reflection",
-      "matte": "low contrast, soft shadow edge",
-      "weathered": "crosshatch, rust, dents, scratches"
-    },
-
-    "wrinkle_5_types": {
-      "_source": "服のシワ5分類体系（みにまる）",
-      "types": ["pulled (引張)", "twisted (捻)", "bent (折曲)", "pinched (挟)", "sagging (弛)"],
-      "thickness_rule": "thin fabric=more wrinkles, thick fabric=fewer wrinkles",
-      "prompt_tags": "pulled fabric wrinkles, twisted fabric folds, bent elbow fabric folds"
-    },
-
-    "wind_force_expression": {
-      "_source": "風力表現法則（室井）【核心】",
-      "rules": [
-        "front clothes cling to body",
-        "back clothes/hair flow downwind",
-        "center of gravity lean into wind",
-        "ALL flow direction unified (hair/clothes/ribbons same direction)"
-      ],
-      "negative_prompt": "inconsistent wind direction, hair blowing different directions"
-    }
+  "lighting": {
+    "three_light_wf": "Step1:直接光2色塗り分け → Step2:反射光(shadow蓝调) → Step3:透過光/SSS",
+    "aerial_perspective": ["density_reduction", "screen_overlay", "contrast_gradient", "shadow_crush", "blur_DOF", "combined"],
+    "metal_3_rules": "明暗コントラスト強い + ハイライト極端に明るい + 明暗境界はっきり",
+    "time_weather": {"sunny": "hard shadow high contrast", "cloudy": "soft shadow low contrast", "evening": "long shadow warm haze", "night": "artificial light soft shadow"},
+    "wind": {"rule": "front cling, back flow, lean into wind, ALL direction unified", "neg": "inconsistent wind direction, hair blowing different directions"}
   },
 
-  "pose_construction_rules": {
-    "_doc": "姿势构建规则 (蒸馏自抽屉2+3的人体构建相关)",
-
-    "gesture_3pass_workflow": {
-      "_source": "ジェスチャー3段階ワークフロー法則（砂糖）",
-      "pass1": "LoA + spheres (head/ribcage/pelvis) + stick lines",
-      "pass2": "cylinders (arms/legs) + wrapping lines",
-      "pass3": "flow + detail",
-      "1min_gesture": "pass1 only",
-      "2min_gesture": "pass1 + pass2"
-    },
-
-    "5_core_shapes": {
-      "_source": "5 Core Shapes 万物構築法則（Peter Han）【核心】",
-      "shapes": ["sphere", "cube", "cone", "pyramid", "cylinder"],
-      "frustum_6th": true,
-      "deformation": ["pinch", "pull", "push", "twist"]
-    },
-
-    "centerline_contour_workflow": {
-      "_source": "Center Line → Contour Line 体積伝達ワークフロー（Peter Han）【核心】",
-      "order": "centerline first → contour wraps like ribs of spine → minimal contours"
-    },
-
-    "silhouette_readability": {
-      "_source": "シルエットドローイング法則（みにまる）",
-      "rule": "silhouette readability = good pose; check negative silhouette between limbs"
-    },
-
-    "one_leg_balance": {
-      "_source": "片足バランス全身統一法則（室井）【核心】",
-      "rule": "straight support leg, arms spread for balance, whole body as single mass over support foot"
-    },
-
-    "emotion_pose_table": {
-      "_source": "みにまるポーズ感情読解法則 + 感情関節距離法則（OCHABI）",
-      "closed_pose": "sad, defensive (arms close to body, lean forward)",
-      "open_pose": "happy, confident (arms spread, chest out)",
-      "joy": "joints away from axis, active gesture",
-      "calm": "joints close to axis"
-    },
-
-    "spine_tilt_action": {
-      "_source": "背骨傾斜＝動作法則（OCHABI）",
-      "standing": "spine 90 degrees",
-      "walking": "spine ~70 degrees",
-      "running": "spine ~40 degrees"
-    }
+  "pose": {
+    "gesture_3pass": "Pass1:LoA+spheres+sticks → Pass2:cylinders+wrapping → Pass3:flow+detail",
+    "silhouette": "silhouette readability = good pose",
+    "spine_tilt": {"standing": 90, "walking": 70, "running": 40},
+    "emotion": {"closed": "sad/defensive", "open": "happy/confident"}
   },
 
-  "character_interaction_rules": {
-    "_doc": "角色与特效交互规则",
-    "effect_character_interaction": {
-      "_source": "エフェクトとキャラクター相互作用法則（松岡）【核心】",
-      "rule": "character affects effect shape AND effect affects character pose",
-      "examples": {
-        "fire": "wraps around character",
-        "water": "deflects by character",
-        "wind": "bends character cloth/hair",
-        "explosion": "pushes character"
-      }
-    }
+  "qc": {
+    "crop_margin": 0.05,
+    "crop_fill": 0.20,
+    "consistency_warn": 20,
+    "consistency_crit": 35,
+    "consistency_avg_ok": 12,
+    "color_warn": 35,
+    "color_crit": 60,
+    "sat_loss_warn": 15,
+    "opaque_min": 0.10,
+    "opaque_max": 0.70
   },
 
-  "generation_presets": {
-    "_doc": "根据蒸馏知识推导的首次生成最优参数",
-    "default": {
-      "width": 480, "height": 480, "length": 17, "steps": 6, "cfg": 1.0
-    },
-    "jump": {
-      "width": 480, "height": 640, "length": 21, "steps": 8, "cfg": 1.2,
-      "_reason": "跳跃需要纵向空间和更多帧来表现五阶段(蹲/弹/顶/落/缓冲)"
-    },
-    "attack_sword": {
-      "width": 640, "height": 480, "length": 17, "steps": 8, "cfg": 1.2,
-      "_reason": "攻击需要横向空间展示挥剑弧线"
-    },
-    "death": {
-      "width": 640, "height": 480, "length": 21, "steps": 8, "cfg": 1.0,
-      "_reason": "死亡倒下需要横向空间和更多帧"
-    },
-    "run": {
-      "width": 480, "height": 480, "length": 17, "steps": 8, "cfg": 1.0,
-      "_reason": "跑步动态大，步数提高到 8 保证帧间一致性"
-    },
-    "dash": {
-      "width": 480, "height": 480, "length": 17, "steps": 8, "cfg": 1.0,
-      "_reason": "冲刺=极端版跑步，参数同 run"
-    }
-  },
-
-  "qc_thresholds": {
-    "_doc": "知识驱动的质检阈值",
-    "crop_edge_margin_ratio": 0.05,
-    "crop_fill_threshold": 0.20,
-    "consistency_max_diff_warning": 20,
-    "consistency_max_diff_critical": 35,
-    "consistency_avg_diff_acceptable": 12,
-    "color_shift_warning": 35,
-    "color_shift_critical": 60,
-    "saturation_loss_warning": 15,
-    "min_opaque_pixel_ratio": 0.10,
-    "max_opaque_pixel_ratio": 0.70
-  },
-
-  "retune_strategy": {
-    "_doc": "智能调参策略",
-    "crop_detected": {
-      "action": "expand_canvas",
-      "method": "根据 composition_rules.aspect_ratio_by_action 计算目标尺寸",
-      "max_dimension": 832
-    },
-    "consistency_low": {
-      "action": "increase_steps",
-      "method": "steps = min(current_steps + ceil((max_diff - threshold) / 5) * 2, 20)",
-      "also_consider": "steps >= 12 仍不一致 → 问题可能在驱动视频而非采样"
-    },
-    "color_shift": {
-      "action": "adjust_prompt_anchors",
-      "method": "强化 style_foundation.positive_prompt_base 中的色彩锚点",
-      "also_consider": "偏移 > 60 → prompt 描述不准确而非调色板问题"
-    },
-    "animation_defect": {
-      "action": "enhance_prompt_with_core_rules",
-      "method": "根据检测到的缺陷类型，从 animation_core_rules 中提取对应的 prompt_tags 注入",
-      "example": "检测到滑步 → 注入 walk_heel_kickback_arc 的 prompt_tags"
-    }
+  "retune": {
+    "crop": "expand canvas per action aspect ratio, max 832",
+    "consistency": "steps += ceil((diff-threshold)/5)*2, max 20; steps>=12 still bad → check drive video",
+    "color": "strengthen style prompt anchors; shift>60 → prompt accuracy issue",
+    "anim_defect": "inject core rule prompt_tags for detected defect type"
   }
 }

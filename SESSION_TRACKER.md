@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 98（美术资产分离 + 极简接管协议替换） |
+| **最新 Session** | Session 99（美术管线优化调研 — WAN 2.2 方案落地） |
 | **日期** | 2026-04-12 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 关卡主线桥接期 — S98 完成两件大事：(A) 美术资产全量迁移到 `MarioTrickster-Art` 独立仓库（git-filter-repo + Submodule + LFS）；(B) 用「极简接管协议」替换旧的 `STANDARD_CONVERSATION_PROTOCOL.md`，新文件为 `docs/AI_TAKEOVER_PROTOCOL.md`，README.md 导航已同步更新。 |
+| **阶段** | Sprint 2.5 关卡主线桥接期 — S99 完成美术管线瓶颈诊断和全网调研，核心结论：LoRA 只能学风格不能学动画，帧间一致性必须靠视频扩散模型（WAN 2.2）解决。已产出 `PIPELINE_OPTIMIZATION_PLAN_2026.md` 落库到美术仓库。 |
 | **编译状态** | ✅ 无代码编译变更；本次为仓库结构迁移 + 协议文档替换 |
 | **阻塞** | ✅ 无。美术分离已完成，接管协议已替换。用户本地执行 `git pull --recurse-submodules` 即可同步。 |
-| **交接说明** | S98 完成：(1) 美术资产独立仓库分离（Submodule 挂载在 `Assets/MarioTrickster-Art`）；(2) 新 AI 接管协议 `docs/AI_TAKEOVER_PROTOCOL.md` 已部署，旧的 `STANDARD_CONVERSATION_PROTOCOL.md` 已删除。**默认下一步：用户用大白话提需求，AI 后台默默执行。** 关卡白盒主线可立即推进。 |
+| **交接说明** | S99 完成：美术管线优化方案 `docs/PIPELINE_OPTIMIZATION_PLAN_2026.md` 已落库到 MarioTrickster-Art 仓库。核心方案：放弃逐帧生成，转向 WAN 2.2 Animate Move（单图+驱动视频→角色动画视频→Sprite Sheet）。蒸馏知识重新定位为风格 LoRA + Prompt 工程 + 评审标准。**默认下一步：搭建 WAN 2.2 ComfyUI 工作流并灰度测试。** |
 
 ---
 

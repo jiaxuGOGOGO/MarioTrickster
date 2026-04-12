@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 97（`trickster_style` LoRA 本地验证完成，结论落库） |
+| **最新 Session** | Session 98（美术资产独立仓库分离方案制定） |
 | **日期** | 2026-04-12 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 关卡主线桥接期 + 美术落地治理收束 — S97 完成 `trickster_style` LoRA 本地验证闭环：30 张测试图审图完毕，触发词甜区、推荐权重、污染物清单与专属去污词均已实测落库到 `PROMPT_RECIPES.md`。量产准入已通过，下一步可进入首批命名资产切片量产。 |
-| **编译状态** | ✅ 无代码编译变更；本次仅更新 `PROMPT_RECIPES.md`、`WORKORDER_QA_STANDARD.md`、`SESSION_TRACKER.md` 等文档，用于落库 LoRA 验证结论与工单质量标准优化 |
-| **阻塞** | ✅ `trickster_style` 本地验证已完成，不再阻塞量产。当前下一个突破口是：**确定首批命名资产的目标槽位，并按接回定义启动窄切片量产。** |
-| **交接说明** | S97 已完成 `trickster_style` LoRA 本地验证闭环，触发词甜区 / 推荐权重 / 污染物 / 去污词均已落库到 `PROMPT_RECIPES.md`。**默认下一步：确定首批命名资产目标槽位，启动窄切片量产。** 关卡白盒主线同步可继续推进。 |
+| **阶段** | Sprint 2.5 关卡主线桥接期 + 美术资产仓库分离 — S98 针对 AI 生成角色动画帧间一致性崩溃问题，完成社区调研（Reddit/GitHub/StackOverflow），制定 **美术资产独立仓库分离方案**（Git Submodule + Git LFS），目标仓库为 `jiaxuGOGOGO/tyu`。方案文档已落库到 `docs/ART_ASSETS_SEPARATION_PLAN.md`。 |
+| **编译状态** | ✅ 无代码编译变更；本次仅新增 `docs/ART_ASSETS_SEPARATION_PLAN.md` 方案文档，更新 `SESSION_TRACKER.md` |
+| **阻塞** | 美术资产分离方案已制定，**等待用户确认后执行实际迁移操作**（git-filter-repo 拆分 + 推送到 tyu + 主仓库添加 submodule）。 |
+| **交接说明** | S98 已完成美术资产独立仓库分离方案。方案采用 Git Submodule + Git LFS 架构，将 `Assets/Art/`、`pose_references/`、`prompts/`、`research/` 及美术相关 docs 迁移到 `jiaxuGOGOGO/tyu` 仓库。**默认下一步：用户确认方案后执行实际迁移。** 关卡白盒主线不受影响，可同步推进。 |
 
 ---
 
@@ -174,6 +174,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`；本轮又把“本地训练参数 / Civitai 页面填写 / 训练排障”三类求助入口补进白话速查表，避免用户重复追问同类问题。 | ✅ 已完成 |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 研究报告已落库，等待按模板执行第一轮工作流固化 |
+| **最高** | **美术资产独立仓库分离执行**：方案已制定（`docs/ART_ASSETS_SEPARATION_PLAN.md`），采用 Git Submodule + Git LFS 架构，目标仓库 `jiaxuGOGOGO/tyu`。待用户确认后执行：git-filter-repo 拆分历史 → 推送到 tyu → 主仓库清理已迁移目录 → 添加 submodule 引用。 | 🚀 方案已落库，等待用户确认执行（S98） |
 | **最高** | **恢复关卡白盒主线**：直接重新启用 `Level Studio / Custom Template Editor / Build From Text`，基于现有 ASCII 模板库与片段库继续拼装、测试并迭代 1~2 个完整关卡段；美术换肤只服务于已验证白盒，不再反向阻塞关卡设计。**S94 已固定执行原则**：A 轨（关卡白盒）永远是唯一上游任务源。**S95 已固定默认入口**：若当前要推项目总主线，应直接从“先继续白盒关卡，不等最终美术”这类窄入口启动。 | 🚀 已形成桥接结论，当前可立即恢复执行 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |

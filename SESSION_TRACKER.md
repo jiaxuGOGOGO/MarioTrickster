@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 98（美术资产独立仓库分离完成） |
+| **最新 Session** | Session 98（美术资产分离 + 极简接管协议替换） |
 | **日期** | 2026-04-12 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 关卡主线桥接期 + 美术资产仓库分离已完成 — S98 完成美术资产全量迁移：(1) `tyu` 已改名为 `MarioTrickster-Art`；(2) 通过 `git-filter-repo` 拆分 93 条历史提交并推送到新仓库；(3) 配置 Git LFS `.gitattributes`；(4) 主仓库已清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`；(5) 各原目录已留下面包屑索引文件。 |
-| **编译状态** | ✅ 无代码编译变更；本次为纯仓库结构迁移操作（删除旧目录 + 添加 .gitmodules + 面包屑 README） |
-| **阻塞** | ✅ 美术资产分离已完成。**用户需在本地 Unity 项目中执行 `git pull && git submodule update --init --recursive` 拉取最新状态，然后打开 Unity 验证无红。** |
-| **交接说明** | S98 完成美术资产独立仓库分离全流程。主仓库通过 Submodule 引用 `MarioTrickster-Art`，挂载点为 `Assets/MarioTrickster-Art`。美术资产的历史提交已完整保留，Git LFS 已配置。**默认下一步：用户本地拉取并验证 Unity 无红，然后可在美术仓库中独立优化动画资产。** 关卡白盒主线不受影响。 |
+| **阶段** | Sprint 2.5 关卡主线桥接期 — S98 完成两件大事：(A) 美术资产全量迁移到 `MarioTrickster-Art` 独立仓库（git-filter-repo + Submodule + LFS）；(B) 用「极简接管协议」替换旧的 `STANDARD_CONVERSATION_PROTOCOL.md`，新文件为 `docs/AI_TAKEOVER_PROTOCOL.md`，README.md 导航已同步更新。 |
+| **编译状态** | ✅ 无代码编译变更；本次为仓库结构迁移 + 协议文档替换 |
+| **阻塞** | ✅ 无。美术分离已完成，接管协议已替换。用户本地执行 `git pull --recurse-submodules` 即可同步。 |
+| **交接说明** | S98 完成：(1) 美术资产独立仓库分离（Submodule 挂载在 `Assets/MarioTrickster-Art`）；(2) 新 AI 接管协议 `docs/AI_TAKEOVER_PROTOCOL.md` 已部署，旧的 `STANDARD_CONVERSATION_PROTOCOL.md` 已删除。**默认下一步：用户用大白话提需求，AI 后台默默执行。** 关卡白盒主线可立即推进。 |
 
 ---
 

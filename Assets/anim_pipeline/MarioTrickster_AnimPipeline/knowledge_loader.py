@@ -255,6 +255,12 @@ def compute_retune(issue_type, severity_value, current_config, action_type="idle
         gen = act.get("gen", {})
         cur_w = current_config.get("width", 480)
         cur_h = current_config.get("height", 480)
+
+        # idle 在 12GB 安全档位下固定 480x480，不允许 QC 自动放大。
+        if action_type == "idle" and int(cur_w) == 480 and int(cur_h) == 480:
+            adj["_hint"] = "idle 维持 480x480 安全档位；若仍有裁切，优先检查 drive video 构图、代理人体缩放或角色占画面比例"
+            return adj
+
         tgt_w = gen.get("w", cur_w)
         tgt_h = gen.get("h", cur_h)
         # 如果已经是目标尺寸还裁切，扩大20%

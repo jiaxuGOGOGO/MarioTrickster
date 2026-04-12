@@ -58,6 +58,35 @@ DEFAULT_CONFIG = {
 }
 
 
+def should_lock_idle_safe_resolution(action_type, config, args=None):
+    """idle 默认锁定 12GB 安全档位 480x480，避免 QC 自动放大分辨率。"""
+    if action_type != "idle":
+        return False
+    if args is not None and (
+        getattr(args, "width", None) is not None or
+        getattr(args, "height", None) is not None
+    ):
+        return False
+    cur_w = int(config.get("width", 480))
+    cur_h = int(config.get("height", 480))
+    return cur_w == 480 and cur_h == 480
+
+
+
+def sanitize_qc_adjustments(adjustments, action_type, config, args=None):
+    """过滤不该在当前档位自动生效的 QC 调参建议。"""
+    cleaned = dict(adjustments or {})
+    if should_lock_idle_safe_resolution(action_type, config, args):
+        removed = []
+        for key in ("width", "height"):
+            if key in cleaned:
+                removed.append(f"{key}={cleaned.pop(key)}")
+        if removed:
+            print(f"  [安全锁] idle 维持 480x480 安全档位，忽略自动分辨率调参: {', '.join(removed)}")
+            print("  [安全锁] 若仍有裁切，请优先检查 drive video 构图、代理人体缩放与角色在画面中的占比")
+    return cleaned
+
+
 # ============================================================
 # Prompt 模板库（优先从知识库加载，回退到 mixamo_presets.json）
 # ============================================================
@@ -1270,14 +1299,15 @@ def main():
                     print(f"\n  △ 已达到最大迭代次数 ({MAX_ITERATIONS})，使用当前结果")
                     break
 
-                if qc_result.adjustments:
+                effective_adjustments = sanitize_qc_adjustments(qc_result.adjustments, args.action, config, args)
+                if effective_adjustments:
                     print(f"\n  [智能调参] 应用知识驱动的调整后重跑:")
-                    for k, v in qc_result.adjustments.items():
+                    for k, v in effective_adjustments.items():
                         old_val = config.get(k, "?")
                         config[k] = v
                         print(f"    {k}: {old_val} → {v}")
                 else:
-                    print(f"\n  △ 发现问题但无自动调参建议，使用当前结果")
+                    print(f"\n  △ 发现问题但当前档位已锁定自动调参，使用当前结果")
                     break
         except ImportError:
             print("\n  [质检] auto_qc 模块未找到，跳过自动迭代")

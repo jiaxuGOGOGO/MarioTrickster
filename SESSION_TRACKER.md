@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 100（动画管线 12GB 安全档固化） |
-| **日期** | 2026-04-12 |
+| **最新 Session** | Session 101（AnimPipeline 修复 — 12GB 安全档延伸加固） |
+| **日期** | 2026-04-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 关卡主线桥接期 — S100 将 MarioTrickster 动画管线的 12GB 安全档正式落库，默认 `480×480 / 17帧 / 6步` 固化为项目基线，并新增动作级项目参数覆盖与自动显存护栏。 |
-| **编译状态** | ✅ Python 管线脚本改动，尚未影响 Unity 编译；需用户本地拉取后按既有方式跑一次动画管线烟测。 |
-| **阻塞** | ✅ 无。项目专属参数入口已落到 `pipeline_config.json`，主管线会自动注入并在超预算时收敛。 |
-| **交接说明** | S100 完成：`run_pipeline.py` 已接入 `project_generation_overrides` + `runtime.vram_gb`，`knowledge_loader.py` 新增 12GB 显存护栏，默认会把超预算组合优先压回 **17帧 / 6步**，再按比例收缩分辨率。`jump` / `attack_sword` / `death` 已给出项目安全档。后续若新增动作，只需补 `pipeline_config.json` 对应条目即可。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — 在远端 S100 已完成的 **12GB 安全档固化** 基础上，S101 继续补上两处运行链路防退化：`animation-only FBX` 在 Blender 侧不再产出空白绿幕 drive video，而是自动走代理人体分支；`idle` 动作在 12GB 安全配置下固定锁定 `480×480 / 17帧 / 6步`，自动质检不再把分辨率抬到更高档位。 |
+| **编译状态** | ✅ Python 管线脚本已更新并通过语法级检查；运行时 C# 代码未改动 |
+| **阻塞** | ⚠️ 待用户拉取后做一次本地实机验证：删除或改名 `assets/videos/idle_drive.mp4`，重新执行 `python run_pipeline.py --action idle`，确认 Blender 分支自动重建 drive video，且 QC 仍保持 `480×480 / 17帧 / 6步`。 |
+| **交接说明** | S101 完成：远端 S100 已落库 `project_generation_overrides`、`runtime.vram_gb` 与 12GB 显存护栏；本次进一步在 `run_pipeline.py`、`knowledge_loader.py` 补上 idle 安全锁，防止裁切检测把 `idle` 自动升到 `576×688` 等更高档位。**默认下一步：用户先拉取验证链路，验证通过后再继续颜色保真、竖版档位与微动作优化。** |
 
 ---
 
@@ -146,6 +146,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
 | ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
 | 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
+| 🔄 | AnimPipeline：idle 自动生成链路 | **S101重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 生成新的 drive video，且 QC 不再把 `480×480 / 17帧 / 6步` 自动改成更高分辨率 |
 
 ---
 
@@ -174,7 +175,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏 + S71 Telecom第二輪深度蒸留 + S72 室井康雄蒸留 + S73 バニリゾ蒸留 + S74 テレコムBible蒸留 + S75 室井康雄第二輪蒸留 + S76 松岡伸治《エフェクトグラフィックス》蒸留） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`；本轮又把“本地训练参数 / Civitai 页面填写 / 训练排障”三类求助入口补进白话速查表，避免用户重复追问同类问题。 | ✅ 已完成 |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
-| **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 研究报告已落库，等待按模板执行第一轮工作流固化 |
+| **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S101 已补齐 animation-only FBX 代理人体兜底与 idle 分辨率安全锁，等待用户实机验证后继续颜色保真 / 竖版构图 / 微动作优化 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |
 | **最高** | **恢复关卡白盒主线**：直接重新启用 `Level Studio / Custom Template Editor / Build From Text`，基于现有 ASCII 模板库与片段库继续拼装、测试并迭代 1~2 个完整关卡段；美术换肤只服务于已验证白盒，不再反向阻塞关卡设计。**S94 已固定执行原则**：A 轨（关卡白盒）永远是唯一上游任务源。**S95 已固定默认入口**：若当前要推项目总主线，应直接从“先继续白盒关卡，不等最终美术”这类窄入口启动。 | 🚀 已形成桥接结论，当前可立即恢复执行 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |

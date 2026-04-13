@@ -672,7 +672,7 @@ def video_to_frames(video_path, output_dir):
 
 
 def remove_background(frame_paths, output_dir, reference_image_path=None):
-    """使用 rembg 去除背景，并在 02_nobg 阶段完成防裁切安全构图与前景颜色回正。"""
+    """使用 rembg 去除背景，并在 02_nobg 阶段完成前景清理与全局自动裁切。"""
     os.makedirs(output_dir, exist_ok=True)
     results = []
 
@@ -697,10 +697,57 @@ def remove_background(frame_paths, output_dir, reference_image_path=None):
             shutil.copy2(fp, save_path)
             results.append(save_path)
 
-    _normalize_foreground_sequence(results)
-    if reference_image_path:
-        _apply_reference_color_match_to_frames(results, reference_image_path)
+    _apply_global_auto_trim_to_sequence(results)
     return results
+
+
+# 保留 reference_image_path 参数以兼容旧调用方；S105 起颜色回正统一在最终成图阶段执行。
+
+
+def _apply_global_auto_trim_to_sequence(frame_paths):
+    from PIL import Image
+
+    if not frame_paths:
+        return False
+
+    global_bboxes = []
+    for fp in frame_paths:
+        img = Image.open(fp).convert("RGBA")
+        mask, arr = _extract_foreground_mask(img)
+        cleaned = Image.fromarray(arr, mode="RGBA")
+        cleaned.save(fp)
+        if np.any(mask):
+            bbox = cleaned.getchannel("A").getbbox()
+            if bbox is not None:
+                global_bboxes.append(bbox)
+
+    if not global_bboxes:
+        return False
+
+    global_bbox = (
+        min(b[0] for b in global_bboxes),
+        min(b[1] for b in global_bboxes),
+        max(b[2] for b in global_bboxes),
+        max(b[3] for b in global_bboxes),
+    )
+
+    trimmed = 0
+    for fp in frame_paths:
+        img = Image.open(fp).convert("RGBA")
+        cropped = img.crop(global_bbox)
+        cropped.save(fp)
+        trimmed += 1
+
+    print(
+        "  [Global Auto-Trim] 已对 02_nobg 序列执行统一裁切："
+        f"bbox={global_bbox}, frames={trimmed}"
+    )
+    return True
+
+
+# S105 起不再在 02_nobg 阶段做颜色回正，避免像素化前重复偏移。
+
+
 
 
 def pixelize_frames(frame_paths, output_dir, pixel_size=4, palette_colors=32):
@@ -838,89 +885,43 @@ def _extract_foreground_mask(image):
     return mask, arr
 
 
-def _normalize_foreground_sequence(frame_paths, safe_margin_ratio=0.05):
-    from PIL import Image
-
-    if not frame_paths:
-        return False
-
-    frames = []
-    bboxes = []
-    for fp in frame_paths:
-        img = Image.open(fp).convert("RGBA")
-        mask, arr = _extract_foreground_mask(img)
-        bbox = _mask_bbox(mask)
-        frames.append((fp, arr, mask, bbox))
-        if bbox is not None:
-            bboxes.append(bbox)
-
-    if not bboxes:
-        return False
-
-    w = int(frames[0][1].shape[1])
-    h = int(frames[0][1].shape[0])
-    union_left = min(b[0] for b in bboxes)
-    union_top = min(b[1] for b in bboxes)
-    union_right = max(b[2] for b in bboxes)
-    union_bottom = max(b[3] for b in bboxes)
-    union_w = max(1, union_right - union_left + 1)
-    union_h = max(1, union_bottom - union_top + 1)
-
-    margin_x = max(int(round(w * 0.06)), 8)
-    margin_y = max(int(round(h * safe_margin_ratio)), 12)
-    target_w = max(1, w - margin_x * 2)
-    target_h = max(1, h - margin_y * 2)
-    scale = min(1.0, target_w / union_w, target_h / union_h)
-
-    union_cx = (union_left + union_right) / 2.0
-    union_cy = (union_top + union_bottom) / 2.0
-    target_cx = (w - 1) / 2.0
-    target_cy = (h - 1) / 2.0
-    offset_x = int(round(target_cx - union_cx * scale))
-    offset_y = int(round(target_cy - union_cy * scale))
-
-    changed = False
-    for fp, arr, mask, bbox in frames:
-        rgba_img = Image.fromarray(arr, mode="RGBA")
-        if scale < 0.999:
-            new_size = (
-                max(1, int(round(rgba_img.width * scale))),
-                max(1, int(round(rgba_img.height * scale))),
-            )
-            rgba_img = rgba_img.resize(new_size, Image.Resampling.BICUBIC)
-        canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        canvas.alpha_composite(rgba_img, dest=(offset_x, offset_y))
-        clean_mask, clean_arr = _extract_foreground_mask(canvas)
-        clean_arr[..., 3] = np.where(clean_mask, clean_arr[..., 3], 0).astype(np.uint8)
-        Image.fromarray(clean_arr, mode="RGBA").save(fp)
-        changed = True
-
-    if changed:
-        print(
-            "  [防裁切] 已对 02_nobg 序列做安全构图重排："
-            f"scale={scale:.3f}, offset=({offset_x},{offset_y}), margin_y={margin_y}px"
-        )
-    return changed
-
-
-def _masked_histogram_match_channel(source_channel, source_mask, reference_channel, reference_mask):
-    src_vals = source_channel[source_mask]
-    ref_vals = reference_channel[reference_mask]
+def _masked_mean_shift_channel(source_channel, source_mask, reference_channel, reference_mask, max_abs_shift=40.0):
+    src_vals = source_channel[source_mask].astype(np.float32)
+    ref_vals = reference_channel[reference_mask].astype(np.float32)
     if src_vals.size < 64 or ref_vals.size < 64:
-        return None
+        return None, 0.0
 
-    src_hist = np.bincount(src_vals, minlength=256).astype(np.float64)
-    ref_hist = np.bincount(ref_vals, minlength=256).astype(np.float64)
-    src_cdf = np.cumsum(src_hist)
-    ref_cdf = np.cumsum(ref_hist)
-    if src_cdf[-1] <= 0 or ref_cdf[-1] <= 0:
-        return None
+    shift = float(np.clip(ref_vals.mean() - src_vals.mean(), -max_abs_shift, max_abs_shift))
+    shifted = np.clip(src_vals + shift, 0.0, 255.0).astype(np.uint8)
+    return shifted, shift
 
-    src_cdf /= src_cdf[-1]
-    ref_cdf /= ref_cdf[-1]
-    lookup = np.interp(src_cdf, ref_cdf, np.arange(256))
-    matched = lookup[source_channel[source_mask]]
-    return np.clip(matched, 0, 255).astype(np.uint8)
+
+
+def _apply_safe_mean_rgb_shift(source_rgba, source_mask, reference_rgba, reference_mask, max_abs_shift=40.0):
+    source_pixels = int(source_mask.sum())
+    reference_pixels = int(reference_mask.sum())
+    if source_pixels < 128 or reference_pixels < 128:
+        return None, []
+
+    shifted_rgb = source_rgba[..., :3].copy()
+    applied_shifts = []
+    for channel in range(3):
+        shifted_vals, shift = _masked_mean_shift_channel(
+            source_rgba[..., channel], source_mask,
+            reference_rgba[..., channel], reference_mask,
+            max_abs_shift=max_abs_shift,
+        )
+        if shifted_vals is None:
+            continue
+        shifted_rgb[..., channel][source_mask] = shifted_vals
+        applied_shifts.append(shift)
+
+    if not applied_shifts:
+        return None, []
+
+    shifted_rgba = np.concatenate([shifted_rgb, source_rgba[..., 3:4]], axis=2)
+    shifted_rgba = np.clip(shifted_rgba, 0, 255).astype(np.uint8)
+    return shifted_rgba, applied_shifts
 
 
 def _apply_reference_color_match_to_frames(frame_paths, reference_image_path):
@@ -932,41 +933,23 @@ def _apply_reference_color_match_to_frames(frame_paths, reference_image_path):
 
     reference_image = Image.open(reference_image_path).convert("RGBA")
     reference_mask, reference_rgba = _extract_foreground_mask(reference_image)
-    reference_pixels = int(reference_mask.sum())
-    if reference_pixels < 128:
-        print(f"  [颜色回正] 参考图前景像素不足，跳过帧级回正 (ref={reference_pixels})")
-        return False
-
     updated = 0
+
     for fp in frame_paths:
         img = Image.open(fp).convert("RGBA")
         frame_mask, frame_rgba = _extract_foreground_mask(img)
-        frame_pixels = int(frame_mask.sum())
-        if frame_pixels < 128:
+        shifted_rgba, applied_shifts = _apply_safe_mean_rgb_shift(
+            frame_rgba, frame_mask,
+            reference_rgba, reference_mask,
+        )
+        if shifted_rgba is None:
             continue
 
-        matched_rgb = frame_rgba[..., :3].copy()
-        changed_channels = 0
-        for channel in range(3):
-            matched_vals = _masked_histogram_match_channel(
-                frame_rgba[..., channel], frame_mask,
-                reference_rgba[..., channel], reference_mask,
-            )
-            if matched_vals is None:
-                continue
-            matched_rgb[..., channel][frame_mask] = matched_vals
-            changed_channels += 1
-
-        if changed_channels == 0:
-            continue
-
-        matched_rgba = np.concatenate([matched_rgb, frame_rgba[..., 3:4]], axis=2)
-        matched_rgba = np.clip(matched_rgba, 0, 255).astype(np.uint8)
-        Image.fromarray(matched_rgba, mode="RGBA").save(fp)
+        Image.fromarray(shifted_rgba, mode="RGBA").save(fp)
         updated += 1
 
     if updated:
-        print(f"  [颜色回正] 已在 02_nobg 阶段完成逐帧回正：{updated}/{len(frame_paths)} 帧")
+        print(f"  [颜色回正] 已按安全均值平移完成逐帧回正：{updated}/{len(frame_paths)} 帧")
     return updated > 0
 
 
@@ -987,41 +970,28 @@ def apply_reference_color_match(sprite_sheet_path, reference_image_path, final_n
     result_mask, result_rgba = _extract_foreground_mask(result_image)
     reference_mask, reference_rgba = _extract_foreground_mask(reference_image)
 
-    result_pixels = int(result_mask.sum())
-    reference_pixels = int(reference_mask.sum())
-    if result_pixels < 128 or reference_pixels < 128:
-        print(f"  [颜色回正] 前景像素不足，跳过 (result={result_pixels}, ref={reference_pixels})")
+    shifted_rgba, applied_shifts = _apply_safe_mean_rgb_shift(
+        result_rgba, result_mask,
+        reference_rgba, reference_mask,
+    )
+    if shifted_rgba is None:
+        print("  [颜色回正] 前景提取不足或均值平移未生效，保留原图")
         rgb_no_alpha = np.array(result_image.convert("RGB"), dtype=np.uint8)
         Image.fromarray(rgb_no_alpha, mode="RGB").save(final_no_alpha_path)
         return False
 
-    matched_rgb = result_rgba[..., :3].copy()
-    changed_channels = 0
-    for channel in range(3):
-        matched_vals = _masked_histogram_match_channel(
-            result_rgba[..., channel], result_mask,
-            reference_rgba[..., channel], reference_mask,
-        )
-        if matched_vals is None:
-            continue
-        matched_rgb[..., channel][result_mask] = matched_vals
-        changed_channels += 1
+    Image.fromarray(shifted_rgba, mode="RGBA").save(sprite_sheet_path)
 
-    if changed_channels == 0:
-        print("  [颜色回正] 直方图匹配未生效，保留原图")
-        rgb_no_alpha = np.array(result_image.convert("RGB"), dtype=np.uint8)
-        Image.fromarray(rgb_no_alpha, mode="RGB").save(final_no_alpha_path)
-        return False
-
-    alpha = result_rgba[..., 3:4]
-    matched_rgba = np.concatenate([matched_rgb, alpha], axis=2)
-    matched_rgba = np.clip(matched_rgba, 0, 255).astype(np.uint8)
-    Image.fromarray(matched_rgba, mode="RGBA").save(sprite_sheet_path)
-
+    alpha = shifted_rgba[..., 3:4]
     alpha_float = (alpha.astype(np.float32) / 255.0)
-    rgb_no_alpha = np.clip(matched_rgb.astype(np.float32) * alpha_float, 0, 255).astype(np.uint8)
+    shifted_rgb = shifted_rgba[..., :3]
+    rgb_no_alpha = np.clip(shifted_rgb.astype(np.float32) * alpha_float, 0, 255).astype(np.uint8)
     Image.fromarray(rgb_no_alpha, mode="RGB").save(final_no_alpha_path)
-    print(f"  [颜色回正] 已按参考图回正并写回: {sprite_sheet_path.name} / {final_no_alpha_path.name}")
+    print(
+        "  [颜色回正] 已按安全均值平移写回: "
+        f"{sprite_sheet_path.name} / {final_no_alpha_path.name}, "
+        f"shift=({', '.join(f'{s:+.1f}' for s in applied_shifts)})"
+    )
     return True
 
 

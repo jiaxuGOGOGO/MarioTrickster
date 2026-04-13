@@ -240,7 +240,7 @@ def _set_render_engine(scene):
 
 
 def _setup_world(scene, background="green_screen"):
-    """创建背景世界。默认使用纯绿幕。"""
+    """创建背景世界。S105 起默认使用深灰背景，避免纯绿/纯黑对 VAE 造成强刺激。"""
     if not IN_BLENDER:
         return
 
@@ -251,7 +251,7 @@ def _setup_world(scene, background="green_screen"):
     if bg_node is None:
         bg_node = nodes.new(type="ShaderNodeBackground")
 
-    color = (0.0, 1.0, 0.0, 1.0) if background == "green_screen" else (0.05, 0.05, 0.05, 1.0)
+    color = (0.2, 0.2, 0.2, 1.0) if background == "green_screen" else (0.12, 0.12, 0.12, 1.0)
     bg_node.inputs[0].default_value = color
     bg_node.inputs[1].default_value = 1.0
     scene.world = world
@@ -305,8 +305,8 @@ def _find_renderable_meshes(imported_objects):
     return [obj for obj in imported_objects if is_renderable_mesh_object(obj)]
 
 
-def _make_emission_material(name="DriveProxyWhite", rgba=(1.0, 1.0, 1.0, 1.0), strength=2.2):
-    """创建统一白色发光材质，避免材质缺失导致主体发灰或过暗。"""
+def _make_emission_material(name="DriveProxyGray", rgba=(0.5, 0.5, 0.5, 1.0), strength=2.2):
+    """创建统一中灰发光材质，降低代理体与背景的极端反差。"""
     if not IN_BLENDER:
         return None
 
@@ -745,7 +745,7 @@ def import_and_render(fbx_path, output_path, preset_name, args):
         return True
 
     scene, camera = setup_scene(render_settings)
-    white_mat = _make_emission_material()
+    proxy_mat = _make_emission_material()
 
     imported_objects = _import_fbx(fbx_path)
     armature = _find_primary_armature(imported_objects)
@@ -762,12 +762,13 @@ def import_and_render(fbx_path, output_path, preset_name, args):
         print("  [Blender] 未检测到骨架对象")
 
     if renderable_meshes:
-        _apply_material_to_meshes(renderable_meshes, white_mat)
+        _apply_material_to_meshes(renderable_meshes, proxy_mat)
 
     proxy_meshes = []
+    proxy_takeover = needs_proxy and len(renderable_meshes) == 0
     if needs_proxy and armature is not None:
         print("  [Blender] 检测到 animation-only / 空网格 FBX，自动生成代理人体")
-        proxy_meshes = build_proxy_body_for_armature(armature, white_mat)
+        proxy_meshes = build_proxy_body_for_armature(armature, proxy_mat)
         print(f"  [Blender] 代理人体部件数: {len(proxy_meshes)}")
     elif needs_proxy:
         print("  [Blender] 需要代理人体，但未检测到骨架，无法生成代理主体")
@@ -787,7 +788,15 @@ def import_and_render(fbx_path, output_path, preset_name, args):
     scene.frame_set(scene.frame_start)
     bpy.context.view_layer.update()
 
-    fit_camera_to_targets(scene, camera, render_targets, render_settings, scene.frame_start, scene.frame_end)
+    camera_render_settings = dict(render_settings)
+    if proxy_takeover:
+        camera_render_settings["ortho_padding"] = max(2.5, float(camera_render_settings.get("ortho_padding", 1.4)))
+        print(
+            "  [Blender] Proxy 接管已启用极限留白："
+            f"padding={camera_render_settings['ortho_padding']:.2f}"
+        )
+
+    fit_camera_to_targets(scene, camera, render_targets, camera_render_settings, scene.frame_start, scene.frame_end)
 
     scene.render.filepath = str(output_path)
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)

@@ -646,3 +646,30 @@ S55 修复了 T02 模板的三个物理缺陷后，用户提出核心问题：**
 
 ### 零代码变更
 本次不触碰任何 .cs 文件。
+
+## [2026-04-13] [S105] Idle 管线视觉降维重构：VAE 安全渲染 + Global Auto-Trim + 安全色彩回正
+### 问题背景
+S104 本地烟测证明工程护栏已生效（代理接管、动作振幅放大、无网格兜底均正常），但最终成图暴露出视频模型的潜空间认知缺陷：**空手 FBX 触发 Proxy 接管后，巨帽/长锤等外轮廓特征被吞；随后直方图回正又把缺失暗部错误摊到角色浅色区域，最终出现 5/5 裁切与黑化污染。**
+### 根因分析
+| 问题 | 根因 | S105 处理 |
+|------|------|-----------|
+| Proxy 仍会吞帽子/武器 | 1.4x 留白只覆盖肉身 bbox，无法兜住 AI 脑补出的高帽/长锤外扩体积 | Proxy 接管时将 Blender 正交 padding 提升到 **2.5x** |
+| 潜空间曝光错乱 | 纯白代理体 + 纯绿背景对低饱和参考图反差过大 | 驱动视频改为 **中灰发光代理体 + 深灰背景** |
+| 留白过大导致角色占比塌陷 | 仅增大 padding 会把主体整体缩小，并留下大量透明废边 | 在 `02_nobg` 阶段新增 **Global Auto-Trim**，按全序列统一 bbox 裁切 |
+| 颜色中毒/黑化 | `match_histograms` 强制复制暗部体积分布，缺失的帽子/武器暗像素被摊到皮肤与衣物 | 废除直方图算法，改为 **非透明区域 Mean RGB Shift**，失败时保留原色 |
+### 修改文件
+| 文件 | 变更内容 |
+|------|---------|
+| `Assets/anim_pipeline/MarioTrickster_AnimPipeline/blender_render_drive_video.py` | 代理材质从纯白改为中灰；默认绿幕分支改为深灰背景；Proxy 接管且有效网格为 0 时强制 `ortho_padding >= 2.5` 并打印日志 |
+| `Assets/anim_pipeline/MarioTrickster_AnimPipeline/run_pipeline.py` | 移除 02_nobg 阶段的安全缩放重排；新增逐帧前景清理 + **Global Auto-Trim**；废除直方图回正，统一改为安全均值平移写回 |
+### 本地验证
+1. `python3.11 -m py_compile run_pipeline.py blender_render_drive_video.py` 通过。
+2. `python3.11 /home/ubuntu/validate_s105_patch.py` 通过：
+   - Global Auto-Trim 统一裁切 bbox 成功，3 帧输出尺寸一致。
+   - 极端暗参考图下安全均值平移仅执行 `-40 / -40 / -40`，输出均值仍为 `185 / 175 / 165`，未出现黑化。
+   - Blender 脚本文本检查确认中灰代理体、深灰背景、Proxy `2.5x` 留白日志均已落地。
+### 待用户烟测确认
+- 重新拉取最新 `master` 后，用同一套 idle 素材复跑本地烟测，重点观察：
+  1. Blender 日志是否出现 `padding=2.50`
+  2. `final_no_alpha.png` 是否摆脱大面积透明废边
+  3. 帽子/长锤是否仍被吞，角色是否恢复正常浅色而不再黑化

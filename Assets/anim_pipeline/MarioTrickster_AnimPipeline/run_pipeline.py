@@ -27,6 +27,7 @@ import time
 import uuid
 import shutil
 import math
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -670,8 +671,8 @@ def video_to_frames(video_path, output_dir):
     return frames
 
 
-def remove_background(frame_paths, output_dir):
-    """使用 rembg 去除背景（如果可用），否则跳过"""
+def remove_background(frame_paths, output_dir, reference_image_path=None):
+    """使用 rembg 去除背景，并在 02_nobg 阶段完成防裁切安全构图与前景颜色回正。"""
     os.makedirs(output_dir, exist_ok=True)
     results = []
 
@@ -688,7 +689,6 @@ def remove_background(frame_paths, output_dir):
             if (i + 1) % 10 == 0:
                 print(f"\r  [去背景] {i+1}/{len(frame_paths)}", end="", flush=True)
         print(f"\r  [去背景] rembg 处理完成，{len(results)} 帧")
-        return results
 
     except ImportError:
         print("  [去背景] rembg 未安装，跳过去背景步骤")
@@ -696,7 +696,11 @@ def remove_background(frame_paths, output_dir):
             save_path = Path(output_dir) / fp.name
             shutil.copy2(fp, save_path)
             results.append(save_path)
-        return results
+
+    _normalize_foreground_sequence(results)
+    if reference_image_path:
+        _apply_reference_color_match_to_frames(results, reference_image_path)
+    return results
 
 
 def pixelize_frames(frame_paths, output_dir, pixel_size=4, palette_colors=32):
@@ -710,7 +714,7 @@ def pixelize_frames(frame_paths, output_dir, pixel_size=4, palette_colors=32):
         w, h = img.size
 
         # 缩小再放大实现像素化
-        small = img.resize((w // pixel_size, h // pixel_size), Image.NEAREST)
+        small = img.resize((max(1, w // pixel_size), max(1, h // pixel_size)), Image.NEAREST)
         pixelized = small.resize((w, h), Image.NEAREST)
 
         # 分离 alpha 通道
@@ -757,21 +761,146 @@ def _erode_mask(mask, iterations=1):
     return result
 
 
+def _dilate_mask(mask, iterations=1):
+    result = mask.astype(bool)
+    for _ in range(max(0, int(iterations))):
+        padded = np.pad(result, 1, mode="constant", constant_values=False)
+        neighbors = [
+            padded[1 + dy:1 + dy + result.shape[0], 1 + dx:1 + dx + result.shape[1]]
+            for dy in (-1, 0, 1)
+            for dx in (-1, 0, 1)
+        ]
+        result = np.logical_or.reduce(neighbors)
+    return result
+
+
+def _largest_connected_component(mask):
+    mask = mask.astype(bool)
+    if not np.any(mask):
+        return mask
+
+    h, w = mask.shape
+    visited = np.zeros((h, w), dtype=bool)
+    best_pixels = []
+
+    for y in range(h):
+        for x in range(w):
+            if not mask[y, x] or visited[y, x]:
+                continue
+            queue = deque([(y, x)])
+            visited[y, x] = True
+            pixels = []
+            while queue:
+                cy, cx = queue.popleft()
+                pixels.append((cy, cx))
+                for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not visited[ny, nx]:
+                        visited[ny, nx] = True
+                        queue.append((ny, nx))
+            if len(pixels) > len(best_pixels):
+                best_pixels = pixels
+
+    cleaned = np.zeros((h, w), dtype=bool)
+    if best_pixels:
+        ys, xs = zip(*best_pixels)
+        cleaned[list(ys), list(xs)] = True
+    return cleaned
+
+
+def _mask_bbox(mask):
+    ys, xs = np.where(mask)
+    if len(xs) == 0 or len(ys) == 0:
+        return None
+    return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+
+
 def _extract_foreground_mask(image):
     rgba = image.convert("RGBA")
     arr = np.array(rgba, dtype=np.uint8)
     alpha = arr[..., 3]
     if np.any(alpha > 8):
-        return _erode_mask(alpha > 8, iterations=1), arr
+        mask = alpha > 24
+    else:
+        rgb = arr[..., :3]
+        bg = _estimate_background_color(rgb).astype(np.int16)
+        diff = np.linalg.norm(rgb.astype(np.int16) - bg, axis=2)
+        mask = diff > 18.0
+        if mask.mean() > 0.95:
+            luminance = np.abs(rgb.astype(np.int16).mean(axis=2) - int(bg.mean()))
+            mask = luminance > 20
 
-    rgb = arr[..., :3]
-    bg = _estimate_background_color(rgb).astype(np.int16)
-    diff = np.linalg.norm(rgb.astype(np.int16) - bg, axis=2)
-    mask = diff > 18.0
-    if mask.mean() > 0.95:
-        luminance = np.abs(rgb.astype(np.int16).mean(axis=2) - int(bg.mean()))
-        mask = luminance > 20
-    return _erode_mask(mask, iterations=1), arr
+    mask = _largest_connected_component(mask)
+    if np.any(mask):
+        mask = _dilate_mask(mask, iterations=1)
+        mask = _erode_mask(mask, iterations=1)
+        arr[..., 3] = np.where(mask, np.maximum(arr[..., 3], 255), 0).astype(np.uint8)
+    return mask, arr
+
+
+def _normalize_foreground_sequence(frame_paths, safe_margin_ratio=0.05):
+    from PIL import Image
+
+    if not frame_paths:
+        return False
+
+    frames = []
+    bboxes = []
+    for fp in frame_paths:
+        img = Image.open(fp).convert("RGBA")
+        mask, arr = _extract_foreground_mask(img)
+        bbox = _mask_bbox(mask)
+        frames.append((fp, arr, mask, bbox))
+        if bbox is not None:
+            bboxes.append(bbox)
+
+    if not bboxes:
+        return False
+
+    w = int(frames[0][1].shape[1])
+    h = int(frames[0][1].shape[0])
+    union_left = min(b[0] for b in bboxes)
+    union_top = min(b[1] for b in bboxes)
+    union_right = max(b[2] for b in bboxes)
+    union_bottom = max(b[3] for b in bboxes)
+    union_w = max(1, union_right - union_left + 1)
+    union_h = max(1, union_bottom - union_top + 1)
+
+    margin_x = max(int(round(w * 0.06)), 8)
+    margin_y = max(int(round(h * safe_margin_ratio)), 12)
+    target_w = max(1, w - margin_x * 2)
+    target_h = max(1, h - margin_y * 2)
+    scale = min(1.0, target_w / union_w, target_h / union_h)
+
+    union_cx = (union_left + union_right) / 2.0
+    union_cy = (union_top + union_bottom) / 2.0
+    target_cx = (w - 1) / 2.0
+    target_cy = (h - 1) / 2.0
+    offset_x = int(round(target_cx - union_cx * scale))
+    offset_y = int(round(target_cy - union_cy * scale))
+
+    changed = False
+    for fp, arr, mask, bbox in frames:
+        rgba_img = Image.fromarray(arr, mode="RGBA")
+        if scale < 0.999:
+            new_size = (
+                max(1, int(round(rgba_img.width * scale))),
+                max(1, int(round(rgba_img.height * scale))),
+            )
+            rgba_img = rgba_img.resize(new_size, Image.Resampling.BICUBIC)
+        canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        canvas.alpha_composite(rgba_img, dest=(offset_x, offset_y))
+        clean_mask, clean_arr = _extract_foreground_mask(canvas)
+        clean_arr[..., 3] = np.where(clean_mask, clean_arr[..., 3], 0).astype(np.uint8)
+        Image.fromarray(clean_arr, mode="RGBA").save(fp)
+        changed = True
+
+    if changed:
+        print(
+            "  [防裁切] 已对 02_nobg 序列做安全构图重排："
+            f"scale={scale:.3f}, offset=({offset_x},{offset_y}), margin_y={margin_y}px"
+        )
+    return changed
 
 
 def _masked_histogram_match_channel(source_channel, source_mask, reference_channel, reference_mask):
@@ -792,6 +921,53 @@ def _masked_histogram_match_channel(source_channel, source_mask, reference_chann
     lookup = np.interp(src_cdf, ref_cdf, np.arange(256))
     matched = lookup[source_channel[source_mask]]
     return np.clip(matched, 0, 255).astype(np.uint8)
+
+
+def _apply_reference_color_match_to_frames(frame_paths, reference_image_path):
+    from PIL import Image
+
+    reference_image_path = Path(reference_image_path)
+    if not frame_paths or not reference_image_path.exists():
+        return False
+
+    reference_image = Image.open(reference_image_path).convert("RGBA")
+    reference_mask, reference_rgba = _extract_foreground_mask(reference_image)
+    reference_pixels = int(reference_mask.sum())
+    if reference_pixels < 128:
+        print(f"  [颜色回正] 参考图前景像素不足，跳过帧级回正 (ref={reference_pixels})")
+        return False
+
+    updated = 0
+    for fp in frame_paths:
+        img = Image.open(fp).convert("RGBA")
+        frame_mask, frame_rgba = _extract_foreground_mask(img)
+        frame_pixels = int(frame_mask.sum())
+        if frame_pixels < 128:
+            continue
+
+        matched_rgb = frame_rgba[..., :3].copy()
+        changed_channels = 0
+        for channel in range(3):
+            matched_vals = _masked_histogram_match_channel(
+                frame_rgba[..., channel], frame_mask,
+                reference_rgba[..., channel], reference_mask,
+            )
+            if matched_vals is None:
+                continue
+            matched_rgb[..., channel][frame_mask] = matched_vals
+            changed_channels += 1
+
+        if changed_channels == 0:
+            continue
+
+        matched_rgba = np.concatenate([matched_rgb, frame_rgba[..., 3:4]], axis=2)
+        matched_rgba = np.clip(matched_rgba, 0, 255).astype(np.uint8)
+        Image.fromarray(matched_rgba, mode="RGBA").save(fp)
+        updated += 1
+
+    if updated:
+        print(f"  [颜色回正] 已在 02_nobg 阶段完成逐帧回正：{updated}/{len(frame_paths)} 帧")
+    return updated > 0
 
 
 def apply_reference_color_match(sprite_sheet_path, reference_image_path, final_no_alpha_path):
@@ -918,7 +1094,7 @@ def postprocess_video(video_path, config):
 
     if config["remove_bg"]:
         nobg_dir = output_dir / "02_nobg"
-        frames = remove_background(frames, nobg_dir)
+        frames = remove_background(frames, nobg_dir, config.get("_reference_image_path"))
 
     pixel_dir = output_dir / "03_pixelized"
     frames = pixelize_frames(

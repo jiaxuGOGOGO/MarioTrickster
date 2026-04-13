@@ -40,7 +40,7 @@ if str(SCRIPT_DIR) not in sys.path:
 IN_BLENDER = False
 try:
     import bpy
-    from mathutils import Matrix, Vector
+    from mathutils import Matrix, Quaternion, Vector
     IN_BLENDER = True
 except ImportError:
     bpy = None
@@ -81,7 +81,7 @@ def get_args():
     parser.add_argument(
         "--ortho-padding",
         type=float,
-        default=1.18,
+        default=1.4,
         help="正交相机构图留白系数，越大越不容易裁切",
     )
     return parser.parse_args(argv)
@@ -171,7 +171,7 @@ def resolve_render_settings(args, preset, preset_name):
     rs["resolution"] = [width, height]
     rs["fps"] = fps
     rs["proxy_mode"] = args.proxy_mode or rs.get("proxy_mode", "auto")
-    rs["ortho_padding"] = float(args.ortho_padding or 1.18)
+    rs["ortho_padding"] = float(args.ortho_padding or rs.get("ortho_padding") or 1.4)
     rs.setdefault("camera_distance", 5.0)
     rs.setdefault("rotation_z_deg", 90.0)
     rs.setdefault("background", "green_screen")
@@ -501,6 +501,176 @@ def _bbox_world_points_for_objects(scene, objects, sample_frames):
     return points
 
 
+def _collect_keyframe_times(fcurves):
+    frames = set()
+    for fcurve in fcurves:
+        if fcurve is None:
+            continue
+        for keyframe in getattr(fcurve, "keyframe_points", []):
+            frames.add(round(float(keyframe.co[0]), 6))
+    return sorted(frames)
+
+
+def _anchor_frame_for_fcurves(fcurves):
+    frames = _collect_keyframe_times(fcurves)
+    return frames[0] if frames else None
+
+
+def _evaluate_fcurve_reference(fcurve, frame, default=0.0):
+    if fcurve is None:
+        return float(default)
+    try:
+        return float(fcurve.evaluate(frame))
+    except Exception:
+        points = getattr(fcurve, "keyframe_points", None) or []
+        if points:
+            return float(points[0].co[1])
+    return float(default)
+
+
+def _scale_fcurve_around_reference(fcurve, reference, amplitude):
+    keyframes = getattr(fcurve, "keyframe_points", None) or []
+    changed = 0
+    for keyframe in keyframes:
+        original = float(keyframe.co[1])
+        new_value = float(reference) + (original - float(reference)) * float(amplitude)
+        left_offset = float(keyframe.handle_left[1]) - original
+        right_offset = float(keyframe.handle_right[1]) - original
+        keyframe.co[1] = new_value
+        keyframe.handle_left[1] = new_value + left_offset * float(amplitude)
+        keyframe.handle_right[1] = new_value + right_offset * float(amplitude)
+        changed += 1
+    if changed:
+        fcurve.update()
+    return changed
+
+
+def _normalize_quaternion_values(values, fallback=None):
+    vals = [float(v) for v in values]
+    length = math.sqrt(sum(v * v for v in vals))
+    if length <= 1e-8:
+        if fallback is None:
+            return [1.0, 0.0, 0.0, 0.0]
+        vals = [float(v) for v in fallback]
+        length = math.sqrt(sum(v * v for v in vals))
+        if length <= 1e-8:
+            return [1.0, 0.0, 0.0, 0.0]
+    return [v / length for v in vals]
+
+
+def _scale_quaternion_fcurves(channel_map, amplitude):
+    existing = [channel_map.get(i) for i in range(4) if channel_map.get(i) is not None]
+    if len(existing) < 4:
+        return 0, 0
+
+    anchor_frame = _anchor_frame_for_fcurves(existing)
+    if anchor_frame is None:
+        return 0, 0
+
+    reference = _normalize_quaternion_values([
+        _evaluate_fcurve_reference(channel_map.get(i), anchor_frame, 1.0 if i == 0 else 0.0)
+        for i in range(4)
+    ])
+
+    indexed = {}
+    for idx in range(4):
+        indexed[idx] = {
+            round(float(point.co[0]), 6): point
+            for point in getattr(channel_map[idx], "keyframe_points", [])
+        }
+
+    common_frames = sorted(set(indexed[0]).intersection(indexed[1], indexed[2], indexed[3]))
+    if not common_frames:
+        return 0, 0
+
+    for frame in common_frames:
+        scaled_values = []
+        for idx in range(4):
+            keyframe = indexed[idx][frame]
+            original = float(keyframe.co[1])
+            new_value = reference[idx] + (original - reference[idx]) * float(amplitude)
+            left_offset = float(keyframe.handle_left[1]) - original
+            right_offset = float(keyframe.handle_right[1]) - original
+            keyframe.co[1] = new_value
+            keyframe.handle_left[1] = new_value + left_offset * float(amplitude)
+            keyframe.handle_right[1] = new_value + right_offset * float(amplitude)
+            scaled_values.append(new_value)
+
+        normalized_values = _normalize_quaternion_values(scaled_values, fallback=reference)
+        for idx in range(4):
+            keyframe = indexed[idx][frame]
+            delta = normalized_values[idx] - float(keyframe.co[1])
+            keyframe.co[1] = normalized_values[idx]
+            keyframe.handle_left[1] += delta
+            keyframe.handle_right[1] += delta
+
+    for fcurve in existing:
+        fcurve.update()
+    return len(existing), len(common_frames)
+
+
+def amplify_armature_action_motion(armature, amplitude=1.3):
+    """在渲染前统一放大骨架动作振幅，增强微动作光流。"""
+    if not IN_BLENDER or armature is None:
+        return
+    if abs(float(amplitude) - 1.0) <= 1e-6:
+        return
+
+    anim_data = getattr(armature, "animation_data", None)
+    action = getattr(anim_data, "action", None) if anim_data else None
+    if action is None:
+        print("  [Blender] 未找到可放大的动作曲线，跳过 motion amp")
+        return
+
+    grouped = {}
+    for fcurve in getattr(action, "fcurves", []):
+        data_path = str(getattr(fcurve, "data_path", ""))
+        if not data_path.startswith('pose.bones["'):
+            continue
+        if not (
+            data_path.endswith(".location")
+            or data_path.endswith(".rotation_euler")
+            or data_path.endswith(".rotation_quaternion")
+        ):
+            continue
+        grouped.setdefault(data_path, {})[int(getattr(fcurve, "array_index", 0))] = fcurve
+
+    changed_channels = 0
+    changed_keys = 0
+    skipped_quaternion_groups = 0
+
+    for data_path, channel_map in grouped.items():
+        if data_path.endswith(".rotation_quaternion"):
+            cur_channels, cur_keys = _scale_quaternion_fcurves(channel_map, amplitude)
+            if cur_channels == 0:
+                skipped_quaternion_groups += 1
+                continue
+            changed_channels += cur_channels
+            changed_keys += cur_keys
+            continue
+
+        existing = [channel_map.get(i) for i in sorted(channel_map.keys()) if channel_map.get(i) is not None]
+        anchor_frame = _anchor_frame_for_fcurves(existing)
+        if anchor_frame is None:
+            continue
+        for _, fcurve in channel_map.items():
+            reference = _evaluate_fcurve_reference(fcurve, anchor_frame, 0.0)
+            changed = _scale_fcurve_around_reference(fcurve, reference, amplitude)
+            if changed:
+                changed_channels += 1
+                changed_keys += changed
+
+    if changed_channels:
+        print(
+            f"  [Blender] 动作振幅已放大 {float(amplitude):.2f}x："
+            f"channels={changed_channels}, keyframes={changed_keys}"
+        )
+    else:
+        print("  [Blender] 未找到可放大的 location / rotation 曲线")
+    if skipped_quaternion_groups:
+        print(f"  [Blender] 提示：{skipped_quaternion_groups} 组四元数曲线因关键帧不同步被跳过")
+
+
 def fit_camera_to_targets(scene, camera, targets, render_settings, frame_start, frame_end):
     """根据目标对象包围盒自动调整相机位置与正交缩放。"""
     if not IN_BLENDER or not targets:
@@ -518,7 +688,7 @@ def fit_camera_to_targets(scene, camera, targets, render_settings, frame_start, 
 
     rot_z = float(render_settings.get("rotation_z_deg", 90.0))
     distance = float(render_settings.get("camera_distance", 5.0))
-    padding = float(render_settings.get("ortho_padding", 1.18))
+    padding = float(render_settings.get("ortho_padding", 1.4))
     aspect = max(1e-6, scene.render.resolution_x / max(1, scene.render.resolution_y))
 
     rad = math.radians(rot_z)
@@ -608,6 +778,8 @@ def import_and_render(fbx_path, output_path, preset_name, args):
     if not render_targets:
         print("  [Blender] 错误：既没有有效网格，也无法生成代理人体，终止渲染")
         return False
+
+    amplify_armature_action_motion(armature, amplitude=1.3)
 
     frame_start, frame_end = _infer_frame_range(imported_objects, armature=armature)
     scene.frame_start = int(frame_start)

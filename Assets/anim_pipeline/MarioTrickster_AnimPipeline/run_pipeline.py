@@ -29,6 +29,8 @@ import shutil
 import math
 from pathlib import Path
 
+import numpy as np
+
 # ============================================================
 # 配置区（用户可按需修改）
 # ============================================================
@@ -730,6 +732,123 @@ def pixelize_frames(frame_paths, output_dir, pixel_size=4, palette_colors=32):
     return results
 
 
+def _estimate_background_color(rgb_array):
+    h, w = rgb_array.shape[:2]
+    sample = max(1, min(h, w) // 12)
+    corners = np.concatenate([
+        rgb_array[:sample, :sample].reshape(-1, 3),
+        rgb_array[:sample, -sample:].reshape(-1, 3),
+        rgb_array[-sample:, :sample].reshape(-1, 3),
+        rgb_array[-sample:, -sample:].reshape(-1, 3),
+    ], axis=0)
+    return np.median(corners, axis=0).astype(np.uint8)
+
+
+def _erode_mask(mask, iterations=1):
+    result = mask.astype(bool)
+    for _ in range(max(0, int(iterations))):
+        padded = np.pad(result, 1, mode="constant", constant_values=False)
+        neighbors = [
+            padded[1 + dy:1 + dy + result.shape[0], 1 + dx:1 + dx + result.shape[1]]
+            for dy in (-1, 0, 1)
+            for dx in (-1, 0, 1)
+        ]
+        result = np.logical_and.reduce(neighbors)
+    return result
+
+
+def _extract_foreground_mask(image):
+    rgba = image.convert("RGBA")
+    arr = np.array(rgba, dtype=np.uint8)
+    alpha = arr[..., 3]
+    if np.any(alpha > 8):
+        return _erode_mask(alpha > 8, iterations=1), arr
+
+    rgb = arr[..., :3]
+    bg = _estimate_background_color(rgb).astype(np.int16)
+    diff = np.linalg.norm(rgb.astype(np.int16) - bg, axis=2)
+    mask = diff > 18.0
+    if mask.mean() > 0.95:
+        luminance = np.abs(rgb.astype(np.int16).mean(axis=2) - int(bg.mean()))
+        mask = luminance > 20
+    return _erode_mask(mask, iterations=1), arr
+
+
+def _masked_histogram_match_channel(source_channel, source_mask, reference_channel, reference_mask):
+    src_vals = source_channel[source_mask]
+    ref_vals = reference_channel[reference_mask]
+    if src_vals.size < 64 or ref_vals.size < 64:
+        return None
+
+    src_hist = np.bincount(src_vals, minlength=256).astype(np.float64)
+    ref_hist = np.bincount(ref_vals, minlength=256).astype(np.float64)
+    src_cdf = np.cumsum(src_hist)
+    ref_cdf = np.cumsum(ref_hist)
+    if src_cdf[-1] <= 0 or ref_cdf[-1] <= 0:
+        return None
+
+    src_cdf /= src_cdf[-1]
+    ref_cdf /= ref_cdf[-1]
+    lookup = np.interp(src_cdf, ref_cdf, np.arange(256))
+    matched = lookup[source_channel[source_mask]]
+    return np.clip(matched, 0, 255).astype(np.uint8)
+
+
+def apply_reference_color_match(sprite_sheet_path, reference_image_path, final_no_alpha_path):
+    from PIL import Image
+
+    sprite_sheet_path = Path(sprite_sheet_path)
+    reference_image_path = Path(reference_image_path)
+    final_no_alpha_path = Path(final_no_alpha_path)
+
+    if not sprite_sheet_path.exists() or not reference_image_path.exists():
+        print("  [颜色回正] 缺少 sprite sheet 或参考图，跳过")
+        return False
+
+    result_image = Image.open(sprite_sheet_path).convert("RGBA")
+    reference_image = Image.open(reference_image_path).convert("RGBA")
+
+    result_mask, result_rgba = _extract_foreground_mask(result_image)
+    reference_mask, reference_rgba = _extract_foreground_mask(reference_image)
+
+    result_pixels = int(result_mask.sum())
+    reference_pixels = int(reference_mask.sum())
+    if result_pixels < 128 or reference_pixels < 128:
+        print(f"  [颜色回正] 前景像素不足，跳过 (result={result_pixels}, ref={reference_pixels})")
+        rgb_no_alpha = np.array(result_image.convert("RGB"), dtype=np.uint8)
+        Image.fromarray(rgb_no_alpha, mode="RGB").save(final_no_alpha_path)
+        return False
+
+    matched_rgb = result_rgba[..., :3].copy()
+    changed_channels = 0
+    for channel in range(3):
+        matched_vals = _masked_histogram_match_channel(
+            result_rgba[..., channel], result_mask,
+            reference_rgba[..., channel], reference_mask,
+        )
+        if matched_vals is None:
+            continue
+        matched_rgb[..., channel][result_mask] = matched_vals
+        changed_channels += 1
+
+    if changed_channels == 0:
+        print("  [颜色回正] 直方图匹配未生效，保留原图")
+        rgb_no_alpha = np.array(result_image.convert("RGB"), dtype=np.uint8)
+        Image.fromarray(rgb_no_alpha, mode="RGB").save(final_no_alpha_path)
+        return False
+
+    alpha = result_rgba[..., 3:4]
+    matched_rgba = np.concatenate([matched_rgb, alpha], axis=2)
+    matched_rgba = np.clip(matched_rgba, 0, 255).astype(np.uint8)
+    Image.fromarray(matched_rgba, mode="RGBA").save(sprite_sheet_path)
+
+    alpha_float = (alpha.astype(np.float32) / 255.0)
+    rgb_no_alpha = np.clip(matched_rgb.astype(np.float32) * alpha_float, 0, 255).astype(np.uint8)
+    Image.fromarray(rgb_no_alpha, mode="RGB").save(final_no_alpha_path)
+    print(f"  [颜色回正] 已按参考图回正并写回: {sprite_sheet_path.name} / {final_no_alpha_path.name}")
+    return True
+
+
 def assemble_sprite_sheet(frame_paths, output_path, cols=8, metadata_path=None):
     """将帧序列拼合成 Sprite Sheet"""
     from PIL import Image
@@ -810,11 +929,26 @@ def postprocess_video(video_path, config):
 
     sheet_path = output_dir / "sprite_sheet.png"
     meta_path = output_dir / "sprite_meta.json"
+    final_no_alpha_path = output_dir / "final_no_alpha.png"
     assemble_sprite_sheet(frames, sheet_path, cols=config["sprite_cols"], metadata_path=meta_path)
+
+    reference_image_path = config.get("_reference_image_path")
+    if reference_image_path:
+        try:
+            apply_reference_color_match(sheet_path, reference_image_path, final_no_alpha_path)
+        except Exception as e:
+            print(f"  [颜色回正] 执行失败，保留原图: {e}")
+            from PIL import Image
+            Image.open(sheet_path).convert("RGB").save(final_no_alpha_path)
+    else:
+        from PIL import Image
+        Image.open(sheet_path).convert("RGB").save(final_no_alpha_path)
+        print("  [颜色回正] 未提供参考图，已输出未带 Alpha 的最终成图")
 
     print(f"\n{'='*50}")
     print(f"  完成！最终产出:")
     print(f"  Sprite Sheet: {sheet_path}")
+    print(f"  Final RGB:    {final_no_alpha_path}")
     print(f"  元数据:       {meta_path}")
     print(f"{'='*50}")
 
@@ -1197,6 +1331,9 @@ def main():
         print(f"[运行档位] profile={guard.get('profile')} vram={guard.get('vram_gb')}GB budget={guard.get('budget')} final={guard.get('final_cost')}")
 
     # 仅后处理模式
+    if args.ref and os.path.exists(args.ref):
+        config["_reference_image_path"] = args.ref
+
     if args.postprocess_only:
         if not args.video or not os.path.exists(args.video):
             print(f"[错误] 视频文件不存在: {args.video}")
@@ -1216,6 +1353,7 @@ def main():
     if not os.path.exists(args.ref):
         print(f"[错误] 参考图不存在: {args.ref}")
         sys.exit(1)
+    config["_reference_image_path"] = args.ref
 
     # 如果未手动指定 --video，先扫描 assets/videos/，再扫描 assets/fbx/
     if not args.video:

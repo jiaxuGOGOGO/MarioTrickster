@@ -91,13 +91,19 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 102（AnimPipeline 修复 — Blender 代理人体与有效网格判断补齐） |
+| **最新 Session** | Session 104（AnimPipeline 稳定性增强 — 相机 Padding / 前景颜色回正 / 动作振幅放大） |
 | **日期** | 2026-04-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — 在 S101 已完成 **12GB 安全档固化 + idle 分辨率防升档** 的基础上，S102 继续把 Blender 驱动视频分支补齐到可实测状态：对 `animation-only FBX` 改用“有效可渲染网格”判断，不再被空壳 mesh 误判；当缺少有效网格时自动生成白色代理人体，并按主体包围盒自动构图，减少纯绿幕、无主体与严重裁切。 |
-| **编译状态** | ✅ Python 管线脚本已更新，并通过 `py_compile` 与最小化逻辑验证；运行时 C# 代码未改动 |
-| **阻塞** | ⚠️ 待用户拉取后做一次本地实机验证：删除或改名 `assets/videos/idle_drive.mp4`，重新执行 `python run_pipeline.py --action idle`，确认 Blender 分支自动重建 drive video，日志出现“有效可渲染网格数”与代理人体提示，且 QC 仍保持 `480×480 / 17帧 / 6步`。 |
-| **交接说明** | S102 完成：`blender_render_drive_video.py` 已补上有效网格过滤、白色代理人体兜底、统一白模材质与正交相机自动构图；`run_pipeline.py`、`knowledge_loader.py` 中的 idle 安全锁继续保留，防止裁切检测把 `idle` 自动升到 `576×576 / 688×688` 等更高档位。**默认下一步：用户先拉取验证新的 `Breathing Idle_drive.mp4` 是否出现白色代理人体并具备可见微动作；若通过，再继续颜色保真、竖版档位与微动作优化。** |
+| **阶段** | Sprint 2.5 美术自动化落地期 — 在 S101 已固化 **12GB 安全档 + idle 防升档**、S102 已补齐 **animation-only FBX 的有效网格判断 / 代理人体 / 白模构图** 的基础上，S104 继续把稳定性前移到工程层：**Blender 正交相机 Padding 统一提升到 `1.4`，最终成图加入前景蒙版 Histogram Matching 回正，骨架驱动动作在渲染前统一做 `1.3x` 振幅放大**。 |
+| **编译状态** | ✅ Python 管线脚本与 `SESSION_TRACKER.md` 已更新，并通过 `python3.11 -m py_compile blender_render_drive_video.py run_pipeline.py`；运行时 C# 代码未改动 |
+| **阻塞** | ⚠️ 待用户拉取后做一次本地实机验证：重新执行 `python run_pipeline.py --action idle`（必要时先删除/改名 `assets/videos/idle_drive.mp4` 强制走 Blender 分支），确认日志出现 `padding=1.40`、动作振幅放大提示、最终 `final_no_alpha.png` 与 Sprite Sheet 均成功写回，且结果满足 **不裁头/不吞帽檐武器、颜色不发灰不掉饱和、微动作明显增强**。 |
+| **交接说明** | S104 完成：`blender_render_drive_video.py` 已把默认正交留白系数提升到 `1.4`，并在渲染前对 `pose.bones.*` 的 `location / rotation_euler / rotation_quaternion` 曲线执行安全振幅放大；四元数曲线在逐帧放大后会重新归一化，若关键帧不同步则跳过该组避免扭曲。`run_pipeline.py` 已新增**只作用于角色前景**的参考图直方图匹配，并以类型安全方式写回 `final_no_alpha.png`。后续若需要继续查阅美术规则，`PROMPT_RECIPES.md` 的真实路径应以 **`Assets/MarioTrickster-Art/prompts/PROMPT_RECIPES.md`** 为准。 |
+
+### [S104] 最新知识沉淀
+
+1. **防显存溢出**：遇到主体裁切时，**严禁靠扩画幅、抬分辨率、拉高步数**硬顶，必须优先依赖 Blender 正交相机 `ortho_scale × 1.4` 做 Padding，在 12GB 安全档内解决留白。
+2. **色彩保真**：图生视频天然会掉色，最终成图必须依赖**带蒙版的 Histogram Matching** 强制拉回；匹配时只统计角色前景 RGB，**Alpha 原样保留**，蒙版不稳时宁可跳过也不能把整图染偏。
+3. **下一代特征保真架构升级方案**：为彻底解决无网格白模驱动导致的“吞武器 / 吞帽子”问题，下一阶段应把管线驱动源从**实体白模驱动**平滑迁移到 **DWPose / OpenPose 火柴人纯骨架驱动**，把动作约束与角色外观还原彻底解耦，释放参考图的特征保真能力。
 
 ---
 
@@ -146,7 +152,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
 | ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
 | 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
-| 🔄 | AnimPipeline：idle 自动生成链路 | **S102重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 生成新的 drive video；日志中应出现“有效可渲染网格数”统计，若为 animation-only FBX 则继续出现“自动生成代理人体”提示；QC 不再把 `480×480 / 17帧 / 6步` 自动改成更高分辨率 |
+| 🔄 | AnimPipeline：idle 自动生成链路 | **S104重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色已按参考图回正、头顶/帽檐/武器不再轻易裁切 |
 
 ---
 
@@ -175,7 +181,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏 + S71 Telecom第二輪深度蒸留 + S72 室井康雄蒸留 + S73 バニリゾ蒸留 + S74 テレコムBible蒸留 + S75 室井康雄第二輪蒸留 + S76 松岡伸治《エフェクトグラフィックス》蒸留） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`；本轮又把“本地训练参数 / Civitai 页面填写 / 训练排障”三类求助入口补进白话速查表，避免用户重复追问同类问题。 | ✅ 已完成 |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
-| **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S102 已补齐 animation-only FBX 的有效网格判断、代理人体兜底、白模材质与自动构图，并与 idle 分辨率安全锁联动，等待用户实机验证后继续颜色保真 / 竖版构图 / 微动作优化 |
+| **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S104 已继续补齐 **12GB 内防裁切 Padding、前景蒙版颜色回正、动作振幅放大** 三项稳定性增强，并正式落库下一代升级方向：由实体白模驱动平滑迁移到 **DWPose / OpenPose 火柴人纯骨架驱动**。当前等待用户实机验证颜色保真、构图留白与微动作效果 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |
 | **最高** | **恢复关卡白盒主线**：直接重新启用 `Level Studio / Custom Template Editor / Build From Text`，基于现有 ASCII 模板库与片段库继续拼装、测试并迭代 1~2 个完整关卡段；美术换肤只服务于已验证白盒，不再反向阻塞关卡设计。**S94 已固定执行原则**：A 轨（关卡白盒）永远是唯一上游任务源。**S95 已固定默认入口**：若当前要推项目总主线，应直接从“先继续白盒关卡，不等最终美术”这类窄入口启动。 | 🚀 已形成桥接结论，当前可立即恢复执行 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |

@@ -81,8 +81,8 @@ def get_args():
     parser.add_argument(
         "--ortho-padding",
         type=float,
-        default=1.4,
-        help="正交相机构图留白系数，越大越不容易裁切",
+        default=1.6,
+        help="正交相机构图留白系数，S106 默认回调到 1.6，兼顾武器/帽子占位与主体像素占比",
     )
     return parser.parse_args(argv)
 
@@ -171,7 +171,7 @@ def resolve_render_settings(args, preset, preset_name):
     rs["resolution"] = [width, height]
     rs["fps"] = fps
     rs["proxy_mode"] = args.proxy_mode or rs.get("proxy_mode", "auto")
-    rs["ortho_padding"] = float(args.ortho_padding or rs.get("ortho_padding") or 1.4)
+    rs["ortho_padding"] = float(args.ortho_padding or rs.get("ortho_padding") or 1.6)
     rs.setdefault("camera_distance", 5.0)
     rs.setdefault("rotation_z_deg", 90.0)
     rs.setdefault("background", "green_screen")
@@ -439,12 +439,44 @@ def _create_bone_proxy_segment(armature, pose_bone, material):
     return obj
 
 
+def _find_pose_bone(armature, candidate_names, fallback_contains=None):
+    pose_bones = list(getattr(getattr(armature, "pose", None), "bones", []))
+    if not pose_bones:
+        return None
+
+    normalized = {name.lower() for name in (candidate_names or [])}
+    for bone in pose_bones:
+        if bone.name.lower() in normalized:
+            return bone
+
+    contains_terms = [term.lower() for term in (fallback_contains or candidate_names or []) if term]
+    for term in contains_terms:
+        for bone in pose_bones:
+            if term in bone.name.lower():
+                return bone
+    return None
+
+
+def _apply_proxy_material(obj, material):
+    if material is None or getattr(obj, "type", None) != "MESH" or getattr(obj, "data", None) is None:
+        return
+    obj.data.materials.clear()
+    obj.data.materials.append(material)
+
+
+def _attach_object_to_bone(obj, armature, pose_bone):
+    obj.parent = armature
+    obj.parent_type = "BONE"
+    obj.parent_bone = pose_bone.name
+    obj.hide_render = False
+
+
 def _create_head_proxy(armature, material):
-    head_bone = None
-    for bone in getattr(getattr(armature, "pose", None), "bones", []):
-        if "head" in bone.name.lower():
-            head_bone = bone
-            break
+    head_bone = _find_pose_bone(
+        armature,
+        ["Head", "mixamorig:Head", "head", "mixamorig:head"],
+        fallback_contains=["head"],
+    )
     if head_bone is None:
         return None
 
@@ -455,19 +487,76 @@ def _create_head_proxy(armature, material):
     bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=head_world, segments=16, ring_count=8)
     obj = bpy.context.active_object
     obj.name = "proxy_head"
-    if material is not None:
-        obj.data.materials.clear()
-        obj.data.materials.append(material)
-    obj.parent = armature
-    obj.parent_type = "BONE"
-    obj.parent_bone = head_bone.name
+    _apply_proxy_material(obj, material)
+    _attach_object_to_bone(obj, armature, head_bone)
     obj.matrix_world = Matrix.Translation(head_world)
-    obj.hide_render = False
+    return obj
+
+
+def _create_hat_dummy_prop(armature, material):
+    head_bone = _find_pose_bone(
+        armature,
+        ["Head", "mixamorig:Head", "head", "mixamorig:head"],
+        fallback_contains=["head"],
+    )
+    if head_bone is None:
+        return None
+
+    bone_vec = head_bone.tail - head_bone.head
+    bone_length = max(0.08, float(bone_vec.length))
+    tip_world = armature.matrix_world @ head_bone.tail
+    axis_world = (armature.matrix_world.to_quaternion() @ Vector((0.0, 0.0, 1.0))).normalized()
+    height = max(0.22, bone_length * 2.4)
+    radius = max(0.07, bone_length * 0.55)
+    center = tip_world + axis_world * (height * 0.45)
+    quat = axis_world.to_track_quat("Z", "Y")
+
+    bpy.ops.mesh.primitive_cone_add(vertices=12, radius1=radius, radius2=radius * 0.18, depth=height, location=center)
+    obj = bpy.context.active_object
+    obj.name = "proxy_dummy_hat"
+    obj.rotation_euler = quat.to_euler()
+    _apply_proxy_material(obj, material)
+    _attach_object_to_bone(obj, armature, head_bone)
+    obj.matrix_world = Matrix.Translation(center) @ quat.to_matrix().to_4x4()
+    return obj
+
+
+def _create_weapon_dummy_prop(armature, material):
+    hand_bone = _find_pose_bone(
+        armature,
+        ["RightHand", "mixamorig:RightHand", "hand_r", "r_hand"],
+        fallback_contains=["righthand", "right_hand", "hand.r", "hand_r", "right hand"],
+    )
+    if hand_bone is None:
+        return None
+
+    head_world = armature.matrix_world @ hand_bone.head
+    tail_world = armature.matrix_world @ hand_bone.tail
+    forward_axis = tail_world - head_world
+    if float(forward_axis.length) <= 1e-5:
+        forward_axis = armature.matrix_world.to_quaternion() @ Vector((1.0, 0.0, 0.0))
+    forward_axis = forward_axis.normalized()
+    downward_axis = (armature.matrix_world.to_quaternion() @ Vector((0.0, 0.0, -1.0))).normalized()
+    hammer_axis = (forward_axis * 0.25 + downward_axis * 0.75).normalized()
+
+    hand_length = max(0.08, float((tail_world - head_world).length))
+    depth = max(0.5, hand_length * 7.0)
+    radius = max(0.045, hand_length * 0.8)
+    center = tail_world + hammer_axis * (depth * 0.52)
+    quat = hammer_axis.to_track_quat("Z", "Y")
+
+    bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=radius, depth=depth, location=center)
+    obj = bpy.context.active_object
+    obj.name = "proxy_dummy_hammer"
+    obj.rotation_euler = quat.to_euler()
+    _apply_proxy_material(obj, material)
+    _attach_object_to_bone(obj, armature, hand_bone)
+    obj.matrix_world = Matrix.Translation(center) @ quat.to_matrix().to_4x4()
     return obj
 
 
 def build_proxy_body_for_armature(armature, material):
-    """为 animation-only FBX 创建简洁但可见的白色代理人体。"""
+    """为 animation-only FBX 创建带帽子/武器占位的灰色代理人体。"""
     if not IN_BLENDER or armature is None:
         return []
 
@@ -480,6 +569,14 @@ def build_proxy_body_for_armature(armature, material):
     head_proxy = _create_head_proxy(armature, material)
     if head_proxy is not None:
         proxies.append(head_proxy)
+
+    hat_prop = _create_hat_dummy_prop(armature, material)
+    if hat_prop is not None:
+        proxies.append(hat_prop)
+
+    weapon_prop = _create_weapon_dummy_prop(armature, material)
+    if weapon_prop is not None:
+        proxies.append(weapon_prop)
 
     return proxies
 
@@ -790,10 +887,10 @@ def import_and_render(fbx_path, output_path, preset_name, args):
 
     camera_render_settings = dict(render_settings)
     if proxy_takeover:
-        camera_render_settings["ortho_padding"] = max(2.5, float(camera_render_settings.get("ortho_padding", 1.4)))
+        camera_render_settings["ortho_padding"] = min(1.7, max(1.5, float(camera_render_settings.get("ortho_padding", 1.6))))
         print(
-            "  [Blender] Proxy 接管已启用极限留白："
-            f"padding={camera_render_settings['ortho_padding']:.2f}"
+            "  [Blender] Proxy 接管启用 S106 构图回调："
+            f"padding={camera_render_settings['ortho_padding']:.2f}，BBox 已包含 Dummy Props"
         )
 
     fit_camera_to_targets(scene, camera, render_targets, camera_render_settings, scene.frame_start, scene.frame_end)

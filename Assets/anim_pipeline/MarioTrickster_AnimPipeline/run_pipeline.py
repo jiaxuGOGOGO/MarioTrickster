@@ -60,6 +60,18 @@ DEFAULT_CONFIG = {
     **config_data.get("postprocess", {})
 }
 
+S106_DEFAULTS = {
+    "width": 512,
+    "height": 768,
+    "steps": 24,
+    "cfg": 4.2,
+}
+S106_FORCE_POSITIVE = "(holding a giant heavy dark hammer, wearing a huge tall pointed hat, cel-shaded 2D game sprite, full body entirely in frame)"
+S106_FORCE_NEGATIVE = "evaporating, melting, fading, missing weapons, empty background, tiny, noise, signature, cropped"
+S106_MIN_FOREGROUND_RATIO = 0.025
+S106_COLOR_MATCH_MIN_RATIO = 0.05
+S106_BOTTOM_MARGIN_PX = 5
+
 
 def should_lock_idle_safe_resolution(action_type, config, args=None):
     """idle 默认锁定 12GB 安全档位 480x480，避免 QC 自动放大分辨率。"""
@@ -88,6 +100,91 @@ def sanitize_qc_adjustments(adjustments, action_type, config, args=None):
             print(f"  [安全锁] idle 维持 480x480 安全档位，忽略自动分辨率调参: {', '.join(removed)}")
             print("  [安全锁] 若仍有裁切，请优先检查 drive video 构图、代理人体缩放与角色在画面中的占比")
     return cleaned
+
+
+def _align_dim_to_16(value, fallback):
+    value = int(value or fallback)
+    value = max(256, value)
+    return max(256, (value // 16) * 16)
+
+
+def apply_s106_generation_defaults(config, args=None):
+    args = args or argparse.Namespace()
+    if getattr(args, "width", None) is None:
+        config["width"] = _align_dim_to_16(S106_DEFAULTS["width"], S106_DEFAULTS["width"])
+    if getattr(args, "height", None) is None:
+        config["height"] = _align_dim_to_16(S106_DEFAULTS["height"], S106_DEFAULTS["height"])
+    if getattr(args, "steps", None) is None:
+        config["steps"] = int(S106_DEFAULTS["steps"])
+    if getattr(args, "cfg", None) is None and "cfg" in config:
+        config["cfg"] = float(S106_DEFAULTS["cfg"])
+    return config
+
+
+def _merge_prompt_fragments(*parts):
+    merged = []
+    seen = set()
+    for part in parts:
+        if not part:
+            continue
+        for frag in str(part).split(","):
+            item = frag.strip()
+            key = item.lower()
+            if not item or key in seen:
+                continue
+            merged.append(item)
+            seen.add(key)
+    return ", ".join(merged)
+
+
+def build_s106_prompts(action_type, custom_prompt=None):
+    template = PROMPT_TEMPLATES.get(action_type, PROMPT_TEMPLATES["custom"])
+    positive = template["positive"]
+    if custom_prompt:
+        positive = _merge_prompt_fragments(positive, custom_prompt)
+
+    negative = _merge_prompt_fragments(BASE_NEGATIVE, template.get("negative_extra", ""))
+    if HAS_KNOWLEDGE:
+        positive, negative = knowledge_loader.enhance_prompt(action_type, positive, negative)
+
+    positive = _merge_prompt_fragments(positive, S106_FORCE_POSITIVE)
+    negative = _merge_prompt_fragments(negative, S106_FORCE_NEGATIVE)
+    return positive, negative
+
+
+def preprocess_reference_image(ref_path, output_dir):
+    from PIL import Image
+
+    ref_path = Path(ref_path)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    image = Image.open(ref_path).convert("RGBA")
+    arr = np.array(image, dtype=np.uint8)
+    h, w = arr.shape[:2]
+
+    wm_w = max(1, int(round(w * 0.30)))
+    wm_h = max(1, int(round(h * 0.15)))
+    x0, x1 = 0, wm_w
+    y0, y1 = max(0, h - wm_h), h
+
+    sample_y0 = max(0, y0 - wm_h)
+    sample = arr[sample_y0:y0, x0:x1]
+    if sample.size == 0:
+        sample = arr[: max(1, h // 5), x0:x1]
+    if sample.size == 0:
+        sample = arr
+
+    fill_rgba = np.median(sample.reshape(-1, 4), axis=0).astype(np.uint8)
+    arr[y0:y1, x0:x1] = fill_rgba
+
+    save_path = output_dir / f"{ref_path.stem}_s106_clean.png"
+    Image.fromarray(arr, mode="RGBA").save(save_path)
+    print(
+        "  [S106] 参考图已执行左下角签名区清理: "
+        f"region=({x0}:{x1}, {y0}:{y1}) -> {save_path.name}"
+    )
+    return save_path
 
 
 # ============================================================
@@ -437,14 +534,8 @@ def build_workflow(config, ref_image_name, video_name, action_type="custom", cus
       SaveVideo(VIDEO) → output
     """
 
-    # 获取 Prompt
-    template = PROMPT_TEMPLATES.get(action_type, PROMPT_TEMPLATES["custom"])
-    positive = custom_prompt if custom_prompt else template["positive"]
-    negative = BASE_NEGATIVE + (", " + template["negative_extra"] if template["negative_extra"] else "")
-
-    # 知识增强：用蒸馏知识库补强 Prompt（首次出图即生效）
-    if HAS_KNOWLEDGE:
-        positive, negative = knowledge_loader.enhance_prompt(action_type, positive, negative)
+    # S106 Prompt：动作模板 + 用户补充 + 强制正/负向约束
+    positive, negative = build_s106_prompts(action_type, custom_prompt=custom_prompt)
 
     seed = config["seed"] if config["seed"] >= 0 else int(time.time() * 1000) % (2**53)
 
@@ -524,7 +615,7 @@ def build_workflow(config, ref_image_name, video_name, action_type="custom", cus
                 "upscale_method": "lanczos",
                 "width": config["width"],
                 "height": config["height"],
-                "crop": "center"
+                "crop": "disabled"
             }
         },
 
@@ -562,7 +653,7 @@ def build_workflow(config, ref_image_name, video_name, action_type="custom", cus
             "inputs": {
                 "clip_vision": ["4", 0],
                 "image": ["10", 0],
-                "crop": "center"
+                "crop": "disabled"
             }
         },
 
@@ -635,7 +726,7 @@ def build_workflow(config, ref_image_name, video_name, action_type="custom", cus
             "class_type": "CreateVideo",
             "inputs": {
                 "images": ["32", 0],
-                "fps": 16.0
+                "fps": float(config.get("fps", 16))
             }
         },
 
@@ -672,77 +763,154 @@ def video_to_frames(video_path, output_dir):
 
 
 def remove_background(frame_paths, output_dir, reference_image_path=None):
-    """使用 rembg 去除背景，并在 02_nobg 阶段完成前景清理与全局自动裁切。"""
+    """使用 S106 的 Alpha/RGB 分离方案去背景，并返回逐帧状态记录。"""
+    from PIL import Image
+
     os.makedirs(output_dir, exist_ok=True)
+    output_dir = Path(output_dir)
     results = []
+    frame_records = []
 
     try:
         from rembg import remove as rembg_remove
-        from PIL import Image
-
-        for i, fp in enumerate(frame_paths):
-            img = Image.open(fp)
-            out = rembg_remove(img)
-            save_path = Path(output_dir) / fp.name
-            out.save(save_path)
-            results.append(save_path)
-            if (i + 1) % 10 == 0:
-                print(f"\r  [去背景] {i+1}/{len(frame_paths)}", end="", flush=True)
-        print(f"\r  [去背景] rembg 处理完成，{len(results)} 帧")
-
     except ImportError:
-        print("  [去背景] rembg 未安装，跳过去背景步骤")
-        for fp in frame_paths:
-            save_path = Path(output_dir) / fp.name
-            shutil.copy2(fp, save_path)
-            results.append(save_path)
+        rembg_remove = None
+        print("  [去背景] rembg 未安装，回退到 Alpha/颜色阈值掩码模式")
 
-    _apply_global_auto_trim_to_sequence(results)
-    return results
+    for i, fp in enumerate(frame_paths):
+        original = Image.open(fp).convert("RGBA")
+        original_rgba = np.array(original, dtype=np.uint8)
+        raw_rgba = original_rgba.copy()
+
+        if rembg_remove is not None:
+            raw_rgba = np.array(rembg_remove(original).convert("RGBA"), dtype=np.uint8)
+
+        clean_mask = _extract_clean_mask(raw_rgba[..., 3], original_rgba[..., :3])
+        cleaned_rgba = original_rgba.copy()
+        cleaned_rgba[..., 3] = np.where(clean_mask, 255, 0).astype(np.uint8)
+        cleaned_rgba[..., :3][~clean_mask] = 0
+
+        save_path = output_dir / fp.name
+        Image.fromarray(cleaned_rgba, mode="RGBA").save(save_path)
+        bbox = _mask_bbox(clean_mask)
+        foreground_ratio = float(clean_mask.mean())
+        is_bad = bbox is None or foreground_ratio < S106_MIN_FOREGROUND_RATIO
+
+        results.append(save_path)
+        frame_records.append({
+            "index": i,
+            "name": fp.name,
+            "path": str(save_path),
+            "source_path": str(fp),
+            "bbox": list(bbox) if bbox else None,
+            "foreground_ratio": foreground_ratio,
+            "is_bad": bool(is_bad),
+            "alignment_status": "pending",
+            "pivot": {"x": 0.5, "y": 0.0},
+        })
+
+        if (i + 1) % 10 == 0 or i == len(frame_paths) - 1:
+            print(f"\r  [去背景] {i+1}/{len(frame_paths)}", end="", flush=True)
+    print()
+
+    results, frame_records = _apply_global_auto_trim_to_sequence(frame_records)
+    return results, frame_records
 
 
 # 保留 reference_image_path 参数以兼容旧调用方；S105 起颜色回正统一在最终成图阶段执行。
 
 
-def _apply_global_auto_trim_to_sequence(frame_paths):
+def _union_bboxes(bboxes):
+    if not bboxes:
+        return None
+    return (
+        min(b[0] for b in bboxes),
+        min(b[1] for b in bboxes),
+        max(b[2] for b in bboxes),
+        max(b[3] for b in bboxes),
+    )
+
+
+
+def _apply_global_auto_trim_to_sequence(frame_records):
     from PIL import Image
 
-    if not frame_paths:
-        return False
+    if not frame_records:
+        return [], frame_records
 
-    global_bboxes = []
-    for fp in frame_paths:
-        img = Image.open(fp).convert("RGBA")
-        mask, arr = _extract_foreground_mask(img)
-        cleaned = Image.fromarray(arr, mode="RGBA")
-        cleaned.save(fp)
-        if np.any(mask):
-            bbox = cleaned.getchannel("A").getbbox()
-            if bbox is not None:
-                global_bboxes.append(bbox)
+    healthy_records = [record for record in frame_records if (not record.get("is_bad")) and record.get("bbox")]
+    global_bbox = _union_bboxes([tuple(record["bbox"]) for record in healthy_records])
+    if global_bbox is None:
+        canvas = np.zeros((256, 256, 4), dtype=np.uint8)
+        for record in frame_records:
+            Image.fromarray(canvas, mode="RGBA").save(record["path"])
+            record["alignment_status"] = "transparent_fallback"
+            record["global_trim_bbox"] = None
+            record["canvas_size"] = {"w": 256, "h": 256}
+            record["final_foreground_ratio"] = 0.0
+        print("  [S106 Auto-Trim] 全序列均判定为坏帧，已输出透明占位帧")
+        return [Path(record["path"]) for record in frame_records], frame_records
 
-    if not global_bboxes:
-        return False
+    gx0, gy0, gx1, gy1 = global_bbox
+    max_w, max_h = 1, 1
+    for record in healthy_records:
+        rgba = np.array(Image.open(record["path"]).convert("RGBA"), dtype=np.uint8)
+        cropped = rgba[gy0:gy1 + 1, gx0:gx1 + 1].copy()
+        local_bbox = _mask_bbox(cropped[..., 3] > 0)
+        if local_bbox is None:
+            continue
+        lx0, ly0, lx1, ly1 = local_bbox
+        max_w = max(max_w, lx1 - lx0 + 1)
+        max_h = max(max_h, ly1 - ly0 + 1)
 
-    global_bbox = (
-        min(b[0] for b in global_bboxes),
-        min(b[1] for b in global_bboxes),
-        max(b[2] for b in global_bboxes),
-        max(b[3] for b in global_bboxes),
-    )
+    canvas_w = max_w
+    canvas_h = max_h + S106_BOTTOM_MARGIN_PX
+    results = []
+    previous_good_canvas = None
 
-    trimmed = 0
-    for fp in frame_paths:
-        img = Image.open(fp).convert("RGBA")
-        cropped = img.crop(global_bbox)
-        cropped.save(fp)
-        trimmed += 1
+    for record in frame_records:
+        rgba = np.array(Image.open(record["path"]).convert("RGBA"), dtype=np.uint8)
+        cropped = rgba[gy0:gy1 + 1, gx0:gx1 + 1].copy()
+        local_bbox = _mask_bbox(cropped[..., 3] > 0)
 
+        if record.get("is_bad") or local_bbox is None:
+            record["is_bad"] = True
+            if previous_good_canvas is not None:
+                canvas = previous_good_canvas.copy()
+                record["alignment_status"] = "copied_previous_healthy"
+            else:
+                canvas = np.zeros((canvas_h, canvas_w, 4), dtype=np.uint8)
+                record["alignment_status"] = "transparent_fallback"
+            record["aligned_bbox"] = None
+        else:
+            lx0, ly0, lx1, ly1 = local_bbox
+            tight = cropped[ly0:ly1 + 1, lx0:lx1 + 1].copy()
+            tight_h, tight_w = tight.shape[:2]
+            canvas = np.zeros((canvas_h, canvas_w, 4), dtype=np.uint8)
+            target_x = max(0, (canvas_w - tight_w) // 2)
+            target_y = max(0, canvas_h - S106_BOTTOM_MARGIN_PX - tight_h)
+            canvas[target_y:target_y + tight_h, target_x:target_x + tight_w] = tight
+            previous_good_canvas = canvas.copy()
+            record["alignment_status"] = "bottom_center_aligned"
+            record["aligned_bbox"] = {
+                "x": int(target_x),
+                "y": int(target_y),
+                "w": int(tight_w),
+                "h": int(tight_h),
+            }
+
+        Image.fromarray(canvas, mode="RGBA").save(record["path"])
+        record["global_trim_bbox"] = {"x": int(gx0), "y": int(gy0), "w": int(gx1 - gx0 + 1), "h": int(gy1 - gy0 + 1)}
+        record["canvas_size"] = {"w": int(canvas_w), "h": int(canvas_h)}
+        record["final_foreground_ratio"] = float((canvas[..., 3] > 0).mean())
+        results.append(Path(record["path"]))
+
+    bad_count = sum(1 for record in frame_records if record.get("is_bad"))
     print(
-        "  [Global Auto-Trim] 已对 02_nobg 序列执行统一裁切："
-        f"bbox={global_bbox}, frames={trimmed}"
+        "  [S106 Auto-Trim] 已完成坏帧熔断、全局裁切与 Bottom-Center 对齐: "
+        f"global_bbox={global_bbox}, canvas={canvas_w}x{canvas_h}, bad_frames={bad_count}/{len(frame_records)}"
     )
-    return True
+    return results, frame_records
 
 
 # S105 起不再在 02_nobg 阶段做颜色回正，避免像素化前重复偏移。
@@ -862,26 +1030,39 @@ def _mask_bbox(mask):
     return int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
 
 
+def _extract_clean_mask(alpha_channel, rgb_array=None):
+    alpha_mask = np.asarray(alpha_channel, dtype=np.uint8) > 24
+    alpha_coverage = float(alpha_mask.mean())
+    if rgb_array is not None and (not np.any(alpha_mask) or alpha_coverage > 0.98):
+        bg = _estimate_background_color(rgb_array).astype(np.int16)
+        diff = np.linalg.norm(rgb_array.astype(np.int16) - bg, axis=2)
+        alpha_mask = diff > 18.0
+        if alpha_mask.mean() > 0.95:
+            luminance = np.abs(rgb_array.astype(np.int16).mean(axis=2) - int(bg.mean()))
+            alpha_mask = luminance > 20
+
+    try:
+        import cv2
+
+        kernel_size = 5 if min(alpha_mask.shape[:2]) >= 256 else 3
+        kernel = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+        binary = (alpha_mask.astype(np.uint8) * 255)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+        cleaned = binary > 0
+    except ImportError:
+        cleaned = _dilate_mask(_erode_mask(alpha_mask, iterations=1), iterations=1)
+
+    cleaned = _largest_connected_component(cleaned)
+    return cleaned.astype(bool)
+
+
+
 def _extract_foreground_mask(image):
     rgba = image.convert("RGBA")
     arr = np.array(rgba, dtype=np.uint8)
-    alpha = arr[..., 3]
-    if np.any(alpha > 8):
-        mask = alpha > 24
-    else:
-        rgb = arr[..., :3]
-        bg = _estimate_background_color(rgb).astype(np.int16)
-        diff = np.linalg.norm(rgb.astype(np.int16) - bg, axis=2)
-        mask = diff > 18.0
-        if mask.mean() > 0.95:
-            luminance = np.abs(rgb.astype(np.int16).mean(axis=2) - int(bg.mean()))
-            mask = luminance > 20
-
-    mask = _largest_connected_component(mask)
-    if np.any(mask):
-        mask = _dilate_mask(mask, iterations=1)
-        mask = _erode_mask(mask, iterations=1)
-        arr[..., 3] = np.where(mask, np.maximum(arr[..., 3], 255), 0).astype(np.uint8)
+    mask = _extract_clean_mask(arr[..., 3], arr[..., :3])
+    arr[..., 3] = np.where(mask, 255, 0).astype(np.uint8)
+    arr[..., :3][~mask] = 0
     return mask, arr
 
 
@@ -897,7 +1078,10 @@ def _masked_mean_shift_channel(source_channel, source_mask, reference_channel, r
 
 
 
-def _apply_safe_mean_rgb_shift(source_rgba, source_mask, reference_rgba, reference_mask, max_abs_shift=40.0):
+def _apply_safe_mean_rgb_shift(source_rgba, source_mask, reference_rgba, reference_mask, max_abs_shift=40.0, source_bad=False, min_foreground_ratio=S106_COLOR_MATCH_MIN_RATIO):
+    if source_bad or float(source_mask.mean()) < float(min_foreground_ratio):
+        return None, []
+
     source_pixels = int(source_mask.sum())
     reference_pixels = int(reference_mask.sum())
     if source_pixels < 128 or reference_pixels < 128:
@@ -924,7 +1108,8 @@ def _apply_safe_mean_rgb_shift(source_rgba, source_mask, reference_rgba, referen
     return shifted_rgba, applied_shifts
 
 
-def _apply_reference_color_match_to_frames(frame_paths, reference_image_path):
+
+def _apply_reference_color_match_to_frames(frame_paths, reference_image_path, frame_records=None):
     from PIL import Image
 
     reference_image_path = Path(reference_image_path)
@@ -933,70 +1118,56 @@ def _apply_reference_color_match_to_frames(frame_paths, reference_image_path):
 
     reference_image = Image.open(reference_image_path).convert("RGBA")
     reference_mask, reference_rgba = _extract_foreground_mask(reference_image)
+    record_map = {record.get("name"): record for record in (frame_records or [])}
     updated = 0
+    skipped = 0
 
     for fp in frame_paths:
         img = Image.open(fp).convert("RGBA")
         frame_mask, frame_rgba = _extract_foreground_mask(img)
+        record = record_map.get(Path(fp).name, {})
         shifted_rgba, applied_shifts = _apply_safe_mean_rgb_shift(
-            frame_rgba, frame_mask,
-            reference_rgba, reference_mask,
+            frame_rgba,
+            frame_mask,
+            reference_rgba,
+            reference_mask,
+            source_bad=bool(record.get("is_bad", False)),
+            min_foreground_ratio=S106_COLOR_MATCH_MIN_RATIO,
         )
         if shifted_rgba is None:
+            skipped += 1
             continue
 
         Image.fromarray(shifted_rgba, mode="RGBA").save(fp)
+        record["color_shift"] = [round(float(v), 3) for v in applied_shifts]
         updated += 1
 
-    if updated:
-        print(f"  [颜色回正] 已按安全均值平移完成逐帧回正：{updated}/{len(frame_paths)} 帧")
+    print(
+        "  [颜色回正] 已执行逐帧安全均值平移："
+        f"updated={updated}, skipped={skipped}, guard_ratio={S106_COLOR_MATCH_MIN_RATIO:.2%}"
+    )
     return updated > 0
+
 
 
 def apply_reference_color_match(sprite_sheet_path, reference_image_path, final_no_alpha_path):
     from PIL import Image
 
     sprite_sheet_path = Path(sprite_sheet_path)
-    reference_image_path = Path(reference_image_path)
     final_no_alpha_path = Path(final_no_alpha_path)
-
-    if not sprite_sheet_path.exists() or not reference_image_path.exists():
-        print("  [颜色回正] 缺少 sprite sheet 或参考图，跳过")
+    if not sprite_sheet_path.exists():
         return False
 
-    result_image = Image.open(sprite_sheet_path).convert("RGBA")
-    reference_image = Image.open(reference_image_path).convert("RGBA")
-
-    result_mask, result_rgba = _extract_foreground_mask(result_image)
-    reference_mask, reference_rgba = _extract_foreground_mask(reference_image)
-
-    shifted_rgba, applied_shifts = _apply_safe_mean_rgb_shift(
-        result_rgba, result_mask,
-        reference_rgba, reference_mask,
-    )
-    if shifted_rgba is None:
-        print("  [颜色回正] 前景提取不足或均值平移未生效，保留原图")
-        rgb_no_alpha = np.array(result_image.convert("RGB"), dtype=np.uint8)
-        Image.fromarray(rgb_no_alpha, mode="RGB").save(final_no_alpha_path)
-        return False
-
-    Image.fromarray(shifted_rgba, mode="RGBA").save(sprite_sheet_path)
-
-    alpha = shifted_rgba[..., 3:4]
-    alpha_float = (alpha.astype(np.float32) / 255.0)
-    shifted_rgb = shifted_rgba[..., :3]
-    rgb_no_alpha = np.clip(shifted_rgb.astype(np.float32) * alpha_float, 0, 255).astype(np.uint8)
+    rgba = np.array(Image.open(sprite_sheet_path).convert("RGBA"), dtype=np.uint8)
+    alpha = rgba[..., 3:4].astype(np.float32) / 255.0
+    rgb_no_alpha = np.clip(rgba[..., :3].astype(np.float32) * alpha, 0, 255).astype(np.uint8)
     Image.fromarray(rgb_no_alpha, mode="RGB").save(final_no_alpha_path)
-    print(
-        "  [颜色回正] 已按安全均值平移写回: "
-        f"{sprite_sheet_path.name} / {final_no_alpha_path.name}, "
-        f"shift=({', '.join(f'{s:+.1f}' for s in applied_shifts)})"
-    )
+    print("  [最终成图] S106 颜色防御已在逐帧阶段完成；此处仅导出无 Alpha RGB 成图")
     return True
 
 
-def assemble_sprite_sheet(frame_paths, output_path, cols=8, metadata_path=None):
-    """将帧序列拼合成 Sprite Sheet"""
+def assemble_sprite_sheet(frame_paths, output_path, cols=8, metadata_path=None, frame_records=None, fps=16):
+    """将帧序列拼合成 Sprite Sheet，并写入 S106 对齐元数据。"""
     from PIL import Image
 
     if not frame_paths:
@@ -1007,6 +1178,7 @@ def assemble_sprite_sheet(frame_paths, output_path, cols=8, metadata_path=None):
     fw, fh = sample.size
     total = len(frame_paths)
     rows = math.ceil(total / cols)
+    record_map = {record.get("name"): record for record in (frame_records or [])}
 
     sheet = Image.new("RGBA", (fw * cols, fh * rows), (0, 0, 0, 0))
 
@@ -1027,18 +1199,27 @@ def assemble_sprite_sheet(frame_paths, output_path, cols=8, metadata_path=None):
             "total_frames": total,
             "columns": cols,
             "rows": rows,
-            "fps": 16,
+            "fps": float(fps),
+            "pivot": {"x": 0.5, "y": 0.0},
             "frames": []
         }
-        for i in range(total):
+        for i, fp in enumerate(frame_paths):
             col = i % cols
             row = i // cols
+            record = record_map.get(Path(fp).name, {})
             meta["frames"].append({
                 "index": i,
                 "x": col * fw,
                 "y": row * fh,
                 "w": fw,
-                "h": fh
+                "h": fh,
+                "pivot": record.get("pivot", {"x": 0.5, "y": 0.0}),
+                "is_bad": bool(record.get("is_bad", False)),
+                "foreground_ratio": round(float(record.get("final_foreground_ratio", record.get("foreground_ratio", 0.0))), 6),
+                "alignment_status": record.get("alignment_status", "unknown"),
+                "global_trim_bbox": record.get("global_trim_bbox"),
+                "aligned_bbox": record.get("aligned_bbox"),
+                "color_shift": record.get("color_shift", []),
             })
         with open(metadata_path, "w") as f:
             json.dump(meta, f, indent=2)
@@ -1056,15 +1237,25 @@ def postprocess_video(video_path, config):
     output_dir = Path(config["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    reference_image_path = config.get("_reference_image_path")
+    if reference_image_path and os.path.exists(reference_image_path):
+        try:
+            cleaned_ref = preprocess_reference_image(reference_image_path, output_dir)
+            config["_reference_image_path"] = str(cleaned_ref)
+            reference_image_path = str(cleaned_ref)
+        except Exception as e:
+            print(f"  [S106] 参考图预处理失败，继续使用原图: {e}")
+
     frames_dir = output_dir / "01_frames"
     frames = video_to_frames(video_path, frames_dir)
     if not frames:
         print("[错误] 拆帧失败")
         return
 
+    frame_records = []
     if config["remove_bg"]:
         nobg_dir = output_dir / "02_nobg"
-        frames = remove_background(frames, nobg_dir, config.get("_reference_image_path"))
+        frames, frame_records = remove_background(frames, nobg_dir, reference_image_path)
 
     pixel_dir = output_dir / "03_pixelized"
     frames = pixelize_frames(
@@ -1073,23 +1264,30 @@ def postprocess_video(video_path, config):
         palette_colors=config["palette_colors"]
     )
 
+    if reference_image_path:
+        try:
+            _apply_reference_color_match_to_frames(frames, reference_image_path, frame_records=frame_records)
+        except Exception as e:
+            print(f"  [颜色回正] 逐帧安全均值平移失败，已跳过: {e}")
+
     sheet_path = output_dir / "sprite_sheet.png"
     meta_path = output_dir / "sprite_meta.json"
     final_no_alpha_path = output_dir / "final_no_alpha.png"
-    assemble_sprite_sheet(frames, sheet_path, cols=config["sprite_cols"], metadata_path=meta_path)
+    assemble_sprite_sheet(
+        frames,
+        sheet_path,
+        cols=config["sprite_cols"],
+        metadata_path=meta_path,
+        frame_records=frame_records,
+        fps=config.get("fps", 16),
+    )
 
-    reference_image_path = config.get("_reference_image_path")
-    if reference_image_path:
-        try:
-            apply_reference_color_match(sheet_path, reference_image_path, final_no_alpha_path)
-        except Exception as e:
-            print(f"  [颜色回正] 执行失败，保留原图: {e}")
-            from PIL import Image
-            Image.open(sheet_path).convert("RGB").save(final_no_alpha_path)
-    else:
+    try:
+        apply_reference_color_match(sheet_path, reference_image_path, final_no_alpha_path)
+    except Exception as e:
+        print(f"  [最终成图] 导出无 Alpha 成图失败，保留 RGB 直出: {e}")
         from PIL import Image
         Image.open(sheet_path).convert("RGB").save(final_no_alpha_path)
-        print("  [颜色回正] 未提供参考图，已输出未带 Alpha 的最终成图")
 
     print(f"\n{'='*50}")
     print(f"  完成！最终产出:")
@@ -1175,14 +1373,23 @@ def run_full_pipeline(args, config):
 
     server = config["server"]
     client_id = str(uuid.uuid4())
+    output_dir = Path(config["output_dir"])
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    prepared_ref_path = Path(args.ref)
+    try:
+        prepared_ref_path = preprocess_reference_image(args.ref, output_dir)
+        config["_reference_image_path"] = str(prepared_ref_path)
+    except Exception as e:
+        print(f"  [S106] 参考图预处理失败，继续使用原图: {e}")
 
     # 1. 上传素材
     print("\n[1/5] 上传素材到 ComfyUI...")
-    ref_name = os.path.basename(args.ref)
+    ref_name = prepared_ref_path.name
     vid_name = os.path.basename(args.video)
 
     try:
-        upload_image(server, args.ref)
+        upload_image(server, str(prepared_ref_path))
         print(f"  ✓ 参考图: {ref_name}")
         upload_image(server, args.video)
         print(f"  ✓ 驱动视频: {vid_name}")
@@ -1203,8 +1410,6 @@ def run_full_pipeline(args, config):
     print(f"  ✓ 帧数: {config['length']}, 步数: {config['steps']}, CFG: {config['cfg']}")
 
     # 保存工作流副本
-    output_dir = Path(config["output_dir"])
-    output_dir.mkdir(parents=True, exist_ok=True)
     wf_path = output_dir / "workflow_submitted.json"
     with open(wf_path, "w") as f:
         json.dump(workflow, f, indent=2)
@@ -1428,6 +1633,9 @@ def main():
     if args.palette: config["palette_colors"] = args.palette
     if args.no_bg_remove: config["remove_bg"] = False
 
+    config = apply_s106_generation_defaults(config, args)
+    config["_s106_profile"] = True
+
     # 注入动作类型和角色名到 config，供产出物适配器使用
     config["_action_type"] = args.action
     config["_character"] = args.character
@@ -1466,15 +1674,21 @@ def main():
         )
         clamp_applied = []
         for key, value in safe_params.items():
+            if key in ("width", "height", "steps", "cfg") and config.get("_s106_profile") and getattr(args, key, None) is None:
+                continue
             if key in config and config.get(key) != value:
                 clamp_applied.append(f"{key}={config.get(key)}→{value}")
                 config[key] = value
+        if config.get("_s106_profile"):
+            config = apply_s106_generation_defaults(config, args)
         if clamp_applied:
             print(f"[12GB护栏] 已按项目显存预算收敛参数: {', '.join(clamp_applied)}")
         elif guard.get("changed"):
             compact = ", ".join(f"{k}={old}→{new}" for k, old, new in guard["changed"])
             print(f"[12GB护栏] 已执行规格归一化: {compact}")
         print(f"[运行档位] profile={guard.get('profile')} vram={guard.get('vram_gb')}GB budget={guard.get('budget')} final={guard.get('final_cost')}")
+        if config.get("_s106_profile"):
+            print(f"[S106] 已锁定竖版生成参数: {config['width']}x{config['height']}, steps={config['steps']}, cfg={config.get('cfg')}")
 
     # 仅后处理模式
     if args.ref and os.path.exists(args.ref):

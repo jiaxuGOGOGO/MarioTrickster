@@ -4,7 +4,7 @@
 
 ## 快速上手
 
-1. 在 Unity 顶部菜单点击 **Window → MarioTrickster → Sprite Effect Factory**
+1. 在 Unity 顶部菜单点击 **MarioTrickster → Sprite Effect Factory**
 2. 拖入任意 Sprite（从 itch.io 等网站下载的素材均可）
 3. 工具自动提取所有颜色块，点击颜色即可一键替换
 4. 展开各效果面板（描边、闪白、溶解等），拖动滑块实时预览

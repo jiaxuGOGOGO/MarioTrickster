@@ -6,7 +6,7 @@ using UnityEditor;
 /// </summary>
 public class NoiseTextureGenerator : EditorWindow
 {
-    [MenuItem("Window/MarioTrickster/生成溶解噪声贴图")]
+    [MenuItem("MarioTrickster/生成溶解噪声贴图", false, 301)]
     public static void ShowWindow()
     {
         GetWindow<NoiseTextureGenerator>("噪声贴图生成");

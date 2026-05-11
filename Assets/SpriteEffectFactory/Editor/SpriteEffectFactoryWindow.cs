@@ -12,7 +12,7 @@ public class SpriteEffectFactoryWindow : EditorWindow
     // =========================================================================
     // 菜单入口
     // =========================================================================
-    [MenuItem("Window/MarioTrickster/Sprite Effect Factory %#e")]
+    [MenuItem("MarioTrickster/Sprite Effect Factory %#e", false, 300)]
     public static void ShowWindow()
     {
         var win = GetWindow<SpriteEffectFactoryWindow>("效果工厂");
@@ -387,7 +387,7 @@ public class SpriteEffectFactoryWindow : EditorWindow
         _detectedBackend = ShaderBackendAdapter.DetectBackend(_targetRenderer.sharedMaterial);
         if (_detectedBackend != ShaderBackendType.BuiltIn)
         {
-            _detectedProps = ShaderBackendAdapter.ScanMaterialProperties(_targetRenderer.sharedMaterial);
+            _detectedProps = ShaderPropertyScanner.ScanMaterialProperties(_targetRenderer.sharedMaterial);
         }
     }
 

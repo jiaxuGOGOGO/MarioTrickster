@@ -107,6 +107,9 @@ public class TestConsoleWindow : EditorWindow
     private string customAsciiTemplate = "";
     private bool showSnippetLibrary = false;
 
+    // Art & Effects Hub 状态
+    private bool showArtEffectsHub = false;
+
     // Teleport 状态
     private float customTeleportX = 0f;
     private float customTeleportY = 1f;
@@ -328,7 +331,16 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(6);
 
-        // ── 区块 3: 动态元素调色板 ──
+        // ── 区块2.5: Art & Effects Hub（素材导入 + SEF 效果统一入口）──
+        showArtEffectsHub = EditorGUILayout.Foldout(showArtEffectsHub, "★ Art & Effects Hub (素材导入 + Shader效果)", true, EditorStyles.foldoutHeader);
+        if (showArtEffectsHub)
+        {
+            DrawArtEffectsHub();
+        }
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块3: 动态元素调色板 ──
         showElementPalette = EditorGUILayout.Foldout(showElementPalette, "Element Palette (Spawn at Camera Center)", true, EditorStyles.foldoutHeader);
         if (showElementPalette)
         {
@@ -370,6 +382,87 @@ public class TestConsoleWindow : EditorWindow
         {
             DrawTestReportsSection();
         }
+    }
+
+    /// <summary>绘制 Art & Effects Hub —— 素材导入与 Shader 效果的统一入口</summary>
+    private void DrawArtEffectsHub()
+    {
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.HelpBox(
+            "统一入口：按顺序操作即可完成「导入素材 → 应用到场景 → 挑选效果」全流程。\n" +
+            "① 新素材从零开始：用『素材导入管线』\n" +
+            "② 素材穿到已有白盒物体：用『Apply Art to Selected』\n" +
+            "③ 给物体加视觉效果（闪白/描边/溶解等）：用『SEF Quick Apply』\n" +
+            "④ 精细调参（颜色替换/HSV/投影等）：用『效果工厂』",
+            MessageType.Info);
+
+        EditorGUILayout.Space(4);
+
+        // 第一步：素材导入管线
+        EditorGUILayout.LabelField("① 导入新素材", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        GUI.color = new Color(0.5f, 0.85f, 1f);
+        if (GUILayout.Button("打开素材导入管线 (Ctrl+Shift+I)", GUILayout.Height(26)))
+        {
+            AssetImportPipeline.ShowWindow();
+        }
+        GUI.color = new Color(0.7f, 0.9f, 1f);
+        if (GUILayout.Button("AI 智能裁切", GUILayout.Height(26)))
+        {
+            AI_SmartSlicerWindow.ShowWindow();
+        }
+        GUI.color = Color.white;
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(4);
+
+        // 第二步：应用素材到已有物体
+        EditorGUILayout.LabelField("② 应用素材到已有物体", EditorStyles.boldLabel);
+        GUI.color = new Color(0.5f, 1f, 0.6f);
+        if (GUILayout.Button("打开 Apply Art to Selected (Ctrl+Shift+A)", GUILayout.Height(26)))
+        {
+            AssetApplyToSelected.ShowWindow();
+        }
+        GUI.color = Color.white;
+        EditorGUILayout.HelpBox(
+            "先在 Scene 中选中白盒物体，再点此按钮。\n" +
+            "工具会自动保留已有的行为组件（碎裂/爆炸/伤害等），只替换贴图和 Material。",
+            MessageType.None);
+
+        EditorGUILayout.Space(4);
+
+        // 第三步：SEF 效果
+        EditorGUILayout.LabelField("③ 视觉效果（Shader）", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        GUI.color = new Color(1f, 0.85f, 0.4f);
+        if (GUILayout.Button("SEF Quick Apply (Ctrl+Shift+Q)", GUILayout.Height(26)))
+        {
+            SEF_QuickApply.ShowWindow();
+        }
+        GUI.color = new Color(0.9f, 0.7f, 1f);
+        if (GUILayout.Button("效果工厂精细调参 (Ctrl+Shift+E)", GUILayout.Height(26)))
+        {
+            SpriteEffectFactoryWindow.ShowWindow();
+        }
+        GUI.color = Color.white;
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.HelpBox(
+            "Quick Apply: 10个预设一键应用（闪白、描边、溶解、冒险描边、冰冻、像素化…）\n" +
+            "效果工厂: 拖入素材 → 颜色拆解 → 逐项调参 → 实时预览",
+            MessageType.None);
+
+        EditorGUILayout.Space(4);
+
+        // Picking 模式提示
+        EditorGUILayout.LabelField("ℹ Picking 模式提示", EditorStyles.miniLabel);
+        EditorGUILayout.HelpBox(
+            "Root 模式（默认）: 点击/框选始终选中 Root，适合移动摆放\n" +
+            "Visual 模式: 点击/框选始终选中 Visual 子物体，适合调视觉大小\n" +
+            "Size Sync: 调 Visual 大小时自动同步碰撞体，反之亦然\n\n" +
+            "★ 应用素材/效果时建议切到 Visual 模式，确保选中的是带 SpriteRenderer 的子物体。",
+            MessageType.None);
+
+        EditorGUILayout.EndVertical();
     }
 
     /// <summary>生成白盒关卡</summary>

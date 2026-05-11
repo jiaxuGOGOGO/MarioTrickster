@@ -48,6 +48,7 @@
 │  Step 4（可选）: 整关卡批量换肤                           │
 │  → 创建 LevelThemeProfile → 填入各元素的 Sprite          │
 │  → 回到 Level Builder Tab → Apply Theme                  │
+│  （换肤后系统会自动给所有物体补上 SEF Material，直接生效）│
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -85,10 +86,11 @@
 
 ---
 
-## 常见问题
+## 常见问题与快速修复
 
-**Q: 应用效果后看不到变化？**
-A: 确认物体的 SpriteRenderer 使用的是 `MarioTrickster/SEF/UberSprite` Shader。如果不是，SEF Quick Apply 会自动帮你换上。
+**Q: 为什么我点了 SEF Quick Apply 的预设，场景里没有任何变化？**
+A: 绝大多数情况是因为物体的 Material 还是默认的 `Sprites/Default`。
+**解法**：在 Art & Effects Hub 面板里，点击橙色的 **"选中物体补 SEF Material"** 按钮，一键修复。
 
 **Q: 选中物体后工具提示"没有 SpriteRenderer"？**
 A: 你可能选中了 Root。切到 **Visual 模式**再试，或者手动展开 Hierarchy 选中 Visual 子物体。
@@ -97,4 +99,7 @@ A: 你可能选中了 Root。切到 **Visual 模式**再试，或者手动展开
 A: LevelThemeProfile 中对应元素的 Sprite 槽位留空了。填入素材后重新 Apply Theme 即可。
 
 **Q: 导入的素材看起来模糊？**
-A: 素材导入管线会自动设置 PPU=32 + Point Filter + Uncompressed。如果是手动拖入 Assets 的素材，用管线的"仅规范化"按钮修复。
+A: 素材导入管线会自动设置 PPU=32 + Point Filter + Uncompressed。如果是手动拖入 Assets 的素材，可以在 Art & Effects Hub 点击 **"全工程合规巡检"** 按钮一键修复。
+
+**Q: 每次 Play 都会报 `groundLayer 未设置` 的黄色警告？**
+A: 以前手动摆放的角色容易漏掉这个设置。现在只要在 Level Builder 里点一下 `Generate Whitebox Level`，系统会自动帮你把场景里已有角色的 groundLayer 补齐。

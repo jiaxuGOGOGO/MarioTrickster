@@ -53,6 +53,7 @@ public class AssetApplyToSelected : EditorWindow
     // =========================================================================
     private Texture2D _artTexture;
     private Sprite _artSprite;
+    private Sprite[] _artSprites = new Sprite[0];
     private BehaviorTemplate _behaviorTemplate = BehaviorTemplate.AutoDetect;
     private bool _attachSEF = true;
     private bool _autoSavePrefab = true;
@@ -103,15 +104,24 @@ public class AssetApplyToSelected : EditorWindow
         _artSprite = (Sprite)EditorGUILayout.ObjectField(
             "或直接拖 Sprite", _artSprite, typeof(Sprite), false);
 
-        if (_artTexture != null && _artSprite == null)
+        if (_artTexture != null)
         {
-            // 尝试从 Texture 获取默认 Sprite
-            string texPath = AssetDatabase.GetAssetPath(_artTexture);
-            var sprites = AssetDatabase.LoadAllAssetsAtPath(texPath).OfType<Sprite>().ToArray();
-            if (sprites.Length > 0)
+            _artSprites = LoadSpritesFromTexture(_artTexture);
+            if (_artSprites.Length > 0)
             {
-                _artSprite = sprites[0];
-                EditorGUILayout.HelpBox($"已自动选取第一帧 Sprite: {_artSprite.name}", MessageType.None);
+                _artSprite = _artSprites[0];
+                string frameHint = _artSprites.Length > 1
+                    ? $"已识别 Sprite Sheet：{_artSprites.Length} 帧，应用后会自动挂 SpriteFrameAnimator 播放。"
+                    : $"已识别单帧 Sprite: {_artSprite.name}";
+                EditorGUILayout.HelpBox(frameHint, MessageType.None);
+            }
+        }
+        else if (_artSprite != null)
+        {
+            _artSprites = LoadSpritesFromSprite(_artSprite);
+            if (_artSprites.Length > 1)
+            {
+                EditorGUILayout.HelpBox($"已识别同图集 Sprite Sheet：{_artSprites.Length} 帧，应用后会自动播放。", MessageType.None);
             }
         }
 
@@ -205,20 +215,14 @@ public class AssetApplyToSelected : EditorWindow
             NormalizeTexture(_artTexture);
         }
 
-        // Step 2: 确保 Sprite 可用
-        if (_artSprite == null && _artTexture != null)
-        {
-            string texPath = AssetDatabase.GetAssetPath(_artTexture);
-            var sprites = AssetDatabase.LoadAllAssetsAtPath(texPath).OfType<Sprite>().ToArray();
-            if (sprites.Length > 0)
-                _artSprite = sprites[0];
-        }
-
-        if (_artSprite == null)
+        // Step 2: 确保 Sprite / Sprite Sheet 帧可用
+        Sprite[] spritesToApply = ResolveSpritesForApply();
+        if (spritesToApply.Length == 0)
         {
             EditorUtility.DisplayDialog("错误", "无法获取有效的 Sprite", "好的");
             return;
         }
+        _artSprite = spritesToApply[0];
 
         // Step 3: 找到或创建 SpriteRenderer
         SpriteRenderer sr = target.GetComponentInChildren<SpriteRenderer>();
@@ -238,9 +242,10 @@ public class AssetApplyToSelected : EditorWindow
             sr = Undo.AddComponent<SpriteRenderer>(visual.gameObject);
         }
 
-        // Step 4: 替换 Sprite
+        // Step 4: 替换 Sprite，并在多帧素材时自动挂帧动画
         Undo.RecordObject(sr, "Replace Sprite");
-        sr.sprite = _artSprite;
+        sr.sprite = spritesToApply[0];
+        ConfigureSpriteFrameAnimator(sr, spritesToApply);
 
         // Step 5: 配置 SEF Material + Controller
         if (_attachSEF)
@@ -257,7 +262,7 @@ public class AssetApplyToSelected : EditorWindow
         ApplyBehaviorTemplate(target, sr);
 
         // Step 7: 更新 ImportedAssetMarker
-        UpdateMarker(target, _artSprite);
+        UpdateMarker(target, spritesToApply);
 
         // Step 8: 自动保存 Prefab
         if (_autoSavePrefab)
@@ -270,7 +275,9 @@ public class AssetApplyToSelected : EditorWindow
         EditorUtility.SetDirty(sr);
         SceneView.RepaintAll();
 
-        _lastResult = $"已将 [{_artSprite.name}] 应用到 [{target.name}]，行为模板: {_behaviorTemplate}";
+        _lastResult = spritesToApply.Length > 1
+            ? $"已将 [{_artSprite.name}] 等 {spritesToApply.Length} 帧应用到 [{target.name}]，已自动挂动画，行为模板: {_behaviorTemplate}"
+            : $"已将 [{_artSprite.name}] 应用到 [{target.name}]，行为模板: {_behaviorTemplate}";
         Debug.Log($"[AssetApplyToSelected] {_lastResult}");
     }
 
@@ -531,18 +538,94 @@ public class AssetApplyToSelected : EditorWindow
         sr.sharedMaterial = mat;
     }
 
-    private void UpdateMarker(GameObject target, Sprite sprite)
+    private Sprite[] ResolveSpritesForApply()
     {
+        if (_artTexture != null)
+        {
+            Sprite[] sprites = LoadSpritesFromTexture(_artTexture);
+            if (sprites.Length > 0) return sprites;
+        }
+
+        if (_artSprite != null)
+        {
+            Sprite[] sprites = LoadSpritesFromSprite(_artSprite);
+            if (sprites.Length > 0) return sprites;
+            return new Sprite[] { _artSprite };
+        }
+
+        return new Sprite[0];
+    }
+
+    private Sprite[] LoadSpritesFromTexture(Texture2D texture)
+    {
+        if (texture == null) return new Sprite[0];
+        string path = AssetDatabase.GetAssetPath(texture);
+        if (string.IsNullOrEmpty(path)) return new Sprite[0];
+        return LoadSpritesAtPath(path);
+    }
+
+    private Sprite[] LoadSpritesFromSprite(Sprite sprite)
+    {
+        if (sprite == null) return new Sprite[0];
+        string path = AssetDatabase.GetAssetPath(sprite);
+        if (string.IsNullOrEmpty(path)) return new Sprite[] { sprite };
+        Sprite[] sprites = LoadSpritesAtPath(path);
+        return sprites.Length > 0 ? sprites : new Sprite[] { sprite };
+    }
+
+    private Sprite[] LoadSpritesAtPath(string path)
+    {
+        Sprite[] sprites = AssetDatabase.LoadAllAssetsAtPath(path)
+            .OfType<Sprite>()
+            .OrderByDescending(s => s.rect.y)
+            .ThenBy(s => s.rect.x)
+            .ThenBy(s => s.name)
+            .ToArray();
+        if (sprites.Length > 0) return sprites;
+
+        Sprite single = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        return single != null ? new Sprite[] { single } : new Sprite[0];
+    }
+
+    private void ConfigureSpriteFrameAnimator(SpriteRenderer sr, Sprite[] sprites)
+    {
+        if (sr == null) return;
+        var animator = sr.gameObject.GetComponent<SpriteFrameAnimator>();
+
+        if (sprites == null || sprites.Length <= 1)
+        {
+            if (animator != null)
+            {
+                Undo.DestroyObjectImmediate(animator);
+            }
+            return;
+        }
+
+        if (animator == null)
+        {
+            animator = Undo.AddComponent<SpriteFrameAnimator>(sr.gameObject);
+        }
+        Undo.RecordObject(animator, "Configure Sprite Frame Animator");
+        animator.frames = sprites;
+        animator.frameRate = 10f;
+        animator.playOnStart = true;
+        animator.loop = true;
+        EditorUtility.SetDirty(animator);
+    }
+
+    private void UpdateMarker(GameObject target, Sprite[] sprites)
+    {
+        if (sprites == null) sprites = new Sprite[0];
         var marker = target.GetComponent<ImportedAssetMarker>();
         if (marker == null)
         {
             marker = Undo.AddComponent<ImportedAssetMarker>(target);
         }
         Undo.RecordObject(marker, "Update Marker");
-        marker.sourceSprites = new Sprite[] { sprite };
-        marker.frameCount = 1;
+        marker.sourceSprites = sprites;
+        marker.frameCount = sprites.Length;
         marker.importTimestamp = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        marker.sourceAssetPath = AssetDatabase.GetAssetPath(sprite);
+        marker.sourceAssetPath = sprites.Length > 0 ? AssetDatabase.GetAssetPath(sprites[0]) : "";
     }
 
     private void SavePrefab(GameObject go)

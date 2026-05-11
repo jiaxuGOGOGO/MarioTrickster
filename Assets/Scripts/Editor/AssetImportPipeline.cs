@@ -596,7 +596,11 @@ public class AssetImportPipeline : EditorWindow
 
         // 加载所有切片后的 Sprite
         var allAssets = AssetDatabase.LoadAllAssetsAtPath(path);
-        return allAssets.OfType<Sprite>().ToArray();
+        return allAssets.OfType<Sprite>()
+            .OrderByDescending(s => s.rect.y)
+            .ThenBy(s => s.rect.x)
+            .ThenBy(s => s.name)
+            .ToArray();
     }
 
     private void DetermineSliceGrid(Texture2D tex, out int cols, out int rows)
@@ -667,7 +671,14 @@ public class AssetImportPipeline : EditorWindow
         // SpriteRenderer on Visual
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
         sr.sprite = sprites[0]; // 默认使用第一帧
-
+        if (sprites.Length > 1)
+        {
+            var frameAnimator = visual.AddComponent<SpriteFrameAnimator>();
+            frameAnimator.frames = sprites;
+            frameAnimator.frameRate = 10f;
+            frameAnimator.playOnStart = true;
+            frameAnimator.loop = true;
+        }
         // 设置 SEF Shader Material
         if (_attachSEF)
         {

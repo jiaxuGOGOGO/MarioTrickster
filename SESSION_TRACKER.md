@@ -91,15 +91,21 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 109（修复素材导入窗口拖入外部图片无反应） |
+| **最新 Session** | Session 110（修复 Sprite Sheet 应用后只显示第一帧） |
 | **日期** | 2026-05-11 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S109 对 Asset Import Pipeline 做零摩擦修复：拖入区现在同时支持 Project 内贴图、电脑外部图片和文件夹；外部图片会自动复制到 `Assets/Art/Imported` 后加入待导入列表，并在窗口底部给出成功/失败反馈。 |
-| **编译状态** | ✅ S109 修改 `AssetImportPipeline.cs` 的拖拽/添加入口逻辑；未引入第三方依赖。`TextureImporter.spritesheet` 仍是非阻断过时 API 警告，后续可单独迁移。 |
-| **阻塞** | 无。待用户 `git pull` 后在 Unity 中验证：把电脑文件夹里的 PNG/JPG/TGA/PSD 直接拖到 Asset Import Pipeline 的大框，应出现“已添加 N 个素材”，按钮从灰色变为可点。 |
-| **交接说明** | S109 修复用户截图反馈的“拖入素材没反应”：旧逻辑只真正处理 Project 内 `Texture2D` 和 Project 内文件夹路径，外部图片文件不会被导入；新逻辑会识别外部图片/文件夹并复制到 `Assets/Art/Imported`，同时写入可见结果提示。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S110 补齐 Sprite Sheet 落地体验：Asset Import Pipeline 生成新 Object、Apply Art to Selected 给已有白盒换皮时，若识别到多帧 Sprite，会自动挂 `SpriteFrameAnimator` 循环播放，不再只停在第一帧。 |
+| **编译状态** | ✅ S110 新增 `SpriteFrameAnimator.cs`，修改 `AssetApplyToSelected.cs` / `AssetImportPipeline.cs`；未引入第三方依赖。`TextureImporter.spritesheet` 仍是非阻断过时 API 警告，后续可单独迁移。 |
+| **阻塞** | 无。待用户 `git pull` 后在 Unity 中验证：对 Sprite Sheet 使用“一键导入并生成 Object”或“Apply Art to Selected”，进入 Play 后应自动播放多帧动画；Inspector 可看到 Visual 上挂了 `SpriteFrameAnimator`。 |
+| **交接说明** | S110 修复用户反馈的“应用的物体只有第一帧”：旧逻辑只把 `SpriteRenderer.sprite` 设为 `sprites[0]`；新逻辑会收集同图集所有 Sprite，按画面位置排序，自动写入 `SpriteFrameAnimator.frames` 并循环播放。 |
 
-### [S109] 最新知识沉淀
+### [S110] 最新知识沉淀
+
+1. **SpriteRenderer 本身只显示一张 Sprite**：把 Sprite Sheet 应用到物体时，如果只替换 `SpriteRenderer.sprite`，Unity 只会显示当前帧，不会自动播放整套切片。
+2. **多帧素材必须有显式播放组件**：S110 新增 `SpriteFrameAnimator`，由工具自动挂到 Visual 物体上，负责在 PlayMode 中按 `frames` 循环切换 Sprite。
+3. **帧顺序不能按字符串排序**：`F10` 会排在 `F2` 前面；S110 改为按 Sprite 的 `rect.y` 从上到下、`rect.x` 从左到右排序，保证横向/多行 Sprite Sheet 播放顺序稳定。
+
+### [S109] 知识沉淀
 
 1. **Asset Import Pipeline 的拖拽入口必须支持外部文件路径**：Unity 编辑器拖入电脑外部 PNG/JPG 时，`DragAndDrop.paths` 给到的是项目外绝对路径，不能只用 `AssetDatabase.LoadAssetAtPath` 读取；必须先复制进 `Assets/Art/Imported` 再 `ImportAsset`。
 2. **拖拽失败必须有前台反馈**：用户看到按钮灰掉时无法判断是没拖中、格式不支持还是路径没导入；S109 新增窗口底部结果提示和 Console 日志，避免“没反应”。
@@ -176,7 +182,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S56重点验证**: ASCII Build 新字符(@f<SX)能正确生成对应元素，旧字符行为不变 |
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| 🔄 | EditMode 自动化 | **S109重点验证**: Asset Import Pipeline 外部图片/文件夹拖入后能加入列表，按钮变可点；Unity Editor 重新编译无新增红错 |
+| 🔄 | EditMode 自动化 | **S110重点验证**: Sprite Sheet 导入或应用到已有物体后，Visual 上自动出现 `SpriteFrameAnimator`，`frames` 数量等于切片帧数；Unity Editor 重新编译无新增红错 |
 | 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
@@ -208,6 +214,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`；本轮又把“本地训练参数 / Civitai 页面填写 / 训练排障”三类求助入口补进白话速查表，避免用户重复追问同类问题。 | ✅ 已完成 |
 | **高** | **Level Studio × SEF 编辑器入口编译修复**：Art & Effects Hub 内的 SEF Quick Apply / Sprite Effect Factory 按钮因缺少 `SpriteEffectFactory.Editor` asmdef 引用触发 `CS0103`，S108 已补引用。 | ✅ 已完成（S108） |
 | **高** | **Asset Import Pipeline 外部素材拖入修复**：用户截图反馈拖入素材没反应，S109 已让拖拽区和“添加贴图/文件夹”同时支持项目外图片，自动复制进 `Assets/Art/Imported` 并给可见反馈。 | ✅ 已完成（S109） |
+| **高** | **Sprite Sheet 应用后只显示第一帧修复**：S110 新增 `SpriteFrameAnimator`，导入新 Object 和应用到已有物体时自动挂载多帧播放组件。 | ✅ 已完成（S110） |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |

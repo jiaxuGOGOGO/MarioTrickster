@@ -60,6 +60,7 @@ public class AssetImportPipeline : EditorWindow
     // 状态
     // =========================================================================
     private List<Texture2D> _importTextures = new List<Texture2D>();
+    private static readonly string[] SUPPORTED_IMAGE_EXTENSIONS = { ".png", ".jpg", ".jpeg", ".tga", ".psd" };
     private AssetPhysicsType _physicsType = AssetPhysicsType.Environment;
     private SliceMode _sliceMode = SliceMode.Auto;
     private int _manualCols = 8;
@@ -97,7 +98,7 @@ public class AssetImportPipeline : EditorWindow
         GUILayout.Label("Asset Import Pipeline", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
             "拖入素材 → 自动规范化 → 切片 → 生成 Object/Prefab → 直接送入效果工厂\n" +
-            "支持：单图、Sprite Sheet、批量文件夹拖入",
+            "支持：Project 内贴图、电脑外部图片、Sprite Sheet、批量文件夹拖入",
             MessageType.Info);
         EditorGUILayout.Space(4);
     }
@@ -119,10 +120,9 @@ public class AssetImportPipeline : EditorWindow
             string path = EditorUtility.OpenFilePanel("选择素材图片", "Assets", "png,jpg,jpeg,tga,psd");
             if (!string.IsNullOrEmpty(path))
             {
-                string relativePath = "Assets" + path.Replace(Application.dataPath, "");
-                var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(relativePath);
-                if (tex != null && !_importTextures.Contains(tex))
-                    _importTextures.Add(tex);
+                int before = _importTextures.Count;
+                AddTextureFromPath(path, copyExternalToImportFolder: true);
+                ReportImportAddResult(_importTextures.Count - before, "添加贴图");
             }
         }
         if (GUILayout.Button("+ 添加文件夹", GUILayout.Width(100)))
@@ -130,14 +130,9 @@ public class AssetImportPipeline : EditorWindow
             string folder = EditorUtility.OpenFolderPanel("选择素材文件夹", "Assets", "");
             if (!string.IsNullOrEmpty(folder))
             {
-                string relFolder = "Assets" + folder.Replace(Application.dataPath, "");
-                var guids = AssetDatabase.FindAssets("t:Texture2D", new[] { relFolder });
-                foreach (var guid in guids)
-                {
-                    var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(guid));
-                    if (tex != null && !_importTextures.Contains(tex))
-                        _importTextures.Add(tex);
-                }
+                int before = _importTextures.Count;
+                AddTexturesFromFolder(folder, copyExternalToImportFolder: true);
+                ReportImportAddResult(_importTextures.Count - before, "添加文件夹");
             }
         }
         if (_importTextures.Count > 0 && GUILayout.Button("清空列表", GUILayout.Width(80)))
@@ -262,32 +257,153 @@ public class AssetImportPipeline : EditorWindow
             case EventType.DragUpdated:
             case EventType.DragPerform:
                 if (!dropArea.Contains(evt.mousePosition)) return;
-                DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+
+                bool hasSupportedPayload = DragAndDrop.objectReferences.Any(obj => obj is Texture2D) ||
+                                           DragAndDrop.paths.Any(IsSupportedDropPath);
+                DragAndDrop.visualMode = hasSupportedPayload ? DragAndDropVisualMode.Copy : DragAndDropVisualMode.Rejected;
+
                 if (evt.type == EventType.DragPerform)
                 {
                     DragAndDrop.AcceptDrag();
+                    int before = _importTextures.Count;
+
                     foreach (var obj in DragAndDrop.objectReferences)
                     {
-                        if (obj is Texture2D tex && !_importTextures.Contains(tex))
-                            _importTextures.Add(tex);
+                        if (obj is Texture2D tex)
+                        {
+                            AddTexture(tex);
+                        }
                     }
-                    // 也支持拖入路径
+
                     foreach (var path in DragAndDrop.paths)
                     {
                         if (Directory.Exists(path))
                         {
-                            var guids = AssetDatabase.FindAssets("t:Texture2D", new[] { path });
-                            foreach (var guid in guids)
-                            {
-                                var tex = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(guid));
-                                if (tex != null && !_importTextures.Contains(tex))
-                                    _importTextures.Add(tex);
-                            }
+                            AddTexturesFromFolder(path, copyExternalToImportFolder: true);
+                        }
+                        else
+                        {
+                            AddTextureFromPath(path, copyExternalToImportFolder: true);
                         }
                     }
+
+                    ReportImportAddResult(_importTextures.Count - before, "拖入素材");
+                    Repaint();
                 }
                 evt.Use();
                 break;
+        }
+    }
+
+    private void AddTexture(Texture2D tex)
+    {
+        if (tex != null && !_importTextures.Contains(tex))
+        {
+            _importTextures.Add(tex);
+        }
+    }
+
+    private void AddTextureFromPath(string path, bool copyExternalToImportFolder)
+    {
+        if (string.IsNullOrEmpty(path) || !File.Exists(path) || !IsSupportedImageFile(path)) return;
+
+        string assetPath = ToProjectRelativePath(path);
+        if (string.IsNullOrEmpty(assetPath) && copyExternalToImportFolder)
+        {
+            assetPath = CopyExternalImageIntoProject(path);
+        }
+
+        if (string.IsNullOrEmpty(assetPath)) return;
+        AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
+        Texture2D tex = AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+        AddTexture(tex);
+    }
+
+    private void AddTexturesFromFolder(string folderPath, bool copyExternalToImportFolder)
+    {
+        if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath)) return;
+
+        string assetFolder = ToProjectRelativePath(folderPath);
+        if (!string.IsNullOrEmpty(assetFolder))
+        {
+            string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { assetFolder });
+            foreach (string guid in guids)
+            {
+                Texture2D tex = AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(guid));
+                AddTexture(tex);
+            }
+            return;
+        }
+
+        if (!copyExternalToImportFolder) return;
+        foreach (string file in Directory.GetFiles(folderPath, "*.*", SearchOption.TopDirectoryOnly))
+        {
+            AddTextureFromPath(file, copyExternalToImportFolder: true);
+        }
+    }
+
+    private bool IsSupportedDropPath(string path)
+    {
+        return Directory.Exists(path) || IsSupportedImageFile(path);
+    }
+
+    private bool IsSupportedImageFile(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        string ext = Path.GetExtension(path).ToLowerInvariant();
+        return SUPPORTED_IMAGE_EXTENSIONS.Contains(ext);
+    }
+
+    private string ToProjectRelativePath(string absoluteOrAssetPath)
+    {
+        if (string.IsNullOrEmpty(absoluteOrAssetPath)) return null;
+        string normalizedPath = absoluteOrAssetPath.Replace('\\', '/');
+        string normalizedDataPath = Application.dataPath.Replace('\\', '/');
+
+        if (normalizedPath.StartsWith("Assets/")) return normalizedPath;
+        if (normalizedPath == normalizedDataPath) return "Assets";
+        if (normalizedPath.StartsWith(normalizedDataPath + "/"))
+        {
+            return "Assets" + normalizedPath.Substring(normalizedDataPath.Length);
+        }
+        return null;
+    }
+
+    private string CopyExternalImageIntoProject(string sourcePath)
+    {
+        Directory.CreateDirectory(_spriteOutputFolder);
+        string safeName = MakeUniqueAssetPath(Path.Combine(_spriteOutputFolder, Path.GetFileName(sourcePath)).Replace('\\', '/'));
+        File.Copy(sourcePath, safeName, overwrite: false);
+        AssetDatabase.ImportAsset(safeName, ImportAssetOptions.ForceUpdate);
+        return safeName;
+    }
+
+    private string MakeUniqueAssetPath(string desiredAssetPath)
+    {
+        string directory = Path.GetDirectoryName(desiredAssetPath).Replace('\\', '/');
+        string fileName = Path.GetFileNameWithoutExtension(desiredAssetPath);
+        string extension = Path.GetExtension(desiredAssetPath);
+        string candidate = desiredAssetPath;
+        int index = 1;
+        while (File.Exists(candidate))
+        {
+            candidate = $"{directory}/{fileName}_{index}{extension}";
+            index++;
+        }
+        return candidate;
+    }
+
+    private void ReportImportAddResult(int addedCount, string sourceLabel)
+    {
+        if (addedCount > 0)
+        {
+            _lastResults.Insert(0, $"[{sourceLabel}] 已添加 {addedCount} 个素材");
+            Debug.Log($"[Asset Import Pipeline] {sourceLabel}: 已添加 {addedCount} 个素材。");
+        }
+        else
+        {
+            _lastResults.Insert(0, $"[{sourceLabel}] 没识别到可用图片，请使用 png/jpg/jpeg/tga/psd，或把文件拖到大框里。");
+            Debug.LogWarning($"[Asset Import Pipeline] {sourceLabel}: 没识别到可用图片。");
         }
     }
 

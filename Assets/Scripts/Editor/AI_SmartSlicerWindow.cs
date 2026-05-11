@@ -75,6 +75,8 @@ public class AI_SmartSlicerWindow : EditorWindow
     // =========================================================================
     private Texture2D _sourceTexture;
     private string _apiKey = "";
+    private string _baseUrl = "https://api.openai.com/v1";
+    private bool _showApiSettings;
     private string _model = "gpt-4.1-mini";
     private bool _removeBackground;
     private Color _bgColor = Color.magenta;
@@ -91,6 +93,16 @@ public class AI_SmartSlicerWindow : EditorWindow
     // =========================================================================
     // GUI
     // =========================================================================
+    private void OnEnable()
+    {
+        // 窗口打开时从 EditorPrefs 加载保存的配置
+        string savedKey = EditorPrefs.GetString("AI_SmartSlicer_APIKey", "");
+        if (!string.IsNullOrEmpty(savedKey)) _apiKey = savedKey;
+        string savedUrl = EditorPrefs.GetString("AI_SmartSlicer_BaseUrl", "");
+        if (!string.IsNullOrEmpty(savedUrl)) _baseUrl = savedUrl;
+        string savedModel = EditorPrefs.GetString("AI_SmartSlicer_Model", "");
+        if (!string.IsNullOrEmpty(savedModel)) _model = savedModel;
+    }
     private void OnGUI()
     {
         _scrollPos = EditorGUILayout.BeginScrollView(_scrollPos);
@@ -133,34 +145,106 @@ public class AI_SmartSlicerWindow : EditorWindow
 
     private void DrawSettingsSection()
     {
-        EditorGUILayout.LabelField("2. 设置", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("2. API 设置", EditorStyles.boldLabel);
 
-        // API Key
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("API Key", GUILayout.Width(60));
-        string storedKey = EditorPrefs.GetString("AI_SmartSlicer_APIKey", "");
-        string envKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "";
-        
-        if (!string.IsNullOrEmpty(storedKey))
-            _apiKey = storedKey;
-        else if (!string.IsNullOrEmpty(envKey))
-            _apiKey = envKey;
-
-        string displayKey = string.IsNullOrEmpty(_apiKey) ? "" : "sk-..." + _apiKey.Substring(Math.Max(0, _apiKey.Length - 6));
-        EditorGUILayout.LabelField(string.IsNullOrEmpty(_apiKey) ? "(未设置)" : displayKey);
-        
-        if (GUILayout.Button("设置", GUILayout.Width(50)))
+        // 从 EditorPrefs 加载保存的设置
+        if (string.IsNullOrEmpty(_apiKey))
         {
-            string input = EditorInputDialog.Show("设置 API Key", "输入 OpenAI API Key:", _apiKey);
-            if (!string.IsNullOrEmpty(input))
-            {
-                _apiKey = input;
-                EditorPrefs.SetString("AI_SmartSlicer_APIKey", input);
-            }
+            _apiKey = EditorPrefs.GetString("AI_SmartSlicer_APIKey", "");
+            if (string.IsNullOrEmpty(_apiKey))
+                _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "";
         }
-        EditorGUILayout.EndHorizontal();
+        if (_baseUrl == "https://api.openai.com/v1" || string.IsNullOrEmpty(_baseUrl))
+        {
+            string saved = EditorPrefs.GetString("AI_SmartSlicer_BaseUrl", "");
+            if (!string.IsNullOrEmpty(saved))
+                _baseUrl = saved;
+        }
+        {
+            string savedModel = EditorPrefs.GetString("AI_SmartSlicer_Model", "");
+            if (!string.IsNullOrEmpty(savedModel))
+                _model = savedModel;
+        }
 
-        _model = EditorGUILayout.TextField("模型", _model);
+        // 显示当前配置状态
+        bool hasConfig = !string.IsNullOrEmpty(_apiKey);
+        string statusIcon = hasConfig ? "\u2705" : "\u274c";
+        EditorGUILayout.LabelField($"   {statusIcon} API: {(hasConfig ? _baseUrl : "(未配置)")}");
+        if (hasConfig)
+        {
+            string displayKey = _apiKey.Length > 10 ? _apiKey.Substring(0, 6) + "..." + _apiKey.Substring(_apiKey.Length - 4) : "***";
+            EditorGUILayout.LabelField($"   Key: {displayKey}  |  Model: {_model}", EditorStyles.miniLabel);
+        }
+
+        // 展开/折叠设置面板
+        _showApiSettings = EditorGUILayout.Foldout(_showApiSettings, hasConfig ? "修改 API 设置" : "配置 API（必填）");
+        if (_showApiSettings)
+        {
+            EditorGUI.indentLevel++;
+            
+            EditorGUILayout.HelpBox(
+                "支持 OpenAI 官方和所有兼容接口（如 moyu.info、one-api 等中转站）。\n" +
+                "设置一次后永久保存，无需重复填写。",
+                MessageType.Info);
+
+            // API Key
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("API Key", GUILayout.Width(70));
+            string newKey = EditorGUILayout.PasswordField(_apiKey);
+            if (newKey != _apiKey)
+            {
+                _apiKey = newKey;
+                EditorPrefs.SetString("AI_SmartSlicer_APIKey", _apiKey);
+            }
+            EditorGUILayout.EndHorizontal();
+
+            // Base URL
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Base URL", GUILayout.Width(70));
+            string newUrl = EditorGUILayout.TextField(_baseUrl);
+            if (newUrl != _baseUrl)
+            {
+                _baseUrl = newUrl;
+                EditorPrefs.SetString("AI_SmartSlicer_BaseUrl", _baseUrl);
+            }
+            EditorGUILayout.EndHorizontal();
+
+            // Model
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Model", GUILayout.Width(70));
+            string newModel = EditorGUILayout.TextField(_model);
+            if (newModel != _model)
+            {
+                _model = newModel;
+                EditorPrefs.SetString("AI_SmartSlicer_Model", _model);
+            }
+            EditorGUILayout.EndHorizontal();
+
+            // 快捷预设按钮
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("快捷预设：", EditorStyles.miniLabel);
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("OpenAI 官方", EditorStyles.miniButton))
+            {
+                _baseUrl = "https://api.openai.com/v1";
+                _model = "gpt-4.1-mini";
+                EditorPrefs.SetString("AI_SmartSlicer_BaseUrl", _baseUrl);
+                EditorPrefs.SetString("AI_SmartSlicer_Model", _model);
+            }
+            if (GUILayout.Button("Moyu 中转", EditorStyles.miniButton))
+            {
+                _baseUrl = "https://www.moyu.info/v1";
+                _model = "gpt-4o";
+                EditorPrefs.SetString("AI_SmartSlicer_BaseUrl", _baseUrl);
+                EditorPrefs.SetString("AI_SmartSlicer_Model", _model);
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUI.indentLevel--;
+        }
+
+        EditorGUILayout.Space(8);
+        EditorGUILayout.LabelField("其他设置", EditorStyles.boldLabel);
 
         // 背景去除
         _removeBackground = EditorGUILayout.Toggle("去除背景色", _removeBackground);
@@ -171,10 +255,8 @@ public class AI_SmartSlicerWindow : EditorWindow
             _bgTolerance = EditorGUILayout.IntSlider("容差", _bgTolerance, 0, 100);
             EditorGUI.indentLevel--;
         }
-
         _outputFolder = EditorGUILayout.TextField("输出目录", _outputFolder);
         _autoImport = EditorGUILayout.Toggle("裁切后自动触发导入管线", _autoImport);
-
         EditorGUILayout.Space(4);
     }
 
@@ -414,15 +496,12 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
         {
             client.Timeout = TimeSpan.FromSeconds(60);
             
-            // 确定 base URL
-            string baseUrl = Environment.GetEnvironmentVariable("OPENAI_BASE_URL");
-            if (string.IsNullOrEmpty(baseUrl))
-                baseUrl = "https://api.openai.com/v1";
-            
+            // 使用配置的 Base URL
+
             client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
 
             var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
-            var response = await client.PostAsync($"{baseUrl}/chat/completions", content);
+            var response = await client.PostAsync($"{_baseUrl}/chat/completions", content);
 
             if (!response.IsSuccessStatusCode)
             {

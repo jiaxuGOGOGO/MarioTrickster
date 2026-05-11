@@ -117,9 +117,13 @@ def encode_image_to_base64(img: Image.Image, max_size: int = 2048) -> str:
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-def analyze_with_ai(img: Image.Image, model: str = "gpt-4.1-mini") -> dict:
+def analyze_with_ai(img: Image.Image, model: str = None) -> dict:
+    if model is None:
+        model = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
     """调用视觉模型分析图片中的物体"""
-    client = OpenAI()  # 自动读取 OPENAI_API_KEY
+    # 支持自定义 Base URL 和 Model（兼容中转站）
+    base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    client = OpenAI(base_url=base_url)
     
     original_size = img.size  # 记录原始尺寸
     b64 = encode_image_to_base64(img)

@@ -280,7 +280,14 @@ public class SEF_QuickApply : EditorWindow
         // 应用预设
         Undo.RecordObject(ctrl, $"Apply SEF Preset: {PRESETS[index].name}");
         PRESETS[index].apply(ctrl);
+
+        // [关键修复] 立即同步 keyword + MPB 到 Material，确保编辑器中实时可见
+        ctrl.EditorSyncProperties();
+
         EditorUtility.SetDirty(ctrl);
+        EditorUtility.SetDirty(sr);
+        if (sr.sharedMaterial != null)
+            EditorUtility.SetDirty(sr.sharedMaterial);
 
         _lastAppliedPreset = index;
 
@@ -304,15 +311,24 @@ public class SEF_QuickApply : EditorWindow
         var shader = Shader.Find("MarioTrickster/SEF/UberSprite");
         if (shader == null)
         {
-            // 回退
             shader = Shader.Find("Sprites/Default");
         }
 
         Material mat = new Material(shader);
+        mat.name = $"SEF_{sr.gameObject.name}";
         if (sr.sprite != null)
             mat.mainTexture = sr.sprite.texture;
 
+        // 将 Material 保存为资产，避免每次都创建临时实例
+        EnsureDirectory("Assets/Art/Materials/SEF");
+        string matPath = AssetDatabase.GenerateUniqueAssetPath(
+            $"Assets/Art/Materials/SEF/{mat.name}.mat");
+        AssetDatabase.CreateAsset(mat, matPath);
+        AssetDatabase.SaveAssets();
+
+        Undo.RecordObject(sr, "Assign SEF Material");
         sr.sharedMaterial = mat;
+        Debug.Log($"[SEF Quick Apply] 已创建并分配 SEF Material: {matPath}");
     }
 
     private void SavePrefabBlueprint(GameObject go)

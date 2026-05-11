@@ -91,11 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 106（Asset Import Pipeline — 素材到 Object 半自动化管线 + SEF Quick Apply 效果预设快速应用） |
+| **最新 Session** | Session 107（素材应用到已有物体 + 展位资产自动配置行为逻辑 + SEF Quick Apply 效果不可见修复） |
 | **日期** | 2026-05-11 |
 | **分支** | master |
 | **阶段** | Sprint 2.5 美术自动化落地期 — 在 S104 已补齐 **Blender `padding=1.4` / 动作振幅 `1.3x` / 最终成图 Histogram Matching** 的基础上，S105 针对用户回传的 idle 烟测失败样例做最小返修：把**防裁切安全构图**与**逐帧颜色回正**前移到 `02_nobg` 阶段，并增加前景最大连通域清理，避免 QC 继续看到贴边前景与发灰暗帧。 |
-| **编译状态** | ✅ 新增 4 个 C# 脚本（AssetImportPipeline / SEF_QuickApply / ArtDropAutoImporter / ImportedAssetMarker）与 1 个 Python 工具（sprite_sheet_slicer.py），均不依赖第三方 Unity 包，可直| **阻塞** | 无。待用户 `git pull` 后在 Unity 中打开 `MarioTrickster → Asset Import Pipeline` 菜单验证工具可用性| **交接说明** | S106 完成：新增 **Asset Import Pipeline** 全链路工具，解决“外部素材到 SEF 可用 Object”的操作成本问题。包含：(1) Editor 窗口一键导入（规范化 + 切片 + 生成 Object + Prefab）；(2) SEF Quick Apply 效果预设快速应用 + 自动保存蓝图；(3) Python 批量裁切工具（网格/自动检测/去背景）；(4) 拖入自动触发。详见 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。### [S106] 最新知识沉淀
+| **编译状态** | ✅ S107 新增 2 个 C# 脚本（AssetApplyToSelected / ExplosiveHazard），修改 5 个文件（SpriteEffectController / SEF_QuickApply / SEF_UberSprite.shader / SEF_SharedLogic.hlsl / AssetImportPipeline），均不依赖第三方 Unity 包，可直接编译 |
+| **阻塞** | 无。待用户 `git pull` 后在 Unity 中验证：(1) SEF Quick Apply 效果实时可见 (2) Apply Art to Selected 工具可用 (3) 爆炸型陷阱行为正常 |
+| **交接说明** | S107 完成三项升级：(1) **SEF Quick Apply 效果不可见修复** — SpriteEffectController 加 `[ExecuteAlways]` + `OnValidate` + `EditorSyncProperties`，Shader 补全 Shadow 片元实现，Material 持久化为资产；(2) **Apply Art to Selected** — 新建编辑器窗口，选中场景物体后拖入素材即可"穿"上去，保留已有行为组件；(3) **展位资产自动配置行为逻辑** — 新增 ExplosiveHazard 组件 + 行为模板自动挂载（爆炸/接触伤害/锯片/道具）+ 碰撞体自动适配。|
+
+### [S107] 最新知识沉淀
+
+1. **SEF Quick Apply 效果不可见的根因是三重缺失**：(a) SpriteEffectController 缺 `[ExecuteAlways]` 导致编辑器模式 LateUpdate 不执行；(b) 应用预设后未调用 `EditorSyncProperties()` 导致 keyword 未同步到 Material；(c) Shadow 效果在 shader fragment 中完全没有实现代码。三者同时存在才导致"看不出任何效果"。
+2. **素材应用到已有物体的核心原则是"只换皮不换骨"**：替换 SpriteRenderer 贴图 + SEF Material，但保留所有已有的行为组件（BaseHazard/DamageDealer/ControllableHazard 等）。碰撞体自动按新贴图尺寸重新适配。
+3. **展位资产的行为模板应支持自动推断**：根据物体已有组件（ControllableHazard→爆炸、SawBlade→锯片、DamageDealer→接触伤害）自动选择对应模板，用户无需手动配置。
+4. **ExplosiveHazard 继承 BaseHazard 而非 DamageDealer**：因为爆炸是范围伤害，需要 Physics2D.OverlapCircleAll，而不是单体碰撞。同时继承 BaseHazard 获得防刷屏保护。
+
+### [S106] 知识沉淀
 
 1. **素材到 Object 的核心矛盾是“步骤多”而非“技术难”**：规范化、切片、设置 Pivot、创建 Object、挂载组件、保存 Prefab 每一步都简单，但串联 6 步的操作成本很高；解法是封装为一键流程。
 2. **效果选择与应用应解耦**：SEF Quick Apply 证明“选预设→自动应用→自动保存蓝图”可以把用户决策压缩到“点一下”，用户精力应只放在 shader 效果选择上。
@@ -187,6 +198,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |
 | **高** | **素材导入自动化管线**：从外部购买/下载的素材到项目可用 Object + Prefab 蓝图的全链路工具。包含 Asset Import Pipeline、SEF Quick Apply、Python 裁切工具、拖入自动触发。 | ✅ 已完成（S106） |
+| **高** | **素材应用到已有物体 + 展位行为自动配置 + SEF 效果修复**：(1) Apply Art to Selected 窗口（Ctrl+Shift+A）；(2) ExplosiveHazard 爆炸型陷阱组件；(3) 行为模板自动推断与挂载；(4) SEF Quick Apply 编辑器可见性修复。 | ✅ 已完成（S107） |
 | **最高** | **恢复关卡白盒主线**：直接重新启用 `Level Studio / Custom Template Editor / Build From Text`，基于现有 ASCII 模板库与片段库继续拼装、测试并迭代 1~2 个完整关卡段；美术换肤只服务于已验证白盒，不再反向阻塞关卡设计。**S94 已固定执行原则**：A 轨（关卡白盒）永远是唯一上游任务源。**S95 已固定默认入口**：若当前要推项目总主线，应直接从“先继续白盒关卡，不等最终美术”这类窄入口启动。 | 🚀 已形成桥接结论，当前可立即恢复执行 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |

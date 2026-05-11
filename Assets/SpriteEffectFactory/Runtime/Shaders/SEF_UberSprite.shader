@@ -426,6 +426,21 @@ Shader "MarioTrickster/SEF/UberSprite"
                 }
                 #endif
 
+                // === SHADOW (Drop Shadow) ===
+                // 在主体像素下方绘制一个偏移的半透明阴影副本
+                // 原理：采样偏移位置的主贴图 alpha，如果主体像素透明但偏移处不透明，则绘制阴影色
+                #ifdef _SHADOW
+                {
+                    float2 shadowUV = uv - _ShadowOffset.xy;
+                    float shadowAlpha = tex2D(_MainTex, shadowUV).a;
+                    // 只在主体透明区域绘制阴影（避免阴影覆盖主体）
+                    if (originalAlpha < 0.01 && shadowAlpha > 0.1)
+                    {
+                        col = fixed4(_ShadowColor.rgb, shadowAlpha * _ShadowColor.a);
+                    }
+                }
+                #endif
+
                 // Premultiply alpha
                 col.rgb *= col.a;
                 return col;

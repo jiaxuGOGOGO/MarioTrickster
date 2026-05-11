@@ -135,6 +135,18 @@ half4 SEF_FragmentCore(
     }
     #endif
 
+    // === SHADOW (Drop Shadow) ===
+    #ifdef _SHADOW
+    {
+        float2 shadowUV = uv - _ShadowOffset.xy;
+        float shadowAlpha = SAMPLE_TEXTURE2D(mainTex, mainSampler, shadowUV).a;
+        if (originalAlpha < 0.01 && shadowAlpha > 0.1)
+        {
+            col = half4(_ShadowColor.rgb, shadowAlpha * _ShadowColor.a);
+        }
+    }
+    #endif
+
     // Premultiply alpha
     col.rgb *= col.a;
     return col;

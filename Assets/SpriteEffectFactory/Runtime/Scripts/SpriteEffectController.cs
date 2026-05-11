@@ -6,7 +6,13 @@ using System.Collections.Generic;
 /// SpriteEffectController — 挂在任何有 SpriteRenderer 的物体上
 /// 游戏代码通过这个组件的公开方法触发所有视觉效果
 /// 使用 MaterialPropertyBlock 实现零 Material 实例化开销
+///
+/// [AI防坑警告]
+///   1. [ExecuteAlways] 是编辑器实时预览的关键，删除后 SEF Quick Apply 将无法在 Scene 视图中显示效果
+///   2. OnValidate + EditorSyncProperties 确保 Inspector 修改参数时立即生效
+///   3. ApplyAllProperties 中的 keyword 同步必须在 MPB 设置之前执行
 /// </summary>
+[ExecuteAlways]
 [RequireComponent(typeof(SpriteRenderer))]
 public class SpriteEffectController : MonoBehaviour
 {
@@ -109,8 +115,14 @@ public class SpriteEffectController : MonoBehaviour
     // =========================================================================
     private void Awake()
     {
-        _sr = GetComponent<SpriteRenderer>();
-        _mpb = new MaterialPropertyBlock();
+        EnsureInit();
+    }
+
+    private void OnEnable()
+    {
+        EnsureInit();
+        // 编辑器模式下立即同步一次，确保 Scene 视图显示正确
+        EditorSyncProperties();
     }
 
     private void LateUpdate()
@@ -118,28 +130,39 @@ public class SpriteEffectController : MonoBehaviour
         ApplyAllProperties();
     }
 
+    /// <summary>
+    /// [AI防坑警告] OnValidate 是编辑器中 Inspector 修改参数时的回调。
+    /// 必须在此处调用 EditorSyncProperties 以确保编辑器中实时预览效果。
+    /// 删除此方法会导致 Inspector 中调参数看不到变化。
+    /// </summary>
+    private void OnValidate()
+    {
+        if (_sr == null)
+            _sr = GetComponent<SpriteRenderer>();
+        if (_sr != null)
+            EditorSyncProperties();
+    }
+
+    private void EnsureInit()
+    {
+        if (_sr == null)
+            _sr = GetComponent<SpriteRenderer>();
+        if (_mpb == null)
+            _mpb = new MaterialPropertyBlock();
+    }
+
     // =========================================================================
     // 核心：将所有参数同步到 MaterialPropertyBlock
     // =========================================================================
     private void ApplyAllProperties()
     {
+        EnsureInit();
+        if (_sr == null) return;
+
         _sr.GetPropertyBlock(_mpb);
 
         // Keywords 通过 Material 设置（MPB 不支持 keyword）
-        // 所以我们需要确保 Material 上的 keyword 与当前状态一致
-        var mat = _sr.sharedMaterial;
-        if (mat != null)
-        {
-            SetKeyword(mat, "_COLOR_SWAP", enableColorSwap);
-            SetKeyword(mat, "_HIT_FLASH", flashAmount > 0.001f);
-            SetKeyword(mat, "_OUTLINE", enableOutline);
-            SetKeyword(mat, "_DISSOLVE", enableDissolve);
-            SetKeyword(mat, "_SILHOUETTE", enableSilhouette);
-            SetKeyword(mat, "_HSV_ADJUST", enableHSV);
-            SetKeyword(mat, "_PIXELATE", enablePixelate);
-            SetKeyword(mat, "_SHADOW", enableShadow);
-            SetKeyword(mat, "_PALETTE_TEX", enablePaletteTex);
-        }
+        SyncKeywords();
 
         // Color Swap
         _mpb.SetColor(ID_SwapColor1From, swapColor1From);
@@ -190,6 +213,36 @@ public class SpriteEffectController : MonoBehaviour
         _sr.SetPropertyBlock(_mpb);
     }
 
+    /// <summary>
+    /// 同步所有 shader keyword 到 Material 上。
+    /// [AI防坑警告] keyword 必须通过 Material 设置，MPB 不支持 keyword。
+    /// </summary>
+    private void SyncKeywords()
+    {
+        var mat = _sr.sharedMaterial;
+        if (mat == null) return;
+        SetKeyword(mat, "_COLOR_SWAP", enableColorSwap);
+        SetKeyword(mat, "_HIT_FLASH", flashAmount > 0.001f);
+        SetKeyword(mat, "_OUTLINE", enableOutline);
+        SetKeyword(mat, "_DISSOLVE", enableDissolve);
+        SetKeyword(mat, "_SILHOUETTE", enableSilhouette);
+        SetKeyword(mat, "_HSV_ADJUST", enableHSV);
+        SetKeyword(mat, "_PIXELATE", enablePixelate);
+        SetKeyword(mat, "_SHADOW", enableShadow);
+        SetKeyword(mat, "_PALETTE_TEX", enablePaletteTex);
+    }
+
+    /// <summary>
+    /// 编辑器专用：立即同步所有属性到 Material + MPB。
+    /// 由 OnValidate、OnEnable 和 SEF_QuickApply 调用。
+    /// </summary>
+    public void EditorSyncProperties()
+    {
+        if (_sr == null) return;
+        if (_mpb == null) _mpb = new MaterialPropertyBlock();
+        ApplyAllProperties();
+    }
+
     private static void SetKeyword(Material mat, string keyword, bool enabled)
     {
         if (enabled) mat.EnableKeyword(keyword);
@@ -206,6 +259,7 @@ public class SpriteEffectController : MonoBehaviour
     /// </summary>
     public void PlayHitFlash(float duration = 0.15f, Color? color = null)
     {
+        if (!Application.isPlaying) return;
         if (_flashCoroutine != null) StopCoroutine(_flashCoroutine);
         if (color.HasValue) flashColor = color.Value;
         _flashCoroutine = StartCoroutine(HitFlashRoutine(duration));
@@ -217,6 +271,7 @@ public class SpriteEffectController : MonoBehaviour
     /// </summary>
     public void PlayDissolve(float duration = 1.0f, System.Action onComplete = null)
     {
+        if (!Application.isPlaying) return;
         if (_dissolveCoroutine != null) StopCoroutine(_dissolveCoroutine);
         enableDissolve = true;
         _dissolveCoroutine = StartCoroutine(DissolveRoutine(duration, onComplete));
@@ -227,6 +282,7 @@ public class SpriteEffectController : MonoBehaviour
     /// </summary>
     public void PlayDissolveIn(float duration = 1.0f, System.Action onComplete = null)
     {
+        if (!Application.isPlaying) return;
         if (_dissolveCoroutine != null) StopCoroutine(_dissolveCoroutine);
         enableDissolve = true;
         dissolveAmount = 1f;
@@ -246,6 +302,7 @@ public class SpriteEffectController : MonoBehaviour
     /// </summary>
     public void PlayDeathSequence(float greyDuration = 0.3f, float dissolveDuration = 0.8f, System.Action onComplete = null)
     {
+        if (!Application.isPlaying) return;
         StartCoroutine(DeathSequenceRoutine(greyDuration, dissolveDuration, onComplete));
     }
 
@@ -267,6 +324,8 @@ public class SpriteEffectController : MonoBehaviour
         enablePixelate = false;
         enableShadow = false;
         enablePaletteTex = false;
+        // 立即同步到 shader
+        EditorSyncProperties();
     }
 
     // =========================================================================

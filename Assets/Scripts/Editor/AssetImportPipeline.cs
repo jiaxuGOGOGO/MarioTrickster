@@ -225,9 +225,21 @@ public class AssetImportPipeline : EditorWindow
         EditorGUILayout.EndHorizontal();
 
         GUI.enabled = true;
+
+        EditorGUILayout.Space(4);
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+        EditorGUILayout.LabelField("已有物体应用素材", EditorStyles.boldLabel);
+        if (GUILayout.Button("应用素材到场景中已有物体 (Apply Art to Selected)", GUILayout.Height(28)))
+        {
+            AssetApplyToSelected.ShowWindow();
+        }
+        EditorGUILayout.HelpBox(
+            "先选中场景中的物体，再用此工具把美术素材“穿”上去\n" +
+            "保留已有的行为组件（碰撞/爆炸/伤害等），只替换贴图和效果",
+            MessageType.None);
+
         EditorGUILayout.Space(8);
     }
-
     private void DrawResultsSection()
     {
         if (_lastResults.Count == 0) return;
@@ -600,6 +612,9 @@ public class AssetImportPipeline : EditorWindow
                 var hazCol = root.AddComponent<BoxCollider2D>();
                 hazCol.size = new Vector2(0.9f, 0.35f);
                 hazCol.isTrigger = true;
+                // 自动挂载 DamageDealer，确保碰撞就能造成伤害
+                if (root.GetComponent<DamageDealer>() == null)
+                    root.AddComponent<DamageDealer>();
                 break;
 
             case AssetPhysicsType.VFX:

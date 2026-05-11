@@ -2,7 +2,8 @@
     "name": "SpriteEffectFactory.Editor",
     "rootNamespace": "",
     "references": [
-        "SpriteEffectFactory.Runtime"
+        "SpriteEffectFactory.Runtime",
+        "MarioTrickster"
     ],
     "includePlatforms": [
         "Editor"

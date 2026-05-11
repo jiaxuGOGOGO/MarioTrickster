@@ -3,6 +3,7 @@
     "rootNamespace": "",
     "references": [
         "MarioTrickster",
+        "SpriteEffectFactory.Runtime",
         "UnityEditor.TestRunner",
         "UnityEngine.TestRunner"
     ],

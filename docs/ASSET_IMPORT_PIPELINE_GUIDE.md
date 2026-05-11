@@ -114,6 +114,32 @@ python Tools/sprite_sheet_slicer.py input.png --auto --remove-bg "#00ff00"
 python Tools/sprite_sheet_slicer.py ./raw/ --cols 8 --rows 1 -o ./sliced/
 ```
 
+### 3b. AI Smart Slicer（AI 智能裁切 — 推荐）
+
+调用 GPT-4.1 视觉模型，让 AI “看”图片并判断哪些是独立物体、哪些是动画帧组，然后精准裁切。
+
+```bash
+# AI 智能分割（最推荐，需要 OPENAI_API_KEY）
+python Tools/ai_smart_slicer.py commercial_pack.png
+
+# 去除背景后 AI 分析
+python Tools/ai_smart_slicer.py sheet.png --remove-bg "#ff00ff"
+
+# 批量处理文件夹
+python Tools/ai_smart_slicer.py ./raw_assets/ -o ./ai_sliced/
+```
+
+**AI 模式 vs 纯像素模式的区别**：
+
+| 能力 | `--auto`（纯像素） | `ai_smart_slicer.py`（AI） |
+|------|---------|--------|
+| 区分独立物体 | ✅ 基于透明间距 | ✅ 基于语义理解 |
+| 识别动画帧组 | ❌ 会拆成单帧 | ✅ 自动归组并标注帧数 |
+| 处理相邻/重叠物体 | ❌ 会合并 | ✅ 语义分离 |
+| 自动命名 | ❌ obj001/obj002 | ✅ hero_walk/tree_01 |
+| 离线可用 | ✅ | ❌ 需要网络 |
+| 成本 | 免费 | 极低（约 $0.01/张） |
+
 ### 4. Art Drop Auto-Importer（自动触发）
 
 当文件被拖入 `Assets/Art/Imported/` 目录时，自动弹出 Asset Import Pipeline 窗口。无需手动打开菜单。
@@ -168,5 +194,6 @@ python Tools/sprite_sheet_slicer.py ./raw/ --cols 8 --rows 1 -o ./sliced/
 | `Assets/SpriteEffectFactory/Editor/SEF_QuickApply.cs` | 效果预设快速应用 + 蓝图保存 |
 | `Assets/Scripts/Editor/ArtDropAutoImporter.cs` | 拖入自动触发 |
 | `Assets/Scripts/Core/ImportedAssetMarker.cs` | 导入元数据标记组件 |
-| `Tools/sprite_sheet_slicer.py` | Python 批量裁切工具 |
+| `Tools/sprite_sheet_slicer.py` | Python 批量裁切工具（纯像素模式） |
+| `Tools/ai_smart_slicer.py` | AI 智能裁切工具（视觉模型模式，推荐） |
 | `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` | 本文档 |

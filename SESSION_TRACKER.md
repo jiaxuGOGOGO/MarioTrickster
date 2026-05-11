@@ -91,15 +91,18 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 105（AnimPipeline 烟测返修 — 02_nobg 安全构图 + 帧级颜色回正前移） |
-| **日期** | 2026-04-13 |
+| **最新 Session** | Session 106（Asset Import Pipeline — 素材到 Object 半自动化管线 + SEF Quick Apply 效果预设快速应用） |
+| **日期** | 2026-05-11 |
 | **分支** | master |
 | **阶段** | Sprint 2.5 美术自动化落地期 — 在 S104 已补齐 **Blender `padding=1.4` / 动作振幅 `1.3x` / 最终成图 Histogram Matching** 的基础上，S105 针对用户回传的 idle 烟测失败样例做最小返修：把**防裁切安全构图**与**逐帧颜色回正**前移到 `02_nobg` 阶段，并增加前景最大连通域清理，避免 QC 继续看到贴边前景与发灰暗帧。 |
-| **编译状态** | ✅ Python 管线脚本与 `SESSION_TRACKER.md` 已更新，并通过 `python3.11 -m py_compile run_pipeline.py`；另外已用用户回传失败样例做脚本化复验，裁切边缘占比降为 0、平均色偏回落到约 `0.29`；运行时 C# 代码未改动 |
-| **阻塞** | ⚠️ 待用户拉取后做一次本地实机验证：重新执行 `python run_pipeline.py --action idle`（必要时先删除/改名 `assets/videos/idle_drive.mp4` 强制走 Blender 分支），确认日志仍出现 `padding=1.40` 与动作振幅放大提示，同时新增 `02_nobg` 阶段“安全构图重排 / 逐帧回正”日志；最终 `final_no_alpha.png` 与 Sprite Sheet 均成功写回，且 QC 不再报 crop / 严重色偏，并复核微动作观感未被缩弱。 |
-| **交接说明** | S105 完成：`run_pipeline.py` 的 `remove_background()` 现已接收参考图路径，并在 `02_nobg` 阶段串行执行三件事：**前景最大连通域清理 → 全序列统一安全构图重排 → 逐帧前景 Histogram Matching**。这样 QC 读取的 `02_nobg` 不再是“底边贴死 + 后段发灰”的原始中间态，而是已修正后的稳定帧序列；`Sprite Sheet` 阶段仍保留最终 `final_no_alpha.png` 写回，作为收口保险。后续若继续查阅美术规则，`PROMPT_RECIPES.md` 的真实路径仍以 **`Assets/MarioTrickster-Art/prompts/PROMPT_RECIPES.md`** 为准。 |
+| **编译状态** | ✅ 新增 4 个 C# 脚本（AssetImportPipeline / SEF_QuickApply / ArtDropAutoImporter / ImportedAssetMarker）与 1 个 Python 工具（sprite_sheet_slicer.py），均不依赖第三方 Unity 包，可直| **阻塞** | 无。待用户 `git pull` 后在 Unity 中打开 `MarioTrickster → Asset Import Pipeline` 菜单验证工具可用性| **交接说明** | S106 完成：新增 **Asset Import Pipeline** 全链路工具，解决“外部素材到 SEF 可用 Object”的操作成本问题。包含：(1) Editor 窗口一键导入（规范化 + 切片 + 生成 Object + Prefab）；(2) SEF Quick Apply 效果预设快速应用 + 自动保存蓝图；(3) Python 批量裁切工具（网格/自动检测/去背景）；(4) 拖入自动触发。详见 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。### [S106] 最新知识沉淀
 
-### [S105] 最新知识沉淀
+1. **素材到 Object 的核心矛盾是“步骤多”而非“技术难”**：规范化、切片、设置 Pivot、创建 Object、挂载组件、保存 Prefab 每一步都简单，但串联 6 步的操作成本很高；解法是封装为一键流程。
+2. **效果选择与应用应解耦**：SEF Quick Apply 证明“选预设→自动应用→自动保存蓝图”可以把用户决策压缩到“点一下”，用户精力应只放在 shader 效果选择上。
+3. **商业素材的最大痛点是“合集图”**：一张大图包含多个不同 Object，必须先裁切再导入；Python 工具的 `--auto` 模式（连通域检测）是最低成本方案。
+4. **视碰分离架构必须贯穿到导入工具**：生成的 Object 必须遵守 S37 的 Root + Visual 分层，否则与现有关卡生成/主题换肤系统不兼容。
+
+### [S105] 知识沉淀
 
 1. **防裁切不能只盯 Blender 端**：即使上游已有 `padding=1.40`，下游图生视频仍可能把角色重新“贴回画框边”；因此真正给 QC 喂帧之前，必须在 `02_nobg` 阶段基于**全序列联合包围盒**再做一次统一安全构图重排。
 2. **颜色回正必须前移到帧级**：若只在 `Sprite Sheet` 收口阶段做一次整图匹配，`auto_qc.py` 读取到的仍是发灰、掉饱和的中间帧，结果会出现“成图已写回但 QC 仍判色偏”的假失败；所以参考图 Histogram Matching 必须前移到 `02_nobg`，最终整图写回只作为保险。
@@ -183,6 +186,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |
+| **高** | **素材导入自动化管线**：从外部购买/下载的素材到项目可用 Object + Prefab 蓝图的全链路工具。包含 Asset Import Pipeline、SEF Quick Apply、Python 裁切工具、拖入自动触发。 | ✅ 已完成（S106） |
 | **最高** | **恢复关卡白盒主线**：直接重新启用 `Level Studio / Custom Template Editor / Build From Text`，基于现有 ASCII 模板库与片段库继续拼装、测试并迭代 1~2 个完整关卡段；美术换肤只服务于已验证白盒，不再反向阻塞关卡设计。**S94 已固定执行原则**：A 轨（关卡白盒）永远是唯一上游任务源。**S95 已固定默认入口**：若当前要推项目总主线，应直接从“先继续白盒关卡，不等最终美术”这类窄入口启动。 | 🚀 已形成桥接结论，当前可立即恢复执行 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |

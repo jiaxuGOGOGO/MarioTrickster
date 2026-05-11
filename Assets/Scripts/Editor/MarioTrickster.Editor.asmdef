@@ -4,6 +4,7 @@
     "references": [
         "MarioTrickster",
         "SpriteEffectFactory.Runtime",
+        "SpriteEffectFactory.Editor",
         "UnityEditor.TestRunner",
         "UnityEngine.TestRunner"
     ],

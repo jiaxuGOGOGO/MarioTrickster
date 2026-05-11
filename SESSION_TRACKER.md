@@ -91,15 +91,21 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 107（素材应用到已有物体 + 展位资产自动配置行为逻辑 + SEF Quick Apply 效果不可见修复） |
+| **最新 Session** | Session 108（修复 Level Studio 内 SEF 快捷入口编译引用） |
 | **日期** | 2026-05-11 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — 在 S104 已补齐 **Blender `padding=1.4` / 动作振幅 `1.3x` / 最终成图 Histogram Matching** 的基础上，S105 针对用户回传的 idle 烟测失败样例做最小返修：把**防裁切安全构图**与**逐帧颜色回正**前移到 `02_nobg` 阶段，并增加前景最大连通域清理，避免 QC 继续看到贴边前景与发灰暗帧。 |
-| **编译状态** | ✅ S107 新增 2 个 C# 脚本（AssetApplyToSelected / ExplosiveHazard），修改 5 个文件（SpriteEffectController / SEF_QuickApply / SEF_UberSprite.shader / SEF_SharedLogic.hlsl / AssetImportPipeline），均不依赖第三方 Unity 包，可直接编译 |
-| **阻塞** | 无。待用户 `git pull` 后在 Unity 中验证：(1) SEF Quick Apply 效果实时可见 (2) Apply Art to Selected 工具可用 (3) 爆炸型陷阱行为正常 |
-| **交接说明** | S107 完成三项升级：(1) **SEF Quick Apply 效果不可见修复** — SpriteEffectController 加 `[ExecuteAlways]` + `OnValidate` + `EditorSyncProperties`，Shader 补全 Shadow 片元实现，Material 持久化为资产；(2) **Apply Art to Selected** — 新建编辑器窗口，选中场景物体后拖入素材即可"穿"上去，保留已有行为组件；(3) **展位资产自动配置行为逻辑** — 新增 ExplosiveHazard 组件 + 行为模板自动挂载（爆炸/接触伤害/锯片/道具）+ 碰撞体自动适配。|
+| **阶段** | Sprint 2.5 美术自动化落地期 — S108 对 Level Studio 的 Art & Effects Hub 做最小编译修复：`MarioTrickster.Editor.asmdef` 补充 `SpriteEffectFactory.Editor` 引用，恢复 `SEF Quick Apply` 与 `Sprite Effect Factory` 两个按钮的可编译状态。 |
+| **编译状态** | ✅ S108 仅修改 1 个 asmdef，补上编辑器程序集引用；Unity 重新编译应消除 `TestConsoleWindow.cs(440/445)` 的 `CS0103`。`TextureImporter.spritesheet` 与视频 `Color primaries` 仍是非阻断警告，后续可单独处理。 |
+| **阻塞** | 无。待用户 `git pull` 后在 Unity 中验证：Console 不再出现 `SEF_QuickApply` / `SpriteEffectFactoryWindow` 不存在错误；其余 `spritesheet` 过时 API 与视频色彩提示不阻断运行。 |
+| **交接说明** | S108 修复 S106/S107 后暴露出的编辑器程序集边界问题：Test Console 位于 `MarioTrickster.Editor`，SEF 工具位于 `SpriteEffectFactory.Editor`，直接调用 SEF 窗口类时必须显式引用对应 Editor asmdef。 |
 
-### [S107] 最新知识沉淀
+### [S108] 最新知识沉淀
+
+1. **Test Console 调用 SEF 编辑器窗口时必须建立 Editor asmdef 引用**：`SEF_QuickApply` 与 `SpriteEffectFactoryWindow` 源码存在，但它们编译在 `SpriteEffectFactory.Editor` 程序集中；`MarioTrickster.Editor` 未引用该程序集时，Unity 会在 `TestConsoleWindow` 报 `CS0103`。
+2. **`TextureImporter.spritesheet` 当前只是非阻断警告**：`AI_SpriteSlicer` / `AssetImportPipeline` / `TA_AssetValidator` 仍使用旧 Sprite 切片 API，后续应迁移到 `UnityEditor.U2D.Sprites.ISpriteEditorDataProvider`，但它不是本次无法编译的根因。
+3. **视频 `Color primaries` 提示不是 C# 编译错误**：它来自 `idle_drive.mp4` 的媒体元数据，Unity/WindowsMediaFoundation 会回退默认色彩配置，最多可能带来轻微色偏，不影响脚本编译。
+
+### [S107] 知识沉淀
 
 1. **SEF Quick Apply 效果不可见的根因是三重缺失**：(a) SpriteEffectController 缺 `[ExecuteAlways]` 导致编辑器模式 LateUpdate 不执行；(b) 应用预设后未调用 `EditorSyncProperties()` 导致 keyword 未同步到 Material；(c) Shadow 效果在 shader fragment 中完全没有实现代码。三者同时存在才导致"看不出任何效果"。
 2. **素材应用到已有物体的核心原则是"只换皮不换骨"**：替换 SpriteRenderer 贴图 + SEF Material，但保留所有已有的行为组件（BaseHazard/DamageDealer/ControllableHazard 等）。碰撞体自动按新贴图尺寸重新适配。
@@ -164,7 +170,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S56重点验证**: ASCII Build 新字符(@f<SX)能正确生成对应元素，旧字符行为不变 |
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| ✅ | EditMode 自动化 | 109/109 通过（S37 视碰分离后全量通过） |
+| 🔄 | EditMode 自动化 | **S108重点验证**: Unity Editor 重新编译后不再出现 `TestConsoleWindow.cs(440/445)` 的 `CS0103`；109/109 基线仍以 Unity Test Runner 为准 |
 | 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
@@ -194,6 +200,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **概念锚点出图**：使用 `PROMPT_RECIPES.md` 中的概念锚点蓝图在 ComfyUI/Midjourney 出图，满意后记录 Seed，保存到 `Assets/Art/Reference/Reference_Anchor.png`。 | 🚀 工单已派发，等待用户本地出图 |
 | **高** | **美术蒸馏 GitHub 闭环**：菜单 1 执行后必须在仓库内改 `prompts/PROMPT_RECIPES.md`、同步更新 `SESSION_TRACKER.md`、提交并推送远端；临时 OCR / 摘录文件不入库。 | ✅ 已完成（S62 协议增强 + S63 Hart 蒸馏 + S64 Telecom 蒸馏 + S65 松岡蒸馏 + S66 砂糖蒸馏 + S67 みにまる蒸馏 + S68 OCHABI蒸馏 + S69 Peter Han蒸馏 + S70 吉田誠治蒸馏 + S71 Telecom第二輪深度蒸留 + S72 室井康雄蒸留 + S73 バニリゾ蒸留 + S74 テレコムBible蒸留 + S75 室井康雄第二輪蒸留 + S76 松岡伸治《エフェクトグラフィックス》蒸留） |
 | **高** | **LoRA 训练路线研究与性价比判断**：围绕 Civitai / LiblibAI 在线训练、本地 4070 自训、云 GPU 自训与继续探索方案完成调研，结论见 `LoRA_Training_Decision_Report.md`；本轮又把“本地训练参数 / Civitai 页面填写 / 训练排障”三类求助入口补进白话速查表，避免用户重复追问同类问题。 | ✅ 已完成 |
+| **高** | **Level Studio × SEF 编辑器入口编译修复**：Art & Effects Hub 内的 SEF Quick Apply / Sprite Effect Factory 按钮因缺少 `SpriteEffectFactory.Editor` asmdef 引用触发 `CS0103`，S108 已补引用。 | ✅ 已完成（S108） |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |

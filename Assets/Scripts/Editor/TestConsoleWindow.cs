@@ -453,6 +453,28 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(4);
 
+        // 第四步：快速修复工具
+        EditorGUILayout.LabelField("⚙ 快速修复", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        GUI.color = new Color(1f, 0.6f, 0.3f);
+        if (GUILayout.Button("选中物体补 SEF Material", GUILayout.Height(24)))
+        {
+            FixSEFMaterialForSelection();
+        }
+        GUI.color = new Color(0.8f, 0.8f, 0.8f);
+        if (GUILayout.Button("全工程合规巡检", GUILayout.Height(24)))
+        {
+            EditorApplication.ExecuteMenuItem("MarioTrickster/Art Pipeline/一键合规巡检 (校验全工程 PPU-Filter-Pivot)");
+        }
+        GUI.color = Color.white;
+        EditorGUILayout.EndHorizontal();
+        EditorGUILayout.HelpBox(
+            "补 SEF Material: 选中物体后点击，自动把 Sprites/Default 换成 SEF UberSprite，让效果能生效\n" +
+            "合规巡检: 扫描 Assets/Art/ 下所有贴图，确保 PPU=32 / Point / Uncompressed",
+            MessageType.None);
+
+        EditorGUILayout.Space(6);
+
         // Picking 模式提示
         EditorGUILayout.LabelField("ℹ Picking 模式提示", EditorStyles.miniLabel);
         EditorGUILayout.HelpBox(
@@ -463,6 +485,98 @@ public class TestConsoleWindow : EditorWindow
             MessageType.None);
 
         EditorGUILayout.EndVertical();
+    }
+
+    /// <summary>为当前选中物体补上 SEF Material（解决“效果不生效”的常见问题）</summary>
+    private void FixSEFMaterialForSelection()
+    {
+        var selected = Selection.gameObjects;
+        if (selected == null || selected.Length == 0)
+        {
+            EditorUtility.DisplayDialog("提示", "请先在场景中选中物体", "好的");
+            return;
+        }
+
+        int fixedCount = 0;
+        foreach (var go in selected)
+        {
+            SpriteRenderer[] renderers = go.GetComponentsInChildren<SpriteRenderer>();
+            foreach (var sr in renderers)
+            {
+                if (sr.sharedMaterial != null && sr.sharedMaterial.shader != null
+                    && sr.sharedMaterial.shader.name == "MarioTrickster/SEF/UberSprite")
+                    continue;
+
+                var shader = Shader.Find("MarioTrickster/SEF/UberSprite");
+                if (shader == null)
+                {
+                    Debug.LogWarning("[Art Hub] SEF UberSprite shader not found!");
+                    return;
+                }
+
+                Undo.RecordObject(sr, "Fix SEF Material");
+                Material mat = new Material(shader);
+                mat.name = $"SEF_{sr.gameObject.name}";
+                if (sr.sprite != null)
+                    mat.mainTexture = sr.sprite.texture;
+                sr.sharedMaterial = mat;
+                fixedCount++;
+
+                // 确保有 SpriteEffectController
+                if (sr.gameObject.GetComponent<SpriteEffectController>() == null)
+                {
+                    Undo.AddComponent<SpriteEffectController>(sr.gameObject);
+                }
+            }
+        }
+
+        if (fixedCount > 0)
+        {
+            SceneView.RepaintAll();
+            Debug.Log($"[Art Hub] 已为 {fixedCount} 个 SpriteRenderer 补上 SEF Material");
+        }
+        else
+        {
+            Debug.Log("[Art Hub] 所有选中物体已经使用 SEF Material，无需修复");
+        }
+    }
+
+    /// <summary>为关卡中所有有 Sprite 的物体补上 SEF Material（换肤后自动调用）</summary>
+    private void EnsureSEFMaterialForLevel(GameObject root)
+    {
+        if (root == null) return;
+        var shader = Shader.Find("MarioTrickster/SEF/UberSprite");
+        if (shader == null) return;
+
+        SpriteRenderer[] renderers = root.GetComponentsInChildren<SpriteRenderer>();
+        int count = 0;
+        foreach (var sr in renderers)
+        {
+            // 跳过已经使用 SEF Material 的
+            if (sr.sharedMaterial != null && sr.sharedMaterial.shader != null
+                && sr.sharedMaterial.shader.name == "MarioTrickster/SEF/UberSprite")
+                continue;
+
+            // 跳过没有贴图的（白盒状态）
+            if (sr.sprite == null) continue;
+            // 跳过还是白盒 Sprite 的（未被换肤）
+            if (sr.sprite.texture != null && sr.sprite.texture.width == 4 && sr.sprite.texture.height == 4)
+                continue;
+
+            Material mat = new Material(shader);
+            mat.name = $"SEF_{sr.gameObject.name}";
+            mat.mainTexture = sr.sprite.texture;
+            sr.sharedMaterial = mat;
+
+            // 确保有 SpriteEffectController
+            if (sr.gameObject.GetComponent<SpriteEffectController>() == null)
+            {
+                sr.gameObject.AddComponent<SpriteEffectController>();
+            }
+            count++;
+        }
+        if (count > 0)
+            Debug.Log($"[TestConsole] 换肤后自动为 {count} 个物体补上 SEF Material");
     }
 
     /// <summary>生成白盒关卡</summary>
@@ -527,9 +641,13 @@ public class TestConsoleWindow : EditorWindow
 
         AsciiLevelGenerator.ApplyTheme(themeProfile);
 
+        // 换肤后自动为所有替换了 Sprite 的物体补上 SEF Material，
+        // 确保后续 SEF Quick Apply 效果能直接生效，用户无需手动补 Material。
+        EnsureSEFMaterialForLevel(root);
+
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
 
-        Debug.Log($"[TestConsole] Theme '{themeProfile.themeName}' applied with Undo support.");
+        Debug.Log($"[TestConsole] Theme '{themeProfile.themeName}' applied with Undo support + SEF Material.");
     }
 
     /// <summary>创建新的 Theme Profile 资产</summary>
@@ -1726,9 +1844,11 @@ public class TestConsoleWindow : EditorWindow
             marioHealth = mario.GetComponent<PlayerHealth>();
             // 将已有 Mario 传送到新关卡的出生点
             mario.transform.position = marioSpawnPos + Vector3.up * 0.5f;
+            // 修复已有 Mario 的 groundLayer 未设置问题（消除黄色警告）
+            SetSerializedFieldForPlayable(marioCtrl, "groundLayer", groundLayerMask);
         }
 
-        // ═══════════════════════════════════════════════════
+        // ═════════════════════════════════════════════════
         // Trickster
         // ═══════════════════════════════════════════════════
         TricksterController tricksterCtrl = Object.FindObjectOfType<TricksterController>();
@@ -1774,6 +1894,8 @@ public class TestConsoleWindow : EditorWindow
         {
             trickster = tricksterCtrl.gameObject;
             trickster.transform.position = tricksterSpawnPos + Vector3.up * 0.5f;
+            // 修复已有 Trickster 的 groundLayer 未设置问题（消除黄色警告）
+            SetSerializedFieldForPlayable(tricksterCtrl, "groundLayer", groundLayerMask);
         }
 
         // ═══════════════════════════════════════════════════

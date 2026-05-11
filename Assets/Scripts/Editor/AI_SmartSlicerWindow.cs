@@ -365,6 +365,13 @@ public class AI_SmartSlicerWindow : EditorWindow
 
             // 编码图片为 base64
             string base64 = EncodeTextureToBase64(_sourceTexture);
+            if (string.IsNullOrEmpty(base64))
+            {
+                _statusMessage = "分析失败：无法编码贴图（格式不支持）";
+                _isAnalyzing = false;
+                Repaint();
+                return;
+            }
 
             // 调用 API
             string jsonResult = await CallVisionAPI(base64, _sourceTexture.width, _sourceTexture.height);
@@ -412,53 +419,47 @@ public class AI_SmartSlicerWindow : EditorWindow
 
     private string EncodeTextureToBase64(Texture2D tex)
     {
-        // 如果贴图太大，缩放到 2048 以内
-        Texture2D readableTex = tex;
-        
-        if (!tex.isReadable)
-        {
-            // 通过 RenderTexture 拷贝
-            RenderTexture rt = RenderTexture.GetTemporary(tex.width, tex.height);
-            Graphics.Blit(tex, rt);
-            RenderTexture prev = RenderTexture.active;
-            RenderTexture.active = rt;
-            readableTex = new Texture2D(tex.width, tex.height, TextureFormat.RGBA32, false);
-            readableTex.ReadPixels(new Rect(0, 0, tex.width, tex.height), 0, 0);
-            readableTex.Apply();
-            RenderTexture.active = prev;
-            RenderTexture.ReleaseTemporary(rt);
-        }
-
+        // 始终通过 RenderTexture Blit 拷贝，确保兼容：
+        //   - 压缩格式（DXT/BC/ETC/ASTC）
+        //   - 不可读贴图（isReadable = false）
+        // EncodeToPNG 只支持 RGBA32/RGB24 等未压缩格式。
         int maxSize = 2048;
-        Texture2D toEncode = readableTex;
-        
-        if (Mathf.Max(readableTex.width, readableTex.height) > maxSize)
+        int targetW = tex.width;
+        int targetH = tex.height;
+
+        if (Mathf.Max(targetW, targetH) > maxSize)
         {
-            float scale = (float)maxSize / Mathf.Max(readableTex.width, readableTex.height);
-            int newW = Mathf.RoundToInt(readableTex.width * scale);
-            int newH = Mathf.RoundToInt(readableTex.height * scale);
-            
-            RenderTexture rt = RenderTexture.GetTemporary(newW, newH);
-            Graphics.Blit(readableTex, rt);
-            RenderTexture prev = RenderTexture.active;
-            RenderTexture.active = rt;
-            toEncode = new Texture2D(newW, newH, TextureFormat.RGBA32, false);
-            toEncode.ReadPixels(new Rect(0, 0, newW, newH), 0, 0);
-            toEncode.Apply();
-            RenderTexture.active = prev;
-            RenderTexture.ReleaseTemporary(rt);
+            float scale = (float)maxSize / Mathf.Max(targetW, targetH);
+            targetW = Mathf.RoundToInt(targetW * scale);
+            targetH = Mathf.RoundToInt(targetH * scale);
         }
 
-        byte[] pngBytes = toEncode.EncodeToPNG();
-        
-        if (toEncode != tex && toEncode != readableTex)
-            DestroyImmediate(toEncode);
-        if (readableTex != tex)
-            DestroyImmediate(readableTex);
+        // 一步完成：解压 + 缩放 → 未压缩 RGBA32
+        RenderTexture rt = RenderTexture.GetTemporary(targetW, targetH, 0, RenderTextureFormat.ARGB32);
+        rt.filterMode = FilterMode.Bilinear;
+        Graphics.Blit(tex, rt);
+
+        RenderTexture prev = RenderTexture.active;
+        RenderTexture.active = rt;
+
+        Texture2D readable = new Texture2D(targetW, targetH, TextureFormat.RGBA32, false);
+        readable.ReadPixels(new Rect(0, 0, targetW, targetH), 0, 0);
+        readable.Apply();
+
+        RenderTexture.active = prev;
+        RenderTexture.ReleaseTemporary(rt);
+
+        byte[] pngBytes = readable.EncodeToPNG();
+        DestroyImmediate(readable);
+
+        if (pngBytes == null || pngBytes.Length == 0)
+        {
+            Debug.LogError("[AI Smart Slicer] EncodeToPNG 返回空数据，贴图可能损坏");
+            return "";
+        }
 
         return Convert.ToBase64String(pngBytes);
     }
-
     private async Task<string> CallVisionAPI(string base64Image, int origW, int origH)
     {
         string systemPrompt = @"You are a 2D game art asset analyst. You will receive a sprite sheet or asset collection image.

@@ -390,10 +390,11 @@ public class TestConsoleWindow : EditorWindow
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.HelpBox(
             "统一入口：按顺序操作即可完成「导入素材 → 应用到场景 → 挑选效果」全流程。\n" +
-            "① 新素材从零开始：用『素材导入管线』\n" +
-            "② 素材穿到已有白盒物体：用『Apply Art to Selected』\n" +
-            "③ 给物体加视觉效果（闪白/描边/溶解等）：用『SEF Quick Apply』\n" +
-            "④ 精细调参（颜色替换/HSV/投影等）：用『效果工厂』",
+            "① 新素材从零开始：用『素材导入管线』或『AI 智能裁切』\n" +
+            "② 素材包命名混乱 / 主题槽批量绑定：用『策划生产助手』\n" +
+            "③ 素材穿到已有白盒物体：用『Apply Art to Selected』\n" +
+            "④ 给物体加视觉效果（闪白/描边/溶解等）：用『SEF Quick Apply』\n" +
+            "⑤ 精细调参（颜色替换/HSV/投影等）：用『效果工厂』",
             MessageType.Info);
 
         EditorGUILayout.Space(4);
@@ -410,6 +411,11 @@ public class TestConsoleWindow : EditorWindow
         if (GUILayout.Button("AI 智能裁切", GUILayout.Height(26)))
         {
             AI_SmartSlicerWindow.ShowWindow();
+        }
+        GUI.color = new Color(0.8f, 1f, 0.75f);
+        if (GUILayout.Button("策划生产助手", GUILayout.Height(26)))
+        {
+            PlannerProductionAssistant.ShowWindow();
         }
         GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();

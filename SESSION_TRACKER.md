@@ -91,16 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 119（单 RUN 角色动画可直接测试） |
+| **最新 Session** | Session 120（商业素材通用状态适配审计与低风险扩展） |
 | **日期** | 2026-05-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S119 让主角换皮支持只导入一组 `RUN` 帧即可测试：左右移动播放完整跑步动画，待机/跳跃/下落自动用已有帧静态兜底；完整 `IDLE/RUN/JUMP/FALL` 仍会按状态完整引用。 |
-| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成 `git diff --check` 与关键字 grep；待用户在 Unity 中 `git pull` 后刷新 Console 并用主角左右移动实机确认。 |
-| **阻塞** | 无。用户可以先只导入跑步图集测试主角前后/左右移动，不必一次性补齐待机、跳跃、下落。 |
-| **交接说明** | S119 延续文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入、状态动画与安全改名看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S120 在不改变现有运行表现的前提下，把素材分类从“只识别主角运动状态”扩展为“记录商业素材语义状态”：主角仍只把 `IDLE/RUN/JUMP/FALL` 接入运行时状态机；攻击、受伤、死亡、施法、技能特效、潜行、伪装、融入环境、道具开关等状态会被分类器记录和展示，作为后续 JIT 机制接线依据。 |
+| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成 `git diff --check` 与核心分类器差异复核；待用户在 Unity 中 `git pull` 后刷新 Console，并在 Apply Art / Asset Import Pipeline 中导入角色、敌人、道具、特效素材做实机确认。 |
+| **阻塞** | 无。现有主角单 RUN、完整 `IDLE/RUN/JUMP/FALL`、普通多帧循环、道具/陷阱/特效分类路径保持不变；新增商业状态只记录摘要，不强行改变运行时行为。 |
+| **交接说明** | S120 延续文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入、状态动画与商业素材状态命名看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
 
 
-### [S119] 最新知识沉淀
+### [S120] 最新知识沉淀
+
+1. **商业素材状态分两层处理**：`IDLE/RUN/JUMP/FALL` 是当前可直接驱动主角运行时 `SpriteStateAnimator` 的运动状态；`ATTACK/HURT/DEATH/CAST/SKILL/STEALTH/DISGUISE/BLEND/OPEN/CLOSE/LOOP/IMPACT` 等是通用语义状态，先进入分类摘要和 Marker 记录，不自动改玩家、敌人或道具行为。
+2. **分类顺序必须保护道具和特效**：商业素材文件名里常带 `idle/cast/loop`，不能只因出现状态词就判成角色；分类器应先识别背景、地形、平台、道具、陷阱、特效等明确用途，再在角色候选路径上判断状态驱动。
+3. **未来新状态走“记录优先、机制按需接线”**：新增潜行、融入环境、释放技能、敌人攻击、道具开关等动画时，先保证导入不崩、摘要可见、文档一致；只有关卡设计明确需要交互时，再由 JIT 机制把对应语义状态接到运行时逻辑。
+
+### [S119] 知识沉淀
 
 1. **主角单组状态素材也应走状态机**：当目标对象是 PlayerStateDriven（Mario/主角）且素材名或切片名能识别到 `run/idle/jump/fall` 任意一组时，`ArtAssetClassifier` 必须返回 `StateDriven`，不要因为只有一组 RUN 就退回普通循环动画。
 2. **只有 RUN 时待机必须静态兜底**：`GetStateFramesOrFallback` 对 Idle/Jump/Fall 使用 RUN 第一帧兜底，只有 Run 状态保留完整跑步帧，避免角色站着也循环跑步。
@@ -126,7 +132,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 ### [S115] 知识沉淀
 
-1. **角色状态动画以命名约定驱动，不让用户填系统参数**：只要帧名包含 `idle/run/jump/fall`，分类器即可自动分组；识别到两组以上角色状态时走 `SpriteStateAnimator`，单组或普通多帧素材继续走 `SpriteFrameAnimator`，避免误判。
+1. **角色状态动画以命名约定驱动，不让用户填系统参数**：只要帧名包含 `idle/run/jump/fall`，分类器即可自动分组；对主角/玩家对象，即使只识别到单组 `RUN` 也可走 `SpriteStateAnimator` 并用静态帧兜底缺失状态；普通非角色多帧素材仍走 `SpriteFrameAnimator`，避免误判。
 2. **文档入口必须分层收束**：README 面向用户；`SESSION_TRACKER.md` 与 `AI_TAKEOVER_PROTOCOL.md` 面向新 AI；`PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md` 面向日常关卡/换素材；`ASSET_IMPORT_PIPELINE_GUIDE.md` 面向素材导入和状态动画；`AI_WORKFLOW.md` 只保留 Git 与故障反馈附录。
 3. **持续更新文档可以整理，但不能断交接链**：旧长模板和重复教程应合并到权威入口；真正影响后续接手的状态、测试、待办仍必须落在本文件，避免清理文档时清掉项目记忆。
 4. **仓库内只保留一个用户 README**：GitHub 文件搜索里的目录级 `README.md` 容易误导用户；保留根目录 `README.md`，把工具内部说明改名为 `SEF_GUIDE.md` / `PIPELINE_GUIDE.md`，把迁移说明改名为 `ART_REPO_POINTER.md` 或专项路径兼容指针。
@@ -237,7 +243,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S56重点验证**: ASCII Build 新字符(@f<SX)能正确生成对应元素，旧字符行为不变 |
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| 🔄 | EditMode 自动化 | **S119重点验证**: `ArtAssetClassifierTests` idle/run/jump/fall 边界测试通过；Apply Art 对主角应用单组 RUN 也应挂 `SpriteStateAnimator`，左右移动播放完整跑步动画，待机/跳跃/下落用第一帧静态兜底；普通非角色多帧素材仍回退 `SpriteFrameAnimator`；Unity Editor 重新编译无新增红错 |
+| 🔄 | EditMode 自动化 | **S120重点验证**: `ArtAssetClassifierTests` idle/run/jump/fall 边界测试、主角单 RUN 状态动画测试、商业语义状态摘要测试、道具 idle 与特效 cast 防误判测试通过；Apply Art 对主角应用单组 RUN 仍挂 `SpriteStateAnimator`，普通非角色多帧素材仍回退 `SpriteFrameAnimator`；Unity Editor 重新编译无新增红错 |
 | 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
@@ -275,7 +281,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **最高** | **策划高速关卡生产入口**：S113 新增 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`，把“做关卡、换商业素材、接人物/机关动画、让 AI 后台补机制”的路径合并为面向策划的一页式功能介绍与教程；README 与 LevelStudio 指南已加入口。 | ✅ 已完成（S113） |
 | **高** | **Apply Art 选中归一优化**：S113 已让 `Apply Art to Selected` 在用户选中 Root 或 Visual 时都自动回到行为 Root 执行换皮，降低 Visual 模式下把标记/碰撞/Prefab 写错层的风险。 | ✅ 已完成（S113） |
 | **最高** | **策划生产助手短板优化**：S114 新增 `PlannerProductionAssistant`，把商业素材包命名混乱、Theme Profile 手动填槽、新机制请求不稳定三项短板压成一个 Unity 内窗口入口。 | ✅ 已完成（S114，待 Unity 实机验证） |
-| **最高** | **角色状态动画自动挂载与文档收束**：S115 补强 `idle/run/jump/fall` 命名分类边界测试；S119 追加主角单组 RUN 也能状态驱动，左右移动播放跑步动画，缺失状态用静态帧兜底；README、AI 接手协议、素材导入指南、AI_WORKFLOW 已合并为清晰入口。 | ✅ 已完成（S119，待 Unity 实机验证） |
+| **最高** | **角色状态动画自动挂载与商业状态兼容**：S115 补强 `idle/run/jump/fall` 命名分类边界测试；S119 追加主角单组 RUN 也能状态驱动；S120 把攻击、受伤、死亡、施法、技能特效、潜行、伪装、融入环境、道具开关等商业素材状态纳入分类摘要和文档，不改变现有运行行为。 | ✅ 已完成（S120，待 Unity 实机验证） |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |

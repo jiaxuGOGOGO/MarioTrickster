@@ -171,6 +171,98 @@ public class ArtAssetClassifierTests
     }
 
     [Test]
+    public void Classify_CommercialAbilityStates_RecordsSemanticStatesWithoutForcingRuntime()
+    {
+        Sprite[] sprites =
+        {
+            MakeSprite("rogue_attack_00"),
+            MakeSprite("rogue_cast_spell_01"),
+            MakeSprite("rogue_stealth_blend_02"),
+            MakeSprite("rogue_disguise_03")
+        };
+
+        try
+        {
+            var result = ArtAssetClassifier.Classify(null, sprites, -1);
+
+            Assert.AreEqual(ArtAssetClassifier.AssetRole.Character, result.role);
+            Assert.AreEqual(ArtAssetClassifier.AnimationMode.Loop, result.animationMode);
+            Assert.IsFalse(result.IsStateDriven);
+            Assert.Contains("attack", result.semanticStates);
+            Assert.Contains("cast", result.semanticStates);
+            Assert.Contains("stealth", result.semanticStates);
+            Assert.Contains("blend", result.semanticStates);
+            Assert.Contains("disguise", result.semanticStates);
+            Assert.IsTrue(result.StateSummary.Contains("attack"));
+        }
+        finally
+        {
+            foreach (Sprite sprite in sprites) Object.DestroyImmediate(sprite);
+        }
+    }
+
+    [Test]
+    public void Classify_EnemyRunSprites_PreservesEnemyRoleInsteadOfPlayerCharacter()
+    {
+        Sprite[] sprites =
+        {
+            MakeSprite("enemy_slime_run_00"),
+            MakeSprite("enemy_slime_run_01")
+        };
+
+        try
+        {
+            var result = ArtAssetClassifier.Classify(null, sprites, -1);
+
+            Assert.AreEqual(ArtAssetClassifier.AssetRole.Enemy, result.role);
+            Assert.AreEqual(ArtAssetClassifier.RuntimeBehavior.KeepExisting, result.runtimeBehavior);
+            Assert.AreEqual(ArtAssetClassifier.AnimationMode.Loop, result.animationMode);
+            Assert.IsFalse(result.IsStateDriven);
+            Assert.Contains("run", result.semanticStates);
+        }
+        finally
+        {
+            foreach (Sprite sprite in sprites) Object.DestroyImmediate(sprite);
+        }
+    }
+
+    [Test]
+    public void Classify_CollectibleIdleAndSpellCast_DoNotBecomeGenericCharacter()
+    {
+        Sprite[] collectibleSprites =
+        {
+            MakeSprite("treasure_chest_idle_00"),
+            MakeSprite("treasure_chest_idle_01")
+        };
+        Sprite[] vfxSprites =
+        {
+            MakeSprite("spell_cast_00"),
+            MakeSprite("spell_cast_01")
+        };
+
+        try
+        {
+            var collectible = ArtAssetClassifier.Classify(null, collectibleSprites, -1);
+            var vfx = ArtAssetClassifier.Classify(null, vfxSprites, -1);
+
+            Assert.AreEqual(ArtAssetClassifier.AssetRole.Collectible, collectible.role);
+            Assert.AreEqual(ArtAssetClassifier.RuntimeBehavior.PickupConsume, collectible.runtimeBehavior);
+            Assert.AreNotEqual(ArtAssetClassifier.AnimationMode.StateDriven, collectible.animationMode);
+            Assert.Contains("idle", collectible.semanticStates);
+
+            Assert.AreEqual(ArtAssetClassifier.AssetRole.VFX, vfx.role);
+            Assert.AreEqual(ArtAssetClassifier.RuntimeBehavior.VFX, vfx.runtimeBehavior);
+            Assert.AreEqual(ArtAssetClassifier.AnimationMode.Loop, vfx.animationMode);
+            Assert.Contains("cast", vfx.semanticStates);
+        }
+        finally
+        {
+            foreach (Sprite sprite in collectibleSprites) Object.DestroyImmediate(sprite);
+            foreach (Sprite sprite in vfxSprites) Object.DestroyImmediate(sprite);
+        }
+    }
+
+    [Test]
     public void ApplyToMarker_WritesUnifiedMetadataWithoutBreakingLegacyFields()
     {
         GameObject go = new GameObject("MarkerHost");
@@ -186,12 +278,15 @@ public class ArtAssetClassifierTests
                 notes = "test metadata"
             };
 
+            classification.semanticStates.Add("pickup");
+
             ArtAssetClassifier.ApplyToMarker(marker, classification);
 
             Assert.AreEqual("Collectible", marker.assetRole);
             Assert.AreEqual("Loop", marker.animationMode);
             Assert.AreEqual("PickupConsume", marker.runtimeBehavior);
             Assert.AreEqual(0.8f, marker.classificationConfidence, 0.001f);
+            Assert.AreEqual("pickup", marker.animationStates);
             Assert.AreEqual("test metadata", marker.classificationNotes);
         }
         finally

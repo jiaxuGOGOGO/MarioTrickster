@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 单张平台、陷阱、道具、背景 | 拖进 `Assets/Art/Imported/`，在导入窗口选择大类并一键导入。 | 规范化 Texture Importer、生成 Root/Visual 对象、挂 SpriteRenderer、碰撞体、SEF 材质和 Prefab。[1] |
 | 多帧普通动画 | 拖入 Sprite Sheet 或散帧文件夹，再应用到目标物体。 | 自动挂 `SpriteFrameAnimator`，按帧循环播放。[1] |
-| 角色状态动画 | 使用 `idle/run/jump/fall` 命名散帧或切片，再应用到角色 Visual。 | 分类器分组后自动挂 `SpriteStateAnimator`，按运动状态切换。[1] |
+| 角色状态动画 | 使用 `idle/run/jump/fall` 命名散帧或切片，再应用到角色 Visual。 | 分类器分组后自动挂 `SpriteStateAnimator`，按运动状态切换；单独 RUN 也可用于试跑。[1] |
 | 大型合集图 | 先用 `Tools/sprite_sheet_slicer.py` 或 `Tools/ai_smart_slicer.py` 裁切，再拖入 Unity。 | 输出独立素材后走同一条导入链路。[1] |
 | 已有白盒物体换皮 | 选中 Root 或 Visual，打开 Apply Art 并应用素材。 | 后台归一到行为 Root，只替换视觉层，不破坏碰撞、脚本和 Prefab 归属。[2] |
 
@@ -29,7 +29,7 @@
 | Jump | `hero_jump_00.png`, `mario_jump_01` | `rise`, `up` | 非循环，默认 10 fps。 |
 | Fall | `hero_fall_00.png`, `mario_fall_01` | `drop`, `down` | 非循环，默认 10 fps。 |
 
-当素材里识别到两组或更多角色状态时，工具会自动使用 `SpriteStateAnimator`。缺失的状态会回退到已存在的第一组帧，所以临时素材也能先跑起来；如果只识别到单组状态或普通多帧素材，则走 `SpriteFrameAnimator` 循环动画，避免把单动作素材误判成完整角色控制动画。[1]
+当素材应用到角色目标且识别到 `idle/run/jump/fall` 任意核心运动状态时，工具会优先使用 `SpriteStateAnimator`。完整四状态会按各自帧播放；只导入单独 RUN 时也能用于试跑，左右移动播放跑步帧，缺失的 Idle/Jump/Fall 会使用已有帧做静态兜底。普通多帧装饰物、道具或特效仍走 `SpriteFrameAnimator`，避免把火把、水面、传送门等循环素材误判成角色控制动画。[1]
 
 > **入口澄清**：角色状态动画不是一个额外的 Unity 功能按钮或独立配置面板；它是 `Asset Import Pipeline` 与 `Apply Art To Selected` 内部的自动分支。把按 `idle/run/jump/fall` 命名的散帧或切片拖进去并应用后，系统会在目标 `Visual` 上自动挂 `SpriteStateAnimator`。
 
@@ -81,10 +81,10 @@ python Tools/ai_smart_slicer.py commercial_pack.png
 | --- | --- |
 | `Assets/Scripts/Editor/AssetImportPipeline.cs` | 主导入窗口，负责规范化、切片、生成对象和 Prefab。 |
 | `Assets/Scripts/Editor/AssetApplyToSelected.cs` | 给已有对象换皮，负责 Root 归一、动画挂载、行为模板和碰撞体适配。 |
-| `Assets/Scripts/Editor/ArtAssetClassifier.cs` | 素材分类器，识别角色、道具、陷阱、背景、状态动画与运行时行为。 |
+| `Assets/Scripts/Editor/ArtAssetClassifier.cs` | 素材分类器，识别角色、敌人、道具、陷阱、背景、特效、核心运动状态与通用商业素材语义状态。 |
 | `Assets/Scripts/Core/SpriteFrameAnimator.cs` | 普通多帧循环动画播放器。 |
 | `Assets/Scripts/Core/SpriteStateAnimator.cs` | 角色 idle/run/jump/fall 状态动画播放器。 |
-| `Assets/Scripts/Core/ImportedAssetMarker.cs` | 记录导入元数据，帮助后续换皮和分类复用。 |
+| `Assets/Scripts/Core/ImportedAssetMarker.cs` | 记录导入元数据和状态摘要，帮助后续换皮、分类复用和新状态挂接。 |
 | `Assets/SpriteEffectFactory/Editor/SEF_QuickApply.cs` | 视觉效果预设快速应用。 |
 | `Tools/sprite_sheet_slicer.py` | 纯像素裁切工具。 |
 | `Tools/ai_smart_slicer.py` | AI 语义裁切工具。 |

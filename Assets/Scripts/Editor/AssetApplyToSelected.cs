@@ -119,7 +119,8 @@ public class AssetApplyToSelected : EditorWindow
             {
                 _artSprite = _artSprites[0];
                 var preview = ArtAssetClassifier.Classify(selected != null ? ResolveApplyTarget(selected) : null, _artSprites, -1);
-                EditorGUILayout.HelpBox($"已识别文件夹散帧：{_artSprites.Length} 帧；状态={preview.StateSummary}；应用后自动挂 SpriteStateAnimator。", MessageType.None);
+                string modeHint = preview.IsStateDriven ? "应用后自动挂 SpriteStateAnimator。" : "应用后按分类结果保持现有行为或挂循环/一次性动画。";
+                EditorGUILayout.HelpBox($"已识别文件夹散帧：{_artSprites.Length} 帧；角色={preview.role}；模式={preview.animationMode}；状态={preview.StateSummary}；{modeHint}", MessageType.None);
             }
             else
             {
@@ -136,7 +137,7 @@ public class AssetApplyToSelected : EditorWindow
                 string frameHint = preview != null && preview.IsStateDriven
                     ? $"已识别角色状态 Sprite Sheet：{_artSprites.Length} 帧；状态={preview.StateSummary}；应用后左右移动会由 SpriteStateAnimator 驱动。"
                     : (_artSprites.Length > 1
-                        ? $"已识别 Sprite Sheet：{_artSprites.Length} 帧，应用后会自动挂 SpriteFrameAnimator 播放。"
+                        ? $"已识别 Sprite Sheet：{_artSprites.Length} 帧；角色={preview.role}；模式={preview.animationMode}；状态={preview.StateSummary}；应用后会按分类结果挂循环/一次性动画或保留现有行为。"
                         : $"已识别单帧 Sprite: {_artSprite.name}");
                 EditorGUILayout.HelpBox(frameHint, MessageType.None);
             }

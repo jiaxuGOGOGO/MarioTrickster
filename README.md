@@ -13,7 +13,7 @@
 | 继续开发、让 AI 接手、提交测试反馈 | [SESSION_TRACKER.md](./SESSION_TRACKER.md) | 当前进度、待办队列、防坑规则与推送前更新点都以这里为准。 |
 | 新 AI 第一次接管项目 | [docs/AI_TAKEOVER_PROTOCOL.md](./docs/AI_TAKEOVER_PROTOCOL.md) | 极简接管协议，保留“后台读档、少打扰、自动落库”的协作方式。 |
 | 做关卡、换素材、接机制 | [docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md](./docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md) | 面向策划的一页式工作流，优先从这里开始日常制作。 |
-| 导入商业素材、Sprite Sheet 或角色帧 | [docs/ASSET_IMPORT_PIPELINE_GUIDE.md](./docs/ASSET_IMPORT_PIPELINE_GUIDE.md) | 记录 Asset Import Pipeline、Apply Art、SEF 和 idle/run/jump/fall 状态动画命名规则。 |
+| 导入商业素材、Sprite Sheet 或角色帧 | [docs/ASSET_IMPORT_PIPELINE_GUIDE.md](./docs/ASSET_IMPORT_PIPELINE_GUIDE.md) | 记录 Asset Import Pipeline、Apply Art、SEF、单 RUN 试跑、完整 idle/run/jump/fall 状态动画和通用商业状态命名规则。 |
 | 在 Unity 里验证功能和导出测试报告 | [MarioTrickster_Testing_Guide.md](./MarioTrickster_Testing_Guide.md) | 手动测试、自动测试、回归报告入口都在这里。 |
 | 查看设计矩阵与长期状态 | [MASTER_TRACKER.md](./MASTER_TRACKER.md) | 设计规划与实现状态的对照表。 |
 | 查历史细节和旧 Bug | [MarioTrickster_Progress_Summary.md](./MarioTrickster_Progress_Summary.md) | 深档案，只有需要追溯长期历史时再读。 |
@@ -31,8 +31,8 @@
 | --- | --- | --- |
 | 做一段新关卡 | 打开 Unity 2022.3 LTS，用 `Ctrl+T` 进入 Test Console，再用文本矩阵生成白盒关卡。 | 生成 Root/Visual 分离对象、补齐可玩环境，并保留后续换皮入口。[2] |
 | 给白盒换商业素材 | 选中 Root 或 Visual，使用 Apply Art，拖入素材后应用。 | 自动归一到行为 Root，只替换视觉、动画和材质，不破坏碰撞与行为。[2] [4] |
-| 导入角色状态动画 | 把帧命名为 `hero_idle_00`、`hero_run_00`、`hero_jump_00`、`hero_fall_00` 这类格式。 | 分类器识别两组以上状态后自动挂 `SpriteStateAnimator`，按角色运动状态切换；只有一组状态时回退为普通循环动画。[4] |
-| 导入普通循环动画 | 提供多帧 Sprite Sheet 或散帧，但不要使用多组角色状态命名。 | 自动挂 `SpriteFrameAnimator` 循环播放。[4] |
+| 导入角色状态动画 | 把帧命名为 `hero_idle_00`、`hero_run_00`、`hero_jump_00`、`hero_fall_00` 这类格式；只有 `hero_run_00` 也能先试跑。 | 应用到角色目标时自动挂 `SpriteStateAnimator`，完整四状态按各自帧播放；单 RUN 左右移动播放跑步，缺失状态用静态帧兜底。[4] |
+| 导入普通循环动画 | 提供多帧 Sprite Sheet 或散帧，命名为火把、水面、传送门、特效等非角色循环用途。 | 自动挂 `SpriteFrameAnimator` 循环播放；攻击、受伤、死亡、潜行、技能释放等额外商业状态会先记录为状态摘要，不会破坏现有控制器。[4] |
 | 让 AI 增加新机制 | 直接说“我想要一个会怎样互动的机关/敌人/能力”。 | AI 按项目规则补代码、字典、测试和文档，完成后自动提交推送。[1] [3] |
 
 推荐顺序是先把白盒玩法跑通，再接入美术素材。项目的核心目标仍是关卡节奏、Trickster 伏击点和机制互动，美术管线是服务于已验证玩法的支线能力。[2]

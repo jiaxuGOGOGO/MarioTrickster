@@ -38,7 +38,7 @@ public class ImportedAssetMarker : MonoBehaviour
     [Tooltip("运行行为：PlayerStateDriven / PhysicsProp / PickupConsume / HazardContact / BackgroundLayer / AmbientLoop / VFX / KeepExisting")]
     public string runtimeBehavior = "KeepExisting";
 
-    [Tooltip("已识别出的动画状态，逗号分隔，例如 idle,run,jump,fall")]
+    [Tooltip("已识别出的通用动画/交互状态，逗号分隔，例如 idle,run,jump,fall,attack,cast,stealth,blend,telegraph,active,cooldown")]
     public string animationStates = "";
 
     [Tooltip("锁定当前 Visual/SEF 效果，Quick Apply 默认不覆盖")]

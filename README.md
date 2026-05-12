@@ -2,7 +2,7 @@
 
 > **一句话定位**：MarioTrickster 是一款非对称对抗平台跳跃游戏，一名玩家扮演闯关者通过关卡，另一名玩家扮演捣蛋者伪装为障碍、地形或怪物来阻止闯关者。[1] [2]
 
-本文档是仓库首页，只负责告诉你“现在应该从哪里开始”。详细进度、AI 接管协议、关卡生产教程、素材导入教程和测试手册分别放在对应的权威文档里，避免同一套规则散落在多个长文档中反复维护。[1] [3]
+本文档是仓库首页，也是**唯一用户入口 README**。如果你在 GitHub 文件搜索里搜 `read`，只需要打开仓库根目录这个 `README.md`；旧的目录级 README 已改名为内部指南或迁移指针，避免同一套规则散落在多个长文档中反复维护。[1] [3]
 
 ---
 
@@ -18,6 +18,8 @@
 | 查看设计矩阵与长期状态 | [MASTER_TRACKER.md](./MASTER_TRACKER.md) | 设计规划与实现状态的对照表。 |
 | 查历史细节和旧 Bug | [MarioTrickster_Progress_Summary.md](./MarioTrickster_Progress_Summary.md) | 深档案，只有需要追溯长期历史时再读。 |
 | 查 Git 常用命令 | [AI_WORKFLOW.md](./AI_WORKFLOW.md) | 已收束为短附录，不再作为协作主入口。 |
+| 查 SEF 像素特效工具细节 | [Assets/SpriteEffectFactory/SEF_GUIDE.md](./Assets/SpriteEffectFactory/SEF_GUIDE.md) | 仅在维护 Sprite Effect Factory 时阅读。 |
+| 查旧动画生成管线脚本 | [Assets/anim_pipeline/MarioTrickster_AnimPipeline/PIPELINE_GUIDE.md](./Assets/anim_pipeline/MarioTrickster_AnimPipeline/PIPELINE_GUIDE.md) | 仅在维护历史动画管线时阅读，日常导入仍看素材导入指南。 |
 
 > **协作原则**：人类用户只需要用大白话说目标；AI 必须在后台读取必要文档、处理架构约束、更新 `SESSION_TRACKER.md` 并推送，不把内部术语和参数表转嫁给用户。[1] [3]
 

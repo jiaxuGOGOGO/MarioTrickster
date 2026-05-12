@@ -91,13 +91,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 115（角色状态动画自动挂载 + 文档入口收束） |
+| **最新 Session** | Session 115（角色状态动画自动挂载 + README 唯一入口降噪） |
 | **日期** | 2026-05-12 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S115 补强 `idle/run/jump/fall` 分类器边界测试，并把 README、AI 接手协议、素材导入指南、AI_WORKFLOW 收束为清晰入口。 |
-| **编译状态** | ✅ 沙盒无 Unity CLI，已完成 `git diff --check`、`Tools/static_art_pipeline_check.py`、C# 预处理/括号静态结构检查与 Markdown 链接检查；待用户在 Unity 2022.3.61f1 中重跑 EditMode，重点确认 `ArtAssetClassifierTests`、Apply Art 状态动画挂载与文档入口可用。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S115 补强 `idle/run/jump/fall` 分类器边界测试，并把 GitHub 搜索里散落的目录级 README 改名为内部指南或迁移指针，只保留根目录 `README.md` 作为用户入口。 |
+| **编译状态** | ✅ 沙盒无 Unity CLI，已完成 `git diff --check`、`find . -iname README.md` 唯一入口检查、旧 README 路径引用检查、`Tools/static_art_pipeline_check.py`、C# 预处理/括号静态结构检查与 Markdown 链接检查；待用户在 Unity 2022.3.61f1 中重跑 EditMode，重点确认 `ArtAssetClassifierTests`、Apply Art 状态动画挂载与文档入口可用。 |
 | **阻塞** | 无。待用户 `git pull` 后验证：按 `hero_idle_00 / hero_run_00 / hero_jump_00 / hero_fall_00` 命名的角色帧应用到角色 Visual 时自动挂 `SpriteStateAnimator`，普通多帧素材仍走 `SpriteFrameAnimator`。 |
-| **交接说明** | S115 明确文档入口：用户先看 README；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入与角色状态动画看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
+| **交接说明** | S115 明确文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入与角色状态动画看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`；旧目录级 README 已降噪。 |
 
 
 ### [S115] 最新知识沉淀
@@ -105,6 +105,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 1. **角色状态动画以命名约定驱动，不让用户填系统参数**：只要帧名包含 `idle/run/jump/fall`，分类器即可自动分组；识别到两组以上角色状态时走 `SpriteStateAnimator`，单组或普通多帧素材继续走 `SpriteFrameAnimator`，避免误判。
 2. **文档入口必须分层收束**：README 面向用户；`SESSION_TRACKER.md` 与 `AI_TAKEOVER_PROTOCOL.md` 面向新 AI；`PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md` 面向日常关卡/换素材；`ASSET_IMPORT_PIPELINE_GUIDE.md` 面向素材导入和状态动画；`AI_WORKFLOW.md` 只保留 Git 与故障反馈附录。
 3. **持续更新文档可以整理，但不能断交接链**：旧长模板和重复教程应合并到权威入口；真正影响后续接手的状态、测试、待办仍必须落在本文件，避免清理文档时清掉项目记忆。
+4. **仓库内只保留一个用户 README**：GitHub 文件搜索里的目录级 `README.md` 容易误导用户；保留根目录 `README.md`，把工具内部说明改名为 `SEF_GUIDE.md` / `PIPELINE_GUIDE.md`，把迁移说明改名为 `ART_REPO_POINTER.md` 或专项路径兼容指针。
 
 ### [S114] 知识沉淀
 
@@ -368,12 +369,13 @@ Root (GameObject)           ← 承载 BoxCollider2D + 脚本组件
 
 | 文档 | 一句话职责 |
 |------|-----------|
-| **README.md** | 用户入口：从这里判断该看哪份指南。 |
+| **README.md** | 唯一用户入口：GitHub 搜 `read` 时只看这个文件，从这里判断该看哪份指南。 |
 | **SESSION_TRACKER.md**（本文件） | AI 入口：状态、规范、回归、待办与最新知识沉淀。 |
 | **docs/AI_TAKEOVER_PROTOCOL.md** | 新 AI 接手协议：读档顺序、后台执行原则与文档地图。 |
 | **docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md** | 日常生产入口：做关卡、换素材、批量整理、接新机制。 |
 | **docs/ASSET_IMPORT_PIPELINE_GUIDE.md** | 素材导入入口：Object/Prefab 生成、Sprite Sheet、角色状态动画命名与挂载。 |
 | **AI_WORKFLOW.md** | Git 与故障反馈附录：pull/push、冲突、代理、Unity 报错反馈模板。 |
+| `Assets/SpriteEffectFactory/SEF_GUIDE.md` / `Assets/anim_pipeline/MarioTrickster_AnimPipeline/PIPELINE_GUIDE.md` | 内部维护指南：只在维护对应工具时阅读，不作为用户主入口。 |
 | GAME_DESIGN.md | 游戏设计文档。 |
 
 ---

@@ -74,7 +74,7 @@ Token：[按需填写，如需推代码则填]
 
 作为接手本项目的 AI，你必须严格遵守以下“隐形后台”原则：
 
-1. 强制静默读档：必读 SESSION_TRACKER.md 与 docs/AI_HANDOFF_PROJECT_STATUS_2026-04-12.md；涉及关卡读 LevelStudio_DesignGuide.md；涉及美术出图读 prompts/PROMPT_RECIPES.md；涉及素材导入或状态动画读 docs/ASSET_IMPORT_PIPELINE_GUIDE.md。
+1. 强制静默读档：必读 SESSION_TRACKER.md 与 docs/AI_HANDOFF_PROJECT_STATUS_2026-04-12.md；涉及关卡读 LevelStudio_DesignGuide.md；涉及美术出图读 Assets/MarioTrickster-Art/prompts/PROMPT_RECIPES.md；涉及素材导入或状态动画读 docs/ASSET_IMPORT_PIPELINE_GUIDE.md。
 
 2. 禁止复杂度溢出：项目内部架构、测试矩阵、ASCII 字典、文档联动规则全部后台执行，不要让我填系统参数或选择技术菜单。
 

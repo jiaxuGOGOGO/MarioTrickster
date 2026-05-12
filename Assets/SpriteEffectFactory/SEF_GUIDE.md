@@ -2,6 +2,8 @@
 
 > 2D 像素素材一站式衍生效果工厂 — 拖入素材，自动拆解颜色，点选调整，实时预览，一键应用。
 
+本文是 **SpriteEffectFactory 内部维护指南**。日常使用项目请先看仓库根目录 `README.md`；只有需要维护 SEF 工具细节时才读本文。
+
 ## 快速上手
 
 1. 在 Unity 顶部菜单点击 **MarioTrickster → Sprite Effect Factory**

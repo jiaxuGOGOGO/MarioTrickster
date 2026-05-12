@@ -2,6 +2,8 @@
 
 > **一键出图，知识驱动，git pull 即同步。**
 
+本文是 **历史动画生成管线内部维护指南**。日常把现成角色帧导入 Unity 时，请优先看仓库根目录 `README.md` 与 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`；只有需要维护这一套旧生成脚本时才读本文。
+
 ## 快速开始（三步出图）
 
 ```bash

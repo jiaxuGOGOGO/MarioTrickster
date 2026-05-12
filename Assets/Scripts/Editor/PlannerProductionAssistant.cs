@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using UnityEditor;
+using UnityEditor.U2D.Sprites;
 using UnityEngine;
 
 /// <summary>
@@ -545,29 +546,32 @@ public class PlannerProductionAssistant : EditorWindow
             TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
             List<RenamePlan> pathPlans = group.ToList();
 
-            if (importer != null && importer.spriteImportMode == SpriteImportMode.Multiple && importer.spritesheet != null && importer.spritesheet.Length > 0)
+            SpriteRect[] spriteRects = importer != null && importer.spriteImportMode == SpriteImportMode.Multiple
+                ? SpriteSheetDataProviderBridge.GetSpriteRects(importer)
+                : Array.Empty<SpriteRect>();
+
+            if (spriteRects.Length > 0)
             {
-                SpriteMetaData[] meta = importer.spritesheet;
                 HashSet<int> used = new HashSet<int>();
                 int pathChanged = 0;
 
                 foreach (RenamePlan plan in pathPlans)
                 {
-                    int index = FindSpriteMetaIndex(meta, plan, used);
+                    int index = FindSpriteRectIndex(spriteRects, plan, used);
                     if (index < 0)
                     {
                         warnings.Add($"未能在切片图 {path} 中匹配 {plan.oldName}，已跳过。");
                         continue;
                     }
 
-                    meta[index].name = plan.newName;
+                    spriteRects[index].name = plan.newName;
                     used.Add(index);
                     pathChanged++;
                 }
 
                 if (pathChanged > 0)
                 {
-                    importer.spritesheet = meta;
+                    SpriteSheetDataProviderBridge.SetSpriteRects(importer, spriteRects);
                     EditorUtility.SetDirty(importer);
                     importer.SaveAndReimport();
                     changed += pathChanged;
@@ -590,19 +594,19 @@ public class PlannerProductionAssistant : EditorWindow
         return changed;
     }
 
-    private static int FindSpriteMetaIndex(SpriteMetaData[] meta, RenamePlan plan, HashSet<int> used)
+    private static int FindSpriteRectIndex(SpriteRect[] spriteRects, RenamePlan plan, HashSet<int> used)
     {
-        for (int i = 0; i < meta.Length; i++)
+        for (int i = 0; i < spriteRects.Length; i++)
         {
             if (used.Contains(i)) continue;
-            if (!string.Equals(meta[i].name, plan.oldName, StringComparison.Ordinal)) continue;
-            if (SameRect(meta[i].rect, plan.spriteRect)) return i;
+            if (!string.Equals(spriteRects[i].name, plan.oldName, StringComparison.Ordinal)) continue;
+            if (SameRect(spriteRects[i].rect, plan.spriteRect)) return i;
         }
 
-        for (int i = 0; i < meta.Length; i++)
+        for (int i = 0; i < spriteRects.Length; i++)
         {
             if (used.Contains(i)) continue;
-            if (string.Equals(meta[i].name, plan.oldName, StringComparison.Ordinal)) return i;
+            if (string.Equals(spriteRects[i].name, plan.oldName, StringComparison.Ordinal)) return i;
         }
         return -1;
     }

@@ -590,7 +590,7 @@ public class AssetImportPipeline : EditorWindow
             }
         }
 
-        ti.spritesheet = metaList.ToArray();
+        SpriteSheetDataProviderBridge.SetSpriteMetaData(ti, metaList);
         EditorUtility.SetDirty(ti);
         ti.SaveAndReimport();
 

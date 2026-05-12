@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -135,9 +136,12 @@ public static class TA_AssetValidator
             }
 
             // ── 校验 3: Pivot (仅对切片后的 Multiple 模式 Sprite) ──
-            if (ti.spriteImportMode == SpriteImportMode.Multiple && ti.spritesheet != null)
+            SpriteMetaData[] spritesheet = ti.spriteImportMode == SpriteImportMode.Multiple
+                ? SpriteSheetDataProviderBridge.GetSpriteMetaData(ti)
+                : Array.Empty<SpriteMetaData>();
+            if (spritesheet.Length > 0)
             {
-                foreach (SpriteMetaData smd in ti.spritesheet)
+                foreach (SpriteMetaData smd in spritesheet)
                 {
                     // 角色/敌人目录: Pivot.y 必须 == 0 (Bottom Center)
                     if (BOTTOM_CENTER_DIRS.Any(dir => path.StartsWith(dir)))

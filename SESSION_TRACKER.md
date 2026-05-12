@@ -91,19 +91,25 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 116（策划生产助手确认后批量改名） |
+| **最新 Session** | Session 117（Unity 新版 Sprite 切片接口迁移） |
 | **日期** | 2026-05-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S116 按用户诉求把“语义报告只给建议”升级为“先预览建议、经确认后批量改名”，让命名混乱的商业素材包可在策划生产助手内安全落地。 |
-| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成 `git diff --check` 与相关源码/文档静态检查；待用户在 Unity 2022.3.61f1 中打开 `Ctrl+T → Art & Effects Hub → 策划生产助手` 验证“生成语义报告 → 采纳建议并批量改名”的弹窗确认流程。 |
-| **阻塞** | 无。待用户 `git pull` 后验证：命名混乱素材包先生成语义报告，确认预览后可批量修改 Sprite 切片名或单图资源名；未确认时只给建议，不改原素材。 |
-| **交接说明** | S116 延续文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入、状态动画与安全改名看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S117 清理 `TextureImporter.spritesheet` 过时警告，把切片读写统一迁移到 `UnityEditor.U2D.Sprites.ISpriteEditorDataProvider`，避免 Unity 后续版本升级时导入链路退化。 |
+| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成 `git diff --check`、旧接口 grep 清查与 `python3.11 Tools/static_art_pipeline_check.py`；待用户在 Unity 2022.3.61f1 中确认 Console 不再出现 `TextureImporter.spritesheet` 过时警告。 |
+| **阻塞** | 无。待用户 `git pull` 后验证：AI 切片、素材导入管线、TA 校验、策划生产助手批量改名都应继续正常工作，且旧切片 API 警告消失。 |
+| **交接说明** | S117 延续文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入、状态动画与安全改名看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
 
 
-### [S116] 最新知识沉淀
+### [S117] 最新知识沉淀
+
+1. **`TextureImporter.spritesheet` 警告已处理**：`AI_SpriteSlicer`、`AssetImportPipeline`、`TA_AssetValidator`、`PlannerProductionAssistant` 不再直接访问旧接口，统一走 `SpriteSheetDataProviderBridge`。
+2. **多 Sprite 改名必须保留 Sprite ID**：策划生产助手改切片名时使用 `SpriteRect` 原对象回写，保留原 `spriteID`，避免确认改名后破坏 Prefab 或场景里的 Sprite 引用。
+3. **后续新增切片读写只走桥接层**：新代码不要再碰 `TextureImporter.spritesheet`；读 `GetSpriteMetaData` / `GetSpriteRects`，写 `SetSpriteMetaData` / `SetSpriteRects`。
+
+### [S116] 知识沉淀
 
 1. **语义报告现在可以安全落地改名**：`PlannerProductionAssistant` 新增“采纳建议并批量改名”，先根据报告生成预览，弹窗确认后才执行；取消时只保留建议，不动原素材。
-2. **改名粒度遵守 Unity 资源结构**：多 Sprite 图改 `TextureImporter.spritesheet` 里的 Sprite 切片名；单图只改对应 Texture 资源名；同一路径多建议但不是多 Sprite 时跳过并给警告，避免误改整张文件。
+2. **改名粒度遵守 Unity 资源结构**：多 Sprite 图通过新版 Sprite 数据接口改 Sprite 切片名；单图只改对应 Texture 资源名；同一路径多建议但不是多 Sprite 时跳过并给警告，避免误改整张文件。
 3. **用户诉求优先级明确**：素材命名混乱时，默认流程是“生成语义报告 → 用户看建议 → 确认采纳 → 工具批量改名”，而不是后台偷偷全部重命名。
 
 ### [S115] 知识沉淀
@@ -151,7 +157,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 ### [S108] 知识沉淀
 
 1. **Test Console 调用 SEF 编辑器窗口时必须建立 Editor asmdef 引用**：`SEF_QuickApply` 与 `SpriteEffectFactoryWindow` 源码存在，但它们编译在 `SpriteEffectFactory.Editor` 程序集中；`MarioTrickster.Editor` 未引用该程序集时，Unity 会在 `TestConsoleWindow` 报 `CS0103`。
-2. **`TextureImporter.spritesheet` 当前只是非阻断警告**：`AI_SpriteSlicer` / `AssetImportPipeline` / `TA_AssetValidator` 仍使用旧 Sprite 切片 API，后续应迁移到 `UnityEditor.U2D.Sprites.ISpriteEditorDataProvider`，但它不是本次无法编译的根因。
+2. **`TextureImporter.spritesheet` 历史警告已在 S117 清理**：`AI_SpriteSlicer` / `AssetImportPipeline` / `TA_AssetValidator` / `PlannerProductionAssistant` 已迁移到 `UnityEditor.U2D.Sprites.ISpriteEditorDataProvider` 桥接层；后续新增切片读写不得回退旧 API。
 3. **视频 `Color primaries` 提示不是 C# 编译错误**：它来自 `idle_drive.mp4` 的媒体元数据，Unity/WindowsMediaFoundation 会回退默认色彩配置，最多可能带来轻微色偏，不影响脚本编译。
 
 ### [S107] 知识沉淀

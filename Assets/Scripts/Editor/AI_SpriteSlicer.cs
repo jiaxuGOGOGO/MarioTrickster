@@ -83,7 +83,7 @@ public class AI_SpriteSlicer : EditorWindow
             newData.Add(smd);
         }
 
-        ti.spritesheet = newData.ToArray();
+        SpriteSheetDataProviderBridge.SetSpriteMetaData(ti, newData);
         
         // 4. 保存并重新导入
         EditorUtility.SetDirty(ti);

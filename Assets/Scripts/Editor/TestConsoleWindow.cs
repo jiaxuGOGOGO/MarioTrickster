@@ -425,8 +425,8 @@ public class TestConsoleWindow : EditorWindow
         }
         GUI.color = Color.white;
         EditorGUILayout.HelpBox(
-            "先在 Scene 中选中白盒物体，再点此按钮。\n" +
-            "工具会自动保留已有的行为组件（碎裂/爆炸/伤害等），只替换贴图和 Material。",
+            "先在 Scene 中选中白盒物体；点到 Root 或 Visual 都可以，工具会自动找到真正承接行为的 Root。\n" +
+            "系统会保留已有的行为组件（碎裂/爆炸/伤害等），只替换贴图、动画和 Material。",
             MessageType.None);
 
         EditorGUILayout.Space(4);
@@ -478,10 +478,10 @@ public class TestConsoleWindow : EditorWindow
         // Picking 模式提示
         EditorGUILayout.LabelField("ℹ Picking 模式提示", EditorStyles.miniLabel);
         EditorGUILayout.HelpBox(
-            "Root 模式（默认）: 点击/框选始终选中 Root，适合移动摆放\n" +
-            "Visual 模式: 点击/框选始终选中 Visual 子物体，适合调视觉大小\n" +
+            "Root 模式（默认）: 点击/框选始终选中 Root，适合摆放关卡和整体移动\n" +
+            "Visual 模式: 点击/框选始终选中 Visual 子物体，适合只调外观大小\n" +
             "Size Sync: 调 Visual 大小时自动同步碰撞体，反之亦然\n\n" +
-            "★ 应用素材/效果时建议切到 Visual 模式，确保选中的是带 SpriteRenderer 的子物体。",
+            "★ 给已有白盒换皮时点 Root 或 Visual 都可以；Apply Art 会自动回到 Root，避免把行为写错层。",
             MessageType.None);
 
         EditorGUILayout.EndVertical();

@@ -91,8 +91,13 @@ public class AssetApplyToSelected : EditorWindow
         }
         else
         {
+            GameObject applyTarget = ResolveApplyTarget(selected);
             EditorGUILayout.LabelField("当前选中:", selected.name, EditorStyles.boldLabel);
-            DrawExistingComponentsInfo(selected);
+            if (applyTarget != selected)
+            {
+                EditorGUILayout.LabelField("实际换皮对象:", applyTarget.name, EditorStyles.miniBoldLabel);
+            }
+            DrawExistingComponentsInfo(applyTarget);
         }
 
         // 素材输入
@@ -173,6 +178,29 @@ public class AssetApplyToSelected : EditorWindow
     }
 
     // =========================================================================
+    // 选择归一：用户可点 Root，也可点 Visual；工具永远落到 Root 执行换皮
+    // =========================================================================
+    private GameObject ResolveApplyTarget(GameObject selected)
+    {
+        if (selected == null) return null;
+
+        // [AI防坑警告] Apply Art 的语义是“给已有白盒 Root 换皮”，不是把行为组件写到 Visual 上。
+        // 由于 Level Studio 支持 Visual 模式，用户很容易点到 Visual；这里必须后台归一回 Root，避免破坏视碰分离。
+        if (selected.name == "Visual" && selected.transform.parent != null)
+        {
+            return selected.transform.parent.gameObject;
+        }
+
+        ImportedAssetMarker marker = selected.GetComponentInParent<ImportedAssetMarker>();
+        if (marker != null && marker.transform != selected.transform && selected.GetComponent<SpriteRenderer>() != null)
+        {
+            return marker.gameObject;
+        }
+
+        return selected;
+    }
+
+    // =========================================================================
     // 显示已有组件信息
     // =========================================================================
     private void DrawExistingComponentsInfo(GameObject go)
@@ -205,6 +233,7 @@ public class AssetApplyToSelected : EditorWindow
     // =========================================================================
     private void ApplyArtToSelected(GameObject target)
     {
+        target = ResolveApplyTarget(target);
         if (target == null) return;
 
         Undo.RegisterCompleteObjectUndo(target, "Apply Art to Selected");

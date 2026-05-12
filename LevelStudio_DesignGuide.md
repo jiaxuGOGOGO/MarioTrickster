@@ -2,6 +2,8 @@
 
 本文档是 MarioTrickster 项目关卡设计的**一站式参考手册**。它涵盖三大核心内容：Level Studio（Test Console）的完整使用教程、经典 2D 平台跳跃关卡设计理论，以及项目当前的要素覆盖分析与扩展路线图。文档已根据 Session 26b 至 Session 29 的全部功能迭代进行了同步更新。
 
+如果你只想从“策划怎么最快做关卡、替换商业素材、把新增机制交给 AI 后台承接”的角度上手，优先阅读 [**策划高速关卡生产指南**](./docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md)。本文件继续作为更完整的 Level Studio 深度手册。
+
 ---
 
 ## 第一部分：Level Studio (Test Console) 详细教程

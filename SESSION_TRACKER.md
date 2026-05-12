@@ -91,16 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 112（ArtAssetClassifier 全局判定修复） |
+| **最新 Session** | Session 113（策划高速关卡生产入口 + Apply Art 选中归一） |
 | **日期** | 2026-05-12 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S112 修复 S111 分类器回归：角色状态 Sprite Sheet 不再被整套图集文本污染成单一 Idle/Loop；`background` 不再因包含 `ground` 子串被误判为 Platform。 |
-| **编译状态** | ✅ 沙盒无 Unity CLI，已完成 `git diff --check`、`Tools/static_art_pipeline_check.py` 与轻量字符串逻辑验证；待用户在 Unity 2022.3.61f1 中重跑 EditMode/完整测试确认。 |
-| **阻塞** | 无。待用户 `git pull` 后在 Unity 中验证：`ArtAssetClassifierTests` 中角色状态动画与背景循环动画应通过；角色素材命名含 idle/run/jump/fall 时 Visual 上应挂 `SpriteStateAnimator`，背景素材应落为 BackgroundLayer。 |
-| **交接说明** | S112 对 `ArtAssetClassifier` 做全局修复而非测试硬编码：状态分组只看单帧自身名称/路径；语义匹配改为边界化 token；背景判定优先于地面/平台判定，并写入源码防坑注释。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S113 从“策划只专注关卡摆放与机制交互”视角完成一次低摩擦梳理：新增策划高速关卡生产指南，并让 Apply Art 在用户选 Root 或 Visual 时都自动归一到正确 Root，避免换皮时把行为/标记写错层。 |
+| **编译状态** | ✅ 沙盒无 Unity CLI，已完成 `git diff --check` 与 `Tools/static_art_pipeline_check.py` 静态验证；待用户在 Unity 2022.3.61f1 中重跑 EditMode/完整测试确认。 |
+| **阻塞** | 无。待用户 `git pull` 后在 Unity 中验证：`Ctrl+T` 的 Art & Effects Hub 文案已更新；选中白盒 Root 或 Visual 后用 Apply Art 都应保留原机关行为并只替换贴图/动画/材质。 |
+| **交接说明** | S113 明确当前项目定位：Level Studio 负责白盒关卡生产，Asset Import / Apply Art / SEF 负责商业素材接入与换皮，未来机制新增继续 JIT 由 AI 后台补组件、ASCII 字典、测试与教程。新入口文档为 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`。 |
 
 
-### [S112] 最新知识沉淀
+### [S113] 最新知识沉淀
+
+1. **策划入口必须“一页可用”**：LevelStudio、AssetPipeline、ArtClassifier、SEF、测试报告能力已经存在，但分散在长文档中会抵消效率；面向用户应优先给 `PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md` 这种“做关卡 / 换素材 / 接机制”一页式路径。
+2. **Apply Art 的真实目标永远是行为 Root**：用户在 Root 模式或 Visual 模式下都可能点中对象；工具必须后台归一到 Root，再替换 Visual 上的 Sprite/动画/材质，不能让用户理解或手动处理视碰分离细节。
+3. **当前优化重点不是重做架构**：项目已能支撑白盒关卡生产、商业素材替换、状态动画和测试回归；下一步应继续减少批量命名、主题槽自动绑定和素材包语义识别成本。
+
+### [S112] 知识沉淀
 
 1. **状态动画分组不能吃整套图集文本**：`BuildStateGroups` 必须基于单帧自身名称/路径识别 idle/run/jump/fall；把全量 joined 文本拼进去会让每一帧同时含有所有状态词，最终被第一个状态分支误吞。
 2. **素材分类不能用裸子串匹配**：`background` 天然包含 `ground`，裸 `Contains` 会让背景被误判为 Platform；分类 token 必须做边界化匹配，并让 Background 优先于 Platform。
@@ -194,7 +200,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S56重点验证**: ASCII Build 新字符(@f<SX)能正确生成对应元素，旧字符行为不变 |
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| 🔄 | EditMode 自动化 | **S112重点验证**: `ArtAssetClassifierTests` 应从用户报告的 110/112 恢复通过；命名含 idle/run/jump/fall 的角色 Sprite Sheet 导入或应用到已有物体后，Visual 上自动出现 `SpriteStateAnimator` 且四组帧正确；`forest_background` 类素材应归为 BackgroundLayer；Unity Editor 重新编译无新增红错 |
+| 🔄 | EditMode 自动化 | **S113重点验证**: `ArtAssetClassifierTests` 应保持通过；Apply Art 选中 Root 或 Visual 都应归一到 Root 并保留已有行为组件；命名含 idle/run/jump/fall 的角色 Sprite Sheet 仍应自动挂 `SpriteStateAnimator`；Unity Editor 重新编译无新增红错 |
 | 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
@@ -229,6 +235,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **Sprite Sheet 应用后只显示第一帧修复**：S110 新增 `SpriteFrameAnimator`，导入新 Object 和应用到已有物体时自动挂载多帧播放组件。 | ✅ 已完成（S110） |
 | **最高** | **商业素材统一分类与 SEF 丝滑切换**：S111 新增 `ArtAssetClassifier` + `SpriteStateAnimator` + Marker 扩展字段，让角色/道具/陷阱/背景/场景动画按用途落位；SEF Quick Apply 增加切换前清状态、一键还原与美术效果锁定保护。 | ✅ 已完成（S111） |
 | **最高** | **ArtAssetClassifier EditMode 回归修复**：用户报告 112 个 EditMode 中 2 个失败；S112 已全局修复状态帧分组污染与 `background`/`ground` 子串误判，避免角色状态动画落成 Loop、背景素材落成 Platform。 | ✅ 已修复，待用户 Unity 重跑确认 |
+| **最高** | **策划高速关卡生产入口**：S113 新增 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`，把“做关卡、换商业素材、接人物/机关动画、让 AI 后台补机制”的路径合并为面向策划的一页式功能介绍与教程；README 与 LevelStudio 指南已加入口。 | ✅ 已完成（S113） |
+| **高** | **Apply Art 选中归一优化**：S113 已让 `Apply Art to Selected` 在用户选中 Root 或 Visual 时都自动回到行为 Root 执行换皮，降低 Visual 模式下把标记/碰撞/Prefab 写错层的风险。 | ✅ 已完成（S113） |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |

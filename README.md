@@ -14,6 +14,7 @@
 | **新 AI 接管本项目的唯一协议** | 👉 [**docs/AI_TAKEOVER_PROTOCOL.md**](./docs/AI_TAKEOVER_PROTOCOL.md) | **极简接管协议 + 通用续接模板** |
 | **纵览全局：设计规划 vs 实现进度** | 👉 [**MASTER_TRACKER.md**](./MASTER_TRACKER.md) | AI 自动同步更新 |
 | 查阅所有历史Bug、功能清单、文件结构 | 👉 [**MarioTrickster_Progress_Summary.md**](./MarioTrickster_Progress_Summary.md) | AI 按需深度读取 |
+| **策划怎么高效做关卡、换素材、接机制？** | 👉 [**docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md**](./docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md) | **功能介绍 + 使用教程** |
 | 怎么在 Unity 里测试？键位是什么？ | 👉 [**MarioTrickster_Testing_Guide.md**](./MarioTrickster_Testing_Guide.md) | 用户测试手册 |
 | Git报错了？怎么提问最省积分？ | 👉 [**AI_WORKFLOW.md**](./AI_WORKFLOW.md) | 用户工作流指南 |
 | 游戏设计初衷、平衡性、美术风格 | 👉 [**GAME_DESIGN.md**](./GAME_DESIGN.md) | 项目初期/迷失时查阅 |

@@ -64,7 +64,9 @@ public static class ArtAssetClassifier
             get
             {
                 if (stateFrames == null || stateFrames.Count == 0) return string.Empty;
-                return string.Join(",", stateFrames.Keys.Select(k => k.ToString().ToLowerInvariant()).OrderBy(s => s));
+                return string.Join(",", OrderedStates()
+                    .Where(state => stateFrames.ContainsKey(state))
+                    .Select(state => state.ToString().ToLowerInvariant()));
             }
         }
     }
@@ -120,7 +122,7 @@ public static class ArtAssetClassifier
             if (target.GetComponentInChildren<SawBlade>() != null || target.GetComponentInChildren<ControllableHazard>() != null) return AssetRole.Hazard;
         }
 
-        if (ContainsAny(text, "mario", "player", "hero", "character", "avatar", "idle", "run", "jump", "fall")) return AssetRole.Character;
+        if (ContainsAny(text, "mario", "player", "hero", "character", "avatar", "idle", "run", "running", "jump", "fall", "falling")) return AssetRole.Character;
         if (ContainsAny(text, "enemy", "monster", "goomba", "slime", "trickster", "boss")) return AssetRole.Enemy;
         if (ContainsAny(text, "coin", "gem", "pickup", "collect", "key", "heart", "powerup", "power_up")) return AssetRole.Collectible;
         if (ContainsAny(text, "hazard", "spike", "fire", "lava", "bomb", "explosion", "blade", "saw", "sawblade", "trap")) return AssetRole.Hazard;
@@ -165,7 +167,9 @@ public static class ArtAssetClassifier
 
     private static AnimationMode DetectAnimationMode(AssetRole role, RuntimeBehavior behavior, Dictionary<SpriteStateAnimator.MotionState, Sprite[]> states, Sprite[] sprites, string text)
     {
-        if (states != null && states.Count >= 2 && (role == AssetRole.Character || behavior == RuntimeBehavior.PlayerStateDriven)) return AnimationMode.StateDriven;
+        // 只要文件名已经明确分出两个及以上运动状态，就优先走状态机动画。
+        // 这样用户把 idle/run/jump/fall 散帧丢进来时，不必再额外选择复杂菜单。
+        if (states != null && states.Count >= 2 && (role == AssetRole.Character || behavior == RuntimeBehavior.PlayerStateDriven || HasCoreMotionStates(states))) return AnimationMode.StateDriven;
         if (ContainsAny(text, "oneshot", "one_shot", "explode", "explosion", "impact", "poof")) return sprites.Length > 1 ? AnimationMode.OneShot : AnimationMode.None;
         if (sprites != null && sprites.Length > 1) return AnimationMode.Loop;
         return AnimationMode.None;
@@ -187,7 +191,12 @@ public static class ArtAssetClassifier
             list.Add(sprite);
         }
 
-        return grouped.ToDictionary(pair => pair.Key, pair => pair.Value.OrderBy(s => s.name, StringComparer.OrdinalIgnoreCase).ToArray());
+        return grouped.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value
+                .OrderBy(s => ExtractFrameIndex(s != null ? s.name : string.Empty))
+                .ThenBy(s => s != null ? s.name : string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ToArray());
     }
 
     private static bool TryDetectState(string text, out SpriteStateAnimator.MotionState state)
@@ -233,6 +242,35 @@ public static class ArtAssetClassifier
         return $"自动分类: role={result.role}, animation={result.animationMode}, behavior={result.runtimeBehavior}, frames={spriteCount}, {stateInfo}.";
     }
 
+
+    private static IEnumerable<SpriteStateAnimator.MotionState> OrderedStates()
+    {
+        yield return SpriteStateAnimator.MotionState.Idle;
+        yield return SpriteStateAnimator.MotionState.Run;
+        yield return SpriteStateAnimator.MotionState.Jump;
+        yield return SpriteStateAnimator.MotionState.Fall;
+    }
+
+    private static bool HasCoreMotionStates(Dictionary<SpriteStateAnimator.MotionState, Sprite[]> states)
+    {
+        if (states == null || states.Count < 2) return false;
+        int nonEmpty = OrderedStates().Count(state =>
+            states.TryGetValue(state, out Sprite[] frames) && frames != null && frames.Length > 0);
+        return nonEmpty >= 2;
+    }
+
+    private static int ExtractFrameIndex(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return int.MaxValue;
+        int end = name.Length - 1;
+        while (end >= 0 && !char.IsDigit(name[end])) end--;
+        if (end < 0) return int.MaxValue;
+        int start = end;
+        while (start >= 0 && char.IsDigit(name[start])) start--;
+        string digits = name.Substring(start + 1, end - start);
+        return int.TryParse(digits, out int value) ? value : int.MaxValue;
+    }
+
     private static string Normalize(string text)
     {
         if (string.IsNullOrEmpty(text)) return string.Empty;
@@ -247,10 +285,24 @@ public static class ArtAssetClassifier
                 continue;
             }
 
-            if (char.IsUpper(c) && builder.Length > 0)
+            if (c == '_' || c == '(' || c == ')' || c == '[' || c == ']')
+            {
+                AppendSeparator(builder);
+                continue;
+            }
+
+            if (builder.Length > 0)
             {
                 char previous = builder[builder.Length - 1];
-                if (char.IsLetterOrDigit(previous) && !char.IsUpper(previous))
+                if (char.IsUpper(c) && char.IsLetterOrDigit(previous) && !char.IsUpper(previous))
+                {
+                    AppendSeparator(builder);
+                }
+                else if (char.IsDigit(c) && char.IsLetter(previous))
+                {
+                    AppendSeparator(builder);
+                }
+                else if (char.IsLetter(c) && char.IsDigit(previous))
                 {
                     AppendSeparator(builder);
                 }

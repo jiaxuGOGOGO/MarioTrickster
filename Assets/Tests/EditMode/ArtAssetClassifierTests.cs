@@ -60,6 +60,87 @@ public class ArtAssetClassifierTests
         }
     }
 
+
+    [Test]
+    public void BuildStateGroups_CommonLooseFrameNames_SortsAndGroupsStates()
+    {
+        Sprite[] sprites =
+        {
+            MakeSprite("Idle0"),
+            MakeSprite("run_10"),
+            MakeSprite("run_02"),
+            MakeSprite("Jump01"),
+            MakeSprite("falling-03")
+        };
+
+        try
+        {
+            var result = ArtAssetClassifier.Classify(null, sprites, -1);
+
+            Assert.AreEqual(ArtAssetClassifier.AssetRole.Character, result.role);
+            Assert.AreEqual(ArtAssetClassifier.AnimationMode.StateDriven, result.animationMode);
+            Assert.AreEqual("idle,run,jump,fall", result.StateSummary);
+            Assert.AreEqual("run_02", result.stateFrames[SpriteStateAnimator.MotionState.Run][0].name);
+            Assert.AreEqual("run_10", result.stateFrames[SpriteStateAnimator.MotionState.Run][1].name);
+        }
+        finally
+        {
+            foreach (Sprite sprite in sprites) Object.DestroyImmediate(sprite.texture);
+            foreach (Sprite sprite in sprites) Object.DestroyImmediate(sprite);
+        }
+    }
+
+    [Test]
+    public void Classify_DestroyedConnectionSprites_DoesNotTriggerStateDrivenCharacter()
+    {
+        Sprite[] sprites =
+        {
+            MakeSprite("connection_destroyed_00"),
+            MakeSprite("connection_destroyed_01"),
+            MakeSprite("wire_destroyed_02")
+        };
+
+        try
+        {
+            var result = ArtAssetClassifier.Classify(null, sprites, -1);
+
+            Assert.AreNotEqual(ArtAssetClassifier.AssetRole.Character, result.role);
+            Assert.AreEqual(ArtAssetClassifier.AnimationMode.Loop, result.animationMode);
+            Assert.IsFalse(result.IsStateDriven);
+            Assert.AreEqual(0, result.stateFrames.Count);
+        }
+        finally
+        {
+            foreach (Sprite sprite in sprites) Object.DestroyImmediate(sprite);
+        }
+    }
+
+    [Test]
+    public void Classify_OnlyOneStateGroup_FallsBackToLoopAnimator()
+    {
+        Sprite[] sprites =
+        {
+            MakeSprite("hero_idle_00"),
+            MakeSprite("hero_idle_01"),
+            MakeSprite("hero_idle_02")
+        };
+
+        try
+        {
+            var result = ArtAssetClassifier.Classify(null, sprites, -1);
+
+            Assert.AreEqual(ArtAssetClassifier.AssetRole.Character, result.role);
+            Assert.AreEqual(ArtAssetClassifier.AnimationMode.Loop, result.animationMode);
+            Assert.IsFalse(result.IsStateDriven);
+            Assert.IsTrue(result.stateFrames.ContainsKey(SpriteStateAnimator.MotionState.Idle));
+            Assert.AreEqual(1, result.stateFrames.Count);
+        }
+        finally
+        {
+            foreach (Sprite sprite in sprites) Object.DestroyImmediate(sprite);
+        }
+    }
+
     [Test]
     public void ApplyToMarker_WritesUnifiedMetadataWithoutBreakingLegacyFields()
     {

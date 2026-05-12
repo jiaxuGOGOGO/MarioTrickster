@@ -1,104 +1,54 @@
-# Asset Import Pipeline — 素材导入自动化指南
+# Asset Import Pipeline Guide
 
-> **一句话定义**：从"下载/购买的美术素材图片"到"项目中可直接用于 Sprite Effect Factory 的 Object + 可复用 Prefab 蓝图"，全程最多 3 次点击。
-
----
-
-## 全链路概览
-
-```
-外部素材（PNG/PSD/Sprite Sheet）
-        │
-        ▼ [可选] Python 批量裁切（大图拆分为单 Object）
-        │
-        ▼ 拖入 Assets/Art/Imported/
-        │
-        ▼ [自动] ART_BIBLE 规范化（PPU=32, Point, Uncompressed）
-        │
-        ▼ [自动] 弹出 Asset Import Pipeline 窗口
-        │
-        ▼ 选择物理类型 → 一键导入
-        │
-        ├─→ 场景 Object（Root + Visual 视碰分离架构）
-        │       └─ SpriteRenderer + SEF Material + SpriteEffectController
-        │
-        ▼ [可选] SEF Quick Apply 选效果预设
-        │
-        └─→ Prefab 蓝图（自动保存，可直接拖入关卡）
-```
+> **一句话定义**：本指南负责说明“外部美术素材如何进入项目，并变成可直接放进关卡的 Object 或 Prefab”。日常关卡生产请先看 [策划快速指南](./PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md)，项目进度以 [SESSION_TRACKER.md](../SESSION_TRACKER.md) 为准。[1] [2]
 
 ---
 
-## 快速上手（3 步完成）
+## 1. 最短工作流
 
-### 第 1 步：素材准备
+| 你的素材 | 你做什么 | 系统自动做什么 |
+| --- | --- | --- |
+| 单张平台、陷阱、道具、背景 | 拖进 `Assets/Art/Imported/`，在导入窗口选择大类并一键导入。 | 规范化 Texture Importer、生成 Root/Visual 对象、挂 SpriteRenderer、碰撞体、SEF 材质和 Prefab。[1] |
+| 多帧普通动画 | 拖入 Sprite Sheet 或散帧文件夹，再应用到目标物体。 | 自动挂 `SpriteFrameAnimator`，按帧循环播放。[1] |
+| 角色状态动画 | 使用 `idle/run/jump/fall` 命名散帧或切片，再应用到角色 Visual。 | 分类器分组后自动挂 `SpriteStateAnimator`，按运动状态切换。[1] |
+| 大型合集图 | 先用 `Tools/sprite_sheet_slicer.py` 或 `Tools/ai_smart_slicer.py` 裁切，再拖入 Unity。 | 输出独立素材后走同一条导入链路。[1] |
+| 已有白盒物体换皮 | 选中 Root 或 Visual，打开 Apply Art 并应用素材。 | 后台归一到行为 Root，只替换视觉层，不破坏碰撞、脚本和 Prefab 归属。[2] |
 
-**情况 A：单个 Object 图片（如一个地刺、一个平台）**
-- 直接拖入 Unity 的 `Assets/Art/Imported/` 目录即可
-
-**情况 B：大型 Sprite Sheet（如一行 8 帧的角色动画）**
-- 直接拖入，导入时选择"手动切片"并指定列数
-
-**情况 C：一张大图包含多个不同 Object（如一个合集图）**
-- 先用 Python 工具裁切：
-```bash
-cd MarioTrickster/Tools
-python sprite_sheet_slicer.py 合集图.png --auto --remove-bg "#ff00ff"
-# 输出到 ./sliced/ 目录，每个 Object 一个独立 PNG
-```
-- 然后将 `sliced/` 目录下的文件拖入 Unity
-
-### 第 2 步：导入生成 Object
-
-1. 拖入素材后，**Asset Import Pipeline** 窗口自动弹出
-   - 也可手动打开：菜单 `MarioTrickster → Asset Import Pipeline` 或快捷键 `Ctrl+Shift+I`
-2. 选择**物理类型**（角色/地形/陷阱/特效/道具）
-3. 点击 **"一键导入并生成 Object"**
-
-完成！场景中已生成带有正确物理设置和 SEF 效果控制器的 Object。
-
-### 第 3 步：选择效果 → 保存蓝图
-
-1. 选中刚生成的 Object
-2. 打开 `MarioTrickster → SEF Quick Apply`（快捷键 `Ctrl+Shift+Q`）
-3. 点击想要的效果预设（如"全套战斗"、"危险描边"等）
-4. 效果自动应用，Prefab 蓝图自动保存到 `Assets/Art/Prefabs/`
-
-**之后使用**：直接从 Project 窗口拖 Prefab 到场景即可，效果参数已内嵌。
+推荐做法是先让白盒关卡可玩，再把验证通过的白盒对象逐个换成商业素材。美术替换必须服务关卡主线，不能反过来阻塞关卡迭代。[2]
 
 ---
 
-## 工具详解
+## 2. 角色状态动画命名规则
 
-### 1. Asset Import Pipeline（Unity Editor 窗口）
+角色状态动画只需要把帧名写清楚。分类器会按单帧自己的文件名或 Sprite 名识别状态，而不是依赖用户手动填表。[1]
 
-| 功能 | 说明 |
-|------|------|
-| 拖拽导入 | 支持拖入单图、多图、文件夹 |
-| 自动规范化 | PPU=32, Point 滤镜, 无压缩, Alpha 透明, Read/Write |
-| 智能切片 | 自动模式根据宽高比推测帧数；手动模式指定行列 |
-| 物理类型 | 5 种预设（角色/地形/陷阱/特效/道具），自动设置碰撞体和 Pivot |
-| 视碰分离 | 生成的 Object 遵循 S37 架构（Root 承载碰撞体 + Visual 子物体承载渲染） |
-| SEF 集成 | 自动挂载 UberSprite Shader + SpriteEffectController |
-| Prefab 输出 | 一键保存为可复用蓝图 |
+| 状态 | 推荐命名 | 常见别名 | 播放策略 |
+| --- | --- | --- | --- |
+| Idle | `hero_idle_00.png`, `mario_idle_01` | `stand`, `breath` | 循环，默认 6 fps。 |
+| Run | `hero_run_00.png`, `mario_run_01` | `walk`, `move` | 循环，默认 12 fps。 |
+| Jump | `hero_jump_00.png`, `mario_jump_01` | `rise`, `up` | 非循环，默认 10 fps。 |
+| Fall | `hero_fall_00.png`, `mario_fall_01` | `drop`, `down` | 非循环，默认 10 fps。 |
 
-### 2. SEF Quick Apply（Unity Editor 窗口）
+当素材里识别到两组或更多角色状态时，工具会自动使用 `SpriteStateAnimator`。缺失的状态会回退到已存在的第一组帧，所以临时素材也能先跑起来；如果只识别到单组状态或普通多帧素材，则走 `SpriteFrameAnimator` 循环动画，避免把单动作素材误判成完整角色控制动画。[1]
 
-| 预设 | 适用场景 |
-|------|---------|
-| 受击闪白 | 所有可受击物体 |
-| 选中描边 | 可交互物体、Trickster 伪装目标 |
-| 危险描边 | 陷阱、危险区域 |
-| 溶解死亡 | 可消灭的敌人 |
-| 幽灵剪影 | Trickster 幽灵形态 |
-| 冰冻效果 | 冰冻状态 |
-| 像素化隐藏 | 隐藏/模糊效果 |
-| 投影 | 增加立体感 |
-| 全套战斗 | 核心战斗角色（闪白+描边+溶解+投影） |
+> **命名建议**：同一套角色素材尽量使用 `角色名_状态_两位编号`，例如 `hero_idle_00`、`hero_idle_01`、`hero_run_00`、`hero_run_01`。不要把 `background`、`ground`、`foreground` 这类场景词混在角色帧文件名里，以免降低人工排查效率。[1]
 
-选择预设后，效果直接应用在物体上，同时自动保存/更新 Prefab。
+---
 
-### 3. Python Sprite Sheet Slicer（命令行工具）
+## 3. Unity 入口
+
+| 入口 | 快捷键或菜单 | 用途 |
+| --- | --- | --- |
+| Asset Import Pipeline | `MarioTrickster → Asset Import Pipeline` 或 `Ctrl+Shift+I` | 从外部图片生成项目内 Object / Prefab。 |
+| Apply Art To Selected | `Ctrl+Shift+A` | 给已有白盒对象换皮，支持散帧、Sprite Sheet、状态动画和 SEF。 |
+| SEF Quick Apply | `MarioTrickster → SEF Quick Apply` 或 `Ctrl+Shift+Q` | 给选中物体快速套视觉效果预设，并保存 Prefab。 |
+| Planner Production Assistant | `Ctrl+T → Art & Effects Hub → 策划生产助手` | 对素材包做语义巡检、Theme 自动填槽、复制新机制请求模板。 |
+
+---
+
+## 4. 裁切工具
+
+大型商业合集图通常需要先拆成独立素材。透明背景、明显网格或间距清晰的图，可以先用纯像素裁切；构图复杂、多个物件贴得很近时，再用 AI 智能裁切。[1]
 
 ```bash
 # 网格切割
@@ -110,90 +60,34 @@ python Tools/sprite_sheet_slicer.py input.png --auto
 # 去除背景色后自动分割
 python Tools/sprite_sheet_slicer.py input.png --auto --remove-bg "#00ff00"
 
-# 批量处理整个文件夹
-python Tools/sprite_sheet_slicer.py ./raw/ --cols 8 --rows 1 -o ./sliced/
-```
-
-### 3b. AI Smart Slicer（AI 智能裁切 — 推荐）
-
-调用 GPT-4.1 视觉模型，让 AI “看”图片并判断哪些是独立物体、哪些是动画帧组，然后精准裁切。
-
-```bash
-# AI 智能分割（最推荐，需要 OPENAI_API_KEY）
+# AI 智能分割
 python Tools/ai_smart_slicer.py commercial_pack.png
-
-# 去除背景后 AI 分析
-python Tools/ai_smart_slicer.py sheet.png --remove-bg "#ff00ff"
-
-# 批量处理文件夹
-python Tools/ai_smart_slicer.py ./raw_assets/ -o ./ai_sliced/
 ```
 
-**AI 模式 vs 纯像素模式的区别**：
-
-| 能力 | `--auto`（纯像素） | `ai_smart_slicer.py`（AI） |
-|------|---------|--------|
-| 区分独立物体 | ✅ 基于透明间距 | ✅ 基于语义理解 |
-| 识别动画帧组 | ❌ 会拆成单帧 | ✅ 自动归组并标注帧数 |
-| 处理相邻/重叠物体 | ❌ 会合并 | ✅ 语义分离 |
-| 自动命名 | ❌ obj001/obj002 | ✅ hero_walk/tree_01 |
-| 离线可用 | ✅ | ❌ 需要网络 |
-| 成本 | 免费 | 极低（约 $0.01/张） |
-
-### 4. Art Drop Auto-Importer（自动触发）
-
-当文件被拖入 `Assets/Art/Imported/` 目录时，自动弹出 Asset Import Pipeline 窗口。无需手动打开菜单。
+| 工具 | 适合场景 | 注意事项 |
+| --- | --- | --- |
+| `sprite_sheet_slicer.py` | 网格规整、透明间距明显、批量低成本处理。 | 它按像素连通域工作，不理解“这是角色一组动画”。 |
+| `ai_smart_slicer.py` | 商业包、多个物件混排、需要语义命名或动画归组。 | 需要可用的视觉模型 API 环境，结果仍应人工快速扫一遍。 |
 
 ---
 
-## 与现有系统的关系
-
-| 现有系统 | 本管线的关系 |
-|---------|------------|
-| TA_AssetValidator（防御塔） | 互补：防御塔拦截 `Assets/Art/` 全目录；本管线额外覆盖 `Imported/` 子目录并触发 UI |
-| AI_SpriteSlicer（切片母机） | 升级替代：本管线包含切片功能且更智能（自动检测+手动+单帧三模式） |
-| Sprite Effect Factory（效果工厂） | 上游衔接：本管线生成的 Object 已预装 SEF，可直接送入效果工厂精细调参 |
-| SEF Quick Apply（快速应用） | 下游简化：对于不需要精细调参的场景，直接选预设即可 |
-| LevelThemeProfile（主题换肤） | 平行：本管线生成的 Prefab 可被 Theme Profile 引用作为元素 Sprite |
-| AsciiLevelGenerator（关卡生成） | 平行：白盒关卡生成后，可用本管线导入的 Prefab 做换肤 |
-
----
-
-## 回答你的问题
-
-### "选择完效果就直接应用在具体物体上了么？"
-
-**是的。** SEF Quick Apply 选择预设后，效果参数立即写入物体上的 `SpriteEffectController` 组件，运行时自动生效。
-
-### "然后自己拖到本地项目形成一个蓝图是么？"
-
-**是的，而且是自动的。** 选择效果后，系统自动将物体保存为 Prefab（蓝图）。之后你只需从 Project 窗口拖 Prefab 到场景，就是一个完整的、带效果的可用物体。
-
-### 完整工作流总结
-
-```
-你的操作                          系统自动完成
-─────────                        ──────────
-下载素材图片                      —
-[可选] 用 Python 裁切大图          —
-拖入 Assets/Art/Imported/         → 自动规范化 + 弹出导入窗口
-选物理类型 + 点"一键导入"          → 切片 + 生成 Object + 挂载 SEF
-选效果预设                        → 应用效果 + 保存 Prefab 蓝图
-                                  → 完成！Prefab 可直接拖入关卡
-```
-
-**你的精力只需放在两个决策上：这个素材是什么类型（角色/地形/陷阱...）、想要什么效果。其余全自动。**
-
----
-
-## 文件清单
+## 5. 关键文件
 
 | 文件 | 职责 |
-|------|------|
-| `Assets/Scripts/Editor/AssetImportPipeline.cs` | 主导入管线 Editor 窗口 |
-| `Assets/SpriteEffectFactory/Editor/SEF_QuickApply.cs` | 效果预设快速应用 + 蓝图保存 |
-| `Assets/Scripts/Editor/ArtDropAutoImporter.cs` | 拖入自动触发 |
-| `Assets/Scripts/Core/ImportedAssetMarker.cs` | 导入元数据标记组件 |
-| `Tools/sprite_sheet_slicer.py` | Python 批量裁切工具（纯像素模式） |
-| `Tools/ai_smart_slicer.py` | AI 智能裁切工具（视觉模型模式，推荐） |
-| `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` | 本文档 |
+| --- | --- |
+| `Assets/Scripts/Editor/AssetImportPipeline.cs` | 主导入窗口，负责规范化、切片、生成对象和 Prefab。 |
+| `Assets/Scripts/Editor/AssetApplyToSelected.cs` | 给已有对象换皮，负责 Root 归一、动画挂载、行为模板和碰撞体适配。 |
+| `Assets/Scripts/Editor/ArtAssetClassifier.cs` | 素材分类器，识别角色、道具、陷阱、背景、状态动画与运行时行为。 |
+| `Assets/Scripts/Core/SpriteFrameAnimator.cs` | 普通多帧循环动画播放器。 |
+| `Assets/Scripts/Core/SpriteStateAnimator.cs` | 角色 idle/run/jump/fall 状态动画播放器。 |
+| `Assets/Scripts/Core/ImportedAssetMarker.cs` | 记录导入元数据，帮助后续换皮和分类复用。 |
+| `Assets/SpriteEffectFactory/Editor/SEF_QuickApply.cs` | 视觉效果预设快速应用。 |
+| `Tools/sprite_sheet_slicer.py` | 纯像素裁切工具。 |
+| `Tools/ai_smart_slicer.py` | AI 语义裁切工具。 |
+
+---
+
+## References
+
+[1]: ../SESSION_TRACKER.md "MarioTrickster Session Tracker"
+[2]: ./PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md "Planner Fast Level Production Guide"

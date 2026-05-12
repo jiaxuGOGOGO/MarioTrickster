@@ -51,6 +51,7 @@ public class AssetApplyToSelected : EditorWindow
     // =========================================================================
     // 状态
     // =========================================================================
+    private DefaultAsset _artFolder;
     private Texture2D _artTexture;
     private Sprite _artSprite;
     private Sprite[] _artSprites = new Sprite[0];
@@ -104,12 +105,28 @@ public class AssetApplyToSelected : EditorWindow
         EditorGUILayout.Space(8);
         EditorGUILayout.LabelField("美术素材", EditorStyles.boldLabel);
 
+        _artFolder = (DefaultAsset)EditorGUILayout.ObjectField(
+            "角色状态帧文件夹", _artFolder, typeof(DefaultAsset), false);
         _artTexture = (Texture2D)EditorGUILayout.ObjectField(
             "贴图 (Texture2D)", _artTexture, typeof(Texture2D), false);
         _artSprite = (Sprite)EditorGUILayout.ObjectField(
             "或直接拖 Sprite", _artSprite, typeof(Sprite), false);
 
-        if (_artTexture != null)
+        if (_artFolder != null)
+        {
+            _artSprites = LoadSpritesFromFolder(_artFolder);
+            if (_artSprites.Length > 0)
+            {
+                _artSprite = _artSprites[0];
+                var preview = ArtAssetClassifier.Classify(selected != null ? ResolveApplyTarget(selected) : null, _artSprites, -1);
+                EditorGUILayout.HelpBox($"已识别文件夹散帧：{_artSprites.Length} 帧；状态={preview.StateSummary}；应用后自动挂 SpriteStateAnimator。", MessageType.None);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("文件夹里没有找到 Sprite。请使用 hero_idle_00 / hero_run_00 / hero_jump_00 / hero_fall_00 这类命名。", MessageType.Warning);
+            }
+        }
+        else if (_artTexture != null)
         {
             _artSprites = LoadSpritesFromTexture(_artTexture);
             if (_artSprites.Length > 0)
@@ -158,7 +175,7 @@ public class AssetApplyToSelected : EditorWindow
 
         // 执行按钮
         EditorGUILayout.Space(12);
-        GUI.enabled = selected != null && (_artSprite != null || _artTexture != null);
+        GUI.enabled = selected != null && (_artSprite != null || _artTexture != null || _artFolder != null);
         GUI.backgroundColor = new Color(0.3f, 0.8f, 0.3f);
         if (GUILayout.Button("应用素材到选中物体", GUILayout.Height(36)))
         {
@@ -590,6 +607,12 @@ public class AssetApplyToSelected : EditorWindow
 
     private Sprite[] ResolveSpritesForApply()
     {
+        if (_artFolder != null)
+        {
+            Sprite[] sprites = LoadSpritesFromFolder(_artFolder);
+            if (sprites.Length > 0) return sprites;
+        }
+
         if (_artTexture != null)
         {
             Sprite[] sprites = LoadSpritesFromTexture(_artTexture);
@@ -604,6 +627,29 @@ public class AssetApplyToSelected : EditorWindow
         }
 
         return new Sprite[0];
+    }
+
+
+    private Sprite[] LoadSpritesFromFolder(DefaultAsset folder)
+    {
+        if (folder == null) return new Sprite[0];
+        string folderPath = AssetDatabase.GetAssetPath(folder);
+        if (string.IsNullOrEmpty(folderPath) || !AssetDatabase.IsValidFolder(folderPath)) return new Sprite[0];
+
+        List<Sprite> sprites = new List<Sprite>();
+        string[] guids = AssetDatabase.FindAssets("t:Sprite", new[] { folderPath });
+        foreach (string guid in guids)
+        {
+            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+            if (string.IsNullOrEmpty(assetPath)) continue;
+            sprites.AddRange(LoadSpritesAtPath(assetPath));
+        }
+
+        return sprites
+            .Where(sprite => sprite != null)
+            .Distinct()
+            .OrderBy(sprite => sprite.name, System.StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private Sprite[] LoadSpritesFromTexture(Texture2D texture)

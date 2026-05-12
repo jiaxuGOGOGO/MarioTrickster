@@ -91,16 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 114（策划生产助手：素材语义巡检 + Theme 自动填槽 + 机制请求模板） |
+| **最新 Session** | Session 115（角色状态动画自动挂载 + 文档入口收束） |
 | **日期** | 2026-05-12 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S114 把 S113 教程中列出的三个量产短板推进为编辑器内可用工具：新增 `PlannerProductionAssistant`，支持素材包语义巡检/建议命名报告、Theme Profile 自动填槽，以及新机制需求模板复制。 |
-| **编译状态** | ✅ 沙盒无 Unity CLI，已完成 `git diff --check` 与 `Tools/static_art_pipeline_check.py` 静态验证；待用户在 Unity 2022.3.61f1 中打开 `Ctrl+T → Art & Effects Hub → 策划生产助手` 验证窗口编译和按钮可用。 |
-| **阻塞** | 无。待用户 `git pull` 后在 Unity 中验证：素材文件夹可生成语义报告；选择 Theme 后可自动填入明显命中的 Sprite 槽位；新机制需求可复制为标准 AI 实现请求。 |
-| **交接说明** | S114 明确短板优化边界：Unity 内助手负责整理素材语义、批量填主题槽和生成机制实现请求；复杂代码改动仍交给外部 AI/Cursor/Manus 按项目框架执行，避免把 Unity 变成不稳定自动改代码黑盒。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S115 补强 `idle/run/jump/fall` 分类器边界测试，并把 README、AI 接手协议、素材导入指南、AI_WORKFLOW 收束为清晰入口。 |
+| **编译状态** | ✅ 沙盒无 Unity CLI，已完成 `git diff --check`、`Tools/static_art_pipeline_check.py`、C# 预处理/括号静态结构检查与 Markdown 链接检查；待用户在 Unity 2022.3.61f1 中重跑 EditMode，重点确认 `ArtAssetClassifierTests`、Apply Art 状态动画挂载与文档入口可用。 |
+| **阻塞** | 无。待用户 `git pull` 后验证：按 `hero_idle_00 / hero_run_00 / hero_jump_00 / hero_fall_00` 命名的角色帧应用到角色 Visual 时自动挂 `SpriteStateAnimator`，普通多帧素材仍走 `SpriteFrameAnimator`。 |
+| **交接说明** | S115 明确文档入口：用户先看 README；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入与角色状态动画看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
 
 
-### [S114] 最新知识沉淀
+### [S115] 最新知识沉淀
+
+1. **角色状态动画以命名约定驱动，不让用户填系统参数**：只要帧名包含 `idle/run/jump/fall`，分类器即可自动分组；识别到两组以上角色状态时走 `SpriteStateAnimator`，单组或普通多帧素材继续走 `SpriteFrameAnimator`，避免误判。
+2. **文档入口必须分层收束**：README 面向用户；`SESSION_TRACKER.md` 与 `AI_TAKEOVER_PROTOCOL.md` 面向新 AI；`PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md` 面向日常关卡/换素材；`ASSET_IMPORT_PIPELINE_GUIDE.md` 面向素材导入和状态动画；`AI_WORKFLOW.md` 只保留 Git 与故障反馈附录。
+3. **持续更新文档可以整理，但不能断交接链**：旧长模板和重复教程应合并到权威入口；真正影响后续接手的状态、测试、待办仍必须落在本文件，避免清理文档时清掉项目记忆。
+
+### [S114] 知识沉淀
 
 1. **素材命名混乱先做语义报告，不强行改原文件**：商业包引用关系脆弱，自动重命名容易破坏现有引用；更安全的第一步是用 `PlannerProductionAssistant` 生成分类、推荐槽位与建议命名报告。
 2. **Theme Profile 批量绑定可以自动化到“明显命中”级别**：按文件名 token 和主题槽关键字自动填 `ground/platform/wall/Mario/Trickster/elementSprites`，识别不到或已手动确认的槽位不强行清空。
@@ -206,7 +212,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S56重点验证**: ASCII Build 新字符(@f<SX)能正确生成对应元素，旧字符行为不变 |
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| 🔄 | EditMode 自动化 | **S114重点验证**: `PlannerProductionAssistant` 编译通过并能打开；素材语义报告不会修改原素材引用；Theme 自动填槽支持 Undo/SetDirty 且不清空既有槽位；`ArtAssetClassifierTests` 与 Apply Art Root 归一保持通过；Unity Editor 重新编译无新增红错 |
+| 🔄 | EditMode 自动化 | **S115重点验证**: `ArtAssetClassifierTests` 新增 idle/run/jump/fall 边界测试通过；Apply Art 对两组以上角色状态自动挂 `SpriteStateAnimator`，单组状态或普通多帧素材仍回退 `SpriteFrameAnimator`；README/AI_TAKEOVER/ASSET_IMPORT/AI_WORKFLOW 链接可打开；Unity Editor 重新编译无新增红错 |
 | 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
@@ -244,6 +250,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **最高** | **策划高速关卡生产入口**：S113 新增 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`，把“做关卡、换商业素材、接人物/机关动画、让 AI 后台补机制”的路径合并为面向策划的一页式功能介绍与教程；README 与 LevelStudio 指南已加入口。 | ✅ 已完成（S113） |
 | **高** | **Apply Art 选中归一优化**：S113 已让 `Apply Art to Selected` 在用户选中 Root 或 Visual 时都自动回到行为 Root 执行换皮，降低 Visual 模式下把标记/碰撞/Prefab 写错层的风险。 | ✅ 已完成（S113） |
 | **最高** | **策划生产助手短板优化**：S114 新增 `PlannerProductionAssistant`，把商业素材包命名混乱、Theme Profile 手动填槽、新机制请求不稳定三项短板压成一个 Unity 内窗口入口。 | ✅ 已完成（S114，待 Unity 实机验证） |
+| **最高** | **角色状态动画自动挂载与文档收束**：S115 补强 `idle/run/jump/fall` 命名分类边界测试，并把 README、AI 接手协议、素材导入指南、AI_WORKFLOW 合并为清晰入口，减少用户找文档成本。 | ✅ 已完成（S115，待 Unity 实机验证） |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |
@@ -361,27 +368,28 @@ Root (GameObject)           ← 承载 BoxCollider2D + 脚本组件
 
 | 文档 | 一句话职责 |
 |------|-----------|
-| **SESSION_TRACKER.md**（本文件） | AI 入口：状态 + 规范 + 回归 + 待办 |
-| MASTER_TRACKER.md | 全局总览：设计愿景 vs 代码实现映射 |
-| Progress_Summary.md | 存档：功能清单 + Bug库 + 文件树 |
-| Testing_Guide.md | 手册：测试用例 + 影响矩阵 |
-| AI_WORKFLOW.md | 用户指南：开场模板 + Git速查 |
-| GAME_DESIGN.md | 游戏设计文档 |
+| **README.md** | 用户入口：从这里判断该看哪份指南。 |
+| **SESSION_TRACKER.md**（本文件） | AI 入口：状态、规范、回归、待办与最新知识沉淀。 |
+| **docs/AI_TAKEOVER_PROTOCOL.md** | 新 AI 接手协议：读档顺序、后台执行原则与文档地图。 |
+| **docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md** | 日常生产入口：做关卡、换素材、批量整理、接新机制。 |
+| **docs/ASSET_IMPORT_PIPELINE_GUIDE.md** | 素材导入入口：Object/Prefab 生成、Sprite Sheet、角色状态动画命名与挂载。 |
+| **AI_WORKFLOW.md** | Git 与故障反馈附录：pull/push、冲突、代理、Unity 报错反馈模板。 |
+| GAME_DESIGN.md | 游戏设计文档。 |
 
 ---
 
 ## 8. 新对话开场模板
 
 ```text
-我换号了，要继续上次项目。
-仓库地址：https://github.com/你的用户名/你的仓库
-你先读档接上当前进度继续；如果要写回仓库但现在缺认证，你再告诉我补 token。
-本次任务：[你的需求]
+主代码库：https://github.com/jiaxuGOGOGO/MarioTrickster
+美术仓库：https://github.com/jiaxuGOGOGO/MarioTrickster-Art
+Token：[如需推送则填写]
+
+你先按 docs/AI_TAKEOVER_PROTOCOL.md 和 SESSION_TRACKER.md 静默读档接手。
+本次任务：[用大白话写需求]
 ```
 
-> 如果你明确知道这次认证也失效了，也可以直接在下一行补：`GitHub Token: ghp_你的token`
->
-> AI 收到后：先用仓库地址读档续上 → 读取本文件与 `prompts/PROMPT_RECIPES.md` → `git log --oneline -n 10` 回溯近期变更 → 执行任务 → 只有在继续提交/推送且当前环境缺认证时才索取 token
+> AI 收到后：先读本文件与 `docs/AI_TAKEOVER_PROTOCOL.md` → 按任务类型补读专项文档 → `git log --oneline -n 10` 回溯近期变更 → 执行任务 → 更新本文件并提交推送。
 
 ## [2026-04-04] Level Studio 教程与关卡设计指南
 - 编写了详尽的 `LevelStudio_DesignGuide.md`，包含 Test Console 的完整使用教程。

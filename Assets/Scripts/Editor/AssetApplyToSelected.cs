@@ -132,9 +132,12 @@ public class AssetApplyToSelected : EditorWindow
             if (_artSprites.Length > 0)
             {
                 _artSprite = _artSprites[0];
-                string frameHint = _artSprites.Length > 1
-                    ? $"已识别 Sprite Sheet：{_artSprites.Length} 帧，应用后会自动挂 SpriteFrameAnimator 播放。"
-                    : $"已识别单帧 Sprite: {_artSprite.name}";
+                var preview = ArtAssetClassifier.Classify(selected != null ? ResolveApplyTarget(selected) : null, _artSprites, -1);
+                string frameHint = preview != null && preview.IsStateDriven
+                    ? $"已识别角色状态 Sprite Sheet：{_artSprites.Length} 帧；状态={preview.StateSummary}；应用后左右移动会由 SpriteStateAnimator 驱动。"
+                    : (_artSprites.Length > 1
+                        ? $"已识别 Sprite Sheet：{_artSprites.Length} 帧，应用后会自动挂 SpriteFrameAnimator 播放。"
+                        : $"已识别单帧 Sprite: {_artSprite.name}");
                 EditorGUILayout.HelpBox(frameHint, MessageType.None);
             }
         }
@@ -143,7 +146,11 @@ public class AssetApplyToSelected : EditorWindow
             _artSprites = LoadSpritesFromSprite(_artSprite);
             if (_artSprites.Length > 1)
             {
-                EditorGUILayout.HelpBox($"已识别同图集 Sprite Sheet：{_artSprites.Length} 帧，应用后会自动播放。", MessageType.None);
+                var preview = ArtAssetClassifier.Classify(selected != null ? ResolveApplyTarget(selected) : null, _artSprites, -1);
+                string frameHint = preview != null && preview.IsStateDriven
+                    ? $"已识别同图集角色状态帧：{_artSprites.Length} 帧；状态={preview.StateSummary}；应用后左右移动会由 SpriteStateAnimator 驱动。"
+                    : $"已识别同图集 Sprite Sheet：{_artSprites.Length} 帧，应用后会自动播放。";
+                EditorGUILayout.HelpBox(frameHint, MessageType.None);
             }
         }
 
@@ -731,18 +738,56 @@ public class AssetApplyToSelected : EditorWindow
 
     private Sprite[] GetStateFramesOrFallback(ArtAssetClassifier.Classification classification, SpriteStateAnimator.MotionState state)
     {
-        if (classification != null && classification.stateFrames != null &&
-            classification.stateFrames.TryGetValue(state, out Sprite[] frames) && frames != null && frames.Length > 0)
+        if (TryGetStateFrames(classification, state, out Sprite[] frames))
         {
             return frames;
         }
 
-        if (classification != null && classification.stateFrames != null)
+        switch (state)
         {
-            foreach (var pair in classification.stateFrames)
-            {
-                if (pair.Value != null && pair.Value.Length > 0) return pair.Value;
-            }
+            case SpriteStateAnimator.MotionState.Idle:
+                // 只有 RUN 时，待机只用第一帧静态兜底，避免站着也一直跑。
+                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Run, out frames)) return FirstFrameOnly(frames);
+                break;
+
+            case SpriteStateAnimator.MotionState.Run:
+                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Idle, out frames)) return frames;
+                break;
+
+            case SpriteStateAnimator.MotionState.Jump:
+                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Fall, out frames)) return FirstFrameOnly(frames);
+                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Idle, out frames)) return FirstFrameOnly(frames);
+                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Run, out frames)) return FirstFrameOnly(frames);
+                break;
+
+            case SpriteStateAnimator.MotionState.Fall:
+                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Jump, out frames)) return FirstFrameOnly(frames);
+                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Idle, out frames)) return FirstFrameOnly(frames);
+                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Run, out frames)) return FirstFrameOnly(frames);
+                break;
+        }
+
+        return FirstAnyStateFrame(classification);
+    }
+
+    private bool TryGetStateFrames(ArtAssetClassifier.Classification classification, SpriteStateAnimator.MotionState state, out Sprite[] frames)
+    {
+        frames = null;
+        return classification != null && classification.stateFrames != null &&
+            classification.stateFrames.TryGetValue(state, out frames) && frames != null && frames.Length > 0;
+    }
+
+    private Sprite[] FirstFrameOnly(Sprite[] frames)
+    {
+        return frames != null && frames.Length > 0 && frames[0] != null ? new Sprite[] { frames[0] } : new Sprite[0];
+    }
+
+    private Sprite[] FirstAnyStateFrame(ArtAssetClassifier.Classification classification)
+    {
+        if (classification == null || classification.stateFrames == null) return new Sprite[0];
+        foreach (var pair in classification.stateFrames)
+        {
+            if (pair.Value != null && pair.Value.Length > 0) return FirstFrameOnly(pair.Value);
         }
         return new Sprite[0];
     }

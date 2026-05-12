@@ -116,7 +116,7 @@ public class ArtAssetClassifierTests
     }
 
     [Test]
-    public void Classify_OnlyOneStateGroup_FallsBackToLoopAnimator()
+    public void Classify_OnlyOneStateGroupWithoutPlayerTarget_FallsBackToLoopAnimator()
     {
         Sprite[] sprites =
         {
@@ -138,6 +138,35 @@ public class ArtAssetClassifierTests
         finally
         {
             foreach (Sprite sprite in sprites) Object.DestroyImmediate(sprite);
+        }
+    }
+
+    [Test]
+    public void Classify_SingleRunGroupAppliedToPlayerTarget_ReturnsStateDriven()
+    {
+        Sprite[] sprites =
+        {
+            MakeSprite("commercial_hero_run_00"),
+            MakeSprite("commercial_hero_run_01"),
+            MakeSprite("commercial_hero_run_02")
+        };
+        GameObject go = new GameObject("MarioRoot");
+
+        try
+        {
+            var result = ArtAssetClassifier.Classify(go, sprites, -1);
+
+            Assert.AreEqual(ArtAssetClassifier.AssetRole.Character, result.role);
+            Assert.AreEqual(ArtAssetClassifier.RuntimeBehavior.PlayerStateDriven, result.runtimeBehavior);
+            Assert.AreEqual(ArtAssetClassifier.AnimationMode.StateDriven, result.animationMode);
+            Assert.IsTrue(result.IsStateDriven);
+            Assert.IsTrue(result.stateFrames.ContainsKey(SpriteStateAnimator.MotionState.Run));
+            Assert.AreEqual(1, result.stateFrames.Count);
+        }
+        finally
+        {
+            foreach (Sprite sprite in sprites) Object.DestroyImmediate(sprite);
+            Object.DestroyImmediate(go);
         }
     }
 

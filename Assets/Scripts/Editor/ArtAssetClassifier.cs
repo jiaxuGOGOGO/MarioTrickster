@@ -167,9 +167,13 @@ public static class ArtAssetClassifier
 
     private static AnimationMode DetectAnimationMode(AssetRole role, RuntimeBehavior behavior, Dictionary<SpriteStateAnimator.MotionState, Sprite[]> states, Sprite[] sprites, string text)
     {
-        // 只要文件名已经明确分出两个及以上运动状态，就优先走状态机动画。
+        // 主角换皮允许单状态试跑：只有 run/idle/jump/fall 其中一组时，也要挂 SpriteStateAnimator。
+        // 否则只导入 RUN 会退化成普通循环动画，无法验证“按左右才播放跑步”。
+        if (HasAnyMotionState(states) && behavior == RuntimeBehavior.PlayerStateDriven) return AnimationMode.StateDriven;
+
+        // 完整或半完整角色包：只要文件名已经明确分出两个及以上运动状态，就优先走状态机动画。
         // 这样用户把 idle/run/jump/fall 散帧丢进来时，不必再额外选择复杂菜单。
-        if (states != null && states.Count >= 2 && (role == AssetRole.Character || behavior == RuntimeBehavior.PlayerStateDriven || HasCoreMotionStates(states))) return AnimationMode.StateDriven;
+        if (states != null && states.Count >= 2 && (role == AssetRole.Character || HasCoreMotionStates(states))) return AnimationMode.StateDriven;
         if (ContainsAny(text, "oneshot", "one_shot", "explode", "explosion", "impact", "poof")) return sprites.Length > 1 ? AnimationMode.OneShot : AnimationMode.None;
         if (sprites != null && sprites.Length > 1) return AnimationMode.Loop;
         return AnimationMode.None;
@@ -249,6 +253,13 @@ public static class ArtAssetClassifier
         yield return SpriteStateAnimator.MotionState.Run;
         yield return SpriteStateAnimator.MotionState.Jump;
         yield return SpriteStateAnimator.MotionState.Fall;
+    }
+
+    private static bool HasAnyMotionState(Dictionary<SpriteStateAnimator.MotionState, Sprite[]> states)
+    {
+        if (states == null || states.Count == 0) return false;
+        return OrderedStates().Any(state =>
+            states.TryGetValue(state, out Sprite[] frames) && frames != null && frames.Length > 0);
     }
 
     private static bool HasCoreMotionStates(Dictionary<SpriteStateAnimator.MotionState, Sprite[]> states)

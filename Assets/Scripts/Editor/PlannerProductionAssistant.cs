@@ -50,6 +50,15 @@ public class PlannerProductionAssistant : EditorWindow
         public string suggestedName;
     }
 
+    private sealed class RenamePlan
+    {
+        public string path;
+        public string oldName;
+        public string newName;
+        public Rect spriteRect;
+        public bool multipleSpriteTexture;
+    }
+
     private static readonly ThemeSlotRule[] ThemeSlotRules = new ThemeSlotRule[]
     {
         new ThemeSlotRule("Ground", "地面", "ground", "terrain", "floor", "grass", "dirt", "soil", "land"),
@@ -129,7 +138,15 @@ public class PlannerProductionAssistant : EditorWindow
         {
             GenerateSemanticReport(writeFile: true);
         }
+        if (GUILayout.Button("采纳建议并批量改名", GUILayout.Height(26)))
+        {
+            ApplySuggestedRenames();
+        }
         EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.HelpBox(
+            "改名按钮会先按语义报告生成预览，再弹窗确认；未确认前只给建议，不会改动原素材。",
+            MessageType.None);
     }
 
     private void DrawThemeSection()
@@ -217,6 +234,47 @@ public class PlannerProductionAssistant : EditorWindow
             AssetDatabase.Refresh();
             Debug.Log($"[PlannerProductionAssistant] 语义报告已生成: {path}");
         }
+    }
+
+    private void ApplySuggestedRenames()
+    {
+        List<SpriteCandidate> candidates = BuildCandidates();
+        List<RenamePlan> plans = BuildRenamePlans(candidates);
+        if (plans.Count == 0)
+        {
+            reportText = "没有需要采纳的改名建议。";
+            EditorUtility.DisplayDialog("提示", "当前扫描路径没有需要改名的 Sprite 或贴图。", "好的");
+            return;
+        }
+
+        string preview = string.Join("\n", plans.Take(12).Select(p => $"{p.oldName}  →  {p.newName}"));
+        if (plans.Count > 12) preview += $"\n……另有 {plans.Count - 12} 条";
+
+        bool confirmed = EditorUtility.DisplayDialog(
+            "确认批量改名",
+            $"将按语义报告采纳 {plans.Count} 条改名建议。\n\n{preview}\n\n说明：多切片图会改 Sprite 切片名；单图会改贴图资源名。该操作可用 Unity 的版本管理/Git 回滚。",
+            "确认改名",
+            "先不改");
+        if (!confirmed)
+        {
+            reportText = "已取消批量改名，原素材未改动。";
+            return;
+        }
+
+        int changed = ApplyRenamePlans(plans, out List<string> warnings);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+
+        List<SpriteCandidate> refreshedCandidates = BuildCandidates();
+        StringBuilder sb = BuildReportMarkdown(refreshedCandidates);
+        sb.AppendLine();
+        sb.AppendLine($"> 批量改名完成：已改名 {changed} 项。未确认前不会执行；本次已由弹窗确认后落地。 ");
+        foreach (string warning in warnings)
+        {
+            sb.AppendLine($"> 警告：{warning}");
+        }
+        reportText = sb.ToString();
+        Debug.Log($"[PlannerProductionAssistant] Suggested renames applied: {changed}, warnings: {warnings.Count}.");
     }
 
     private void AutoFillThemeProfile()
@@ -332,11 +390,13 @@ public class PlannerProductionAssistant : EditorWindow
 
     private StringBuilder BuildReportMarkdown(List<SpriteCandidate> candidates)
     {
+        List<RenamePlan> renamePlans = BuildRenamePlans(candidates);
         StringBuilder sb = new StringBuilder();
         sb.AppendLine("# Planner Production Assistant 语义巡检报告");
         sb.AppendLine();
         sb.AppendLine($"扫描路径：`{assetFolderPath}`");
         sb.AppendLine($"Sprite 数量：{candidates.Count}");
+        sb.AppendLine($"可采纳改名建议：{renamePlans.Count}");
         sb.AppendLine();
         sb.AppendLine("| Sprite | 分类 | 动画 | 推荐槽位 | 建议命名 | 路径 |");
         sb.AppendLine("|---|---|---|---|---|---|");
@@ -346,6 +406,7 @@ public class PlannerProductionAssistant : EditorWindow
         }
         sb.AppendLine();
         sb.AppendLine("> 建议：优先处理推荐槽位为 Unknown 的素材；若同一槽位有多张候选图，保留最符合关卡语义的一张作为 Theme Profile 插槽，其余可作为动画帧或备用皮肤。");
+        sb.AppendLine("> 如果要采纳建议，请在同一窗口点击“采纳建议并批量改名”，系统会先弹确认框，确认后才会真正改 Sprite 切片名或贴图资源名。");
         return sb;
     }
 
@@ -434,6 +495,146 @@ public class PlannerProductionAssistant : EditorWindow
         return Normalize((sprite != null ? sprite.name : "") + " " + path);
     }
 
+    private List<RenamePlan> BuildRenamePlans(List<SpriteCandidate> candidates)
+    {
+        List<RenamePlan> plans = new List<RenamePlan>();
+        Dictionary<string, HashSet<string>> reservedByPath = new Dictionary<string, HashSet<string>>();
+
+        foreach (SpriteCandidate candidate in candidates)
+        {
+            if (candidate == null || candidate.sprite == null || string.IsNullOrEmpty(candidate.path)) continue;
+            string desiredName = SanitizeAssetName(candidate.suggestedName);
+            if (string.IsNullOrEmpty(desiredName)) continue;
+            if (string.Equals(candidate.sprite.name, desiredName, StringComparison.Ordinal)) continue;
+
+            if (!reservedByPath.TryGetValue(candidate.path, out HashSet<string> reserved))
+            {
+                reserved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (Sprite sprite in AssetDatabase.LoadAllAssetsAtPath(candidate.path).OfType<Sprite>())
+                {
+                    if (sprite != null && !string.IsNullOrEmpty(sprite.name)) reserved.Add(sprite.name);
+                }
+                reservedByPath[candidate.path] = reserved;
+            }
+
+            reserved.Remove(candidate.sprite.name);
+            string uniqueName = MakeUniqueName(desiredName, reserved);
+            reserved.Add(uniqueName);
+
+            plans.Add(new RenamePlan
+            {
+                path = candidate.path,
+                oldName = candidate.sprite.name,
+                newName = uniqueName,
+                spriteRect = candidate.sprite.rect,
+                multipleSpriteTexture = IsMultipleSpriteTexture(candidate.path)
+            });
+        }
+
+        return plans.OrderBy(p => p.path).ThenBy(p => p.oldName).ToList();
+    }
+
+    private int ApplyRenamePlans(List<RenamePlan> plans, out List<string> warnings)
+    {
+        warnings = new List<string>();
+        int changed = 0;
+
+        foreach (IGrouping<string, RenamePlan> group in plans.GroupBy(p => p.path))
+        {
+            string path = group.Key;
+            TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            List<RenamePlan> pathPlans = group.ToList();
+
+            if (importer != null && importer.spriteImportMode == SpriteImportMode.Multiple && importer.spritesheet != null && importer.spritesheet.Length > 0)
+            {
+                SpriteMetaData[] meta = importer.spritesheet;
+                HashSet<int> used = new HashSet<int>();
+                int pathChanged = 0;
+
+                foreach (RenamePlan plan in pathPlans)
+                {
+                    int index = FindSpriteMetaIndex(meta, plan, used);
+                    if (index < 0)
+                    {
+                        warnings.Add($"未能在切片图 {path} 中匹配 {plan.oldName}，已跳过。");
+                        continue;
+                    }
+
+                    meta[index].name = plan.newName;
+                    used.Add(index);
+                    pathChanged++;
+                }
+
+                if (pathChanged > 0)
+                {
+                    importer.spritesheet = meta;
+                    EditorUtility.SetDirty(importer);
+                    importer.SaveAndReimport();
+                    changed += pathChanged;
+                }
+                continue;
+            }
+
+            if (pathPlans.Count > 1)
+            {
+                warnings.Add($"{path} 不是可写入切片名的多 Sprite 图，但包含多条改名建议，已跳过以避免误改文件名。");
+                continue;
+            }
+
+            RenamePlan singlePlan = pathPlans[0];
+            string error = AssetDatabase.RenameAsset(path, singlePlan.newName);
+            if (string.IsNullOrEmpty(error)) changed++;
+            else warnings.Add($"{path} 改名失败：{error}");
+        }
+
+        return changed;
+    }
+
+    private static int FindSpriteMetaIndex(SpriteMetaData[] meta, RenamePlan plan, HashSet<int> used)
+    {
+        for (int i = 0; i < meta.Length; i++)
+        {
+            if (used.Contains(i)) continue;
+            if (!string.Equals(meta[i].name, plan.oldName, StringComparison.Ordinal)) continue;
+            if (SameRect(meta[i].rect, plan.spriteRect)) return i;
+        }
+
+        for (int i = 0; i < meta.Length; i++)
+        {
+            if (used.Contains(i)) continue;
+            if (string.Equals(meta[i].name, plan.oldName, StringComparison.Ordinal)) return i;
+        }
+        return -1;
+    }
+
+    private static bool SameRect(Rect a, Rect b)
+    {
+        return Mathf.Abs(a.x - b.x) < 0.5f
+            && Mathf.Abs(a.y - b.y) < 0.5f
+            && Mathf.Abs(a.width - b.width) < 0.5f
+            && Mathf.Abs(a.height - b.height) < 0.5f;
+    }
+
+    private static bool IsMultipleSpriteTexture(string path)
+    {
+        TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        return importer != null && importer.spriteImportMode == SpriteImportMode.Multiple;
+    }
+
+    private static string MakeUniqueName(string desiredName, HashSet<string> reserved)
+    {
+        string baseName = SanitizeAssetName(desiredName);
+        if (string.IsNullOrEmpty(baseName)) baseName = "asset";
+        string current = baseName;
+        int index = 1;
+        while (reserved.Contains(current))
+        {
+            current = $"{baseName}_{index:00}";
+            index++;
+        }
+        return current;
+    }
+
     private static string BuildSuggestedName(string slot, string originalName)
     {
         string clean = Normalize(originalName).Trim('_');
@@ -441,6 +642,11 @@ public class PlannerProductionAssistant : EditorWindow
         string prefix = Normalize(slot).Trim('_');
         if (clean.StartsWith(prefix + "_", StringComparison.OrdinalIgnoreCase)) return clean;
         return prefix + "_" + clean;
+    }
+
+    private static string SanitizeAssetName(string name)
+    {
+        return Normalize(name).Trim('_');
     }
 
     private static string Normalize(string text)

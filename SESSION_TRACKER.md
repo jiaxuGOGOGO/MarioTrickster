@@ -91,16 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 115（角色状态动画自动挂载 + README 唯一入口降噪） |
-| **日期** | 2026-05-12 |
+| **最新 Session** | Session 116（策划生产助手确认后批量改名） |
+| **日期** | 2026-05-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S115 补强 `idle/run/jump/fall` 分类器边界测试，并把 GitHub 搜索里散落的目录级 README 改名为内部指南或迁移指针，只保留根目录 `README.md` 作为用户入口。 |
-| **编译状态** | ✅ 沙盒无 Unity CLI，已完成 `git diff --check`、`find . -iname README.md` 唯一入口检查、旧 README 路径引用检查、`Tools/static_art_pipeline_check.py`、C# 预处理/括号静态结构检查与 Markdown 链接检查；待用户在 Unity 2022.3.61f1 中重跑 EditMode，重点确认 `ArtAssetClassifierTests`、Apply Art 状态动画挂载与文档入口可用。 |
-| **阻塞** | 无。待用户 `git pull` 后验证：按 `hero_idle_00 / hero_run_00 / hero_jump_00 / hero_fall_00` 命名的角色帧应用到角色 Visual 时自动挂 `SpriteStateAnimator`，普通多帧素材仍走 `SpriteFrameAnimator`。 |
-| **交接说明** | S115 明确文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入与角色状态动画看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`；旧目录级 README 已降噪。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S116 按用户诉求把“语义报告只给建议”升级为“先预览建议、经确认后批量改名”，让命名混乱的商业素材包可在策划生产助手内安全落地。 |
+| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成 `git diff --check` 与相关源码/文档静态检查；待用户在 Unity 2022.3.61f1 中打开 `Ctrl+T → Art & Effects Hub → 策划生产助手` 验证“生成语义报告 → 采纳建议并批量改名”的弹窗确认流程。 |
+| **阻塞** | 无。待用户 `git pull` 后验证：命名混乱素材包先生成语义报告，确认预览后可批量修改 Sprite 切片名或单图资源名；未确认时只给建议，不改原素材。 |
+| **交接说明** | S116 延续文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入、状态动画与安全改名看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
 
 
-### [S115] 最新知识沉淀
+### [S116] 最新知识沉淀
+
+1. **语义报告现在可以安全落地改名**：`PlannerProductionAssistant` 新增“采纳建议并批量改名”，先根据报告生成预览，弹窗确认后才执行；取消时只保留建议，不动原素材。
+2. **改名粒度遵守 Unity 资源结构**：多 Sprite 图改 `TextureImporter.spritesheet` 里的 Sprite 切片名；单图只改对应 Texture 资源名；同一路径多建议但不是多 Sprite 时跳过并给警告，避免误改整张文件。
+3. **用户诉求优先级明确**：素材命名混乱时，默认流程是“生成语义报告 → 用户看建议 → 确认采纳 → 工具批量改名”，而不是后台偷偷全部重命名。
+
+### [S115] 知识沉淀
 
 1. **角色状态动画以命名约定驱动，不让用户填系统参数**：只要帧名包含 `idle/run/jump/fall`，分类器即可自动分组；识别到两组以上角色状态时走 `SpriteStateAnimator`，单组或普通多帧素材继续走 `SpriteFrameAnimator`，避免误判。
 2. **文档入口必须分层收束**：README 面向用户；`SESSION_TRACKER.md` 与 `AI_TAKEOVER_PROTOCOL.md` 面向新 AI；`PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md` 面向日常关卡/换素材；`ASSET_IMPORT_PIPELINE_GUIDE.md` 面向素材导入和状态动画；`AI_WORKFLOW.md` 只保留 Git 与故障反馈附录。

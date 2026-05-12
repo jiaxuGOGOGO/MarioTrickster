@@ -34,6 +34,8 @@
 > **入口澄清**：角色状态动画不是一个额外的 Unity 功能按钮或独立配置面板；它是 `Asset Import Pipeline` 与 `Apply Art To Selected` 内部的自动分支。把按 `idle/run/jump/fall` 命名的散帧或切片拖进去并应用后，系统会在目标 `Visual` 上自动挂 `SpriteStateAnimator`。
 
 > **命名建议**：同一套角色素材尽量使用 `角色名_状态_两位编号`，例如 `hero_idle_00`、`hero_idle_01`、`hero_run_00`、`hero_run_01`。不要把 `background`、`ground`、`foreground` 这类场景词混在角色帧文件名里，以免降低人工排查效率。[1]
+>
+> **安全改名流程**：如果商业包命名混乱，先打开 `Ctrl+T → Art & Effects Hub → 策划生产助手` 生成语义报告。报告会给出建议命名；点击 **采纳建议并批量改名** 后会先显示预览和确认框，只有确认后才会修改 Sprite 切片名或单图资源名。
 
 ---
 
@@ -44,7 +46,7 @@
 | Asset Import Pipeline | `MarioTrickster → Asset Import Pipeline` 或 `Ctrl+Shift+I` | 从外部图片生成项目内 Object / Prefab。 |
 | Apply Art To Selected | `Ctrl+Shift+A` | 给已有白盒对象换皮，支持散帧、Sprite Sheet、状态动画和 SEF。 |
 | SEF Quick Apply | `MarioTrickster → SEF Quick Apply` 或 `Ctrl+Shift+Q` | 给选中物体快速套视觉效果预设，并保存 Prefab。 |
-| Planner Production Assistant | `Ctrl+T → Art & Effects Hub → 策划生产助手` | 对素材包做语义巡检、Theme 自动填槽、复制新机制请求模板。 |
+| Planner Production Assistant | `Ctrl+T → Art & Effects Hub → 策划生产助手` | 对素材包做语义巡检、给出建议命名，经弹窗确认后批量改名，Theme 自动填槽，复制新机制请求模板。 |
 
 ---
 

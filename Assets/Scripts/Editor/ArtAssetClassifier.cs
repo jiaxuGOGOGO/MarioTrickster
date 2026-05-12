@@ -77,7 +77,9 @@ public static class ArtAssetClassifier
         string joined = BuildSearchText(target, sprites);
         result.role = DetectRole(target, joined, physicsTypeHint);
         result.runtimeBehavior = DetectRuntimeBehavior(result.role, target, joined);
-        result.stateFrames = BuildStateGroups(sprites, joined);
+        // [AI防坑警告] 状态分组必须只看单帧自身名称/路径，不能把整套图集 joined 文本塞进去。
+        // 否则 idle/run/jump/fall 会同时污染每一帧，所有帧都会被第一个命中状态吃掉。
+        result.stateFrames = BuildStateGroups(sprites);
         result.animationMode = DetectAnimationMode(result.role, result.runtimeBehavior, result.stateFrames, sprites, joined);
         result.confidence = EstimateConfidence(result, joined, sprites);
         result.notes = BuildNotes(result, joined, sprites.Length);
@@ -121,9 +123,10 @@ public static class ArtAssetClassifier
         if (ContainsAny(text, "mario", "player", "hero", "character", "avatar", "idle", "run", "jump", "fall")) return AssetRole.Character;
         if (ContainsAny(text, "enemy", "monster", "goomba", "slime", "trickster", "boss")) return AssetRole.Enemy;
         if (ContainsAny(text, "coin", "gem", "pickup", "collect", "key", "heart", "powerup", "power_up")) return AssetRole.Collectible;
-        if (ContainsAny(text, "hazard", "spike", "fire", "lava", "bomb", "explosion", "blade", "saw", "trap")) return AssetRole.Hazard;
-        if (ContainsAny(text, "platform", "ground", "tile", "block", "brick")) return AssetRole.Platform;
+        if (ContainsAny(text, "hazard", "spike", "fire", "lava", "bomb", "explosion", "blade", "saw", "sawblade", "trap")) return AssetRole.Hazard;
+        // [AI防坑警告] background 必须先于 ground/platform 判断；同时 ContainsAny 是边界化匹配，避免 background 被 ground 子串误判。
         if (ContainsAny(text, "background", "bg", "parallax", "sky", "cloud", "mountain", "tree", "backdrop")) return AssetRole.Background;
+        if (ContainsAny(text, "platform", "ground", "tile", "block", "brick")) return AssetRole.Platform;
         if (ContainsAny(text, "water", "torch", "portal", "ambient", "sceneanim", "scene_animation")) return AssetRole.SceneAnimation;
         if (ContainsAny(text, "vfx", "fx", "spark", "smoke", "poof", "slash", "impact")) return AssetRole.VFX;
         if (ContainsAny(text, "ui", "icon", "button", "hud")) return AssetRole.UI;
@@ -174,7 +177,7 @@ public static class ArtAssetClassifier
         foreach (Sprite sprite in sprites ?? new Sprite[0])
         {
             if (sprite == null) continue;
-            string text = Normalize(sprite.name + " " + AssetDatabase.GetAssetPath(sprite) + " " + extraSearchText);
+            string text = Normalize(sprite.name + " " + AssetDatabase.GetAssetPath(sprite));
             if (!TryDetectState(text, out SpriteStateAnimator.MotionState state)) continue;
             if (!grouped.TryGetValue(state, out List<Sprite> list))
             {
@@ -232,18 +235,70 @@ public static class ArtAssetClassifier
 
     private static string Normalize(string text)
     {
-        return (text ?? string.Empty).Replace('-', '_').Replace('.', '_').Replace('/', '_').Replace('\\', '_').ToLowerInvariant();
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+
+        System.Text.StringBuilder builder = new System.Text.StringBuilder(text.Length + 8);
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (char.IsWhiteSpace(c) || c == '-' || c == '.' || c == '/' || c == '\\')
+            {
+                AppendSeparator(builder);
+                continue;
+            }
+
+            if (char.IsUpper(c) && builder.Length > 0)
+            {
+                char previous = builder[builder.Length - 1];
+                if (char.IsLetterOrDigit(previous) && !char.IsUpper(previous))
+                {
+                    AppendSeparator(builder);
+                }
+            }
+
+            builder.Append(char.ToLowerInvariant(c));
+        }
+        return builder.ToString();
+    }
+
+    private static void AppendSeparator(System.Text.StringBuilder builder)
+    {
+        if (builder.Length == 0 || builder[builder.Length - 1] == '_') return;
+        builder.Append('_');
     }
 
     private static bool ContainsAny(string text, params string[] tokens)
     {
         if (string.IsNullOrEmpty(text)) return false;
+        string normalizedText = Normalize(text);
         foreach (string token in tokens)
         {
-            string normalized = Normalize(token);
-            if (text.Contains(normalized)) return true;
+            string normalizedToken = Normalize(token);
+            if (string.IsNullOrEmpty(normalizedToken)) continue;
+            if (HasTokenMatch(normalizedText, normalizedToken)) return true;
         }
         return false;
+    }
+
+    private static bool HasTokenMatch(string text, string token)
+    {
+        int startIndex = 0;
+        while (startIndex < text.Length)
+        {
+            int index = text.IndexOf(token, startIndex, StringComparison.Ordinal);
+            if (index < 0) return false;
+
+            int before = index - 1;
+            int after = index + token.Length;
+            if (IsTokenBoundary(text, before) && IsTokenBoundary(text, after)) return true;
+            startIndex = index + token.Length;
+        }
+        return false;
+    }
+
+    private static bool IsTokenBoundary(string text, int index)
+    {
+        return index < 0 || index >= text.Length || !char.IsLetterOrDigit(text[index]);
     }
 }
 #endif

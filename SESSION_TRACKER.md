@@ -91,20 +91,26 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 117（Unity 新版 Sprite 切片接口迁移） |
+| **最新 Session** | Session 118（Sprite 切片接口 Unity 版本兼容修复） |
 | **日期** | 2026-05-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S117 清理 `TextureImporter.spritesheet` 过时警告，把切片读写统一迁移到 `UnityEditor.U2D.Sprites.ISpriteEditorDataProvider`，避免 Unity 后续版本升级时导入链路退化。 |
-| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成 `git diff --check`、旧接口 grep 清查与 `python3.11 Tools/static_art_pipeline_check.py`；待用户在 Unity 2022.3.61f1 中确认 Console 不再出现 `TextureImporter.spritesheet` 过时警告。 |
-| **阻塞** | 无。待用户 `git pull` 后验证：AI 切片、素材导入管线、TA 校验、策划生产助手批量改名都应继续正常工作，且旧切片 API 警告消失。 |
-| **交接说明** | S117 延续文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入、状态动画与安全改名看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S118 修复当前 Unity 环境缺少 `UnityEditor.U2D.Sprites` 导致的编译错误，把业务脚本重新收束到 `SpriteMetaData` 兼容桥接层。 |
+| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成不可用新 API grep 清查；已移除业务脚本中的 `UnityEditor.U2D.Sprites`、`SpriteRect`、`ISpriteEditorDataProvider` 编译期引用。待用户在 Unity 中刷新确认 Console 编译通过。 |
+| **阻塞** | 无。待用户 `git pull` 后验证：AI 切片、素材导入管线、TA 校验、策划生产助手批量改名都应继续正常工作。 |
+| **交接说明** | S118 延续文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入、状态动画与安全改名看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
 
 
-### [S117] 最新知识沉淀
+### [S118] 最新知识沉淀
 
-1. **`TextureImporter.spritesheet` 警告已处理**：`AI_SpriteSlicer`、`AssetImportPipeline`、`TA_AssetValidator`、`PlannerProductionAssistant` 不再直接访问旧接口，统一走 `SpriteSheetDataProviderBridge`。
-2. **多 Sprite 改名必须保留 Sprite ID**：策划生产助手改切片名时使用 `SpriteRect` 原对象回写，保留原 `spriteID`，避免确认改名后破坏 Prefab 或场景里的 Sprite 引用。
-3. **后续新增切片读写只走桥接层**：新代码不要再碰 `TextureImporter.spritesheet`；读 `GetSpriteMetaData` / `GetSpriteRects`，写 `SetSpriteMetaData` / `SetSpriteRects`。
+1. **不要直接依赖 `UnityEditor.U2D.Sprites` 编译期命名空间**：当前项目 Unity 环境没有该命名空间，业务脚本一旦 `using UnityEditor.U2D.Sprites` 或声明 `SpriteRect` 就会全项目编译失败。
+2. **切片读写统一走兼容桥接层**：`AI_SpriteSlicer`、`AssetImportPipeline`、`TA_AssetValidator`、`PlannerProductionAssistant` 只调用 `SpriteSheetDataProviderBridge.GetSpriteMetaData` / `SetSpriteMetaData`，桥接层内部集中处理版本差异和弃用警告。
+3. **策划助手批量改名保持二段式安全流程**：先生成建议并弹窗确认，再按 `SpriteMetaData.name + rect` 匹配切片改名；不要恢复成直接改文件名或后台静默改名。
+
+### [S117] 知识沉淀
+
+1. **`TextureImporter.spritesheet` 警告需在桥接层集中处理**：业务脚本不得直接访问旧接口，统一走 `SpriteSheetDataProviderBridge`，避免警告和版本兼容逻辑散落到多个窗口。
+2. **多 Sprite 改名必须匹配切片矩形**：策划生产助手改切片名时按原 Sprite 名和 `rect` 双重匹配，避免同名帧或同图集多帧时改错对象。
+3. **后续新增切片读写只走桥接层**：新代码不要直接碰 `TextureImporter.spritesheet`，读写都用桥接层提供的 SpriteMetaData 方法。
 
 ### [S116] 知识沉淀
 

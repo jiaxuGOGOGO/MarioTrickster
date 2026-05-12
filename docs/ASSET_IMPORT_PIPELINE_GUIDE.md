@@ -31,6 +31,8 @@
 
 当素材里识别到两组或更多角色状态时，工具会自动使用 `SpriteStateAnimator`。缺失的状态会回退到已存在的第一组帧，所以临时素材也能先跑起来；如果只识别到单组状态或普通多帧素材，则走 `SpriteFrameAnimator` 循环动画，避免把单动作素材误判成完整角色控制动画。[1]
 
+> **入口澄清**：角色状态动画不是一个额外的 Unity 功能按钮或独立配置面板；它是 `Asset Import Pipeline` 与 `Apply Art To Selected` 内部的自动分支。把按 `idle/run/jump/fall` 命名的散帧或切片拖进去并应用后，系统会在目标 `Visual` 上自动挂 `SpriteStateAnimator`。
+
 > **命名建议**：同一套角色素材尽量使用 `角色名_状态_两位编号`，例如 `hero_idle_00`、`hero_idle_01`、`hero_run_00`、`hero_run_01`。不要把 `background`、`ground`、`foreground` 这类场景词混在角色帧文件名里，以免降低人工排查效率。[1]
 
 ---

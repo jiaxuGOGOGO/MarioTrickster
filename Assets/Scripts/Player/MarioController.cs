@@ -213,6 +213,8 @@ public class MarioController : MonoBehaviour
     public bool IsMoving      => Mathf.Abs(_frameVelocity.x) > 0.1f;
     public bool IsFacingRight => isFacingRight;
     public Vector2 Velocity   => _frameVelocity;
+    public float Speed        => Mathf.Abs(_frameVelocity.x);
+    public float VerticalSpeed => _frameVelocity.y;
 
     // S39: 暴露跳跃键按住状态，供 BouncyPlatform 在 comedyDelay 结束时查询
     // 用于按键驱动大跳（Super Bounce）：冻结期按住 Space → 1.4x 弹射力

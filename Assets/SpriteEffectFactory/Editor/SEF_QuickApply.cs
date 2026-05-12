@@ -160,6 +160,8 @@ public class SEF_QuickApply : EditorWindow
     // =========================================================================
     private Vector2 _scrollPos;
     private bool _autoSavePrefab = true;
+    private bool _clearBeforeApply = true;
+    private bool _respectVisualLock = true;
     private string _prefabFolder = "Assets/Art/Prefabs";
     private int _lastAppliedPreset = -1;
 
@@ -179,6 +181,8 @@ public class SEF_QuickApply : EditorWindow
 
         EditorGUILayout.Space(4);
         _autoSavePrefab = EditorGUILayout.Toggle("应用后自动保存 Prefab", _autoSavePrefab);
+        _clearBeforeApply = EditorGUILayout.Toggle("切换前清状态（防叠加）", _clearBeforeApply);
+        _respectVisualLock = EditorGUILayout.Toggle("尊重 Visual/SEF 锁定", _respectVisualLock);
         if (_autoSavePrefab)
         {
             _prefabFolder = EditorGUILayout.TextField("Prefab 目录", _prefabFolder);
@@ -196,10 +200,28 @@ public class SEF_QuickApply : EditorWindow
         else
         {
             EditorGUILayout.LabelField($"当前选中: {selected.name}");
+            var marker = selected.GetComponentInParent<ImportedAssetMarker>();
+            if (marker != null)
+            {
+                EditorGUI.BeginChangeCheck();
+                bool locked = EditorGUILayout.Toggle("锁定当前美术效果", marker.visualEffectLocked);
+                if (EditorGUI.EndChangeCheck())
+                {
+                    Undo.RecordObject(marker, "Toggle Visual Effect Lock");
+                    marker.visualEffectLocked = locked;
+                    EditorUtility.SetDirty(marker);
+                }
+            }
             var sr = selected.GetComponentInChildren<SpriteRenderer>();
             if (sr == null)
             {
                 EditorGUILayout.HelpBox("选中物体没有 SpriteRenderer（检查子物体 Visual）", MessageType.Warning);
+            }
+            else
+            {
+                var ctrl = sr.GetComponent<SpriteEffectController>();
+                string lockHint = marker != null && marker.visualEffectLocked ? "已锁定" : "未锁定";
+                EditorGUILayout.HelpBox($"Quick Apply 会作用于 Visual 节点: {sr.gameObject.name}（{lockHint}）。默认先清旧效果再套新效果，避免描边/溶解/HSV 叠加。", MessageType.None);
             }
         }
 
@@ -230,7 +252,12 @@ public class SEF_QuickApply : EditorWindow
 
         EditorGUILayout.Space(8);
 
-        // 手动保存蓝图按钮
+        // 一键还原与手动保存蓝图按钮
+        if (GUILayout.Button("一键还原当前物体为默认无效果", GUILayout.Height(30)))
+        {
+            RestoreSelectedToDefault();
+        }
+
         if (GUILayout.Button("手动保存当前物体为 Prefab 蓝图", GUILayout.Height(30)))
         {
             ManualSavePrefab();
@@ -267,6 +294,11 @@ public class SEF_QuickApply : EditorWindow
 
         GameObject visualGO = sr.gameObject;
 
+        if (!CanModifyVisualEffects(go, index == PRESETS.Length - 1))
+        {
+            return;
+        }
+
         // 确保有 SEF Material
         EnsureSEFMaterial(sr);
 
@@ -277,8 +309,13 @@ public class SEF_QuickApply : EditorWindow
             ctrl = Undo.AddComponent<SpriteEffectController>(visualGO);
         }
 
-        // 应用预设
+        // 应用预设：默认先清空旧效果和 MaterialPropertyBlock，避免切换预设时叠加残留
         Undo.RecordObject(ctrl, $"Apply SEF Preset: {PRESETS[index].name}");
+        Undo.RecordObject(sr, $"Apply SEF Preset Renderer State: {PRESETS[index].name}");
+        if (_clearBeforeApply || index == PRESETS.Length - 1)
+        {
+            ClearControllerAndRendererState(ctrl, sr);
+        }
         PRESETS[index].apply(ctrl);
 
         // [关键修复] 立即同步 keyword + MPB 到 Material，确保编辑器中实时可见
@@ -299,6 +336,77 @@ public class SEF_QuickApply : EditorWindow
             SavePrefabBlueprint(go);
         }
 
+        SceneView.RepaintAll();
+    }
+
+
+    private bool CanModifyVisualEffects(GameObject selected, bool isResetOperation)
+    {
+        if (!_respectVisualLock || selected == null) return true;
+
+        ImportedAssetMarker marker = selected.GetComponentInParent<ImportedAssetMarker>();
+        if (marker == null || !marker.visualEffectLocked) return true;
+
+        string operation = isResetOperation ? "还原默认效果" : "覆盖当前效果";
+        return EditorUtility.DisplayDialog(
+            "当前美术效果已锁定",
+            $"{marker.gameObject.name} 的 Visual/SEF 效果已锁定。是否仍然{operation}？",
+            "仍然执行",
+            "取消");
+    }
+
+    private void ClearControllerAndRendererState(SpriteEffectController ctrl, SpriteRenderer sr)
+    {
+        if (ctrl != null)
+        {
+            ctrl.ResetAllEffects();
+        }
+
+        if (sr != null)
+        {
+            MaterialPropertyBlock block = new MaterialPropertyBlock();
+            sr.GetPropertyBlock(block);
+            block.Clear();
+            sr.SetPropertyBlock(block);
+        }
+    }
+
+    private void RestoreSelectedToDefault()
+    {
+        GameObject go = Selection.activeGameObject;
+        if (go == null)
+        {
+            EditorUtility.DisplayDialog("提示", "请先在场景中选中一个物体", "好的");
+            return;
+        }
+
+        SpriteRenderer sr = go.GetComponentInChildren<SpriteRenderer>();
+        if (sr == null)
+        {
+            EditorUtility.DisplayDialog("提示", "选中物体及其子物体中没有 SpriteRenderer", "好的");
+            return;
+        }
+
+        if (!CanModifyVisualEffects(go, true)) return;
+
+        GameObject visualGO = sr.gameObject;
+        SpriteEffectController ctrl = visualGO.GetComponent<SpriteEffectController>();
+        if (ctrl == null)
+        {
+            ctrl = Undo.AddComponent<SpriteEffectController>(visualGO);
+        }
+
+        Undo.RecordObject(ctrl, "Restore SEF Default");
+        Undo.RecordObject(sr, "Restore Renderer Default");
+        ClearControllerAndRendererState(ctrl, sr);
+        ctrl.EditorSyncProperties();
+
+        EditorUtility.SetDirty(ctrl);
+        EditorUtility.SetDirty(sr);
+        if (sr.sharedMaterial != null) EditorUtility.SetDirty(sr.sharedMaterial);
+
+        _lastAppliedPreset = PRESETS.Length - 1;
+        Debug.Log($"[SEF Quick Apply] 已还原默认无效果: {go.name}");
         SceneView.RepaintAll();
     }
 

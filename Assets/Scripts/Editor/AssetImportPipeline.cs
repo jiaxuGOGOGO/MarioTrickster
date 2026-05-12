@@ -671,14 +671,11 @@ public class AssetImportPipeline : EditorWindow
         // SpriteRenderer on Visual
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
         sr.sprite = sprites[0]; // 默认使用第一帧
-        if (sprites.Length > 1)
-        {
-            var frameAnimator = visual.AddComponent<SpriteFrameAnimator>();
-            frameAnimator.frames = sprites;
-            frameAnimator.frameRate = 10f;
-            frameAnimator.playOnStart = true;
-            frameAnimator.loop = true;
-        }
+
+        // 商业素材统一分类：角色状态动画优先，普通多帧素材走循环播放器
+        ArtAssetClassifier.Classification classification = ArtAssetClassifier.Classify(root, sprites, (int)_physicsType);
+        ConfigureSpriteAnimation(visual, sr, sprites, classification);
+
         // 设置 SEF Shader Material
         if (_attachSEF)
         {
@@ -710,12 +707,68 @@ public class AssetImportPipeline : EditorWindow
         marker.frameCount = sprites.Length;
         marker.importTimestamp = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         marker.sourceAssetPath = AssetDatabase.GetAssetPath(sprites[0]);
+        ArtAssetClassifier.ApplyToMarker(marker, classification);
 
         // 选中新创建的物体
         Selection.activeGameObject = root;
         SceneView.FrameLastActiveSceneView();
 
         return root;
+    }
+
+
+    private void ConfigureSpriteAnimation(GameObject visual, SpriteRenderer sr, Sprite[] sprites, ArtAssetClassifier.Classification classification)
+    {
+        if (visual == null || sr == null) return;
+
+        if (classification != null && classification.IsStateDriven)
+        {
+            var stateAnimator = visual.GetComponent<SpriteStateAnimator>();
+            if (stateAnimator == null) stateAnimator = visual.AddComponent<SpriteStateAnimator>();
+
+            stateAnimator.idle.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Idle);
+            stateAnimator.run.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Run);
+            stateAnimator.jump.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Jump);
+            stateAnimator.fall.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Fall);
+            stateAnimator.idle.frameRate = 6f;
+            stateAnimator.run.frameRate = 12f;
+            stateAnimator.jump.frameRate = 10f;
+            stateAnimator.fall.frameRate = 10f;
+            stateAnimator.idle.loop = true;
+            stateAnimator.run.loop = true;
+            stateAnimator.jump.loop = false;
+            stateAnimator.fall.loop = false;
+            stateAnimator.playOnStart = true;
+            return;
+        }
+
+        if (sprites != null && sprites.Length > 1)
+        {
+            var frameAnimator = visual.GetComponent<SpriteFrameAnimator>();
+            if (frameAnimator == null) frameAnimator = visual.AddComponent<SpriteFrameAnimator>();
+            frameAnimator.frames = sprites;
+            frameAnimator.frameRate = 10f;
+            frameAnimator.playOnStart = true;
+            frameAnimator.loop = true;
+        }
+    }
+
+    private Sprite[] GetStateFramesOrFallback(ArtAssetClassifier.Classification classification, SpriteStateAnimator.MotionState state)
+    {
+        if (classification != null && classification.stateFrames != null &&
+            classification.stateFrames.TryGetValue(state, out Sprite[] frames) && frames != null && frames.Length > 0)
+        {
+            return frames;
+        }
+
+        if (classification != null && classification.stateFrames != null)
+        {
+            foreach (var pair in classification.stateFrames)
+            {
+                if (pair.Value != null && pair.Value.Length > 0) return pair.Value;
+            }
+        }
+        return new Sprite[0];
     }
 
     private void SetupPhysics(GameObject root, SpriteRenderer sr)

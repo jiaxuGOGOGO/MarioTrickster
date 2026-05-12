@@ -27,4 +27,28 @@ public class ImportedAssetMarker : MonoBehaviour
 
     [Tooltip("源文件路径（相对于 Assets）")]
     public string sourceAssetPath;
+
+    [Header("商业素材统一分类（向后兼容，可为空）")]
+    [Tooltip("素材角色分类：Character / Enemy / Prop / Collectible / Hazard / Platform / Background / SceneAnimation / VFX / UI / Unknown")]
+    public string assetRole = "Unknown";
+
+    [Tooltip("动画接入模式：None / Loop / StateDriven / OneShot")]
+    public string animationMode = "None";
+
+    [Tooltip("运行行为：PlayerStateDriven / PhysicsProp / PickupConsume / HazardContact / BackgroundLayer / AmbientLoop / VFX / KeepExisting")]
+    public string runtimeBehavior = "KeepExisting";
+
+    [Tooltip("已识别出的动画状态，逗号分隔，例如 idle,run,jump,fall")]
+    public string animationStates = "";
+
+    [Tooltip("锁定当前 Visual/SEF 效果，Quick Apply 默认不覆盖")]
+    public bool visualEffectLocked;
+
+    [Range(0f, 1f)]
+    [Tooltip("自动分类置信度，1 表示命名/路径强匹配")]
+    public float classificationConfidence;
+
+    [TextArea(2, 6)]
+    [Tooltip("自动分类说明，方便后续维护与排错")]
+    public string classificationNotes = "";
 }

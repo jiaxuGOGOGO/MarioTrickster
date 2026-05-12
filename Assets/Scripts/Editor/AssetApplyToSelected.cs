@@ -242,10 +242,11 @@ public class AssetApplyToSelected : EditorWindow
             sr = Undo.AddComponent<SpriteRenderer>(visual.gameObject);
         }
 
-        // Step 4: 替换 Sprite，并在多帧素材时自动挂帧动画
+        // Step 4: 统一分类，并按素材语义配置循环动画或状态动画
+        ArtAssetClassifier.Classification classification = ArtAssetClassifier.Classify(target, spritesToApply, GetPhysicsTypeHint(target));
         Undo.RecordObject(sr, "Replace Sprite");
         sr.sprite = spritesToApply[0];
-        ConfigureSpriteFrameAnimator(sr, spritesToApply);
+        ConfigureSpriteAnimation(sr, spritesToApply, classification);
 
         // Step 5: 配置 SEF Material + Controller
         if (_attachSEF)
@@ -259,10 +260,10 @@ public class AssetApplyToSelected : EditorWindow
         }
 
         // Step 6: 应用行为模板
-        ApplyBehaviorTemplate(target, sr);
+        ApplyBehaviorTemplate(target, sr, classification);
 
         // Step 7: 更新 ImportedAssetMarker
-        UpdateMarker(target, spritesToApply);
+        UpdateMarker(target, spritesToApply, classification);
 
         // Step 8: 自动保存 Prefab
         if (_autoSavePrefab)
@@ -275,23 +276,28 @@ public class AssetApplyToSelected : EditorWindow
         EditorUtility.SetDirty(sr);
         SceneView.RepaintAll();
 
+        string animationHint = classification != null ? $"，素材分类: {classification.role}/{classification.animationMode}" : "";
         _lastResult = spritesToApply.Length > 1
-            ? $"已将 [{_artSprite.name}] 等 {spritesToApply.Length} 帧应用到 [{target.name}]，已自动挂动画，行为模板: {_behaviorTemplate}"
-            : $"已将 [{_artSprite.name}] 应用到 [{target.name}]，行为模板: {_behaviorTemplate}";
+            ? $"已将 [{_artSprite.name}] 等 {spritesToApply.Length} 帧应用到 [{target.name}]，已自动配置动画，行为模板: {_behaviorTemplate}{animationHint}"
+            : $"已将 [{_artSprite.name}] 应用到 [{target.name}]，行为模板: {_behaviorTemplate}{animationHint}";
         Debug.Log($"[AssetApplyToSelected] {_lastResult}");
     }
 
     // =========================================================================
     // 行为模板应用
     // =========================================================================
-    private void ApplyBehaviorTemplate(GameObject target, SpriteRenderer sr)
+    private void ApplyBehaviorTemplate(GameObject target, SpriteRenderer sr, ArtAssetClassifier.Classification classification)
     {
         BehaviorTemplate template = _behaviorTemplate;
 
-        // AutoDetect: 根据已有组件推断
+        // AutoDetect: 先尊重已有组件；没有明确行为时，再按商业素材分类自动落到道具/陷阱等用途。
         if (template == BehaviorTemplate.AutoDetect)
         {
             template = DetectBehaviorFromExisting(target);
+            if (template == BehaviorTemplate.KeepExisting)
+            {
+                template = ResolveBehaviorTemplateFromClassification(classification);
+            }
         }
 
         switch (template)
@@ -319,6 +325,21 @@ public class AssetApplyToSelected : EditorWindow
 
         // 确保碰撞体尺寸匹配新贴图
         AutoFitCollider(target, sr);
+    }
+
+    private BehaviorTemplate ResolveBehaviorTemplateFromClassification(ArtAssetClassifier.Classification classification)
+    {
+        if (classification == null) return BehaviorTemplate.KeepExisting;
+
+        switch (classification.runtimeBehavior)
+        {
+            case ArtAssetClassifier.RuntimeBehavior.HazardContact:
+                return BehaviorTemplate.Hazard_Contact;
+            case ArtAssetClassifier.RuntimeBehavior.PickupConsume:
+                return BehaviorTemplate.Prop_Collectible;
+            default:
+                return BehaviorTemplate.KeepExisting;
+        }
     }
 
     private BehaviorTemplate DetectBehaviorFromExisting(GameObject target)
@@ -587,9 +608,80 @@ public class AssetApplyToSelected : EditorWindow
         return single != null ? new Sprite[] { single } : new Sprite[0];
     }
 
+    private void ConfigureSpriteAnimation(SpriteRenderer sr, Sprite[] sprites, ArtAssetClassifier.Classification classification)
+    {
+        if (sr == null) return;
+
+        if (classification != null && classification.IsStateDriven)
+        {
+            ConfigureSpriteStateAnimator(sr, classification);
+            return;
+        }
+
+        ConfigureSpriteFrameAnimator(sr, sprites);
+    }
+
+    private void ConfigureSpriteStateAnimator(SpriteRenderer sr, ArtAssetClassifier.Classification classification)
+    {
+        if (sr == null || classification == null) return;
+
+        var loopAnimator = sr.gameObject.GetComponent<SpriteFrameAnimator>();
+        if (loopAnimator != null)
+        {
+            Undo.DestroyObjectImmediate(loopAnimator);
+        }
+
+        var stateAnimator = sr.gameObject.GetComponent<SpriteStateAnimator>();
+        if (stateAnimator == null)
+        {
+            stateAnimator = Undo.AddComponent<SpriteStateAnimator>(sr.gameObject);
+        }
+
+        Undo.RecordObject(stateAnimator, "Configure Sprite State Animator");
+        stateAnimator.idle.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Idle);
+        stateAnimator.run.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Run);
+        stateAnimator.jump.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Jump);
+        stateAnimator.fall.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Fall);
+        stateAnimator.idle.frameRate = 6f;
+        stateAnimator.run.frameRate = 12f;
+        stateAnimator.jump.frameRate = 10f;
+        stateAnimator.fall.frameRate = 10f;
+        stateAnimator.idle.loop = true;
+        stateAnimator.run.loop = true;
+        stateAnimator.jump.loop = false;
+        stateAnimator.fall.loop = false;
+        stateAnimator.playOnStart = true;
+        EditorUtility.SetDirty(stateAnimator);
+    }
+
+    private Sprite[] GetStateFramesOrFallback(ArtAssetClassifier.Classification classification, SpriteStateAnimator.MotionState state)
+    {
+        if (classification != null && classification.stateFrames != null &&
+            classification.stateFrames.TryGetValue(state, out Sprite[] frames) && frames != null && frames.Length > 0)
+        {
+            return frames;
+        }
+
+        if (classification != null && classification.stateFrames != null)
+        {
+            foreach (var pair in classification.stateFrames)
+            {
+                if (pair.Value != null && pair.Value.Length > 0) return pair.Value;
+            }
+        }
+        return new Sprite[0];
+    }
+
     private void ConfigureSpriteFrameAnimator(SpriteRenderer sr, Sprite[] sprites)
     {
         if (sr == null) return;
+
+        var stateAnimator = sr.gameObject.GetComponent<SpriteStateAnimator>();
+        if (stateAnimator != null)
+        {
+            Undo.DestroyObjectImmediate(stateAnimator);
+        }
+
         var animator = sr.gameObject.GetComponent<SpriteFrameAnimator>();
 
         if (sprites == null || sprites.Length <= 1)
@@ -613,7 +705,13 @@ public class AssetApplyToSelected : EditorWindow
         EditorUtility.SetDirty(animator);
     }
 
-    private void UpdateMarker(GameObject target, Sprite[] sprites)
+    private int GetPhysicsTypeHint(GameObject target)
+    {
+        var marker = target != null ? target.GetComponent<ImportedAssetMarker>() : null;
+        return marker != null ? marker.physicsType : -1;
+    }
+
+    private void UpdateMarker(GameObject target, Sprite[] sprites, ArtAssetClassifier.Classification classification)
     {
         if (sprites == null) sprites = new Sprite[0];
         var marker = target.GetComponent<ImportedAssetMarker>();
@@ -626,6 +724,7 @@ public class AssetApplyToSelected : EditorWindow
         marker.frameCount = sprites.Length;
         marker.importTimestamp = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         marker.sourceAssetPath = sprites.Length > 0 ? AssetDatabase.GetAssetPath(sprites[0]) : "";
+        ArtAssetClassifier.ApplyToMarker(marker, classification);
     }
 
     private void SavePrefab(GameObject go)

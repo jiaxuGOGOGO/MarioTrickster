@@ -809,3 +809,40 @@ S104 本地烟测证明工程护栏已生效（代理接管、动作振幅放大
   1. Blender 日志是否出现 `padding=2.50`
   2. `final_no_alpha.png` 是否摆脱大面积透明废边
   3. 帽子/长锤是否仍被吞，角色是否恢复正常浅色而不再黑化
+
+## [2026-05-13] [S106] 角色素材应用悬空 + 文件夹状态条未切片修复
+### 问题背景
+用户在 Apply Art 里把 `Run(32x32).png`、`Idle(32x32).png`、`Jump(32x32).png` 等角色状态素材应用到 Mario / Trickster 时发现两类问题：第一，角色 Sprite 可见脚底与碰撞体地面不一致，表现为换皮后角色悬空；第二，把多张横向状态条放入同一文件夹批量应用时，部分贴图没有先切片，而是整张 Sprite Sheet 直接作为角色帧显示。
+
+### 根因分析
+| 问题 | 根因 | 影响范围 |
+|------|------|---------|
+| 可见角色悬空 | BottomCenter Pivot 只贴到整张 Sprite Rect 底边，未扣除商业素材常见的透明底部留白 | 角色、敌人、后续 Pivot 修正与 AI 切片入口 |
+| 文件夹状态条整图上身 | Apply Art 文件夹输入在取 Sprite 前没有强制逐张执行自动切片，导致 `Idle(32x32)` / `Run(32x32)` 横向条仍以 Single Sprite 参与分类 | 文件夹批量应用、角色状态动画 |
+| 类似问题复发 | 切片、Apply Art、主导入管线、Pivot Repair Tool 分散写入 Pivot，历史上没有共享“可见脚底”规则 | 所有素材导入入口 |
+
+### 修复方案
+1. **可见脚底 Pivot**：角色/敌人等底部对齐素材在写入 Pivot 时扫描每帧不透明像素边界，将 Pivot 的 Y 坐标落到可见脚底而不是透明画布底边；无透明留白时保持原 BottomCenter 行为。
+2. **文件夹批量切片前置**：Apply Art 检测到文件夹输入时，会先对文件夹内所有 Texture2D 执行规范化与自动切片，再解析 Sprite，因此 `Run(32x32).png` 这类横向状态条会切成 12 帧，`Idle(32x32).png` 会切成 11 帧，`Jump(32x32).png` 会作为 1 帧状态参与分组。
+3. **自动网格识别增强**：Auto Detect 识别文件名中的 `(32x32)`、规则 32px 横向条、规则网格与透明外边界，降低手动设置切片参数的概率。
+4. **多入口一致性**：Apply Art、Asset Import Pipeline、AI Sprite Slicer、Pivot Repair Tool 均补齐同一套可见脚底 Pivot 逻辑，避免后续工具覆盖修复结果。
+
+### 修改文件
+| 文件 | 变更内容 |
+|------|---------|
+| `Assets/Scripts/Editor/AssetApplyToSelected.cs` | 文件夹输入先规范化/切片；Sprite 解析前强制刷新切片；Pivot 写入改为可见脚底；Auto Detect 增强 filename-size / 32px 横向条 / 网格推断 |
+| `Assets/Scripts/Editor/AssetImportPipeline.cs` | 主导入管线切片与 Single Sprite Pivot 同步使用可见脚底规则；自动网格识别补强 |
+| `Assets/Scripts/Editor/AI_SpriteSlicer.cs` | AI 横向切片入口写入可见脚底 Pivot，避免 AI 切片后角色仍悬空 |
+| `Assets/Scripts/Editor/PivotRepairTool.cs` | 批量修正工具支持可见脚底 Pivot，并加入贴图可读兜底 |
+| `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` | 记录文件夹状态条自动切片与角色可见脚底 Pivot 新规则 |
+
+### 本地验证
+1. `git diff --check` 通过。
+2. `/tmp/check_mario_patch.py` 静态检查通过：四个编辑器脚本括号配平，关键修复方法均存在。
+3. 对用户样例素材做尺寸验证：`Run(32x32).png = 384x32 → 12 帧`，`Idle(32x32).png = 352x32 → 11 帧`，`Jump(32x32).png = 32x32 → 1 帧`，符合新自动切片规则。
+
+### 待用户烟测确认
+- 拉取最新 `master` 后，在 Unity 中打开 Apply Art，直接选择包含 `Idle/Run/Jump` 三张状态条的文件夹应用到 Mario 或 Trickster，确认：
+  1. 角色脚底贴地，不再悬空；
+  2. Inspector 中 `SpriteStateAnimator` 的 Run / Idle 状态帧数正确；
+  3. 没有整张横向 Sprite Sheet 被当作单帧显示。

@@ -54,7 +54,7 @@
 
 大型商业合集图通常需要先拆成独立素材。透明背景、明显网格或间距清晰的图，可以先用纯像素裁切；构图复杂、多个物件贴得很近时，再用 AI 智能裁切。[1]
 
-Apply Art 内置的 **Sprite Sheet 切片**适合“给当前选中白盒对象直接换皮”的轻量场景。默认 **Auto Detect** 会处理文件名含帧尺寸、32px 网格和横向等宽动画条；**AI Backend** 会复用 AI Smart Slicer 的 API Key、Base URL 与模型配置，上传当前贴图预览给视觉模型判断 rows / columns / cell size / 裁切区域；**Manual Grid** 适合直接指定行列数，**Manual Cell Size** 适合商业素材说明中已给出单帧尺寸的情况。无论哪种模式，点击应用后都会写入 Unity Sprite 切片并继续走同一套动画与分类链路。
+Apply Art 内置的 **Sprite Sheet 切片**适合“给当前选中白盒对象直接换皮”的轻量场景。默认 **Auto Detect** 会处理文件名含帧尺寸、32px 网格和横向等宽动画条；当用户把 `Idle(32x32).png`、`Run(32x32).png`、`Jump(32x32).png` 这类横向状态条放进同一个文件夹再应用到角色时，工具会先逐张完成切片，再按 `idle/run/jump/fall` 语义分组挂载状态动画，不会再把整张 Sheet 当作单帧贴到角色上。**AI Backend** 会复用 AI Smart Slicer 的 API Key、Base URL 与模型配置，上传当前贴图预览给视觉模型判断 rows / columns / cell size / 裁切区域；**Manual Grid** 适合直接指定行列数，**Manual Cell Size** 适合商业素材说明中已给出单帧尺寸的情况。无论哪种模式，点击应用后都会写入 Unity Sprite 切片并继续走同一套动画与分类链路。
 
 ```bash
 # 网格切割
@@ -90,7 +90,7 @@ python Tools/ai_smart_slicer.py commercial_pack.png
 | Bottom Left | (0, 0) | 左下角对齐的 UI 元素 |
 | Custom | 用户自定义 | 任意特殊需求 |
 
-> **Auto 模式智能推断**：当素材应用到没有 `ImportedAssetMarker` 的对象时（如原始 Mario 白盒），系统会检查目标对象是否有 `MarioController`、`TricksterController` 等角色组件，自动使用 BottomCenter。这解决了之前角色换皮后脚底悬空的问题。
+> **Auto 模式智能推断**：当素材应用到没有 `ImportedAssetMarker` 的对象时（如原始 Mario 白盒），系统会检查目标对象是否有 `MarioController`、`TricksterController` 等角色组件，自动使用 BottomCenter。角色、敌人这类底部对齐素材现在会进一步扫描每帧不透明像素边界，把 Pivot 放在“可见脚底”而不是透明画布底边；因此即使原图下方有透明留白，也不会再出现换皮后脚底悬空的问题。
 
 > **事后修正**：如果导入后发现 Pivot 不对，可以使用 `MarioTrickster → Art Pipeline → Pivot 修正工具` 单独修正，支持单个物体、单张贴图或批量文件夹。所有操作支持 Ctrl+Z 撤销。
 
@@ -110,7 +110,7 @@ python Tools/ai_smart_slicer.py commercial_pack.png
 | `Tools/sprite_sheet_slicer.py` | 纯像素裁切工具。 |
 | `Tools/ai_smart_slicer.py` | AI 语义裁切工具。 |
 | `Assets/Scripts/Editor/PivotPresetUtility.cs` | 统一 Pivot 预设枚举、自动推断、GUI 绘制和转换工具。 |
-| `Assets/Scripts/Editor/PivotRepairTool.cs` | 事后修正 Pivot 的独立编辑器窗口。 |
+| `Assets/Scripts/Editor/PivotRepairTool.cs` | 事后修正 Pivot 的独立编辑器窗口；角色/敌人素材同样使用可见脚底 Pivot，避免批量修复覆盖前述防护。 |
 
 ---
 

@@ -639,14 +639,19 @@ public class AssetApplyToSelected : EditorWindow
 
         Undo.RegisterCompleteObjectUndo(target, "Apply Art to Selected");
 
-        // Step 1: 规范化贴图
+        // Step 1: 规范化贴图 / 文件夹批量贴图，并在真正应用前完成切片
+        if (_artFolder != null)
+        {
+            PrepareFolderTexturesForApply(_artFolder, GetPhysicsTypeHint(target), target);
+        }
+
         if (_artTexture != null)
         {
             if (_normalizeSettings)
             {
                 NormalizeTexture(_artTexture);
             }
-            AutoSliceTextureSheetIfNeeded(_artTexture, GetPhysicsTypeHint(target));
+            AutoSliceTextureSheetIfNeeded(_artTexture, GetPhysicsTypeHint(target), target);
         }
 
         // Step 1.5: 强制更新 Pivot（无论切片是否被跳过）
@@ -1053,6 +1058,8 @@ public class AssetApplyToSelected : EditorWindow
         { ti.filterMode = FilterMode.Point; dirty = true; }
         if (ti.textureCompression != TextureImporterCompression.Uncompressed)
         { ti.textureCompression = TextureImporterCompression.Uncompressed; dirty = true; }
+        if (!ti.isReadable)
+        { ti.isReadable = true; dirty = true; }
 
         if (dirty)
         {
@@ -1094,7 +1101,7 @@ public class AssetApplyToSelected : EditorWindow
         return $"已识别单帧 Sprite: {sprite.name}";
     }
 
-    private void AutoSliceTextureSheetIfNeeded(Texture2D texture, int physicsTypeHint)
+    private void AutoSliceTextureSheetIfNeeded(Texture2D texture, int physicsTypeHint, GameObject target = null)
     {
         if (texture == null) return;
 
@@ -1117,8 +1124,9 @@ public class AssetApplyToSelected : EditorWindow
         ti.textureCompression = TextureImporterCompression.Uncompressed;
 
         List<SpriteMetaData> metaList = new List<SpriteMetaData>();
-        Vector2 pivot = GetPivotForPhysicsHint(physicsTypeHint);
-        int alignment = GetAlignmentForPhysicsHint(physicsTypeHint);
+        var resolvedPreset = GetResolvedPivotPreset(physicsTypeHint, target);
+        Vector2 pivot = PivotPresetUtility.PivotToVector2(resolvedPreset, _customPivot);
+        int alignment = PivotPresetUtility.PivotToAlignment(resolvedPreset);
 
         for (int r = 0; r < plan.rows; r++)
         {
@@ -1127,8 +1135,9 @@ public class AssetApplyToSelected : EditorWindow
                 SpriteMetaData smd = new SpriteMetaData();
                 smd.name = plan.rows == 1 ? $"{texture.name}_F{c}" : $"{texture.name}_R{r}_F{c}";
                 smd.rect = new Rect(plan.x + c * plan.frameW, texture.height - plan.yFromTop - (r + 1) * plan.frameH, plan.frameW, plan.frameH);
-                smd.pivot = pivot;
-                smd.alignment = alignment;
+                Vector2 framePivot = ComputeVisibleAwarePivot(texture, smd.rect, resolvedPreset, pivot);
+                smd.pivot = framePivot;
+                smd.alignment = ArePivotsEqual(framePivot, pivot) ? alignment : (int)SpriteAlignment.Custom;
                 metaList.Add(smd);
             }
         }
@@ -1491,19 +1500,33 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
 
     // [AI防坑警告] Pivot 解析必须经过 PivotPresetUtility.ResolvePreset，不能硬编码二分法。
     // 用户手动选择优先；Auto 模式会检查 MarioController 等角色组件，避免无 marker 时默认 Center 导致角色悬空。
+    private PivotPresetUtility.PivotPreset GetResolvedPivotPreset(int physicsTypeHint, GameObject target = null)
+    {
+        GameObject context = target != null
+            ? ResolveApplyTarget(target)
+            : (Selection.activeGameObject != null ? ResolveApplyTarget(Selection.activeGameObject) : null);
+        return PivotPresetUtility.ResolvePreset(_pivotPreset, physicsTypeHint, context);
+    }
+
     private Vector2 GetPivotForPhysicsHint(int physicsTypeHint)
     {
-        var resolved = PivotPresetUtility.ResolvePreset(
-            _pivotPreset, physicsTypeHint,
-            Selection.activeGameObject != null ? ResolveApplyTarget(Selection.activeGameObject) : null);
+        return GetPivotForPhysicsHint(physicsTypeHint, null);
+    }
+
+    private Vector2 GetPivotForPhysicsHint(int physicsTypeHint, GameObject target)
+    {
+        var resolved = GetResolvedPivotPreset(physicsTypeHint, target);
         return PivotPresetUtility.PivotToVector2(resolved, _customPivot);
     }
 
     private int GetAlignmentForPhysicsHint(int physicsTypeHint)
     {
-        var resolved = PivotPresetUtility.ResolvePreset(
-            _pivotPreset, physicsTypeHint,
-            Selection.activeGameObject != null ? ResolveApplyTarget(Selection.activeGameObject) : null);
+        return GetAlignmentForPhysicsHint(physicsTypeHint, null);
+    }
+
+    private int GetAlignmentForPhysicsHint(int physicsTypeHint, GameObject target)
+    {
+        var resolved = GetResolvedPivotPreset(physicsTypeHint, target);
         return PivotPresetUtility.PivotToAlignment(resolved);
     }
 
@@ -1560,7 +1583,7 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
         int updatedCount = 0;
         foreach (string path in texturePaths)
         {
-            if (ApplyPivotToSingleTexture(path, newPivot, newAlignment, resolvedPreset))
+            if (ApplyPivotToSingleTexture(path, newPivot, newAlignment, resolvedPreset, target))
                 updatedCount++;
         }
 
@@ -1575,25 +1598,28 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
     /// <summary>
     /// 对单张贴图应用 Pivot 设置。返回是否有修改。
     /// </summary>
-    private bool ApplyPivotToSingleTexture(string path, Vector2 newPivot, int newAlignment, PivotPresetUtility.PivotPreset resolvedPreset)
+    private bool ApplyPivotToSingleTexture(string path, Vector2 newPivot, int newAlignment, PivotPresetUtility.PivotPreset resolvedPreset, GameObject target)
     {
         TextureImporter ti = AssetImporter.GetAtPath(path) as TextureImporter;
         if (ti == null) return false;
 
+        Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         bool dirty = false;
 
         if (ti.spriteImportMode == SpriteImportMode.Multiple)
         {
-            // 多帧模式：更新每一帧的 pivot 和 alignment
+            // 多帧模式：更新每一帧的 pivot 和 alignment。角色底部 Pivot 会自动贴到可见像素脚底，消除透明边距导致的悬空。
             SpriteMetaData[] metas = SpriteSheetDataProviderBridge.GetSpriteMetaData(ti);
             if (metas != null && metas.Length > 0)
             {
                 for (int i = 0; i < metas.Length; i++)
                 {
-                    if (metas[i].alignment != newAlignment || metas[i].pivot != newPivot)
+                    Vector2 framePivot = ComputeVisibleAwarePivot(texture, metas[i].rect, resolvedPreset, newPivot);
+                    int frameAlignment = ArePivotsEqual(framePivot, newPivot) ? newAlignment : (int)SpriteAlignment.Custom;
+                    if (metas[i].alignment != frameAlignment || !ArePivotsEqual(metas[i].pivot, framePivot))
                     {
-                        metas[i].alignment = newAlignment;
-                        metas[i].pivot = newPivot;
+                        metas[i].alignment = frameAlignment;
+                        metas[i].pivot = framePivot;
                         dirty = true;
                     }
                 }
@@ -1601,7 +1627,7 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
                 {
                     SpriteSheetDataProviderBridge.SetSpriteMetaData(ti, metas);
                     Debug.Log($"[AssetApplyToSelected] 多帧 Pivot 已写入: {path}, {metas.Length} 帧, " +
-                              $"alignment={newAlignment}, pivot=({newPivot.x:F2},{newPivot.y:F2})");
+                              $"baseAlignment={newAlignment}, basePivot=({newPivot.x:F2},{newPivot.y:F2})");
                 }
             }
             else
@@ -1614,14 +1640,17 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
             // 单帧模式：通过 TextureImporterSettings 修改 pivot
             TextureImporterSettings settings = new TextureImporterSettings();
             ti.ReadTextureSettings(settings);
-            if (settings.spriteAlignment != newAlignment || settings.spritePivot != newPivot)
+            Rect fullRect = texture != null ? new Rect(0, 0, texture.width, texture.height) : new Rect(0, 0, 0, 0);
+            Vector2 framePivot = ComputeVisibleAwarePivot(texture, fullRect, resolvedPreset, newPivot);
+            int frameAlignment = ArePivotsEqual(framePivot, newPivot) ? newAlignment : (int)SpriteAlignment.Custom;
+            if (settings.spriteAlignment != frameAlignment || !ArePivotsEqual(settings.spritePivot, framePivot))
             {
-                settings.spriteAlignment = newAlignment;
-                settings.spritePivot = newPivot;
+                settings.spriteAlignment = frameAlignment;
+                settings.spritePivot = framePivot;
                 ti.SetTextureSettings(settings);
                 dirty = true;
                 Debug.Log($"[AssetApplyToSelected] 单帧 Pivot 已写入: {path}, " +
-                          $"alignment={newAlignment}, pivot=({newPivot.x:F2},{newPivot.y:F2})");
+                          $"alignment={frameAlignment}, pivot=({framePivot.x:F2},{framePivot.y:F2})");
             }
         }
 
@@ -1632,6 +1661,109 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
         }
 
         return dirty;
+    }
+
+    private void PrepareFolderTexturesForApply(DefaultAsset folder, int physicsTypeHint, GameObject target)
+    {
+        foreach (string path in GetTexturePathsFromFolder(folder))
+        {
+            Texture2D tex = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            if (tex == null) continue;
+            if (_normalizeSettings)
+            {
+                NormalizeTexture(tex);
+            }
+            AutoSliceTextureSheetIfNeeded(tex, physicsTypeHint, target);
+        }
+        AssetDatabase.Refresh();
+    }
+
+    private List<string> GetTexturePathsFromFolder(DefaultAsset folder)
+    {
+        List<string> paths = new List<string>();
+        if (folder == null) return paths;
+        string folderPath = AssetDatabase.GetAssetPath(folder);
+        if (string.IsNullOrEmpty(folderPath) || !AssetDatabase.IsValidFolder(folderPath)) return paths;
+
+        string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folderPath });
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (!string.IsNullOrEmpty(path) && !paths.Contains(path)) paths.Add(path);
+        }
+
+        return paths.OrderBy(path => path, System.StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    private bool ShouldUseVisibleFootPivot(PivotPresetUtility.PivotPreset resolvedPreset)
+    {
+        return resolvedPreset == PivotPresetUtility.PivotPreset.BottomLeft ||
+               resolvedPreset == PivotPresetUtility.PivotPreset.BottomCenter ||
+               resolvedPreset == PivotPresetUtility.PivotPreset.BottomRight;
+    }
+
+    private Vector2 ComputeVisibleAwarePivot(Texture2D texture, Rect rect, PivotPresetUtility.PivotPreset resolvedPreset, Vector2 basePivot)
+    {
+        if (!ShouldUseVisibleFootPivot(resolvedPreset)) return basePivot;
+        if (texture == null || rect.width <= 0f || rect.height <= 0f) return basePivot;
+        if (!TryFindOpaqueBounds(texture, rect, out RectInt opaqueBounds)) return basePivot;
+
+        int rectY = Mathf.Clamp(Mathf.RoundToInt(rect.y), 0, Mathf.Max(0, texture.height - 1));
+        float localBottom = Mathf.Clamp(opaqueBounds.yMin - rectY, 0f, Mathf.Max(1f, rect.height - 1f));
+        Vector2 adjusted = basePivot;
+        adjusted.y = Mathf.Clamp01(localBottom / Mathf.Max(1f, rect.height));
+        return adjusted;
+    }
+
+    private bool TryFindOpaqueBounds(Texture2D texture, Rect rect, out RectInt bounds)
+    {
+        bounds = new RectInt();
+        if (texture == null) return false;
+
+        Color32[] pixels;
+        try
+        {
+            pixels = texture.GetPixels32();
+        }
+        catch (UnityException)
+        {
+            return false;
+        }
+
+        int xMin = Mathf.Clamp(Mathf.FloorToInt(rect.xMin), 0, texture.width);
+        int xMax = Mathf.Clamp(Mathf.CeilToInt(rect.xMax), 0, texture.width);
+        int yMin = Mathf.Clamp(Mathf.FloorToInt(rect.yMin), 0, texture.height);
+        int yMax = Mathf.Clamp(Mathf.CeilToInt(rect.yMax), 0, texture.height);
+        if (xMax <= xMin || yMax <= yMin) return false;
+
+        int minX = xMax;
+        int maxX = xMin;
+        int minY = yMax;
+        int maxY = yMin;
+        bool found = false;
+
+        for (int y = yMin; y < yMax; y++)
+        {
+            int row = y * texture.width;
+            for (int x = xMin; x < xMax; x++)
+            {
+                if (pixels[row + x].a <= 8) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+                found = true;
+            }
+        }
+
+        if (!found) return false;
+        bounds = new RectInt(minX, minY, Mathf.Max(1, maxX - minX + 1), Mathf.Max(1, maxY - minY + 1));
+        return true;
+    }
+
+    private bool ArePivotsEqual(Vector2 a, Vector2 b)
+    {
+        return Mathf.Abs(a.x - b.x) < 0.0001f && Mathf.Abs(a.y - b.y) < 0.0001f;
     }
 
     private Sprite[] ResolveSpritesForApply()

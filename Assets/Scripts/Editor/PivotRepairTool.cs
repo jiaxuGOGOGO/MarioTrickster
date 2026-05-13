@@ -206,19 +206,19 @@ public class PivotRepairTool : EditorWindow
         switch (_mode)
         {
             case RepairMode.SelectedSceneObject:
-                RepairSceneObject(targetPivot, targetAlignment);
+                RepairSceneObject(targetPivot, targetAlignment, effectivePreset);
                 break;
             case RepairMode.ProjectTexture:
                 if (_targetTexture != null)
-                    RepairTexture(AssetDatabase.GetAssetPath(_targetTexture), targetPivot, targetAlignment);
+                    RepairTexture(AssetDatabase.GetAssetPath(_targetTexture), targetPivot, targetAlignment, effectivePreset);
                 break;
             case RepairMode.BatchFolder:
-                RepairFolder(targetPivot, targetAlignment);
+                RepairFolder(targetPivot, targetAlignment, effectivePreset);
                 break;
         }
     }
 
-    private void RepairSceneObject(Vector2 targetPivot, int targetAlignment)
+    private void RepairSceneObject(Vector2 targetPivot, int targetAlignment, PivotPresetUtility.PivotPreset effectivePreset)
     {
         GameObject selected = Selection.activeGameObject;
         if (selected == null) return;
@@ -227,10 +227,10 @@ public class PivotRepairTool : EditorWindow
         if (sr == null || sr.sprite == null) return;
 
         string texPath = AssetDatabase.GetAssetPath(sr.sprite.texture);
-        RepairTexture(texPath, targetPivot, targetAlignment);
+        RepairTexture(texPath, targetPivot, targetAlignment, effectivePreset);
     }
 
-    private void RepairTexture(string texPath, Vector2 targetPivot, int targetAlignment)
+    private void RepairTexture(string texPath, Vector2 targetPivot, int targetAlignment, PivotPresetUtility.PivotPreset effectivePreset)
     {
         TextureImporter ti = AssetImporter.GetAtPath(texPath) as TextureImporter;
         if (ti == null)
@@ -239,18 +239,21 @@ public class PivotRepairTool : EditorWindow
             return;
         }
 
+        EnsureReadableForVisiblePivot(texPath, ref ti, effectivePreset);
         int fixedCount = 0;
+        Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath);
 
         if (ti.spriteImportMode == SpriteImportMode.Multiple)
         {
             SpriteMetaData[] metaData = SpriteSheetDataProviderBridge.GetSpriteMetaData(ti);
             for (int i = 0; i < metaData.Length; i++)
             {
-                if (!Mathf.Approximately(metaData[i].pivot.x, targetPivot.x) ||
-                    !Mathf.Approximately(metaData[i].pivot.y, targetPivot.y))
+                Vector2 framePivot = ComputeVisibleAwarePivot(texture, metaData[i].rect, effectivePreset, targetPivot);
+                int frameAlignment = ArePivotsEqual(framePivot, targetPivot) ? targetAlignment : (int)SpriteAlignment.Custom;
+                if (!ArePivotsEqual(metaData[i].pivot, framePivot) || metaData[i].alignment != frameAlignment)
                 {
-                    metaData[i].pivot = targetPivot;
-                    metaData[i].alignment = targetAlignment;
+                    metaData[i].pivot = framePivot;
+                    metaData[i].alignment = frameAlignment;
                     fixedCount++;
                 }
             }
@@ -263,11 +266,13 @@ public class PivotRepairTool : EditorWindow
         {
             TextureImporterSettings sts = new TextureImporterSettings();
             ti.ReadTextureSettings(sts);
-            if (!Mathf.Approximately(sts.spritePivot.x, targetPivot.x) ||
-                !Mathf.Approximately(sts.spritePivot.y, targetPivot.y))
+            Rect fullRect = texture != null ? new Rect(0, 0, texture.width, texture.height) : new Rect(0, 0, 0, 0);
+            Vector2 framePivot = ComputeVisibleAwarePivot(texture, fullRect, effectivePreset, targetPivot);
+            int frameAlignment = ArePivotsEqual(framePivot, targetPivot) ? targetAlignment : (int)SpriteAlignment.Custom;
+            if (!ArePivotsEqual(sts.spritePivot, framePivot) || sts.spriteAlignment != frameAlignment)
             {
-                sts.spriteAlignment = targetAlignment;
-                sts.spritePivot = targetPivot;
+                sts.spriteAlignment = frameAlignment;
+                sts.spritePivot = framePivot;
                 ti.SetTextureSettings(sts);
                 fixedCount = 1;
             }
@@ -290,7 +295,7 @@ public class PivotRepairTool : EditorWindow
         }
     }
 
-    private void RepairFolder(Vector2 targetPivot, int targetAlignment)
+    private void RepairFolder(Vector2 targetPivot, int targetAlignment, PivotPresetUtility.PivotPreset effectivePreset)
     {
         if (_targetFolder == null) return;
 
@@ -304,18 +309,21 @@ public class PivotRepairTool : EditorWindow
             TextureImporter ti = AssetImporter.GetAtPath(path) as TextureImporter;
             if (ti == null) continue;
 
+            EnsureReadableForVisiblePivot(path, ref ti, effectivePreset);
             bool needsFix = false;
+            Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
 
             if (ti.spriteImportMode == SpriteImportMode.Multiple)
             {
                 SpriteMetaData[] metaData = SpriteSheetDataProviderBridge.GetSpriteMetaData(ti);
                 for (int i = 0; i < metaData.Length; i++)
                 {
-                    if (!Mathf.Approximately(metaData[i].pivot.x, targetPivot.x) ||
-                        !Mathf.Approximately(metaData[i].pivot.y, targetPivot.y))
+                    Vector2 framePivot = ComputeVisibleAwarePivot(texture, metaData[i].rect, effectivePreset, targetPivot);
+                    int frameAlignment = ArePivotsEqual(framePivot, targetPivot) ? targetAlignment : (int)SpriteAlignment.Custom;
+                    if (!ArePivotsEqual(metaData[i].pivot, framePivot) || metaData[i].alignment != frameAlignment)
                     {
-                        metaData[i].pivot = targetPivot;
-                        metaData[i].alignment = targetAlignment;
+                        metaData[i].pivot = framePivot;
+                        metaData[i].alignment = frameAlignment;
                         needsFix = true;
                     }
                 }
@@ -326,11 +334,13 @@ public class PivotRepairTool : EditorWindow
             {
                 TextureImporterSettings sts = new TextureImporterSettings();
                 ti.ReadTextureSettings(sts);
-                if (!Mathf.Approximately(sts.spritePivot.x, targetPivot.x) ||
-                    !Mathf.Approximately(sts.spritePivot.y, targetPivot.y))
+                Rect fullRect = texture != null ? new Rect(0, 0, texture.width, texture.height) : new Rect(0, 0, 0, 0);
+                Vector2 framePivot = ComputeVisibleAwarePivot(texture, fullRect, effectivePreset, targetPivot);
+                int frameAlignment = ArePivotsEqual(framePivot, targetPivot) ? targetAlignment : (int)SpriteAlignment.Custom;
+                if (!ArePivotsEqual(sts.spritePivot, framePivot) || sts.spriteAlignment != frameAlignment)
                 {
-                    sts.spriteAlignment = targetAlignment;
-                    sts.spritePivot = targetPivot;
+                    sts.spriteAlignment = frameAlignment;
+                    sts.spritePivot = framePivot;
                     ti.SetTextureSettings(sts);
                     needsFix = true;
                 }
@@ -349,6 +359,88 @@ public class PivotRepairTool : EditorWindow
             PivotPresetUtility.Vector2ToPivot(targetPivot));
         _lastResult = $"批量修正完成: {folderPath} 下 {totalFixed}/{guids.Length} 张贴图 → Pivot={presetName}";
         Debug.Log($"[PivotRepairTool] {_lastResult}");
+    }
+
+    private void EnsureReadableForVisiblePivot(string path, ref TextureImporter importer, PivotPresetUtility.PivotPreset resolvedPreset)
+    {
+        if (!ShouldUseVisibleFootPivot(resolvedPreset)) return;
+        if (importer == null || importer.isReadable) return;
+
+        importer.isReadable = true;
+        EditorUtility.SetDirty(importer);
+        importer.SaveAndReimport();
+        importer = AssetImporter.GetAtPath(path) as TextureImporter;
+    }
+
+    private bool ShouldUseVisibleFootPivot(PivotPresetUtility.PivotPreset resolvedPreset)
+    {
+        return resolvedPreset == PivotPresetUtility.PivotPreset.BottomLeft ||
+               resolvedPreset == PivotPresetUtility.PivotPreset.BottomCenter ||
+               resolvedPreset == PivotPresetUtility.PivotPreset.BottomRight;
+    }
+
+    private Vector2 ComputeVisibleAwarePivot(Texture2D texture, Rect rect, PivotPresetUtility.PivotPreset resolvedPreset, Vector2 basePivot)
+    {
+        if (!ShouldUseVisibleFootPivot(resolvedPreset)) return basePivot;
+        if (texture == null || rect.width <= 0f || rect.height <= 0f) return basePivot;
+        if (!TryFindOpaqueBounds(texture, rect, out RectInt opaqueBounds)) return basePivot;
+
+        int rectY = Mathf.Clamp(Mathf.RoundToInt(rect.y), 0, Mathf.Max(0, texture.height - 1));
+        float localBottom = Mathf.Clamp(opaqueBounds.yMin - rectY, 0f, Mathf.Max(1f, rect.height - 1f));
+        Vector2 adjusted = basePivot;
+        adjusted.y = Mathf.Clamp01(localBottom / Mathf.Max(1f, rect.height));
+        return adjusted;
+    }
+
+    private bool TryFindOpaqueBounds(Texture2D texture, Rect rect, out RectInt bounds)
+    {
+        bounds = new RectInt();
+        if (texture == null) return false;
+
+        Color32[] pixels;
+        try
+        {
+            pixels = texture.GetPixels32();
+        }
+        catch (UnityException)
+        {
+            return false;
+        }
+
+        int xMin = Mathf.Clamp(Mathf.FloorToInt(rect.xMin), 0, texture.width);
+        int xMax = Mathf.Clamp(Mathf.CeilToInt(rect.xMax), 0, texture.width);
+        int yMin = Mathf.Clamp(Mathf.FloorToInt(rect.yMin), 0, texture.height);
+        int yMax = Mathf.Clamp(Mathf.CeilToInt(rect.yMax), 0, texture.height);
+        if (xMax <= xMin || yMax <= yMin) return false;
+
+        int minX = xMax;
+        int maxX = xMin;
+        int minY = yMax;
+        int maxY = yMin;
+        bool found = false;
+
+        for (int y = yMin; y < yMax; y++)
+        {
+            int row = y * texture.width;
+            for (int x = xMin; x < xMax; x++)
+            {
+                if (pixels[row + x].a <= 8) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+                found = true;
+            }
+        }
+
+        if (!found) return false;
+        bounds = new RectInt(minX, minY, Mathf.Max(1, maxX - minX + 1), Mathf.Max(1, maxY - minY + 1));
+        return true;
+    }
+
+    private bool ArePivotsEqual(Vector2 a, Vector2 b)
+    {
+        return Mathf.Abs(a.x - b.x) < 0.0001f && Mathf.Abs(a.y - b.y) < 0.0001f;
     }
 
     private void OnSelectionChange()

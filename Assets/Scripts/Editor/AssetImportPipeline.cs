@@ -4,6 +4,7 @@ using UnityEditor;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 /// <summary>
 /// Asset Import Pipeline — 一站式素材导入工具
@@ -347,7 +348,7 @@ public class AssetImportPipeline : EditorWindow
         }
 
         if (!copyExternalToImportFolder) return;
-        foreach (string file in Directory.GetFiles(folderPath, "*.*", SearchOption.TopDirectoryOnly))
+        foreach (string file in Directory.GetFiles(folderPath, "*.*", SearchOption.AllDirectories))
         {
             AddTextureFromPath(file, copyExternalToImportFolder: true);
         }
@@ -565,8 +566,12 @@ public class AssetImportPipeline : EditorWindow
             // 设置 Pivot
             TextureImporterSettings sts = new TextureImporterSettings();
             ti.ReadTextureSettings(sts);
-            sts.spriteAlignment = GetAlignmentForType(_physicsType);
-            sts.spritePivot = GetPivotForType(_physicsType);
+            Vector2 basePivot = GetPivotForType(_physicsType);
+            int baseAlignment = GetAlignmentForType(_physicsType);
+            Rect fullRect = new Rect(0, 0, tex.width, tex.height);
+            Vector2 visiblePivot = ComputeVisibleAwarePivot(tex, fullRect, ResolvePivotPresetForType(_physicsType), basePivot);
+            sts.spriteAlignment = ArePivotsEqual(visiblePivot, basePivot) ? baseAlignment : (int)SpriteAlignment.Custom;
+            sts.spritePivot = visiblePivot;
             ti.SetTextureSettings(sts);
 
             EditorUtility.SetDirty(ti);
@@ -584,8 +589,9 @@ public class AssetImportPipeline : EditorWindow
         int frameH = tex.height / rows;
         List<SpriteMetaData> metaList = new List<SpriteMetaData>();
 
-        Vector2 pivot = GetPivotForType(_physicsType);
-        int alignment = GetAlignmentForType(_physicsType);
+        var resolvedPreset = ResolvePivotPresetForType(_physicsType);
+        Vector2 pivot = PivotPresetUtility.PivotToVector2(resolvedPreset, _customPivot);
+        int alignment = PivotPresetUtility.PivotToAlignment(resolvedPreset);
 
         for (int r = 0; r < rows; r++)
         {
@@ -595,8 +601,9 @@ public class AssetImportPipeline : EditorWindow
                 smd.name = $"{tex.name}_R{r}_F{c}";
                 // Unity 的 Rect 原点在左下角，Sprite Sheet 通常从左上角开始
                 smd.rect = new Rect(c * frameW, (rows - 1 - r) * frameH, frameW, frameH);
-                smd.pivot = pivot;
-                smd.alignment = alignment;
+                Vector2 framePivot = ComputeVisibleAwarePivot(tex, smd.rect, resolvedPreset, pivot);
+                smd.pivot = framePivot;
+                smd.alignment = ArePivotsEqual(framePivot, pivot) ? alignment : (int)SpriteAlignment.Custom;
                 metaList.Add(smd);
             }
         }
@@ -628,38 +635,153 @@ public class AssetImportPipeline : EditorWindow
                 break;
             case SliceMode.Auto:
             default:
-                // 自动检测：基于宽高比推测
+                if (TryDetectSpriteSheetGrid(tex, out cols, out rows)) return;
+
+                // 自动检测：保留旧版宽高比兜底，但优先使用文件名/32px/方格推断，避免角色横条被当成整图单帧。
                 float ratio = (float)tex.width / tex.height;
                 if (ratio >= 3f)
                 {
-                    // 很宽的图，可能是横向 Sprite Sheet
                     cols = Mathf.RoundToInt(ratio);
-                    // 确保能整除
                     while (cols > 1 && tex.width % cols != 0) cols--;
                     rows = 1;
                 }
                 else if (ratio <= 0.33f)
                 {
-                    // 很高的图，可能是纵向 Sprite Sheet
                     cols = 1;
                     rows = Mathf.RoundToInt(1f / ratio);
                     while (rows > 1 && tex.height % rows != 0) rows--;
                 }
                 else if (ratio > 1.5f)
                 {
-                    // 中等宽图
                     cols = Mathf.Max(1, Mathf.RoundToInt(ratio * 2) / 2);
                     while (cols > 1 && tex.width % cols != 0) cols--;
                     rows = 1;
                 }
                 else
                 {
-                    // 接近正方形或稍宽/稍高 → 当作单帧
                     cols = 1;
                     rows = 1;
                 }
                 break;
         }
+    }
+
+    private bool TryDetectSpriteSheetGrid(Texture2D tex, out int cols, out int rows)
+    {
+        cols = 1;
+        rows = 1;
+        if (tex == null || tex.width <= 0 || tex.height <= 0) return false;
+
+        Match sizeMatch = Regex.Match(tex.name, @"(?<w>\d{1,4})\s*x\s*(?<h>\d{1,4})", RegexOptions.IgnoreCase);
+        if (sizeMatch.Success &&
+            int.TryParse(sizeMatch.Groups["w"].Value, out int namedFrameW) &&
+            int.TryParse(sizeMatch.Groups["h"].Value, out int namedFrameH) &&
+            namedFrameW > 0 && namedFrameH > 0 &&
+            tex.width % namedFrameW == 0 && tex.height % namedFrameH == 0)
+        {
+            cols = tex.width / namedFrameW;
+            rows = tex.height / namedFrameH;
+            return cols * rows > 1;
+        }
+
+        if (tex.height == 32 && tex.width % 32 == 0 && tex.width / 32 > 1)
+        {
+            cols = tex.width / 32;
+            rows = 1;
+            return true;
+        }
+
+        if (tex.width > tex.height && tex.width % tex.height == 0 && tex.width / tex.height > 1)
+        {
+            cols = tex.width / tex.height;
+            rows = 1;
+            return true;
+        }
+
+        if (tex.width % 32 == 0 && tex.height % 32 == 0 && (tex.width / 32) * (tex.height / 32) > 1)
+        {
+            cols = tex.width / 32;
+            rows = tex.height / 32;
+            return true;
+        }
+
+        return false;
+    }
+
+    private PivotPresetUtility.PivotPreset ResolvePivotPresetForType(AssetPhysicsType type)
+    {
+        return PivotPresetUtility.ResolvePreset(_pivotPreset, (int)type, null);
+    }
+
+    private bool ShouldUseVisibleFootPivot(PivotPresetUtility.PivotPreset resolvedPreset)
+    {
+        return resolvedPreset == PivotPresetUtility.PivotPreset.BottomLeft ||
+               resolvedPreset == PivotPresetUtility.PivotPreset.BottomCenter ||
+               resolvedPreset == PivotPresetUtility.PivotPreset.BottomRight;
+    }
+
+    private Vector2 ComputeVisibleAwarePivot(Texture2D texture, Rect rect, PivotPresetUtility.PivotPreset resolvedPreset, Vector2 basePivot)
+    {
+        if (!ShouldUseVisibleFootPivot(resolvedPreset)) return basePivot;
+        if (texture == null || rect.width <= 0f || rect.height <= 0f) return basePivot;
+        if (!TryFindOpaqueBounds(texture, rect, out RectInt opaqueBounds)) return basePivot;
+
+        int rectY = Mathf.Clamp(Mathf.RoundToInt(rect.y), 0, Mathf.Max(0, texture.height - 1));
+        float localBottom = Mathf.Clamp(opaqueBounds.yMin - rectY, 0f, Mathf.Max(1f, rect.height - 1f));
+        Vector2 adjusted = basePivot;
+        adjusted.y = Mathf.Clamp01(localBottom / Mathf.Max(1f, rect.height));
+        return adjusted;
+    }
+
+    private bool TryFindOpaqueBounds(Texture2D texture, Rect rect, out RectInt bounds)
+    {
+        bounds = new RectInt();
+        if (texture == null) return false;
+
+        Color32[] pixels;
+        try
+        {
+            pixels = texture.GetPixels32();
+        }
+        catch (UnityException)
+        {
+            return false;
+        }
+
+        int xMin = Mathf.Clamp(Mathf.FloorToInt(rect.xMin), 0, texture.width);
+        int xMax = Mathf.Clamp(Mathf.CeilToInt(rect.xMax), 0, texture.width);
+        int yMin = Mathf.Clamp(Mathf.FloorToInt(rect.yMin), 0, texture.height);
+        int yMax = Mathf.Clamp(Mathf.CeilToInt(rect.yMax), 0, texture.height);
+        if (xMax <= xMin || yMax <= yMin) return false;
+
+        int minX = xMax;
+        int maxX = xMin;
+        int minY = yMax;
+        int maxY = yMin;
+        bool found = false;
+
+        for (int y = yMin; y < yMax; y++)
+        {
+            int row = y * texture.width;
+            for (int x = xMin; x < xMax; x++)
+            {
+                if (pixels[row + x].a <= 8) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+                found = true;
+            }
+        }
+
+        if (!found) return false;
+        bounds = new RectInt(minX, minY, Mathf.Max(1, maxX - minX + 1), Mathf.Max(1, maxY - minY + 1));
+        return true;
+    }
+
+    private bool ArePivotsEqual(Vector2 a, Vector2 b)
+    {
+        return Mathf.Abs(a.x - b.x) < 0.0001f && Mathf.Abs(a.y - b.y) < 0.0001f;
     }
 
     // =========================================================================

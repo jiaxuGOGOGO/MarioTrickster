@@ -425,7 +425,11 @@ public class PlannerProductionAssistant : EditorWindow
         sb.AppendLine("1. 保持 Root/Visual 视碰分离，行为组件写在 Root，Sprite/动画/SEF 写在 Visual。");
         sb.AppendLine("2. 优先复用 LevelElementBase / ControllablePropBase / ImportedAssetMarker / ArtAssetClassifier / SpriteFrameAnimator / SpriteStateAnimator。 ");
         if (includeAsciiHook) sb.AppendLine("3. 如属于关卡元素，请补 ASCII 字符映射、Element Palette 入口、Theme Profile 槽位与教程说明。");
-        if (includeArtHook) sb.AppendLine("4. 如需要美术，请支持商业素材通过 Asset Import Pipeline 或 Apply Art to Selected 接入，并保留白盒可用回退。");
+        if (includeArtHook)
+        {
+            sb.AppendLine("4. 如需要美术，请支持商业素材通过 Asset Import Pipeline 或 Apply Art to Selected 接入，并保留白盒可用回退。");
+            sb.AppendLine("   - 扩展动画：如果素材包含扩展状态（如 swim/wallslide 等），请在代码中使用 `SetStateByTag(\"状态名\")` 和 `ReleaseStateOverride()` 关联动画。");
+        }
         if (includeTests) sb.AppendLine("5. 补 EditMode/PlayMode 安全网，确保旧关卡元素和现有 135 测试不退化。");
         sb.AppendLine("6. 完成后更新 SESSION_TRACKER，并用一句大白话汇报如何使用。");
 

@@ -82,4 +82,7 @@ Token：[按需填写，如需推代码则填]
 
 我本次的大白话需求是：
 【在这里写你想做什么】
+
+（可选补充：如果涉及新机制与动画关联，请附加以下提示词）
+【我已经用 Apply Art 导入了带有 [swim/wallslide/roll等] 关键词的素材，SpriteStateAnimator 里已经有这个状态帧组了。现在请帮我写一段新机制代码（比如碰到水体触发游泳），并在代码里用 `SetStateByTag("状态名")` 和 `ReleaseStateOverride()` 把它和动画关联起来。】
 ```

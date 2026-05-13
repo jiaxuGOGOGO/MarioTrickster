@@ -4,6 +4,7 @@ using UnityEditor;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 /// <summary>
 /// AssetApplyToSelected — 将商业素材应用到场景中已有物体上
@@ -48,6 +49,14 @@ public class AssetApplyToSelected : EditorWindow
         AutoDetect = 5        // 根据已有组件自动判断
     }
 
+    private enum ArtInputKind
+    {
+        None = 0,
+        Folder = 1,
+        Texture = 2,
+        Sprite = 3
+    }
+
     // =========================================================================
     // 状态
     // =========================================================================
@@ -55,6 +64,7 @@ public class AssetApplyToSelected : EditorWindow
     private Texture2D _artTexture;
     private Sprite _artSprite;
     private Sprite[] _artSprites = new Sprite[0];
+    private ArtInputKind _activeArtInput = ArtInputKind.None;
     private BehaviorTemplate _behaviorTemplate = BehaviorTemplate.AutoDetect;
     private bool _attachSEF = true;
     private bool _autoSavePrefab = true;
@@ -105,19 +115,14 @@ public class AssetApplyToSelected : EditorWindow
         EditorGUILayout.Space(8);
         EditorGUILayout.LabelField("美术素材", EditorStyles.boldLabel);
 
-        _artFolder = (DefaultAsset)EditorGUILayout.ObjectField(
-            "角色状态帧文件夹", _artFolder, typeof(DefaultAsset), false);
-        _artTexture = (Texture2D)EditorGUILayout.ObjectField(
-            "贴图 (Texture2D)", _artTexture, typeof(Texture2D), false);
-        _artSprite = (Sprite)EditorGUILayout.ObjectField(
-            "或直接拖 Sprite", _artSprite, typeof(Sprite), false);
+        DrawArtInputFields();
+        ReconcileArtSelection();
 
         if (_artFolder != null)
         {
             _artSprites = LoadSpritesFromFolder(_artFolder);
             if (_artSprites.Length > 0)
             {
-                _artSprite = _artSprites[0];
                 var preview = ArtAssetClassifier.Classify(selected != null ? ResolveApplyTarget(selected) : null, _artSprites, -1);
                 string modeHint = preview.IsStateDriven ? "应用后自动挂 SpriteStateAnimator。" : "应用后按分类结果保持现有行为或挂循环/一次性动画。";
                 EditorGUILayout.HelpBox($"已识别文件夹散帧：{_artSprites.Length} 帧；角色={preview.role}；模式={preview.animationMode}；状态={preview.StateSummary}；{modeHint}", MessageType.None);
@@ -132,13 +137,12 @@ public class AssetApplyToSelected : EditorWindow
             _artSprites = LoadSpritesFromTexture(_artTexture);
             if (_artSprites.Length > 0)
             {
-                _artSprite = _artSprites[0];
                 var preview = ArtAssetClassifier.Classify(selected != null ? ResolveApplyTarget(selected) : null, _artSprites, -1);
                 string frameHint = preview != null && preview.IsStateDriven
                     ? $"已识别角色状态 Sprite Sheet：{_artSprites.Length} 帧；状态={preview.StateSummary}；应用后左右移动会由 SpriteStateAnimator 驱动。"
                     : (_artSprites.Length > 1
                         ? $"已识别 Sprite Sheet：{_artSprites.Length} 帧；角色={preview.role}；模式={preview.animationMode}；状态={preview.StateSummary}；应用后会按分类结果挂循环/一次性动画或保留现有行为。"
-                        : $"已识别单帧 Sprite: {_artSprite.name}");
+                        : GetTextureSingleFrameHint(_artTexture, _artSprites[0]));
                 EditorGUILayout.HelpBox(frameHint, MessageType.None);
             }
         }
@@ -253,6 +257,139 @@ public class AssetApplyToSelected : EditorWindow
         EditorGUI.indentLevel--;
     }
 
+    private void DrawArtInputFields()
+    {
+        EditorGUILayout.BeginHorizontal();
+        EditorGUI.BeginChangeCheck();
+        DefaultAsset newFolder = (DefaultAsset)EditorGUILayout.ObjectField(
+            "角色状态帧文件夹", _artFolder, typeof(DefaultAsset), false);
+        if (EditorGUI.EndChangeCheck())
+        {
+            SetArtFolder(newFolder);
+        }
+        using (new EditorGUI.DisabledScope(_artFolder == null))
+        {
+            if (GUILayout.Button("清空", GUILayout.Width(52)))
+            {
+                SetArtFolder(null);
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUI.BeginChangeCheck();
+        Texture2D newTexture = (Texture2D)EditorGUILayout.ObjectField(
+            "贴图 (Texture2D)", _artTexture, typeof(Texture2D), false);
+        if (EditorGUI.EndChangeCheck())
+        {
+            SetArtTexture(newTexture);
+        }
+        using (new EditorGUI.DisabledScope(_artTexture == null))
+        {
+            if (GUILayout.Button("清空", GUILayout.Width(52)))
+            {
+                SetArtTexture(null);
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUI.BeginChangeCheck();
+        Sprite newSprite = (Sprite)EditorGUILayout.ObjectField(
+            "或直接拖 Sprite", _artSprite, typeof(Sprite), false);
+        if (EditorGUI.EndChangeCheck())
+        {
+            SetArtSprite(newSprite);
+        }
+        using (new EditorGUI.DisabledScope(_artSprite == null))
+        {
+            if (GUILayout.Button("清空", GUILayout.Width(52)))
+            {
+                SetArtSprite(null);
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+    }
+
+    private void SetArtFolder(DefaultAsset folder)
+    {
+        _artFolder = folder;
+        if (folder != null)
+        {
+            _activeArtInput = ArtInputKind.Folder;
+            _artTexture = null;
+            _artSprite = null;
+        }
+        else if (_activeArtInput == ArtInputKind.Folder)
+        {
+            _activeArtInput = ArtInputKind.None;
+        }
+        _artSprites = new Sprite[0];
+    }
+
+    private void SetArtTexture(Texture2D texture)
+    {
+        _artTexture = texture;
+        if (texture != null)
+        {
+            _activeArtInput = ArtInputKind.Texture;
+            _artFolder = null;
+            _artSprite = null;
+        }
+        else if (_activeArtInput == ArtInputKind.Texture)
+        {
+            _activeArtInput = ArtInputKind.None;
+        }
+        _artSprites = new Sprite[0];
+    }
+
+    private void SetArtSprite(Sprite sprite)
+    {
+        _artSprite = sprite;
+        if (sprite != null)
+        {
+            _activeArtInput = ArtInputKind.Sprite;
+            _artFolder = null;
+            _artTexture = null;
+        }
+        else if (_activeArtInput == ArtInputKind.Sprite)
+        {
+            _activeArtInput = ArtInputKind.None;
+        }
+        _artSprites = new Sprite[0];
+    }
+
+    private void ReconcileArtSelection()
+    {
+        if (_activeArtInput == ArtInputKind.Folder && _artFolder == null) _activeArtInput = ArtInputKind.None;
+        if (_activeArtInput == ArtInputKind.Texture && _artTexture == null) _activeArtInput = ArtInputKind.None;
+        if (_activeArtInput == ArtInputKind.Sprite && _artSprite == null) _activeArtInput = ArtInputKind.None;
+
+        // 兼容窗口热重载或历史状态中多个槽同时残留的情况：文件夹优先，其次 Texture2D，最后 Sprite。
+        if (_activeArtInput == ArtInputKind.None)
+        {
+            if (_artFolder != null) _activeArtInput = ArtInputKind.Folder;
+            else if (_artTexture != null) _activeArtInput = ArtInputKind.Texture;
+            else if (_artSprite != null) _activeArtInput = ArtInputKind.Sprite;
+        }
+
+        switch (_activeArtInput)
+        {
+            case ArtInputKind.Folder:
+                _artTexture = null;
+                _artSprite = null;
+                break;
+            case ArtInputKind.Texture:
+                _artFolder = null;
+                _artSprite = null;
+                break;
+            case ArtInputKind.Sprite:
+                _artFolder = null;
+                _artTexture = null;
+                break;
+        }
+    }
+
     // =========================================================================
     // 核心逻辑：应用素材到选中物体
     // =========================================================================
@@ -264,9 +401,13 @@ public class AssetApplyToSelected : EditorWindow
         Undo.RegisterCompleteObjectUndo(target, "Apply Art to Selected");
 
         // Step 1: 规范化贴图
-        if (_normalizeSettings && _artTexture != null)
+        if (_artTexture != null)
         {
-            NormalizeTexture(_artTexture);
+            if (_normalizeSettings)
+            {
+                NormalizeTexture(_artTexture);
+            }
+            AutoSliceTextureSheetIfNeeded(_artTexture, GetPhysicsTypeHint(target));
         }
 
         // Step 2: 确保 Sprite / Sprite Sheet 帧可用
@@ -276,7 +417,7 @@ public class AssetApplyToSelected : EditorWindow
             EditorUtility.DisplayDialog("错误", "无法获取有效的 Sprite", "好的");
             return;
         }
-        _artSprite = spritesToApply[0];
+        Sprite primarySprite = spritesToApply[0];
 
         // Step 3: 找到或创建 SpriteRenderer
         SpriteRenderer sr = target.GetComponentInChildren<SpriteRenderer>();
@@ -332,8 +473,8 @@ public class AssetApplyToSelected : EditorWindow
 
         string animationHint = classification != null ? $"，素材分类: {classification.role}/{classification.animationMode}" : "";
         _lastResult = spritesToApply.Length > 1
-            ? $"已将 [{_artSprite.name}] 等 {spritesToApply.Length} 帧应用到 [{target.name}]，已自动配置动画，行为模板: {_behaviorTemplate}{animationHint}"
-            : $"已将 [{_artSprite.name}] 应用到 [{target.name}]，行为模板: {_behaviorTemplate}{animationHint}";
+            ? $"已将 [{primarySprite.name}] 等 {spritesToApply.Length} 帧应用到 [{target.name}]，已自动配置动画，行为模板: {_behaviorTemplate}{animationHint}"
+            : $"已将 [{primarySprite.name}] 应用到 [{target.name}]，行为模板: {_behaviorTemplate}{animationHint}";
         Debug.Log($"[AssetApplyToSelected] {_lastResult}");
     }
 
@@ -611,6 +752,123 @@ public class AssetApplyToSelected : EditorWindow
         AssetDatabase.SaveAssets();
 
         sr.sharedMaterial = mat;
+    }
+
+    private string GetTextureSingleFrameHint(Texture2D texture, Sprite sprite)
+    {
+        if (TryDetectSpriteSheetGrid(texture, out int cols, out int rows, out int frameW, out int frameH))
+        {
+            return $"检测到未切片 Texture2D Sprite Sheet：预计 {cols * rows} 帧（{cols}x{rows}，单帧 {frameW}x{frameH}）。点击应用时会自动按网格切片，不会按单帧 Sprite 处理。";
+        }
+        return $"已识别单帧 Sprite: {sprite.name}";
+    }
+
+    private void AutoSliceTextureSheetIfNeeded(Texture2D texture, int physicsTypeHint)
+    {
+        if (texture == null) return;
+
+        string path = AssetDatabase.GetAssetPath(texture);
+        if (string.IsNullOrEmpty(path)) return;
+
+        Sprite[] existingSprites = LoadSpritesAtPath(path);
+        if (existingSprites.Length > 1) return;
+
+        if (!TryDetectSpriteSheetGrid(texture, out int cols, out int rows, out int frameW, out int frameH)) return;
+
+        TextureImporter ti = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (ti == null) return;
+
+        ti.textureType = TextureImporterType.Sprite;
+        ti.spriteImportMode = SpriteImportMode.Multiple;
+        ti.spritePixelsPerUnit = 32;
+        ti.alphaIsTransparency = true;
+        ti.filterMode = FilterMode.Point;
+        ti.textureCompression = TextureImporterCompression.Uncompressed;
+
+        List<SpriteMetaData> metaList = new List<SpriteMetaData>();
+        Vector2 pivot = GetPivotForPhysicsHint(physicsTypeHint);
+        int alignment = GetAlignmentForPhysicsHint(physicsTypeHint);
+
+        for (int r = 0; r < rows; r++)
+        {
+            for (int c = 0; c < cols; c++)
+            {
+                SpriteMetaData smd = new SpriteMetaData();
+                smd.name = rows == 1 ? $"{texture.name}_F{c}" : $"{texture.name}_R{r}_F{c}";
+                smd.rect = new Rect(c * frameW, (rows - 1 - r) * frameH, frameW, frameH);
+                smd.pivot = pivot;
+                smd.alignment = alignment;
+                metaList.Add(smd);
+            }
+        }
+
+        SpriteSheetDataProviderBridge.SetSpriteMetaData(ti, metaList);
+        EditorUtility.SetDirty(ti);
+        ti.SaveAndReimport();
+        AssetDatabase.Refresh();
+        Debug.Log($"[AssetApplyToSelected] 自动切片 Texture2D Sprite Sheet: {path} → {cols * rows} 帧 ({cols}x{rows}, {frameW}x{frameH})");
+    }
+
+    private bool TryDetectSpriteSheetGrid(Texture2D texture, out int cols, out int rows, out int frameW, out int frameH)
+    {
+        cols = 1;
+        rows = 1;
+        frameW = texture != null ? texture.width : 0;
+        frameH = texture != null ? texture.height : 0;
+        if (texture == null || texture.width <= 0 || texture.height <= 0) return false;
+
+        Match sizeMatch = Regex.Match(texture.name, @"(?<w>\d{1,4})\s*x\s*(?<h>\d{1,4})", RegexOptions.IgnoreCase);
+        if (sizeMatch.Success &&
+            int.TryParse(sizeMatch.Groups["w"].Value, out int namedFrameW) &&
+            int.TryParse(sizeMatch.Groups["h"].Value, out int namedFrameH) &&
+            namedFrameW > 0 && namedFrameH > 0 &&
+            texture.width % namedFrameW == 0 && texture.height % namedFrameH == 0)
+        {
+            cols = texture.width / namedFrameW;
+            rows = texture.height / namedFrameH;
+            frameW = namedFrameW;
+            frameH = namedFrameH;
+            return cols * rows > 1;
+        }
+
+        if (texture.height == 32 && texture.width % 32 == 0 && texture.width / 32 > 1)
+        {
+            cols = texture.width / 32;
+            rows = 1;
+            frameW = 32;
+            frameH = 32;
+            return true;
+        }
+
+        if (texture.width > texture.height && texture.width % texture.height == 0 && texture.width / texture.height > 1)
+        {
+            cols = texture.width / texture.height;
+            rows = 1;
+            frameW = texture.height;
+            frameH = texture.height;
+            return true;
+        }
+
+        if (texture.width % 32 == 0 && texture.height % 32 == 0)
+        {
+            cols = texture.width / 32;
+            rows = texture.height / 32;
+            frameW = 32;
+            frameH = 32;
+            return cols * rows > 1;
+        }
+
+        return false;
+    }
+
+    private Vector2 GetPivotForPhysicsHint(int physicsTypeHint)
+    {
+        return physicsTypeHint == 0 ? new Vector2(0.5f, 0f) : new Vector2(0.5f, 0.5f);
+    }
+
+    private int GetAlignmentForPhysicsHint(int physicsTypeHint)
+    {
+        return physicsTypeHint == 0 ? (int)SpriteAlignment.BottomCenter : (int)SpriteAlignment.Center;
     }
 
     private Sprite[] ResolveSpritesForApply()

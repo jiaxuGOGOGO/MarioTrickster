@@ -162,6 +162,7 @@ public static class RedLineGuard
         totalIssues += CheckCharacterColliders(autoRepair);
         totalIssues += CheckRootScales(autoRepair);
         totalIssues += CheckSizeSyncOnCharacters(autoRepair);
+        totalIssues += CheckCharacterVisualOffset(autoRepair);
 
         return totalIssues;
     }
@@ -303,6 +304,68 @@ public static class RedLineGuard
         // 这里不直接检查 Size Sync 的开关状态，而是通过检查 1 和 2 间接保护。
         // 如果角色碰撞体被 Size Sync 改了，检查 1 会捕获并修复。
         return 0;
+    }
+
+    // =========================================================================
+    // 检查 4：角色 Visual 子节点 Y 偏移（视碰对齐 — 防止悬空回归）
+    // =========================================================================
+
+    private static int CheckCharacterVisualOffset(bool autoRepair)
+    {
+        int issues = 0;
+
+        MonoBehaviour[] allBehaviours = Object.FindObjectsOfType<MonoBehaviour>(true);
+        HashSet<GameObject> checkedRoots = new HashSet<GameObject>();
+
+        foreach (MonoBehaviour mb in allBehaviours)
+        {
+            if (mb == null) continue;
+            string typeName = mb.GetType().Name;
+
+            bool isMario = typeName.Contains("MarioController");
+            bool isTrickster = typeName.Contains("TricksterController");
+            if (!isMario && !isTrickster) continue;
+
+            GameObject root = mb.gameObject;
+            if (checkedRoots.Contains(root)) continue;
+            checkedRoots.Add(root);
+
+            Transform visual = root.transform.Find("Visual");
+            if (visual == null)
+            {
+                // 没有 Visual 子节点，跳过（可能是旧场景结构）
+                continue;
+            }
+
+            float expectedY = isTrickster
+                ? PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y
+                : PhysicsMetrics.MARIO_VISUAL_OFFSET_Y;
+
+            if (Mathf.Abs(visual.localPosition.y - expectedY) > TOLERANCE)
+            {
+                issues++;
+                string objPath = GetGameObjectPath(root);
+
+                if (autoRepair)
+                {
+                    Undo.RecordObject(visual, "RedLineGuard: Fix Visual Offset (Anti-Hover)");
+                    Vector3 pos = visual.localPosition;
+                    pos.y = expectedY;
+                    visual.localPosition = pos;
+                    EditorUtility.SetDirty(visual.gameObject);
+                    Debug.LogWarning($"{LOG_PREFIX} 🔧 已修复角色 Visual 偏移(防悬空): {objPath}\n" +
+                                     $"  Visual.localPosition.y: {visual.localPosition.y:F3} → {expectedY}");
+                }
+                else
+                {
+                    Debug.LogError($"{LOG_PREFIX} ❌ 角色 Visual 偏移违规(会导致悬空): {objPath}\n" +
+                                   $"  当前 Visual.localPosition.y: {visual.localPosition.y:F3}, 标准: {expectedY}\n" +
+                                   $"  使用 MarioTrickster → 红线自动修复 可一键修正。");
+                }
+            }
+        }
+
+        return issues;
     }
 
     // =========================================================================

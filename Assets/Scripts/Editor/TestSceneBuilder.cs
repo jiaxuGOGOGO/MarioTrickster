@@ -98,7 +98,8 @@ public class TestSceneBuilder : Editor
         // S37: 视碰分离 — 创建 Visual 子节点承载 SpriteRenderer
         GameObject marioVisual = new GameObject("Visual");
         marioVisual.transform.SetParent(mario.transform, false);
-        marioVisual.transform.localPosition = Vector3.zero;
+        // S-Fix: 视碰对齐 — Visual 下移使 Sprite 底边对齐碰撞体底边，消除悬空
+        marioVisual.transform.localPosition = new Vector3(0f, PhysicsMetrics.MARIO_VISUAL_OFFSET_Y, 0f);
 
         SpriteRenderer marioSR = marioVisual.AddComponent<SpriteRenderer>();
         marioSR.color = new Color(0.9f, 0.2f, 0.2f);
@@ -135,7 +136,8 @@ public class TestSceneBuilder : Editor
         // S37: 视碰分离 — 创建 Visual 子节点承载 SpriteRenderer
         GameObject tricksterVisual = new GameObject("Visual");
         tricksterVisual.transform.SetParent(trickster.transform, false);
-        tricksterVisual.transform.localPosition = Vector3.zero;
+        // S-Fix: 视碰对齐 — Visual 下移使 Sprite 底边对齐碰撞体底边，消除悬空
+        tricksterVisual.transform.localPosition = new Vector3(0f, PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y, 0f);
 
         SpriteRenderer tricksterSR = tricksterVisual.AddComponent<SpriteRenderer>();
         tricksterSR.color = new Color(0.2f, 0.4f, 0.9f);

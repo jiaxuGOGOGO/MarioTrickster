@@ -687,7 +687,12 @@ public class AssetApplyToSelected : EditorWindow
                 GameObject visualGO = new GameObject("Visual");
                 Undo.RegisterCreatedObjectUndo(visualGO, "Create Visual");
                 visualGO.transform.SetParent(target.transform);
-                visualGO.transform.localPosition = Vector3.zero;
+                // S-Fix: 视碰对齐 — 角色类型时立即给正确偏移，非角色保持 zero
+                bool isChar = PivotPresetUtility.HasCharacterControllerPublic(target);
+                float yOffset = isChar ? (HasComponentNamed(target, "TricksterController")
+                    ? PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y
+                    : PhysicsMetrics.MARIO_VISUAL_OFFSET_Y) : 0f;
+                visualGO.transform.localPosition = new Vector3(0f, yOffset, 0f);
                 visualGO.transform.localScale = Vector3.one;
                 visual = visualGO.transform;
             }
@@ -862,7 +867,13 @@ public class AssetApplyToSelected : EditorWindow
         if (visual != null)
         {
             Undo.RecordObject(visual, "Protect Character Visual Transform");
-            visual.localPosition = Vector3.zero;
+            // S-Fix: 视碰对齐 — Visual.localPosition.y 必须下移使 Sprite 底边对齐碰撞体底边，
+            // 否则当 Sprite Pivot = BottomCenter 时角色会悬空 ~0.5 格。
+            bool isTricksterChar = HasComponentNamed(target, "TricksterController");
+            float visualOffsetY = isTricksterChar
+                ? PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y
+                : PhysicsMetrics.MARIO_VISUAL_OFFSET_Y;
+            visual.localPosition = new Vector3(0f, visualOffsetY, 0f);
             if (Mathf.Approximately(visual.localScale.x, 0f) || Mathf.Approximately(visual.localScale.y, 0f))
             {
                 visual.localScale = Vector3.one;
@@ -888,7 +899,10 @@ public class AssetApplyToSelected : EditorWindow
         GameObject visualGO = new GameObject("Visual");
         Undo.RegisterCreatedObjectUndo(visualGO, "Create Character Visual");
         visualGO.transform.SetParent(target.transform);
-        visualGO.transform.localPosition = Vector3.zero;
+        // S-Fix: 视碰对齐 — 初始化时就给正确偏移，后续 EnsureCharacterControlChain 会再次确认
+        bool isTricksterTarget = HasComponentNamed(target, "TricksterController");
+        float yOff = isTricksterTarget ? PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y : PhysicsMetrics.MARIO_VISUAL_OFFSET_Y;
+        visualGO.transform.localPosition = new Vector3(0f, yOff, 0f);
         visualGO.transform.localRotation = Quaternion.identity;
         visualGO.transform.localScale = Vector3.one;
         return visualGO.transform;

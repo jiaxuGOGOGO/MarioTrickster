@@ -157,6 +157,17 @@ public class TricksterController : MonoBehaviour
         if (visualTransform == null)
             visualTransform = transform;
 
+        // S-Fix: 视碰对齐 — 将 Visual 子节点下移使 Sprite 底边对齐碰撞体底边，消除悬空。
+        if (visualTransform != transform && visualTransform.parent == transform)
+        {
+            if (Mathf.Approximately(visualTransform.localPosition.y, 0f))
+            {
+                Vector3 pos = visualTransform.localPosition;
+                pos.y = PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y;
+                visualTransform.localPosition = pos;
+            }
+        }
+
         rb.gravityScale = 0f;
         rb.freezeRotation = true;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;

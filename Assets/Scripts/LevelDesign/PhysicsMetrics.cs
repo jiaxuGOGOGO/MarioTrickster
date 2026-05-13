@@ -129,6 +129,25 @@ public static class PhysicsMetrics
     public const float TRICKSTER_COLLIDER_OFFSET_Y = -0.025f;
 
     // ═══════════════════════════════════════════════════
+    // Visual 子节点 Y 偏移（视碰对齐 — 消除悬空）
+    // ═══════════════════════════════════════════════════
+
+    // [AI防坑警告] 当 Sprite Pivot = BottomCenter 时，Sprite 底边 = Visual.position.y。
+    // 碰撞体底边 = Root.y + offset.y - size.y/2。两者差值就是 Visual 需要的 Y 偏移。
+    // 如果不设置此偏移，角色会悬空 (size.y/2 - offset.y) ≈ 0.5 格。
+    //
+    // 公式: VISUAL_OFFSET_Y = offset.y - size.y / 2
+    //   Mario:     -0.025 - 0.95/2 = -0.025 - 0.475 = -0.5
+    //   Trickster:  -0.025 - 0.95/2 = -0.025 - 0.475 = -0.5
+    //
+    // 此偏移使 Sprite 底边精确对齐碰撞体底边，角色视觉贴地。
+
+    /// <summary>Mario Visual 子节点 Y 偏移（使 BottomCenter Pivot 的 Sprite 底边对齐碰撞体底边）</summary>
+    public const float MARIO_VISUAL_OFFSET_Y = MARIO_COLLIDER_OFFSET_Y - MARIO_COLLIDER_HEIGHT / 2f;
+    /// <summary>Trickster Visual 子节点 Y 偏移</summary>
+    public const float TRICKSTER_VISUAL_OFFSET_Y = TRICKSTER_COLLIDER_OFFSET_Y - TRICKSTER_COLLIDER_HEIGHT / 2f;
+
+    // ═══════════════════════════════════════════════════
     // 地形碰撞体标准尺寸（绝对不变）
     // ═══════════════════════════════════════════════════
 

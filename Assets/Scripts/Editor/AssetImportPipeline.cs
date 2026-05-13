@@ -798,7 +798,11 @@ public class AssetImportPipeline : EditorWindow
         // Visual 子物体
         GameObject visual = new GameObject("Visual");
         visual.transform.SetParent(root.transform);
-        visual.transform.localPosition = Vector3.zero;
+        // S-Fix: 视碰对齐 — 角色类型时 Visual 下移使 Sprite 底边对齐碰撞体底边，消除悬空
+        float visualYOffset = (_physicsType == AssetPhysicsType.Character)
+            ? PhysicsMetrics.MARIO_VISUAL_OFFSET_Y
+            : 0f;
+        visual.transform.localPosition = new Vector3(0f, visualYOffset, 0f);
         visual.transform.localScale = Vector3.one;
 
         // SpriteRenderer on Visual

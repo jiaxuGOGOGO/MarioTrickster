@@ -266,6 +266,19 @@ public class MarioController : MonoBehaviour
         if (visualTransform == null)
             visualTransform = transform;
 
+        // S-Fix: 视碰对齐 — 将 Visual 子节点下移使 Sprite 底边对齐碰撞体底边，消除悬空。
+        // 仅当 visualTransform 是子节点（不是自身）且当前 localPosition.y == 0 时才自动修正，
+        // 避免覆盖用户在 Inspector 中的手动微调。
+        if (visualTransform != transform && visualTransform.parent == transform)
+        {
+            if (Mathf.Approximately(visualTransform.localPosition.y, 0f))
+            {
+                Vector3 pos = visualTransform.localPosition;
+                pos.y = PhysicsMetrics.MARIO_VISUAL_OFFSET_Y;
+                visualTransform.localPosition = pos;
+            }
+        }
+
         _baseVisualScale = visualTransform.localScale;
 
         // S52: 如果 Inspector 未手动赋值 physicsConfig，尝试从 Resources 自动加载

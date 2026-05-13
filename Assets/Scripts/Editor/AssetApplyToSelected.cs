@@ -1028,6 +1028,9 @@ public class AssetApplyToSelected : EditorWindow
             float offsetY = (0.5f - pivotVec.y) * spriteSize.y;
             circle.offset = new Vector2(offsetX, offsetY);
         }
+
+        // [红线防护] 执行后验证：确保没有意外修改角色碰撞体
+        RedLineGuard.ValidateCharacterColliders(autoRepair: true);
     }
 
     // =========================================================================

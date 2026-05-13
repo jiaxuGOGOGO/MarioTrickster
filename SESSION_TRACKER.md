@@ -91,16 +91,23 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 123（角色悬空修复：AutoFitCollider 角色碰撞体保护 + 非角色 Pivot 偏移计算） |
+| **最新 Session** | Session 124（红线防护系统：RedLineGuard 自动巡检 + Size Sync 角色豁免 + 硬编码消除） |
 | **日期** | 2026-05-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S123 修复 Apply Art 换皮后 Mario 悬空不落地的根因：AutoFitCollider 用 Sprite 尺寸覆盖了 PhysicsMetrics 定义的标准角色碰撞体，并把 offset 重置为 0。现在角色碰撞体被保护不修改，非角色物体的碰撞体会根据 Pivot 计算正确的 offset。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S124 建立红线防护机制，从代码层面硬性阻止任何工具或脚本修改 PhysicsMetrics 红线值。包括：RedLineGuard 自动巡检（保存/运行前触发）、Size Sync 角色豁免、硬编码碰撞体值替换为 PhysicsMetrics 常量引用。 |
 | **编译状态** | ✅ 代码审查通过（括号平衡、引用完整）；待用户 `git pull` 后在 Unity 中验证。 |
 | **阻塞** | 无。 |
-| **交接说明** | S123 延续 S121/S122 文档入口；素材导入、Pivot 设置与事后修正看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` 第 5 节。 |
+| **交接说明** | S124 延续 S121-S123 文档入口；红线防护看菜单 MarioTrickster → 红线巡检。 |
 
 
-### [S123] 最新知识沉淀
+### [S124] 最新知识沉淀
+
+1. **RedLineGuard 红线防护系统**：新增 `RedLineGuard.cs`，通过 `[InitializeOnLoad]` 自动注册事件钩子，在 Scene 保存前和进入 Play Mode 前自动巡检角色碰撞体和 Root Scale 是否符合 PhysicsMetrics 标准值。发现违规时自动修复（可关闭），所有修复经过 Undo 系统可回退。
+2. **Size Sync 角色豁免**：`LevelEditorPickingManager.SyncPairIfNeeded` 现在会跳过角色 Root（MarioController/TricksterController/PlayerController），避免拖动 Visual 缩放时意外覆盖角色碰撞体。
+3. **硬编码消除**：`AssetImportPipeline.SetupPhysics` 中角色碰撞体的硬编码值 `(0.8f, 0.95f)` 已替换为 `PhysicsMetrics.MARIO_COLLIDER_WIDTH/HEIGHT/OFFSET_Y` 常量引用，确保单一真理源。
+4. **三层防护体系**：① 编译期——`PhysicsMetrics` 红线值是 `const`，无法运行时修改；② 工具层——AutoFitCollider/SizeSync 对角色豁免；③ 巡检层——RedLineGuard 在保存/运行前自动校验并修复。
+
+### [S123] 知识沉淀
 
 1. **Apply Art 后 Mario 悬空的根因**：`AutoFitCollider` 用 `sr.sprite.bounds.size * 0.9f` 覆盖了 `PhysicsMetrics` 定义的标准角色碰撞体（width=0.8, height=0.95, offset.y=-0.025），并把 `box.offset` 重置为 `Vector2.zero`。当 Pivot=BottomCenter 时，碰撞体中心在 Root.position，底部在脚底下方 0.45 单位，导致角色视觉上悬空。
 2. **角色碰撞体保护原则**：角色（MarioController/TricksterController）的碰撞体由 `PhysicsMetrics` 定义，是物理真相，换皮时绝对不能修改。这与项目核心理念一致："碰撞体尺寸 = 物理真相，视觉 Sprite = 纯粹装饰"。`SpriteAutoFit` 已经实现了这个原则，但 `AutoFitCollider` 没有遵守。

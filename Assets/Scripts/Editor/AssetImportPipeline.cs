@@ -826,9 +826,9 @@ public class AssetImportPipeline : EditorWindow
         {
             case AssetPhysicsType.Character:
                 var charCol = root.AddComponent<BoxCollider2D>();
-                // 使用 PhysicsMetrics 标准角色碰撞体尺寸
-                charCol.size = new Vector2(0.8f, 0.95f);
-                charCol.offset = new Vector2(0f, 0.475f); // Bottom Center 偏移
+                // [红线保护] 必须引用 PhysicsMetrics 常量，禁止硬编码
+                charCol.size = new Vector2(PhysicsMetrics.MARIO_COLLIDER_WIDTH, PhysicsMetrics.MARIO_COLLIDER_HEIGHT);
+                charCol.offset = new Vector2(0f, PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y);
                 break;
 
             case AssetPhysicsType.Environment:

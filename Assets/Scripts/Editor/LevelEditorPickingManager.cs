@@ -258,6 +258,10 @@ public static class LevelEditorPickingManager
         if (pair.visual == null || pair.collider == null)
             return;
 
+        // [红线保护] 角色碰撞体不参与 Size Sync，避免意外覆盖 PhysicsMetrics 标准值
+        if (pair.root != null && IsCharacterRoot(pair.root))
+            return;
+
         Vector3 currentVisualScale = pair.visual.localScale;
         Vector2 currentColliderSize = pair.collider.size;
 
@@ -389,5 +393,26 @@ public static class LevelEditorPickingManager
     private static bool ApproximatelyXY(Vector3 a, Vector3 b)
     {
         return Mathf.Abs(a.x - b.x) < 0.0001f && Mathf.Abs(a.y - b.y) < 0.0001f;
+    }
+
+    /// <summary>
+    /// [红线保护] 检测目标是否是角色 Root（MarioController/TricksterController/PlayerController）。
+    /// 角色 Root 的碰撞体由 PhysicsMetrics 定义，不应被 Size Sync 修改。
+    /// </summary>
+    private static bool IsCharacterRoot(GameObject go)
+    {
+        if (go == null) return false;
+        foreach (var comp in go.GetComponents<MonoBehaviour>())
+        {
+            if (comp == null) continue;
+            string typeName = comp.GetType().Name;
+            if (typeName.Contains("MarioController") ||
+                typeName.Contains("TricksterController") ||
+                typeName.Contains("PlayerController"))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }

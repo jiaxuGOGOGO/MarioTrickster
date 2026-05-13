@@ -846,3 +846,34 @@ S104 本地烟测证明工程护栏已生效（代理接管、动作振幅放大
   1. 角色脚底贴地，不再悬空；
   2. Inspector 中 `SpriteStateAnimator` 的 Run / Idle 状态帧数正确；
   3. 没有整张横向 Sprite Sheet 被当作单帧显示。
+
+---
+
+## 2026-05-13 — Apply Art 角色换皮后无法移动热修
+
+### 背景
+用户烟测上一次素材悬空/状态条切片修复后反馈：角色原本只是视觉悬空但仍可移动，更新后在 Apply Art 选择 `Imported` 文件夹给 Mario/Visual 换皮时，画面中角色贴地但无法移动。截图显示操作对象为 `Visual`，实际换皮目标归一到 `Mario` 根物体，且状态帧已正确挂到 `SpriteStateAnimator`。
+
+### 根因判断
+Apply Art 在角色换皮路径中仍会经过通用行为模板与碰撞体适配逻辑。对于已带 `MarioController` / `TricksterController` 的运行时角色，这些通用逻辑不应再次根据素材分类、旧触发器状态或 Sprite 可见边界去改根物体 `Rigidbody2D`、`BoxCollider2D`、Trigger、冻结轴和碰撞体尺寸。素材替换应是视觉层操作，而不是重新生成角色物理真相；否则可能把一个原本可移动的角色改成接近陷阱/道具/静态对象的状态，造成移动链路失效。
+
+### 修复方案
+1. **角色控制链路保护**：Apply Art 识别 Mario/Trickster 等带角色控制器对象后，只允许更新 `Visual` 上的 `SpriteRenderer` 与 `SpriteStateAnimator`；根物体控制组件、输入链路和行为模板不参与换皮改写。
+2. **角色物理兜底恢复**：应用后确保根物体 `Rigidbody2D` 为 `Dynamic`、`simulated = true`、`gravityScale = PhysicsMetrics.Mario.GravityScale`、`freezeRotation`；根 `BoxCollider2D` 保持非 Trigger。
+3. **角色碰撞体不再 Sprite-based 自适应**：对角色目标跳过按美术边界重算碰撞体的逻辑，避免 32x32 商业帧或透明边界改变可玩角色原本的移动/落地尺寸。
+4. **保留上次修复收益**：文件夹中的 `Idle/Run/Jump` 横向状态条仍会先自动切片并按状态分组；角色 Sprite 仍使用可见脚底 Pivot 解决悬空。
+
+### 修改文件
+| 文件 | 变更内容 |
+|------|---------|
+| `Assets/Scripts/Editor/AssetApplyToSelected.cs` | 新增角色移动控制链路保护、角色物理兜底恢复、角色碰撞体自适应跳过逻辑，并保持 Visual 状态动画挂载 |
+| `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` | 记录 Apply Art 对角色只改视觉层、不改根物体控制/碰撞/刚体的新规则 |
+| `SESSION_TRACKER.md` | 记录本次热修根因、方案和验证项 |
+
+### 本地验证
+1. `python3.11 /home/ubuntu/check_apply_art_regression.py` 通过：确认角色移动保护、Visual 动画挂载、文件夹先切片、Texture 自动切片、可见脚底 Pivot 关键逻辑均存在。
+2. `git diff --check` 通过。
+3. 人工核对 `AssetApplyToSelected.cs`：角色分支不再进入通用行为模板/碰撞体重算，Visual 层动画挂载逻辑保留。
+
+### 后续烟测建议
+拉取最新 `master` 后，在 Unity 中选中 Mario 或其 `Visual`，用包含 `Idle(32x32).png`、`Run(32x32).png`、`Jump(32x32).png` 的文件夹应用一次。预期结果：角色脚底贴地，Run/Idle/Jump 帧数正确，左右移动恢复，跳跃/落地不被换皮影响。

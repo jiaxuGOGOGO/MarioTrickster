@@ -54,7 +54,7 @@
 
 大型商业合集图通常需要先拆成独立素材。透明背景、明显网格或间距清晰的图，可以先用纯像素裁切；构图复杂、多个物件贴得很近时，再用 AI 智能裁切。[1]
 
-Apply Art 内置的 **Sprite Sheet 切片**适合“给当前选中白盒对象直接换皮”的轻量场景。默认 **Auto Detect** 会处理文件名含帧尺寸、32px 网格和横向等宽动画条；当用户把 `Idle(32x32).png`、`Run(32x32).png`、`Jump(32x32).png` 这类横向状态条放进同一个文件夹再应用到角色时，工具会先逐张完成切片，再按 `idle/run/jump/fall` 语义分组挂载状态动画，不会再把整张 Sheet 当作单帧贴到角色上。**AI Backend** 会复用 AI Smart Slicer 的 API Key、Base URL 与模型配置，上传当前贴图预览给视觉模型判断 rows / columns / cell size / 裁切区域；**Manual Grid** 适合直接指定行列数，**Manual Cell Size** 适合商业素材说明中已给出单帧尺寸的情况。无论哪种模式，点击应用后都会写入 Unity Sprite 切片并继续走同一套动画与分类链路。
+Apply Art 内置的 **Sprite Sheet 切片**适合“给当前选中白盒对象直接换皮”的轻量场景。默认 **Auto Detect** 会处理文件名含帧尺寸、32px 网格和横向等宽动画条；当用户把 `Idle(32x32).png`、`Run(32x32).png`、`Jump(32x32).png` 这类横向状态条放进同一个文件夹再应用到角色时，工具会先逐张完成切片，再按 `idle/run/jump/fall` 语义分组挂载状态动画，不会再把整张 Sheet 当作单帧贴到角色上。对 Mario/Trickster 等已带角色控制器的对象，Apply Art 必须只改 `Visual` 上的 SpriteRenderer 与 SpriteStateAnimator，并在应用后兜底保证根物体 Rigidbody2D 仍为 Dynamic、可模拟、非 Trigger、仅冻结旋转；禁止因为素材名、旧 Trigger 或商业包分类把角色根物体改成陷阱/道具模板。**AI Backend** 会复用 AI Smart Slicer 的 API Key、Base URL 与模型配置，上传当前贴图预览给视觉模型判断 rows / columns / cell size / 裁切区域；**Manual Grid** 适合直接指定行列数，**Manual Cell Size** 适合商业素材说明中已给出单帧尺寸的情况。无论哪种模式，点击应用后都会写入 Unity Sprite 切片并继续走同一套动画与分类链路。
 
 ```bash
 # 网格切割
@@ -101,7 +101,7 @@ python Tools/ai_smart_slicer.py commercial_pack.png
 | 文件 | 职责 |
 | --- | --- |
 | `Assets/Scripts/Editor/AssetImportPipeline.cs` | 主导入窗口，负责规范化、切片、生成对象和 Prefab。 |
-| `Assets/Scripts/Editor/AssetApplyToSelected.cs` | 给已有对象换皮，负责 Root 归一、动画挂载、行为模板和碰撞体适配。 |
+| `Assets/Scripts/Editor/AssetApplyToSelected.cs` | 给已有对象换皮，负责 Root 归一、动画挂载、行为模板和碰撞体适配；对 Mario/Trickster 等角色启用控制链路保护，只允许更新 Visual/SpriteStateAnimator，不再套用陷阱/道具行为模板或重算角色碰撞体尺寸。 |
 | `Assets/Scripts/Editor/ArtAssetClassifier.cs` | 素材分类器，识别角色、敌人、道具、陷阱、背景、特效、核心运动状态与通用商业素材语义状态。 |
 | `Assets/Scripts/Core/SpriteFrameAnimator.cs` | 普通多帧循环动画播放器。 |
 | `Assets/Scripts/Core/SpriteStateAnimator.cs` | 角色 idle/run/jump/fall 状态动画播放器。 |

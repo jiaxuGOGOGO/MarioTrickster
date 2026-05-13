@@ -706,6 +706,9 @@ public class AssetApplyToSelected : EditorWindow
         // Step 6: 应用行为模板
         ApplyBehaviorTemplate(target, sr, classification);
 
+        // Step 6.5: 角色换皮后再次加固移动控制链路，避免历史错误应用留下 Static/Trigger/Freeze 状态。
+        EnsureCharacterControlChain(target);
+
         // Step 7: 更新 ImportedAssetMarker
         UpdateMarker(target, spritesToApply, classification);
 
@@ -739,6 +742,16 @@ public class AssetApplyToSelected : EditorWindow
     // =========================================================================
     private void ApplyBehaviorTemplate(GameObject target, SpriteRenderer sr, ArtAssetClassifier.Classification classification)
     {
+        if (PivotPresetUtility.HasCharacterControllerPublic(target))
+        {
+            // [AI防坑警告] Apply Art 给 Mario/Trickster 换皮时，只能改 Visual/SpriteStateAnimator。
+            // 禁止按商业素材名或已有 Trigger 误套陷阱/道具模板，否则会把角色 Rigidbody 改成 Static、
+            // 或把 Collider 改成 Trigger，直接造成“换皮后不能移动”的回归。
+            EnsureCharacterControlChain(target);
+            Debug.Log($"[AssetApplyToSelected] 角色换皮保护：跳过行为模板和碰撞体自适应，仅更新视觉素材: {target.name}");
+            return;
+        }
+
         BehaviorTemplate template = _behaviorTemplate;
 
         // AutoDetect: 先尊重已有组件；没有明确行为时，再按商业素材分类自动落到道具/陷阱等用途。
@@ -791,6 +804,68 @@ public class AssetApplyToSelected : EditorWindow
             default:
                 return BehaviorTemplate.KeepExisting;
         }
+    }
+
+    private void EnsureCharacterControlChain(GameObject target)
+    {
+        if (target == null || !PivotPresetUtility.HasCharacterControllerPublic(target)) return;
+
+        var rb = target.GetComponent<Rigidbody2D>();
+        if (rb == null)
+        {
+            rb = Undo.AddComponent<Rigidbody2D>(target);
+        }
+        Undo.RecordObject(rb, "Protect Character Rigidbody");
+        rb.bodyType = RigidbodyType2D.Dynamic;
+        rb.simulated = true;
+        rb.gravityScale = 0f;
+        rb.freezeRotation = true;
+        rb.constraints = RigidbodyConstraints2D.FreezeRotation;
+        rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+        var box = target.GetComponent<BoxCollider2D>();
+        if (box == null)
+        {
+            box = Undo.AddComponent<BoxCollider2D>(target);
+        }
+        Undo.RecordObject(box, "Protect Character Collider");
+        box.enabled = true;
+        box.isTrigger = false;
+
+        // 只在碰撞体明显不可用时兜底恢复标准值；避免每次换皮都挪动物理真相，造成卡地或位移回归。
+        bool invalidSize = box.size.x <= 0.01f || box.size.y <= 0.01f;
+        if (invalidSize)
+        {
+            bool isTrickster = HasComponentNamed(target, "TricksterController");
+            float stdWidth = isTrickster ? PhysicsMetrics.TRICKSTER_COLLIDER_WIDTH : PhysicsMetrics.MARIO_COLLIDER_WIDTH;
+            float stdHeight = isTrickster ? PhysicsMetrics.TRICKSTER_COLLIDER_HEIGHT : PhysicsMetrics.MARIO_COLLIDER_HEIGHT;
+            float stdOffsetY = isTrickster ? PhysicsMetrics.TRICKSTER_COLLIDER_OFFSET_Y : PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
+            box.size = new Vector2(stdWidth, stdHeight);
+            box.offset = new Vector2(0f, stdOffsetY);
+        }
+
+        var visual = target.transform.Find("Visual");
+        if (visual != null)
+        {
+            Undo.RecordObject(visual, "Protect Character Visual Transform");
+            visual.localPosition = Vector3.zero;
+            if (visual.localScale.x == 0f || visual.localScale.y == 0f)
+            {
+                visual.localScale = Vector3.one;
+            }
+        }
+
+        EditorUtility.SetDirty(target);
+    }
+
+    private bool HasComponentNamed(GameObject target, string typeName)
+    {
+        if (target == null) return false;
+        foreach (var comp in target.GetComponents<MonoBehaviour>())
+        {
+            if (comp != null && comp.GetType().Name == typeName) return true;
+        }
+        return false;
     }
 
     private BehaviorTemplate DetectBehaviorFromExisting(GameObject target)
@@ -946,51 +1021,9 @@ public class AssetApplyToSelected : EditorWindow
         bool isCharacter = PivotPresetUtility.HasCharacterControllerPublic(target);
         if (isCharacter)
         {
-            // 角色碰撞体由 PhysicsMetrics 定义，不修改尺寸和偏移。
-            // 仅确保碰撞体存在且使用标准值（防止被意外清空）。
-            var box = target.GetComponent<BoxCollider2D>();
-            if (box != null)
-            {
-                // 检查碰撞体是否偏离标准值过多（容差 0.1），如果是则恢复标准值
-                bool needsRestore = false;
-                float stdWidth = PhysicsMetrics.MARIO_COLLIDER_WIDTH;
-                float stdHeight = PhysicsMetrics.MARIO_COLLIDER_HEIGHT;
-                float stdOffsetY = PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
-
-                // 检查是否是 Trickster
-                bool isTrickster = false;
-                foreach (var comp in target.GetComponents<MonoBehaviour>())
-                {
-                    if (comp != null && comp.GetType().Name.Contains("TricksterController"))
-                    { isTrickster = true; break; }
-                }
-                if (isTrickster)
-                {
-                    stdWidth = PhysicsMetrics.TRICKSTER_COLLIDER_WIDTH;
-                    stdHeight = PhysicsMetrics.TRICKSTER_COLLIDER_HEIGHT;
-                    stdOffsetY = PhysicsMetrics.TRICKSTER_COLLIDER_OFFSET_Y;
-                }
-
-                if (Mathf.Abs(box.size.x - stdWidth) > 0.1f ||
-                    Mathf.Abs(box.size.y - stdHeight) > 0.1f ||
-                    Mathf.Abs(box.offset.y - stdOffsetY) > 0.1f)
-                {
-                    needsRestore = true;
-                }
-
-                if (needsRestore)
-                {
-                    Undo.RecordObject(box, "Restore Character Collider");
-                    box.size = new Vector2(stdWidth, stdHeight);
-                    box.offset = new Vector2(0f, stdOffsetY);
-                    Debug.Log($"[AssetApplyToSelected] 角色碰撞体已恢复标准值: " +
-                              $"size=({stdWidth}, {stdHeight}), offset.y={stdOffsetY}");
-                }
-                else
-                {
-                    Debug.Log($"[AssetApplyToSelected] 角色碰撞体保持不变（已是标准值）");
-                }
-            }
+            // 角色碰撞体是运行时控制链路的一部分；Apply Art 不再在这里重算尺寸/偏移。
+            // 只修复会直接导致不能移动的控制字段，其余物理真相交给角色控制器和测试场景维护。
+            EnsureCharacterControlChain(target);
             return; // 角色不做 Sprite-based 自适应
         }
 

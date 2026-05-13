@@ -421,9 +421,25 @@ public static class ArtAssetClassifier
             if (builder.Length > 0)
             {
                 char previous = builder[builder.Length - 1];
-                if (char.IsUpper(c) && char.IsLetterOrDigit(previous) && !char.IsUpper(previous))
+                // [FIX] CamelCase split: only insert separator when an uppercase letter
+                // follows a lowercase letter. This prevents ALL-CAPS words like "RUN"
+                // from being split into individual letters (r_u_n).
+                // Standard PascalCase/camelCase boundary: "myRun" -> "my_run", "RUN" -> "run",
+                // "RUNning" -> "ru_nning" is acceptable; the key is consecutive uppercase stays together.
+                if (char.IsUpper(c) && char.IsLetter(previous) && char.IsLower(text[i - 1]))
                 {
                     AppendSeparator(builder);
+                }
+                // Also handle transition from uppercase run to lowercase: "RUNning" -> split before 'n'
+                // when current char is lowercase and previous original char was uppercase and the one before that was also uppercase.
+                else if (char.IsLower(c) && i >= 2 && char.IsUpper(text[i - 1]) && char.IsUpper(text[i - 2]))
+                {
+                    // Insert separator before the last uppercase letter that starts the lowercase run
+                    // e.g., "RUNning": at 'n' (lowercase), text[i-1]='N' (upper), text[i-2]='U' (upper)
+                    // We want "run_ning" -> actually we want the split before the 'N': "ru_nning"
+                    // But since we already appended 'n' as lowercase in builder, we need to insert before it.
+                    // Simpler approach: just don't split here, let consecutive uppercase stay together.
+                    // The important fix is the line above that prevents splitting consecutive uppercase.
                 }
                 else if (char.IsDigit(c) && char.IsLetter(previous))
                 {

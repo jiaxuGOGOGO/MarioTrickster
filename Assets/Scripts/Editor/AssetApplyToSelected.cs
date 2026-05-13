@@ -1,10 +1,14 @@
 #if UNITY_EDITOR
 using UnityEngine;
 using UnityEditor;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 /// <summary>
 /// AssetApplyToSelected — 将商业素材应用到场景中已有物体上
@@ -57,6 +61,47 @@ public class AssetApplyToSelected : EditorWindow
         Sprite = 3
     }
 
+    private enum SpriteSheetSliceMode
+    {
+        AutoDetect = 0,
+        ManualGrid = 1,
+        ManualCellSize = 2,
+        AIBackend = 3
+    }
+
+    [Serializable]
+    private class AISliceAnalysis
+    {
+        public string asset_kind;
+        public int frame_count;
+        public int grid_cols;
+        public int grid_rows;
+        public int cell_width;
+        public int cell_height;
+        public int x;
+        public int y;
+        public int w;
+        public int h;
+        public string confidence;
+        public string reason;
+    }
+
+    private struct SlicePlan
+    {
+        public int cols;
+        public int rows;
+        public int frameW;
+        public int frameH;
+        public int x;
+        public int yFromTop;
+        public int width;
+        public int height;
+        public string source;
+
+        public int FrameCount => Mathf.Max(0, cols * rows);
+        public bool IsValid => cols > 0 && rows > 0 && frameW > 0 && frameH > 0 && width > 0 && height > 0 && FrameCount > 1;
+    }
+
     // =========================================================================
     // 状态
     // =========================================================================
@@ -72,6 +117,25 @@ public class AssetApplyToSelected : EditorWindow
     private string _prefabFolder = "Assets/Art/Prefabs";
     private Vector2 _scrollPos;
     private string _lastResult = "";
+
+    // Sprite Sheet 切片策略
+    private SpriteSheetSliceMode _sliceMode = SpriteSheetSliceMode.AutoDetect;
+    private int _manualColumns = 1;
+    private int _manualRows = 1;
+    private int _manualCellWidth = 32;
+    private int _manualCellHeight = 32;
+    private int _sliceOffsetX = 0;
+    private int _sliceOffsetY = 0;
+    private bool _showAdvancedSliceArea = false;
+
+    // AI 后台识别配置：复用 AI Smart Slicer 的 EditorPrefs 契约，不进入运行时 Build。
+    private string _apiKey = "";
+    private string _baseUrl = "https://api.openai.com/v1";
+    private string _model = "gpt-4.1-mini";
+    private bool _showApiSettings = false;
+    private bool _isAiAnalyzing = false;
+    private string _aiStatus = "";
+    private AISliceAnalysis _aiAnalysis = null;
 
     // 爆炸参数（仅 Hazard_Explosive 模式）
     private int _explosionDamage = 3;
@@ -117,6 +181,7 @@ public class AssetApplyToSelected : EditorWindow
 
         DrawArtInputFields();
         ReconcileArtSelection();
+        DrawTextureSliceSettings();
 
         if (_artFolder != null)
         {
@@ -257,6 +322,11 @@ public class AssetApplyToSelected : EditorWindow
         EditorGUI.indentLevel--;
     }
 
+    private void OnEnable()
+    {
+        LoadAiPrefs();
+    }
+
     private void DrawArtInputFields()
     {
         EditorGUILayout.BeginHorizontal();
@@ -325,6 +395,7 @@ public class AssetApplyToSelected : EditorWindow
             _activeArtInput = ArtInputKind.None;
         }
         _artSprites = new Sprite[0];
+        ResetSliceAnalysis();
     }
 
     private void SetArtTexture(Texture2D texture)
@@ -341,6 +412,7 @@ public class AssetApplyToSelected : EditorWindow
             _activeArtInput = ArtInputKind.None;
         }
         _artSprites = new Sprite[0];
+        ResetSliceAnalysis();
     }
 
     private void SetArtSprite(Sprite sprite)
@@ -357,6 +429,13 @@ public class AssetApplyToSelected : EditorWindow
             _activeArtInput = ArtInputKind.None;
         }
         _artSprites = new Sprite[0];
+        ResetSliceAnalysis();
+    }
+
+    private void ResetSliceAnalysis()
+    {
+        _aiAnalysis = null;
+        _aiStatus = "";
     }
 
     private void ReconcileArtSelection()
@@ -389,6 +468,139 @@ public class AssetApplyToSelected : EditorWindow
                 break;
         }
     }
+
+
+    private void DrawTextureSliceSettings()
+    {
+        if (_artTexture == null) return;
+
+        EditorGUILayout.Space(6);
+        EditorGUILayout.LabelField("Sprite Sheet 切片", EditorStyles.boldLabel);
+        _sliceMode = (SpriteSheetSliceMode)EditorGUILayout.EnumPopup("切片模式", _sliceMode);
+
+        if (TryBuildSlicePlan(_artTexture, GetPhysicsTypeHint(Selection.activeGameObject != null ? ResolveApplyTarget(Selection.activeGameObject) : null), out SlicePlan previewPlan))
+        {
+            EditorGUILayout.HelpBox($"当前切片计划：{previewPlan.cols} 列 × {previewPlan.rows} 行，单帧 {previewPlan.frameW}×{previewPlan.frameH}，预计 {previewPlan.FrameCount} 帧（{previewPlan.source}）。点击应用时会按该计划写入 Unity Sprite 切片。", MessageType.None);
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("当前贴图会按单帧处理；如果这是 Sprite Sheet，请选择 AI 后台识别或手动指定网格/单帧尺寸。", MessageType.Warning);
+        }
+
+        if (_sliceMode == SpriteSheetSliceMode.ManualGrid)
+        {
+            EditorGUI.indentLevel++;
+            _manualColumns = Mathf.Max(1, EditorGUILayout.IntField("Columns / 列数", _manualColumns));
+            _manualRows = Mathf.Max(1, EditorGUILayout.IntField("Rows / 行数", _manualRows));
+            if (_artTexture != null)
+            {
+                int usableW = Mathf.Max(1, _artTexture.width - _sliceOffsetX);
+                int usableH = Mathf.Max(1, _artTexture.height - _sliceOffsetY);
+                _manualCellWidth = Mathf.Max(1, usableW / _manualColumns);
+                _manualCellHeight = Mathf.Max(1, usableH / _manualRows);
+                EditorGUILayout.LabelField("推导 Cell Size", $"{_manualCellWidth} × {_manualCellHeight}", EditorStyles.miniLabel);
+            }
+            EditorGUI.indentLevel--;
+        }
+        else if (_sliceMode == SpriteSheetSliceMode.ManualCellSize)
+        {
+            EditorGUI.indentLevel++;
+            _manualCellWidth = Mathf.Max(1, EditorGUILayout.IntField("Cell Width", _manualCellWidth));
+            _manualCellHeight = Mathf.Max(1, EditorGUILayout.IntField("Cell Height", _manualCellHeight));
+            if (_artTexture != null)
+            {
+                int usableW = Mathf.Max(1, _artTexture.width - _sliceOffsetX);
+                int usableH = Mathf.Max(1, _artTexture.height - _sliceOffsetY);
+                _manualColumns = Mathf.Max(1, usableW / _manualCellWidth);
+                _manualRows = Mathf.Max(1, usableH / _manualCellHeight);
+                EditorGUILayout.LabelField("推导 Rows / Columns", $"{_manualColumns} 列 × {_manualRows} 行", EditorStyles.miniLabel);
+            }
+            EditorGUI.indentLevel--;
+        }
+        else if (_sliceMode == SpriteSheetSliceMode.AIBackend)
+        {
+            DrawAiBackendControls();
+        }
+
+        _showAdvancedSliceArea = EditorGUILayout.Foldout(_showAdvancedSliceArea, "高级：忽略左上边距 / 只切部分区域");
+        if (_showAdvancedSliceArea)
+        {
+            EditorGUI.indentLevel++;
+            _sliceOffsetX = Mathf.Max(0, EditorGUILayout.IntField("Offset X", _sliceOffsetX));
+            _sliceOffsetY = Mathf.Max(0, EditorGUILayout.IntField("Offset Y (from top)", _sliceOffsetY));
+            EditorGUILayout.HelpBox("用于带外边距或图集边框的商业素材。AI 后台识别成功时会自动填入识别区域，手动模式则默认从该偏移开始切到贴图边缘。", MessageType.None);
+            EditorGUI.indentLevel--;
+        }
+    }
+
+    private void DrawAiBackendControls()
+    {
+        LoadAiPrefs();
+
+        bool hasConfig = !string.IsNullOrEmpty(_apiKey);
+        EditorGUILayout.LabelField($"API 状态: {(hasConfig ? "已配置" : "未配置")}", EditorStyles.miniLabel);
+        _showApiSettings = EditorGUILayout.Foldout(_showApiSettings, hasConfig ? "修改 AI API 设置" : "配置 AI API");
+        if (_showApiSettings)
+        {
+            EditorGUI.indentLevel++;
+            string newKey = EditorGUILayout.PasswordField("API Key", _apiKey);
+            if (newKey != _apiKey)
+            {
+                _apiKey = newKey;
+                EditorPrefs.SetString("AI_SmartSlicer_APIKey", _apiKey);
+            }
+            string newUrl = EditorGUILayout.TextField("Base URL", _baseUrl);
+            if (newUrl != _baseUrl)
+            {
+                _baseUrl = newUrl;
+                EditorPrefs.SetString("AI_SmartSlicer_BaseUrl", _baseUrl);
+            }
+            string newModel = EditorGUILayout.TextField("Model", _model);
+            if (newModel != _model)
+            {
+                _model = newModel;
+                EditorPrefs.SetString("AI_SmartSlicer_Model", _model);
+            }
+            EditorGUI.indentLevel--;
+        }
+
+        using (new EditorGUI.DisabledScope(!hasConfig || _isAiAnalyzing || _artTexture == null))
+        {
+            if (GUILayout.Button(_isAiAnalyzing ? "AI 正在识别..." : "AI 后台识别切片方式", GUILayout.Height(28)))
+            {
+                RunAiSliceAnalysis();
+            }
+        }
+
+        if (!string.IsNullOrEmpty(_aiStatus))
+        {
+            EditorGUILayout.HelpBox(_aiStatus, _aiStatus.Contains("失败") ? MessageType.Error : MessageType.Info);
+        }
+
+        if (_aiAnalysis != null)
+        {
+            EditorGUILayout.LabelField("AI 判断", $"{_aiAnalysis.grid_cols}×{_aiAnalysis.grid_rows} / Cell {_aiAnalysis.cell_width}×{_aiAnalysis.cell_height} / {_aiAnalysis.confidence}", EditorStyles.miniLabel);
+            if (!string.IsNullOrEmpty(_aiAnalysis.reason))
+            {
+                EditorGUILayout.LabelField("原因", _aiAnalysis.reason, EditorStyles.wordWrappedMiniLabel);
+            }
+        }
+    }
+
+    private void LoadAiPrefs()
+    {
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            _apiKey = EditorPrefs.GetString("AI_SmartSlicer_APIKey", "");
+            if (string.IsNullOrEmpty(_apiKey))
+                _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "";
+        }
+        string savedUrl = EditorPrefs.GetString("AI_SmartSlicer_BaseUrl", "");
+        if (!string.IsNullOrEmpty(savedUrl)) _baseUrl = savedUrl;
+        string savedModel = EditorPrefs.GetString("AI_SmartSlicer_Model", "");
+        if (!string.IsNullOrEmpty(savedModel)) _model = savedModel;
+    }
+
 
     // =========================================================================
     // 核心逻辑：应用素材到选中物体
@@ -756,9 +968,9 @@ public class AssetApplyToSelected : EditorWindow
 
     private string GetTextureSingleFrameHint(Texture2D texture, Sprite sprite)
     {
-        if (TryDetectSpriteSheetGrid(texture, out int cols, out int rows, out int frameW, out int frameH))
+        if (TryBuildSlicePlan(texture, GetPhysicsTypeHint(Selection.activeGameObject != null ? ResolveApplyTarget(Selection.activeGameObject) : null), out SlicePlan plan))
         {
-            return $"检测到未切片 Texture2D Sprite Sheet：预计 {cols * rows} 帧（{cols}x{rows}，单帧 {frameW}x{frameH}）。点击应用时会自动按网格切片，不会按单帧 Sprite 处理。";
+            return $"检测到未切片 Texture2D Sprite Sheet：预计 {plan.FrameCount} 帧（{plan.cols}x{plan.rows}，单帧 {plan.frameW}x{plan.frameH}，来源={plan.source}）。点击应用时会自动按网格切片，不会按单帧 Sprite 处理。";
         }
         return $"已识别单帧 Sprite: {sprite.name}";
     }
@@ -771,9 +983,9 @@ public class AssetApplyToSelected : EditorWindow
         if (string.IsNullOrEmpty(path)) return;
 
         Sprite[] existingSprites = LoadSpritesAtPath(path);
-        if (existingSprites.Length > 1) return;
+        if (existingSprites.Length > 1 && _sliceMode == SpriteSheetSliceMode.AutoDetect) return;
 
-        if (!TryDetectSpriteSheetGrid(texture, out int cols, out int rows, out int frameW, out int frameH)) return;
+        if (!TryBuildSlicePlan(texture, physicsTypeHint, out SlicePlan plan)) return;
 
         TextureImporter ti = AssetImporter.GetAtPath(path) as TextureImporter;
         if (ti == null) return;
@@ -789,13 +1001,13 @@ public class AssetApplyToSelected : EditorWindow
         Vector2 pivot = GetPivotForPhysicsHint(physicsTypeHint);
         int alignment = GetAlignmentForPhysicsHint(physicsTypeHint);
 
-        for (int r = 0; r < rows; r++)
+        for (int r = 0; r < plan.rows; r++)
         {
-            for (int c = 0; c < cols; c++)
+            for (int c = 0; c < plan.cols; c++)
             {
                 SpriteMetaData smd = new SpriteMetaData();
-                smd.name = rows == 1 ? $"{texture.name}_F{c}" : $"{texture.name}_R{r}_F{c}";
-                smd.rect = new Rect(c * frameW, (rows - 1 - r) * frameH, frameW, frameH);
+                smd.name = plan.rows == 1 ? $"{texture.name}_F{c}" : $"{texture.name}_R{r}_F{c}";
+                smd.rect = new Rect(plan.x + c * plan.frameW, texture.height - plan.yFromTop - (r + 1) * plan.frameH, plan.frameW, plan.frameH);
                 smd.pivot = pivot;
                 smd.alignment = alignment;
                 metaList.Add(smd);
@@ -806,15 +1018,101 @@ public class AssetApplyToSelected : EditorWindow
         EditorUtility.SetDirty(ti);
         ti.SaveAndReimport();
         AssetDatabase.Refresh();
-        Debug.Log($"[AssetApplyToSelected] 自动切片 Texture2D Sprite Sheet: {path} → {cols * rows} 帧 ({cols}x{rows}, {frameW}x{frameH})");
+        Debug.Log($"[AssetApplyToSelected] 切片 Texture2D Sprite Sheet: {path} → {plan.FrameCount} 帧 ({plan.cols}x{plan.rows}, {plan.frameW}x{plan.frameH}, source={plan.source})");
     }
 
-    private bool TryDetectSpriteSheetGrid(Texture2D texture, out int cols, out int rows, out int frameW, out int frameH)
+    private bool TryBuildSlicePlan(Texture2D texture, int physicsTypeHint, out SlicePlan plan)
     {
-        cols = 1;
-        rows = 1;
-        frameW = texture != null ? texture.width : 0;
-        frameH = texture != null ? texture.height : 0;
+        plan = new SlicePlan
+        {
+            cols = 1,
+            rows = 1,
+            frameW = texture != null ? texture.width : 0,
+            frameH = texture != null ? texture.height : 0,
+            x = 0,
+            yFromTop = 0,
+            width = texture != null ? texture.width : 0,
+            height = texture != null ? texture.height : 0,
+            source = "single"
+        };
+        if (texture == null || texture.width <= 0 || texture.height <= 0) return false;
+
+        if (_sliceMode == SpriteSheetSliceMode.ManualGrid)
+        {
+            int cols = Mathf.Max(1, _manualColumns);
+            int rows = Mathf.Max(1, _manualRows);
+            int x = Mathf.Clamp(_sliceOffsetX, 0, Mathf.Max(0, texture.width - 1));
+            int y = Mathf.Clamp(_sliceOffsetY, 0, Mathf.Max(0, texture.height - 1));
+            int areaW = texture.width - x;
+            int areaH = texture.height - y;
+            if (areaW % cols != 0 || areaH % rows != 0) return false;
+            plan = MakeSlicePlan(cols, rows, areaW / cols, areaH / rows, x, y, areaW, areaH, "manual-grid");
+            return plan.IsValid;
+        }
+
+        if (_sliceMode == SpriteSheetSliceMode.ManualCellSize)
+        {
+            int cellW = Mathf.Max(1, _manualCellWidth);
+            int cellH = Mathf.Max(1, _manualCellHeight);
+            int x = Mathf.Clamp(_sliceOffsetX, 0, Mathf.Max(0, texture.width - 1));
+            int y = Mathf.Clamp(_sliceOffsetY, 0, Mathf.Max(0, texture.height - 1));
+            int areaW = texture.width - x;
+            int areaH = texture.height - y;
+            if (areaW % cellW != 0 || areaH % cellH != 0) return false;
+            plan = MakeSlicePlan(areaW / cellW, areaH / cellH, cellW, cellH, x, y, areaW, areaH, "manual-cell-size");
+            return plan.IsValid;
+        }
+
+        if (_sliceMode == SpriteSheetSliceMode.AIBackend && _aiAnalysis != null)
+        {
+            if (TryBuildPlanFromAi(texture, _aiAnalysis, out plan)) return true;
+        }
+
+        return TryDetectSpriteSheetGrid(texture, out plan);
+    }
+
+    private SlicePlan MakeSlicePlan(int cols, int rows, int frameW, int frameH, int x, int yFromTop, int width, int height, string source)
+    {
+        return new SlicePlan
+        {
+            cols = cols,
+            rows = rows,
+            frameW = frameW,
+            frameH = frameH,
+            x = x,
+            yFromTop = yFromTop,
+            width = width,
+            height = height,
+            source = source
+        };
+    }
+
+    private bool TryBuildPlanFromAi(Texture2D texture, AISliceAnalysis ai, out SlicePlan plan)
+    {
+        plan = new SlicePlan();
+        if (texture == null || ai == null) return false;
+
+        int cols = Mathf.Max(1, ai.grid_cols);
+        int rows = Mathf.Max(1, ai.grid_rows);
+        int x = Mathf.Clamp(ai.x, 0, Mathf.Max(0, texture.width - 1));
+        int y = Mathf.Clamp(ai.y, 0, Mathf.Max(0, texture.height - 1));
+        int areaW = ai.w > 0 ? Mathf.Min(ai.w, texture.width - x) : texture.width - x;
+        int areaH = ai.h > 0 ? Mathf.Min(ai.h, texture.height - y) : texture.height - y;
+        int frameW = ai.cell_width > 0 ? ai.cell_width : (cols > 0 ? areaW / cols : 0);
+        int frameH = ai.cell_height > 0 ? ai.cell_height : (rows > 0 ? areaH / rows : 0);
+
+        if (frameW <= 0 || frameH <= 0) return false;
+        if (areaW < frameW * cols) areaW = frameW * cols;
+        if (areaH < frameH * rows) areaH = frameH * rows;
+        if (x + areaW > texture.width || y + areaH > texture.height) return false;
+
+        plan = MakeSlicePlan(cols, rows, frameW, frameH, x, y, frameW * cols, frameH * rows, "ai-backend");
+        return plan.IsValid;
+    }
+
+    private bool TryDetectSpriteSheetGrid(Texture2D texture, out SlicePlan plan)
+    {
+        plan = new SlicePlan();
         if (texture == null || texture.width <= 0 || texture.height <= 0) return false;
 
         Match sizeMatch = Regex.Match(texture.name, @"(?<w>\d{1,4})\s*x\s*(?<h>\d{1,4})", RegexOptions.IgnoreCase);
@@ -824,41 +1122,252 @@ public class AssetApplyToSelected : EditorWindow
             namedFrameW > 0 && namedFrameH > 0 &&
             texture.width % namedFrameW == 0 && texture.height % namedFrameH == 0)
         {
-            cols = texture.width / namedFrameW;
-            rows = texture.height / namedFrameH;
-            frameW = namedFrameW;
-            frameH = namedFrameH;
-            return cols * rows > 1;
+            plan = MakeSlicePlan(texture.width / namedFrameW, texture.height / namedFrameH, namedFrameW, namedFrameH, 0, 0, texture.width, texture.height, "filename-size");
+            return plan.IsValid;
         }
 
         if (texture.height == 32 && texture.width % 32 == 0 && texture.width / 32 > 1)
         {
-            cols = texture.width / 32;
-            rows = 1;
-            frameW = 32;
-            frameH = 32;
+            plan = MakeSlicePlan(texture.width / 32, 1, 32, 32, 0, 0, texture.width, texture.height, "32px-horizontal");
             return true;
         }
 
         if (texture.width > texture.height && texture.width % texture.height == 0 && texture.width / texture.height > 1)
         {
-            cols = texture.width / texture.height;
-            rows = 1;
-            frameW = texture.height;
-            frameH = texture.height;
+            plan = MakeSlicePlan(texture.width / texture.height, 1, texture.height, texture.height, 0, 0, texture.width, texture.height, "square-strip");
             return true;
         }
 
         if (texture.width % 32 == 0 && texture.height % 32 == 0)
         {
-            cols = texture.width / 32;
-            rows = texture.height / 32;
-            frameW = 32;
-            frameH = 32;
-            return cols * rows > 1;
+            plan = MakeSlicePlan(texture.width / 32, texture.height / 32, 32, 32, 0, 0, texture.width, texture.height, "32px-grid");
+            return plan.IsValid;
         }
 
         return false;
+    }
+
+    private async void RunAiSliceAnalysis()
+    {
+        if (_artTexture == null || string.IsNullOrEmpty(_apiKey)) return;
+
+        _isAiAnalyzing = true;
+        _aiStatus = "正在调用 AI 后台识别素材切片方式...";
+        _aiAnalysis = null;
+        Repaint();
+
+        try
+        {
+            string base64 = EncodeTextureToBase64(_artTexture);
+            if (string.IsNullOrEmpty(base64))
+            {
+                _aiStatus = "AI 识别失败：无法读取贴图。";
+                return;
+            }
+
+            string json = await CallSliceVisionAPI(base64, _artTexture.width, _artTexture.height);
+            if (string.IsNullOrEmpty(json))
+            {
+                _aiStatus = "AI 识别失败：没有返回有效结果。";
+                return;
+            }
+
+            _aiAnalysis = ParseAiSliceAnalysis(json);
+            if (_aiAnalysis == null || _aiAnalysis.grid_cols <= 0 || _aiAnalysis.grid_rows <= 0)
+            {
+                _aiStatus = "AI 识别失败：返回结果无法解析。";
+                return;
+            }
+
+            if (_aiAnalysis.cell_width <= 0 && _aiAnalysis.grid_cols > 0)
+                _aiAnalysis.cell_width = (_aiAnalysis.w > 0 ? _aiAnalysis.w : _artTexture.width) / _aiAnalysis.grid_cols;
+            if (_aiAnalysis.cell_height <= 0 && _aiAnalysis.grid_rows > 0)
+                _aiAnalysis.cell_height = (_aiAnalysis.h > 0 ? _aiAnalysis.h : _artTexture.height) / _aiAnalysis.grid_rows;
+            if (_aiAnalysis.w <= 0) _aiAnalysis.w = _aiAnalysis.cell_width * _aiAnalysis.grid_cols;
+            if (_aiAnalysis.h <= 0) _aiAnalysis.h = _aiAnalysis.cell_height * _aiAnalysis.grid_rows;
+
+            _manualColumns = Mathf.Max(1, _aiAnalysis.grid_cols);
+            _manualRows = Mathf.Max(1, _aiAnalysis.grid_rows);
+            _manualCellWidth = Mathf.Max(1, _aiAnalysis.cell_width);
+            _manualCellHeight = Mathf.Max(1, _aiAnalysis.cell_height);
+            _sliceOffsetX = Mathf.Max(0, _aiAnalysis.x);
+            _sliceOffsetY = Mathf.Max(0, _aiAnalysis.y);
+
+            _aiStatus = $"AI 已识别：{_aiAnalysis.grid_cols} 列 × {_aiAnalysis.grid_rows} 行，单帧 {_aiAnalysis.cell_width}×{_aiAnalysis.cell_height}，置信度={_aiAnalysis.confidence}";
+        }
+        catch (Exception ex)
+        {
+            _aiStatus = $"AI 识别失败: {ex.Message}";
+            Debug.LogError($"[AssetApplyToSelected] AI slice analysis failed: {ex}");
+        }
+        finally
+        {
+            _isAiAnalyzing = false;
+            Repaint();
+        }
+    }
+
+    private string EncodeTextureToBase64(Texture2D tex)
+    {
+        int maxSize = 2048;
+        int targetW = tex.width;
+        int targetH = tex.height;
+        if (Mathf.Max(targetW, targetH) > maxSize)
+        {
+            float scale = (float)maxSize / Mathf.Max(targetW, targetH);
+            targetW = Mathf.RoundToInt(targetW * scale);
+            targetH = Mathf.RoundToInt(targetH * scale);
+        }
+
+        RenderTexture rt = RenderTexture.GetTemporary(targetW, targetH, 0, RenderTextureFormat.ARGB32);
+        rt.filterMode = FilterMode.Bilinear;
+        Graphics.Blit(tex, rt);
+        RenderTexture prev = RenderTexture.active;
+        RenderTexture.active = rt;
+        Texture2D readable = new Texture2D(targetW, targetH, TextureFormat.RGBA32, false);
+        readable.ReadPixels(new Rect(0, 0, targetW, targetH), 0, 0);
+        readable.Apply();
+        RenderTexture.active = prev;
+        RenderTexture.ReleaseTemporary(rt);
+        byte[] pngBytes = readable.EncodeToPNG();
+        DestroyImmediate(readable);
+        return pngBytes != null && pngBytes.Length > 0 ? Convert.ToBase64String(pngBytes) : "";
+    }
+
+    private async Task<string> CallSliceVisionAPI(string base64Image, int origW, int origH)
+    {
+        string systemPrompt = @"You are a 2D pixel-art sprite-sheet import assistant. Decide how Unity should slice the provided image for immediate animation import.
+Return ONLY valid JSON. Choose the single most useful animation group if the image contains multiple objects. If the full image is one sheet, use x=0,y=0,w=image_width,h=image_height. Coordinates use TOP-LEFT origin in the ORIGINAL image size. Prefer exact grid_cols/grid_rows and cell_width/cell_height. If it is one static image, return grid_cols=1,grid_rows=1,frame_count=1.
+Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,""grid_cols"":8,""grid_rows"":1,""cell_width"":32,""cell_height"":32,""x"":0,""y"":0,""w"":256,""h"":32,""confidence"":""high|medium|low"",""reason"":""short reason""}";
+        string userMsg = $"Analyze this {origW}x{origH} sprite sheet. Return only JSON using the schema, with coordinates in original pixels.";
+        string requestBody = $@"{{
+  ""model"": ""{_model}"",
+  ""messages"": [
+    {{""role"": ""system"", ""content"": {EscapeJsonString(systemPrompt)}}},
+    {{""role"": ""user"", ""content"": [
+      {{""type"": ""text"", ""text"": {EscapeJsonString(userMsg)}}},
+      {{""type"": ""image_url"", ""image_url"": {{""url"": ""data:image/png;base64,{base64Image}"", ""detail"": ""high""}}}}
+    ]}}
+  ],
+  ""temperature"": 0.1,
+  ""max_tokens"": 1000
+}}";
+
+        using (var client = new HttpClient())
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
+            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
+            var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+            var response = await client.PostAsync($"{_baseUrl}/chat/completions", content);
+            if (!response.IsSuccessStatusCode)
+            {
+                string error = await response.Content.ReadAsStringAsync();
+                Debug.LogError($"[AssetApplyToSelected] AI API Error {response.StatusCode}: {error}");
+                return null;
+            }
+            string responseJson = await response.Content.ReadAsStringAsync();
+            string result = ExtractContentFromResponse(responseJson);
+            if (result != null && result.Contains("```"))
+            {
+                result = string.Join("\n", result.Split('\n').Where(l => !l.TrimStart().StartsWith("```")));
+            }
+            return result;
+        }
+    }
+
+    private AISliceAnalysis ParseAiSliceAnalysis(string json)
+    {
+        if (string.IsNullOrEmpty(json)) return null;
+        AISliceAnalysis parsed = null;
+        try { parsed = JsonUtility.FromJson<AISliceAnalysis>(json); }
+        catch { parsed = null; }
+        if (parsed == null) parsed = new AISliceAnalysis();
+        parsed.asset_kind = ExtractString(json, "asset_kind") ?? parsed.asset_kind;
+        parsed.frame_count = ExtractInt(json, "frame_count", parsed.frame_count);
+        parsed.grid_cols = ExtractInt(json, "grid_cols", parsed.grid_cols);
+        parsed.grid_rows = ExtractInt(json, "grid_rows", parsed.grid_rows);
+        parsed.cell_width = ExtractInt(json, "cell_width", parsed.cell_width);
+        parsed.cell_height = ExtractInt(json, "cell_height", parsed.cell_height);
+        parsed.x = ExtractInt(json, "x", parsed.x);
+        parsed.y = ExtractInt(json, "y", parsed.y);
+        parsed.w = ExtractInt(json, "w", parsed.w);
+        parsed.h = ExtractInt(json, "h", parsed.h);
+        parsed.confidence = ExtractString(json, "confidence") ?? parsed.confidence ?? "unknown";
+        parsed.reason = ExtractString(json, "reason") ?? parsed.reason ?? "";
+        return parsed;
+    }
+
+    private string ExtractContentFromResponse(string responseJson)
+    {
+        int msgIdx = responseJson.IndexOf("\"message\"");
+        if (msgIdx < 0) return null;
+        int contentIdx = responseJson.IndexOf("\"content\"", msgIdx);
+        if (contentIdx < 0) return null;
+        int colonIdx = responseJson.IndexOf(':', contentIdx);
+        if (colonIdx < 0) return null;
+        int start = colonIdx + 1;
+        while (start < responseJson.Length && responseJson[start] == ' ') start++;
+        if (start >= responseJson.Length || responseJson[start] != '"') return null;
+        StringBuilder sb = new StringBuilder();
+        int i = start + 1;
+        while (i < responseJson.Length)
+        {
+            if (responseJson[i] == '\\' && i + 1 < responseJson.Length)
+            {
+                char next = responseJson[i + 1];
+                switch (next)
+                {
+                    case '"': sb.Append('"'); i += 2; break;
+                    case '\\': sb.Append('\\'); i += 2; break;
+                    case 'n': sb.Append('\n'); i += 2; break;
+                    case 'r': sb.Append('\r'); i += 2; break;
+                    case 't': sb.Append('\t'); i += 2; break;
+                    default: sb.Append(next); i += 2; break;
+                }
+            }
+            else if (responseJson[i] == '"') break;
+            else { sb.Append(responseJson[i]); i++; }
+        }
+        return sb.ToString();
+    }
+
+    private static int ExtractInt(string json, string key, int fallback = 0)
+    {
+        string pattern = $"\"{key}\"";
+        int idx = json.IndexOf(pattern);
+        if (idx < 0) return fallback;
+        int colonIdx = json.IndexOf(':', idx + pattern.Length);
+        if (colonIdx < 0) return fallback;
+        int start = colonIdx + 1;
+        while (start < json.Length && char.IsWhiteSpace(json[start])) start++;
+        int end = start;
+        while (end < json.Length && (char.IsDigit(json[end]) || json[end] == '-')) end++;
+        if (end > start && int.TryParse(json.Substring(start, end - start), out int val)) return val;
+        return fallback;
+    }
+
+    private static string ExtractString(string json, string key)
+    {
+        string pattern = $"\"{key}\"";
+        int idx = json.IndexOf(pattern);
+        if (idx < 0) return null;
+        int colonIdx = json.IndexOf(':', idx + pattern.Length);
+        if (colonIdx < 0) return null;
+        int quoteStart = json.IndexOf('"', colonIdx + 1);
+        if (quoteStart < 0) return null;
+        int quoteEnd = quoteStart + 1;
+        while (quoteEnd < json.Length)
+        {
+            if (json[quoteEnd] == '\\') { quoteEnd += 2; continue; }
+            if (json[quoteEnd] == '"') break;
+            quoteEnd++;
+        }
+        return quoteEnd < json.Length ? json.Substring(quoteStart + 1, quoteEnd - quoteStart - 1) : null;
+    }
+
+    private static string EscapeJsonString(string s)
+    {
+        return "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r") + "\"";
     }
 
     private Vector2 GetPivotForPhysicsHint(int physicsTypeHint)

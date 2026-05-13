@@ -9,9 +9,9 @@
 | 你的素材 | 你做什么 | 系统自动做什么 |
 | --- | --- | --- |
 | 单张平台、陷阱、道具、背景 | 拖进 `Assets/Art/Imported/`，在导入窗口选择大类并一键导入。 | 规范化 Texture Importer、生成 Root/Visual 对象、挂 SpriteRenderer、碰撞体、SEF 材质和 Prefab。[1] |
-| 多帧普通动画 | 拖入 Sprite Sheet 或散帧文件夹，再应用到目标物体。 | 自动挂 `SpriteFrameAnimator`，按帧循环播放。[1] |
+| 多帧普通动画 | 拖入 Sprite Sheet 或散帧文件夹，再应用到目标物体。 | Apply Art 会优先读取已有切片；未切片贴图可用自动、AI 后台或手动参数切片，再挂 `SpriteFrameAnimator` 按帧循环播放。[1] |
 | 角色状态动画 | 使用 `idle/run/jump/fall` 命名散帧或切片，再应用到角色 Visual。 | 分类器分组后自动挂 `SpriteStateAnimator`，按运动状态切换；单独 RUN 也可用于试跑。[1] |
-| 大型合集图 | 先用 `Tools/sprite_sheet_slicer.py` 或 `Tools/ai_smart_slicer.py` 裁切，再拖入 Unity。 | 输出独立素材后走同一条导入链路。[1] |
+| 大型合集图 | 先用 `Tools/sprite_sheet_slicer.py` 或 `Tools/ai_smart_slicer.py` 裁切；若只是规则动画条或网格，也可直接在 Apply Art 里用 AI 后台识别或手动指定切片。 | 输出独立素材或写入 Unity Sprite 切片后走同一条导入链路。[1] |
 | 已有白盒物体换皮 | 选中 Root 或 Visual，打开 Apply Art 并应用素材。 | 后台归一到行为 Root，只替换视觉层，不破坏碰撞、脚本和 Prefab 归属。[2] |
 
 推荐做法是先让白盒关卡可玩，再把验证通过的白盒对象逐个换成商业素材。美术替换必须服务关卡主线，不能反过来阻塞关卡迭代。[2]
@@ -44,7 +44,7 @@
 | 入口 | 快捷键或菜单 | 用途 |
 | --- | --- | --- |
 | Asset Import Pipeline | `MarioTrickster → Asset Import Pipeline` 或 `Ctrl+Shift+I` | 从外部图片生成项目内 Object / Prefab。 |
-| Apply Art To Selected | `Ctrl+Shift+A` | 给已有白盒对象换皮，支持散帧、Sprite Sheet、状态动画和 SEF。 |
+| Apply Art To Selected | `Ctrl+Shift+A` | 给已有白盒对象换皮，支持散帧、Sprite Sheet、状态动画、SEF、AI 后台识别切片和手动 cell size / rows / columns 切片。 |
 | SEF Quick Apply | `MarioTrickster → SEF Quick Apply` 或 `Ctrl+Shift+Q` | 给选中物体快速套视觉效果预设，并保存 Prefab。 |
 | Planner Production Assistant | `Ctrl+T → Art & Effects Hub → 策划生产助手` | 对素材包做语义巡检、给出建议命名，经弹窗确认后批量改名，Theme 自动填槽，复制新机制请求模板。 |
 
@@ -53,6 +53,8 @@
 ## 4. 裁切工具
 
 大型商业合集图通常需要先拆成独立素材。透明背景、明显网格或间距清晰的图，可以先用纯像素裁切；构图复杂、多个物件贴得很近时，再用 AI 智能裁切。[1]
+
+Apply Art 内置的 **Sprite Sheet 切片**适合“给当前选中白盒对象直接换皮”的轻量场景。默认 **Auto Detect** 会处理文件名含帧尺寸、32px 网格和横向等宽动画条；**AI Backend** 会复用 AI Smart Slicer 的 API Key、Base URL 与模型配置，上传当前贴图预览给视觉模型判断 rows / columns / cell size / 裁切区域；**Manual Grid** 适合直接指定行列数，**Manual Cell Size** 适合商业素材说明中已给出单帧尺寸的情况。无论哪种模式，点击应用后都会写入 Unity Sprite 切片并继续走同一套动画与分类链路。
 
 ```bash
 # 网格切割

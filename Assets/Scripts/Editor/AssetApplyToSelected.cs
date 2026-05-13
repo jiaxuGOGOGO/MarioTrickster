@@ -1998,61 +1998,109 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
         }
 
         Undo.RecordObject(stateAnimator, "Configure Sprite State Animator");
-        stateAnimator.idle.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Idle);
-        stateAnimator.run.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Run);
-        stateAnimator.jump.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Jump);
-        stateAnimator.fall.frames = GetStateFramesOrFallback(classification, SpriteStateAnimator.MotionState.Fall);
+
+        // ── 核心 4 状态（带 fallback 兜底）──
+        stateAnimator.idle.frames = GetStateFramesOrFallback(classification, "idle");
+        stateAnimator.run.frames  = GetStateFramesOrFallback(classification, "run");
+        stateAnimator.jump.frames = GetStateFramesOrFallback(classification, "jump");
+        stateAnimator.fall.frames = GetStateFramesOrFallback(classification, "fall");
         stateAnimator.idle.frameRate = 6f;
-        stateAnimator.run.frameRate = 12f;
+        stateAnimator.run.frameRate  = 12f;
         stateAnimator.jump.frameRate = 10f;
         stateAnimator.fall.frameRate = 10f;
         stateAnimator.idle.loop = true;
-        stateAnimator.run.loop = true;
+        stateAnimator.run.loop  = true;
         stateAnimator.jump.loop = false;
         stateAnimator.fall.loop = false;
+
+        // ── 扩展状态（自动从分类结果中写入，无需手动配置）──
+        // 遍历 classification.stateFrames 中非核心 tag，自动创建 stateGroups 条目。
+        if (classification != null && classification.stateFrames != null)
+        {
+            var coreSet = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
+                { "idle", "run", "jump", "fall" };
+            foreach (var kvp in classification.stateFrames)
+            {
+                if (coreSet.Contains(kvp.Key)) continue; // 核心状态已处理
+                if (kvp.Value == null || kvp.Value.Length == 0) continue;
+                // 查找或创建对应 tag 的 StateFrames 条目
+                SpriteStateAnimator.StateFrames group = null;
+                foreach (var g in stateAnimator.stateGroups)
+                {
+                    if (g != null && string.Equals(g.tag, kvp.Key, System.StringComparison.OrdinalIgnoreCase))
+                    { group = g; break; }
+                }
+                if (group == null)
+                {
+                    group = new SpriteStateAnimator.StateFrames { tag = kvp.Key.ToLowerInvariant() };
+                    stateAnimator.stateGroups.Add(group);
+                }
+                group.frames = kvp.Value;
+                group.frameRate = 10f;
+                // 循环类状态默认 loop=true，一次性动作默认 loop=false
+                group.loop = IsLoopingState(kvp.Key);
+            }
+        }
+        stateAnimator.MarkCacheDirty();
+
         stateAnimator.playOnStart = true;
         EditorUtility.SetDirty(stateAnimator);
     }
 
-    private Sprite[] GetStateFramesOrFallback(ArtAssetClassifier.Classification classification, SpriteStateAnimator.MotionState state)
+    private Sprite[] GetStateFramesOrFallback(ArtAssetClassifier.Classification classification, string tag)
     {
-        if (TryGetStateFrames(classification, state, out Sprite[] frames))
+        if (TryGetStateFrames(classification, tag, out Sprite[] frames))
         {
             return frames;
         }
 
-        switch (state)
+        // 核心 4 状态的 fallback 逻辑
+        switch (tag)
         {
-            case SpriteStateAnimator.MotionState.Idle:
+            case "idle":
                 // 只有 RUN 时，待机只用第一帧静态兜底，避免站着也一直跑。
-                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Run, out frames)) return FirstFrameOnly(frames);
+                if (TryGetStateFrames(classification, "run", out frames)) return FirstFrameOnly(frames);
                 break;
 
-            case SpriteStateAnimator.MotionState.Run:
-                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Idle, out frames)) return frames;
+            case "run":
+                if (TryGetStateFrames(classification, "idle", out frames)) return frames;
                 break;
 
-            case SpriteStateAnimator.MotionState.Jump:
-                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Fall, out frames)) return FirstFrameOnly(frames);
-                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Idle, out frames)) return FirstFrameOnly(frames);
-                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Run, out frames)) return FirstFrameOnly(frames);
+            case "jump":
+                if (TryGetStateFrames(classification, "fall", out frames)) return FirstFrameOnly(frames);
+                if (TryGetStateFrames(classification, "idle", out frames)) return FirstFrameOnly(frames);
+                if (TryGetStateFrames(classification, "run", out frames)) return FirstFrameOnly(frames);
                 break;
 
-            case SpriteStateAnimator.MotionState.Fall:
-                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Jump, out frames)) return FirstFrameOnly(frames);
-                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Idle, out frames)) return FirstFrameOnly(frames);
-                if (TryGetStateFrames(classification, SpriteStateAnimator.MotionState.Run, out frames)) return FirstFrameOnly(frames);
+            case "fall":
+                if (TryGetStateFrames(classification, "jump", out frames)) return FirstFrameOnly(frames);
+                if (TryGetStateFrames(classification, "idle", out frames)) return FirstFrameOnly(frames);
+                if (TryGetStateFrames(classification, "run", out frames)) return FirstFrameOnly(frames);
                 break;
         }
 
         return FirstAnyStateFrame(classification);
     }
 
-    private bool TryGetStateFrames(ArtAssetClassifier.Classification classification, SpriteStateAnimator.MotionState state, out Sprite[] frames)
+    private bool TryGetStateFrames(ArtAssetClassifier.Classification classification, string tag, out Sprite[] frames)
     {
         frames = null;
         return classification != null && classification.stateFrames != null &&
-            classification.stateFrames.TryGetValue(state, out frames) && frames != null && frames.Length > 0;
+            classification.stateFrames.TryGetValue(tag, out frames) && frames != null && frames.Length > 0;
+    }
+
+    /// <summary>判断状态是否应默认循环播放。</summary>
+    private bool IsLoopingState(string tag)
+    {
+        if (string.IsNullOrEmpty(tag)) return false;
+        switch (tag.ToLowerInvariant())
+        {
+            case "idle": case "run": case "swim": case "climb": case "crawl":
+            case "wallslide": case "glide": case "slide": case "crouch":
+                return true;
+            default:
+                return false;
+        }
     }
 
     private Sprite[] FirstFrameOnly(Sprite[] frames)

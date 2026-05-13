@@ -10,6 +10,12 @@ using UnityEngine;
 ///
 /// 只在 Editor 中运行，负责把用户拖入的 Sprite/SpriteSheet 归档为：角色状态动画、循环场景动画、
 /// 道具/陷阱/背景/VFX 等应用策略。它不直接修改 GameObject，避免与具体窗口强耦合。
+///
+/// Session S-DynState 重构：
+///   - stateFrames 从 Dictionary&lt;MotionState, Sprite[]&gt; 改为 Dictionary&lt;string, Sprite[]&gt;
+///     字符串 tag 做 key，核心 4 状态用 "idle"/"run"/"jump"/"fall"，扩展状态用 "wallslide"/"swim"/"roll" 等。
+///   - TryDetectState 改为返回字符串 tag，关键词表扩展覆盖更多商业素材命名。
+///   - 向后兼容：提供 GetMotionStateFrames() 方法，将字符串 tag 映射回 MotionState 枚举。
 /// </summary>
 public static class ArtAssetClassifier
 {
@@ -48,6 +54,47 @@ public static class ArtAssetClassifier
         VFX
     }
 
+    // ── 状态关键词定义（集中管理，方便扩展）──────────────────
+    // 每个条目：tag → 关键词数组。文件名命中任一关键词即归入该 tag。
+    // 优先级由数组顺序决定（TryDetectState 从前往后匹配，先命中先返回）。
+    // [AI防坑警告] 核心 4 状态必须排在最前面，保证 idle/run/jump/fall 优先命中。
+    // 新增状态只需在此处加一行，零代码改动。
+    private static readonly StateKeywordEntry[] STATE_KEYWORDS = new StateKeywordEntry[]
+    {
+        // ── 核心 4 状态（物理自动驱动）──
+        new StateKeywordEntry("idle",      "idle", "stand", "standing", "wait"),
+        new StateKeywordEntry("run",       "run", "running", "walk", "walking", "move"),
+        new StateKeywordEntry("jump",      "jump", "jumping", "rise", "rising"),
+        new StateKeywordEntry("fall",      "fall", "falling", "drop"),
+
+        // ── 扩展运动状态（未来由外部脚本驱动）──
+        new StateKeywordEntry("wallslide", "wallslide", "wall_slide", "wall_climb", "wall_climbing", "wallcling", "wall_cling", "walljump", "wall_jump"),
+        new StateKeywordEntry("swim",      "swim", "swimming", "swimming_dive", "dive", "underwater"),
+        new StateKeywordEntry("roll",      "roll", "rolling", "dodge", "dodge_roll"),
+        new StateKeywordEntry("crouch",    "crouch", "crouching", "duck", "ducking", "crawl", "crawling"),
+        new StateKeywordEntry("slide",     "slide", "sliding", "dash", "dashing", "speed_boost"),
+        new StateKeywordEntry("climb",     "climb", "climbing", "climbing_ladder", "descending_ladder", "ladder"),
+        new StateKeywordEntry("doublejump","double_jump", "doublejump", "air_jump"),
+        new StateKeywordEntry("glide",     "glide", "gliding", "gliding_jump", "float", "floating"),
+        new StateKeywordEntry("land",      "land", "landing", "landing_with_impact", "landingwithimpact"),
+        new StateKeywordEntry("attack",    "attack", "attacking", "atk", "melee", "slash", "stab", "strike"),
+        new StateKeywordEntry("hurt",      "hurt", "hit", "damage", "damaged", "injured", "knockback"),
+        new StateKeywordEntry("death",     "death", "dead", "die", "dying", "defeat"),
+    };
+
+    private struct StateKeywordEntry
+    {
+        public readonly string tag;
+        public readonly string[] keywords;
+        public StateKeywordEntry(string tag, params string[] keywords) { this.tag = tag; this.keywords = keywords; }
+    }
+
+    /// <summary>核心 4 状态的 tag 集合，用于快速判断。</summary>
+    private static readonly HashSet<string> CORE_TAGS = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "idle", "run", "jump", "fall"
+    };
+
     public sealed class Classification
     {
         public AssetRole role = AssetRole.Unknown;
@@ -55,19 +102,36 @@ public static class ArtAssetClassifier
         public RuntimeBehavior runtimeBehavior = RuntimeBehavior.KeepExisting;
         public float confidence;
         public string notes = string.Empty;
-        public Dictionary<SpriteStateAnimator.MotionState, Sprite[]> stateFrames = new Dictionary<SpriteStateAnimator.MotionState, Sprite[]>();
+        /// <summary>
+        /// 状态帧字典。key 为小写字符串 tag（如 "idle"、"run"、"wallslide"、"swim"）。
+        /// </summary>
+        public Dictionary<string, Sprite[]> stateFrames = new Dictionary<string, Sprite[]>(StringComparer.OrdinalIgnoreCase);
         public List<string> semanticStates = new List<string>();
 
         public bool IsStateDriven => animationMode == AnimationMode.StateDriven && stateFrames.Count > 0;
+
+        /// <summary>向后兼容：获取核心 MotionState 枚举对应的帧数组。</summary>
+        public Dictionary<SpriteStateAnimator.MotionState, Sprite[]> GetMotionStateFrames()
+        {
+            var result = new Dictionary<SpriteStateAnimator.MotionState, Sprite[]>();
+            foreach (var tag in CORE_TAGS)
+            {
+                if (stateFrames.TryGetValue(tag, out Sprite[] frames) && frames != null && frames.Length > 0)
+                {
+                    result[SpriteStateAnimator.TagToMotionState(tag)] = frames;
+                }
+            }
+            return result;
+        }
 
         public string MotionStateSummary
         {
             get
             {
                 if (stateFrames == null || stateFrames.Count == 0) return string.Empty;
-                return string.Join(",", OrderedStates()
-                    .Where(state => stateFrames.ContainsKey(state))
-                    .Select(state => state.ToString().ToLowerInvariant()));
+                // 只列出核心 4 状态
+                return string.Join(",", new[] { "idle", "run", "jump", "fall" }
+                    .Where(tag => stateFrames.ContainsKey(tag)));
             }
         }
 
@@ -76,14 +140,23 @@ public static class ArtAssetClassifier
             get
             {
                 List<string> ordered = new List<string>();
-                if (!string.IsNullOrEmpty(MotionStateSummary)) ordered.AddRange(MotionStateSummary.Split(','));
+                // 先列核心状态
+                foreach (string tag in new[] { "idle", "run", "jump", "fall" })
+                {
+                    if (stateFrames.ContainsKey(tag)) ordered.Add(tag);
+                }
+                // 再列扩展状态
+                foreach (string tag in stateFrames.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (!ordered.Contains(tag)) ordered.Add(tag);
+                }
+                // 最后列语义状态（不在 stateFrames 中的）
                 if (semanticStates != null)
                 {
                     foreach (string state in OrderedSemanticStates())
                     {
                         if (semanticStates.Contains(state) && !ordered.Contains(state)) ordered.Add(state);
                     }
-
                     foreach (string state in semanticStates.OrderBy(s => s, StringComparer.OrdinalIgnoreCase))
                     {
                         if (!string.IsNullOrEmpty(state) && !ordered.Contains(state)) ordered.Add(state);
@@ -157,7 +230,7 @@ public static class ArtAssetClassifier
         if (ContainsAny(text, "vfx", "fx", "spark", "smoke", "poof", "slash", "impact", "hit", "cast", "spell", "skill", "aura", "burst", "trail")) return AssetRole.VFX;
         if (ContainsAny(text, "ui", "icon", "button", "hud")) return AssetRole.UI;
 
-        // 只把“纯运动状态包”作为最后的角色兜底；否则 chest_idle、spell_cast、trap_active 等商业素材会被误判为角色。
+        // 只把"纯运动状态包"作为最后的角色兜底；否则 chest_idle、spell_cast、trap_active 等商业素材会被误判为角色。
         if (ContainsAny(text, "idle", "run", "running", "walk", "walking", "jump", "fall", "falling")) return AssetRole.Character;
 
         switch (physicsTypeHint)
@@ -192,10 +265,10 @@ public static class ArtAssetClassifier
         }
     }
 
-    private static AnimationMode DetectAnimationMode(AssetRole role, RuntimeBehavior behavior, Dictionary<SpriteStateAnimator.MotionState, Sprite[]> states, Sprite[] sprites, string text)
+    private static AnimationMode DetectAnimationMode(AssetRole role, RuntimeBehavior behavior, Dictionary<string, Sprite[]> states, Sprite[] sprites, string text)
     {
         // 主角换皮允许单状态试跑：只有 run/idle/jump/fall 其中一组时，也要挂 SpriteStateAnimator。
-        // 否则只导入 RUN 会退化成普通循环动画，无法验证“按左右才播放跑步”。
+        // 否则只导入 RUN 会退化成普通循环动画，无法验证"按左右才播放跑步"。
         if (HasAnyMotionState(states) && behavior == RuntimeBehavior.PlayerStateDriven) return AnimationMode.StateDriven;
 
         // 完整或半完整角色包：只要文件名已经明确分出两个及以上运动状态，就优先走状态机动画。
@@ -206,18 +279,22 @@ public static class ArtAssetClassifier
         return AnimationMode.None;
     }
 
-    public static Dictionary<SpriteStateAnimator.MotionState, Sprite[]> BuildStateGroups(Sprite[] sprites, string extraSearchText = "")
+    /// <summary>
+    /// 根据 Sprite 名称和路径，自动将帧分组到各状态 tag。
+    /// 返回 Dictionary&lt;string, Sprite[]&gt;，key 为小写 tag。
+    /// </summary>
+    public static Dictionary<string, Sprite[]> BuildStateGroups(Sprite[] sprites, string extraSearchText = "")
     {
-        Dictionary<SpriteStateAnimator.MotionState, List<Sprite>> grouped = new Dictionary<SpriteStateAnimator.MotionState, List<Sprite>>();
+        Dictionary<string, List<Sprite>> grouped = new Dictionary<string, List<Sprite>>(StringComparer.OrdinalIgnoreCase);
         foreach (Sprite sprite in sprites ?? new Sprite[0])
         {
             if (sprite == null) continue;
             string text = Normalize(sprite.name + " " + AssetDatabase.GetAssetPath(sprite));
-            if (!TryDetectState(text, out SpriteStateAnimator.MotionState state)) continue;
-            if (!grouped.TryGetValue(state, out List<Sprite> list))
+            if (!TryDetectState(text, out string tag)) continue;
+            if (!grouped.TryGetValue(tag, out List<Sprite> list))
             {
                 list = new List<Sprite>();
-                grouped[state] = list;
+                grouped[tag] = list;
             }
             list.Add(sprite);
         }
@@ -227,29 +304,36 @@ public static class ArtAssetClassifier
             pair => pair.Value
                 .OrderBy(s => ExtractFrameIndex(s != null ? s.name : string.Empty))
                 .ThenBy(s => s != null ? s.name : string.Empty, StringComparer.OrdinalIgnoreCase)
-                .ToArray());
+                .ToArray(),
+            StringComparer.OrdinalIgnoreCase);
     }
 
-    private static bool TryDetectState(string text, out SpriteStateAnimator.MotionState state)
+    /// <summary>
+    /// 尝试从文本中检测状态 tag。使用 STATE_KEYWORDS 表按优先级匹配。
+    /// </summary>
+    private static bool TryDetectState(string text, out string tag)
     {
-        if (ContainsAny(text, "idle", "stand", "standing", "wait"))
+        foreach (var entry in STATE_KEYWORDS)
         {
-            state = SpriteStateAnimator.MotionState.Idle;
-            return true;
+            if (ContainsAny(text, entry.keywords))
+            {
+                tag = entry.tag;
+                return true;
+            }
         }
-        if (ContainsAny(text, "run", "running", "walk", "walking", "move"))
+        tag = null;
+        return false;
+    }
+
+    /// <summary>
+    /// 向后兼容：旧签名的 TryDetectState，返回 MotionState 枚举。
+    /// 仅匹配核心 4 状态，扩展状态不参与。
+    /// </summary>
+    public static bool TryDetectState(string text, out SpriteStateAnimator.MotionState state)
+    {
+        if (TryDetectState(text, out string tag) && CORE_TAGS.Contains(tag))
         {
-            state = SpriteStateAnimator.MotionState.Run;
-            return true;
-        }
-        if (ContainsAny(text, "jump", "jumping", "rise", "rising", "up"))
-        {
-            state = SpriteStateAnimator.MotionState.Jump;
-            return true;
-        }
-        if (ContainsAny(text, "fall", "falling", "drop", "down"))
-        {
-            state = SpriteStateAnimator.MotionState.Fall;
+            state = SpriteStateAnimator.TagToMotionState(tag);
             return true;
         }
         state = SpriteStateAnimator.MotionState.Idle;
@@ -275,15 +359,17 @@ public static class ArtAssetClassifier
         return $"自动分类: role={result.role}, animation={result.animationMode}, behavior={result.runtimeBehavior}, frames={spriteCount}, {motionInfo}, {semanticInfo}.";
     }
 
-    private static List<string> BuildSemanticStates(Sprite[] sprites, string joinedText, Dictionary<SpriteStateAnimator.MotionState, Sprite[]> motionStates)
+    private static List<string> BuildSemanticStates(Sprite[] sprites, string joinedText, Dictionary<string, Sprite[]> tagStates)
     {
         HashSet<string> detected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (SpriteStateAnimator.MotionState state in OrderedStates())
+        // 从 stateFrames 中已有的 tag 加入
+        if (tagStates != null)
         {
-            if (motionStates != null && motionStates.TryGetValue(state, out Sprite[] frames) && frames != null && frames.Length > 0)
+            foreach (var kvp in tagStates)
             {
-                detected.Add(state.ToString().ToLowerInvariant());
+                if (kvp.Value != null && kvp.Value.Length > 0)
+                    detected.Add(kvp.Key);
             }
         }
 
@@ -324,13 +410,22 @@ public static class ArtAssetClassifier
     {
         yield return new StateTokenGroup("idle", "idle", "stand", "standing", "wait");
         yield return new StateTokenGroup("run", "run", "running", "walk", "walking", "move");
-        yield return new StateTokenGroup("jump", "jump", "jumping", "rise", "rising", "up");
-        yield return new StateTokenGroup("fall", "fall", "falling", "drop", "down");
-        yield return new StateTokenGroup("attack", "attack", "attacking", "atk", "melee", "slash", "stab", "shoot", "fire");
+        yield return new StateTokenGroup("jump", "jump", "jumping", "rise", "rising");
+        yield return new StateTokenGroup("fall", "fall", "falling", "drop");
+        yield return new StateTokenGroup("wallslide", "wallslide", "wall_slide", "wall_climb", "wall_climbing", "wallcling", "wall_cling", "walljump", "wall_jump");
+        yield return new StateTokenGroup("swim", "swim", "swimming", "swimming_dive", "dive", "underwater");
+        yield return new StateTokenGroup("roll", "roll", "rolling", "dodge", "dodge_roll");
+        yield return new StateTokenGroup("crouch", "crouch", "crouching", "duck", "ducking", "crawl", "crawling");
+        yield return new StateTokenGroup("slide", "slide", "sliding", "dash", "dashing", "speed_boost");
+        yield return new StateTokenGroup("climb", "climb", "climbing", "climbing_ladder", "descending_ladder", "ladder");
+        yield return new StateTokenGroup("doublejump", "double_jump", "doublejump", "air_jump");
+        yield return new StateTokenGroup("glide", "glide", "gliding", "gliding_jump", "float", "floating");
+        yield return new StateTokenGroup("land", "land", "landing", "landing_with_impact", "landingwithimpact");
+        yield return new StateTokenGroup("attack", "attack", "attacking", "atk", "melee", "slash", "stab", "shoot", "fire", "strike");
         yield return new StateTokenGroup("cast", "cast", "casting", "skill", "spell", "magic", "ability", "charge", "release");
         yield return new StateTokenGroup("hurt", "hurt", "hit", "damage", "damaged", "injured", "knockback");
         yield return new StateTokenGroup("death", "death", "dead", "die", "dying", "defeat", "destroyed", "break");
-        yield return new StateTokenGroup("stealth", "stealth", "sneak", "hide", "hidden", "crouch");
+        yield return new StateTokenGroup("stealth", "stealth", "sneak", "hide", "hidden");
         yield return new StateTokenGroup("disguise", "disguise", "mimic", "transform", "shapeshift");
         yield return new StateTokenGroup("blend", "blend", "blended", "camouflage", "camouflaged", "invisible", "vanish");
         yield return new StateTokenGroup("telegraph", "telegraph", "tell", "warning", "warn", "anticipation", "precast");
@@ -347,6 +442,15 @@ public static class ArtAssetClassifier
         yield return "run";
         yield return "jump";
         yield return "fall";
+        yield return "wallslide";
+        yield return "swim";
+        yield return "roll";
+        yield return "crouch";
+        yield return "slide";
+        yield return "climb";
+        yield return "doublejump";
+        yield return "glide";
+        yield return "land";
         yield return "attack";
         yield return "cast";
         yield return "hurt";
@@ -371,18 +475,18 @@ public static class ArtAssetClassifier
         yield return SpriteStateAnimator.MotionState.Fall;
     }
 
-    private static bool HasAnyMotionState(Dictionary<SpriteStateAnimator.MotionState, Sprite[]> states)
+    private static bool HasAnyMotionState(Dictionary<string, Sprite[]> states)
     {
         if (states == null || states.Count == 0) return false;
-        return OrderedStates().Any(state =>
-            states.TryGetValue(state, out Sprite[] frames) && frames != null && frames.Length > 0);
+        return CORE_TAGS.Any(tag =>
+            states.TryGetValue(tag, out Sprite[] frames) && frames != null && frames.Length > 0);
     }
 
-    private static bool HasCoreMotionStates(Dictionary<SpriteStateAnimator.MotionState, Sprite[]> states)
+    private static bool HasCoreMotionStates(Dictionary<string, Sprite[]> states)
     {
         if (states == null || states.Count < 2) return false;
-        int nonEmpty = OrderedStates().Count(state =>
-            states.TryGetValue(state, out Sprite[] frames) && frames != null && frames.Length > 0);
+        int nonEmpty = CORE_TAGS.Count(tag =>
+            states.TryGetValue(tag, out Sprite[] frames) && frames != null && frames.Length > 0);
         return nonEmpty >= 2;
     }
 
@@ -424,22 +528,9 @@ public static class ArtAssetClassifier
                 // [FIX] CamelCase split: only insert separator when an uppercase letter
                 // follows a lowercase letter. This prevents ALL-CAPS words like "RUN"
                 // from being split into individual letters (r_u_n).
-                // Standard PascalCase/camelCase boundary: "myRun" -> "my_run", "RUN" -> "run",
-                // "RUNning" -> "ru_nning" is acceptable; the key is consecutive uppercase stays together.
                 if (char.IsUpper(c) && char.IsLetter(previous) && char.IsLower(text[i - 1]))
                 {
                     AppendSeparator(builder);
-                }
-                // Also handle transition from uppercase run to lowercase: "RUNning" -> split before 'n'
-                // when current char is lowercase and previous original char was uppercase and the one before that was also uppercase.
-                else if (char.IsLower(c) && i >= 2 && char.IsUpper(text[i - 1]) && char.IsUpper(text[i - 2]))
-                {
-                    // Insert separator before the last uppercase letter that starts the lowercase run
-                    // e.g., "RUNning": at 'n' (lowercase), text[i-1]='N' (upper), text[i-2]='U' (upper)
-                    // We want "run_ning" -> actually we want the split before the 'N': "ru_nning"
-                    // But since we already appended 'n' as lowercase in builder, we need to insert before it.
-                    // Simpler approach: just don't split here, let consecutive uppercase stay together.
-                    // The important fix is the line above that prevents splitting consecutive uppercase.
                 }
                 else if (char.IsDigit(c) && char.IsLetter(previous))
                 {

@@ -307,6 +307,14 @@ public class AssetApplyToSelected : EditorWindow
 
         // [AI防坑警告] Apply Art 的语义是“给已有白盒 Root 换皮”，不是把行为组件写到 Visual 上。
         // 由于 Level Studio 支持 Visual 模式，用户很容易点到 Visual；这里必须后台归一回 Root，避免破坏视碰分离。
+        // S123: 不能只认名字叫 "Visual" 的子节点。商业素材导入后 Visual 可能被重命名、套了一层，
+        // 或用户直接点到 SpriteRenderer 子节点；只要父级存在 Mario/Trickster 控制器，就必须归一回控制器根节点。
+        MarioController marioRoot = selected.GetComponentInParent<MarioController>();
+        if (marioRoot != null) return marioRoot.gameObject;
+
+        TricksterController tricksterRoot = selected.GetComponentInParent<TricksterController>();
+        if (tricksterRoot != null) return tricksterRoot.gameObject;
+
         if (selected.name == "Visual" && selected.transform.parent != null)
         {
             return selected.transform.parent.gameObject;
@@ -810,6 +818,12 @@ public class AssetApplyToSelected : EditorWindow
     {
         if (target == null || !PivotPresetUtility.HasCharacterControllerPublic(target)) return;
 
+        // S123: 文件夹整组换皮后的“能跳/能动画但不能左右移动”，最常见不是 SpriteStateAnimator，
+        // 而是角色根节点被旧模板或误选 Visual 后留下了 Static/Trigger/Freeze、Root 缩放、visualTransform 或 InputManager 引用断链。
+        // 本方法只修复“移动控制链路”字段，不根据新贴图重算碰撞体尺寸，继续遵守视碰分离原则。
+        Undo.RecordObject(target.transform, "Protect Character Root Transform");
+        target.transform.localScale = Vector3.one;
+
         var rb = target.GetComponent<Rigidbody2D>();
         if (rb == null)
         {
@@ -844,18 +858,81 @@ public class AssetApplyToSelected : EditorWindow
             box.offset = new Vector2(0f, stdOffsetY);
         }
 
-        var visual = target.transform.Find("Visual");
+        Transform visual = ResolveCharacterVisualTransform(target);
         if (visual != null)
         {
             Undo.RecordObject(visual, "Protect Character Visual Transform");
             visual.localPosition = Vector3.zero;
-            if (visual.localScale.x == 0f || visual.localScale.y == 0f)
+            if (Mathf.Approximately(visual.localScale.x, 0f) || Mathf.Approximately(visual.localScale.y, 0f))
             {
                 visual.localScale = Vector3.one;
             }
         }
 
+        RepairCharacterControllerVisualReferences(target, visual);
+        RepairInputManagerCharacterReferences(target);
+
         EditorUtility.SetDirty(target);
+    }
+
+    private Transform ResolveCharacterVisualTransform(GameObject target)
+    {
+        if (target == null) return null;
+
+        Transform visual = target.transform.Find("Visual");
+        if (visual != null) return visual;
+
+        SpriteRenderer sr = target.GetComponentInChildren<SpriteRenderer>(true);
+        if (sr != null) return sr.transform;
+
+        GameObject visualGO = new GameObject("Visual");
+        Undo.RegisterCreatedObjectUndo(visualGO, "Create Character Visual");
+        visualGO.transform.SetParent(target.transform);
+        visualGO.transform.localPosition = Vector3.zero;
+        visualGO.transform.localRotation = Quaternion.identity;
+        visualGO.transform.localScale = Vector3.one;
+        return visualGO.transform;
+    }
+
+    private void RepairCharacterControllerVisualReferences(GameObject target, Transform visual)
+    {
+        if (target == null || visual == null) return;
+
+        foreach (var controller in target.GetComponents<MonoBehaviour>())
+        {
+            if (controller == null) continue;
+            string typeName = controller.GetType().Name;
+            if (typeName != "MarioController" && typeName != "TricksterController") continue;
+
+            Undo.RecordObject(controller, "Repair Character Visual Reference");
+            var so = new SerializedObject(controller);
+            SerializedProperty visualProp = so.FindProperty("visualTransform");
+            if (visualProp != null && visualProp.propertyType == SerializedPropertyType.ObjectReference)
+            {
+                visualProp.objectReferenceValue = visual;
+                so.ApplyModifiedProperties();
+            }
+            EditorUtility.SetDirty(controller);
+        }
+    }
+
+    private void RepairInputManagerCharacterReferences(GameObject target)
+    {
+        if (target == null) return;
+
+        MarioController mario = target.GetComponent<MarioController>();
+        TricksterController trickster = target.GetComponent<TricksterController>();
+        if (mario == null && trickster == null) return;
+
+        foreach (InputManager input in Resources.FindObjectsOfTypeAll<InputManager>())
+        {
+            if (input == null || EditorUtility.IsPersistent(input)) continue;
+
+            Undo.RecordObject(input, "Repair Character Input Reference");
+            if (mario != null) input.SetMarioController(mario);
+            if (trickster != null) input.SetTricksterController(trickster);
+            EditorUtility.SetDirty(input);
+        }
     }
 
     private bool HasComponentNamed(GameObject target, string typeName)

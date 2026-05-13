@@ -91,16 +91,23 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 124（红线防护系统：RedLineGuard 自动巡检 + Size Sync 角色豁免 + 硬编码消除） |
+| **最新 Session** | Session 125（Apply Art 文件夹整组换皮后角色移动链路自愈） |
 | **日期** | 2026-05-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S124 建立红线防护机制，从代码层面硬性阻止任何工具或脚本修改 PhysicsMetrics 红线值。包括：RedLineGuard 自动巡检（保存/运行前触发）、Size Sync 角色豁免、硬编码碰撞体值替换为 PhysicsMetrics 常量引用。 |
-| **编译状态** | ✅ 代码审查通过（括号平衡、引用完整）；待用户 `git pull` 后在 Unity 中验证。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S125 修复用户反馈的整组动作文件夹应用后“动画/跳跃素材能生效但角色不能左右移动”回归：Apply Art 现在会从任意 Visual/SpriteRenderer 子节点归一回 Mario/Trickster Root，并在换皮后自动修复 Rigidbody2D、Collider2D、visualTransform 与 InputManager 角色引用。 |
+| **编译状态** | ✅ 静态检查通过（`git diff --check`、关键修复点断言通过）；待用户 `git pull` 后在 Unity 中验证。 |
 | **阻塞** | 无。 |
-| **交接说明** | S124 延续 S121-S123 文档入口；红线防护看菜单 MarioTrickster → 红线巡检。 |
+| **交接说明** | S125 延续 S121-S124 美术换皮防回归链路；若用户继续反馈不能移动，优先检查场景 InputManager 是否存在多个实例或 Play Mode 控制台是否有红错。 |
 
 
-### [S124] 最新知识沉淀
+### [S125] 最新知识沉淀
+
+1. **整组动作文件夹换皮不能移动的高概率根因**：用户把 idle/run/jump 等一组 PNG 文件夹应用到角色后，Sprite 状态动画可以配置，但角色 Root 可能仍残留误应用造成的 `Rigidbody2D` / `BoxCollider2D` 异常、`visualTransform` 指向旧子节点，或场景 `InputManager` 仍引用旧控制器实例。此类问题表现为“重新单独把跳跃素材应用到角色上后能动”，但真正要修的是换皮后的控制链路，而不是继续叠加素材。
+2. **Apply Art 目标归一必须穿透任意子层级**：`ResolveApplyTarget` 现在优先用 `GetComponentInParent<MarioController/TricksterController>()` 从 Visual、被重命名的视觉节点、SpriteRenderer 子节点回到角色 Root，不能只依赖名字等于 `Visual` 的一层父节点。
+3. **角色换皮后的移动链路自愈**：`EnsureCharacterControlChain` 会保护角色 Root Scale、恢复动态 Rigidbody2D、确保 Collider 非 Trigger，并重新绑定控制器的 `visualTransform` 和场景 `InputManager` 的 Mario/Trickster 引用。该逻辑只修移动链路，不按新贴图重算碰撞体尺寸，继续遵守视碰分离和 PhysicsMetrics 红线。
+4. **用户验证重点**：在 Unity 中先选中角色 Root 或任意 Visual 子节点，再用 Apply Art 应用包含 idle/run/jump 的文件夹；进入 Play Mode 后验证 WASD/方向键左右移动、跳跃、站立/奔跑/跳跃动画都同时正常，且 Root Scale 仍为 `(1,1,1)`。
+
+### [S124] 知识沉淀
 
 1. **RedLineGuard 红线防护系统**：新增 `RedLineGuard.cs`，通过 `[InitializeOnLoad]` 自动注册事件钩子，在 Scene 保存前和进入 Play Mode 前自动巡检角色碰撞体和 Root Scale 是否符合 PhysicsMetrics 标准值。发现违规时自动修复（可关闭），所有修复经过 Undo 系统可回退。
 2. **Size Sync 角色豁免**：`LevelEditorPickingManager.SyncPairIfNeeded` 现在会跳过角色 Root（MarioController/TricksterController/PlayerController），避免拖动 Visual 缩放时意外覆盖角色碰撞体。
@@ -253,8 +260,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 状态 | 测试项 | 关键验证点 |
 |:----:|--------|-----------|
 | 🔄 | 测试 0：动画管线 12GB 烟测 | **S100重点验证**: 默认 `480×480 / 17帧 / 6步` 可直跑；`jump` 自动走 `416×544 / 17帧 / 6步`；手动传入超预算参数时日志出现 `[12GB护栏]` 且不会爆显存 |
-| 🔄 | 测试 1：Mario 基础移动 | **S52重点验证**: WASD + Space 手感不变（PhysicsConfigSO 默认值与原硬编码一致），单独按S不触发下落，S36落地压扁仅高速下落触发 |
-| 🔄 | 测试 2：Trickster 移动 | **S49重点验证**: 方向键移动正常；融入后方向键切换目标不移动（输入解耦后行为完全一致） |
+| 🔄 | 测试 1：Mario 基础移动 | **S125重点验证**: 对 Mario 应用 idle/run/jump 文件夹后，WASD 左右移动、Space 跳跃、Idle/Run/Jump 状态动画同时正常；Root Scale 仍为 `(1,1,1)`，BoxCollider2D 非 Trigger |
+| 🔄 | 测试 2：Trickster 移动 | **S125重点验证**: 对 Trickster 应用整组动作文件夹后，方向键左右移动和跳跃仍正常；若从 Visual 子节点执行 Apply Art，也必须自动回到 Trickster Root 并保持 InputManager 引用正确 |
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |
 | ✅ | 测试 4：伪装系统 | P 伪装/解除，O/I 切换 |
 | 🔄 | 测试 5：道具操控 | 融入后红/灰连线；方向键磁吸切换；L 触发红线目标 |
@@ -273,7 +280,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S56重点验证**: ASCII Build 新字符(@f<SX)能正确生成对应元素，旧字符行为不变 |
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| 🔄 | EditMode 自动化 | **S120重点验证**: `ArtAssetClassifierTests` idle/run/jump/fall 边界测试、主角单 RUN 状态动画测试、商业语义状态摘要测试、道具 idle 与特效 cast 防误判测试通过；Apply Art 对主角应用单组 RUN 仍挂 `SpriteStateAnimator`，普通非角色多帧素材仍回退 `SpriteFrameAnimator`；Unity Editor 重新编译无新增红错 |
+| 🔄 | EditMode 自动化 | **S125重点验证**: `ArtAssetClassifierTests` idle/run/jump/fall 边界测试、主角单 RUN 状态动画测试、商业语义状态摘要测试、道具 idle 与特效 cast 防误判测试通过；Apply Art 对主角应用整组文件夹后仍挂 `SpriteStateAnimator`，并且角色 Root 的 Rigidbody2D/Collider2D/visualTransform/InputManager 引用不会被换皮破坏；Unity Editor 重新编译无新增红错 |
 | 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
@@ -312,6 +319,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **Apply Art 选中归一优化**：S113 已让 `Apply Art to Selected` 在用户选中 Root 或 Visual 时都自动回到行为 Root 执行换皮，降低 Visual 模式下把标记/碰撞/Prefab 写错层的风险。 | ✅ 已完成（S113） |
 | **最高** | **策划生产助手短板优化**：S114 新增 `PlannerProductionAssistant`，把商业素材包命名混乱、Theme Profile 手动填槽、新机制请求不稳定三项短板压成一个 Unity 内窗口入口。 | ✅ 已完成（S114，待 Unity 实机验证） |
 | **最高** | **角色状态动画自动挂载与商业状态兼容**：S115 补强 `idle/run/jump/fall` 命名分类边界测试；S119 追加主角单组 RUN 也能状态驱动；S120 把攻击、受伤、死亡、施法、技能特效、潜行、伪装、融入环境、道具开关等商业素材状态纳入分类摘要和文档，不改变现有运行行为。 | ✅ 已完成（S120，待 Unity 实机验证） |
+| **最高** | **Apply Art 文件夹整组换皮后角色移动链路修复**：S125 让 Apply Art 从任意 Visual/SpriteRenderer 子节点回到 Mario/Trickster Root，并在换皮后自动修复 Rigidbody2D、Collider2D、visualTransform 与 InputManager 角色引用，避免“应用整组动作后不能左右移动、单独重贴跳跃后才恢复”的回归。 | ✅ 已修复，待用户 Unity 实机验证 |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |
 | **最高** | **美术资产独立仓库分离执行**：`tyu` 已改名为 `MarioTrickster-Art`，通过 git-filter-repo 拆分 93 条历史提交并推送，配置 Git LFS，主仓库清理已迁移目录并挂载 Submodule 到 `Assets/MarioTrickster-Art`，各原目录已留下面包屑索引。 | ✅ 已完成（S98） |

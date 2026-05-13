@@ -929,19 +929,89 @@ public class AssetApplyToSelected : EditorWindow
     // =========================================================================
     // 碰撞体自动适配
     // =========================================================================
+    // [AI防坑警告] 角色（MarioController/TricksterController）的碰撞体由 PhysicsMetrics
+    // 定义，是物理真相，换皮时绝对不能修改！这是项目的核心理念：
+    //   "碰撞体尺寸 = 物理真相，视觉 Sprite = 纯粹装饰"
+    // 只有非角色物体（道具、陷阱、环境）才根据 Sprite 尺寸自适应碰撞体。
     private void AutoFitCollider(GameObject target, SpriteRenderer sr)
     {
         if (sr.sprite == null) return;
 
-        var box = target.GetComponent<BoxCollider2D>();
-        if (box != null)
+        // ── 角色保护：检测是否是玩家角色 ──
+        bool isCharacter = PivotPresetUtility.HasCharacterControllerPublic(target);
+        if (isCharacter)
         {
-            Undo.RecordObject(box, "Auto-fit Collider");
-            // 基于 Sprite 的实际尺寸（考虑 PPU）
+            // 角色碰撞体由 PhysicsMetrics 定义，不修改尺寸和偏移。
+            // 仅确保碰撞体存在且使用标准值（防止被意外清空）。
+            var box = target.GetComponent<BoxCollider2D>();
+            if (box != null)
+            {
+                // 检查碰撞体是否偏离标准值过多（容差 0.1），如果是则恢复标准值
+                bool needsRestore = false;
+                float stdWidth = PhysicsMetrics.MARIO_COLLIDER_WIDTH;
+                float stdHeight = PhysicsMetrics.MARIO_COLLIDER_HEIGHT;
+                float stdOffsetY = PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
+
+                // 检查是否是 Trickster
+                bool isTrickster = false;
+                foreach (var comp in target.GetComponents<MonoBehaviour>())
+                {
+                    if (comp != null && comp.GetType().Name.Contains("TricksterController"))
+                    { isTrickster = true; break; }
+                }
+                if (isTrickster)
+                {
+                    stdWidth = PhysicsMetrics.TRICKSTER_COLLIDER_WIDTH;
+                    stdHeight = PhysicsMetrics.TRICKSTER_COLLIDER_HEIGHT;
+                    stdOffsetY = PhysicsMetrics.TRICKSTER_COLLIDER_OFFSET_Y;
+                }
+
+                if (Mathf.Abs(box.size.x - stdWidth) > 0.1f ||
+                    Mathf.Abs(box.size.y - stdHeight) > 0.1f ||
+                    Mathf.Abs(box.offset.y - stdOffsetY) > 0.1f)
+                {
+                    needsRestore = true;
+                }
+
+                if (needsRestore)
+                {
+                    Undo.RecordObject(box, "Restore Character Collider");
+                    box.size = new Vector2(stdWidth, stdHeight);
+                    box.offset = new Vector2(0f, stdOffsetY);
+                    Debug.Log($"[AssetApplyToSelected] 角色碰撞体已恢复标准值: " +
+                              $"size=({stdWidth}, {stdHeight}), offset.y={stdOffsetY}");
+                }
+                else
+                {
+                    Debug.Log($"[AssetApplyToSelected] 角色碰撞体保持不变（已是标准值）");
+                }
+            }
+            return; // 角色不做 Sprite-based 自适应
+        }
+
+        // ── 非角色物体：根据 Sprite 尺寸自适应碰撞体 ──
+        var boxCol = target.GetComponent<BoxCollider2D>();
+        if (boxCol != null)
+        {
+            Undo.RecordObject(boxCol, "Auto-fit Collider");
             Vector2 spriteSize = sr.sprite.bounds.size;
             // 碰撞体略小于贴图（90%），避免边缘误触发
-            box.size = spriteSize * 0.9f;
-            box.offset = Vector2.zero;
+            boxCol.size = spriteSize * 0.9f;
+
+            // 根据 Pivot 计算碰撞体偏移，确保碰撞体居中在 Sprite 视觉中心
+            // 当 Pivot = Center 时 offset = (0,0)；当 Pivot = BottomCenter 时 offset.y = spriteHeight/2
+            var resolvedPreset = PivotPresetUtility.ResolvePreset(_pivotPreset, GetPhysicsTypeHint(target), target);
+            Vector2 pivotVec = PivotPresetUtility.PivotToVector2(resolvedPreset, _customPivot);
+            // Sprite bounds.center 相对于 pivot 的偏移：
+            // pivot (0.5, 0.5) → offset (0, 0)
+            // pivot (0.5, 0.0) → offset (0, +spriteHeight/2)
+            // pivot (0.0, 0.5) → offset (+spriteWidth/2, 0)
+            float offsetX = (0.5f - pivotVec.x) * spriteSize.x;
+            float offsetY = (0.5f - pivotVec.y) * spriteSize.y;
+            boxCol.offset = new Vector2(offsetX, offsetY);
+
+            Debug.Log($"[AssetApplyToSelected] 非角色碰撞体自适应: size={boxCol.size}, " +
+                      $"offset={boxCol.offset}, pivot=({pivotVec.x:F2},{pivotVec.y:F2})");
         }
 
         var circle = target.GetComponent<CircleCollider2D>();
@@ -950,6 +1020,13 @@ public class AssetApplyToSelected : EditorWindow
             Undo.RecordObject(circle, "Auto-fit Collider");
             Vector2 spriteSize = sr.sprite.bounds.size;
             circle.radius = Mathf.Min(spriteSize.x, spriteSize.y) * 0.45f;
+
+            // 同样根据 Pivot 计算偏移
+            var resolvedPreset = PivotPresetUtility.ResolvePreset(_pivotPreset, GetPhysicsTypeHint(target), target);
+            Vector2 pivotVec = PivotPresetUtility.PivotToVector2(resolvedPreset, _customPivot);
+            float offsetX = (0.5f - pivotVec.x) * spriteSize.x;
+            float offsetY = (0.5f - pivotVec.y) * spriteSize.y;
+            circle.offset = new Vector2(offsetX, offsetY);
         }
     }
 

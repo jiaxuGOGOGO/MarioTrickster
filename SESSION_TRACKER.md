@@ -91,16 +91,23 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 122（Pivot 写入修复：解决已切片贴图 Pivot 不生效 + physicsType 同步 + 9 宫格全模式可见） |
+| **最新 Session** | Session 123（角色悬空修复：AutoFitCollider 角色碰撞体保护 + 非角色 Pivot 偏移计算） |
 | **日期** | 2026-05-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S122 修复 S121 的核心缺陷：已切片贴图在 AutoDetect 模式下被跳过切片导致 Pivot 永远不写入。新增独立的 ApplyPivotToTextureSprites 步骤，确保无论贴图是否已切片、是单帧还是多帧，Pivot 都会被强制写入。同时修复 UpdateMarker 未同步 physicsType 的问题，9 宫格在 Auto 模式下也可见。 |
-| **编译状态** | ✅ 沙箱无 Unity CLI，代码审查通过（括号平衡、引用完整）；待用户 `git pull` 后在 Unity 中验证。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S123 修复 Apply Art 换皮后 Mario 悬空不落地的根因：AutoFitCollider 用 Sprite 尺寸覆盖了 PhysicsMetrics 定义的标准角色碰撞体，并把 offset 重置为 0。现在角色碰撞体被保护不修改，非角色物体的碰撞体会根据 Pivot 计算正确的 offset。 |
+| **编译状态** | ✅ 代码审查通过（括号平衡、引用完整）；待用户 `git pull` 后在 Unity 中验证。 |
 | **阻塞** | 无。 |
-| **交接说明** | S122 延续 S121 文档入口；素材导入、Pivot 设置与事后修正看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` 第 5 节。 |
+| **交接说明** | S123 延续 S121/S122 文档入口；素材导入、Pivot 设置与事后修正看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` 第 5 节。 |
 
 
-### [S122] 最新知识沉淀
+### [S123] 最新知识沉淀
+
+1. **Apply Art 后 Mario 悬空的根因**：`AutoFitCollider` 用 `sr.sprite.bounds.size * 0.9f` 覆盖了 `PhysicsMetrics` 定义的标准角色碰撞体（width=0.8, height=0.95, offset.y=-0.025），并把 `box.offset` 重置为 `Vector2.zero`。当 Pivot=BottomCenter 时，碰撞体中心在 Root.position，底部在脚底下方 0.45 单位，导致角色视觉上悬空。
+2. **角色碰撞体保护原则**：角色（MarioController/TricksterController）的碰撞体由 `PhysicsMetrics` 定义，是物理真相，换皮时绝对不能修改。这与项目核心理念一致："碰撞体尺寸 = 物理真相，视觉 Sprite = 纯粹装饰"。`SpriteAutoFit` 已经实现了这个原则，但 `AutoFitCollider` 没有遵守。
+3. **非角色 Pivot 偏移计算**：当 Pivot 不是 Center 时，碰撞体的 offset 需要补偿，公式：`offset = (0.5 - pivot) * spriteSize`。例如 Pivot=BottomCenter 时 offset.y = spriteHeight/2。
+4. **`HasCharacterControllerPublic`**：新增公共接口，供 `AutoFitCollider` 等非 PivotPresetUtility 内部的代码调用。
+
+### [S122] 知识沉淀
 
 1. **已切片贴图 Pivot 不生效的根因**：`AutoSliceTextureSheetIfNeeded` 在 `existingSprites.Length > 1 && _sliceMode == AutoDetect` 时直接 return，跳过了切片和 Pivot 写入。S121 的 UI 只是显示了预设但没有实际写入。S122 新增独立的 `ApplyPivotToTextureSprites` 步骤（Step 1.5），与切片流程完全解耦。
 2. **`UpdateMarker` 未同步 `physicsType`**：`ArtAssetClassifier.ApplyToMarker()` 只设置字符串字段（assetRole/animationMode/runtimeBehavior），不设置整数 `physicsType`。这导致首次应用后 marker 的 physicsType 保持默认值 0（刚好是 Character），但对非角色物体会产生误判。S122 在 UpdateMarker 中根据 classification.role 同步设置 physicsType。

@@ -327,6 +327,14 @@ public static class PivotPresetUtility
         }
     }
 
+    /// <summary>
+    /// 公共接口：检测目标是否是玩家角色（供 AutoFitCollider 等外部方法调用）
+    /// </summary>
+    public static bool HasCharacterControllerPublic(GameObject target)
+    {
+        return HasCharacterController(target);
+    }
+
     private static bool HasCharacterController(GameObject target)
     {
         if (target == null) return false;

@@ -474,9 +474,26 @@ public class TestConsoleWindow : EditorWindow
         }
         GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        GUI.color = new Color(0.6f, 0.9f, 0.6f);
+        if (GUILayout.Button("Pivot 修正工具", GUILayout.Height(24)))
+        {
+            PivotRepairTool.ShowWindow();
+        }
+        GUI.color = new Color(0.9f, 0.9f, 0.5f);
+        if (GUILayout.Button("一键修复全工程 Pivot", GUILayout.Height(24)))
+        {
+            EditorApplication.ExecuteMenuItem("MarioTrickster/Art Pipeline/一键修复 Pivot (根据目录自动修正)");
+        }
+        GUI.color = Color.white;
+        EditorGUILayout.EndHorizontal();
+
         EditorGUILayout.HelpBox(
             "补 SEF Material: 选中物体后点击，自动把 Sprites/Default 换成 SEF UberSprite，让效果能生效\n" +
-            "合规巡检: 扫描 Assets/Art/ 下所有贴图，确保 PPU=32 / Point / Uncompressed",
+            "合规巡检: 扫描 Assets/Art/ 下所有贴图，确保 PPU=32 / Point / Uncompressed\n" +
+            "Pivot 修正: 单个物体/单张贴图/批量文件夹修正 Pivot，支持 Ctrl+Z 撤销\n" +
+            "一键修复: 根据目录自动修正全工程 Pivot（角色→BottomCenter，地形→Center），跳过用户自定义的 Custom Pivot",
             MessageType.None);
 
         EditorGUILayout.Space(6);

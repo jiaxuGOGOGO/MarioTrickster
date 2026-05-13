@@ -91,16 +91,24 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 120（商业素材通用状态适配审计与低风险扩展） |
+| **最新 Session** | Session 121（Pivot 统一升级：修复角色换皮脚底悬空 + 手动 Pivot 选项 + 事后修正工具） |
 | **日期** | 2026-05-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S120 在不改变现有运行表现的前提下，把素材分类从“只识别主角运动状态”扩展为“记录商业素材语义状态”：主角仍只把 `IDLE/RUN/JUMP/FALL` 接入运行时状态机；攻击、受伤、死亡、施法、技能特效、潜行、伪装、融入环境、道具开关等状态会被分类器记录和展示，作为后续 JIT 机制接线依据。 |
-| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成 `git diff --check` 与核心分类器差异复核；待用户在 Unity 中 `git pull` 后刷新 Console，并在 Apply Art / Asset Import Pipeline 中导入角色、敌人、道具、特效素材做实机确认。 |
-| **阻塞** | 无。现有主角单 RUN、完整 `IDLE/RUN/JUMP/FALL`、普通多帧循环、道具/陷阱/特效分类路径保持不变；新增商业状态只记录摘要，不强行改变运行时行为。 |
-| **交接说明** | S120 延续文档入口：用户只看根目录 `README.md` 起步；AI 先看本文件与 `docs/AI_TAKEOVER_PROTOCOL.md`；关卡/换素材看 `docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md`；素材导入、状态动画与商业素材状态命名看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md`。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S121 修复素材导入后 Pivot 未正确设置导致角色脚底悬空的问题，统一所有导入/切片工具的 Pivot 逻辑到 PivotPresetUtility，新增参考 Unity Sprite Editor 的10 种预设 + Custom 手动输入 + 9 宫格快捷按钮，新增独立 Pivot 修正工具和一键修复菜单项。 |
+| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成代码审查与文档同步；待用户在 Unity 中 `git pull` 后刷新 Console，用 Apply Art 给 Mario 换皮确认脚底对齐。 |
+| **阻塞** | 无。所有现有导入路径保持兼容，Auto 模式行为与之前一致，新增手动选项不影响已有工作流。 |
+| **交接说明** | S121 延续文档入口；素材导入、Pivot 设置与事后修正看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` 第 5 节。 |
 
 
-### [S120] 最新知识沉淀
+### [S121] 最新知识沉淀
+
+1. **角色换皮脚底悬空的根因**：`AssetApplyToSelected.GetPivotForPhysicsHint()` 在目标对象没有 `ImportedAssetMarker` 时返回 -1，导致 Pivot 默认为 Center(0.5,0.5) 而非角色应有的 BottomCenter(0.5,0)。修复方案：Auto 模式现在会检查目标对象是否有 `MarioController` 等角色组件。
+2. **Pivot 逻辑统一到 PivotPresetUtility**：`AssetApplyToSelected`、`AssetImportPipeline`、`AI_SpriteSlicer` 三个工具的 Pivot 计算全部走 `PivotPresetUtility.ResolvePreset()`，不再各自硬编码。
+3. **用户手动覆盖优先于自动推断**：用户选择非 Auto 的任何预设时，系统直接使用用户选择，不再推断。Custom 模式允许输入任意 (x,y) 坐标。
+4. **TA_AssetValidator 尊重自定义 Pivot**：合规巡检现在会识别 `SpriteAlignment.Custom`，标记为“用户手动设置”而非违规。新增“一键修复 Pivot”菜单项也会跳过 Custom 帧。
+5. **PivotRepairTool 是独立的事后修正入口**：支持单个场景物体、单张贴图、批量文件夹三种模式，不依赖导入管线，可随时使用。
+
+### [S120] 知识沉淀
 
 1. **商业素材状态分两层处理**：`IDLE/RUN/JUMP/FALL` 是当前可直接驱动主角运行时 `SpriteStateAnimator` 的运动状态；`ATTACK/HURT/DEATH/CAST/SKILL/STEALTH/DISGUISE/BLEND/OPEN/CLOSE/LOOP/IMPACT` 等是通用语义状态，先进入分类摘要和 Marker 记录，不自动改玩家、敌人或道具行为。
 2. **分类顺序必须保护道具和特效**：商业素材文件名里常带 `idle/cast/loop`，不能只因出现状态词就判成角色；分类器应先识别背景、地形、平台、道具、陷阱、特效等明确用途，再在角色候选路径上判断状态驱动。

@@ -137,6 +137,10 @@ public class AssetApplyToSelected : EditorWindow
     private string _aiStatus = "";
     private AISliceAnalysis _aiAnalysis = null;
 
+    // Pivot 选择
+    private PivotPresetUtility.PivotPreset _pivotPreset = PivotPresetUtility.PivotPreset.Auto;
+    private Vector2 _customPivot = new Vector2(0.5f, 0.5f);
+
     // 爆炸参数（仅 Hazard_Explosive 模式）
     private int _explosionDamage = 3;
     private float _explosionRadius = 2f;
@@ -222,6 +226,17 @@ public class AssetApplyToSelected : EditorWindow
                     : $"已识别同图集 Sprite Sheet：{_artSprites.Length} 帧，应用后会自动播放。";
                 EditorGUILayout.HelpBox(frameHint, MessageType.None);
             }
+        }
+
+        // Pivot 设置
+        EditorGUILayout.Space(8);
+        EditorGUILayout.LabelField("Pivot 设置", EditorStyles.boldLabel);
+        {
+            // 计算 Auto 模式的推断结果，用于显示提示
+            var autoResolved = PivotPresetUtility.AutoDetectFromPhysicsType(
+                selected != null ? GetPhysicsTypeHint(ResolveApplyTarget(selected)) : -1,
+                selected != null ? ResolveApplyTarget(selected) : null);
+            PivotPresetUtility.DrawPivotSelector("Pivot 预设", ref _pivotPreset, ref _customPivot, autoResolved);
         }
 
         // 行为模板
@@ -683,10 +698,17 @@ public class AssetApplyToSelected : EditorWindow
         EditorUtility.SetDirty(sr);
         SceneView.RepaintAll();
 
+        // Pivot 信息
+        var resolvedPivot = PivotPresetUtility.ResolvePreset(
+            _pivotPreset, GetPhysicsTypeHint(target), target);
+        string pivotHint = $"Pivot: {PivotPresetUtility.GetPresetDisplayName(resolvedPivot)}";
+        if (_pivotPreset == PivotPresetUtility.PivotPreset.Custom)
+            pivotHint += $" ({_customPivot.x:F2}, {_customPivot.y:F2})";
+
         string animationHint = classification != null ? $"，素材分类: {classification.role}/{classification.animationMode}" : "";
         _lastResult = spritesToApply.Length > 1
-            ? $"已将 [{primarySprite.name}] 等 {spritesToApply.Length} 帧应用到 [{target.name}]，已自动配置动画，行为模板: {_behaviorTemplate}{animationHint}"
-            : $"已将 [{primarySprite.name}] 应用到 [{target.name}]，行为模板: {_behaviorTemplate}{animationHint}";
+            ? $"已将 [{primarySprite.name}] 等 {spritesToApply.Length} 帧应用到 [{target.name}]，{pivotHint}，已自动配置动画，行为模板: {_behaviorTemplate}{animationHint}"
+            : $"已将 [{primarySprite.name}] 应用到 [{target.name}]，{pivotHint}，行为模板: {_behaviorTemplate}{animationHint}";
         Debug.Log($"[AssetApplyToSelected] {_lastResult}");
     }
 
@@ -1370,14 +1392,22 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
         return "\"" + s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r") + "\"";
     }
 
+    // [AI防坑警告] Pivot 解析必须经过 PivotPresetUtility.ResolvePreset，不能硬编码二分法。
+    // 用户手动选择优先；Auto 模式会检查 MarioController 等角色组件，避免无 marker 时默认 Center 导致角色悬空。
     private Vector2 GetPivotForPhysicsHint(int physicsTypeHint)
     {
-        return physicsTypeHint == 0 ? new Vector2(0.5f, 0f) : new Vector2(0.5f, 0.5f);
+        var resolved = PivotPresetUtility.ResolvePreset(
+            _pivotPreset, physicsTypeHint,
+            Selection.activeGameObject != null ? ResolveApplyTarget(Selection.activeGameObject) : null);
+        return PivotPresetUtility.PivotToVector2(resolved, _customPivot);
     }
 
     private int GetAlignmentForPhysicsHint(int physicsTypeHint)
     {
-        return physicsTypeHint == 0 ? (int)SpriteAlignment.BottomCenter : (int)SpriteAlignment.Center;
+        var resolved = PivotPresetUtility.ResolvePreset(
+            _pivotPreset, physicsTypeHint,
+            Selection.activeGameObject != null ? ResolveApplyTarget(Selection.activeGameObject) : null);
+        return PivotPresetUtility.PivotToAlignment(resolved);
     }
 
     private Sprite[] ResolveSpritesForApply()

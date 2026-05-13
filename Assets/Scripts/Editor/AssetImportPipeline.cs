@@ -73,6 +73,10 @@ public class AssetImportPipeline : EditorWindow
     private Vector2 _scrollPos;
     private bool _showAdvanced;
 
+    // Pivot 选择
+    private PivotPresetUtility.PivotPreset _pivotPreset = PivotPresetUtility.PivotPreset.Auto;
+    private Vector2 _customPivot = new Vector2(0.5f, 0.5f);
+
     // 批量结果
     private List<string> _lastResults = new List<string>();
 
@@ -177,6 +181,13 @@ public class AssetImportPipeline : EditorWindow
             _manualCols = EditorGUILayout.IntField("列数（帧数/行）", _manualCols);
             _manualRows = EditorGUILayout.IntField("行数", _manualRows);
             EditorGUI.indentLevel--;
+        }
+
+        // Pivot 设置
+        EditorGUILayout.Space(4);
+        {
+            var autoResolved = PivotPresetUtility.AutoDetectFromPhysicsType((int)_physicsType);
+            PivotPresetUtility.DrawPivotSelector("Pivot 预设", ref _pivotPreset, ref _customPivot, autoResolved);
         }
 
         EditorGUILayout.Space(4);
@@ -863,26 +874,18 @@ public class AssetImportPipeline : EditorWindow
     // =========================================================================
     // 工具方法
     // =========================================================================
+    // [AI防坑警告] Pivot 解析统一走 PivotPresetUtility，支持用户手动覆盖。
+    // Auto 模式下仍按 physicsType 推断（Character→BottomCenter，其他→Center）。
     private Vector2 GetPivotForType(AssetPhysicsType type)
     {
-        switch (type)
-        {
-            case AssetPhysicsType.Character:
-                return new Vector2(0.5f, 0f); // Bottom Center
-            default:
-                return new Vector2(0.5f, 0.5f); // Center
-        }
+        var resolved = PivotPresetUtility.ResolvePreset(_pivotPreset, (int)type);
+        return PivotPresetUtility.PivotToVector2(resolved, _customPivot);
     }
 
     private int GetAlignmentForType(AssetPhysicsType type)
     {
-        switch (type)
-        {
-            case AssetPhysicsType.Character:
-                return (int)SpriteAlignment.BottomCenter;
-            default:
-                return (int)SpriteAlignment.Center;
-        }
+        var resolved = PivotPresetUtility.ResolvePreset(_pivotPreset, (int)type);
+        return PivotPresetUtility.PivotToAlignment(resolved);
     }
 
     private string GetPhysicsTypeHint(AssetPhysicsType type)

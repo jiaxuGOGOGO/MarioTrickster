@@ -20,9 +20,14 @@ using System.Linq;
 ///     并重点校验切片 Pivot（如 Characters/ 目录下的重心 Y 必须绝对等于 0）。
 ///     如有违规，报红错截停。
 ///
+///   防御塔 3 — 一键修复 Pivot (MenuItem "一键修复 Pivot")
+///     扫描所有已切片 Sprite，根据目录自动修复 Pivot 到正确值。
+///     支持 Characters/Enemies → BottomCenter, Environment/Hazards → Center。
+///
 /// [AI防坑警告]
 ///   本脚本是美术管线的安全网。严禁修改 PPU 和 FilterMode 的强制值。
-///   如需调整校验规则，请先更新 ART_BIBLE.md 并经过 Code Review。
+///   Pivot 校验已升级为支持 PivotPresetUtility 的所有预设值。
+///   用户通过工具手动设置的 Custom Pivot 在校验时会被标记为"自定义"而非违规。
 /// </summary>
 
 // ═══════════════════════════════════════════════════
@@ -71,6 +76,7 @@ public class TA_ArtImportEnforcer : AssetPostprocessor
 
 // ═══════════════════════════════════════════════════
 // 防御塔 2：主动扫描 — MenuItem 一键合规巡检
+// 防御塔 3：一键修复 Pivot
 // ═══════════════════════════════════════════════════
 public static class TA_AssetValidator
 {
@@ -91,6 +97,9 @@ public static class TA_AssetValidator
         "Assets/Art/Hazards"
     };
 
+    // ═══════════════════════════════════════════════════
+    // 防御塔 2：一键合规巡检
+    // ═══════════════════════════════════════════════════
     [MenuItem("MarioTrickster/Art Pipeline/一键合规巡检 (校验全工程 PPU-Filter-Pivot)")]
     public static void RunFullAudit()
     {
@@ -100,7 +109,9 @@ public static class TA_AssetValidator
 
         int totalChecked = 0;
         int totalViolations = 0;
+        int totalCustomPivots = 0;
         List<string> violations = new List<string>();
+        List<string> customPivotInfo = new List<string>();
 
         // 扫描 Assets/Art/ 下所有贴图
         string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { "Assets/Art" });
@@ -143,24 +154,50 @@ public static class TA_AssetValidator
             {
                 foreach (SpriteMetaData smd in spritesheet)
                 {
-                    // 角色/敌人目录: Pivot.y 必须 == 0 (Bottom Center)
-                    if (BOTTOM_CENTER_DIRS.Any(dir => path.StartsWith(dir)))
+                    bool isBottomCenterDir = BOTTOM_CENTER_DIRS.Any(dir => path.StartsWith(dir));
+                    bool isCenterDir = CENTER_PIVOT_DIRS.Any(dir => path.StartsWith(dir));
+
+                    // 检查是否是标准预设值（使用 PivotPresetUtility 反推）
+                    var detectedPreset = PivotPresetUtility.Vector2ToPivot(smd.pivot);
+
+                    if (isBottomCenterDir)
                     {
                         if (!Mathf.Approximately(smd.pivot.y, 0f))
                         {
-                            string msg = $"[Pivot 违规] {path} → 帧 '{smd.name}': Pivot.y={smd.pivot.y}, 要求=0 (Bottom Center)";
-                            violations.Add(msg);
-                            totalViolations++;
+                            // 如果是已知预设（非 Custom），标记为违规
+                            // 如果是 Custom，标记为"自定义 Pivot"（警告而非错误）
+                            if (detectedPreset == PivotPresetUtility.PivotPreset.Custom ||
+                                (smd.alignment == (int)SpriteAlignment.Custom))
+                            {
+                                string info = $"[自定义 Pivot] {path} → 帧 '{smd.name}': Pivot=({smd.pivot.x:F2}, {smd.pivot.y:F2}), 目录期望=BottomCenter (用户手动设置，跳过)";
+                                customPivotInfo.Add(info);
+                                totalCustomPivots++;
+                            }
+                            else
+                            {
+                                string msg = $"[Pivot 违规] {path} → 帧 '{smd.name}': Pivot.y={smd.pivot.y}, 要求=0 (Bottom Center)";
+                                violations.Add(msg);
+                                totalViolations++;
+                            }
                         }
                     }
-                    // 地形/陷阱目录: Pivot.y 必须 == 0.5 (Center)
-                    else if (CENTER_PIVOT_DIRS.Any(dir => path.StartsWith(dir)))
+                    else if (isCenterDir)
                     {
                         if (!Mathf.Approximately(smd.pivot.y, 0.5f))
                         {
-                            string msg = $"[Pivot 违规] {path} → 帧 '{smd.name}': Pivot.y={smd.pivot.y}, 要求=0.5 (Center)";
-                            violations.Add(msg);
-                            totalViolations++;
+                            if (detectedPreset == PivotPresetUtility.PivotPreset.Custom ||
+                                (smd.alignment == (int)SpriteAlignment.Custom))
+                            {
+                                string info = $"[自定义 Pivot] {path} → 帧 '{smd.name}': Pivot=({smd.pivot.x:F2}, {smd.pivot.y:F2}), 目录期望=Center (用户手动设置，跳过)";
+                                customPivotInfo.Add(info);
+                                totalCustomPivots++;
+                            }
+                            else
+                            {
+                                string msg = $"[Pivot 违规] {path} → 帧 '{smd.name}': Pivot.y={smd.pivot.y}, 要求=0.5 (Center)";
+                                violations.Add(msg);
+                                totalViolations++;
+                            }
                         }
                     }
                 }
@@ -170,9 +207,19 @@ public static class TA_AssetValidator
         // ── 输出报告 ──
         Debug.Log("<color=yellow>══════════════════════════════════════</color>");
 
+        // 自定义 Pivot 信息（仅警告，不算违规）
+        if (totalCustomPivots > 0)
+        {
+            Debug.Log($"<color=cyan>[TA 防御塔 2] 发现 {totalCustomPivots} 个自定义 Pivot（用户手动设置，不计入违规）：</color>");
+            foreach (string info in customPivotInfo)
+            {
+                Debug.Log($"<color=cyan>  {info}</color>");
+            }
+        }
+
         if (totalViolations == 0)
         {
-            Debug.Log($"<color=green>[TA 防御塔 2] ✅ 巡检通过！共检查 {totalChecked} 个资产，0 个违规。基建安全！</color>");
+            Debug.Log($"<color=green>[TA 防御塔 2] 巡检通过！共检查 {totalChecked} 个资产，0 个违规。基建安全！</color>");
         }
         else
         {
@@ -180,9 +227,112 @@ public static class TA_AssetValidator
             {
                 Debug.LogError($"[TA 防御塔 2] {v}");
             }
-            Debug.LogError($"[TA 防御塔 2] ❌ 巡检失败！共检查 {totalChecked} 个资产，发现 {totalViolations} 个违规。请立即修复！");
+            Debug.LogError($"[TA 防御塔 2] 巡检失败！共检查 {totalChecked} 个资产，发现 {totalViolations} 个违规。请立即修复！");
         }
 
+        Debug.Log("<color=yellow>══════════════════════════════════════</color>");
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 防御塔 3：一键修复 Pivot
+    // ═══════════════════════════════════════════════════
+    [MenuItem("MarioTrickster/Art Pipeline/一键修复 Pivot (根据目录自动修正)")]
+    public static void FixAllPivots()
+    {
+        Debug.Log("<color=yellow>══════════════════════════════════════</color>");
+        Debug.Log("<color=yellow>[TA 防御塔 3] 开始一键修复 Pivot...</color>");
+        Debug.Log("<color=yellow>══════════════════════════════════════</color>");
+
+        int totalFixed = 0;
+        int totalSkipped = 0;
+
+        string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { "Assets/Art" });
+
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            TextureImporter ti = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (ti == null) continue;
+
+            bool isBottomCenterDir = BOTTOM_CENTER_DIRS.Any(dir => path.StartsWith(dir));
+            bool isCenterDir = CENTER_PIVOT_DIRS.Any(dir => path.StartsWith(dir));
+
+            if (!isBottomCenterDir && !isCenterDir) continue;
+
+            Vector2 targetPivot = isBottomCenterDir ? new Vector2(0.5f, 0f) : new Vector2(0.5f, 0.5f);
+            int targetAlignment = isBottomCenterDir ? (int)SpriteAlignment.BottomCenter : (int)SpriteAlignment.Center;
+
+            bool needsFix = false;
+
+            // Single 模式
+            if (ti.spriteImportMode == SpriteImportMode.Single)
+            {
+                TextureImporterSettings sts = new TextureImporterSettings();
+                ti.ReadTextureSettings(sts);
+
+                // 跳过用户手动设置的 Custom Pivot
+                if (sts.spriteAlignment == (int)SpriteAlignment.Custom)
+                {
+                    totalSkipped++;
+                    continue;
+                }
+
+                if (sts.spriteAlignment != targetAlignment ||
+                    !Mathf.Approximately(sts.spritePivot.x, targetPivot.x) ||
+                    !Mathf.Approximately(sts.spritePivot.y, targetPivot.y))
+                {
+                    sts.spriteAlignment = targetAlignment;
+                    sts.spritePivot = targetPivot;
+                    ti.SetTextureSettings(sts);
+                    needsFix = true;
+                }
+            }
+            // Multiple 模式
+            else if (ti.spriteImportMode == SpriteImportMode.Multiple)
+            {
+                SpriteMetaData[] spritesheet = SpriteSheetDataProviderBridge.GetSpriteMetaData(ti);
+                if (spritesheet.Length == 0) continue;
+
+                bool anyFixed = false;
+                for (int i = 0; i < spritesheet.Length; i++)
+                {
+                    // 跳过用户手动设置的 Custom Pivot
+                    if (spritesheet[i].alignment == (int)SpriteAlignment.Custom)
+                    {
+                        totalSkipped++;
+                        continue;
+                    }
+
+                    if (!Mathf.Approximately(spritesheet[i].pivot.x, targetPivot.x) ||
+                        !Mathf.Approximately(spritesheet[i].pivot.y, targetPivot.y))
+                    {
+                        spritesheet[i].pivot = targetPivot;
+                        spritesheet[i].alignment = targetAlignment;
+                        anyFixed = true;
+                    }
+                }
+
+                if (anyFixed)
+                {
+                    SpriteSheetDataProviderBridge.SetSpriteMetaData(ti, spritesheet);
+                    needsFix = true;
+                }
+            }
+
+            if (needsFix)
+            {
+                EditorUtility.SetDirty(ti);
+                ti.SaveAndReimport();
+                totalFixed++;
+                string pivotName = isBottomCenterDir ? "BottomCenter" : "Center";
+                Debug.Log($"<color=green>[TA 防御塔 3] 已修复: {path} → Pivot={pivotName}</color>");
+            }
+        }
+
+        AssetDatabase.Refresh();
+
+        Debug.Log("<color=yellow>══════════════════════════════════════</color>");
+        Debug.Log($"<color=green>[TA 防御塔 3] 修复完成！共修复 {totalFixed} 个资产，跳过 {totalSkipped} 个自定义 Pivot。</color>");
         Debug.Log("<color=yellow>══════════════════════════════════════</color>");
     }
 }

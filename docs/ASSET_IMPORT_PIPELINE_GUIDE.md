@@ -77,7 +77,26 @@ python Tools/ai_smart_slicer.py commercial_pack.png
 
 ---
 
-## 5. 关键文件
+## 5. Pivot 设置
+
+所有素材导入和切片工具现在统一使用 `PivotPresetUtility` 管理 Pivot。默认为 **Auto** 模式，根据素材物理分类自动选择；用户可随时手动覆盖为任意预设或自定义坐标。
+
+| Pivot 预设 | 坐标 (X, Y) | 适用场景 |
+| --- | --- | --- |
+| Auto | 按分类自动 | 默认选项，角色→BottomCenter，其他→Center |
+| Center | (0.5, 0.5) | 地形、陷阱、特效、道具 |
+| Bottom Center | (0.5, 0) | 角色、敌人（脚底对齐地面） |
+| Top Center | (0.5, 1) | 悬挂物体、天花板装饰 |
+| Bottom Left | (0, 0) | 左下角对齐的 UI 元素 |
+| Custom | 用户自定义 | 任意特殊需求 |
+
+> **Auto 模式智能推断**：当素材应用到没有 `ImportedAssetMarker` 的对象时（如原始 Mario 白盒），系统会检查目标对象是否有 `MarioController`、`TricksterController` 等角色组件，自动使用 BottomCenter。这解决了之前角色换皮后脚底悬空的问题。
+
+> **事后修正**：如果导入后发现 Pivot 不对，可以使用 `MarioTrickster → Art Pipeline → Pivot 修正工具` 单独修正，支持单个物体、单张贴图或批量文件夹。所有操作支持 Ctrl+Z 撤销。
+
+---
+
+## 6. 关键文件
 
 | 文件 | 职责 |
 | --- | --- |
@@ -90,6 +109,8 @@ python Tools/ai_smart_slicer.py commercial_pack.png
 | `Assets/SpriteEffectFactory/Editor/SEF_QuickApply.cs` | 视觉效果预设快速应用。 |
 | `Tools/sprite_sheet_slicer.py` | 纯像素裁切工具。 |
 | `Tools/ai_smart_slicer.py` | AI 语义裁切工具。 |
+| `Assets/Scripts/Editor/PivotPresetUtility.cs` | 统一 Pivot 预设枚举、自动推断、GUI 绘制和转换工具。 |
+| `Assets/Scripts/Editor/PivotRepairTool.cs` | 事后修正 Pivot 的独立编辑器窗口。 |
 
 ---
 

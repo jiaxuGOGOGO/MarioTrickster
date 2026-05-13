@@ -8,18 +8,22 @@ using System.Collections.Generic;
 /// 
 /// 核心职责：
 ///   1. 强制执行 ART_BIBLE.md 规范：PPU=32, Filter=Point, AlphaIsTransparency=True。
-///   2. 物理重心死锁：角色类资产强制 Bottom Center (0.5, 0)，特效类强制 Center (0.5, 0.5)。
+///   2. 物理重心：默认 Auto 模式按素材分类自动选择 Pivot，用户可手动覆盖。
 ///   3. 一键工业化：自动识别长图帧数并精准切片。
 /// 
 /// [AI防坑警告] 
-///   本脚本是美术管线的核心。严禁修改 Pivot 逻辑，否则会导致所有 Animator 动画滑步。
+///   本脚本是美术管线的核心。Pivot 逻辑统一走 PivotPresetUtility。
 ///   切片前请确保素材已在 PROMPT_RECIPES.md 中登记。
 /// </summary>
 public class AI_SpriteSlicer : EditorWindow
 {
     private Texture2D sourceTexture;
     private int colCount = 8; 
-    private int sliceType = 0; // 0: 角色/敌人(底部重心), 1: 视效特效(中心重心), 2: 地形/平台(中心重心)
+    private int sliceType = 0; // 0: 角色/敌人, 1: 视效特效, 2: 地形/平台
+
+    // Pivot 选择（统一使用 PivotPresetUtility）
+    private PivotPresetUtility.PivotPreset _pivotPreset = PivotPresetUtility.PivotPreset.Auto;
+    private Vector2 _customPivot = new Vector2(0.5f, 0.5f);
 
     [MenuItem("MarioTrickster/Art Pipeline/一键工业化切图 (强制执行 ArtBible 规范)")]
     public static void ShowWindow()
@@ -35,7 +39,17 @@ public class AI_SpriteSlicer : EditorWindow
         colCount = EditorGUILayout.IntField("目标帧数 (列):", colCount);
         sliceType = EditorGUILayout.Popup("资产物理类型:", sliceType, new string[] { "实体角色/敌人 (Bottom Center 防滑步)", "纯特效 VFX (Center 居中)", "地形/平台 (Center 居中, 适用于 Tiled)" });
 
-        if (GUILayout.Button("🔥 一键扣除纯色底并精准切片"))
+        // Pivot 设置
+        EditorGUILayout.Space(4);
+        {
+            // sliceType: 0=Character, 1=VFX(3), 2=Environment(1)
+            int physicsTypeHint = sliceType == 0 ? 0 : (sliceType == 2 ? 1 : 3);
+            var autoResolved = PivotPresetUtility.AutoDetectFromPhysicsType(physicsTypeHint);
+            PivotPresetUtility.DrawPivotSelector("Pivot 预设", ref _pivotPreset, ref _customPivot, autoResolved);
+        }
+
+        EditorGUILayout.Space(4);
+        if (GUILayout.Button("一键扣除纯色底并精准切片", GUILayout.Height(30)))
         {
             if (sourceTexture == null)
             {
@@ -63,7 +77,14 @@ public class AI_SpriteSlicer : EditorWindow
         ti.spritePixelsPerUnit = 32; // 强制 32 PPU
         ti.textureCompression = TextureImporterCompression.Uncompressed; // 保证像素清晰
 
-        // 2. 计算切片
+        // 2. 解析 Pivot
+        // sliceType: 0=Character, 1=VFX(3), 2=Environment(1)
+        int physicsTypeHint = sliceType == 0 ? 0 : (sliceType == 2 ? 1 : 3);
+        var resolvedPreset = PivotPresetUtility.ResolvePreset(_pivotPreset, physicsTypeHint);
+        Vector2 pivot = PivotPresetUtility.PivotToVector2(resolvedPreset, _customPivot);
+        int alignment = PivotPresetUtility.PivotToAlignment(resolvedPreset);
+
+        // 3. 计算切片
         int width = sourceTexture.width / colCount;
         int height = sourceTexture.height;
         
@@ -72,12 +93,8 @@ public class AI_SpriteSlicer : EditorWindow
         for (int i = 0; i < colCount; i++)
         {
             SpriteMetaData smd = new SpriteMetaData();
-            
-            // 3. 彻底封杀横版平台滑步！根据物理类型死锁重心 (ART_BIBLE 规范)
-            // 0: Entity (Bottom Center), 1: VFX (Center), 2: Environment (Center)
-            smd.pivot = (sliceType == 0) ? new Vector2(0.5f, 0.0f) : new Vector2(0.5f, 0.5f); 
-            smd.alignment = (sliceType == 0) ? (int)SpriteAlignment.BottomCenter : (int)SpriteAlignment.Center;
-            
+            smd.pivot = pivot;
+            smd.alignment = alignment;
             smd.name = sourceTexture.name + "_F" + i;
             smd.rect = new Rect(i * width, 0, width, height);
             newData.Add(smd);
@@ -89,7 +106,8 @@ public class AI_SpriteSlicer : EditorWindow
         EditorUtility.SetDirty(ti);
         ti.SaveAndReimport();
         
-        Debug.Log($"✅ {sourceTexture.name} 切片完成！帧数: {colCount}, 重心: {(sliceType == 0 ? "Bottom Center" : "Center")}, PPU: 32");
+        string pivotName = PivotPresetUtility.GetPresetDisplayName(resolvedPreset);
+        Debug.Log($"[AI_SpriteSlicer] {sourceTexture.name} 切片完成！帧数: {colCount}, Pivot: {pivotName} ({pivot.x:F1}, {pivot.y:F1}), PPU: 32");
         AssetDatabase.Refresh();
     }
 }

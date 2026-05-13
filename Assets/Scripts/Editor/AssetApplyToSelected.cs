@@ -232,11 +232,23 @@ public class AssetApplyToSelected : EditorWindow
         EditorGUILayout.Space(8);
         EditorGUILayout.LabelField("Pivot 设置", EditorStyles.boldLabel);
         {
-            // 计算 Auto 模式的推断结果，用于显示提示
-            var autoResolved = PivotPresetUtility.AutoDetectFromPhysicsType(
-                selected != null ? GetPhysicsTypeHint(ResolveApplyTarget(selected)) : -1,
-                selected != null ? ResolveApplyTarget(selected) : null);
-            PivotPresetUtility.DrawPivotSelector("Pivot 预设", ref _pivotPreset, ref _customPivot, autoResolved);
+            if (selected != null)
+            {
+                // 有选中物体：根据目标推断最佳 Pivot
+                var resolvedTarget = ResolveApplyTarget(selected);
+                var autoResolved = PivotPresetUtility.AutoDetectFromPhysicsType(
+                    GetPhysicsTypeHint(resolvedTarget), resolvedTarget);
+                PivotPresetUtility.DrawPivotSelector("Pivot 预设", ref _pivotPreset, ref _customPivot, autoResolved);
+            }
+            else
+            {
+                // 未选中物体：显示默认但加提示
+                PivotPresetUtility.DrawPivotSelector("Pivot 预设", ref _pivotPreset, ref _customPivot, PivotPresetUtility.PivotPreset.BottomCenter);
+                EditorGUILayout.HelpBox(
+                    "ℹ 尚未选中场景物体。Auto 模式会在应用时根据目标物体自动推断（角色→脚底，其他→居中）。\n" +
+                    "如需确保特定 Pivot，请手动选择具体预设（如 Bottom Center）。",
+                    MessageType.Info);
+            }
         }
 
         // 行为模板
@@ -636,6 +648,11 @@ public class AssetApplyToSelected : EditorWindow
             }
             AutoSliceTextureSheetIfNeeded(_artTexture, GetPhysicsTypeHint(target));
         }
+
+        // Step 1.5: 强制更新 Pivot（无论切片是否被跳过）
+        // [AI防坑警告] AutoSliceTextureSheetIfNeeded 在已切片贴图 + AutoDetect 模式下会跳过，
+        // 导致用户选择的 Pivot 永远不会写入。此步骤独立于切片逻辑，确保 Pivot 始终生效。
+        ApplyPivotToTextureSprites(_artTexture, _artSprite, GetPhysicsTypeHint(target), target);
 
         // Step 2: 确保 Sprite / Sprite Sheet 帧可用
         Sprite[] spritesToApply = ResolveSpritesForApply();
@@ -1410,6 +1427,133 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
         return PivotPresetUtility.PivotToAlignment(resolved);
     }
 
+    /// <summary>
+    /// 强制将用户选择的 Pivot 写入贴图的所有 Sprite 帧。
+    /// 解决关键 Bug：已切片贴图在 AutoDetect 模式下被跳过切片，导致 Pivot 永远不更新。
+    /// 此方法独立于切片流程，无论贴图是否已切片、是单帧还是多帧，都会更新 Pivot。
+    /// 支持三种输入：Texture2D、直接拖入的 Sprite、或文件夹。
+    /// </summary>
+    private void ApplyPivotToTextureSprites(Texture2D texture, Sprite directSprite, int physicsTypeHint, GameObject target)
+    {
+        // 解析用户选择的 Pivot
+        var resolvedPreset = PivotPresetUtility.ResolvePreset(_pivotPreset, physicsTypeHint, target);
+        Vector2 newPivot = PivotPresetUtility.PivotToVector2(resolvedPreset, _customPivot);
+        int newAlignment = PivotPresetUtility.PivotToAlignment(resolvedPreset);
+
+        Debug.Log($"[AssetApplyToSelected] Pivot 解析: preset={_pivotPreset}, resolved={resolvedPreset}, " +
+                  $"pivot=({newPivot.x:F2},{newPivot.y:F2}), alignment={newAlignment}, " +
+                  $"physicsTypeHint={physicsTypeHint}, target={( target != null ? target.name : "null")}");
+
+        // 收集所有需要处理的贴图路径
+        var texturePaths = new System.Collections.Generic.HashSet<string>();
+
+        if (texture != null)
+        {
+            string p = AssetDatabase.GetAssetPath(texture);
+            if (!string.IsNullOrEmpty(p)) texturePaths.Add(p);
+        }
+        if (directSprite != null)
+        {
+            string p = AssetDatabase.GetAssetPath(directSprite);
+            if (!string.IsNullOrEmpty(p)) texturePaths.Add(p);
+        }
+        if (_artFolder != null)
+        {
+            string folderPath = AssetDatabase.GetAssetPath(_artFolder);
+            if (!string.IsNullOrEmpty(folderPath) && AssetDatabase.IsValidFolder(folderPath))
+            {
+                string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { folderPath });
+                foreach (string guid in guids)
+                {
+                    string p = AssetDatabase.GUIDToAssetPath(guid);
+                    if (!string.IsNullOrEmpty(p)) texturePaths.Add(p);
+                }
+            }
+        }
+
+        if (texturePaths.Count == 0)
+        {
+            Debug.LogWarning("[AssetApplyToSelected] Pivot 更新跳过：没有找到要处理的贴图路径");
+            return;
+        }
+
+        int updatedCount = 0;
+        foreach (string path in texturePaths)
+        {
+            if (ApplyPivotToSingleTexture(path, newPivot, newAlignment, resolvedPreset))
+                updatedCount++;
+        }
+
+        if (updatedCount > 0)
+        {
+            AssetDatabase.Refresh();
+            Debug.Log($"[AssetApplyToSelected] Pivot 已更新 {updatedCount} 张贴图 → " +
+                      $"{PivotPresetUtility.GetPresetDisplayName(resolvedPreset)} ({newPivot.x:F1}, {newPivot.y:F1})");
+        }
+    }
+
+    /// <summary>
+    /// 对单张贴图应用 Pivot 设置。返回是否有修改。
+    /// </summary>
+    private bool ApplyPivotToSingleTexture(string path, Vector2 newPivot, int newAlignment, PivotPresetUtility.PivotPreset resolvedPreset)
+    {
+        TextureImporter ti = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (ti == null) return false;
+
+        bool dirty = false;
+
+        if (ti.spriteImportMode == SpriteImportMode.Multiple)
+        {
+            // 多帧模式：更新每一帧的 pivot 和 alignment
+            SpriteMetaData[] metas = SpriteSheetDataProviderBridge.GetSpriteMetaData(ti);
+            if (metas != null && metas.Length > 0)
+            {
+                for (int i = 0; i < metas.Length; i++)
+                {
+                    if (metas[i].alignment != newAlignment || metas[i].pivot != newPivot)
+                    {
+                        metas[i].alignment = newAlignment;
+                        metas[i].pivot = newPivot;
+                        dirty = true;
+                    }
+                }
+                if (dirty)
+                {
+                    SpriteSheetDataProviderBridge.SetSpriteMetaData(ti, metas);
+                    Debug.Log($"[AssetApplyToSelected] 多帧 Pivot 已写入: {path}, {metas.Length} 帧, " +
+                              $"alignment={newAlignment}, pivot=({newPivot.x:F2},{newPivot.y:F2})");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[AssetApplyToSelected] 警告: {path} 是 Multiple 模式但没有 spritesheet 数据");
+            }
+        }
+        else
+        {
+            // 单帧模式：通过 TextureImporterSettings 修改 pivot
+            TextureImporterSettings settings = new TextureImporterSettings();
+            ti.ReadTextureSettings(settings);
+            if (settings.spriteAlignment != newAlignment || settings.spritePivot != newPivot)
+            {
+                settings.spriteAlignment = newAlignment;
+                settings.spritePivot = newPivot;
+                ti.SetTextureSettings(settings);
+                dirty = true;
+                Debug.Log($"[AssetApplyToSelected] 单帧 Pivot 已写入: {path}, " +
+                          $"alignment={newAlignment}, pivot=({newPivot.x:F2},{newPivot.y:F2})");
+            }
+        }
+
+        if (dirty)
+        {
+            EditorUtility.SetDirty(ti);
+            ti.SaveAndReimport();
+        }
+
+        return dirty;
+    }
+
     private Sprite[] ResolveSpritesForApply()
     {
         if (_artFolder != null)
@@ -1643,6 +1787,35 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
         marker.importTimestamp = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         marker.sourceAssetPath = sprites.Length > 0 ? AssetDatabase.GetAssetPath(sprites[0]) : "";
         ArtAssetClassifier.ApplyToMarker(marker, classification);
+
+        // [S122修复] 根据分类结果同步设置 physicsType，避免后续操作无法正确推断 Pivot
+        // ArtAssetClassifier.ApplyToMarker 不设置 physicsType，这里补充
+        if (classification != null)
+        {
+            switch (classification.role)
+            {
+                case ArtAssetClassifier.AssetRole.Character:
+                    marker.physicsType = 0;
+                    break;
+                case ArtAssetClassifier.AssetRole.Platform:
+                    marker.physicsType = 1;
+                    break;
+                case ArtAssetClassifier.AssetRole.Hazard:
+                    marker.physicsType = 2;
+                    break;
+                case ArtAssetClassifier.AssetRole.VFX:
+                    marker.physicsType = 3;
+                    break;
+                case ArtAssetClassifier.AssetRole.Prop:
+                    marker.physicsType = 4;
+                    break;
+            }
+        }
+        else if (PivotPresetUtility.AutoDetectPivot(target) == PivotPresetUtility.PivotPreset.BottomCenter)
+        {
+            // 没有分类结果但目标是角色（有 MarioController 等），确保 physicsType=0
+            marker.physicsType = 0;
+        }
     }
 
     private void SavePrefab(GameObject go)

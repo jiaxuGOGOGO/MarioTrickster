@@ -241,10 +241,17 @@ public static class PivotPresetUtility
             EditorGUI.indentLevel--;
         }
 
-        // 9 宫格可视化按钮（非 Auto 和非 Custom 时不显示，避免冗余）
-        if (preset != PivotPreset.Auto && preset != PivotPreset.Custom)
+        // 9 宫格可视化按钮（Custom 模式不显示，因为 Custom 用数字输入）
+        // Auto 模式也显示 9 宫格，点击后自动切换为对应预设，方便用户快速覆盖
+        if (preset != PivotPreset.Custom)
         {
+            PivotPreset beforeGrid = preset;
             DrawPivotGrid(ref preset, ref changed);
+            // 如果用户在 Auto 模式下点了 9 宫格，自动切换到对应的具体预设
+            if (beforeGrid == PivotPreset.Auto && preset != PivotPreset.Auto)
+            {
+                changed = true;
+            }
         }
 
         return changed;

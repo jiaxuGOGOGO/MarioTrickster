@@ -91,16 +91,24 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 121（Pivot 统一升级：修复角色换皮脚底悬空 + 手动 Pivot 选项 + 事后修正工具） |
+| **最新 Session** | Session 122（Pivot 写入修复：解决已切片贴图 Pivot 不生效 + physicsType 同步 + 9 宫格全模式可见） |
 | **日期** | 2026-05-13 |
 | **分支** | master |
-| **阶段** | Sprint 2.5 美术自动化落地期 — S121 修复素材导入后 Pivot 未正确设置导致角色脚底悬空的问题，统一所有导入/切片工具的 Pivot 逻辑到 PivotPresetUtility，新增参考 Unity Sprite Editor 的10 种预设 + Custom 手动输入 + 9 宫格快捷按钮，新增独立 Pivot 修正工具和一键修复菜单项。 |
-| **编译状态** | ✅ 沙盒无 Unity CLI，本轮完成代码审查与文档同步；待用户在 Unity 中 `git pull` 后刷新 Console，用 Apply Art 给 Mario 换皮确认脚底对齐。 |
-| **阻塞** | 无。所有现有导入路径保持兼容，Auto 模式行为与之前一致，新增手动选项不影响已有工作流。 |
-| **交接说明** | S121 延续文档入口；素材导入、Pivot 设置与事后修正看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` 第 5 节。 |
+| **阶段** | Sprint 2.5 美术自动化落地期 — S122 修复 S121 的核心缺陷：已切片贴图在 AutoDetect 模式下被跳过切片导致 Pivot 永远不写入。新增独立的 ApplyPivotToTextureSprites 步骤，确保无论贴图是否已切片、是单帧还是多帧，Pivot 都会被强制写入。同时修复 UpdateMarker 未同步 physicsType 的问题，9 宫格在 Auto 模式下也可见。 |
+| **编译状态** | ✅ 沙箱无 Unity CLI，代码审查通过（括号平衡、引用完整）；待用户 `git pull` 后在 Unity 中验证。 |
+| **阻塞** | 无。 |
+| **交接说明** | S122 延续 S121 文档入口；素材导入、Pivot 设置与事后修正看 `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` 第 5 节。 |
 
 
-### [S121] 最新知识沉淀
+### [S122] 最新知识沉淀
+
+1. **已切片贴图 Pivot 不生效的根因**：`AutoSliceTextureSheetIfNeeded` 在 `existingSprites.Length > 1 && _sliceMode == AutoDetect` 时直接 return，跳过了切片和 Pivot 写入。S121 的 UI 只是显示了预设但没有实际写入。S122 新增独立的 `ApplyPivotToTextureSprites` 步骤（Step 1.5），与切片流程完全解耦。
+2. **`UpdateMarker` 未同步 `physicsType`**：`ArtAssetClassifier.ApplyToMarker()` 只设置字符串字段（assetRole/animationMode/runtimeBehavior），不设置整数 `physicsType`。这导致首次应用后 marker 的 physicsType 保持默认值 0（刚好是 Character），但对非角色物体会产生误判。S122 在 UpdateMarker 中根据 classification.role 同步设置 physicsType。
+3. **9 宫格在 Auto 模式下也可见**：用户在 Auto 模式下点击 9 宫格会自动切换到对应的具体预设，无需先手动切换下拉框。
+4. **Pivot 写入支持三种输入源**：Texture2D、直接拖入的 Sprite、文件夹，三种输入方式都会触发 Pivot 写入。
+5. **详细日志辅助调试**：`ApplyPivotToTextureSprites` 会在 Console 输出完整的解析过程（preset、resolved、pivot、alignment、target），方便用户确认是否生效。
+
+### [S121] 知识沉淀
 
 1. **角色换皮脚底悬空的根因**：`AssetApplyToSelected.GetPivotForPhysicsHint()` 在目标对象没有 `ImportedAssetMarker` 时返回 -1，导致 Pivot 默认为 Center(0.5,0.5) 而非角色应有的 BottomCenter(0.5,0)。修复方案：Auto 模式现在会检查目标对象是否有 `MarioController` 等角色组件。
 2. **Pivot 逻辑统一到 PivotPresetUtility**：`AssetApplyToSelected`、`AssetImportPipeline`、`AI_SpriteSlicer` 三个工具的 Pivot 计算全部走 `PivotPresetUtility.ResolvePreset()`，不再各自硬编码。

@@ -73,6 +73,7 @@ public class ScanAbility : MonoBehaviour
     // 引用
     private TricksterController targetTrickster;
     private DisguiseSystem targetDisguise;
+    private TricksterPossessionGate targetPossessionGate;
     private SpriteRenderer targetSpriteRenderer;
 
     // ── Session 18 性能优化：缓存 GUIStyle ──
@@ -107,6 +108,7 @@ public class ScanAbility : MonoBehaviour
         if (targetTrickster != null)
         {
             targetDisguise = targetTrickster.GetComponent<DisguiseSystem>();
+            targetPossessionGate = targetTrickster.GetComponent<TricksterPossessionGate>();
             // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
             targetSpriteRenderer = targetTrickster.GetComponentInChildren<SpriteRenderer>();
         }
@@ -213,10 +215,21 @@ public class ScanAbility : MonoBehaviour
 
     #region 暴露效果
 
+    // [AI防坑警告] Mario Q 揭穿不能只做视觉提示，必须真实踢出 Trickster 附身/控制状态。
     private void StartReveal()
     {
         isRevealing = true;
         revealTimer = revealDuration;
+
+        if (targetDisguise != null && targetDisguise.IsDisguised)
+        {
+            targetDisguise.Undisguise();
+        }
+
+        if (targetPossessionGate != null)
+        {
+            targetPossessionGate.ForceReveal(0f, "ScanAbility");
+        }
     }
 
     private void UpdateRevealEffect()

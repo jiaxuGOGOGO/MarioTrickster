@@ -91,16 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 138（Commit 6：AlarmCrisisDirector 扫描波危机落地） |
+| **最新 Session** | Session 139（灰盒体验修复：Mario Q 揭穿真实踢出 Trickster） |
 | **日期** | 2026-05-14 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 玩法主线重启实现期 — Commit 6 已落地：`AlarmCrisisDirector`（扫描波危机导演，订阅 HeatMeter.OnTierChanged/OnLockdownTriggered，Warning→Scanning→Cooldown 三阶段）、`ScanWaveHUD`（灰盒扫描波视觉：预告闪烁+扫描线+进度条）。扫描波经过有残留锚点时放大证据，经过 Trickster 所在锚点时给满证据供揭穿。TestSceneBuilder 已同步挂载新组件。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — 根据用户实测反馈修复 Q 扫描“只显示 Trickster Detected 但 Trickster 仍留在伪装/附身状态”的假揭穿问题。`ScanAbility.StartReveal()` 现在会调用 `DisguiseSystem.Undisguise()` 并把 `TricksterPossessionGate` 推入短暂 Revealed，确保 Mario 扫中后真实踢出控制链。 |
 | **编译状态** | ✅ `git diff --check` 通过，无 trailing whitespace。 |
 | **阻塞** | 无 |
-| **交接说明** | Commit 0→1→2→3→4→5→6 全部完成并推送。S130 玩法循环实现路线全部落地，可进入灰盒体验验证。 |
+| **交接说明** | Commit 0→1→2→3→4→5→6 全部完成并推送；S139 已修复灰盒体验验证中暴露的 Q 揭穿假命中问题，下一步请用户复测“是否被踢出附身/伪装状态”。 |
 
 
-### [S138] 最新知识沉淀
+### [S139] 最新知识沉淀
+
+1. **Q 揭穿必须改真实状态，不可只做视觉提示**：`ScanAbility.StartReveal()` 命中 Trickster 后现在会调用 `DisguiseSystem.Undisguise()`，通过既有 `OnDisguiseChanged(false)` 链路解绑当前附身道具和能力状态。
+2. **揭穿后仍保留短暂门禁窗口**：解除伪装后继续调用 `TricksterPossessionGate.ForceReveal(0f, "ScanAbility")`，让 Trickster 进入短暂 Revealed，避免下一帧立刻重新伪装/附身。
+3. **源码已加 `// [AI防坑警告]`**：后续不能把 Mario Q 揭穿回退成单纯红色闪烁或 HUD 文案；用户体验判断以“Trickster 是否被踢出控制链”为准。
+
+### [S138] 知识沉淀
 
 1. **扫描波危机已落地（Commit 6）**：`AlarmCrisisDirector` 订阅 `TricksterHeatMeter.OnTierChanged` 和 `OnLockdownTriggered`，进入 Alert 或 Lockdown 时触发扫描波。
 2. **三阶段循环**：Warning(2s 预告) → Scanning(左→右 12u/s 扫过全场) → Cooldown(15s)。Lockdown 强制触发时无视冷却。
@@ -373,7 +379,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |
 | ✅ | 测试 4：伪装系统 | P 伪装/解除，O/I 切换 |
 | 🔄 | 测试 5：道具操控 | 融入后红/灰连线；方向键磁吸切换；L 触发红线目标 |
-| ✅ | 测试 6：扫描技能 | Q 键脉冲+文字正常 |
+| 🔄 | 测试 6：扫描技能 | **S139重点验证**: Q 扫描命中 Trickster 时，除脉冲+`Trickster Detected!` 文字外，还必须真实解除 Trickster 伪装/附身，并短暂进入 Revealed 门禁，不能继续控制当前道具 |
 | 🔄 | 测试 6.5：镜头 | 走完全部 Stage 镜头始终跟随 |
 | 🔄 | 测试 7：胜负判定 | **S52重点验证**: 掉出屏幕后应触发死亡(仅1条日志，KillZone 继承 BaseHazard 后行为不变) + RoundOver 画面 + 终点胜利画面 |
 | ✅ | 测试 8：暂停 | ESC 暂停/恢复 |
@@ -409,6 +415,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **最高** | **灰盒体验验证：Mario Q 揭穿假命中修复**：用户实测发现 Q 扫描出现 `Trickster Detected!` 但 Trickster 未被踢出附身/伪装。已在 `ScanAbility.StartReveal()` 接入真实 `Undisguise()` 与 Revealed 门禁，等待用户复测。 | 🔄 待用户复测（S139） |
 | **最高** | **`trickster_style` 本地验证闭环**：用户已完成 30 张测试图出图与回传，AI 已完成全部审图与判定。触发词甜区、推荐权重、污染物清单与专属去污词均已实测落库到 `PROMPT_RECIPES.md`。同时本轮还将工单派发中暴露的三个问题（全局设置必须从用户工作流截图提取、文件命名利用自动编号、回传模板禁止要求用户填写主观判定项）固化到 `WORKORDER_QA_STANDARD.md` 第九条。 | ✅ 已完成（S97） |
 | **高** | **标准提示词体系与固定入口落地**：后续所有“更新 / 升级 / 优化项目”的新对话必须优先走标准协议与模板库，禁止再以过度随意的自然语言直接开局；用户自定义问题保留在补充插槽，不得替代固定骨架。 | ✅ 已完成（S96 已写入 `docs/STANDARD_CONVERSATION_PROTOCOL.md`、`prompts/STANDARD_PROJECT_PROMPTS.md`、`README.md` 与本文件） |
 

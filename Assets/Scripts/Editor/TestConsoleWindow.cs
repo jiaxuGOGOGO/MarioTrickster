@@ -1114,8 +1114,28 @@ public class TestConsoleWindow : EditorWindow
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
 
         EditorGUILayout.BeginVertical("box");
+
+        // ── Brush Mode 控制栏 ──
+        EditorGUILayout.BeginHorizontal();
+        if (LevelBrushTool.IsActive)
+        {
+            GUI.color = new Color(1f, 0.6f, 0.2f);
+            EditorGUILayout.LabelField($"🖌️ 笔刷激活: {LevelBrushTool.CurrentBrushName} ({LevelBrushTool.BrushSize}x{LevelBrushTool.BrushSize})", EditorStyles.boldLabel);
+            GUI.color = Color.white;
+            if (GUILayout.Button("✖ 退出笔刷", GUILayout.Width(80), GUILayout.Height(20)))
+            {
+                LevelBrushTool.Deactivate();
+            }
+        }
+        else
+        {
+            EditorGUILayout.LabelField("点击 = 单个放置 | 右键按钮 = 笔刷模式", EditorStyles.miniLabel);
+        }
+        EditorGUILayout.EndHorizontal();
+
         EditorGUILayout.HelpBox(
-            "点击按钮在 Scene 视图摄像机中心生成白盒元素，自动对齐网格。\n生成后可在 Scene 中手动拖拽调整位置。",
+            "左键点击: 在 Scene 视图中心生成 | 右键点击: 激活笔刷模式（在 Scene 中拖拽绘制）\n" +
+            "笔刷模式: 左键拖动=绘制 | Shift=橡皮擦 | [/]=调大小 | 右键/Esc=退出",
             MessageType.Info);
 
         // 陷阱类
@@ -1174,15 +1194,40 @@ public class TestConsoleWindow : EditorWindow
         EditorGUI.EndDisabledGroup();
     }
 
-    /// <summary>调色板按钮：在 Scene 摄像机中心生成元素</summary>
+    /// <summary>调色板按钮：左键在 Scene 中心生成，右键激活笔刷模式</summary>
     private void DrawPaletteButton(string label, char charKey, Color color)
     {
         GUI.color = color;
-        if (GUILayout.Button(label, GUILayout.Height(25)))
+
+        // 如果该元素当前是笔刷选中状态，显示高亮边框
+        bool isActiveBrush = LevelBrushTool.IsActive && LevelBrushTool.CurrentBrushChar == charKey;
+        GUIStyle style = isActiveBrush ? new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold } : GUI.skin.button;
+        if (isActiveBrush)
         {
+            GUI.color = Color.white;
+            // 用更亮的背景表示当前笔刷选中
+            GUI.backgroundColor = color;
+        }
+
+        Rect btnRect = GUILayoutUtility.GetRect(new GUIContent(label), style, GUILayout.Height(25));
+
+        // 检测右键点击
+        Event e = Event.current;
+        if (e.type == EventType.MouseDown && e.button == 1 && btnRect.Contains(e.mousePosition))
+        {
+            // 右键：激活笔刷模式
+            LevelBrushTool.Activate(label, charKey, color);
+            e.Use();
+            Repaint();
+        }
+        else if (GUI.Button(btnRect, label, style))
+        {
+            // 左键：单个放置（原有行为）
             SpawnElementAtSceneCenter(charKey, label);
         }
+
         GUI.color = Color.white;
+        GUI.backgroundColor = Color.white;
     }
 
     /// <summary>在 Scene 视图摄像机中心生成一个元素（对齐网格）</summary>

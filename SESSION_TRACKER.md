@@ -1199,3 +1199,16 @@ S132 仅为文档收束，不修改任何代码、物理参数、碰撞体、重
 - 关键调用链静态断言：已通过。
 - `git diff --check`：已通过。
 - 沙盒未安装 Unity Editor，真实 Unity Test Runner 需在编辑器环境通过 `MarioTrickster/Run Tests/Export Full Report (All)` 执行。
+
+---
+
+## Session Update — 2026-05-14 — Unity Compile Feedback Fix: ArtAssetClassifierTests string tag migration
+
+### Trigger
+User pulled `16640f5` locally and reported Unity compile errors in `Assets/Tests/EditMode/ArtAssetClassifierTests.cs` where old `SpriteStateAnimator.MotionState` enum keys were passed to `Classification.stateFrames`.
+
+### Fix
+`ArtAssetClassifier.Classification.stateFrames` is now the post S-DynState `Dictionary<string, Sprite[]>` API. Updated the edit-mode tests to assert string tags (`"idle"`, `"run"`, `"jump"`, `"fall"`) and index `stateFrames["run"]` directly, matching `docs/ASSET_IMPORT_PIPELINE_GUIDE.md` and `ArtAssetClassifier.cs` comments.
+
+### Validation
+Ran static grep for remaining `stateFrames` + `SpriteStateAnimator.MotionState` mixed usage under `Assets/` and `git diff --check`; no remaining same-class compile risk found in the worktree.

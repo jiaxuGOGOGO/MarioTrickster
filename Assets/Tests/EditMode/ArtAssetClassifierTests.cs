@@ -25,10 +25,10 @@ public class ArtAssetClassifierTests
             Assert.AreEqual(ArtAssetClassifier.AssetRole.Character, result.role);
             Assert.AreEqual(ArtAssetClassifier.AnimationMode.StateDriven, result.animationMode);
             Assert.AreEqual(ArtAssetClassifier.RuntimeBehavior.PlayerStateDriven, result.runtimeBehavior);
-            Assert.IsTrue(result.stateFrames.ContainsKey(SpriteStateAnimator.MotionState.Idle));
-            Assert.IsTrue(result.stateFrames.ContainsKey(SpriteStateAnimator.MotionState.Run));
-            Assert.IsTrue(result.stateFrames.ContainsKey(SpriteStateAnimator.MotionState.Jump));
-            Assert.IsTrue(result.stateFrames.ContainsKey(SpriteStateAnimator.MotionState.Fall));
+            Assert.IsTrue(result.stateFrames.ContainsKey("idle"));
+            Assert.IsTrue(result.stateFrames.ContainsKey("run"));
+            Assert.IsTrue(result.stateFrames.ContainsKey("jump"));
+            Assert.IsTrue(result.stateFrames.ContainsKey("fall"));
         }
         finally
         {
@@ -80,8 +80,8 @@ public class ArtAssetClassifierTests
             Assert.AreEqual(ArtAssetClassifier.AssetRole.Character, result.role);
             Assert.AreEqual(ArtAssetClassifier.AnimationMode.StateDriven, result.animationMode);
             Assert.AreEqual("idle,run,jump,fall", result.StateSummary);
-            Assert.AreEqual("run_02", result.stateFrames[SpriteStateAnimator.MotionState.Run][0].name);
-            Assert.AreEqual("run_10", result.stateFrames[SpriteStateAnimator.MotionState.Run][1].name);
+            Assert.AreEqual("run_02", result.stateFrames["run"][0].name);
+            Assert.AreEqual("run_10", result.stateFrames["run"][1].name);
         }
         finally
         {
@@ -132,7 +132,7 @@ public class ArtAssetClassifierTests
             Assert.AreEqual(ArtAssetClassifier.AssetRole.Character, result.role);
             Assert.AreEqual(ArtAssetClassifier.AnimationMode.Loop, result.animationMode);
             Assert.IsFalse(result.IsStateDriven);
-            Assert.IsTrue(result.stateFrames.ContainsKey(SpriteStateAnimator.MotionState.Idle));
+            Assert.IsTrue(result.stateFrames.ContainsKey("idle"));
             Assert.AreEqual(1, result.stateFrames.Count);
         }
         finally
@@ -160,7 +160,7 @@ public class ArtAssetClassifierTests
             Assert.AreEqual(ArtAssetClassifier.RuntimeBehavior.PlayerStateDriven, result.runtimeBehavior);
             Assert.AreEqual(ArtAssetClassifier.AnimationMode.StateDriven, result.animationMode);
             Assert.IsTrue(result.IsStateDriven);
-            Assert.IsTrue(result.stateFrames.ContainsKey(SpriteStateAnimator.MotionState.Run));
+            Assert.IsTrue(result.stateFrames.ContainsKey("run"));
             Assert.AreEqual(1, result.stateFrames.Count);
         }
         finally

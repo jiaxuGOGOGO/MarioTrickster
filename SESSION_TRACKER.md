@@ -91,16 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 140（Mario Q 揭穿门禁时长外放） |
+| **最新 Session** | Session 141（整体玩法循环测试关卡一键生成） |
 | **日期** | 2026-05-14 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — 根据用户要求将 Mario Q 扫描命中后的 Revealed 禁控加时外放为 `ScanAbility.scanRevealGateBonusDuration`，策划可在 Mario 的 ScanAbility Inspector 中直接调整。当前实际禁控时间 = `TricksterPossessionGate.revealDuration` 基础值 + Q 扫描额外加时。 |
-| **编译状态** | ✅ `git diff --check` 通过，无 trailing whitespace。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — 根据用户要求在 `TestSceneBuilder` 中新增整体玩法循环测试关卡，一键生成覆盖 Commit 0–6 的路线预算、反制证据、连锁热度、拿宝撤离、扫描危机、Q 揭穿和终点闭环。 |
+| **编译状态** | ✅ `git diff --check` 通过；新增关卡静态自检通过。 |
 | **阻塞** | 无 |
-| **交接说明** | Commit 0→1→2→3→4→5→6 全部完成并推送；S139 修复 Q 揭穿假命中，S140 外放 Q 揭穿禁控时长参数，下一步继续按灰盒体验调数值。 |
+| **交接说明** | Commit 0→1→2→3→4→5→6 全部完成并推送；S139 修复 Q 揭穿假命中，S140 外放 Q 揭穿禁控时长参数，S141 新增整体玩法循环测试关卡，下一步请用户一键生成并按路牌完成全链路灰盒体验验证。 |
 
 
-### [S140] 最新知识沉淀
+### [S141] 最新知识沉淀
+
+1. **整体玩法循环测试关卡已加入一键生成入口**：`MarioTrickster/Build Gameplay Loop Test Scene` 会生成一条从教学、潜入附身、路线预算、连锁热度、拿宝撤离、扫描危机、Q 揭穿到终点的完整灰盒长廊。
+2. **该关卡服务于 Commit 0–6 总体验证**：它不是普通元素堆叠关，而是用明确分段和路牌串起 `PossessionAnchor`、`MarioSuspicionTracker`、`RouteBudgetService`、`PropComboTracker`、`TricksterHeatMeter`、`LootObjective/EscapeGate` 与 `AlarmCrisisDirector`。
+3. **默认 Q 揭穿调参更适合整体测试**：生成时会把 Mario 的 `ScanAbility.scanRevealGateBonusDuration` 设为 `2.0s`，方便在扫描危机段明显观察 Trickster 被踢出控制链后的反制窗口。
+
+### [S140] 知识沉淀
 
 1. **Q 揭穿禁控时间已外放给策划**：在 Mario 物体的 `ScanAbility` 上新增 `scanRevealGateBonusDuration`，默认 `1.2s`，用于额外延长扫描揭穿后的 `TricksterPossessionGate.Revealed` 门禁。
 2. **实际禁控时间是基础值 + Q 加时**：`TricksterPossessionGate.revealDuration` 仍控制所有揭穿/出手后的基础暴露时长；`ScanAbility.scanRevealGateBonusDuration` 只给 Q 扫描命中额外加时，避免影响 Trickster 正常出手暴露节奏。
@@ -384,10 +390,10 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 2：Trickster 移动 | **S125重点验证**: 对 Trickster 应用整组动作文件夹后，方向键左右移动和跳跃仍正常；若从 Visual 子节点执行 Apply Art，也必须自动回到 Trickster Root 并保持 InputManager 引用正确 |
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |
 | ✅ | 测试 4：伪装系统 | P 伪装/解除，O/I 切换 |
-| 🔄 | 测试 5：道具操控 | 融入后红/灰连线；方向键磁吸切换；L 触发红线目标 |
-| 🔄 | 测试 6：扫描技能 | **S140重点验证**: Q 扫描命中 Trickster 时必须真实解除伪装/附身；Mario 的 `ScanAbility.scanRevealGateBonusDuration` 可直接调整额外禁控时间，默认比基础 Revealed 多 1.2s |
-| 🔄 | 测试 6.5：镜头 | 走完全部 Stage 镜头始终跟随 |
-| 🔄 | 测试 7：胜负判定 | **S52重点验证**: 掉出屏幕后应触发死亡(仅1条日志，KillZone 继承 BaseHazard 后行为不变) + RoundOver 画面 + 终点胜利画面 |
+| 🔄 | 测试 5：道具操控 | **S141重点验证**: 在 `Build Gameplay Loop Test Scene` 生成的整体关卡中，融入后红/灰连线正常；方向键磁吸切换；L 触发红线目标并能推进路线预算/连锁热度段 |
+| 🔄 | 测试 6：扫描技能 | **S141重点验证**: 整体关卡扫描危机段触发后，Q 扫描命中 Trickster 必须真实解除伪装/附身；`ScanAbility.scanRevealGateBonusDuration` 生成默认 2.0s，仍可在 Inspector 调整 |
+| 🔄 | 测试 6.5：镜头 | **S141重点验证**: 走完整体玩法循环测试关卡时，Mario/Trickster、拿宝撤离、扫描危机和终点段镜头始终跟随，不丢目标 |
+| 🔄 | 测试 7：胜负判定 | **S141重点验证**: 整体关卡中拿宝后进入 EscapeGate 可通关；末端 GoalZone 仍可作为最终胜利确认；掉出屏幕后应触发死亡且不刷多条日志 |
 | ✅ | 测试 8：暂停 | ESC 暂停/恢复 |
 | 🔄 | 测试 9A：地刺 | 碰到有合理击退 |
 | 🔄 | 测试 9B：摆锤 | Trickster L键可控制 |
@@ -421,7 +427,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **灰盒体验验证：Mario Q 揭穿参数调优**：Q 扫描已真实解除 Trickster 伪装/附身；禁控加时已外放为 `ScanAbility.scanRevealGateBonusDuration`，默认 1.2s，等待用户按手感继续调参。 | 🔄 待用户调参复测（S140） |
+| **最高** | **整体玩法循环测试关卡一键生成**：按 Commit 0–6 设计循环新增 `MarioTrickster/Build Gameplay Loop Test Scene`，用于一次性验证路线预算、证据反制、连锁热度、拿宝撤离、扫描危机、Q 揭穿和终点闭环。 | 🔄 待用户生成并整体验证（S141） |
+| **最高** | **灰盒体验验证：Mario Q 揭穿参数调优**：Q 扫描已真实解除 Trickster 伪装/附身；禁控加时已外放为 `ScanAbility.scanRevealGateBonusDuration`，默认 1.2s；整体关卡生成时先设为 2.0s，等待用户按手感继续调参。 | 🔄 待用户调参复测（S140/S141） |
 | **最高** | **`trickster_style` 本地验证闭环**：用户已完成 30 张测试图出图与回传，AI 已完成全部审图与判定。触发词甜区、推荐权重、污染物清单与专属去污词均已实测落库到 `PROMPT_RECIPES.md`。同时本轮还将工单派发中暴露的三个问题（全局设置必须从用户工作流截图提取、文件命名利用自动编号、回传模板禁止要求用户填写主观判定项）固化到 `WORKORDER_QA_STANDARD.md` 第九条。 | ✅ 已完成（S97） |
 | **高** | **标准提示词体系与固定入口落地**：后续所有“更新 / 升级 / 优化项目”的新对话必须优先走标准协议与模板库，禁止再以过度随意的自然语言直接开局；用户自定义问题保留在补充插槽，不得替代固定骨架。 | ✅ 已完成（S96 已写入 `docs/STANDARD_CONVERSATION_PROTOCOL.md`、`prompts/STANDARD_PROJECT_PROMPTS.md`、`README.md` 与本文件） |
 

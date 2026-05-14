@@ -251,8 +251,9 @@ public static class LevelBrushTool
         }
 
         // 使用 AsciiLevelGenerator 生成元素
+        // isSnippet = true: 笔刷是单元素放置，不需要完整关卡验证（M/G）
         string miniTemplate = CurrentBrushChar.ToString();
-        GameObject tempRoot = AsciiLevelGenerator.GenerateFromTemplate(miniTemplate, false);
+        GameObject tempRoot = AsciiLevelGenerator.GenerateFromTemplate(miniTemplate, false, true);
 
         if (tempRoot != null && tempRoot.transform.childCount > 0)
         {

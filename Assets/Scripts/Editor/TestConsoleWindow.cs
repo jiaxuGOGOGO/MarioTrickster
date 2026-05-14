@@ -1263,8 +1263,8 @@ public class TestConsoleWindow : EditorWindow
 
         // 生成单个元素（通过临时模板）
         string miniTemplate = charKey.ToString();
-        // 直接调用生成器的公共 API，但不清除现有内容
-        GameObject tempRoot = AsciiLevelGenerator.GenerateFromTemplate(miniTemplate, false);
+        // isSnippet = true: 单元素放置不需要完整关卡验证（M/G）
+        GameObject tempRoot = AsciiLevelGenerator.GenerateFromTemplate(miniTemplate, false, true);
 
         if (tempRoot != null && tempRoot.transform.childCount > 0)
         {

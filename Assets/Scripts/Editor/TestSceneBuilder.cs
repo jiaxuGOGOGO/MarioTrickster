@@ -118,6 +118,8 @@ public class TestSceneBuilder : Editor
         marioCtrl.visualTransform = marioVisual.transform; // S37: 赋值视觉代理节点
         PlayerHealth marioHealth = mario.AddComponent<PlayerHealth>();
         ScanAbility scanAbility = mario.AddComponent<ScanAbility>();
+        mario.AddComponent<SilentMarkSensor>();       // Commit 1: 被动标记传感器
+        mario.AddComponent<MarioCounterplayProbe>();   // Commit 1: 反制探测系统
 
         SetSerializedField(marioCtrl, "groundLayer", groundLayerMask);
         AssignDefaultSprite(marioSR, Color.red);
@@ -166,6 +168,11 @@ public class TestSceneBuilder : Editor
         // 管理器
         // ═══════════════════════════════════════════════════
         GameObject managers = new GameObject("Managers");
+
+        // Commit 1: 可疑度追踪 + 残留视觉 + HUD
+        managers.AddComponent<MarioSuspicionTracker>();
+        managers.AddComponent<ResidueVisualHint>();
+        managers.AddComponent<SuspicionHUD>();
 
         GameManager gameManager = managers.AddComponent<GameManager>();
         InputManager inputManager = managers.AddComponent<InputManager>();

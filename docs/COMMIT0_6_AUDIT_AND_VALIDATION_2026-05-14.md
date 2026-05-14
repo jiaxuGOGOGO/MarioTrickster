@@ -43,6 +43,10 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 
 本次 GIF 暴露的体验问题不是底层扫描波没有运行，而是扫描线命中/扫过时缺少足够显眼的屏幕结果反馈，测试者很难判断“只是扫过”还是“已经揭穿”。因此已为 `ScanWaveHUD` 订阅 `AlarmCrisisDirector.OnAnchorScanned`，在扫描命中普通锚点时显示 `SCAN HIT: EVIDENCE AMPLIFIED`，在命中当前附身/潜伏锚点并触发真实揭穿时显示 `SCAN HIT: TRICKSTER REVEALED`，把 Commit 6 的命中结果从日志/内部状态提升到屏幕中央反馈。
 
+### 用户 GIF 实测补充：Loot → Escape 胜利链路
+
+用户继续验证第五段 `Loot → Escape`：未收集金色 Loot 时直接碰绿色出口会被拒绝，Console 连续输出 `Mario tried to escape without loot!`；收集金色 Loot 后左下 HUD 从 `Loot: NOT COLLECTED` 进入已收集状态，出口激活并放行，Console 输出 `Mario escaped with loot! Round won!` 与胜利日志。该结果确认 Commit 5 的“先拒绝、后放行”闭环已在灰盒关卡内实际跑通，当前不需要代码修复。
+
 ## 四、本次修改文件
 
 | 文件 | 变更摘要 |
@@ -67,6 +71,7 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 | `git diff --check` | 通过 |
 | 首段 `P → 静止融入 → L` 调用链静态复核 | 通过，生成器现在会配置 `availableDisguises`、`blendInTime=0.35f`、`controlRange=8f`。 |
 | 用户 GIF 实测：Route Budget / Combo / Heat / Scan Wave | 通过核心触发链：上下路可控、`Q` 可揭穿、Combo 倍率变化、扫描波预警与扫描线可见；已补强扫描命中/揭穿反馈可见性。 |
+| 用户 GIF 实测：Loot → Escape | 通过核心胜利链：未拿 Loot 碰门被拒绝，拿到金色 Loot 后出口放行并触发胜利日志。 |
 | Unity 命令行可用性检查 | 沙盒内不可用 |
 
 后续在 Unity 编辑器中建议执行：先通过 `MarioTrickster/Build Commit 0-6 Validation Scene` 生成场景，再运行 `MarioTrickster/Run Tests/Export Full Report (All)` 做完整回归。

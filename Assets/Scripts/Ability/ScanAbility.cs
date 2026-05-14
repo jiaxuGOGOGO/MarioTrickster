@@ -39,8 +39,10 @@ public class ScanAbility : MonoBehaviour
     [SerializeField] private float scanRadius = 5f;
     [Tooltip("扫描冷却时间（秒）")]
     [SerializeField] private float scanCooldown = 8f;
-    [Tooltip("扫描暴露持续时间（秒）")]
+    [Tooltip("扫描暴露视觉持续时间（秒）")]
     [SerializeField] private float revealDuration = 2f;
+    [Tooltip("Q 扫描命中后额外延长 Trickster Revealed 门禁的时间（秒）。实际禁控时间 = TricksterPossessionGate 基础暴露时间 + 此值")]
+    [SerializeField] private float scanRevealGateBonusDuration = 1.2f;
 
     [Header("=== 扫描脉冲效果 ===")]
     [Tooltip("脉冲扩散速度")]
@@ -228,7 +230,7 @@ public class ScanAbility : MonoBehaviour
 
         if (targetPossessionGate != null)
         {
-            targetPossessionGate.ForceReveal(0f, "ScanAbility");
+            targetPossessionGate.ForceReveal(scanRevealGateBonusDuration, "ScanAbility");
         }
     }
 
@@ -444,4 +446,15 @@ public class ScanAbility : MonoBehaviour
     }
 
     #endregion
+
+    private void OnValidate()
+    {
+        scanRadius = Mathf.Max(0f, scanRadius);
+        scanCooldown = Mathf.Max(0f, scanCooldown);
+        revealDuration = Mathf.Max(0f, revealDuration);
+        scanRevealGateBonusDuration = Mathf.Max(0f, scanRevealGateBonusDuration);
+        pulseSpeed = Mathf.Max(0f, pulseSpeed);
+        pulseLineWidth = Mathf.Max(0f, pulseLineWidth);
+        flashFrequency = Mathf.Max(0f, flashFrequency);
+    }
 }

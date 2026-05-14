@@ -181,6 +181,10 @@ public class TestSceneBuilder : Editor
         managers.AddComponent<CounterRevealReward>();
         managers.AddComponent<RouteBudgetHUD>();
 
+        // Commit 3: 连锁追踪 + HUD
+        managers.AddComponent<PropComboTracker>();
+        managers.AddComponent<PropComboHUD>();
+
         GameManager gameManager = managers.AddComponent<GameManager>();
         InputManager inputManager = managers.AddComponent<InputManager>();
         LevelManager levelManager = managers.AddComponent<LevelManager>();

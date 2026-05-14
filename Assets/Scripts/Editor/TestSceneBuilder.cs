@@ -191,6 +191,10 @@ public class TestSceneBuilder : Editor
         managers.AddComponent<TricksterHeatHUD>();
         managers.AddComponent<HeatSuspicionBridge>();
 
+        // Commit 6: 扫描波危机导演 + HUD
+        managers.AddComponent<AlarmCrisisDirector>();
+        managers.AddComponent<ScanWaveHUD>();
+
         GameManager gameManager = managers.AddComponent<GameManager>();
         InputManager inputManager = managers.AddComponent<InputManager>();
         LevelManager levelManager = managers.AddComponent<LevelManager>();

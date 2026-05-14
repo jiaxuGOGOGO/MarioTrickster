@@ -91,16 +91,24 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 137（Commit 5：LootObjective + EscapeGate 拢宝撒离循环落地） |
+| **最新 Session** | Session 138（Commit 6：AlarmCrisisDirector 扫描波危机落地） |
 | **日期** | 2026-05-14 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 玩法主线重启实现期 — Commit 5 已落地：`LootObjective`（拢宝目标，Mario 触碰后标记携带状态，触发 OnLootCollected，给 Trickster +10 Heat）、`EscapeGate`（撒离门，检查携带状态，Alert/Lockdown 时短暂封锁延迟）、`LootEscapeHUD`（灰盒 Loot/Escape 状态 HUD）。TestSceneBuilder 已同步放置 LootObjective、EscapeGate 并挂载 HUD。 |
+| **阶段** | Sprint 2.6 玩法主线重启实现期 — Commit 6 已落地：`AlarmCrisisDirector`（扫描波危机导演，订阅 HeatMeter.OnTierChanged/OnLockdownTriggered，Warning→Scanning→Cooldown 三阶段）、`ScanWaveHUD`（灰盒扫描波视觉：预告闪烁+扫描线+进度条）。扫描波经过有残留锚点时放大证据，经过 Trickster 所在锚点时给满证据供揭穿。TestSceneBuilder 已同步挂载新组件。 |
 | **编译状态** | ✅ `git diff --check` 通过，无 trailing whitespace。 |
 | **阻塞** | 无 |
-| **交接说明** | Commit 0→1→2→3→4→5 全部完成并推送。下一步继续 Commit 6（灰盒关卡模板）。 |
+| **交接说明** | Commit 0→1→2→3→4→5→6 全部完成并推送。S130 玩法循环实现路线全部落地，可进入灰盒体验验证。 |
 
 
-### [S137] 最新知识沉淀
+### [S138] 最新知识沉淀
+
+1. **扫描波危机已落地（Commit 6）**：`AlarmCrisisDirector` 订阅 `TricksterHeatMeter.OnTierChanged` 和 `OnLockdownTriggered`，进入 Alert 或 Lockdown 时触发扫描波。
+2. **三阶段循环**：Warning(2s 预告) → Scanning(左→右 12u/s 扫过全场) → Cooldown(15s)。Lockdown 强制触发时无视冷却。
+3. **扫描命中逻辑**：经过有残留/可疑度的锚点时放大已有证据×1.5 + 额外 +15 Suspicion；经过 Trickster 所在锚点（Blending/Possessing）时给满证据供 MarioCounterplayProbe 立即揭穿。
+4. **不凭空抓人**：扫描波只放大已有证据，不会对干净锚点产生任何效果。
+5. **S130 玩法循环实现路线全部落地**：Commit 0→6 全部完成，可进入灰盒体验验证。
+
+### [S137] 知识沉淀
 
 1. **拢宝撒离循环已落地（Commit 5）**：`LootObjective` 触碰后标记 `IsLootCarried=true`，触发 `OnLootCollected` 静态事件，同时给 TricksterHeatMeter +10 Heat。
 2. **EscapeGate 两步胜利**：Mario 触碰撒离门时检查 `IsLootCarried`；未拿目标给清晰提示；已拿目标则检查热度封锁延迟（Alert 0.5s，Lockdown 1.5s），延迟结束后自动通关。
@@ -420,7 +428,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **最高** | **策划生产助手短板优化**：S114 新增 `PlannerProductionAssistant`，把商业素材包命名混乱、Theme Profile 手动填槽、新机制请求不稳定三项短板压成一个 Unity 内窗口入口。 | ✅ 已完成（S114，待 Unity 实机验证） |
 | **最高** | **角色状态动画自动挂载与商业状态兼容**：S115 补强 `idle/run/jump/fall` 命名分类边界测试；S119 追加主角单组 RUN 也能状态驱动；S120 把攻击、受伤、死亡、施法、技能特效、潜行、伪装、融入环境、道具开关等商业素材状态纳入分类摘要和文档，不改变现有运行行为。 | ✅ 已完成（S120，待 Unity 实机验证） |
 | **最高** | **动画系统与核心玩法循环策略落库**：S126 已评估 `SpriteStateAnimator` / Unity Animator / Shader 分工，结论是保留 SpriteStateAnimator 做主角色帧动画底座，Shader/SEF 做特效叠层，Unity Animator 仅局部用于复杂演出；同时沉淀“伪装连锁 + 热度推运气 + 拿宝撤离”的下一阶段玩法窄切片方向。 | ✅ 已完成（S126，详见 `docs/ANIMATION_AND_GAMEPLAY_STRATEGY_2026-05-14.md`） |
-| **最高** | **玩法循环 6–9 点实现路线**：S130 已将第 6–9 点拆成最终 Commit 级路线；S131 已完成 Commit 0（附身点+五态门禁）；S133 已完成 Commit 1（Mario 反制薄层）；S134 已完成 Commit 2（体验护栏）；S135 已完成 Commit 3（连锁系统）；S136 已完成 Commit 4（热度系统）；S137 已完成 Commit 5（拢宝撒离）。下一步：Commit 6。 | 🔄 Commit 0→1→2→3→4→5 已完成；下一步 Commit 6 |
+| **最高** | **玩法循环 6–9 点实现路线**：S130 已将第 6–9 点拆成最终 Commit 级路线；S131–S138 已完成 Commit 0→6 全部落地。玩法循环实现路线全部完成，可进入灰盒体验验证。 | ✅ Commit 0→6 全部完成 |
 | **最高** | **Apply Art 文件夹整组换皮后角色移动链路修复**：S125 让 Apply Art 从任意 Visual/SpriteRenderer 子节点回到 Mario/Trickster Root，并在换皮后自动修复 Rigidbody2D、Collider2D、visualTransform 与 InputManager 角色引用，避免“应用整组动作后不能左右移动、单独重贴跳跃后才恢复”的回归。 | ✅ 已修复，待用户 Unity 实机验证 |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |

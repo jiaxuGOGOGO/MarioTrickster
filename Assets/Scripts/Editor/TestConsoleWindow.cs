@@ -850,9 +850,9 @@ public class TestConsoleWindow : EditorWindow
             TestSceneBuilder.BuildTestScene();
         }
         GUI.color = new Color(0.45f, 0.75f, 1f);
-        if (GUILayout.Button("Build Commit0-6 Validation", GUILayout.Height(32)))
+        if (GUILayout.Button("Build Validation Scene", GUILayout.Height(32)))
         {
-            TestSceneBuilder.BuildCommit06ValidationScene();
+            TestSceneBuilder.BuildValidationScene();
         }
         GUI.color = new Color(1f, 0.5f, 0.5f);
         if (GUILayout.Button("Clear Test Scene", GUILayout.Height(32)))
@@ -863,7 +863,7 @@ public class TestConsoleWindow : EditorWindow
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.HelpBox(
-            "Commit0-6 Validation 是独立可选关卡：按一条短流程验证附身门禁、证据反制、路线预算、Combo/Heat、Loot-Escape 与 Scan Wave，不替代原 9-Stage。",
+            "Validation Scene 是整合后的统一验证关卡：覆盖基础操作、附身门禁、路线预算、Combo/Heat、Loot-Escape、Scan Wave 与 Q 揭穿，不替代原 9-Stage。",
             MessageType.None);
 
         EditorGUILayout.EndVertical();

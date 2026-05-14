@@ -342,16 +342,22 @@ public static class LevelBrushTool
         {
             Vector3 center = new Vector3(cell.x, cell.y, 0);
 
-            // 填充方块
+            // 填充方块（兼容所有 Unity 版本）
+            Vector3 v0 = center + new Vector3(-0.5f, -0.5f, 0);
+            Vector3 v1 = center + new Vector3(-0.5f, 0.5f, 0);
+            Vector3 v2 = center + new Vector3(0.5f, 0.5f, 0);
+            Vector3 v3 = center + new Vector3(0.5f, -0.5f, 0);
+
+            // 填充面（DrawAAConvexPolygon 自 Unity 5.6 起可用）
             Handles.color = cursorColor;
-            Vector3[] verts = new Vector3[4]
-            {
-                center + new Vector3(-0.5f, -0.5f, 0),
-                center + new Vector3(-0.5f, 0.5f, 0),
-                center + new Vector3(0.5f, 0.5f, 0),
-                center + new Vector3(0.5f, -0.5f, 0)
-            };
-            Handles.DrawSolidRectangleAndOutline(verts, cursorColor, outlineColor);
+            Handles.DrawAAConvexPolygon(v0, v1, v2, v3);
+
+            // 描边
+            Handles.color = outlineColor;
+            Handles.DrawLine(v0, v1);
+            Handles.DrawLine(v1, v2);
+            Handles.DrawLine(v2, v3);
+            Handles.DrawLine(v3, v0);
 
             // 如果该位置已有物体，显示红色 X
             if (!IsErasing && HasElementAtCell(cell))

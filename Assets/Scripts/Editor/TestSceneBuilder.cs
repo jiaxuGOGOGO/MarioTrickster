@@ -163,6 +163,9 @@ public class TestSceneBuilder : Editor
 
         SetSerializedField(tricksterCtrl, "groundLayer", groundLayerMask);
         AssignDefaultSprite(tricksterSR, Color.blue);
+        ConfigureDefaultTricksterDisguises(disguiseSystem);
+        SetSerializedField(disguiseSystem, "blendInTime", 0.35f);
+        SetSerializedField(abilitySystem, "controlRange", 8f);
 
         // ═══════════════════════════════════════════════════
         // 管理器
@@ -910,11 +913,14 @@ public class TestSceneBuilder : Editor
         tricksterRb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         TricksterController tricksterCtrl = trickster.AddComponent<TricksterController>();
         tricksterCtrl.visualTransform = tricksterVisual.transform;
-        trickster.AddComponent<DisguiseSystem>();
-        trickster.AddComponent<TricksterAbilitySystem>();
+        DisguiseSystem disguiseSystem = trickster.AddComponent<DisguiseSystem>();
+        TricksterAbilitySystem abilitySystem = trickster.AddComponent<TricksterAbilitySystem>();
         trickster.AddComponent<TricksterPossessionGate>();
         trickster.AddComponent<EnergySystem>();
         SetSerializedField(tricksterCtrl, "groundLayer", groundLayerMask);
+        ConfigureDefaultTricksterDisguises(disguiseSystem);
+        SetSerializedField(disguiseSystem, "blendInTime", 0.35f);
+        SetSerializedField(abilitySystem, "controlRange", 8f);
         trickster.transform.parent = root;
 
         GameObject managers = new GameObject("Managers_Commit0_6");
@@ -1320,6 +1326,76 @@ public class TestSceneBuilder : Editor
 
         sr.sprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4);
         sr.color = color;
+    }
+
+    private static Sprite CreateSolidColorSprite(Color color)
+    {
+        Texture2D tex = new Texture2D(4, 4);
+        Color[] pixels = new Color[16];
+        for (int i = 0; i < 16; i++) pixels[i] = color;
+        tex.SetPixels(pixels);
+        tex.Apply();
+        tex.filterMode = FilterMode.Point;
+        return Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4);
+    }
+
+    private static void ConfigureDefaultTricksterDisguises(DisguiseSystem disguiseSystem)
+    {
+        if (disguiseSystem == null) return;
+
+        SerializedObject so = new SerializedObject(disguiseSystem);
+        SerializedProperty disguises = so.FindProperty("availableDisguises");
+        SerializedProperty currentIndex = so.FindProperty("currentDisguiseIndex");
+
+        if (disguises == null)
+        {
+            Debug.LogWarning("[TestSceneBuilder] 找不到 DisguiseSystem.availableDisguises，无法自动配置验证伪装。");
+            return;
+        }
+
+        disguises.ClearArray();
+        disguises.arraySize = 2;
+        ConfigureDisguiseEntry(
+            disguises.GetArrayElementAtIndex(0),
+            "Validation Blue Block",
+            CreateSolidColorSprite(new Color(0.25f, 0.55f, 1f)),
+            new Vector2(1.2f, 1.2f),
+            Vector2.zero,
+            new Vector3(1.2f, 1.2f, 1f),
+            DisguiseType.Static);
+        ConfigureDisguiseEntry(
+            disguises.GetArrayElementAtIndex(1),
+            "Validation Slim Platform",
+            CreateSolidColorSprite(new Color(0.35f, 0.85f, 1f)),
+            new Vector2(2.4f, 0.5f),
+            Vector2.zero,
+            new Vector3(2.4f, 0.5f, 1f),
+            DisguiseType.Static);
+
+        if (currentIndex != null)
+            currentIndex.intValue = 0;
+
+        so.ApplyModifiedProperties();
+    }
+
+    private static void ConfigureDisguiseEntry(
+        SerializedProperty entry,
+        string disguiseName,
+        Sprite sprite,
+        Vector2 colliderSize,
+        Vector2 colliderOffset,
+        Vector3 customScale,
+        DisguiseType type)
+    {
+        if (entry == null) return;
+
+        entry.FindPropertyRelative("disguiseName").stringValue = disguiseName;
+        entry.FindPropertyRelative("disguiseSprite").objectReferenceValue = sprite;
+        entry.FindPropertyRelative("iconSprite").objectReferenceValue = sprite;
+        entry.FindPropertyRelative("customColliderSize").vector2Value = colliderSize;
+        entry.FindPropertyRelative("customColliderOffset").vector2Value = colliderOffset;
+        entry.FindPropertyRelative("customScale").vector3Value = customScale;
+        entry.FindPropertyRelative("type").enumValueIndex = (int)type;
     }
 
     private static int EnsureLayerExists(string layerName)

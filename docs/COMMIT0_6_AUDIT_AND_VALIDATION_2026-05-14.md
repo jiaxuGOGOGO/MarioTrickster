@@ -33,6 +33,10 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 
 验证关卡采用从左到右的短流程：`Gate + Evidence`、`Route Budget`、`Combo + Heat`、`Loot → Escape`、`Scan Wave Crisis`。每段都有场景内文字提示，目标是让测试者不需要理解底层系统参数，也能按顺序验证新增功能是否形成完整闭环。
 
+### 首段操控可用性补充修复
+
+用户本地验证时发现第一段蓝色方块按 `L` 无反应，同时 Mario 的 `Q` 扫描日志持续输出 `Trickster not disguised`。静态排查后确认根因不是 `L` 键派发或方块状态机，而是验证关卡生成的 Trickster 没有初始化 `DisguiseSystem.availableDisguises`，导致按 `P` 时 `DisguiseSystem.Disguise()` 直接返回，Trickster 从未进入 `Disguised / FullyBlended` 前置状态，能力系统自然不会激活。现已在测试关卡构建器中为 Trickster 自动注入默认灰盒伪装形态，并将验证场景的融入等待缩短为 `0.35s`、操控半径调整为 `8f`，确保开局附近的第一段锚点可以低摩擦完成 `P → 静止融入 → L` 的完整链路。
+
 ## 四、本次修改文件
 
 | 文件 | 变更摘要 |
@@ -41,7 +45,7 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 | `Assets/Scripts/Gameplay/MarioCounterplayProbe.cs` | Counter-Reveal 成功时调用门禁强制揭穿，并保留原奖励/HUD 事件。 |
 | `Assets/Scripts/Gameplay/AlarmCrisisDirector.cs` | 扫描波命中正在附身/潜伏的锚点时真实揭穿。 |
 | `Assets/Scripts/Gameplay/SilentMarkSensor.cs` | 被动标记冷却接入热度桥接倍率。 |
-| `Assets/Scripts/Editor/TestSceneBuilder.cs` | 新增 Commit0-6 可选验证关卡构建器与灰盒对象生成 helper。 |
+| `Assets/Scripts/Editor/TestSceneBuilder.cs` | 新增 Commit0-6 可选验证关卡构建器与灰盒对象生成 helper；补齐 Trickster 默认伪装形态、验证场景融入等待和首段操控半径配置。 |
 | `Assets/Scripts/Editor/TestConsoleWindow.cs` | 在 Level Builder 区域新增一键生成 Commit0-6 验证关卡按钮。 |
 | `docs/COMMIT0_6_AUDIT_AND_VALIDATION_2026-05-14.md` | 记录本次审计、修复和验证入口。 |
 
@@ -54,6 +58,7 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 | 改动文件大括号平衡静态检查 | 通过 |
 | 关键方法与调用链静态断言 | 通过 |
 | `git diff --check` | 通过 |
+| 首段 `P → 静止融入 → L` 调用链静态复核 | 通过，生成器现在会配置 `availableDisguises`、`blendInTime=0.35f`、`controlRange=8f`。 |
 | Unity 命令行可用性检查 | 沙盒内不可用 |
 
 后续在 Unity 编辑器中建议执行：先通过 `MarioTrickster/Build Commit 0-6 Validation Scene` 生成场景，再运行 `MarioTrickster/Run Tests/Export Full Report (All)` 做完整回归。

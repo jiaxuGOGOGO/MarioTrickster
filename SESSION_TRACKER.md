@@ -1212,3 +1212,24 @@ User pulled `16640f5` locally and reported Unity compile errors in `Assets/Tests
 
 ### Validation
 Ran static grep for remaining `stateFrames` + `SpriteStateAnimator.MotionState` mixed usage under `Assets/` and `git diff --check`; no remaining same-class compile risk found in the worktree.
+
+---
+
+## Session Update — 2026-05-14 — Commit0-6 Validation First Block Possession Fix
+
+### Trigger
+用户本地验证 Commit0-6 验证关卡时反馈：Trickster 按 `L` 无法操控第一段方块；Mario 按 `Q` 有扫描现象，Console 只有 `[ScanAbility] Scan complete - Trickster not disguised`，无红错。
+
+### Diagnosis
+静态排查确认 `Q` 扫描链路正常，`L` 无反应不是输入派发或 `ControllableBlock` 本身失效，而是验证关卡生成器没有给 Trickster 的 `DisguiseSystem.availableDisguises` 写入任何可用伪装。结果是按 `P` 时 `DisguiseSystem.Disguise()` 直接返回，Trickster 从未进入 `FullyBlended`，`TricksterAbilitySystem` 的能力激活和目标绑定前置条件无法满足。
+
+### Fix
+| 文件 | 变更内容 |
+|------|----------|
+| `Assets/Scripts/Editor/TestSceneBuilder.cs` | 为测试场景和 Commit0-6 验证关卡中的 Trickster 自动注入两个默认静态灰盒伪装形态。 |
+| `Assets/Scripts/Editor/TestSceneBuilder.cs` | 将验证用 `blendInTime` 配为 `0.35f`，降低本地验收等待成本。 |
+| `Assets/Scripts/Editor/TestSceneBuilder.cs` | 将验证用 `controlRange` 配为 `8f`，确保开局附近首段蓝色方块可被锁定与操控。 |
+| `docs/COMMIT0_6_AUDIT_AND_VALIDATION_2026-05-14.md` | 补充首段操控失败根因、修复口径和静态复核结果。 |
+
+### Validation Notes
+沙盒内仍未安装 Unity Editor，无法执行真实编辑器编译或 PlayMode 验证。本次已完成 `git diff --check`，并静态复核 `P → 静止融入 → L` 调用链。用户本地下一轮应重新生成 Commit0-6 验证关卡后测试：按 `P`、等待约半秒、按 `L`。

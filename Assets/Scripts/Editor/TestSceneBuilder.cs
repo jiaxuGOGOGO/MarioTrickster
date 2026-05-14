@@ -156,6 +156,7 @@ public class TestSceneBuilder : Editor
         tricksterCtrl.visualTransform = tricksterVisual.transform; // S37: 赋值视觉代理节点
         DisguiseSystem disguiseSystem = trickster.AddComponent<DisguiseSystem>();
         TricksterAbilitySystem abilitySystem = trickster.AddComponent<TricksterAbilitySystem>();
+        trickster.AddComponent<TricksterPossessionGate>(); // Commit 0: 显式启用附身五态门禁
         EnergySystem energySystem = trickster.AddComponent<EnergySystem>();
 
         SetSerializedField(tricksterCtrl, "groundLayer", groundLayerMask);
@@ -312,7 +313,7 @@ public class TestSceneBuilder : Editor
         GameObject stage5 = new GameObject("--- Stage 5: Prop Control ---");
 
         CreateStageSign(s5 + STAGE_WIDTH / 2f, "STAGE 5: PROP CONTROL",
-            "Trickster: Disguise+BlendIn -> L to control\nTelegraph(0.8s) -> Active -> Cooldown\nEnergy cost: Disguise=25, Control=20\n[F9] No-Cooldown for rapid testing\n[S20] Red/Gray visual links + Arrow-key magnetic target switch",
+            "Trickster: Disguise+BlendIn -> L to control\nCommit 0 gate: Roaming/Blending/Possessing/Revealed/Escaping\nTelegraph(0.8s) -> Active -> Cooldown\nEnergy cost: Disguise=25, Control=20\n[F9] No-Cooldown for rapid testing\n[S20] Red/Gray visual links + Arrow-key magnetic target switch",
             stage5.transform);
 
         // 可操控陷阱
@@ -327,6 +328,7 @@ public class TestSceneBuilder : Editor
         hazardCol.size = PhysicsMetrics.CONTROLLABLE_HAZARD_COLLIDER_SIZE;
         hazardCol.isTrigger = true;
         hazard.AddComponent<ControllableHazard>();
+        hazard.AddComponent<PossessionAnchor>(); // Commit 0: 灰盒显式附身锚点
         hazard.transform.parent = stage5.transform;
         CreateSubLabel(s5 + 5, -0.5f, "Controllable Hazard (L)", stage5.transform);
 
@@ -341,12 +343,14 @@ public class TestSceneBuilder : Editor
         BoxCollider2D blockCol = block.AddComponent<BoxCollider2D>();
         blockCol.size = PhysicsMetrics.BLOCK_COLLIDER_SIZE;
         block.AddComponent<ControllableBlock>();
+        block.AddComponent<PossessionAnchor>(); // Commit 0: 灰盒显式附身锚点
         block.transform.parent = stage5.transform;
         CreateSubLabel(s5 + 9, 1.5f, "Controllable Block (L)", stage5.transform);
 
         // 可操控平台
         GameObject controllablePlatform = CreatePlatformObject("ControllablePlatform", new Vector3(s5 + 13, 2, 0), new Vector2(3, 0.4f), groundLayerIndex);
         ControllablePlatform cp = controllablePlatform.AddComponent<ControllablePlatform>();
+        controllablePlatform.AddComponent<PossessionAnchor>(); // Commit 0: 灰盒显式附身锚点
         SetSerializedField(cp, "pointB", new Vector3(0, 4, 0));
         SetSerializedField(cp, "normalMoveSpeed", 1.5f);
         controllablePlatform.transform.parent = stage5.transform;

@@ -86,7 +86,8 @@ public class TricksterAbilitySystem : MonoBehaviour
     // 组件
     private DisguiseSystem disguiseSystem;
     private TricksterController tricksterController;
-    private EnergySystem energySystem; // 可选：能量系统
+    private EnergySystem energySystem; // 可选组件
+    private TricksterPossessionGate possessionGate; // Commit 0：附身状态门禁（可选）
 
     // 状态
     private IControllableProp boundProp;          // 当前绑定（锁定）的道具
@@ -117,6 +118,9 @@ public class TricksterAbilitySystem : MonoBehaviour
     public IControllableProp BoundProp => boundProp;
     public int ControlsRemaining => maxControlsPerDisguise < 0 ? -1 : maxControlsPerDisguise - controlsUsedThisDisguise;
     public float ControlTimeRemaining => controlTimeLimit <= 0 ? -1f : controlTimeLimit - controlTimeUsed;
+    public TricksterPossessionState PossessionState => possessionGate != null ? possessionGate.CurrentState : TricksterPossessionState.Roaming;
+    public bool IsPossessionActionAllowed => possessionGate == null || possessionGate.CanActivatePossession;
+    public string PossessionGateDebugStatus => possessionGate != null ? possessionGate.GetDebugStatus() : "No possession gate";
 
     // 事件
     public System.Action<IControllableProp> OnPropBound;      // 绑定了道具
@@ -128,6 +132,12 @@ public class TricksterAbilitySystem : MonoBehaviour
         disguiseSystem = GetComponent<DisguiseSystem>();
         tricksterController = GetComponent<TricksterController>();
         energySystem = GetComponent<EnergySystem>(); // 可选组件
+        possessionGate = GetComponent<TricksterPossessionGate>();
+        if (possessionGate == null)
+        {
+            // Commit 0：旧场景兼容。运行时补齐门禁组件，不要求手动改预制体即可启用五态约束。
+            possessionGate = gameObject.AddComponent<TricksterPossessionGate>();
+        }
 
         // 创建 GL 绘制材质
         Shader shader = Shader.Find("Hidden/Internal-Colored");
@@ -339,6 +349,12 @@ public class TricksterAbilitySystem : MonoBehaviour
             return;
         }
 
+        // Commit 0：附身状态门禁。只有完全融入并锁定 PossessionAnchor 时才允许出手。
+        if (possessionGate != null && !possessionGate.AllowsAbilityAction("ActivateProp"))
+        {
+            return;
+        }
+
         // 能量检查（如果有 EnergySystem）
         if (energySystem != null)
         {
@@ -384,6 +400,7 @@ public class TricksterAbilitySystem : MonoBehaviour
     public void SwitchTarget(Vector2 inputDirection)
     {
         if (!isAbilityActive) return;
+        if (possessionGate != null && !possessionGate.CanSwitchTarget) return;
         if (inputDirection.sqrMagnitude < 0.01f) return;
 
         // 刷新范围内道具列表

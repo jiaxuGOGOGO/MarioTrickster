@@ -426,6 +426,7 @@ public class TricksterController : MonoBehaviour
 
     public void OnDisguisePressed()
     {
+        if (IsPossessionLockoutActive()) return;
         disguiseSystem?.ToggleDisguise();
     }
 
@@ -441,6 +442,7 @@ public class TricksterController : MonoBehaviour
 
     public void OnSwitchDisguise(float direction)
     {
+        if (IsPossessionLockoutActive()) return;
         if (disguiseSystem == null || disguiseSystem.IsDisguised) return;
         if (direction > 0) disguiseSystem.NextDisguise();
         else               disguiseSystem.PreviousDisguise();
@@ -479,6 +481,16 @@ public class TricksterController : MonoBehaviour
     }
 
     /// <summary>
+    /// Commit 0：Revealed/Escaping 期间不允许通过切换伪装绕过附身门禁。
+    /// </summary>
+    private bool IsPossessionLockoutActive()
+    {
+        if (abilitySystem == null) return false;
+        return abilitySystem.PossessionState == TricksterPossessionState.Revealed ||
+               abilitySystem.PossessionState == TricksterPossessionState.Escaping;
+    }
+
+    /// <summary>
     /// 检查道具操控的失败原因，返回 null 表示可以操控
     /// </summary>
     private string GetAbilityFailReason()
@@ -498,6 +510,9 @@ public class TricksterController : MonoBehaviour
 
         if (abilitySystem.BoundProp == null)
             return "No controllable prop nearby!";
+
+        if (!abilitySystem.IsPossessionActionAllowed)
+            return $"Possession gate blocked: {abilitySystem.PossessionState}";
 
         if (!abilitySystem.BoundProp.CanBeControlled())
         {

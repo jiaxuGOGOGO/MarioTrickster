@@ -49,6 +49,10 @@ public class MarioSuspicionTracker : MonoBehaviour
     /// <summary>某锚点的可疑度发生变化时触发</summary>
     public event Action<PossessionAnchor, AnchorSuspicionData> OnSuspicionChanged;
 
+    // ── Commit 4 桥接属性（由 HeatSuspicionBridge 写入）──
+    /// <summary>证据衰减减速系数（0=无减速, 1=完全停止衰减），由 HeatSuspicionBridge 每帧设置</summary>
+    public float DecaySlowdownFactor { get; set; }
+
     /// <summary>某锚点达到可揭穿阈值时触发（首次达到时只触发一次）</summary>
     public event Action<PossessionAnchor, AnchorSuspicionData> OnRevealReady;
 
@@ -115,7 +119,9 @@ public class MarioSuspicionTracker : MonoBehaviour
 
     private void Update()
     {
-        float dt = Time.deltaTime;
+        // 考虑热度对衰减的影响：热度越高衰减越慢
+        float decayMultiplier = 1f - Mathf.Clamp01(DecaySlowdownFactor);
+        float dt = Time.deltaTime * decayMultiplier;
         foreach (var kvp in dataMap)
         {
             kvp.Value.Tick(dt);

@@ -185,6 +185,12 @@ public class TestSceneBuilder : Editor
         managers.AddComponent<PropComboTracker>();
         managers.AddComponent<PropComboHUD>();
 
+        // Commit 4: 热度计 + 破绽提示 + HUD + 桥接
+        managers.AddComponent<TricksterHeatMeter>();
+        managers.AddComponent<HeatBreachHint>();
+        managers.AddComponent<TricksterHeatHUD>();
+        managers.AddComponent<HeatSuspicionBridge>();
+
         GameManager gameManager = managers.AddComponent<GameManager>();
         InputManager inputManager = managers.AddComponent<InputManager>();
         LevelManager levelManager = managers.AddComponent<LevelManager>();

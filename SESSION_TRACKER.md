@@ -91,20 +91,28 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 127（玩法循环 6–9 点实现路线拆解落库） |
+| **最新 Session** | Session 128（Trickster 附身点模型与玩法落地顺序修正） |
 | **日期** | 2026-05-14 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 玩法主线重启准备期 — S127 已把策略文档第 6–9 点拆成可提交、可验证的灰盒实现路线：先做 `PropComboTracker`，再做 `TricksterHeatMeter`，随后接 `LootObjective` / `EscapeGate`，最后再做单一预告式危机和轻量升级。 |
+| **阶段** | Sprint 2.6 玩法主线重启准备期 — S128 已把“Trickster 移动=换藏身点、伪装=藏身/出手姿态”合并进 6–9 点落地方案；下一步先做 `PossessionAnchor` 与 Trickster `Roaming/Blending/Possessing/Revealed/Escaping` 门禁，再做 `PropComboTracker`、`TricksterHeatMeter`、拿宝撤离和扫描危机。 |
 | **编译状态** | ✅ 文档检查通过（未改运行时代码；`git diff --check` 通过）。 |
 | **阻塞** | 无。 |
-| **交接说明** | 下一步若用户要求直接开工实现，不要先做大框架；优先落地 Commit 1–2：`PropComboTracker` + `TricksterHeatMeter` + HUD 灰盒反馈。 |
+| **交接说明** | 下一步若用户要求直接开工实现，不要先做 Combo/Heat；应先落地 Commit 0：3 个灰盒 `PossessionAnchor` + 附身状态门禁，确保“移动换点、附身出手、出手留破绽、Mario 可反查”的身份逻辑成立。 |
 
 
-### [S127] 最新知识沉淀
+### [S128] 最新知识沉淀
 
-1. **第 6–9 点的正确落地顺序**：不要一次性做大玩法框架；先做 `PropComboTracker` 让操控机关产生 Chain 反馈，再做 `TricksterHeatMeter` 形成推运气压力，然后用 `LootObjective` / `EscapeGate` 把终点改成“拿宝撤离”，最后再加单一 `AlarmCrisisDirector` 预告式危机。
-2. **首个可开工切片**：下一次真正写代码时，优先提交 `PropComboTracker` + HUD Chain 文本，再提交 Heat 条与回合重置；这两步能在不改机关状态机、不污染 ASCII 字典、不重写 GameManager 的前提下验证核心上瘾感。
-3. **升级系统后置**：轻量升级（控制距离、融入速度、连锁窗口、热度上限、扫描抗性、标签专精）必须等“连锁 + 热度 + 拿宝撤离”本身跑通后再做，否则会掩盖核心循环问题。
+1. **身份逻辑修正**：Trickster 不应设计成当着 Mario 面变成机关还到处移动；后续统一口径为“移动是换藏身点，伪装是藏身和出手姿态”。
+2. **首个实现提交改为 Commit 0**：先做 `PossessionAnchor` 与 Trickster `Roaming / Blending / Possessing / Revealed / Escaping` 门禁；`Blending` / `Possessing` 时不能自由移动，只有 `Possessing` 才能操控关联机关。
+3. **Mario 反制出口必须同批出现**：融入时有轻微破绽，出手后附身点留下 `Suspicion/Residue`，Mario 可通过观察、扫描、踩踏、攻击或路线预判反制，避免一边布置一边受害。
+4. **后续顺序顺延**：`PropComboTracker` 现在是 Commit 1，记录从不同附身点/机关类型连续出手；`TricksterHeatMeter` 是 Commit 2，把附身、操控、重复出手转化为热度和更明显破绽。
+5. **文档落点**：更新后的完整实现顺序、状态表、文件落点、关卡原型和提交拆分见 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026-05-14.md`。
+
+### [S127] 知识沉淀
+
+1. **第 6–9 点的正确落地顺序（已被 S128 修正前置步骤）**：不要一次性做大玩法框架；先做 `PropComboTracker` 让操控机关产生 Chain 反馈，再做 `TricksterHeatMeter` 形成推运气压力，然后用 `LootObjective` / `EscapeGate` 把终点改成“拿宝撤离”，最后再加单一 `AlarmCrisisDirector` 预告式危机。S128 后必须先做 `PossessionAnchor` 与附身状态门禁，再进入 Combo/Heat。
+2. **首个可开工切片（S128 后更新）**：下一次真正写代码时，优先提交 `PossessionAnchor` + Trickster 状态门禁 + 3 个灰盒附身点；随后再提交 `PropComboTracker` + HUD Chain 文本，再提交 Heat 条与回合重置。
+3. **升级系统后置**：轻量升级（控制距离、融入速度、换点撤离速度、连锁窗口、热度上限、扫描抗性、标签专精）必须等“附身换点 + 连锁 + 热度 + 拿宝撤离”本身跑通后再做，否则会掩盖核心循环问题。
 4. **文档落点**：具体实现顺序、文件落点、验证标准和提交拆分见 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026-05-14.md`。
 
 ### [S126] 知识沉淀

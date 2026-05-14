@@ -66,9 +66,9 @@
 
 本节梳理项目中调整关卡参数的所有入口，按**集中度从高到低**分为四个层级。设计师可根据需要修改的参数类型快速定位到对应入口。
 
-### 3.1 顶层入口：Level Studio (Test Console)
+### 3.1 顶层入口：Level Studio
 
-**唤出方式**：Unity 菜单栏 `MarioTrickster → Test Console`，或快捷键 `Ctrl+T` (Windows) / `Cmd+T` (Mac)。
+**唤出方式**：Unity 菜单栏 `MarioTrickster → Level Studio`，或快捷键 `Ctrl+T` (Windows) / `Cmd+T` (Mac)。
 
 Level Studio 是项目唯一的集中式关卡构建工具，所有关卡生成操作都从这里发起。它本身不直接暴露移动/旋转/缩放的数值滑块，而是通过以下三个子入口间接控制关卡布局和元素参数。
 

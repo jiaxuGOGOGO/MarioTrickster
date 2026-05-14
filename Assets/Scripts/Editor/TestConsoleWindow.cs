@@ -9,23 +9,27 @@ using System.Collections.Generic;
 /// 快捷键: Ctrl+T (Windows) / Cmd+T (Mac)
 /// 菜单:   MarioTrickster → Test Console
 ///
-/// 功能概览 (S25 升级版 — 三大选项卡):
+/// 功能概览 (S57d 升级版 — 四大选项卡，关卡设计与美术分离):
 ///
-///   Tab 1 — Level Builder &amp; Theming (模板生成与换肤)
-///     · 一键生成白盒模板（Classic Plains / Underground Cavern）
-///     · 动态元素调色板：点击按钮在 Scene 摄像机中心生成白盒预制体
-///     · 一键应用主题（拖入 LevelThemeProfile，支持 Undo 撤销）
-///     · 字符映射表参考卡
-///     · 原有 TestSceneBuilder 的 Build/Clear 功能
-///     · 关卡元素集控（LevelElementRegistry 浏览 + 聚焦）
-///     · 测试报告快捷入口
+///   Tab 1 — Level Design (纯关卡设计 — 布局优先)
+///     · Custom Template Editor (自定义模板编辑器 + 片段库 + 字典速查) — 最高频操作置顶
+///     · Element Palette (动态元素调色板：点击生成到 Scene 中心)
+///     · Quick Whitebox Generator (快速白盒模板生成)
+///     · TestSceneBuilder (9-Stage / Validation Scene)
+///     · Elements Hub (Registry Browser)
+///     · Test Reports & Shortcuts
 ///
-///   Tab 2 — Teleport &amp; Reset (传送与状态管理)
+///   Tab 2 — Art & Theme (美术与主题 — 视觉层)
+///     · Theme System (主题换肤，拖入 LevelThemeProfile，支持 Undo)
+///     · Art & Effects Hub (素材导入 + SEF Shader 效果 + 合规巡检)
+///
+///   Tab 3 — Teleport & Reset (传送与状态管理)
 ///     · Stage 1~9 + GoalZone 一键传送（Mario + Trickster + Camera 硬切）
+///     · Dynamic Level Anchors (动态关卡锚点)
 ///     · 自定义坐标传送
 ///     · 复活 Mario / 补满能量 / 重置关卡元素
 ///
-///   Tab 3 — Global Cheats (全局测试外挂)
+///   Tab 4 — Global Cheats (全局测试外挂)
 ///     · God Mode (无敌)：PlayerHealth.DebugGodMode
 ///     · No Cooldown：GameManager.NoCooldownMode
 ///     · Infinite Energy：EnergySystem.DebugInfiniteEnergy
@@ -43,6 +47,8 @@ using System.Collections.Generic;
 /// Session 24: 初版创建
 /// Session 25: 升级为 Level Studio（ASCII 关卡生成 + 主题换肤 + 元素调色板）
 /// Session 26b: 精简为纯本地三合一（Custom Template Editor: 字典速查 + 5个经典片段追加 + 文本框编辑/Build）
+/// Session 57d: 重构为 4-Tab 架构（Level Design / Art & Theme / Teleport / Cheats）
+///             关卡设计与美术分离，Custom Template Editor 置顶，参考 LDtk/Mario Maker UX
 /// </summary>
 public class TestConsoleWindow : EditorWindow
 {
@@ -72,7 +78,7 @@ public class TestConsoleWindow : EditorWindow
     // 状态
     // ═══════════════════════════════════════════════════
     private int selectedTab = 0;
-    private readonly string[] tabNames = { "Level Builder", "Teleport", "Cheats" };
+    private readonly string[] tabNames = { "Level Design", "Art & Theme", "Teleport", "Cheats" };
     private Vector2 scrollPos;
     private Vector2 elementsScrollPos;
 
@@ -103,7 +109,7 @@ public class TestConsoleWindow : EditorWindow
     private bool showBuilderTools = true;
 
     // S26b: Custom Template Editor + Snippet Library 状态
-    private bool showCustomTemplateEditor = false;
+    private bool showCustomTemplateEditor = true;
     private string customAsciiTemplate = "";
     private bool showSnippetLibrary = false;
 
@@ -124,11 +130,11 @@ public class TestConsoleWindow : EditorWindow
     // ═══════════════════════════════════════════════════
     // 菜单入口
     // ═══════════════════════════════════════════════════
-    [MenuItem("MarioTrickster/Test Console %t", false, 10)]
+    [MenuItem("MarioTrickster/Level Studio %t", false, 10)]
     public static void ShowWindow()
     {
-        var window = GetWindow<TestConsoleWindow>("Test Console");
-        window.minSize = new Vector2(380, 520);
+        var window = GetWindow<TestConsoleWindow>("Level Studio");
+        window.minSize = new Vector2(400, 560);
     }
 
     // ═══════════════════════════════════════════════════
@@ -242,25 +248,42 @@ public class TestConsoleWindow : EditorWindow
 
         switch (selectedTab)
         {
-            case 0: DrawLevelBuilderTab(); break;
-            case 1: DrawTeleportTab(); break;
-            case 2: DrawCheatsTab(); break;
+            case 0: DrawLevelDesignTab(); break;
+            case 1: DrawArtThemeTab(); break;
+            case 2: DrawTeleportTab(); break;
+            case 3: DrawCheatsTab(); break;
         }
 
         EditorGUILayout.EndScrollView();
     }
 
     // ═══════════════════════════════════════════════════
-    // Tab 1: Level Builder & Theming
+    // Tab 1: Level Design (纯关卡设计 — 布局优先)
     // ═══════════════════════════════════════════════════
-    private void DrawLevelBuilderTab()
+    private void DrawLevelDesignTab()
     {
-        // ── 区块 1: ASCII 模板生成 ──
+        // ── 区块 1 (最高频): 自定义模板编辑器 + 字典速查 + 片段库 ──
+        // 设计理念参考 LDtk / Mario Maker：文本/片段优先的快速迭代工作流
+        showCustomTemplateEditor = EditorGUILayout.Foldout(showCustomTemplateEditor, "★ Custom Template Editor (自定义模板编辑器)", true, EditorStyles.foldoutHeader);
+        if (showCustomTemplateEditor)
+        {
+            DrawCustomTemplateSection();
+        }
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块 2: 动态元素调色板 (点击生成到 Scene 中心) ──
+        showElementPalette = EditorGUILayout.Foldout(showElementPalette, "Element Palette (点击生成到 Scene 中心)", true, EditorStyles.foldoutHeader);
+        if (showElementPalette)
+        {
+            DrawElementPalette();
+        }
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块 3: ASCII 快速模板生成 ──
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("ASCII Level Generator", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "一键生成白盒关卡模板。所有元素使用灰色方块，先测试逻辑，后续换肤。\n仅在 EditMode 下可用。",
-            MessageType.Info);
+        EditorGUILayout.LabelField("Quick Whitebox Generator", EditorStyles.boldLabel);
 
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
 
@@ -273,12 +296,12 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.BeginHorizontal();
         GUI.color = new Color(0.4f, 0.9f, 0.4f);
-        if (GUILayout.Button("Generate Whitebox Level", GUILayout.Height(32)))
+        if (GUILayout.Button("Generate Whitebox Level", GUILayout.Height(28)))
         {
             GenerateWhiteboxLevel();
         }
         GUI.color = new Color(1f, 0.5f, 0.5f);
-        if (GUILayout.Button("Clear ASCII Level", GUILayout.Height(32)))
+        if (GUILayout.Button("Clear ASCII Level", GUILayout.Height(28)))
         {
             AsciiLevelGenerator.ClearGeneratedLevel();
             Debug.Log("[TestConsole] ASCII level cleared.");
@@ -301,9 +324,43 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(6);
 
-        // ── 区块 2: 主题换肤 ──
+        // ── 区块 4: TestSceneBuilder 快捷工具 ──
+        showBuilderTools = EditorGUILayout.Foldout(showBuilderTools, "TestSceneBuilder (9-Stage Test Scene)", true, EditorStyles.foldoutHeader);
+        if (showBuilderTools)
+        {
+            DrawBuilderToolsSection();
+        }
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块 5: 关卡元素集控 (PlayMode) ──
+        showElementsHub = EditorGUILayout.Foldout(showElementsHub, "Elements Hub (Registry Browser)", true, EditorStyles.foldoutHeader);
+        if (showElementsHub)
+        {
+            DrawElementsHubSection();
+        }
+
+        EditorGUILayout.Space(6);
+
+        // ── 区块 6: 测试报告 ──
+        showTestReports = EditorGUILayout.Foldout(showTestReports, "Test Reports & Shortcuts", true, EditorStyles.foldoutHeader);
+        if (showTestReports)
+        {
+            DrawTestReportsSection();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Tab 2: Art & Theme (美术与主题 — 视觉层)
+    // ═══════════════════════════════════════════════════
+    private void DrawArtThemeTab()
+    {
+        // ── 区块 1: 主题换肤 ──
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("Theme System", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox(
+            "拖入 LevelThemeProfile 一键替换所有白盒元素的 Sprite。\n支持 Ctrl+Z 撤销。",
+            MessageType.Info);
 
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
 
@@ -331,56 +388,11 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(6);
 
-        // ── 区块2.5: Art & Effects Hub（素材导入 + SEF 效果统一入口）──
+        // ── 区块 2: Art & Effects Hub ──
         showArtEffectsHub = EditorGUILayout.Foldout(showArtEffectsHub, "★ Art & Effects Hub (素材导入 + Shader效果)", true, EditorStyles.foldoutHeader);
         if (showArtEffectsHub)
         {
             DrawArtEffectsHub();
-        }
-
-        EditorGUILayout.Space(6);
-
-        // ── 区块3: 动态元素调色板 ──
-        showElementPalette = EditorGUILayout.Foldout(showElementPalette, "Element Palette (Spawn at Camera Center)", true, EditorStyles.foldoutHeader);
-        if (showElementPalette)
-        {
-            DrawElementPalette();
-        }
-
-        EditorGUILayout.Space(6);
-
-        // ── 区块4: 自定义模板编辑器 + 字典速查 + 片段库 (S26b) ──
-        showCustomTemplateEditor = EditorGUILayout.Foldout(showCustomTemplateEditor, "☆ Custom Template Editor (自定义模板编辑器)", true, EditorStyles.foldoutHeader);
-        if (showCustomTemplateEditor)
-        {
-            DrawCustomTemplateSection();
-        }
-
-        EditorGUILayout.Space(6);
-
-        // ── 区块5: 原有 TestSceneBuilder 工具 ──
-        showBuilderTools = EditorGUILayout.Foldout(showBuilderTools, "TestSceneBuilder (9-Stage Test Scene)", true, EditorStyles.foldoutHeader);
-        if (showBuilderTools)
-        {
-            DrawBuilderToolsSection();
-        }
-
-        EditorGUILayout.Space(6);
-
-        // ── 区块9: 关卡元素集控 ────
-        showElementsHub = EditorGUILayout.Foldout(showElementsHub, "Elements Hub (Registry Browser)", true, EditorStyles.foldoutHeader);
-        if (showElementsHub)
-        {
-            DrawElementsHubSection();
-        }
-
-        EditorGUILayout.Space(6);
-
-        // ── 区块 6: 测试报告 ──
-        showTestReports = EditorGUILayout.Foldout(showTestReports, "Test Reports & Shortcuts", true, EditorStyles.foldoutHeader);
-        if (showTestReports)
-        {
-            DrawTestReportsSection();
         }
     }
 

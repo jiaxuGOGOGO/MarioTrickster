@@ -9,7 +9,7 @@ using System.Collections.Generic;
 ///   - 所有字符严格对应 AsciiLevelGenerator 的字符映射表
 ///
 /// 使用方式:
-///   在 Test Console → Level Builder → "Snippet Library" 中点击按钮追加到文本框
+///   在 Level Studio → Level Design → "Custom Template Editor" 中点击按钮追加到文本框
 ///
 /// Session 26: 新增
 /// Session 26b: 精简为 5 个核心片段，删除过度设计

@@ -174,6 +174,13 @@ public class TestSceneBuilder : Editor
         managers.AddComponent<ResidueVisualHint>();
         managers.AddComponent<SuspicionHUD>();
 
+        // Commit 2: 路线预算 + 干预补偿 + 重复干预惩罚 + Counter-Reveal 奖励 + HUD
+        managers.AddComponent<RouteBudgetService>();
+        managers.AddComponent<InterferenceCompensationPolicy>();
+        managers.AddComponent<RepeatInterferenceStack>();
+        managers.AddComponent<CounterRevealReward>();
+        managers.AddComponent<RouteBudgetHUD>();
+
         GameManager gameManager = managers.AddComponent<GameManager>();
         InputManager inputManager = managers.AddComponent<InputManager>();
         LevelManager levelManager = managers.AddComponent<LevelManager>();

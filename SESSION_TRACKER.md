@@ -91,16 +91,24 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 133（Commit 1：Mario 反制薄层落地） |
+| **最新 Session** | Session 134（Commit 2：S130 玩家体验护栏落地） |
 | **日期** | 2026-05-14 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 玩法主线重启实现期 — Commit 1 已落地：`MarioSuspicionTracker`、`SilentMarkSensor`（边跑边积累）、`MarioCounterplayProbe`（证据足够时升级强扫描/Counter-Reveal）、`AnchorSuspicionData`（每锚点可疑度/残留/标记/证据）、`ResidueVisualHint`（出手后残留视觉）、`SuspicionHUD`（Mario 侧 HUD 提示）。TestSceneBuilder 已同步挂载新组件。 |
+| **阶段** | Sprint 2.6 玩法主线重启实现期 — Commit 2 已落地：`RouteBudgetService`（路线预算/fallback 护栏）、`InterferenceCompensationPolicy`（干预补偿）、`RepeatInterferenceStack`（重复干预 Heat/收益递减）、`CounterRevealReward`（Counter-Reveal 推进奖励）、`RouteBudgetHUD`（灰盒 HUD）。TestSceneBuilder 已同步挂载新组件。 |
 | **编译状态** | ✅ `git diff --check` 通过，无 trailing whitespace。 |
 | **阻塞** | 无 |
-| **交接说明** | Commit 1 已完成并推送。下一步做 Commit 2：`RouteBudgetService`、`InterferenceCompensationPolicy`、重复干预 Heat/收益递减、Counter-Reveal 推进奖励和 fallback 路线护栏。Commit 0→1→2 完成后先做灰盒体验验证，通过后再继续 Commit 3→6。 |
+| **交接说明** | Commit 0→1→2 全部完成并推送。下一步做灰盒体验验证（核心闭环预检），通过后继续 Commit 3→6。 |
 
 
-### [S133] 最新知识沉淀
+### [S134] 最新知识沉淀
+
+1. **路线预算已落地（Commit 2）**：`RouteBudgetService` 维护关卡中的目标链路线（默认上路/下路），同一时间窗内最多允许一条被降级；当 Trickster 试图降级第二条时，服务强制恢复最早被降级的路线，保证 fallback 始终存在。
+2. **干预补偿已落地**：`InterferenceCompensationPolicy` 监听 `OnRouteDegraded` 和 `OnPropActivated`，每次干预自动给 Mario 返还 Residue、Evidence 和短期推进加速（1.15x，2s）。
+3. **重复干预惩罚已落地**：`RepeatInterferenceStack` 在 15s 窗口内跟踪同一锪点/机关的复用；每次重复 Suspicion 额外 +12×1.5^(N-1)，Heat +8×1.3^(N-1)，收益递减系数 0.6^N；Heat 每秒自然衰减 2。
+4. **Counter-Reveal 奖励已落地**：`CounterRevealReward` 监听 `MarioCounterplayProbe.OnCounterReveal`，揭穿成功后恢复所有降级路线、Heat 回落 25、推进加速 1.25x/3s、冻结该锪点（可疑度拉满）。
+5. **下一步是灰盒体验验证**：Commit 0→1→2 全部完成，按方案先做核心闭环预检（Mario 行动权、Trickster 暗中出手权、两条目标链不会被长期双软锁），通过后继续 Commit 3→6。
+
+### [S133] 知识沉淀
 
 1. **Mario 反制薄层已落地（Commit 1）**：`MarioSuspicionTracker` 监听 `TricksterAbilitySystem.OnPropActivated` 和 `TricksterPossessionGate.OnStateChanged/OnAnchorChanged`，自动给出手锚点叠加 Suspicion、Residue 和 Evidence；复用同一锚点会触发 1.8x 可疑度倍率。
 2. **SilentMark 支持边跑边积累**：`SilentMarkSensor` 挂在 Mario 上，每帧检测附近有残留或可疑度的锚点，当 Mario 在移动中经过时自动加 SilentMark，每锚点有 3s 冷却防刷。
@@ -388,7 +396,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **最高** | **策划生产助手短板优化**：S114 新增 `PlannerProductionAssistant`，把商业素材包命名混乱、Theme Profile 手动填槽、新机制请求不稳定三项短板压成一个 Unity 内窗口入口。 | ✅ 已完成（S114，待 Unity 实机验证） |
 | **最高** | **角色状态动画自动挂载与商业状态兼容**：S115 补强 `idle/run/jump/fall` 命名分类边界测试；S119 追加主角单组 RUN 也能状态驱动；S120 把攻击、受伤、死亡、施法、技能特效、潜行、伪装、融入环境、道具开关等商业素材状态纳入分类摘要和文档，不改变现有运行行为。 | ✅ 已完成（S120，待 Unity 实机验证） |
 | **最高** | **动画系统与核心玩法循环策略落库**：S126 已评估 `SpriteStateAnimator` / Unity Animator / Shader 分工，结论是保留 SpriteStateAnimator 做主角色帧动画底座，Shader/SEF 做特效叠层，Unity Animator 仅局部用于复杂演出；同时沉淀“伪装连锁 + 热度推运气 + 拿宝撤离”的下一阶段玩法窄切片方向。 | ✅ 已完成（S126，详见 `docs/ANIMATION_AND_GAMEPLAY_STRATEGY_2026-05-14.md`） |
-| **最高** | **玩法循环 6–9 点实现路线**：S130 已将第 6–9 点拆成最终 Commit 级路线；S131 已完成 Commit 0（附身点+五态门禁）；S133 已完成 Commit 1（Mario 反制薄层：SuspicionTracker/SilentMark/Probe/Residue）。下一步 Commit 2：RouteBudgetService、InterferenceCompensationPolicy、重复干预 Heat/收益递减、Counter-Reveal 推进奖励、fallback 护栏。 | 🔄 Commit 0→1 已完成；下一步 Commit 2 |
+| **最高** | **玩法循环 6–9 点实现路线**：S130 已将第 6–9 点拆成最终 Commit 级路线；S131 已完成 Commit 0（附身点+五态门禁）；S133 已完成 Commit 1（Mario 反制薄层）；S134 已完成 Commit 2（S130 体验护栏：RouteBudget/Compensation/RepeatHeat/CounterRevealReward）。下一步：灰盒体验验证，通过后 Commit 3→6。 | 🔄 Commit 0→1→2 已完成；下一步灰盒验证 |
 | **最高** | **Apply Art 文件夹整组换皮后角色移动链路修复**：S125 让 Apply Art 从任意 Visual/SpriteRenderer 子节点回到 Mario/Trickster Root，并在换皮后自动修复 Rigidbody2D、Collider2D、visualTransform 与 InputManager 角色引用，避免“应用整组动作后不能左右移动、单独重贴跳跃后才恢复”的回归。 | ✅ 已修复，待用户 Unity 实机验证 |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |

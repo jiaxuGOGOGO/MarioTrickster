@@ -41,7 +41,7 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 
 用户继续验证第二段 Route Budget 与第三段 Combo/Heat：上下路蓝块均可依次伪装控制，Mario 的 `Q` 扫描可打出 `Trickster Detected`；GIF 中可见 Combo HUD 出现 `Multiplier: 1.00x / 1.15x / 1.50x` 与 `Different anchor` 反馈，说明连续多锚点干预已推动连锁与热度变化。GIF 后段还可见 `SCAN WAVE INCOMING` 倒计时和竖向扫描线，说明 Commit 6 的预警与扫描阶段已被热度链路触发。
 
-本次 GIF 暴露的体验问题不是底层扫描波没有运行，而是扫描线命中/扫过时缺少足够显眼的屏幕结果反馈，测试者很难判断“只是扫过”还是“已经揭穿”。因此已为 `ScanWaveHUD` 订阅 `AlarmCrisisDirector.OnAnchorScanned`，在扫描命中普通锚点时显示 `SCAN HIT: EVIDENCE AMPLIFIED`，在命中当前附身/潜伏锚点并触发真实揭穿时显示 `SCAN HIT: TRICKSTER REVEALED`，把 Commit 6 的命中结果从日志/内部状态提升到屏幕中央反馈。
+本次 GIF 暴露的体验问题不是底层扫描波没有运行，而是扫描线命中/扫过时缺少足够显眼的屏幕结果反馈，测试者很难判断“只是扫过”还是“已经揭穿”。因此已为 `ScanWaveHUD` 订阅 `AlarmCrisisDirector.OnAnchorScanned`，在扫描命中普通锚点时显示 `SCAN HIT: EVIDENCE AMPLIFIED`，在命中当前附身/潜伏锚点并触发真实揭穿时显示 `SCAN HIT: TRICKSTER REVEALED`，把 Commit 6 的命中结果从日志/内部状态提升到屏幕中央反馈。用户随后在 Unity 实测确认：热度进入 `Alert` 后可触发 `Scan wave WARNING / STARTED`，竖向扫描线扫过附身/潜伏锚点时会出现中央 `SCAN HIT: TRICKSTER REVEALED` 提示，说明 Commit 6 的触发、扫线和揭穿反馈闭环已经跑通。
 
 ### 用户 GIF 实测补充：Loot → Escape 胜利链路
 
@@ -70,7 +70,7 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 | 关键方法与调用链静态断言 | 通过 |
 | `git diff --check` | 通过 |
 | 首段 `P → 静止融入 → L` 调用链静态复核 | 通过，生成器现在会配置 `availableDisguises`、`blendInTime=0.35f`、`controlRange=8f`。 |
-| 用户 GIF 实测：Route Budget / Combo / Heat / Scan Wave | 通过核心触发链：上下路可控、`Q` 可揭穿、Combo 倍率变化、扫描波预警与扫描线可见；已补强扫描命中/揭穿反馈可见性。 |
+| 用户 GIF 实测：Route Budget / Combo / Heat / Scan Wave | 通过核心触发链：上下路可控、`Q` 可揭穿、Combo 倍率变化、扫描波预警与扫描线可见；补强后用户确认扫描波扫过附身/潜伏锚点时出现中央 `SCAN HIT: TRICKSTER REVEALED` 提示。 |
 | 用户 GIF 实测：Loot → Escape | 通过核心胜利链：未拿 Loot 碰门被拒绝，拿到金色 Loot 后出口放行并触发胜利日志。 |
 | Unity 命令行可用性检查 | 沙盒内不可用 |
 

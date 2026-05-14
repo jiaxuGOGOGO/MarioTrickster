@@ -44,6 +44,7 @@ public class SilentMarkSensor : MonoBehaviour
     // ── 引用 ──
     private MarioController marioController;
     private MarioSuspicionTracker tracker;
+    private HeatSuspicionBridge heatBridge;
 
     // ── 冷却管理 ──
     private Dictionary<PossessionAnchor, float> lastMarkTime = new Dictionary<PossessionAnchor, float>();
@@ -63,6 +64,7 @@ public class SilentMarkSensor : MonoBehaviour
     {
         marioController = GetComponent<MarioController>();
         tracker = FindObjectOfType<MarioSuspicionTracker>();
+        heatBridge = FindObjectOfType<HeatSuspicionBridge>();
         RefreshAnchors();
 
         // 订阅回合重置
@@ -120,10 +122,12 @@ public class SilentMarkSensor : MonoBehaviour
             bool hasSuspicion = data.Suspicion >= minSuspicionToSense;
             if (!hasResidue && !hasSuspicion) continue;
 
-            // 冷却检测
+            // 冷却检测：热度越高，Mario 越容易被动读到信息，表现为同一锚点标记冷却缩短。
+            float markSpeedMultiplier = heatBridge != null ? Mathf.Max(0.01f, heatBridge.CurrentMarkSpeedMultiplier) : 1f;
+            float effectiveMarkCooldown = markCooldown / markSpeedMultiplier;
             if (lastMarkTime.TryGetValue(anchor, out float lastTime))
             {
-                if (Time.time - lastTime < markCooldown) continue;
+                if (Time.time - lastTime < effectiveMarkCooldown) continue;
             }
 
             // 执行被动标记
@@ -135,7 +139,8 @@ public class SilentMarkSensor : MonoBehaviour
             if (showDebugInfo)
             {
                 Debug.Log($"[SilentMarkSensor] Passive mark on {anchor.AnchorId} " +
-                          $"(Residue={data.Residue:F2}, Suspicion={data.Suspicion:F0})");
+                          $"(Residue={data.Residue:F2}, Suspicion={data.Suspicion:F0}, " +
+                          $"MarkSpeed×{markSpeedMultiplier:F1})");
             }
         }
     }

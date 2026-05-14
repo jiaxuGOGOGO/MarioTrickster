@@ -124,6 +124,21 @@ public class TricksterPossessionGate : MonoBehaviour
     }
 
     /// <summary>
+    /// 由 Mario 反制或危机扫描触发的强制揭穿入口。
+    /// 保留当前锚点/道具引用，让后续证据、奖励、HUD 与撤离缓冲保持同一条状态链。
+    /// </summary>
+    public void ForceReveal(float bonusDuration = 0f, string source = "ExternalReveal")
+    {
+        float duration = revealDuration + Mathf.Max(0f, bonusDuration);
+        SetState(TricksterPossessionState.Revealed, duration);
+
+        if (showDebugInfo)
+        {
+            Debug.Log($"[TricksterPossessionGate] ForceReveal by {source}: {GetDebugStatus()}");
+        }
+    }
+
+    /// <summary>
     /// 调试/测试用状态摘要。
     /// </summary>
     public string GetDebugStatus()

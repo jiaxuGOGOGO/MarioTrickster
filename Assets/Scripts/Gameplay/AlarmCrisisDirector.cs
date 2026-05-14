@@ -311,10 +311,9 @@ public class AlarmCrisisDirector : MonoBehaviour
             if (state == TricksterPossessionState.Blending ||
                 state == TricksterPossessionState.Possessing)
             {
-                // 通过 TricksterAbilitySystem 事件间接触发 Revealed
-                // 我们不直接调用 SetState（它是 private），而是通过公共事件通知
-                // TricksterPossessionGate 在出手时自动进入 Revealed
-                // 这里我们发出事件，让外部系统（如 MarioCounterplayProbe）响应
+                // 扫描波本身就是一次预告式危机：命中正在附身/潜伏的锚点时必须真实揭穿，
+                // 而不是只提高证据等待下一次手动扫描，否则 Lockdown 压力无法闭环。
+                possessionGate.ForceReveal(0f, "ScanWave");
                 wasRevealed = true;
 
                 if (showDebugInfo)

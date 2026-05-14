@@ -823,6 +823,248 @@ public class TestSceneBuilder : Editor
             "好的");
     }
 
+
+    [MenuItem("MarioTrickster/Build Commit 0-6 Validation Scene", false, 2)]
+    public static void BuildCommit06ValidationScene()
+    {
+        if (!EditorUtility.DisplayDialog(
+            "MarioTrickster - 生成 Commit0-6 验证关卡",
+            "这将生成一个专门覆盖 Commit0-6 新增玩法链路的可选灰盒验证关卡。\n\n" +
+            "验证顺序：0 附身门禁 → 1 残留/反制揭穿 → 2 路线预算/补偿 → " +
+            "3 连锁 → 4 热度/破绽 → 5 战利品/逃脱 → 6 扫描波危机。\n\n" +
+            "建议在空白场景中执行；如当前场景已有对象，将先清理测试对象。继续？",
+            "生成", "取消"))
+        {
+            return;
+        }
+
+        ClearTestSceneObjectsSilently();
+
+        int groundLayerIndex = EnsureLayerExists(GROUND_LAYER_NAME);
+        LayerMask groundLayerMask = 1 << groundLayerIndex;
+        int playerLayerIndex = EnsureLayerExists("Player");
+        int tricksterLayerIndex = EnsureLayerExists("Trickster");
+        Physics2D.IgnoreLayerCollision(playerLayerIndex, tricksterLayerIndex, true);
+
+        float totalLength = 128f;
+        Transform root = new GameObject("Commit0_6Validation_Root").transform;
+
+        GameObject ground = CreateGround("C06_Ground_Main", new Vector3(totalLength / 2f - 8f, -1, 0), new Vector2(totalLength, 1), groundLayerIndex);
+        ground.transform.parent = root;
+        CreateGround("C06_Wall_Left", new Vector3(-1.5f, 5, 0), new Vector2(1, 14), groundLayerIndex).transform.parent = root;
+        CreateGround("C06_Wall_Right", new Vector3(totalLength - 2f, 5, 0), new Vector2(1, 14), groundLayerIndex).transform.parent = root;
+
+        GameObject killZone = new GameObject("C06_KillZone");
+        killZone.transform.position = new Vector3(totalLength / 2f, -10, 0);
+        BoxCollider2D killCol = killZone.AddComponent<BoxCollider2D>();
+        killCol.size = new Vector2(totalLength + 20, 2);
+        killCol.isTrigger = true;
+        KillZone kz = killZone.AddComponent<KillZone>();
+        kz.SetFallbackY(-15f);
+        killZone.transform.parent = root;
+
+        float marioStartX = 2f;
+        GameObject mario = new GameObject("Mario");
+        mario.tag = "Player";
+        mario.layer = playerLayerIndex;
+        mario.transform.position = new Vector3(marioStartX, 1, 0);
+        GameObject marioVisual = new GameObject("Visual");
+        marioVisual.transform.SetParent(mario.transform, false);
+        marioVisual.transform.localPosition = new Vector3(0f, PhysicsMetrics.MARIO_VISUAL_OFFSET_Y, 0f);
+        SpriteRenderer marioSR = marioVisual.AddComponent<SpriteRenderer>();
+        marioSR.sortingOrder = 10;
+        AssignDefaultSprite(marioSR, Color.red);
+        BoxCollider2D marioCol = mario.AddComponent<BoxCollider2D>();
+        marioCol.size = new Vector2(PhysicsMetrics.MARIO_COLLIDER_WIDTH, PhysicsMetrics.MARIO_COLLIDER_HEIGHT);
+        marioCol.offset = new Vector2(0f, PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y);
+        Rigidbody2D marioRb = mario.AddComponent<Rigidbody2D>();
+        marioRb.gravityScale = 0f;
+        marioRb.freezeRotation = true;
+        marioRb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        MarioController marioCtrl = mario.AddComponent<MarioController>();
+        marioCtrl.visualTransform = marioVisual.transform;
+        PlayerHealth marioHealth = mario.AddComponent<PlayerHealth>();
+        mario.AddComponent<ScanAbility>();
+        mario.AddComponent<SilentMarkSensor>();
+        mario.AddComponent<MarioCounterplayProbe>();
+        SetSerializedField(marioCtrl, "groundLayer", groundLayerMask);
+        mario.AddComponent<JumpArcVisualizer>();
+        mario.transform.parent = root;
+
+        float tricksterStartX = 5f;
+        GameObject trickster = new GameObject("Trickster");
+        trickster.layer = tricksterLayerIndex;
+        trickster.transform.position = new Vector3(tricksterStartX, 1, 0);
+        GameObject tricksterVisual = new GameObject("Visual");
+        tricksterVisual.transform.SetParent(trickster.transform, false);
+        tricksterVisual.transform.localPosition = new Vector3(0f, PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y, 0f);
+        SpriteRenderer tricksterSR = tricksterVisual.AddComponent<SpriteRenderer>();
+        tricksterSR.sortingOrder = 10;
+        AssignDefaultSprite(tricksterSR, Color.blue);
+        BoxCollider2D tricksterCol = trickster.AddComponent<BoxCollider2D>();
+        tricksterCol.size = new Vector2(PhysicsMetrics.TRICKSTER_COLLIDER_WIDTH, PhysicsMetrics.TRICKSTER_COLLIDER_HEIGHT);
+        tricksterCol.offset = new Vector2(0f, PhysicsMetrics.TRICKSTER_COLLIDER_OFFSET_Y);
+        Rigidbody2D tricksterRb = trickster.AddComponent<Rigidbody2D>();
+        tricksterRb.gravityScale = 0f;
+        tricksterRb.freezeRotation = true;
+        tricksterRb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        TricksterController tricksterCtrl = trickster.AddComponent<TricksterController>();
+        tricksterCtrl.visualTransform = tricksterVisual.transform;
+        trickster.AddComponent<DisguiseSystem>();
+        trickster.AddComponent<TricksterAbilitySystem>();
+        trickster.AddComponent<TricksterPossessionGate>();
+        trickster.AddComponent<EnergySystem>();
+        SetSerializedField(tricksterCtrl, "groundLayer", groundLayerMask);
+        trickster.transform.parent = root;
+
+        GameObject managers = new GameObject("Managers_Commit0_6");
+        managers.AddComponent<MarioSuspicionTracker>();
+        managers.AddComponent<ResidueVisualHint>();
+        managers.AddComponent<SuspicionHUD>();
+        managers.AddComponent<RouteBudgetService>();
+        managers.AddComponent<InterferenceCompensationPolicy>();
+        managers.AddComponent<RepeatInterferenceStack>();
+        managers.AddComponent<CounterRevealReward>();
+        managers.AddComponent<RouteBudgetHUD>();
+        managers.AddComponent<PropComboTracker>();
+        managers.AddComponent<PropComboHUD>();
+        managers.AddComponent<TricksterHeatMeter>();
+        managers.AddComponent<HeatBreachHint>();
+        managers.AddComponent<TricksterHeatHUD>();
+        managers.AddComponent<HeatSuspicionBridge>();
+        managers.AddComponent<AlarmCrisisDirector>();
+        managers.AddComponent<ScanWaveHUD>();
+        managers.AddComponent<LootEscapeHUD>();
+        GameManager gameManager = managers.AddComponent<GameManager>();
+        InputManager inputManager = managers.AddComponent<InputManager>();
+        LevelManager levelManager = managers.AddComponent<LevelManager>();
+        SetSerializedField(inputManager, "marioController", marioCtrl);
+        SetSerializedField(inputManager, "tricksterController", tricksterCtrl);
+        SetSerializedField(gameManager, "mario", marioCtrl);
+        SetSerializedField(gameManager, "trickster", tricksterCtrl);
+        SetSerializedField(gameManager, "marioHealth", marioHealth);
+        SetSerializedField(gameManager, "inputManager", inputManager);
+        GameObject marioSpawn = new GameObject("MarioSpawnPoint");
+        marioSpawn.transform.position = new Vector3(marioStartX, 1, 0);
+        marioSpawn.transform.parent = managers.transform;
+        GameObject tricksterSpawn = new GameObject("TricksterSpawnPoint");
+        tricksterSpawn.transform.position = new Vector3(tricksterStartX, 1, 0);
+        tricksterSpawn.transform.parent = managers.transform;
+        SetSerializedField(gameManager, "marioSpawnPoint", marioSpawn.transform);
+        SetSerializedField(gameManager, "tricksterSpawnPoint", tricksterSpawn.transform);
+        SetSerializedField(levelManager, "marioSpawnPoint", marioSpawn.transform);
+        SetSerializedField(levelManager, "tricksterSpawnPoint", tricksterSpawn.transform);
+        SetSerializedField(levelManager, "levelMinX", -5f);
+        SetSerializedField(levelManager, "levelMaxX", totalLength + 10f);
+        SetSerializedField(levelManager, "levelMinY", -10f);
+        SetSerializedField(levelManager, "levelMaxY", 25f);
+        managers.transform.parent = root;
+
+        Camera mainCam = Camera.main;
+        if (mainCam != null)
+        {
+            CameraController[] existingCamCtrls = mainCam.GetComponents<CameraController>();
+            for (int i = 0; i < existingCamCtrls.Length; i++)
+                DestroyImmediate(existingCamCtrls[i]);
+            CameraController camCtrl = mainCam.gameObject.AddComponent<CameraController>();
+            SetSerializedField(camCtrl, "target", mario.transform);
+            SetSerializedField(camCtrl, "useBounds", true);
+            SetSerializedField(camCtrl, "minX", -5f);
+            SetSerializedField(camCtrl, "maxX", totalLength + 10f);
+            SetSerializedField(camCtrl, "minY", -5f);
+            SetSerializedField(camCtrl, "maxY", 25f);
+            mainCam.transform.position = new Vector3(0, 2, -10);
+            mainCam.orthographicSize = 7;
+        }
+
+        GameUI[] existingGameUIs = FindObjectsOfType<GameUI>();
+        foreach (GameUI existingUI in existingGameUIs)
+            DestroyImmediate(existingUI.gameObject);
+        GameObject uiObject = new GameObject("GameUI");
+        uiObject.transform.parent = managers.transform;
+        uiObject.AddComponent<GameUI>();
+
+        CreateStageSign(8f, "Commit0-6 Validation Lane", "从左到右一次验证：附身门禁 / 残留反制 / 路线预算 / 连锁 / 热度 / Loot-Escape / 扫描波危机。\n先用 Mario 试门，再切 Trickster 做干预，最后回 Mario 扫描与逃脱。", root, 18);
+
+        CreateSubSign(12f, "0 Gate + 1 Evidence", "Trickster 先伪装附身蓝色道具；出手后应进入 Revealed/Escaping，Mario 靠近可看到残留并可扫描反制。", root);
+        GameObject c0Block = CreateValidationBlock("C06_Block_C0_GateResidue", new Vector3(12f, 0.7f, 0), new Color(0.25f, 0.55f, 1f));
+        c0Block.transform.parent = root;
+        CreateSubLabel(12f, 2.2f, "C0/C1: Possession Gate + Residue", root);
+
+        CreateSubSign(32f, "2 Route Budget", "上下两条路各有一个可控锚点；连续干预会触发路线预算护栏、补偿与 HUD。", root);
+        CreatePlatformObject("C06_Route_Upper", new Vector3(32f, 2.5f, 0), new Vector2(12f, 0.5f), groundLayerIndex).transform.parent = root;
+        CreatePlatformObject("C06_Route_Lower", new Vector3(32f, 0.2f, 0), new Vector2(12f, 0.5f), groundLayerIndex).transform.parent = root;
+        GameObject upperBlock = CreateValidationBlock("C06_Block_RouteUpper", new Vector3(29f, 3.35f, 0), new Color(0.35f, 0.85f, 1f));
+        upperBlock.transform.parent = root;
+        GameObject lowerBlock = CreateValidationBlock("C06_Block_RouteLower", new Vector3(35f, 1.05f, 0), new Color(0.35f, 0.85f, 1f));
+        lowerBlock.transform.parent = root;
+        CreateSubLabel(32f, 4.3f, "C2: upper/lower route guardrail", root);
+
+        CreateSubSign(52f, "3 Combo + 4 Heat", "三个可控锚点间距很短，连续切换出手会叠 Combo、升热度；Alert 后残留衰减变慢、被动标记更快。", root);
+        GameObject comboA = CreateValidationBlock("C06_Combo_A_Block", new Vector3(47f, 0.8f, 0), new Color(0.9f, 0.45f, 0.25f));
+        comboA.transform.parent = root;
+        GameObject comboB = CreateValidationPlatform("C06_Combo_B_Platform", new Vector3(52f, 1.6f, 0), new Color(0.9f, 0.65f, 0.25f));
+        comboB.transform.parent = root;
+        GameObject comboC = CreateValidationBlock("C06_Combo_C_Block", new Vector3(57f, 0.8f, 0), new Color(0.9f, 0.45f, 0.25f));
+        comboC.transform.parent = root;
+        CreateSubLabel(52f, 3.2f, "C3/C4: chain 2-3 activations quickly", root);
+
+        CreateSubSign(72f, "5 Loot → Escape", "先碰出口会被拒绝；拿金色 Loot 后再进出口。高热度下出口会短暂锁门，等倒计时结束即可胜利。", root);
+        GameObject loot = new GameObject("C06_LootObjective");
+        loot.transform.position = new Vector3(68f, 0.9f, 0);
+        SpriteRenderer lootSR = loot.AddComponent<SpriteRenderer>();
+        lootSR.sortingOrder = 6;
+        AssignDefaultSprite(lootSR, new Color(1f, 0.85f, 0.1f));
+        loot.transform.localScale = new Vector3(0.7f, 0.7f, 1f);
+        BoxCollider2D lootCol = loot.AddComponent<BoxCollider2D>();
+        lootCol.isTrigger = true;
+        loot.AddComponent<LootObjective>();
+        loot.transform.parent = root;
+        GameObject escape = new GameObject("C06_EscapeGate");
+        escape.transform.position = new Vector3(77f, 1.4f, 0);
+        SpriteRenderer escapeSR = escape.AddComponent<SpriteRenderer>();
+        escapeSR.sortingOrder = 5;
+        AssignDefaultSprite(escapeSR, new Color(0.2f, 1f, 0.45f));
+        escape.transform.localScale = new Vector3(1.4f, 2.8f, 1f);
+        BoxCollider2D escapeCol = escape.AddComponent<BoxCollider2D>();
+        escapeCol.isTrigger = true;
+        escapeCol.size = Vector2.one;
+        escape.AddComponent<EscapeGate>();
+        escape.transform.parent = root;
+        CreateSubLabel(72f, 3.9f, "C5: deny before loot, delayed pass after loot", root);
+
+        CreateSubSign(94f, "6 Scan Wave Crisis", "把热度打到 Lockdown 后，红色扫描波会预警并命中附身锚点；命中应真实 Revealed 并触发撤离窗口。", root);
+        GameObject scanTrap = CreateValidationBlock("C06_ScanWave_Target", new Vector3(94f, 0.8f, 0), new Color(1f, 0.25f, 0.25f));
+        scanTrap.transform.parent = root;
+        CreateSubLabel(94f, 2.5f, "C6: Lockdown scan wave reveal", root);
+
+        GameObject goal = new GameObject("C06_BackupGoalZone");
+        goal.transform.position = new Vector3(112f, 1.5f, 0);
+        SpriteRenderer goalSR = goal.AddComponent<SpriteRenderer>();
+        goalSR.sortingOrder = 5;
+        AssignDefaultSprite(goalSR, new Color(0.25f, 1f, 0.25f));
+        goal.transform.localScale = new Vector3(1.5f, 3f, 1f);
+        BoxCollider2D goalCol = goal.AddComponent<BoxCollider2D>();
+        goalCol.isTrigger = true;
+        goalCol.size = Vector2.one;
+        goal.AddComponent<GoalZone>();
+        goal.transform.parent = root;
+
+        EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        Debug.Log("[TestSceneBuilder] Commit0-6 validation scene generated: focused lane covers possession gate, evidence, route budget, combo, heat, loot/escape and scan-wave reveal.");
+        EditorUtility.DisplayDialog(
+            "Commit0-6 验证关卡已生成",
+            "已新增可选灰盒验证关卡：MarioTrickster → Build Commit 0-6 Validation Scene。\n\n" +
+            "建议保存场景后按 Play，从左到右验证完整体验闭环。",
+            "好的");
+    }
+
+    [MenuItem("MarioTrickster/Build Commit 0-6 Validation Scene", true)]
+    public static bool ValidateBuildCommit06ValidationScene()
+    {
+        return !EditorApplication.isPlaying;
+    }
+
     [MenuItem("MarioTrickster/Build Test Scene", true)]
     public static bool ValidateBuildTestScene()
     {
@@ -869,6 +1111,47 @@ public class TestSceneBuilder : Editor
     // ═══════════════════════════════════════════════════════
     // 辅助方法
     // ═══════════════════════════════════════════════════════
+
+    private static void ClearTestSceneObjectsSilently()
+    {
+        Camera mainCam = Camera.main;
+        if (mainCam != null)
+        {
+            CameraController[] camCtrls = mainCam.GetComponents<CameraController>();
+            for (int i = 0; i < camCtrls.Length; i++)
+                DestroyImmediate(camCtrls[i]);
+        }
+
+        LevelElementRegistry.Clear();
+
+        GameObject[] allObjects = FindObjectsOfType<GameObject>();
+        foreach (GameObject obj in allObjects)
+        {
+            if (obj == null) continue;
+            if (obj.GetComponent<Camera>() != null) continue;
+            if (obj.GetComponent<Light>() != null) continue;
+            if (obj.transform.parent != null) continue;
+            DestroyImmediate(obj);
+        }
+    }
+
+    private static GameObject CreateValidationBlock(string name, Vector3 position, Color color)
+    {
+        GameObject block = CreateSceneProp(name, position, color, new Vector3(1.2f, 1.2f, 1f));
+        block.AddComponent<ControllableBlock>();
+        PossessionAnchor anchor = block.AddComponent<PossessionAnchor>();
+        SetSerializedField(anchor, "anchorId", name);
+        return block;
+    }
+
+    private static GameObject CreateValidationPlatform(string name, Vector3 position, Color color)
+    {
+        GameObject platform = CreateSceneProp(name, position, color, new Vector3(2.4f, 0.5f, 1f));
+        platform.AddComponent<ControllablePlatform>();
+        PossessionAnchor anchor = platform.AddComponent<PossessionAnchor>();
+        SetSerializedField(anchor, "anchorId", name);
+        return platform;
+    }
 
     /// <summary>计算第 n 个 Stage 的起始 X 坐标 (0-based)</summary>
     private static float StageStartX(int stageIndex)

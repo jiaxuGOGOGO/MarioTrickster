@@ -207,13 +207,15 @@ public class MarioCounterplayProbe : MonoBehaviour
         protectedWindowTimer = protectedWindowDuration;
         OnProtectedWindowStart?.Invoke(protectedWindowDuration);
 
-        // 触发事件
-        OnCounterReveal?.Invoke(anchor, data);
+        // 直接接入 Commit 0 门禁：强扫描成功必须真实进入 Revealed，
+        // 否则 Mario 侧只看到 HUD/奖励事件，Trickster 仍能继续操控，体验上会像“假揭穿”。
+        if (tricksterGate != null)
+        {
+            tricksterGate.ForceReveal(counterRevealBonusDuration, "Counter-Reveal");
+        }
 
-        // 注意：实际的 Revealed 状态转换由 TricksterPossessionGate 自己在
-        // HandlePropActivated 中处理，或者由 ScanAbility 的 reveal 效果触发。
-        // 这里不直接修改门禁状态，而是通过事件通知其他系统。
-        // 后续 Commit 可以在这里加入更强的暴露效果。
+        // 触发事件，供奖励、HUD 和审计工具消费。
+        OnCounterReveal?.Invoke(anchor, data);
     }
 
     private void HandleRevealReady(PossessionAnchor anchor, AnchorSuspicionData data)

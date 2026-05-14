@@ -1170,3 +1170,32 @@ S132 仅为文档收束，不修改任何代码、物理参数、碰撞体、重
 
 ### 文档检查
 - `git diff --check`：已通过。
+
+---
+## Session S-2026-05-14-S133 — Commit 0-6 落地审计与全功能验证关卡
+
+### 触发
+用户要求作为接手 AI 静默审计 Commit 0-6 是否满足预期设计，全面排查潜在风险、与项目方向相左的设计、玩家体验和策划接受度问题，并基于当前项目生成构建方式增加一个可选测试关卡，用于一次性验证 Commit 0-6 全部新增功能，最后推送到 GitHub。
+
+### 结论
+本次审计确认 Commit 0-6 的总体方向与 S130 玩家体验护栏一致，不需要推翻现有架构。主要隐患集中在三条体验闭环：Counter-Reveal 不能只是发事件、Scan Wave 命中不能只是加证据、Heat 对 SilentMark 的桥接必须真实生效。本次已将三处风险修复为真实状态链，并新增独立可选的 Commit0-6 灰盒验证关卡入口，便于策划和测试低认知负担验收完整流程。
+
+### 更新内容
+| 文件 | 变更内容 |
+|------|----------|
+| `Assets/Scripts/Enemy/TricksterPossessionGate.cs` | 新增 `ForceReveal(float bonusDuration, string source)` 公共强制揭穿入口，供 Mario 反制与扫描危机复用，保持五态门禁为唯一真实状态链。 |
+| `Assets/Scripts/Gameplay/MarioCounterplayProbe.cs` | Counter-Reveal 成功时接入门禁强制揭穿，再派发奖励/HUD 事件，修复“看似揭穿但 Trickster 仍可继续操控”的体验风险。 |
+| `Assets/Scripts/Gameplay/AlarmCrisisDirector.cs` | 扫描波命中正在 `Blending/Possessing` 的锚点时真实进入 `Revealed`，补齐 Lockdown 压力闭环。 |
+| `Assets/Scripts/Gameplay/SilentMarkSensor.cs` | 被动标记冷却接入 `HeatSuspicionBridge.CurrentMarkSpeedMultiplier`，让热度越高 Mario 读局越快的承诺真实生效。 |
+| `Assets/Scripts/Editor/TestSceneBuilder.cs` | 新增 `MarioTrickster/Build Commit 0-6 Validation Scene` 菜单和独立短流程灰盒验证关卡，覆盖附身门禁、残留反制、路线预算、Combo/Heat、Loot-Escape 与 Scan Wave。 |
+| `Assets/Scripts/Editor/TestConsoleWindow.cs` | 在 Level Builder 区域新增 `Build Commit0-6 Validation` 按钮，并说明该关卡不替代原 9-Stage。 |
+| `docs/COMMIT0_6_AUDIT_AND_VALIDATION_2026-05-14.md` | 新增本次审计记录、风险修复说明、验证关卡入口与本地检查结果。 |
+
+### 实现口径
+继续保持项目核心方向：Trickster 暗中附身做局，Mario 边跑边读局和反制。后续若出现局部体验问题，优先调阈值、半径、冷却、持续时间和提示文案，不要回退为停步读条、复杂配置菜单或绕开 `TricksterPossessionGate` 的第二套揭穿状态。
+
+### 文档检查
+- 改动文件大括号平衡静态检查：已通过。
+- 关键调用链静态断言：已通过。
+- `git diff --check`：已通过。
+- 沙盒未安装 Unity Editor，真实 Unity Test Runner 需在编辑器环境通过 `MarioTrickster/Run Tests/Export Full Report (All)` 执行。

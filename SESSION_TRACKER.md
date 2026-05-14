@@ -91,16 +91,23 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 126（动画系统评估与核心玩法循环策略落库） |
+| **最新 Session** | Session 127（玩法循环 6–9 点实现路线拆解落库） |
 | **日期** | 2026-05-14 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 玩法主线重启准备期 — S126 完成 `SpriteStateAnimator` / Unity Animator / Shader 职责边界评估，并把伪装连锁、推运气、潜入拿宝撤离、空间覆盖、预告式危机等全局玩法方案沉淀到 `docs/ANIMATION_AND_GAMEPLAY_STRATEGY_2026-05-14.md`。 |
+| **阶段** | Sprint 2.6 玩法主线重启准备期 — S127 已把策略文档第 6–9 点拆成可提交、可验证的灰盒实现路线：先做 `PropComboTracker`，再做 `TricksterHeatMeter`，随后接 `LootObjective` / `EscapeGate`，最后再做单一预告式危机和轻量升级。 |
 | **编译状态** | ✅ 文档检查通过（未改运行时代码；`git diff --check` 通过）。 |
 | **阻塞** | 无。 |
-| **交接说明** | 下一步若用户要求继续推进玩法，不要先做大架构；优先按策略文档做一个“伪装操控连锁 + 热度推运气 + 拿宝撤离”的灰盒窄切片。 |
+| **交接说明** | 下一步若用户要求直接开工实现，不要先做大框架；优先落地 Commit 1–2：`PropComboTracker` + `TricksterHeatMeter` + HUD 灰盒反馈。 |
 
 
-### [S126] 最新知识沉淀
+### [S127] 最新知识沉淀
+
+1. **第 6–9 点的正确落地顺序**：不要一次性做大玩法框架；先做 `PropComboTracker` 让操控机关产生 Chain 反馈，再做 `TricksterHeatMeter` 形成推运气压力，然后用 `LootObjective` / `EscapeGate` 把终点改成“拿宝撤离”，最后再加单一 `AlarmCrisisDirector` 预告式危机。
+2. **首个可开工切片**：下一次真正写代码时，优先提交 `PropComboTracker` + HUD Chain 文本，再提交 Heat 条与回合重置；这两步能在不改机关状态机、不污染 ASCII 字典、不重写 GameManager 的前提下验证核心上瘾感。
+3. **升级系统后置**：轻量升级（控制距离、融入速度、连锁窗口、热度上限、扫描抗性、标签专精）必须等“连锁 + 热度 + 拿宝撤离”本身跑通后再做，否则会掩盖核心循环问题。
+4. **文档落点**：具体实现顺序、文件落点、验证标准和提交拆分见 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026-05-14.md`。
+
+### [S126] 知识沉淀
 
 1. **动画系统不要三选一，按职责拆层**：`SpriteStateAnimator` 继续作为角色/商业素材的低摩擦 Sprite 帧状态底座；Unity Animator 只建议用于 Boss、过场、复杂机关等局部演出；Shader/SEF 作为融入、警戒、受击、扫描、过热、控制脉冲等状态特效层，不替代状态判定。
 2. **SpriteStateAnimator 最大短板是编辑器预览，不是运行时架构错误**：当前动态 `stateGroups` + `SetStateByTag()` 已能承接 `wallslide/swim/roll/crouch` 等未来状态；下一步如需优化，优先补 `SpriteStateAnimatorEditor` 预览和动画信号桥，而不是迁移整套 Unity Animator Controller。
@@ -257,6 +264,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 >
 > **S126 说明**：本次仅新增动画系统与核心玩法策略文档，**未改动运行时代码**；下表状态保持不变。
 >
+> **S127 说明**：本次仅新增玩法循环第 6–9 点实现路线文档，**未改动运行时代码**；下表状态保持不变。
+>
 > **S93 说明**：本次新增 `research/COMFYUI_DISTILLATION_TO_ANIMATION_IMPLEMENTATION_GUIDE_2026-04-12.md`，汇总 Reddit / GitHub / ComfyUI 官方资料，对“教程/书籍蒸馏为何难以直接转成动画效果”给出工程化解释，并固定四条推荐落地路线：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`。**未改动运行时代码**；下表状态保持不变。
 >
 > **S94 说明**：本次新增 `docs/PIPELINE_ALIGNMENT_AND_ART_LANDING_PLAYBOOK.md`，明确项目后续必须采用 **A 轨关卡白盒主线 / B 轨美术使能支线 / C 轨资产回接桥接层** 的双轨并行、单主线治理模型，并把正式资产的最小接回定义固定为 **目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件**。**未改动运行时代码**；下表状态保持不变。
@@ -330,6 +339,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **最高** | **策划生产助手短板优化**：S114 新增 `PlannerProductionAssistant`，把商业素材包命名混乱、Theme Profile 手动填槽、新机制请求不稳定三项短板压成一个 Unity 内窗口入口。 | ✅ 已完成（S114，待 Unity 实机验证） |
 | **最高** | **角色状态动画自动挂载与商业状态兼容**：S115 补强 `idle/run/jump/fall` 命名分类边界测试；S119 追加主角单组 RUN 也能状态驱动；S120 把攻击、受伤、死亡、施法、技能特效、潜行、伪装、融入环境、道具开关等商业素材状态纳入分类摘要和文档，不改变现有运行行为。 | ✅ 已完成（S120，待 Unity 实机验证） |
 | **最高** | **动画系统与核心玩法循环策略落库**：S126 已评估 `SpriteStateAnimator` / Unity Animator / Shader 分工，结论是保留 SpriteStateAnimator 做主角色帧动画底座，Shader/SEF 做特效叠层，Unity Animator 仅局部用于复杂演出；同时沉淀“伪装连锁 + 热度推运气 + 拿宝撤离”的下一阶段玩法窄切片方向。 | ✅ 已完成（S126，详见 `docs/ANIMATION_AND_GAMEPLAY_STRATEGY_2026-05-14.md`） |
+| **最高** | **玩法循环 6–9 点实现路线**：S127 已将第 6–9 点拆成 Commit 级路线，推荐下一步从 `PropComboTracker` + `TricksterHeatMeter` + HUD 灰盒反馈开工，再接 `LootObjective` / `EscapeGate` 和单一预告式危机。 | ✅ 已完成（S127，详见 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026-05-14.md`） |
 | **最高** | **Apply Art 文件夹整组换皮后角色移动链路修复**：S125 让 Apply Art 从任意 Visual/SpriteRenderer 子节点回到 Mario/Trickster Root，并在换皮后自动修复 Rigidbody2D、Collider2D、visualTransform 与 InputManager 角色引用，避免“应用整组动作后不能左右移动、单独重贴跳跃后才恢复”的回归。 | ✅ 已修复，待用户 Unity 实机验证 |
 | **高** | **批量资产生产**：`trickster_style` 已验证通过，可进入首批量产。需先确定目标槽位（如地刺、平台、背景等），补齐接回定义（目标槽位 / 目录位置 / 命名规则 / 导入参数 / 废弃条件），然后启动窄切片量产。量产时配合去污词使用，道具类需加强 Prompt 约束。 | 🚀 验证已通过，等待确定首批槽位后启动 |
 | **高** | **ComfyUI 蒸馏→动画资产工程化**：不要继续把教程蒸馏停留在摘要层，需把现有动画/透视/镜头蒸馏结果重写成 `任务卡 + 工作流模板 + 参数甜区 + 故障树`。推荐先建立四条窄工作流：`单图肖像驱动`、`双图角色短动作`、`单图伪3D场景/物件`、`设定图批量衍生`；再逐步扩成可组合的生产线。**S94 追加约束**：这条支线必须绑定已命名资产需求推进，不得再以“大而全万能动画流”为默认目标。 | 🚀 主干已能跑通；S105 已继续把稳定性前移到 `02_nobg` 阶段，补齐 **全序列安全构图重排、帧级颜色回正、最大连通域去脏边** 三项返修。当前等待用户实机验证 QC 是否已解除 crop / color 失败，并确认微动作观感未因安全缩放而回退 |

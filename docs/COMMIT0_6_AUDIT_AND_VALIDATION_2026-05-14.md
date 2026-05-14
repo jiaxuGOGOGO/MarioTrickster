@@ -14,7 +14,7 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 | Commit 3 | 连锁追踪与 Combo HUD | 系统组件与多锚点触发条件成立。 | 新验证关卡加入短间距三锚点，便于连续干预验证 Combo。 |
 | Commit 4 | 热度、破绽提示、热度桥接证据衰减与标记速度 | 热度系统成立，但 `SilentMarkSensor` 未消费热度桥接的标记速度倍率。 | `SilentMarkSensor` 现在按 `HeatSuspicionBridge.CurrentMarkSpeedMultiplier` 缩短同锚点被动标记冷却。 |
 | Commit 5 | Loot → Escape 胜利链路与高热度延迟出口 | 组件存在，测试覆盖需要更聚焦。 | 新验证关卡加入“先碰出口拒绝、拿 Loot 后通行”的独立段。 |
-| Commit 6 | 高热度预告式扫描波危机 | 扫描预告与证据放大成立，但原实现存在“扫描命中只加证据、未真实揭穿”的压力闭环风险。 | `AlarmCrisisDirector` 命中附身/潜伏锚点时直接调用门禁强制揭穿。 |
+| Commit 6 | 高热度预告式扫描波危机 | 扫描预告与证据放大成立，但原实现存在“扫描命中只加证据、未真实揭穿”的压力闭环风险；用户 GIF 实测已能看到预警倒计时与扫描线，但命中/揭穿结果不够显眼。 | `AlarmCrisisDirector` 命中附身/潜伏锚点时直接调用门禁强制揭穿；`ScanWaveHUD` 增加命中/揭穿中央横幅，避免测试者只看到扫描线却看不清结果。 |
 
 ## 二、玩家体验与策划接受度判断
 
@@ -37,6 +37,12 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 
 用户本地验证时发现第一段蓝色方块按 `L` 无反应，同时 Mario 的 `Q` 扫描日志持续输出 `Trickster not disguised`。静态排查后确认根因不是 `L` 键派发或方块状态机，而是验证关卡生成的 Trickster 没有初始化 `DisguiseSystem.availableDisguises`，导致按 `P` 时 `DisguiseSystem.Disguise()` 直接返回，Trickster 从未进入 `Disguised / FullyBlended` 前置状态，能力系统自然不会激活。现已在测试关卡构建器中为 Trickster 自动注入默认灰盒伪装形态，并将验证场景的融入等待缩短为 `0.35s`、操控半径调整为 `8f`，确保开局附近的第一段锚点可以低摩擦完成 `P → 静止融入 → L` 的完整链路。
 
+### 用户 GIF 实测补充：Combo/Heat/Scan Wave 可见性
+
+用户继续验证第二段 Route Budget 与第三段 Combo/Heat：上下路蓝块均可依次伪装控制，Mario 的 `Q` 扫描可打出 `Trickster Detected`；GIF 中可见 Combo HUD 出现 `Multiplier: 1.00x / 1.15x / 1.50x` 与 `Different anchor` 反馈，说明连续多锚点干预已推动连锁与热度变化。GIF 后段还可见 `SCAN WAVE INCOMING` 倒计时和竖向扫描线，说明 Commit 6 的预警与扫描阶段已被热度链路触发。
+
+本次 GIF 暴露的体验问题不是底层扫描波没有运行，而是扫描线命中/扫过时缺少足够显眼的屏幕结果反馈，测试者很难判断“只是扫过”还是“已经揭穿”。因此已为 `ScanWaveHUD` 订阅 `AlarmCrisisDirector.OnAnchorScanned`，在扫描命中普通锚点时显示 `SCAN HIT: EVIDENCE AMPLIFIED`，在命中当前附身/潜伏锚点并触发真实揭穿时显示 `SCAN HIT: TRICKSTER REVEALED`，把 Commit 6 的命中结果从日志/内部状态提升到屏幕中央反馈。
+
 ## 四、本次修改文件
 
 | 文件 | 变更摘要 |
@@ -44,6 +50,7 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 | `Assets/Scripts/Enemy/TricksterPossessionGate.cs` | 增加 `ForceReveal(float bonusDuration, string source)` 公共接口。 |
 | `Assets/Scripts/Gameplay/MarioCounterplayProbe.cs` | Counter-Reveal 成功时调用门禁强制揭穿，并保留原奖励/HUD 事件。 |
 | `Assets/Scripts/Gameplay/AlarmCrisisDirector.cs` | 扫描波命中正在附身/潜伏的锚点时真实揭穿。 |
+| `Assets/Scripts/Gameplay/ScanWaveHUD.cs` | 扫描波命中锚点时显示中央反馈横幅，区分证据放大与 Trickster 真实揭穿。 |
 | `Assets/Scripts/Gameplay/SilentMarkSensor.cs` | 被动标记冷却接入热度桥接倍率。 |
 | `Assets/Scripts/Editor/TestSceneBuilder.cs` | 新增 Commit0-6 可选验证关卡构建器与灰盒对象生成 helper；补齐 Trickster 默认伪装形态、验证场景融入等待和首段操控半径配置。 |
 | `Assets/Scripts/Editor/TestConsoleWindow.cs` | 在 Level Builder 区域新增一键生成 Commit0-6 验证关卡按钮。 |
@@ -59,6 +66,7 @@ Commit 0-6 的总体落地方向与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026
 | 关键方法与调用链静态断言 | 通过 |
 | `git diff --check` | 通过 |
 | 首段 `P → 静止融入 → L` 调用链静态复核 | 通过，生成器现在会配置 `availableDisguises`、`blendInTime=0.35f`、`controlRange=8f`。 |
+| 用户 GIF 实测：Route Budget / Combo / Heat / Scan Wave | 通过核心触发链：上下路可控、`Q` 可揭穿、Combo 倍率变化、扫描波预警与扫描线可见；已补强扫描命中/揭穿反馈可见性。 |
 | Unity 命令行可用性检查 | 沙盒内不可用 |
 
 后续在 Unity 编辑器中建议执行：先通过 `MarioTrickster/Build Commit 0-6 Validation Scene` 生成场景，再运行 `MarioTrickster/Run Tests/Export Full Report (All)` 做完整回归。

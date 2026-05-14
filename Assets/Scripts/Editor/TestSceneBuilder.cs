@@ -744,6 +744,37 @@ public class TestSceneBuilder : Editor
         goal.AddComponent<GoalZone>();
         goal.transform.parent = goalParent.transform;
 
+        // Commit 5: 拢宝目标（放在关卡中段，迫使 Mario 先进入危险区）
+        float lootX = goalX - STAGE_WIDTH * 2f;
+        GameObject lootObj = new GameObject("LootObjective");
+        lootObj.transform.position = new Vector3(lootX, 2f, 0);
+        SpriteRenderer lootSR = lootObj.AddComponent<SpriteRenderer>();
+        lootSR.color = new Color(1f, 0.9f, 0f, 0.8f);
+        lootSR.sortingOrder = 4;
+        AssignDefaultSprite(lootSR, new Color(1f, 0.9f, 0f, 0.8f));
+        BoxCollider2D lootCol = lootObj.AddComponent<BoxCollider2D>();
+        lootCol.size = new Vector2(1f, 1f);
+        lootCol.isTrigger = true;
+        lootObj.AddComponent<LootObjective>();
+        lootObj.transform.parent = goalParent.transform;
+
+        // Commit 5: 撒离门（放在终点后方，与 GoalZone 并存）
+        float escapeX = goalX + 3f;
+        GameObject escapeObj = new GameObject("EscapeGate");
+        escapeObj.transform.position = new Vector3(escapeX, 1f, 0);
+        SpriteRenderer escapeSR = escapeObj.AddComponent<SpriteRenderer>();
+        escapeSR.color = new Color(0f, 0.8f, 1f, 0.5f);
+        escapeSR.sortingOrder = 3;
+        AssignDefaultSprite(escapeSR, new Color(0f, 0.8f, 1f, 0.5f));
+        BoxCollider2D escapeCol = escapeObj.AddComponent<BoxCollider2D>();
+        escapeCol.size = new Vector2(1.5f, 2.5f);
+        escapeCol.isTrigger = true;
+        escapeObj.AddComponent<EscapeGate>();
+        escapeObj.transform.parent = goalParent.transform;
+
+        // Commit 5: 拢宝撒离 HUD（挂在 Managers 上）
+        managers.AddComponent<LootEscapeHUD>();
+
         // ═══════════════════════════════════════════════════════════
         // 场景整理
         // ═══════════════════════════════════════════════════════════

@@ -81,6 +81,19 @@ public class MarioCounterplayProbe : MonoBehaviour
         {
             tracker.OnRevealReady += HandleRevealReady;
         }
+
+        // 订阅回合重置
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnRoundStart += HandleRoundStart;
+        }
+    }
+
+    private void HandleRoundStart()
+    {
+        protectedWindowTimer = 0f;
+        isStrongScanReady = false;
+        revealReadyAnchors.Clear();
     }
 
     private void OnDestroy()
@@ -93,6 +106,11 @@ public class MarioCounterplayProbe : MonoBehaviour
         if (tracker != null)
         {
             tracker.OnRevealReady -= HandleRevealReady;
+        }
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnRoundStart -= HandleRoundStart;
         }
     }
 

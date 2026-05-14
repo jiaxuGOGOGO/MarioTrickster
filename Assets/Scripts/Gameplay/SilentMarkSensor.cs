@@ -64,6 +64,25 @@ public class SilentMarkSensor : MonoBehaviour
         marioController = GetComponent<MarioController>();
         tracker = FindObjectOfType<MarioSuspicionTracker>();
         RefreshAnchors();
+
+        // 订阅回合重置
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnRoundStart += HandleRoundStart;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnRoundStart -= HandleRoundStart;
+        }
+    }
+
+    private void HandleRoundStart()
+    {
+        lastMarkTime.Clear();
     }
 
     private void Update()

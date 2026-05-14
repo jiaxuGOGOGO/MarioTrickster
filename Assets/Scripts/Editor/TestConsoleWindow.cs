@@ -116,6 +116,12 @@ public class TestConsoleWindow : EditorWindow
     // Art & Effects Hub 状态
     private bool showArtEffectsHub = false;
 
+    // Gameplay Mechanics 区块状态（机制驱动关卡设计）
+    private bool showGameplayMechanics = true;
+    private bool showAnchorNetwork = true;
+    private bool showRouteBudget = false;
+    private bool showMechanicsValidation = false;
+
     // Teleport 状态
     private float customTeleportX = 0f;
     private float customTeleportY = 1f;
@@ -281,6 +287,15 @@ public class TestConsoleWindow : EditorWindow
 
         EditorGUILayout.Space(6);
 
+        // ── 区块 2.5: Gameplay Mechanics (机制驱动关卡设计) ──
+        showGameplayMechanics = EditorGUILayout.Foldout(showGameplayMechanics, "\u2605 Gameplay Mechanics (\u673a\u5236\u9a71\u52a8\u5173\u5361\u8bbe\u8ba1)", true, EditorStyles.foldoutHeader);
+        if (showGameplayMechanics)
+        {
+            DrawGameplayMechanicsSection();
+        }
+
+        EditorGUILayout.Space(6);
+
         // ── 区块 3: ASCII 快速模板生成 ──
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("Quick Whitebox Generator", EditorStyles.boldLabel);
@@ -348,6 +363,391 @@ public class TestConsoleWindow : EditorWindow
         {
             DrawTestReportsSection();
         }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Gameplay Mechanics Section (机制驱动关卡设计)
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// 绘制 Gameplay Mechanics 区块 —— 机制驱动的关卡设计工具。
+    /// 包含：附身点网络可视化、路线预算配置、机制验证检查。
+    /// </summary>
+    private void DrawGameplayMechanicsSection()
+    {
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.HelpBox(
+            "基于游戏循环的关卡设计工具。\n" +
+            "• 附身点网络：可视化和管理 Trickster 可附身的机关/道具\n" +
+            "• 路线预算：配置 Mario 的上/下路线和护栏规则\n" +
+            "• 机制验证：一键检查关卡是否满足核心循环要求",
+            MessageType.Info);
+
+        EditorGUILayout.Space(4);
+
+        // ── 子区块 A: 附身点网络 (Possession Anchor Network) ──
+        showAnchorNetwork = EditorGUILayout.Foldout(showAnchorNetwork, "◆ Possession Anchor Network (附身点网络)", true);
+        if (showAnchorNetwork)
+        {
+            DrawAnchorNetworkSubsection();
+        }
+
+        EditorGUILayout.Space(4);
+
+        // ── 子区块 B: 路线预算 (Route Budget) ──
+        showRouteBudget = EditorGUILayout.Foldout(showRouteBudget, "◆ Route Budget (路线预算配置)", true);
+        if (showRouteBudget)
+        {
+            DrawRouteBudgetSubsection();
+        }
+
+        EditorGUILayout.Space(4);
+
+        // ── 子区块 C: 机制验证 (Mechanics Validation) ──
+        showMechanicsValidation = EditorGUILayout.Foldout(showMechanicsValidation, "◆ Mechanics Validation (关卡机制验证)", true);
+        if (showMechanicsValidation)
+        {
+            DrawMechanicsValidationSubsection();
+        }
+
+        EditorGUILayout.EndVertical();
+    }
+
+    /// <summary>附身点网络子区块：扫描、可视化、快速添加</summary>
+    private void DrawAnchorNetworkSubsection()
+    {
+        EditorGUI.indentLevel++;
+
+        // 扫描场景中的附身点
+        PossessionAnchor[] anchors = Object.FindObjectsOfType<PossessionAnchor>(true);
+        int enabledCount = 0;
+        int disabledCount = 0;
+        foreach (var a in anchors)
+        {
+            if (a.PossessionEnabled) enabledCount++;
+            else disabledCount++;
+        }
+
+        // 状态概览
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField($"场景附身点: {anchors.Length} 个", EditorStyles.boldLabel);
+        GUI.color = new Color(0.4f, 0.9f, 0.4f);
+        GUILayout.Label($"✔ 启用 {enabledCount}", GUILayout.Width(80));
+        GUI.color = new Color(0.9f, 0.5f, 0.5f);
+        GUILayout.Label($"✖ 禁用 {disabledCount}", GUILayout.Width(80));
+        GUI.color = Color.white;
+        EditorGUILayout.EndHorizontal();
+
+        // 附身点列表
+        if (anchors.Length > 0)
+        {
+            EditorGUILayout.BeginVertical("helpbox");
+            foreach (var anchor in anchors)
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUI.color = anchor.PossessionEnabled ? Color.white : new Color(0.7f, 0.7f, 0.7f);
+                if (GUILayout.Button(anchor.AnchorId, EditorStyles.miniButtonLeft, GUILayout.Width(140)))
+                {
+                    Selection.activeGameObject = anchor.gameObject;
+                    SceneView.lastActiveSceneView?.FrameSelected();
+                }
+                GUILayout.Label($"Pos: ({anchor.transform.position.x:F1}, {anchor.transform.position.y:F1})", GUILayout.Width(140));
+                GUILayout.Label($"Residue: {anchor.DefaultResidueSeconds:F1}s", GUILayout.Width(100));
+                GUI.color = Color.white;
+                EditorGUILayout.EndHorizontal();
+            }
+            EditorGUILayout.EndVertical();
+        }
+        else
+        {
+            EditorGUILayout.HelpBox(
+                "场景中没有 PossessionAnchor。\n" +
+                "在任何带有 IControllableProp 的物体上添加 PossessionAnchor 组件，\n" +
+                "或使用下方按钮快速为选中物体添加。",
+                MessageType.Warning);
+        }
+
+        EditorGUILayout.Space(4);
+
+        // 快捷操作按钮
+        EditorGUILayout.BeginHorizontal();
+        GUI.color = new Color(0.4f, 0.85f, 0.95f);
+        if (GUILayout.Button("+ 为选中物体添加 PossessionAnchor", GUILayout.Height(24)))
+        {
+            AddPossessionAnchorToSelection();
+        }
+        GUI.color = new Color(0.95f, 0.85f, 0.4f);
+        if (GUILayout.Button("◎ 在 Scene 视图高亮所有附身点", GUILayout.Height(24)))
+        {
+            HighlightAllAnchorsInScene();
+        }
+        GUI.color = Color.white;
+        EditorGUILayout.EndHorizontal();
+
+        // 设计建议
+        if (anchors.Length > 0 && anchors.Length < 3)
+        {
+            EditorGUILayout.HelpBox(
+                "⚠️ 建议至少 3 个附身点才能支撑有意义的连锁和路线预算。\n" +
+                "当前核心循环：附身 → 操控 → 连锁 → 热度上升 → 扫描危机",
+                MessageType.Warning);
+        }
+        else if (anchors.Length >= 3)
+        {
+            // 计算附身点分布质量
+            float minX = float.MaxValue, maxX = float.MinValue;
+            float minY = float.MaxValue, maxY = float.MinValue;
+            foreach (var a in anchors)
+            {
+                Vector3 p = a.transform.position;
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+            }
+            float spreadX = maxX - minX;
+            float spreadY = maxY - minY;
+
+            string quality = "";
+            if (spreadX < 5f)
+                quality = "⚠️ 附身点水平分布过密（仅 " + spreadX.ToString("F1") + " 格），建议分散到不同路线段";
+            else if (spreadY < 2f && anchors.Length > 4)
+                quality = "⚠️ 附身点全部在同一高度，缺少垂直层次感";
+            else
+                quality = "✅ 附身点分布合理（水平 " + spreadX.ToString("F1") + " 格，垂直 " + spreadY.ToString("F1") + " 格）";
+
+            EditorGUILayout.LabelField(quality);
+        }
+
+        EditorGUI.indentLevel--;
+    }
+
+    /// <summary>路线预算子区块：查看/配置路线护栏</summary>
+    private void DrawRouteBudgetSubsection()
+    {
+        EditorGUI.indentLevel++;
+
+        RouteBudgetService routeBudget = Object.FindObjectOfType<RouteBudgetService>();
+
+        if (routeBudget == null)
+        {
+            EditorGUILayout.HelpBox(
+                "场景中没有 RouteBudgetService。\n" +
+                "该组件通常挂在 GameManager 上，负责维护 Mario 的路线护栏。\n" +
+                "如果还在白盒阶段，可以先跳过。",
+                MessageType.Info);
+        }
+        else
+        {
+            // 显示 RouteBudgetService 的配置
+            EditorGUILayout.LabelField("路线预算服务已激活", EditorStyles.boldLabel);
+
+            SerializedObject so = new SerializedObject(routeBudget);
+            so.Update();
+
+            SerializedProperty autoRecovery = so.FindProperty("autoRecoveryTime");
+            SerializedProperty maxDegraded = so.FindProperty("maxSimultaneousDegraded");
+
+            if (autoRecovery != null)
+                EditorGUILayout.PropertyField(autoRecovery, new GUIContent("自动恢复时间 (s)"));
+            if (maxDegraded != null)
+                EditorGUILayout.PropertyField(maxDegraded, new GUIContent("最大同时降级数"));
+
+            so.ApplyModifiedProperties();
+
+            EditorGUILayout.Space(2);
+            EditorGUILayout.HelpBox(
+                "路线预算规则：\n" +
+                "• 当总路线 ≤ 2 时，同时最多 1 条被降级\n" +
+                "• 降级路线会自动恢复（上方设置的时间）\n" +
+                "• 每次降级会通过 InterferenceCompensation 给 Mario 补偿",
+                MessageType.None);
+        }
+
+        EditorGUI.indentLevel--;
+    }
+
+    /// <summary>机制验证子区块：一键检查关卡是否满足核心循环要求</summary>
+    private void DrawMechanicsValidationSubsection()
+    {
+        EditorGUI.indentLevel++;
+
+        EditorGUILayout.HelpBox(
+            "核心循环检查清单：\n" +
+            "① 附身点 ≥ 3 个（支撑连锁）\n" +
+            "② 路线 ≥ 2 条（保证 Mario 永远有路走）\n" +
+            "③ 有 LootObjective + EscapeGate（拢宝撤离目标）\n" +
+            "④ 有 AlarmCrisisDirector（扫描波危机）\n" +
+            "⑤ 附身点分布覆盖多条路线（避免单点刷刷）",
+            MessageType.None);
+
+        EditorGUILayout.Space(4);
+
+        GUI.color = new Color(0.4f, 0.9f, 0.7f);
+        if (GUILayout.Button("▶ 运行机制验证", GUILayout.Height(28)))
+        {
+            RunMechanicsValidation();
+        }
+        GUI.color = Color.white;
+
+        EditorGUI.indentLevel--;
+    }
+
+    /// <summary>为选中物体添加 PossessionAnchor 组件</summary>
+    private void AddPossessionAnchorToSelection()
+    {
+        GameObject[] selected = Selection.gameObjects;
+        if (selected == null || selected.Length == 0)
+        {
+            EditorUtility.DisplayDialog("无选中物体", "请先在 Scene 中选中要添加附身点的物体。", "OK");
+            return;
+        }
+
+        int addedCount = 0;
+        foreach (var go in selected)
+        {
+            if (go.GetComponent<PossessionAnchor>() == null)
+            {
+                Undo.AddComponent<PossessionAnchor>(go);
+                addedCount++;
+            }
+        }
+
+        if (addedCount > 0)
+        {
+            Debug.Log($"[Level Studio] 已为 {addedCount} 个物体添加 PossessionAnchor");
+            EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        }
+        else
+        {
+            Debug.Log("[Level Studio] 选中物体已全部拥有 PossessionAnchor");
+        }
+    }
+
+    /// <summary>在 Scene 视图中高亮所有附身点</summary>
+    private void HighlightAllAnchorsInScene()
+    {
+        PossessionAnchor[] anchors = Object.FindObjectsOfType<PossessionAnchor>(true);
+        if (anchors.Length == 0)
+        {
+            EditorUtility.DisplayDialog("无附身点", "场景中没有 PossessionAnchor 组件。", "OK");
+            return;
+        }
+
+        // 选中所有附身点并聚焦
+        GameObject[] anchorObjects = new GameObject[anchors.Length];
+        for (int i = 0; i < anchors.Length; i++)
+        {
+            anchorObjects[i] = anchors[i].gameObject;
+        }
+        Selection.objects = anchorObjects;
+        SceneView.lastActiveSceneView?.FrameSelected();
+        Debug.Log($"[Level Studio] 已选中并聚焦 {anchors.Length} 个附身点");
+    }
+
+    /// <summary>运行机制验证：检查关卡是否满足核心循环要求</summary>
+    private void RunMechanicsValidation()
+    {
+        List<string> passed = new List<string>();
+        List<string> warnings = new List<string>();
+        List<string> errors = new List<string>();
+
+        // ① 附身点数量
+        PossessionAnchor[] anchors = Object.FindObjectsOfType<PossessionAnchor>(true);
+        int enabledAnchors = 0;
+        foreach (var a in anchors) { if (a.PossessionEnabled) enabledAnchors++; }
+
+        if (enabledAnchors >= 3)
+            passed.Add($"① 附身点: {enabledAnchors} 个 (≥ 3 ✅)");
+        else if (enabledAnchors > 0)
+            warnings.Add($"① 附身点: 仅 {enabledAnchors} 个，建议 ≥ 3 个才能支撑连锁");
+        else
+            errors.Add("① 附身点: 0 个 — 没有附身点就没有游戏循环");
+
+        // ② 路线预算
+        RouteBudgetService routeBudget = Object.FindObjectOfType<RouteBudgetService>();
+        if (routeBudget != null)
+            passed.Add("② RouteBudgetService ✅");
+        else
+            warnings.Add("② RouteBudgetService 未找到（可选，但建议配置）");
+
+        // ③ LootObjective + EscapeGate
+        var loot = Object.FindObjectOfType<LootObjective>();
+        var escape = Object.FindObjectOfType<EscapeGate>();
+        if (loot != null && escape != null)
+            passed.Add("③ LootObjective + EscapeGate ✅");
+        else if (loot == null && escape == null)
+            warnings.Add("③ 缺少 LootObjective 和 EscapeGate（拢宝撤离目标）");
+        else
+            warnings.Add($"③ 缺少 {(loot == null ? "LootObjective" : "EscapeGate")}");
+
+        // ④ AlarmCrisisDirector
+        var crisis = Object.FindObjectOfType<AlarmCrisisDirector>();
+        if (crisis != null)
+            passed.Add("④ AlarmCrisisDirector ✅");
+        else
+            warnings.Add("④ AlarmCrisisDirector 未找到（可选，但建议配置）");
+
+        // ⑤ 附身点分布质量
+        if (enabledAnchors >= 3)
+        {
+            float minX = float.MaxValue, maxX = float.MinValue;
+            foreach (var a in anchors)
+            {
+                if (!a.PossessionEnabled) continue;
+                float x = a.transform.position.x;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+            }
+            float spread = maxX - minX;
+            if (spread >= 8f)
+                passed.Add($"⑤ 附身点水平分布: {spread:F1} 格 ✅");
+            else
+                warnings.Add($"⑤ 附身点水平分布仅 {spread:F1} 格，建议分散到 ≥ 8 格");
+        }
+
+        // ⑥ TricksterHeatMeter
+        var heat = Object.FindObjectOfType<TricksterHeatMeter>();
+        if (heat != null)
+            passed.Add("⑥ TricksterHeatMeter ✅");
+        else
+            warnings.Add("⑥ TricksterHeatMeter 未找到");
+
+        // ⑦ PropComboTracker
+        var combo = Object.FindObjectOfType<PropComboTracker>();
+        if (combo != null)
+            passed.Add("⑦ PropComboTracker ✅");
+        else
+            warnings.Add("⑦ PropComboTracker 未找到");
+
+        // 结果汇总
+        string report = "=== 机制验证报告 ===\n\n";
+
+        if (passed.Count > 0)
+        {
+            report += "✅ 通过:\n";
+            foreach (var p in passed) report += $"  {p}\n";
+        }
+        if (warnings.Count > 0)
+        {
+            report += "\n⚠️ 警告:\n";
+            foreach (var w in warnings) report += $"  {w}\n";
+        }
+        if (errors.Count > 0)
+        {
+            report += "\n❌ 错误:\n";
+            foreach (var e in errors) report += $"  {e}\n";
+        }
+
+        report += $"\n总计: {passed.Count} 通过 / {warnings.Count} 警告 / {errors.Count} 错误";
+
+        if (errors.Count == 0 && warnings.Count == 0)
+            report += "\n\n🎉 关卡完全满足核心循环要求！";
+        else if (errors.Count == 0)
+            report += "\n\n👍 关卡基本可玩，但建议补全警告项以获得完整体验";
+
+        EditorUtility.DisplayDialog("机制验证结果", report, "OK");
+        Debug.Log($"[Level Studio] {report}");
     }
 
     // ═══════════════════════════════════════════════════

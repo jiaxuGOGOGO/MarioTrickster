@@ -59,7 +59,39 @@
 - **视觉降噪**：在 Level Builder 模式下，隐藏不必要的警告和提示，专注于布局。
 - **一键可玩 (Playable Environment)**：保留现有的 `EnsurePlayableEnvironment` 逻辑，确保设计师生成的任何白盒关卡都可以立即点击 Play 进行测试。
 
-## 4. 实施计划
+## 4. Gameplay Mechanics 区块（机制驱动关卡设计）
+
+基于项目已实现的 Commit 0–6 核心循环（附身 → 操控 → 连锁 → 热度 → 扫描危机 → 拢宝撤离），在 Level Design Tab 中新增专门服务于机制的设计工具：
+
+### 4.1 Possession Anchor Network (附身点网络)
+
+| 功能 | 说明 |
+| :--- | :--- |
+| 场景扫描 | 实时显示当前场景中所有 PossessionAnchor 的数量、启用/禁用状态 |
+| 附身点列表 | 点击即可跳转到对应物体，显示位置和残留时间 |
+| 分布质量分析 | 自动计算水平/垂直分布，警告过密或缺层次 |
+| 快捷添加 | 一键为选中物体添加 PossessionAnchor 组件 |
+| Scene 高亮 | 选中并聚焦所有附身点，方便全局审视 |
+
+### 4.2 Route Budget (路线预算配置)
+
+直接在编辑器中暴露 RouteBudgetService 的核心参数（自动恢复时间、最大同时降级数），并配合规则说明，让设计师无需进入 Inspector 即可调整路线护栏。
+
+### 4.3 Mechanics Validation (机制验证)
+
+一键检查关卡是否满足核心循环要求，检查项包括：
+
+1. 附身点 ≥ 3 个（支撑连锁）
+2. RouteBudgetService 存在（路线护栏）
+3. LootObjective + EscapeGate（拢宝撤离目标）
+4. AlarmCrisisDirector（扫描波危机）
+5. 附身点分布质量（水平 ≥ 8 格）
+6. TricksterHeatMeter（热度系统）
+7. PropComboTracker（连锁系统）
+
+结果以对话框形式展示，分为“通过/警告/错误”三级，同时输出到 Console。
+
+## 5. 实施计划
 
 1. **代码重构**：修改 `TestConsoleWindow.cs`，引入 `GUILayout.Toolbar` 实现 Tab 切换。
 2. **逻辑迁移**：将现有的 UI 绘制方法（如 `DrawCustomTemplateSection`, `DrawElementPalette`, `DrawCheatsTab`）分配到对应的 Tab 中。

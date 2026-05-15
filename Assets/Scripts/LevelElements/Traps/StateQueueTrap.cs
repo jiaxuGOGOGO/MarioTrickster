@@ -90,7 +90,7 @@ public class StateQueueTrap : ControllableLevelElement
     private SpriteRenderer sr;
     private MarioSuspicionTracker suspicionTracker;
     private TricksterHeatMeter heatMeter;
-    private Color originalColor;
+    // 使用基类 ControllablePropBase.originalColor (protected)，不再重复声明
 
     private QueueTrapState CurrentQueueState => queue[currentQueueIndex];
     private QueueTrapState NextQueueState => queue[(currentQueueIndex + 1) % queue.Length];

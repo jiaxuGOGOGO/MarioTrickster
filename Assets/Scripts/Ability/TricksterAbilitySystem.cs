@@ -164,19 +164,6 @@ public class TricksterAbilitySystem : MonoBehaviour
         InitLineRendererPool();
     }
 
-    private void OnDisable()
-    {
-        if (!_isUnderlining)
-        {
-            return;
-        }
-
-        SetUnderlineVisibility(true);
-        _isUnderlining = false;
-        _underlineCoroutine = null;
-        possessionGate?.EndUnderlineTransit();
-    }
-
     #region Session 20: LineRenderer 对象池
 
     /// <summary>
@@ -290,9 +277,19 @@ public class TricksterAbilitySystem : MonoBehaviour
 
     private void OnDisable()
     {
+        // 取消事件订阅
         if (disguiseSystem != null)
         {
             disguiseSystem.OnDisguiseChanged -= HandleDisguiseChanged;
+        }
+
+        // S143 暗线清理：若正在暗线过渡中，恢复可见性
+        if (_isUnderlining)
+        {
+            SetUnderlineVisibility(true);
+            _isUnderlining = false;
+            _underlineCoroutine = null;
+            possessionGate?.EndUnderlineTransit();
         }
     }
 

@@ -4,19 +4,20 @@ using UnityEngine;
 /// Commit 4：热度破绽提示 — 热度越高，附身点的视觉破绽越明显。
 ///
 /// 核心规则（S130 第二阶段）：
-///   - Calm：无额外视觉。
+///   - Calm：无额外表现提示。
 ///   - Suspicious：有 Suspicion > 20 的锚点轻微闪烁。
-///   - Alert：有 Suspicion > 10 的锚点明显闪烁 + 颜色偏移。
+///   - Alert：有 Suspicion > 10 的锚点明显闪烁。
 ///   - Lockdown：所有有 Residue 的锚点强烈闪烁。
 ///
 /// 实现方式：
 ///   - 读取 TricksterHeatMeter.CurrentTier 和 MarioSuspicionTracker 数据。
-///   - 通过 SpriteRenderer.color 的 alpha/色调闪烁实现灰盒破绽。
+///   - 仅发送 GameplayEventBus.OnResidueSpotted 信号，由 VisualFeedbackBridge 统一改色 / SEF 表现。
 ///   - 不修改碰撞体或物理。
 ///
 /// 非职责：
 ///   - 不修改 PhysicsMetrics、碰撞体、重力、MotionState。
 ///   - 不改 ControllablePropBase 的 Telegraph→Active→Cooldown 状态机。
+///   - 不直接操作 SpriteRenderer.color 或 SpriteEffectController。
 /// </summary>
 public class HeatBreachHint : MonoBehaviour
 {
@@ -36,17 +37,12 @@ public class HeatBreachHint : MonoBehaviour
     [Tooltip("Alert 档最小可疑度阈值")]
     [SerializeField] private float alertMinSuspicion = 10f;
 
-    [Tooltip("闪烁颜色（叠加到原色上）")]
-    [SerializeField] private Color hintColor = new Color(1f, 0.5f, 0f, 1f);
-
     // ── 引用 ──
     private TricksterHeatMeter heatMeter;
     private MarioSuspicionTracker suspicionTracker;
 
     // ── 缓存 ──
     private PossessionAnchor[] cachedAnchors;
-    private SpriteRenderer[] cachedRenderers;
-    private Color[] originalColors;
     private float refreshTimer;
 
     private void Start()
@@ -72,8 +68,8 @@ public class HeatBreachHint : MonoBehaviour
         var tier = heatMeter.CurrentTier;
         if (tier == TricksterHeatMeter.HeatTier.Calm)
         {
-            // Calm 档恢复原色
-            RestoreAllColors();
+            // Calm 档只发送清除表现信号，实际恢复颜色交给 VisualFeedbackBridge。
+            SendClearHints(tier, "HeatBreachHint.Calm");
             return;
         }
 
@@ -83,17 +79,17 @@ public class HeatBreachHint : MonoBehaviour
 
         for (int i = 0; i < cachedAnchors.Length; i++)
         {
-            if (cachedAnchors[i] == null || cachedRenderers[i] == null) continue;
+            PossessionAnchor anchor = cachedAnchors[i];
+            if (anchor == null) continue;
 
-            AnchorSuspicionData data = suspicionTracker.GetData(cachedAnchors[i]);
+            AnchorSuspicionData data = suspicionTracker.GetData(anchor);
             if (data == null)
             {
-                cachedRenderers[i].color = originalColors[i];
+                SendResidueHint(anchor, tier, 0f, 0f, 0f, "HeatBreachHint.NoData");
                 continue;
             }
 
-            bool shouldHint = false;
-
+            bool shouldHint;
             if (tier == TricksterHeatMeter.HeatTier.Lockdown)
             {
                 // Lockdown：所有有 Residue 或 Suspicion 的锚点
@@ -105,15 +101,8 @@ public class HeatBreachHint : MonoBehaviour
                 shouldHint = data.Suspicion >= minSuspicion;
             }
 
-            if (shouldHint)
-            {
-                float intensity = Mathf.Lerp(0.2f, 0.8f, flicker);
-                cachedRenderers[i].color = Color.Lerp(originalColors[i], hintColor, intensity);
-            }
-            else
-            {
-                cachedRenderers[i].color = originalColors[i];
-            }
+            float intensity = shouldHint ? Mathf.Lerp(0.2f, 0.8f, flicker) : 0f;
+            SendResidueHint(anchor, tier, data.Residue, data.Suspicion, intensity, "HeatBreachHint");
         }
     }
 
@@ -123,29 +112,35 @@ public class HeatBreachHint : MonoBehaviour
     private void RefreshAnchors()
     {
         cachedAnchors = FindObjectsOfType<PossessionAnchor>();
-        cachedRenderers = new SpriteRenderer[cachedAnchors.Length];
-        originalColors = new Color[cachedAnchors.Length];
+    }
 
+    private void SendClearHints(TricksterHeatMeter.HeatTier tier, string reason)
+    {
         for (int i = 0; i < cachedAnchors.Length; i++)
         {
-            cachedRenderers[i] = cachedAnchors[i].GetComponentInChildren<SpriteRenderer>();
-            if (cachedRenderers[i] != null)
-            {
-                originalColors[i] = cachedRenderers[i].color;
-            }
+            PossessionAnchor anchor = cachedAnchors[i];
+            if (anchor == null) continue;
+            SendResidueHint(anchor, tier, 0f, 0f, 0f, reason);
         }
     }
 
-    private void RestoreAllColors()
+    private void SendResidueHint(
+        PossessionAnchor anchor,
+        TricksterHeatMeter.HeatTier tier,
+        float residue,
+        float suspicion,
+        float intensity,
+        string reason)
     {
-        if (cachedRenderers == null) return;
-        for (int i = 0; i < cachedRenderers.Length; i++)
-        {
-            if (cachedRenderers[i] != null)
-            {
-                cachedRenderers[i].color = originalColors[i];
-            }
-        }
+        GameplayEventBus.SendResidueSpotted(
+            anchor,
+            anchor.gameObject,
+            anchor.transform.position,
+            tier,
+            residue,
+            suspicion,
+            intensity,
+            reason);
     }
 
     private float GetFlickerSpeed(TricksterHeatMeter.HeatTier tier)

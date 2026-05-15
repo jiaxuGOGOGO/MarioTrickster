@@ -21,6 +21,7 @@ using UnityEngine;
 ///   - 监听 PropComboTracker.OnComboHit / OnComboBreak。
 ///   - 监听 TricksterPossessionGate.OnStateChanged（进入 Possessing 时加热度）。
 ///   - 向 MarioSuspicionTracker 传递热度信息（影响证据衰减速度）。
+///   - 档位变化同步发送 GameplayEventBus.OnHeatTierChanged，表现层统一订阅。
 ///
 /// 非职责：
 ///   - 不修改 PhysicsMetrics、碰撞体、重力、MotionState。
@@ -297,6 +298,7 @@ public class TricksterHeatMeter : MonoBehaviour
         currentTier = HeatTier.Calm;
         lockdownCooldownTimer = 0f;
         OnHeatChanged?.Invoke(0f, 0f);
+        GameplayEventBus.SendHeatTierChanged(this, HeatTier.Calm, HeatTier.Calm, heat, heat / MaxHeat);
         OnTierChanged?.Invoke(HeatTier.Calm, HeatTier.Calm);
     }
 
@@ -322,6 +324,7 @@ public class TricksterHeatMeter : MonoBehaviour
                 Debug.Log($"[TricksterHeatMeter] Tier change: {oldTier} → {newTier} (heat={heat:F1})");
             }
 
+            GameplayEventBus.SendHeatTierChanged(this, newTier, oldTier, heat, heat / MaxHeat);
             OnTierChanged?.Invoke(newTier, oldTier);
 
             // Lockdown 触发
@@ -357,9 +360,15 @@ public class TricksterHeatMeter : MonoBehaviour
         OnLockdownTriggered?.Invoke();
 
         // 热度回落到目标值（延迟一帧避免事件处理冲突）
+        HeatTier oldTier = currentTier;
         heat = LockdownFallbackHeatValue;
         currentTier = CalculateTier(heat);
         OnHeatChanged?.Invoke(heat, heat / MaxHeat);
+        if (currentTier != oldTier)
+        {
+            GameplayEventBus.SendHeatTierChanged(this, currentTier, oldTier, heat, heat / MaxHeat);
+            OnTierChanged?.Invoke(currentTier, oldTier);
+        }
     }
 
     #endregion

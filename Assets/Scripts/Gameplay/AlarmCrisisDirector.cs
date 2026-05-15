@@ -24,6 +24,7 @@ using UnityEngine;
 ///   - 不修改 PhysicsMetrics、碰撞体、重力、MotionState。
 ///   - 不改 ControllablePropBase 的 Telegraph→Active→Cooldown 状态机。
 ///   - 通过监听 TricksterHeatMeter 事件接入。
+///   - 不直接调用相机震动、SEF 或 SpriteRenderer；表现统一走 GameplayEventBus。
 /// </summary>
 public class AlarmCrisisDirector : MonoBehaviour
 {
@@ -235,6 +236,15 @@ public class AlarmCrisisDirector : MonoBehaviour
             Debug.Log($"[AlarmCrisisDirector] Scan wave WARNING! {WarningDurationValue}s to scan.");
         }
 
+        GameplayEventBus.SendCrisisWarning(
+            this,
+            new Vector3((scanStartX + scanEndX) * 0.5f, transform.position.y, transform.position.z),
+            WarningDurationValue,
+            ScanWidthValue,
+            shakeDuration: 0.2f,
+            shakeMagnitude: 0.06f,
+            warningType: "ScanWaveWarning");
+
         OnScanWarning?.Invoke(WarningDurationValue);
     }
 
@@ -305,6 +315,16 @@ public class AlarmCrisisDirector : MonoBehaviour
                 float newResidue = Mathf.Min(1f, data.Residue * EvidenceAmplifyFactorValue);
                 data.SetResidue(newResidue);
 
+                GameplayEventBus.SendResidueSpotted(
+                    anchor,
+                    anchor.gameObject,
+                    anchor.AnchorTransform.position,
+                    heatMeter != null ? heatMeter.CurrentTier : TricksterHeatMeter.HeatTier.Alert,
+                    newResidue,
+                    data.Suspicion,
+                    Mathf.Clamp01(newResidue + data.Suspicion / 100f),
+                    "AlarmCrisisDirector.ScanWave");
+
                 if (showDebugInfo)
                 {
                     Debug.Log($"[AlarmCrisisDirector] Amplified evidence on {anchor.AnchorId}: " +
@@ -330,6 +350,13 @@ public class AlarmCrisisDirector : MonoBehaviour
                     Debug.Log($"[AlarmCrisisDirector] Trickster CAUGHT at {anchor.AnchorId}! " +
                               $"State was {state}.");
                 }
+
+                GameplayEventBus.SendTricksterRevealed(
+                    gameObject,
+                    possessionGate != null ? possessionGate.GetComponent<TricksterController>() : null,
+                    anchor.AnchorTransform.position,
+                    1f,
+                    "AlarmCrisisDirector.ScanWave");
 
                 // 给该锚点最大证据，让 MarioCounterplayProbe 可以立即揭穿
                 if (suspicionTracker != null)

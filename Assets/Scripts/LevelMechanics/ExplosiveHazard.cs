@@ -4,10 +4,10 @@ using UnityEngine;
 /// ExplosiveHazard — 碰撞爆炸型陷阱
 ///
 /// 继承 BaseHazard，当玩家碰触时：
-///   1. 播放爆炸视觉特效（SEF 溶解 + 闪白）
-///   2. 对爆炸半径内的所有 PlayerHealth 造成范围伤害
-///   3. 施加击退力
-///   4. 自毁（延迟销毁，等动画播完）
+///   1. 对爆炸半径内的所有 PlayerHealth 造成范围伤害
+///   2. 施加击退力
+///   3. 发送爆炸表现信号（由 VisualFeedbackBridge 统一表现）
+///   4. 自毁（延迟销毁，等表现播完）
 ///
 /// 设计参考：
 ///   - Super Mario Bros 炸弹兵（Bob-omb）：碰触/倒计时 → 范围爆炸
@@ -20,8 +20,9 @@ using UnityEngine;
 /// [AI防坑警告]
 ///   1. 必须有 Collider2D 且 isTrigger=true
 ///   2. 爆炸范围检测使用 Physics2D.OverlapCircleAll，不依赖自身碰撞体
-///   3. 自毁前必须等 SEF 溶解动画播完，否则视觉突兀
+///   3. 自毁前保留 destroyDelay，确保表现层有时间播放溶解/闪白
 ///   4. 继承 BaseHazard 获得防刷屏保护（同一玩家不会被爆炸伤害两次）
+///   5. 禁止直接调用 SpriteEffectController 或 Camera Shake；表现统一走 GameplayEventBus
 /// </summary>
 public class ExplosiveHazard : BaseHazard
 {
@@ -46,12 +47,10 @@ public class ExplosiveHazard : BaseHazard
 
     // 状态
     private bool _hasExploded;
-    private SpriteEffectController _sefCtrl;
 
     private void Awake()
     {
         baseDamage = explosionDamage;
-        _sefCtrl = GetComponentInChildren<SpriteEffectController>();
     }
 
     /// <summary>
@@ -97,21 +96,23 @@ public class ExplosiveHazard : BaseHazard
             }
         }
 
-        // 播放爆炸视觉特效
-        PlayExplosionVFX();
+        // 表现层信号：闪白、溶解、震动由 VisualFeedbackBridge 统一处理。
+        GameplayEventBus.SendTrapTriggered(
+            gameObject,
+            health != null ? health.gameObject : null,
+            transform.position,
+            hitFlashDuration: 0.1f,
+            hitFlashColor: Color.white,
+            playDissolve: true,
+            dissolveDuration: destroyDelay * 0.8f,
+            shakeDuration: 0.18f,
+            shakeMagnitude: 0.08f,
+            reason: "ExplosiveHazard");
 
         // 延迟自毁
         Destroy(gameObject, destroyDelay);
     }
 
-    private void PlayExplosionVFX()
-    {
-        if (_sefCtrl == null) return;
-
-        // 闪白 + 快速溶解 = 爆炸视觉
-        _sefCtrl.PlayHitFlash(0.1f, Color.white);
-        _sefCtrl.PlayDissolve(destroyDelay * 0.8f);
-    }
 
     protected override void OnPlayerKilled(PlayerHealth health)
     {

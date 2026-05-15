@@ -1289,3 +1289,40 @@ Ran static grep for remaining `stateFrames` + `SpriteStateAnimator.MotionState` 
 - `python3.11 LevelDesign_References/validate_ascii_template.py LevelDesign_References/ASCII_Templates.md`：8 个模板全部 PASS，致命错误 0，保留既有设计警告 25 条。
 - `git diff --check`：通过。
 - 沙盒未安装 Unity Editor，无法在本环境执行真实 Unity Test Runner；仍需用户本地在 Unity 中执行 `MarioTrickster/Run Tests/Export Full Report (All)` 进行编辑器编译与 PlayMode 回归。
+
+
+---
+
+## 2026-05-15 — GameplayEventBus 视听表现解耦重构
+
+### 本次目标
+
+将机关、热度、危机与残留提示中的**视听表现调用**从核心玩法逻辑中抽离，新增轻量级 `GameplayEventBus` 作为玩法事件出口，并通过 `VisualFeedbackBridge` 统一监听事件后调用现有 `SpriteEffectController` 与 `CameraController.Shake` 表现接口。核心原则是：逻辑脚本只发送“发生了什么”，表现脚本决定“如何呈现”。
+
+### 已完成修改
+
+1. 新增 `Assets/Scripts/Gameplay/GameplayEventBus.cs`，集中定义并发送核心博弈事件：`OnTrapTriggered`、`OnBouncyPlatformLaunched`、`OnTricksterRevealed`、`OnHeatTierChanged`、`OnCrisisWarning`、`OnResidueSpotted`。事件负载只携带上下文，不反向驱动物理或状态机。
+2. 新增 `Assets/Scripts/Gameplay/VisualFeedbackBridge.cs`，统一订阅 GameplayEventBus，并集中处理 SEF `PlayHitFlash` / `PlayDissolve`、残留 Outline/HSV 脉冲以及 `CameraController.Shake`。桥接层支持运行时自动挂载 SEF 到带 SpriteRenderer 的目标，避免旧体验丢失。
+3. 重构 `ExplosiveHazard`：爆炸伤害、击退、冷却和销毁逻辑保持不变；直接 SEF 调用改为 `GameplayEventBus.SendTrapTriggered(...)`。
+4. 重构 `BouncyPlatform`：弹射速度注入、Knockback Stun / `PlayerMotionState` 调用和弹力参数保持不变；颜色闪白与震动改为 `GameplayEventBus.SendBouncyPlatformLaunched(...)`。
+5. 重构 `HeatBreachHint`：仍按原逻辑计算热度档位、残留和破绽可见性；不再直接改 `SpriteRenderer.color`，改为发送 `OnResidueSpotted`，由桥接层统一表现。
+6. 重构 `AlarmCrisisDirector`：危机预警、残留扫描、证据累积和 `ForceReveal()` 核心循环保持不变；额外发送 `OnCrisisWarning`、`OnResidueSpotted`、`OnTricksterRevealed`。
+7. 重构 `TricksterHeatMeter`：保留原 `OnTierChanged` 事件；在同一档位变更点同步发送 `GameplayEventBus.SendHeatTierChanged(...)`，不改变热度模型。
+
+### 零影响校验重点
+
+- `BouncyPlatform.ApplyBounce()` 中 `rb.velocity` 赋值、`PlayerMotionState.TryEnterKnockbackStun()`、`BounceOffEnemy()`、冷却与 reset 流程未被表现层迁移改变。
+- `ExplosiveHazard.Explode()` 中 `TakeDamage()`、`Rigidbody2D.AddForce()`、`destroyAfterExplosion` 流程保持原有顺序。
+- `AlarmCrisisDirector` 中扫描半径、证据累积、`NotifyAlarmLevel()` 与 `ForceReveal()` 只新增事件广播，不改变判断条件。
+- `GameplayEventBus` 为 fire-and-forget 静态事件，总线本身不保存或写回任何玩法状态。
+
+### 已执行验证
+
+- `static_event_bus_checks: PASS`：括号平衡、核心逻辑脚本中禁止的 `Camera.main` / `.Shake(` / `PlayHitFlash(` / `PlayDissolve(` / 运行时改色调用检查通过；确认 `GameplayEventBus` 和 `VisualFeedbackBridge` 关键 API 存在。
+- `python3.11 LevelDesign_References/validate_ascii_template.py`：8 个 ASCII 模板全部 PASS。
+- `git diff --check`：通过，无空白或补丁格式问题。
+- 当前沙盒无 Unity Editor / Unity 命令行入口，无法执行真实 Unity Test Runner；仍建议本地打开 Unity 后运行 `MarioTrickster/Run Tests/Export Full Report (All)` 做最终编辑器回归。
+
+### 后续防坑规则
+
+今后新增视觉、音效、震动或 SEF 表现时，禁止写回机关、热度、危机、残留等核心逻辑脚本。应优先扩展 `GameplayEventBus` 的 payload 和 `VisualFeedbackBridge` 的监听处理；核心逻辑只负责发送事件，不负责决定表现细节。

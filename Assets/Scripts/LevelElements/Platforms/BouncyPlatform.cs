@@ -56,7 +56,7 @@ using System.Collections;
 /// 
 /// 扩展/删除指南: 删除此文件不影响其他脚本
 /// Session 15: 关卡设计系统新增
-/// Session 19: 反方向弹飞 + 位置偏移 + KnockbackStun防覆盖 + 相机震动
+/// Session 19: 反方向弹飞 + 位置偏移 + KnockbackStun防覆盖 + 表现层震动信号
 /// Session 20: 碰撞法线修正 + BounceStun 抛物线保留
 /// Session 21: SetFrameVelocity 绝对速度注入 + maxSpeed 截断跳过
 /// Session 22: 两段式弹射协程重构
@@ -115,8 +115,8 @@ public class BouncyPlatform : ControllableLevelElement
     [Tooltip("弹射完成后的冷却时间（秒），期间不接受新的碰撞触发")]
     [SerializeField] private float bounceCooldownDuration = 0.15f;
 
-    [Header("=== 相机震动 ===")]
-    [Tooltip("弹射时是否触发相机震动")]
+    [Header("=== 表现层事件：震动 ===")]
+    [Tooltip("弹射时是否发送震动表现信号")]
     [SerializeField] private bool enableCameraShake = true;
     [SerializeField] private float shakeDuration = 0.15f;
     [SerializeField] private float shakeMagnitude = 0.25f;
@@ -131,8 +131,8 @@ public class BouncyPlatform : ControllableLevelElement
     [Tooltip("弹起拉伸过冲倍率，>1 产生弹簧过冲效果（Secrets of Springs: velocity nudge）")]
     [SerializeField] private float stretchOvershoot = 1.3f;
 
-    [Header("=== 弹射视觉反馈 (S36: Game Feel Juice) ===")]
-    [Tooltip("弹射瞬间平台颜色闪白，增强冲击感")]
+    [Header("=== 表现层事件：弹射闪光 (S36: Game Feel Juice) ===")]
+    [Tooltip("弹射瞬间是否发送平台闪光表现信号，增强冲击感")]
     [SerializeField] private bool enableFlashOnBounce = true;
     [SerializeField] private Color flashColor = Color.white;
     [SerializeField] private float flashDuration = 0.08f;
@@ -175,9 +175,6 @@ public class BouncyPlatform : ControllableLevelElement
     private Vector2 tricksterDirection;
     private float tricksterForceMult = 1f;
 
-    // 缓存
-    private CameraController cachedCamera;
-
     // P1-P7: 缓存 WaitForSeconds 实例，避免协程中每次 new 产生 GC
     private WaitForSeconds cachedComedyWait;
     private WaitForSeconds cachedCooldownWait;
@@ -208,11 +205,6 @@ public class BouncyPlatform : ControllableLevelElement
         // 缓存 WaitForSeconds（P7: 避免协程中 GC 分配）
         cachedComedyWait = new WaitForSeconds(comedyDelay);
         cachedCooldownWait = new WaitForSeconds(bounceCooldownDuration);
-    }
-
-    private void Start()
-    {
-        cachedCamera = FindObjectOfType<CameraController>();
     }
 
     // ─────────────────────────────────────────────────────
@@ -405,20 +397,19 @@ public class BouncyPlatform : ControllableLevelElement
             targetRb.velocity = launchVelocity;
         }
 
-        // 相机震动（大跳时震动更强）
-        if (enableCameraShake && cachedCamera != null)
-        {
-            float shakeMultiplier = isSuperBounce ? 1.5f : 1f;
-            cachedCamera.Shake(shakeDuration * shakeMultiplier, shakeMagnitude * shakeMultiplier);
-        }
+        // 表现层信号（大跳时震动更强）；核心速度注入已完成，事件不得反向影响物理状态。
+        float shakeMultiplier = isSuperBounce ? 1.5f : 1f;
+        GameplayEventBus.SendBouncyPlatformLaunched(
+            gameObject,
+            targetRb.gameObject,
+            transform.position,
+            launchVelocity,
+            flashDuration: enableFlashOnBounce ? flashDuration : 0f,
+            flashColor: flashColor,
+            shakeDuration: enableCameraShake ? shakeDuration * shakeMultiplier : 0f,
+            shakeMagnitude: enableCameraShake ? shakeMagnitude * shakeMultiplier : 0f);
 
         Debug.Log($"[BouncyPlatform] 弹飞 {targetRb.gameObject.name}, 方向={launchDir}, 速度={launchVelocity}, 力度={force}, SuperBounce={isSuperBounce}, Trickster操控={tricksterOverride}");
-
-        // S36: 弹射闪白反馈（Secrets of Springs: 视觉冲击感）
-        if (enableFlashOnBounce && spriteRenderer != null)
-        {
-            spriteRenderer.color = flashColor;
-        }
 
         // S36: 增强弹跳拉伸动画（内联，含过冲效果）
         // [AI防坑警告] 所有动画操作 visualTransform.localScale，不操作根物体！
@@ -466,21 +457,9 @@ public class BouncyPlatform : ControllableLevelElement
                         visualTransform.localScale = Vector3.Lerp(microBounce, originalScale, (p - 0.5f) * 2f);
                 }
 
-                // S36: 闪白淡出
-                if (enableFlashOnBounce && spriteRenderer != null && t < flashDuration)
-                {
-                    float flashProgress = t / flashDuration;
-                    spriteRenderer.color = Color.Lerp(flashColor, originalColor, flashProgress);
-                }
-                else if (enableFlashOnBounce && spriteRenderer != null)
-                {
-                    spriteRenderer.color = originalColor;
-                }
-
                 yield return null;
             }
             visualTransform.localScale = originalScale;
-            if (spriteRenderer != null) spriteRenderer.color = originalColor;
         }
 
         // S39: 状态机 → Cooldown（冷却期，防止动画刚结束就被再次触发）
@@ -632,8 +611,6 @@ public class BouncyPlatform : ControllableLevelElement
         tricksterOverride = false;
         _state = BounceState.Idle;
 
-        // S36: 恢复原始颜色
-        if (spriteRenderer != null) spriteRenderer.color = originalColor;
     }
 
     #endregion

@@ -272,7 +272,7 @@ public class ControllableHazard : ControllablePropBase
 
     private void OnTriggerStay2D(Collider2D other)
     {
-        if (!isDamageActive) return;
+        if (currentState != PropControlState.Active || !isDamageActive) return;
         if (damageCooldownTimer > 0) return;
 
         if (IsValidTarget(other.gameObject))
@@ -283,7 +283,7 @@ public class ControllableHazard : ControllablePropBase
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (!isDamageActive) return;
+        if (currentState != PropControlState.Active || !isDamageActive) return;
 
         if (IsValidTarget(other.gameObject))
         {

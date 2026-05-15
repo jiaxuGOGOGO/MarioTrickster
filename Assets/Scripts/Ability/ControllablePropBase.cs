@@ -1,14 +1,14 @@
 using UnityEngine;
 
 /// <summary>
-/// 可操控道具抽象基类 - 封装 Telegraph→Active→Cooldown 三阶段状态机
+/// 可操控道具抽象基类 - 封装 Telegraph(Windup)→Active→Recovery→Cooldown 五段生命周期
 /// 参考: Crawl 游戏的陷阱操控 + 格斗游戏的"前摇/后摇"概念
 /// 
 /// 子类只需实现:
-///   OnTelegraphStart()  - 预警开始时的表现（变红、震动等）
-///   OnTelegraphEnd()    - 预警结束，恢复预警表现
+///   OnTelegraphStart()  - Windup/预警开始时的表现（变红、震动等，严禁造成伤害）
+///   OnTelegraphEnd()    - Windup/预警结束，恢复预警表现
 ///   OnActivate()        - 实际的阻碍效果（伸出尖刺、移动平台等）
-///   OnActiveEnd()       - 激活结束，恢复正常
+///   OnActiveEnd()       - 激活结束，关闭实际效果并进入 Recovery 破绽窗口
 /// 
 /// 基类自动处理: 状态切换、计时、次数消耗、冷却、UI 数据
 /// 
@@ -31,6 +31,9 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
 
     [Tooltip("激活持续时长（秒）- 阻碍效果的持续时间")]
     [SerializeField] protected float activeDuration = 1.5f;
+
+    [Tooltip("Recovery 后摇/破绽持续时长（秒）- Trickster 强出手后的反制窗口")]
+    [SerializeField] protected float recoveryDuration = 1.2f;
 
     [Tooltip("操控冷却时间（秒）")]
     [SerializeField] protected float cooldownDuration = 3f;
@@ -65,6 +68,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     protected SpriteRenderer spriteRenderer;
     protected Color originalColor;
     private Vector3 originalLocalPosition;
+    private MarioSuspicionTracker suspicionTracker;
 
     // Session 20: 高亮状态
     private bool _isHighlighted;
@@ -82,6 +86,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
             originalColor = spriteRenderer.color;
         }
         remainingUses = maxUses;
+        suspicionTracker = FindObjectOfType<MarioSuspicionTracker>();
     }
 
     protected virtual void Update()
@@ -93,6 +98,9 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
                 break;
             case PropControlState.Active:
                 UpdateActive();
+                break;
+            case PropControlState.Recovery:
+                UpdateRecovery();
                 break;
             case PropControlState.Cooldown:
                 UpdateCooldown();
@@ -238,8 +246,50 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         if (stateTimer <= 0f)
         {
             OnActiveEnd();
+            EnterRecovery();
+        }
+    }
+
+    private void EnterRecovery()
+    {
+        currentState = PropControlState.Recovery;
+        stateTimer = recoveryDuration;
+
+        ApplyRecoveryCounterplayCost();
+
+        if (stateTimer <= 0f)
+        {
             EnterCooldown();
         }
+    }
+
+    private void UpdateRecovery()
+    {
+        stateTimer -= Time.deltaTime;
+
+        if (stateTimer <= 0f)
+        {
+            EnterCooldown();
+        }
+    }
+
+    private void ApplyRecoveryCounterplayCost()
+    {
+        PossessionAnchor anchor = GetComponent<PossessionAnchor>();
+        if (anchor == null) return;
+
+        if (suspicionTracker == null)
+        {
+            suspicionTracker = FindObjectOfType<MarioSuspicionTracker>();
+        }
+        if (suspicionTracker == null) return;
+
+        AnchorSuspicionData data = suspicionTracker.GetOrCreateData(anchor);
+        if (data == null) return;
+
+        data.AddSuspicion(AnchorSuspicionData.MaxSuspicion);
+        data.AddEvidence(AnchorSuspicionData.MaxEvidence);
+        data.MarkUsed();
     }
 
     private void EnterCooldown()
@@ -323,6 +373,9 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
                 break;
             case PropControlState.Active:
                 Gizmos.color = Color.red;
+                break;
+            case PropControlState.Recovery:
+                Gizmos.color = new Color(1f, 0.45f, 0f);
                 break;
             case PropControlState.Cooldown:
                 Gizmos.color = Color.gray;

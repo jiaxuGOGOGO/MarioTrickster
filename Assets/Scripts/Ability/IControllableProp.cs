@@ -6,7 +6,7 @@ using UnityEngine;
 /// 
 /// 所有可被 Trickster 变身后操控的关卡道具都必须实现此接口。
 /// 设计要点:
-///   1. Telegraph（预警）→ Active（爆发）→ Cooldown（冷却）三阶段
+///   1. Telegraph（Windup/预警）→ Active（爆发）→ Recovery（破绽）→ Cooldown（冷却）五段生命周期
 ///   2. 每种道具可配置操控次数或持续时间限制
 ///   3. 预警阶段给 Mario 玩家反应窗口，提高博弈深度
 /// 
@@ -31,7 +31,7 @@ public interface IControllableProp
     bool CanBeControlled();
 
     /// <summary>
-    /// Trickster 触发操控（进入预警阶段）
+    /// Trickster 触发操控（进入 Telegraph/Windup 预警阶段）
     /// 由 TricksterAbilitySystem 调用
     /// </summary>
     /// <param name="direction">Trickster 的输入方向（某些道具需要方向参数）</param>
@@ -48,7 +48,7 @@ public interface IControllableProp
     float GetCooldownProgress();
 
     /// <summary>
-    /// 获取预警时长（秒），用于 UI 显示预警进度条
+    /// 获取 Telegraph/Windup 预警时长（秒），用于 UI 显示预警进度条
     /// </summary>
     float GetTelegraphDuration();
 
@@ -71,13 +71,14 @@ public interface IControllableProp
 
 /// <summary>
 /// 道具操控状态枚举
-/// Idle → Telegraph → Active → Cooldown → Idle
+/// Idle → Telegraph(Windup) → Active → Recovery → Cooldown → Idle
 /// </summary>
 public enum PropControlState
 {
     Idle,       // 空闲，可被操控
-    Telegraph,  // 预警阶段（给 Mario 反应时间）
+    Telegraph,  // Windup/预警阶段（给 Mario 反应时间，严禁造成伤害）
     Active,     // 激活阶段（正在执行阻碍效果）
+    Recovery,   // 后摇/破绽阶段（Trickster 强出手后的反制窗口）
     Cooldown,   // 冷却阶段（不可操控）
     Exhausted   // 次数用尽（本回合不可再操控）
 }

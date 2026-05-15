@@ -519,7 +519,7 @@ public class TricksterController : MonoBehaviour
             var state = abilitySystem.BoundProp.GetControlState();
             if (state == PropControlState.Cooldown)
                 return $"Prop on cooldown!";
-            if (state == PropControlState.Active || state == PropControlState.Telegraph)
+            if (state == PropControlState.Active || state == PropControlState.Telegraph || state == PropControlState.Recovery)
                 return "Prop already active!";
             if (state == PropControlState.Exhausted)
                 return "Prop uses exhausted!";

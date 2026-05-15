@@ -89,9 +89,13 @@ public class FireTrap : ControllableLevelElement
         {
             SetFiring(tricksterForceFire);
         }
-        else
+        else if (currentState == PropControlState.Idle)
         {
             UpdateFireCycle();
+        }
+        else
+        {
+            SetFiring(false);
         }
 
         // 视觉反馈
@@ -155,6 +159,7 @@ public class FireTrap : ControllableLevelElement
 
     private void OnTriggerStay2D(Collider2D other)
     {
+        if (currentState != PropControlState.Idle && currentState != PropControlState.Active) return;
         if (fireState != FireState.Firing || damageCooldown > 0) return;
         PlayerHealth health = other.GetComponent<PlayerHealth>();
         if (health != null && !health.IsInvincible)
@@ -177,7 +182,7 @@ public class FireTrap : ControllableLevelElement
         }
     }
 
-    // ── ControllablePropBase 实现 ────────────────────────
+    // ── ControllablePropBase 五段生命周期实现 ─────────────
 
     protected override void OnTelegraphStart() { }
     protected override void OnTelegraphEnd() { }
@@ -191,6 +196,7 @@ public class FireTrap : ControllableLevelElement
     protected override void OnActiveEnd()
     {
         tricksterOverride = false;
+        SetFiring(false);
     }
 
     public override void OnLevelReset()

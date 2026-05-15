@@ -160,6 +160,7 @@ public class PendulumTrap : ControllableLevelElement
     /// <summary>锤头碰撞回调（由PendulumHammerTrigger转发）</summary>
     public void OnHammerHit(Collider2D other)
     {
+        if (currentState != PropControlState.Idle && currentState != PropControlState.Active) return;
         if (damageCooldown > 0) return;
         PlayerHealth health = other.GetComponent<PlayerHealth>();
         if (health != null && !health.IsInvincible)
@@ -181,7 +182,7 @@ public class PendulumTrap : ControllableLevelElement
         }
     }
 
-    // ── ControllablePropBase 四阶段实现 ──────────────────
+    // ── ControllablePropBase 五段生命周期实现 ─────────────
 
     protected override void OnTelegraphStart() { }
     protected override void OnTelegraphEnd() { }

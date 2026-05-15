@@ -115,8 +115,15 @@ public class SpikeTrap : ControllableLevelElement
         boxCollider.enabled = isExtended || Mathf.Abs(transform.localPosition.y - retractedY) > 0.1f;
     }
 
-    private void OnTriggerEnter2D(Collider2D other) { if (isExtended) TryDamage(other); }
-    private void OnTriggerStay2D(Collider2D other) { if (isExtended) TryDamage(other); }
+    private void OnTriggerEnter2D(Collider2D other) { if (CanDealSpikeDamage()) TryDamage(other); }
+    private void OnTriggerStay2D(Collider2D other) { if (CanDealSpikeDamage()) TryDamage(other); }
+
+    private bool CanDealSpikeDamage()
+    {
+        if (!isExtended) return false;
+        if (currentState == PropControlState.Idle) return true;
+        return currentState == PropControlState.Active;
+    }
 
     private void TryDamage(Collider2D other)
     {
@@ -138,7 +145,7 @@ public class SpikeTrap : ControllableLevelElement
         }
     }
 
-    // ── ControllablePropBase 四阶段实现 ──────────────────
+    // ── ControllablePropBase 五段生命周期实现 ─────────────
 
     protected override void OnTelegraphStart()
     {

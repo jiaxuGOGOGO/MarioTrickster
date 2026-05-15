@@ -130,6 +130,8 @@ public class BouncingEnemy : ControllableLevelElement
             }
         }
 
+        if (currentState != PropControlState.Idle && currentState != PropControlState.Active) return;
+
         // 对Mario造成伤害
         // Session 17: 使用 KnockbackHelper 统一击退逻辑
         PlayerHealth health = collision.gameObject.GetComponent<PlayerHealth>();
@@ -189,7 +191,7 @@ public class BouncingEnemy : ControllableLevelElement
         gameObject.SetActive(false);
     }
 
-    // ── ControllablePropBase 实现 ────────────────────────
+    // ── ControllablePropBase 五段生命周期实现 ─────────────
 
     protected override void OnTelegraphStart() { }
     protected override void OnTelegraphEnd() { }

@@ -91,16 +91,23 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 144（暗线网络 Underline、五段生命周期验证 + 短桥读心房原型 Snippet + Gameplay Boxes 可视化工具 + Interaction Log） |
+| **最新 Session** | Session 145（原型 B/C 与四段白盒验证灰盒落地） |
 | **日期** | 2026-05-15 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — 新增 `S2_Duel_TrapBridge_01` 短桥读心房原型验证暗线换位与五段生命周期；Cheats Tab 新增 Gameplay Boxes 可视化开关 + Scene 语义线框绘制；`GlobalGameUICanvas` 新增 Interaction Log 左下角交互日志。 |
-| **编译状态** | ✅ 本次改动文件通过 `git diff --check`；新增代码全部包裹 `#if UNITY_EDITOR || DEVELOPMENT_BUILD` 宏；沙盒无 Unity CLI，EditMode/PlayMode 需用户本地 Unity 重跑确认。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — 已落地原型 B 临时封路机关 `[`、原型 C 公开下一状态机关 `]`，并在 `LevelSnippetLibrary` 追加 `S2_Validation_1_Demo` → `S2_Validation_4_Combat` 四段白盒验证灰盒。 |
+| **编译状态** | 🔄 本次为 ASCII 数据驱动片段追加，推送前执行 `git diff --check` 与自定义 Snippet 轻量验证；沙盒无 Unity CLI，EditMode/PlayMode 需用户本地 Unity 重跑确认。 |
 | **阻塞** | 无 |
-| **交接说明** | S144 新增三项功能：(1) `LevelSnippetLibrary` 新增 `S2_Duel_TrapBridge_01` 短桥读心房 Snippet，含 5 个可附身热点和 4 条暗线连接注释；(2) `GameplayBoxVisualizer.cs` Scene 视图语义线框工具 + Cheats Tab 两个可视化 Toggle；(3) `GlobalGameUICanvas` 左下角 Interaction Log 监听 `OnTrapTriggered` 打印判定日志。下一步请在 Unity 中生成短桥读心房并在 Inspector 连接 UnderlineLinks，验证五段生命周期切换。 |
+| **交接说明** | S145 已把原型 B/C 与四段白盒验证关卡连成可生成灰盒：演示房展示基础地刺/摆锤，干扰房引入 `[` 双路线封路，反制房引入 `]` 与暗线/诱饵金币，实战房放置 `o`/`G` 并预留扫描波高压验证。不要改 `MASTER_TRACKER.md`，后续只在 Unity Level Studio 中生成四段 Snippet 体验验证。 |
 
 
-### [S144] 最新知识沉淀
+### [S145] 最新知识沉淀
+1. **原型 B/C 已落地并纳入 ASCII 字典**：`[` 表示 Santorini 式临时封路机关 `ControllableBlocker`，`]` 表示 Onitama 式公开下一状态机关 `StateQueueTrap`；两者已可从 Level Studio 片段库直接参与灰盒验证。
+2. **四段白盒验证关卡已入库**：`LevelSnippetLibrary` 新增 `S2_Validation_1_Demo`、`S2_Validation_2_Interfere`、`S2_Validation_3_Counter`、`S2_Validation_4_Combat`，按“演示 → 干扰 → 反制 → 实战”串起完整游戏循环。
+3. **纯 ASCII 数据驱动边界**：本次只追加 Snippet 数据，不新增复杂关卡系统；新增模板均使用 Registry 已有字符，核心安全约束是水平跨度不超过 4 格、垂直高度不超过 2 格。
+4. **实战房语义**：`S2_Validation_4_Combat` 使用 `o`/`G` 表示拿宝撤离验证点，并依赖已有 `LootObjective/EscapeGate` 与 `AlarmCrisisDirector` 场景服务进行完整高压局面验证。
+5. **文档边界**：本次按用户要求只更新 `SESSION_TRACKER.md`，绝不触碰 `MASTER_TRACKER.md`。
+
+### [S144] 知识沉淀
 1. **短桥读心房原型已入库**：`LevelSnippetLibrary` 新增第 9 个 Snippet `S2_Duel_TrapBridge_01`，双路线三节点设计（上层短桥 + 中间单向平台过渡 + 下层管道绕行），5 个可附身热点（B×2 + X×3），所有间隙 ≤ 4 格、垂直层差 = 2 格。description 字段内嵌 UnderlineLinks 注释指引策划在 Inspector 中连接 `connectedUnderlineNodes`。
 2. **Gameplay Boxes 可视化工具已落地**：新建 `GameplayBoxVisualizer.cs`，在 Scene 视图中绘制四色语义线框（白=Solid/Rigidbody2D、蓝=PlayerHealth HurtBox、红=DamageDealer/BaseHazard HitBox、青=ScanAbility 范围）；开启 Show Trap Phase 后在 `ControllablePropBase` 上方显示当前阶段文字标签。
 3. **Interaction Log 已集成到 UGUI**：`GlobalGameUICanvas` 左下角新增极简文本滚动区，监听 `GameplayEventBus.OnTrapTriggered`，保留最近 5 条规范日志（格式：`[12.4s] Source=X Target=Y Phase=Z Result=W`），同时输出到 Console。
@@ -411,10 +418,10 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 2：Trickster 移动 | **S125重点验证**: 对 Trickster 应用整组动作文件夹后，方向键左右移动和跳跃仍正常；若从 Visual 子节点执行 Apply Art，也必须自动回到 Trickster Root 并保持 InputManager 引用正确 |
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |
 | ✅ | 测试 4：伪装系统 | P 伪装/解除，O/I 切换 |
-| 🔄 | 测试 5：道具操控 | **S143重点验证**: 在 `Build Gameplay Loop Test Scene` / `Ctrl+T` 生成可玩环境后，L 触发仍能推进路线预算/连锁热度，且连锁、预算、热度显示由 `GlobalGameUICanvas` 更新；同时保留 S142 的 `Game Loop Tuning` PlayMode 实时调参验证 |
-| 🔄 | 测试 6：扫描技能 | **S143重点验证**: Q 扫描命中仍必须真实解除伪装/附身；扫描波预告、命中、揭穿与危机提示应由 `GlobalGameUICanvas` 通过 `GameplayEventBus`/运行时服务同步显示；同时保留 S142 的扫描参数实时调参验证 |
+| 🔄 | 测试 5：道具操控 | **S145重点验证**: 生成四段白盒验证 Snippet 后，`[` 封路机关与 `]` 公开队列机关可由 Trickster 干预；原有路线预算、连锁热度和 `GlobalGameUICanvas` 显示仍正常；同时保留 S142/S143 调参与 HUD 验证 |
+| 🔄 | 测试 6：扫描技能 | **S145重点验证**: 在 `S2_Validation_3_Counter` / `S2_Validation_4_Combat` 中验证 Q 扫描、`StateQueueTrap` 高代价跳状态、扫描波预告/命中/揭穿与 `GlobalGameUICanvas` 同步；同时保留 S142/S143 验证 |
 | 🔄 | 测试 6.5：镜头 | **S141重点验证**: 走完整体玩法循环测试关卡时，Mario/Trickster、拿宝撤离、扫描危机和终点段镜头始终跟随，不丢目标 |
-| 🔄 | 测试 7：胜负判定 | **S141重点验证**: 整体关卡中拿宝后进入 EscapeGate 可通关；末端 GoalZone 仍可作为最终胜利确认；掉出屏幕后应触发死亡且不刷多条日志 |
+| 🔄 | 测试 7：胜负判定 | **S145重点验证**: `S2_Validation_4_Combat` 中 `o`/`G` 拿宝撤离语义需与既有 LootObjective/EscapeGate 流程一致；末端 GoalZone、死亡重置与日志去重仍保持不回退 |
 | ✅ | 测试 8：暂停 | ESC 暂停/恢复 |
 | 🔄 | 测试 9A：地刺 | 碰到有合理击退 |
 | 🔄 | 测试 9B：摆锤 | Trickster L键可控制 |
@@ -425,10 +432,10 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
-| 🔄 | 场景生成 | **S143重点验证**: `Ctrl+T` Level Builder、Cheats 自动修复与 `Build Gameplay Loop Test Scene` 生成后应自动存在单个 `GlobalGameUICanvas`，不再生成旧 IMGUI 灰盒 HUD；同时保留 S56 ASCII 新字符行为验证 |
+| 🔄 | 场景生成 | **S145重点验证**: `Ctrl+T` Level Builder 中四段 `S2_Validation_*` Snippet 均应可生成，`[`/`]`/`o`/`G` 字符不报未注册；自动修复仍只生成单个 `GlobalGameUICanvas`，并保留 S56/S143 验证 |
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| 🔄 | EditMode 自动化 | **S143重点验证**: 109 个 EditMode 需本地 Unity 重跑，重点确认 `TestConsoleWindow` partial 拆分、`PlayableEnvironmentBuilder`、`GlobalGameUICanvasPrefabBuilder` 与 UGUI 脚本不引入编译红错；同时保留 S142 `GameplayMetrics` 安全回退验证 |
-| 🔄 | PlayMode 自动化 | **S143重点验证**: 26/26 需本地 Unity 重跑；重点确认 `GlobalGameUICanvas` 在 PlayMode 中显示 Health/Timer/Heat/Scan/Combo/Route 状态并响应 `GameplayEventBus`，且不改变既有 TAS 行为；同时保留 S142 Game Loop Tuning 实时生效验证 |
+| 🔄 | EditMode 自动化 | **S145重点验证**: 109 个 EditMode 需本地 Unity 重跑，重点确认四段 `S2_Validation_*` Snippet、`[`/`]` Registry 与 Level Studio 片段库不引入编译红错；同时保留 S142/S143 验证 |
+| 🔄 | PlayMode 自动化 | **S145重点验证**: 26/26 需本地 Unity 重跑；重点走通四段白盒验证循环，确认演示、干扰、反制、拿宝撤离与扫描危机均不改变既有 TAS 行为；同时保留 S142/S143 验证 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
 ---
@@ -448,6 +455,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **最高** | **四段白盒验证灰盒**：基于原型 B `[`、原型 C `]` 与既有拿宝撤离/扫描危机服务，新增 `S2_Validation_1_Demo` → `S2_Validation_4_Combat`，用于按“演示→干扰→反制→实战”验证完整游戏循环。 | ✅ 已完成（S145，待用户 Unity 生成体验） |
 | **最高** | **整体玩法循环测试关卡一键生成**：按 Commit 0–6 设计循环新增 `MarioTrickster/Build Gameplay Loop Test Scene`，用于一次性验证路线预算、证据反制、连锁热度、拿宝撤离、扫描危机、Q 揭穿和终点闭环。 | 🔄 待用户生成并整体验证（S141） |
 | **最高** | **灰盒体验验证：Mario Q 揭穿参数调优**：Q 扫描已真实解除 Trickster 伪装/附身；禁控加时已外放为 `ScanAbility.scanRevealGateBonusDuration`，默认 1.2s；整体关卡生成时先设为 2.0s，等待用户按手感继续调参。 | 🔄 待用户调参复测（S140/S141） |
 | **最高** | **Gameplay Loop 一站式调参入口**：新增 `GameplayLoopConfigSO` + `GameplayMetrics`，把能量、扫描、附身门禁、扫描波危机、路线预算、热度、连锁和干预补偿参数集中到 `Assets/Resources/GameplayLoopConfig.asset`；Level Studio 新增 `Game Loop Tuning` Tab，支持 PlayMode 实时拖滑块。 | ✅ 已完成（S142，待用户 Unity 重跑测试确认） |

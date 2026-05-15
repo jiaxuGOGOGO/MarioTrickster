@@ -37,6 +37,7 @@ using System.Collections.Generic;
 ///   '<' = 传送带 (ConveyorBelt, 向左)            [S56 新增]
 ///   'S' = 检查点 (Checkpoint)                    [S56 新增]
 ///   'X' = 可破坏方块 (BreakableBlock)              [S56 新增]
+///   '[' = 临时封路机关 (ControllableBlocker)       [S53 原型B]
 ///
 /// 扩展方式 (S46 Data-Driven):
 ///   1. 在 AsciiElementRegistry 资产中添加新字符条目
@@ -309,7 +310,8 @@ public static class AsciiLevelGenerator
             "F = FakeWall  H = HiddenPassage  o = Collectible\n" +
             "> = MovingPlatform\n" +
             "@ = SawBlade  f = FlyingEnemy  < = ConveyorBelt\n" +
-            "S = Checkpoint  X = BreakableBlock";
+            "S = Checkpoint  X = BreakableBlock\n" +
+            "[ = ControllableBlocker";
     }
 
     // ═══════════════════════════════════════════════════

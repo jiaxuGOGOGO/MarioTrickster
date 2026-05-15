@@ -247,6 +247,10 @@ public class RouteBudgetService : MonoBehaviour
     {
         if (prop == null) return;
 
+        // S53 / ControllableBlocker：封路机关必须在 Windup 结束、真正进入 Active 前
+        // 自行调用 TryDegradeRoute。这里若提前自动降级，会让 Active 前护栏失真。
+        if (prop is ControllableBlocker) return;
+
         // 当 Trickster 操控机关时，尝试降级关联路线
         // 第一版：用锚点 ID 或机关名作为路线关联
         Transform propTransform = prop.GetTransform();

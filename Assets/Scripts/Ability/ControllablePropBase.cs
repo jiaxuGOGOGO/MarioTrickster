@@ -124,7 +124,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         return true;
     }
 
-    public void OnTricksterActivate(Vector2 direction)
+    public virtual void OnTricksterActivate(Vector2 direction)
     {
         if (!CanBeControlled()) return;
 

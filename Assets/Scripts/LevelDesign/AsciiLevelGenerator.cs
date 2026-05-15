@@ -38,6 +38,7 @@ using System.Collections.Generic;
 ///   'S' = 检查点 (Checkpoint)                    [S56 新增]
 ///   'X' = 可破坏方块 (BreakableBlock)              [S56 新增]
 ///   '[' = 临时封路机关 (ControllableBlocker)       [S53 原型B]
+///   ']' = 公开队列机关 (StateQueueTrap)           [S53 原型C]
 ///
 /// 扩展方式 (S46 Data-Driven):
 ///   1. 在 AsciiElementRegistry 资产中添加新字符条目

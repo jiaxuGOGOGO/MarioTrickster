@@ -35,7 +35,7 @@ COYOTE_BONUS = 1.35         # Coyote time 额外距离
 PLAYER_WIDTH = 0.8          # 角色碰撞体宽度
 
 # ─── 合法字符字典 ───
-LEGAL_CHARS = set('#=-W^~PBCc>EeFHoMG.')
+LEGAL_CHARS = set('#=-W^~PBCc>EeFHoMG.[]')
 
 # ─── 可站立表面字符 ───
 SURFACE_CHARS = set('#=-BC')

@@ -160,10 +160,10 @@ public class AsciiElementRegistry : ScriptableObject
     private static AsciiElementRegistry _defaultInstance;
 
     /// <summary>
-    /// 内置默认 entries 的数量（25 个元素）。
+    /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 25;
+    private const int BUILTIN_ENTRY_COUNT = 26;
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -366,6 +366,13 @@ public class AsciiElementRegistry : ScriptableObject
             {
                 asciiChar = '[', elementName = "ControllableBlocker", isSolid = false, isHazard = false, jumpBoost = 0f,
                 componentTypeNames = new[] { "ControllableBlocker" }, visualColor = new Color(0.55f, 0.75f, 1.00f, 0.35f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = ']', elementName = "StateQueueTrap", isSolid = false, isHazard = true, jumpBoost = 0f,
+                componentTypeNames = new[] { "StateQueueTrap" }, visualColor = new Color(1.00f, 0.45f, 0.25f, 0.90f), visualScale = Vector2.one,
                 customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
                 sortingOrder = 5, isTrigger = true
             },

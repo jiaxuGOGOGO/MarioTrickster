@@ -263,6 +263,32 @@ public class MarioSuspicionTracker : MonoBehaviour
         }
     }
 
+    /// <summary>外部高代价干预：直接给锚点追加可疑度与证据，并触发 Tracker 事件。</summary>
+    public void ApplySuspicionEvidencePenalty(PossessionAnchor anchor, float suspicionAmount, int evidenceLayers, string source = "")
+    {
+        if (anchor == null) return;
+
+        AnchorSuspicionData data = GetOrCreateData(anchor);
+        if (data == null) return;
+
+        data.AddSuspicion(suspicionAmount);
+        data.AddEvidence(evidenceLayers);
+        data.MarkUsed();
+
+        if (showDebugInfo)
+        {
+            Debug.Log($"[MarioSuspicionTracker] Penalty {source} at {anchor.AnchorId}: " +
+                      $"Suspicion={data.Suspicion:F0}, Evidence={data.EvidenceLevel}");
+        }
+
+        OnSuspicionChanged?.Invoke(anchor, data);
+
+        if (data.IsRevealReady())
+        {
+            OnRevealReady?.Invoke(anchor, data);
+        }
+    }
+
     /// <summary>获取所有有残留的锚点（供 SilentMarkSensor 的被动感知使用）</summary>
     public void GetAnchorsWithResidue(List<PossessionAnchor> results, float minResidue = 0.1f)
     {

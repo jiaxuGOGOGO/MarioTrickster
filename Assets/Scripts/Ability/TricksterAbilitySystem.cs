@@ -562,7 +562,7 @@ public class TricksterAbilitySystem : MonoBehaviour
         SetUnderlineVisibility(false);
 
         Vector3 departPosition = transform.position;
-        GameplayEventBus.SendResidueSpotted(null, gameObject, departPosition, TricksterHeatMeter.HeatTier.Low, 0.2f, 0.15f, 0.3f, "underline_depart");
+        GameplayEventBus.SendResidueSpotted(null, gameObject, departPosition, TricksterHeatMeter.HeatTier.Calm, 0.2f, 0.15f, 0.3f, "underline_depart");
         GameplayEventBus.SendCrisisWarning(null, departPosition, 0.1f, 1f, 0.06f, 0.02f, "underline_depart");
 
         float transitTime = target != null ? Mathf.Max(0f, target.underlineTransitTime) : 0f;
@@ -573,7 +573,7 @@ public class TricksterAbilitySystem : MonoBehaviour
             Vector3 arrivePosition = target.transform.position;
             transform.position = arrivePosition;
 
-            GameplayEventBus.SendResidueSpotted(target, gameObject, arrivePosition, TricksterHeatMeter.HeatTier.Low, 0.2f, 0.15f, 0.3f, "underline_arrive");
+            GameplayEventBus.SendResidueSpotted(target, gameObject, arrivePosition, TricksterHeatMeter.HeatTier.Calm, 0.2f, 0.15f, 0.3f, "underline_arrive");
             GameplayEventBus.SendCrisisWarning(null, arrivePosition, 0.1f, 1f, 0.06f, 0.02f, "underline_arrive");
 
             propsCacheDirty = true;

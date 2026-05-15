@@ -133,6 +133,7 @@ public static class AsciiLevelGenerator
 
     private static bool TryGetEntry(char c, out AsciiElementEntry entry)
     {
+        entry = default;
         if (elementMap == null) InitElementMap();
         return elementMap != null && elementMap.TryGetValue(c, out entry);
     }
@@ -262,9 +263,9 @@ public static class AsciiLevelGenerator
             if (go != null && go.name == ROOT_NAME)
             {
 #if UNITY_EDITOR
-                Object.DestroyImmediate(go);
+                UnityEngine.Object.DestroyImmediate(go);
 #else
-                Object.Destroy(go);
+                UnityEngine.Object.Destroy(go);
 #endif
             }
         }
@@ -274,9 +275,9 @@ public static class AsciiLevelGenerator
         while (existing != null)
         {
 #if UNITY_EDITOR
-            Object.DestroyImmediate(existing);
+            UnityEngine.Object.DestroyImmediate(existing);
 #else
-            Object.Destroy(existing);
+            UnityEngine.Object.Destroy(existing);
 #endif
             existing = GameObject.Find(ROOT_NAME);
         }

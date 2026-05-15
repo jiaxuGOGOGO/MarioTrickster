@@ -20,7 +20,9 @@ public class GameUI : MonoBehaviour
     [SerializeField] private PlayerHealth marioHealth;
 
     private string gameOverMessage = string.Empty;
+#pragma warning disable CS0414
     private bool showGameOver;
+#pragma warning restore CS0414
     private string gameOverWinner = string.Empty;
 
     private string abilityFailMessage = string.Empty;

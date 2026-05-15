@@ -105,7 +105,9 @@ public class BouncyPlatform : ControllableLevelElement
 
     [Header("=== S39: 严格法线检测 ===")]
     [Tooltip("碰撞法线 Y 分量必须小于此阈值才视为从上方落下（注意：法线指向碰撞者，平台视角法线朝上对应 Mario 视角法线朝下）")]
+#pragma warning disable CS0414
     [SerializeField] private float topHitNormalThreshold = -0.5f;
+#pragma warning restore CS0414
 
     [Header("=== 喜剧延迟（蓄力冻结期） ===")]
     [Tooltip("碰撞后的冻结时间（秒）。期间角色被冻结，Trickster 可操控，Mario 可蓄力大跳。0=立即弹射")]

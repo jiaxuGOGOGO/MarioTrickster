@@ -156,7 +156,7 @@ public static class GameplayBoxVisualizer
         ControllablePropBase[] props = Object.FindObjectsOfType<ControllablePropBase>();
         foreach (ControllablePropBase prop in props)
         {
-            IControllableProp.PropControlState state = prop.GetControlState();
+            PropControlState state = prop.GetControlState();
             string stateText = state.ToString();
 
             Vector3 worldPos = prop.transform.position + Vector3.up * 1.5f;
@@ -165,19 +165,19 @@ public static class GameplayBoxVisualizer
             Color textColor;
             switch (state)
             {
-                case IControllableProp.PropControlState.Telegraph:
+                case PropControlState.Telegraph:
                     textColor = new Color(1f, 0.9f, 0.2f); // 黄色
                     break;
-                case IControllableProp.PropControlState.Active:
+                case PropControlState.Active:
                     textColor = new Color(1f, 0.3f, 0.2f); // 红色
                     break;
-                case IControllableProp.PropControlState.Recovery:
+                case PropControlState.Recovery:
                     textColor = new Color(0.3f, 0.8f, 1f); // 浅蓝
                     break;
-                case IControllableProp.PropControlState.Cooldown:
+                case PropControlState.Cooldown:
                     textColor = new Color(0.6f, 0.6f, 0.6f); // 灰色
                     break;
-                case IControllableProp.PropControlState.Exhausted:
+                case PropControlState.Exhausted:
                     textColor = new Color(0.4f, 0.4f, 0.4f); // 深灰
                     break;
                 default: // Idle

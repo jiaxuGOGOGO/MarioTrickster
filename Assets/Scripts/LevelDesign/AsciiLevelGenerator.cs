@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 using System.Collections.Generic;
 
 /// <summary>
@@ -6,7 +7,7 @@ using System.Collections.Generic;
 /// 
 /// 核心设计:
 ///   - S46: 字符映射从 AsciiElementRegistry (ScriptableObject) 动态构建
-///   - 新增元素只需在 Registry 中 Add 一条记录 + 添加对应 Spawn 方法
+///   - 新增元素只需新建逻辑脚本 + 在 Registry 中 Add 一条记录
 ///   - 所有生成的元素默认使用白盒（纯白/灰色方块），方便先测试逻辑
 ///   - 内置 2 个经典平台跳跃关卡模板（平原关卡 + 地下关卡）
 ///   - 生成结果挂载在统一的 Root GameObject 下，方便一键清除
@@ -39,8 +40,8 @@ using System.Collections.Generic;
 ///
 /// 扩展方式 (S46 Data-Driven):
 ///   1. 在 AsciiElementRegistry 资产中添加新字符条目
-///   2. 在本文件 InitSpawnMap() 中注册: spawnMap["NewElement"] = SpawnNewElement;
-///   3. 在本文件底部添加 SpawnNewElement(int gridX, int gridY) 方法
+///   2. 在 Registry 的 componentTypeNames 中填写逻辑脚本类名，无需修改本文件。
+///   3. Generator 会自动创建 Root/Visual/Collider 并反射挂载组件
 ///   4. 在 PhysicsMetrics.cs 中定义碰撞体常量（如需要）
 ///   5. 在 LevelThemeProfile.cs 的 elementSprites 中添加主题插槽
 ///   6. 在 AI_PROMPT_WORKFLOW.md 中更新 ASCII 字符表
@@ -93,99 +94,45 @@ public static class AsciiLevelGenerator
     private static readonly Color COLOR_TRICKSTER = new Color(0.50f, 0.20f, 0.80f);   // 紫色
 
     // ═══════════════════════════════════════════════════
-    // S46: 数据驱动字符映射
+    // Registry 驱动字符映射（零代码新增机制）
     // ═══════════════════════════════════════════════════
-    // charMap: ASCII 字符 → 生成委托（从 Registry + spawnMap 动态构建）
-    private static Dictionary<char, System.Action<int, int>> charMap;
-    // spawnMap: 元素名称 → 生成委托（内部映射表，连接 Registry 条目与 Spawn 方法）
-    private static Dictionary<string, System.Action<int, int>> spawnMap;
+    // elementMap: ASCII 字符 → Registry Entry。生成器不再维护 SpawnXXX 映射表。
+    private static Dictionary<char, AsciiElementEntry> elementMap;
     private static Transform rootTransform;
     private static int groundLayerIndex;
 
     /// <summary>
-    /// S46: 初始化元素名称到 Spawn 方法的映射。
-    /// 新增元素时在此注册: spawnMap["NewElementName"] = SpawnNewElement;
+    /// 从 AsciiElementRegistry 构建字符到 Entry 的运行时映射。
+    /// 不再要求元素名称对应任何 Spawn 方法，新增元素只依赖 Registry 数据。
     /// </summary>
-    private static void InitSpawnMap()
+    private static void InitElementMap()
     {
-        spawnMap = new Dictionary<string, System.Action<int, int>>
-        {
-            // [AI防坑警告] S57b: Ground 和 Platform 不再逐字符生成。
-            // 连续的 '#' 和 '=' 会被 MergeAndSpawnSolidBlocks 合并为一个长条方块。
-            // 如果恢复逐字符生成，会导致大量独立小方块拼接，性能差、物理抽动、Scene视图混乱。
-            { "Ground",             (x, y) => { } },  // 占位：实际生成由合并逻辑处理
-            { "Platform",           (x, y) => { } },  // 占位：实际生成由合并逻辑处理
-            { "Wall",               SpawnWall },
-            { "Air",                (x, y) => { } },  // 空气，不生成
-            { "Space",              (x, y) => { } },  // 空格也视为空气
-            { "MarioSpawn",         SpawnMarioSpawn },
-            { "TricksterSpawn",     SpawnTricksterSpawn },
-            { "GoalZone",           SpawnGoalZone },
-            { "SpikeTrap",          SpawnSpikeTrap },
-            { "FireTrap",           SpawnFireTrap },
-            { "PendulumTrap",       SpawnPendulumTrap },
-            { "BouncyPlatform",     SpawnBouncyPlatform },
-            { "CollapsingPlatform", SpawnCollapsingPlatform },
-            // [AI防坑警告] S44c: OneWayPlatform 不再逐字符生成。
-            // 连续的 '-' 会被 MergeAndSpawnOneWayPlatforms 合并为一个长条平台。
-            // 如果恢复逐字符生成，会导致 S+Space 下落失效（需要同时 IgnoreCollision 多个碰撞体）、
-            // 边缘掉落、物理抖动等一系列拼接问题。
-            { "OneWayPlatform",     (x, y) => { } },  // 占位：实际生成由合并逻辑处理
-            { "BouncingEnemy",      SpawnBouncingEnemy },
-            { "FakeWall",           SpawnFakeWall },
-            { "HiddenPassage",      SpawnHiddenPassage },
-            { "Collectible",        SpawnCollectible },
-            { "SimpleEnemy",        SpawnSimpleEnemy },
-            { "MovingPlatform",     SpawnMovingPlatform },
-            // S56 新增元素
-            { "SawBlade",           SpawnSawBlade },
-            { "FlyingEnemy",        SpawnFlyingEnemy },
-            { "ConveyorBelt",       SpawnConveyorBelt },
-            { "Checkpoint",         SpawnCheckpoint },
-            { "BreakableBlock",     SpawnBreakableBlock },
-        };
-    }
-
-    /// <summary>
-    /// S46: 从 AsciiElementRegistry 动态构建字符映射字典。
-    /// 替代原始的硬编码 InitCharMap()。
-    ///
-    /// 构建逻辑：
-    ///   1. 从 Registry 获取所有元素条目
-    ///   2. 通过 elementName 在 spawnMap 中查找对应的 Spawn 方法
-    ///   3. 将 asciiChar → Spawn 方法 的映射写入 charMap
-    ///   4. 未在 spawnMap 中注册的元素名会输出警告（提醒开发者添加 Spawn 方法）
-    /// </summary>
-    private static void InitCharMap()
-    {
-        InitSpawnMap();
-
-        charMap = new Dictionary<char, System.Action<int, int>>();
-
+        elementMap = new Dictionary<char, AsciiElementEntry>();
         AsciiElementRegistry registry = AsciiElementRegistry.GetDefault();
         if (registry == null || registry.entries == null)
         {
-            Debug.LogError("[AsciiLevelGen] AsciiElementRegistry is null! Using empty charMap.");
+            Debug.LogError("[AsciiLevelGen] AsciiElementRegistry is null! Using empty elementMap.");
             return;
         }
 
         foreach (var entry in registry.entries)
         {
             if (entry == null) continue;
-
-            if (spawnMap.TryGetValue(entry.elementName, out var spawnAction))
+            char c = entry.AsciiChar;
+            if (c == '\0') continue;
+            if (elementMap.ContainsKey(c))
             {
-                charMap[entry.asciiChar] = spawnAction;
+                Debug.LogWarning($"[AsciiLevelGen] Duplicate Registry char '{c}' for '{entry.elementName}', skipped.");
+                continue;
             }
-            else
-            {
-                Debug.LogWarning($"[AsciiLevelGen] No spawn method registered for " +
-                                 $"'{entry.elementName}' (char '{entry.asciiChar}'). " +
-                                 $"Add it to InitSpawnMap().");
-                // 未注册的元素默认不生成（空气行为）
-                charMap[entry.asciiChar] = (x, y) => { };
-            }
+            elementMap[c] = entry;
         }
+    }
+
+    private static bool TryGetEntry(char c, out AsciiElementEntry entry)
+    {
+        if (elementMap == null) InitElementMap();
+        return elementMap != null && elementMap.TryGetValue(c, out entry);
     }
 
     // ═══════════════════════════════════════════════════
@@ -251,7 +198,7 @@ public static class AsciiLevelGenerator
 
         if (clearExisting) ClearGeneratedLevel();
 
-        InitCharMap();
+        InitElementMap();
 
         // 创建根节点
         GameObject root = new GameObject(ROOT_NAME);
@@ -271,20 +218,22 @@ public static class AsciiLevelGenerator
             // Y 坐标: 第一行在最上面（Y = height - 1），最后一行在最下面（Y = 0）
             int worldY = height - 1 - row;
 
-            // S57b: 先合并连续 '#' 和 '=' 为长条方块
-            MergeAndSpawnSolidBlocks(line, worldY, '#', "Ground", COLOR_GROUND, GROUND_SORTING);
-            MergeAndSpawnSolidBlocks(line, worldY, '=', "Platform", COLOR_PLATFORM, GROUND_SORTING + 1);
-
-            // S44c: 合并连续 '-' 为长条 OneWayPlatform
-            MergeAndSpawnOneWayPlatforms(line, worldY);
+            // S57b/S44c: 仅保留合并生成逻辑；参数来自 Registry Entry，而非 Generator 硬编码。
+            if (TryGetEntry('#', out var groundEntry))
+                MergeAndSpawnSolidBlocks(line, worldY, '#', groundEntry);
+            if (TryGetEntry('=', out var platformEntry))
+                MergeAndSpawnSolidBlocks(line, worldY, '=', platformEntry);
+            if (TryGetEntry('-', out var oneWayEntry))
+                MergeAndSpawnOneWayPlatforms(line, worldY, oneWayEntry);
 
             for (int col = 0; col < line.Length; col++)
             {
                 char c = line[col];
+                if (c == '#' || c == '=' || c == '-') continue;
 
-                if (charMap.TryGetValue(c, out System.Action<int, int> spawnAction))
+                if (TryGetEntry(c, out var entry))
                 {
-                    spawnAction(col, worldY);
+                    SpawnRegisteredElement(entry, col, worldY);
                 }
                 else if (c != '\r' && c != '\n')
                 {
@@ -427,41 +376,26 @@ public static class AsciiLevelGenerator
         "######################################################################";
 
     // ═══════════════════════════════════════════════════
-    // 生成方法（每个字符对应一个）
+    // 生成方法（仅保留合并地形与 M/T 特殊逻辑）
     // ═══════════════════════════════════════════════════
-
-    // [AI防坑警告] S57b: SpawnGround / SpawnPlatform 已被合并逻辑替代，保留供 Element Palette 单个生成时使用。
-    private static void SpawnGround(int x, int y)
-    {
-        CreateBlock("Ground", x, y, COLOR_GROUND, GROUND_SORTING, true, false);
-    }
-
-    private static void SpawnPlatform(int x, int y)
-    {
-        CreateBlock("Platform", x, y, COLOR_PLATFORM, GROUND_SORTING + 1, true, false);
-    }
-
     /// <summary>
     /// S57b: 扫描一行中连续的指定字符，合并为单个长条实体方块。
-    /// 通用方法，支持 Ground('#') 和 Platform('=') 等实体方块类型。
-    /// 参考 S44c MergeAndSpawnOneWayPlatforms 的设计模式。
+    /// Ground('#') / Platform('=') 的颜色、排序、碰撞参数均来自 Registry Entry。
     /// </summary>
-    private static void MergeAndSpawnSolidBlocks(string line, int worldY, char targetChar,
-        string blockName, Color color, int sortingOrder)
+    private static void MergeAndSpawnSolidBlocks(string line, int worldY, char targetChar, AsciiElementEntry entry)
     {
         int col = 0;
         while (col < line.Length)
         {
-            if (col < line.Length && line[col] == targetChar)
+            if (line[col] == targetChar)
             {
-                // 向右扫描连续的目标字符
                 int startCol = col;
                 while (col < line.Length && line[col] == targetChar)
                 {
                     col++;
                 }
                 int width = col - startCol;
-                SpawnMergedSolidBlock(startCol, worldY, width, blockName, color, sortingOrder);
+                SpawnMergedSolidBlock(startCol, worldY, width, entry);
             }
             else
             {
@@ -472,160 +406,48 @@ public static class AsciiLevelGenerator
 
     /// <summary>
     /// S57b: 生成一个合并后的长条实体方块。
-    /// 位置 = 连续段的中心点，碰撞体和视觉宽度 = width × CELL_SIZE。
-    /// 命名约定: "{blockName}_{startX}_{y}_w{width}"，ExtractElementKey 提取前缀仍为 blockName，主题系统完全兼容。
+    /// 命名约定仍保持 "{elementName}_{startX}_{y}_w{width}"，确保主题系统按前缀兼容。
     /// </summary>
-    private static void SpawnMergedSolidBlock(int startX, int y, int width,
-        string blockName, Color color, int sortingOrder)
+    private static void SpawnMergedSolidBlock(int startX, int y, int width, AsciiElementEntry entry)
     {
-        // 计算中心位置
+        string blockName = string.IsNullOrEmpty(entry.elementName) ? "Ground" : entry.elementName;
         float centerX = startX * CELL_SIZE + (width - 1) * CELL_SIZE * 0.5f;
         float centerY = y * CELL_SIZE;
 
-        // 创建根物体
         GameObject go = new GameObject($"{blockName}_{startX}_{y}_w{width}");
         go.transform.position = new Vector3(centerX, centerY, 0);
         go.transform.parent = rootTransform;
         go.layer = groundLayerIndex;
 
-        // S37: Visual 子节点
-        GameObject visual = new GameObject("Visual");
-        visual.transform.SetParent(go.transform, false);
-        visual.transform.localPosition = Vector3.zero;
-        visual.transform.localScale = new Vector3(width * CELL_SIZE, CELL_SIZE, 1f);
+        GameObject visual = CreateVisualChild(go.transform, entry.visualColor, entry.sortingOrder);
+        Vector2 visualScale = entry.visualScale == Vector2.zero ? Vector2.one : entry.visualScale;
+        visual.transform.localScale = new Vector3(width * visualScale.x * CELL_SIZE, visualScale.y * CELL_SIZE, 1f);
 
-        SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
-        sr.sprite = CreateWhiteBoxSprite();
-        sr.color = color;
-        sr.sortingOrder = sortingOrder;
-
-        // 碰撞体：宽度 = width，高度 = 1
         BoxCollider2D col = go.AddComponent<BoxCollider2D>();
-        col.size = new Vector2(width, 1f);
-
-        Debug.Log($"[AsciiLevelGen] Merged {blockName} at ({startX},{y}), width={width}");
+        Vector2 colliderSize = entry.customColliderSize == Vector2.zero ? Vector2.one : entry.customColliderSize;
+        col.size = new Vector2(width * colliderSize.x, colliderSize.y);
+        col.offset = entry.customColliderOffset;
+        col.isTrigger = entry.isTrigger;
     }
-
-    private static void SpawnWall(int x, int y)
-    {
-        CreateBlock("Wall", x, y, COLOR_WALL, GROUND_SORTING, true, false);
-    }
-
-    private static void SpawnMarioSpawn(int x, int y)
-    {
-        // Mario 出生点标记（不生成实体，只放一个标记物）
-        GameObject marker = CreateVisualMarker("MarioSpawn", x, y, COLOR_MARIO, "M");
-        // 同时创建 MarioSpawnPoint（供 LevelManager 使用）
-        GameObject spawnPoint = new GameObject("MarioSpawnPoint");
-        spawnPoint.transform.position = new Vector3(x * CELL_SIZE, y * CELL_SIZE, 0);
-        spawnPoint.transform.parent = rootTransform;
-    }
-
-    private static void SpawnTricksterSpawn(int x, int y)
-    {
-        GameObject marker = CreateVisualMarker("TricksterSpawn", x, y, COLOR_TRICKSTER, "T");
-        GameObject spawnPoint = new GameObject("TricksterSpawnPoint");
-        spawnPoint.transform.position = new Vector3(x * CELL_SIZE, y * CELL_SIZE, 0);
-        spawnPoint.transform.parent = rootTransform;
-    }
-
-    private static void SpawnGoalZone(int x, int y)
-    {
-        // Session 32: 终点碰撞体使用 PhysicsMetrics 标准尺寸
-        GameObject go = CreateBlock("GoalZone", x, y, COLOR_GOAL, ELEMENT_SORTING, false, true);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.GOAL_COLLIDER_SIZE;
-        go.AddComponent<GoalZone>();
-    }
-
-    private static void SpawnSpikeTrap(int x, int y)
-    {
-        // Session 32: 使用 PhysicsMetrics 的宽容碰撞体
-        // 地刺碰撞体比视觉小 = Celeste 风格宽容感
-        GameObject go = CreateBlock("SpikeTrap", x, y, COLOR_SPIKE, ELEMENT_SORTING, false, true);
-        // S37: 视觉缩放操作 Visual 子节点，根物体 localScale 保持 (1,1,1)
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE, CELL_SIZE * 0.4f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null)
-        {
-            col.size = PhysicsMetrics.SPIKE_COLLIDER_SIZE;
-            col.offset = new Vector2(0f, PhysicsMetrics.SPIKE_COLLIDER_OFFSET_Y);
-        }
-        go.AddComponent<SpikeTrap>();
-    }
-
-    private static void SpawnFireTrap(int x, int y)
-    {
-        // Session 32: 火焰碰撞体使用 PhysicsMetrics 标准尺寸（比视觉小，提供容错）
-        GameObject go = CreateBlock("FireTrap", x, y, COLOR_FIRE, ELEMENT_SORTING, false, true);
-        // S37: 视觉缩放操作 Visual 子节点
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.FIRE_COLLIDER_SIZE;
-        go.AddComponent<FireTrap>();
-    }
-
-    private static void SpawnPendulumTrap(int x, int y)
-    {
-        // Session 32: 摆锤碰撞体使用 PhysicsMetrics 标准尺寸
-        // 摆锤锚点在上方，实际摆锤在下面摆动
-        GameObject go = CreateBlock("PendulumTrap", x, y, COLOR_PENDULUM, ELEMENT_SORTING, false, false);
-        // S37: 视觉缩放操作 Visual 子节点
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.3f, CELL_SIZE * 0.3f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.PENDULUM_COLLIDER_SIZE;
-        go.AddComponent<PendulumTrap>();
-    }
-
-    private static void SpawnBouncyPlatform(int x, int y)
-    {
-        // Session 32: 弹跳平台碰撞体使用 PhysicsMetrics 标准尺寸
-        GameObject go = CreateBlock("BouncyPlatform", x, y, COLOR_BOUNCY, ELEMENT_SORTING, true, false);
-        // S37: 视觉缩放操作 Visual 子节点，并赋值给 BouncyPlatform.visualTransform
-        Transform bouncyVisual = go.transform.Find("Visual");
-        bouncyVisual.localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.3f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.BOUNCY_COLLIDER_SIZE;
-        BouncyPlatform bp = go.AddComponent<BouncyPlatform>();
-        bp.visualTransform = bouncyVisual;
-    }
-
-    private static void SpawnCollapsingPlatform(int x, int y)
-    {
-        // Session 32: 崩塌平台碰撞体使用 PhysicsMetrics 标准尺寸
-        GameObject go = CreateBlock("CollapsingPlatform", x, y, COLOR_COLLAPSE, ELEMENT_SORTING, true, false);
-        // S37: 视觉缩放操作 Visual 子节点
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 2f, CELL_SIZE * 0.4f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.COLLAPSE_COLLIDER_SIZE;
-        go.AddComponent<CollapsingPlatform>();
-    }
-
-    // [AI防坑警告] S44c: OneWayPlatform 不再逐字符生成。
-    // 连续的 '-' 会被 MergeAndSpawnOneWayPlatforms 合并为一个长条平台。
-    // 如果恢复逐字符生成，会导致 S+Space 下落失效（需要同时 IgnoreCollision 多个碰撞体）、
-    // 边缘掉落、物理抖动等一系列拼接问题。
-    // 旧版 SpawnOneWayPlatform(int x, int y) 已废弃，保留注释供参考。
 
     /// <summary>
-    /// S44c: 扫描一行中连续的 '-' 字符，合并为单个长条 OneWayPlatform。
-    /// 解决多个独立小平台拼接导致的 S+Space 失效、边缘掉落、物理抖动等问题。
+    /// S44c: 扫描一行中连续的 '-'，合并为单个长条 OneWayPlatform。
+    /// 仍保留专用合并逻辑，但尺寸、颜色、组件来自 Registry。
     /// </summary>
-    private static void MergeAndSpawnOneWayPlatforms(string line, int worldY)
+    private static void MergeAndSpawnOneWayPlatforms(string line, int worldY, AsciiElementEntry entry)
     {
         int col = 0;
         while (col < line.Length)
         {
             if (line[col] == '-')
             {
-                // 向右扫描连续的 '-'
                 int startCol = col;
                 while (col < line.Length && line[col] == '-')
                 {
                     col++;
                 }
                 int width = col - startCol;
-                SpawnMergedOneWayPlatform(startCol, worldY, width);
+                SpawnMergedOneWayPlatform(startCol, worldY, width, entry);
             }
             else
             {
@@ -635,171 +457,47 @@ public static class AsciiLevelGenerator
     }
 
     /// <summary>
-    /// S44c: 生成一个合并后的长条 OneWayPlatform。
-    /// 位置 = 连续段的中心点，碰撞体和视觉宽度 = width × CELL_SIZE。
+    /// S44c: 生成一个合并后的长条单向平台。
+    /// OneWayPlatform 的组件和 PlatformEffector2D 依旧由脚本 RequireComponent 自动补齐。
     /// </summary>
-    private static void SpawnMergedOneWayPlatform(int startX, int y, int width)
+    private static void SpawnMergedOneWayPlatform(int startX, int y, int width, AsciiElementEntry entry)
     {
-        // 计算中心位置：startX 是左端格子坐标，中心 = startX + (width - 1) / 2.0
+        string blockName = string.IsNullOrEmpty(entry.elementName) ? "OneWayPlatform" : entry.elementName;
         float centerX = startX * CELL_SIZE + (width - 1) * CELL_SIZE * 0.5f;
         float centerY = y * CELL_SIZE;
 
-        // 创建根物体（命名包含起始坐标和宽度，便于调试）
-        GameObject go = new GameObject($"OneWayPlatform_{startX}_{y}_w{width}");
+        GameObject go = new GameObject($"{blockName}_{startX}_{y}_w{width}");
         go.transform.position = new Vector3(centerX, centerY, 0);
         go.transform.parent = rootTransform;
         go.layer = groundLayerIndex;
 
-        // S37: Visual 子节点
-        GameObject visual = new GameObject("Visual");
-        visual.transform.SetParent(go.transform, false);
-        visual.transform.localPosition = Vector3.zero;
-        // 视觉宽度 = width 格 × CELL_SIZE，高度保持薄片
-        visual.transform.localScale = new Vector3(width * CELL_SIZE, CELL_SIZE * 0.3f, 1f);
+        GameObject visual = CreateVisualChild(go.transform, entry.visualColor, entry.sortingOrder);
+        Vector2 visualScale = entry.visualScale == Vector2.zero ? new Vector2(1f, 0.3f) : entry.visualScale;
+        visual.transform.localScale = new Vector3(width * visualScale.x * CELL_SIZE, visualScale.y * CELL_SIZE, 1f);
 
-        SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
-        sr.sprite = CreateWhiteBoxSprite();
-        sr.color = COLOR_ONEWAY;
-        sr.sortingOrder = ELEMENT_SORTING;
-
-        // 碰撞体：宽度 = width × CELL_SIZE，高度保持 PhysicsMetrics 标准
         BoxCollider2D col = go.AddComponent<BoxCollider2D>();
-        col.size = new Vector2(width * PhysicsMetrics.ONEWAY_COLLIDER_SIZE.x, PhysicsMetrics.ONEWAY_COLLIDER_SIZE.y);
-        col.usedByEffector = true;
+        Vector2 colliderSize = entry.customColliderSize == Vector2.zero ? PhysicsMetrics.ONEWAY_COLLIDER_SIZE : entry.customColliderSize;
+        col.size = new Vector2(width * colliderSize.x, colliderSize.y);
+        col.offset = entry.customColliderOffset;
+        col.isTrigger = entry.isTrigger;
 
-        go.AddComponent<PlatformEffector2D>();
-        go.AddComponent<OneWayPlatform>();
-
-        Debug.Log($"[AsciiLevelGen] Merged OneWayPlatform at ({startX},{y}), width={width}");
+        AttachConfiguredComponents(go, entry);
     }
 
-    private static void SpawnBouncingEnemy(int x, int y)
+    /// <summary>
+    /// M 出生点特殊逻辑：只创建可视标记，不通用挂组件。
+    /// </summary>
+    private static void SpawnMarioSpawn(int x, int y)
     {
-        // Session 32: 敌人碰撞体使用 PhysicsMetrics 标准尺寸
-        // S44: isTrigger 改为 false — 敌人需要物理碰撞站在地面上，
-        // isTrigger=true 会导致穿过地面掉落。BouncingEnemy 自带 OnCollisionEnter2D 处理伤害。
-        GameObject go = CreateBlock("BouncingEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, false);
-        // S37: 视觉缩放操作 Visual 子节点
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.BOUNCING_ENEMY_COLLIDER_SIZE;
-        Rigidbody2D rb = go.AddComponent<Rigidbody2D>();
-        rb.gravityScale = 1f;
-        rb.freezeRotation = true;
-        go.AddComponent<BouncingEnemy>();
+        CreateVisualMarker("MarioSpawn", x, y, COLOR_MARIO, "M");
     }
 
-    private static void SpawnSimpleEnemy(int x, int y)
+    /// <summary>
+    /// T 出生点特殊逻辑：只创建可视标记，不通用挂组件。
+    /// </summary>
+    private static void SpawnTricksterSpawn(int x, int y)
     {
-        // Session 32: 敌人碰撞体使用 PhysicsMetrics 标准尺寸
-        // S44: isTrigger 改为 false — 敌人需要物理碰撞站在地面上，
-        // isTrigger=true 会导致穿过地面掉落。SimpleEnemy 自带 OnCollisionEnter2D 处理伤害+踩踏，
-        // 不需要 DamageDealer（DamageDealer 依赖 OnTrigger 回调，与非 Trigger 碰撞体不兼容）。
-        GameObject go = CreateBlock("SimpleEnemy", x, y, COLOR_ENEMY, ELEMENT_SORTING, false, false);
-        // S37: 视觉缩放操作 Visual 子节点
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.SIMPLE_ENEMY_COLLIDER_SIZE;
-        Rigidbody2D rb = go.AddComponent<Rigidbody2D>();
-        rb.gravityScale = 1f;
-        rb.freezeRotation = true;
-        go.AddComponent<SimpleEnemy>();
-        // S44: 移除 DamageDealer — SimpleEnemy.OnCollisionEnter2D 已完整处理伤害+踩踏逻辑，
-        // DamageDealer 的 OnTrigger 回调在非 Trigger 碰撞体上不会触发，挂载无意义。
-    }
-
-    private static void SpawnFakeWall(int x, int y)
-    {
-        GameObject go = CreateBlock("FakeWall", x, y, COLOR_FAKEWALL, GROUND_SORTING + 1, true, true);
-        go.AddComponent<FakeWall>();
-    }
-
-    private static void SpawnHiddenPassage(int x, int y)
-    {
-        // 隐藏通道入口
-        GameObject go = CreateBlock("HiddenPassage", x, y, COLOR_PASSAGE, ELEMENT_SORTING, true, true);
-        go.AddComponent<HiddenPassage>();
-    }
-
-    private static void SpawnCollectible(int x, int y)
-    {
-        // Session 32: 收集物碰撞体使用 PhysicsMetrics 标准尺寸
-        GameObject go = CreateBlock("Collectible", x, y, COLOR_COLLECT, ELEMENT_SORTING, false, true);
-        // S37: 视觉缩放操作 Visual 子节点
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.COLLECTIBLE_COLLIDER_SIZE;
-        go.AddComponent<Collectible>();
-    }
-
-    private static void SpawnMovingPlatform(int x, int y)
-    {
-        // Session 32: 移动平台碰撞体使用 PhysicsMetrics 标准尺寸
-        GameObject go = CreateBlock("MovingPlatform", x, y, COLOR_MOVING, ELEMENT_SORTING, true, false);
-        // S37: 视觉缩放操作 Visual 子节点
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 3f, CELL_SIZE * 0.4f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.MOVING_COLLIDER_SIZE;
-        MovingPlatform mp = go.AddComponent<MovingPlatform>();
-    }
-
-    // ═══════════════════════════════════════════════════
-    // S56 新增 Spawn 方法
-    // ═══════════════════════════════════════════════════
-
-    private static void SpawnSawBlade(int x, int y)
-    {
-        // 旋转锯片：非实体 + Trigger（使用 BaseHazard 的 OnTriggerEnter2D）
-        GameObject go = CreateBlock("SawBlade", x, y, COLOR_SAWBLADE, ELEMENT_SORTING, false, true);
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.SAW_BLADE_COLLIDER_SIZE;
-        go.AddComponent<SawBlade>();
-    }
-
-    private static void SpawnFlyingEnemy(int x, int y)
-    {
-        // 飞行敌人：非实体 + 非 Trigger（使用 OnCollisionEnter2D 处理踩踏/伤害）
-        // Kinematic Rigidbody2D（飞行敌人不受重力，位置由脚本控制）
-        GameObject go = CreateBlock("FlyingEnemy", x, y, COLOR_FLYING, ELEMENT_SORTING, false, false);
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.8f, CELL_SIZE * 0.8f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.FLYING_ENEMY_COLLIDER_SIZE;
-        Rigidbody2D rb = go.AddComponent<Rigidbody2D>();
-        rb.bodyType = RigidbodyType2D.Kinematic;
-        rb.freezeRotation = true;
-        go.AddComponent<FlyingEnemy>();
-    }
-
-    private static void SpawnConveyorBelt(int x, int y)
-    {
-        // 传送带：实体 + 非 Trigger（玩家可站立，使用 OnCollisionStay2D 施加推力）
-        GameObject go = CreateBlock("ConveyorBelt", x, y, COLOR_CONVEYOR, GROUND_SORTING + 1, true, false);
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE, CELL_SIZE * 0.3f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.CONVEYOR_BELT_COLLIDER_SIZE;
-        go.AddComponent<ConveyorBelt>();
-    }
-
-    private static void SpawnCheckpoint(int x, int y)
-    {
-        // 检查点：非实体 + Trigger（玩家触碰激活）
-        GameObject go = CreateBlock("Checkpoint", x, y, COLOR_CHECKPOINT, ELEMENT_SORTING, false, true);
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 1.2f, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.CHECKPOINT_COLLIDER_SIZE;
-        go.AddComponent<Checkpoint>();
-    }
-
-    private static void SpawnBreakableBlock(int x, int y)
-    {
-        // 可破坏方块：实体 + 非 Trigger（玩家可站立，从下方撞击破坏）
-        GameObject go = CreateBlock("BreakableBlock", x, y, COLOR_BREAKABLE, GROUND_SORTING + 1, true, false);
-        // 视觉与地面方块一致大小
-        go.transform.Find("Visual").localScale = new Vector3(CELL_SIZE, CELL_SIZE, 1f);
-        BoxCollider2D col = go.GetComponent<BoxCollider2D>();
-        if (col != null) col.size = PhysicsMetrics.BREAKABLE_BLOCK_COLLIDER_SIZE;
-        go.AddComponent<BreakableBlock>();
+        CreateVisualMarker("TricksterSpawn", x, y, COLOR_TRICKSTER, "T");
     }
 
     // ═══════════════════════════════════════════════════
@@ -807,37 +505,133 @@ public static class AsciiLevelGenerator
     // ═══════════════════════════════════════════════════
 
     /// <summary>
-    /// S37: 视碰分离重构 — 创建白盒方块
-    /// 结构: Root(物理层: BoxCollider2D) -> Visual(视觉层: SpriteRenderer)
+    /// Registry 通用生成入口。除 Ground/Platform/OneWayPlatform 合并逻辑与 M/T 出生点外，
+    /// 所有 ASCII 元素都通过此方法按 Entry 数据生成 Root/Visual/Collider/Components。
+    /// </summary>
+    private static void SpawnRegisteredElement(AsciiElementEntry entry, int gridX, int gridY)
+    {
+        if (entry == null || !entry.generateObject) return;
+
+        if (entry.elementName == "MarioSpawn")
+        {
+            SpawnMarioSpawn(gridX, gridY);
+            return;
+        }
+        if (entry.elementName == "TricksterSpawn")
+        {
+            SpawnTricksterSpawn(gridX, gridY);
+            return;
+        }
+
+        GameObject go = CreateRegisteredBlock(entry, gridX, gridY);
+        AttachConfiguredComponents(go, entry);
+    }
+
+    /// <summary>
+    /// S37: 视碰分离重构 — 创建 Registry 驱动白盒元素。
+    /// 结构: Root(物理层: BoxCollider2D + 逻辑组件) -> Visual(视觉层: SpriteRenderer)。
     /// 根物体 localScale 永远保持 (1,1,1)，视觉缩放由 Visual 子节点承担。
     /// </summary>
-    private static GameObject CreateBlock(string name, int gridX, int gridY, Color color,
-        int sortingOrder, bool isSolid, bool isTrigger)
+    private static GameObject CreateRegisteredBlock(AsciiElementEntry entry, int gridX, int gridY)
     {
-        GameObject go = new GameObject($"{name}_{gridX}_{gridY}");
+        string elementName = string.IsNullOrEmpty(entry.elementName) ? "AsciiElement" : entry.elementName;
+        GameObject go = new GameObject($"{elementName}_{gridX}_{gridY}");
         go.transform.position = new Vector3(gridX * CELL_SIZE, gridY * CELL_SIZE, 0);
         go.transform.parent = rootTransform;
 
-        // 设置 Ground 层（用于碰撞检测）
-        if (isSolid && !isTrigger)
+        if (entry.isSolid && !entry.isTrigger)
             go.layer = groundLayerIndex;
 
-        // S37: Visual 子节点（承载 SpriteRenderer）
-        GameObject visual = new GameObject("Visual");
-        visual.transform.SetParent(go.transform, false);
-        visual.transform.localPosition = Vector3.zero;
+        GameObject visual = CreateVisualChild(go.transform, entry.visualColor, entry.sortingOrder);
+        Vector2 visualScale = entry.visualScale == Vector2.zero ? Vector2.one : entry.visualScale;
+        visual.transform.localScale = new Vector3(visualScale.x * CELL_SIZE, visualScale.y * CELL_SIZE, 1f);
 
+        BoxCollider2D col = go.AddComponent<BoxCollider2D>();
+        col.size = entry.customColliderSize == Vector2.zero ? Vector2.one : entry.customColliderSize;
+        col.offset = entry.customColliderOffset;
+        col.isTrigger = entry.isTrigger;
+        return go;
+    }
+
+    private static GameObject CreateVisualChild(Transform parent, Color color, int sortingOrder)
+    {
+        GameObject visual = new GameObject("Visual");
+        visual.transform.SetParent(parent, false);
+        visual.transform.localPosition = Vector3.zero;
         SpriteRenderer sr = visual.AddComponent<SpriteRenderer>();
         sr.sprite = CreateWhiteBoxSprite();
         sr.color = color;
         sr.sortingOrder = sortingOrder;
+        return visual;
+    }
 
-        // BoxCollider2D 保留在根物体上
-        BoxCollider2D col = go.AddComponent<BoxCollider2D>();
-        col.size = Vector2.one;
-        col.isTrigger = isTrigger;
+    private static void AttachConfiguredComponents(GameObject go, AsciiElementEntry entry)
+    {
+        if (go == null || entry == null || entry.componentTypeNames == null) return;
 
-        return go;
+        foreach (string componentTypeName in entry.componentTypeNames)
+        {
+            if (string.IsNullOrWhiteSpace(componentTypeName)) continue;
+            Type componentType = ResolveComponentType(componentTypeName.Trim());
+            if (componentType == null)
+            {
+                Debug.LogWarning($"[AsciiLevelGen] Component type '{componentTypeName}' for '{entry.elementName}' not found. Skipped.");
+                continue;
+            }
+            if (!typeof(Component).IsAssignableFrom(componentType))
+            {
+                Debug.LogWarning($"[AsciiLevelGen] Type '{componentTypeName}' is not a Unity Component. Skipped.");
+                continue;
+            }
+            if (go.GetComponent(componentType) == null)
+            {
+                go.AddComponent(componentType);
+            }
+        }
+
+        // 向后兼容 FlyingEnemy：旧逻辑额外给 Rigidbody2D 设为 Kinematic 并冻结旋转。
+        Rigidbody2D rb = go.GetComponent<Rigidbody2D>();
+        if (rb != null && entry.elementName == "FlyingEnemy")
+        {
+            rb.bodyType = RigidbodyType2D.Kinematic;
+            rb.freezeRotation = true;
+        }
+    }
+
+    private static Type ResolveComponentType(string componentTypeName)
+    {
+        Type type = Type.GetType(componentTypeName);
+        if (type != null) return type;
+
+        type = Type.GetType($"UnityEngine.{componentTypeName}, UnityEngine");
+        if (type != null) return type;
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            type = assembly.GetType(componentTypeName);
+            if (type != null) return type;
+
+            Type[] types;
+            try
+            {
+                types = assembly.GetTypes();
+            }
+            catch (System.Reflection.ReflectionTypeLoadException ex)
+            {
+                types = Array.FindAll(ex.Types, t => t != null);
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (Type candidate in types)
+            {
+                if (candidate.Name == componentTypeName)
+                    return candidate;
+            }
+        }
+        return null;
     }
 
     /// <summary>创建一个可视标记（带文字标签）</summary>

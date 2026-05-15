@@ -1261,3 +1261,31 @@ Ran static grep for remaining `stateFrames` + `SpriteStateAnimator.MotionState` 
 
 ### Validation Notes
 沙盒内仍未安装 Unity Editor，无法执行真实编辑器编译或 PlayMode 验证。本次已完成 `git diff --check`，并静态复核 `P → 静止融入 → L` 调用链。用户本地下一轮应重新生成 Commit0-6 验证关卡后测试：按 `P`、等待约半秒、按 `L`。
+
+
+---
+## Session Update — 2026-05-15 — S57b ASCII Generator Zero-Code Element Registry Refactor
+
+### Trigger
+用户要求彻底重构 `AsciiLevelGenerator`，移除普通元素新增时仍需手写 `SpawnXXX` 方法的旧机制，将 ASCII 元素生成改为 Registry 数据驱动，并保证现有八个登记模板在视碰分离层级、碰撞体尺寸与逻辑组件上保持向后兼容。
+
+### Implementation
+| 文件 | 变更内容 |
+|------|----------|
+| `Assets/Scripts/LevelDesign/AsciiElementRegistry.cs` | `AsciiElementEntry` 新增 `componentTypeNames`、`customColliderSize`、`customColliderOffset`、`isTrigger` 字段；`CreateDefaultInstance()` 将既有元素的脚本组件、碰撞体尺寸、Trigger 状态、Visual 参数与排序固化进默认表。 |
+| `Assets/Scripts/LevelDesign/AsciiLevelGenerator.cs` | 删除普通元素专属生成路径，保留 `Ground` 与 `OneWayPlatform` 合并生成逻辑以及 `M` / `T` 玩家出生点特殊逻辑；普通元素统一通过 Registry Entry 创建根物体、`BoxCollider2D`、`Visual` 子节点，并按 `componentTypeNames` 反射挂载逻辑组件。 |
+| `docs/ASCII_ZERO_CODE_ELEMENT_EXTENSION.md` | 新增零代码新增机制规范，明确以后新增元素只允许“新建逻辑脚本 + Registry 配置一行数据”，严禁修改生成器核心代码。 |
+| `LevelStudio_DesignGuide.md` | 将旧 `charMap` / `SpawnXXX` 扩展流程更新为 Registry 零代码新增流程，并补充审查红线。 |
+
+### Compatibility Notes
+- 普通元素统一走 `SpawnRegisteredElement`；`componentTypeNames` 支持短类名和完整类型名，并通过 `System.Type.GetType(...)` 与程序集扫描兜底解析。
+- 根物体继续承载逻辑脚本与 `BoxCollider2D`，`Visual` 子节点继续承载 `SpriteRenderer`，保持旧视碰分离层级。
+- `FlyingEnemy` 兼容旧逻辑：默认配置挂载 `Rigidbody2D` 与 `FlyingEnemy`，生成后继续设置 Kinematic 与冻结旋转。
+- 八个登记模板使用字符均已被默认 Registry 覆盖；`Ground`、`OneWayPlatform` 与玩家出生点仍保持特殊语义，不进入普通元素新增机制。
+
+### Validation Notes
+- `python3.11 .ai_static_check.py`：通过，未发现旧普通元素专属 `SpawnXXX` 方法残留或基础结构错误。
+- `python3.11 .ai_ascii_compat_check.py`：通过，8 个登记模板字符全部被默认 Registry 覆盖，所有 `componentTypeNames` 均有对应 Unity 内置组件或项目脚本。
+- `python3.11 LevelDesign_References/validate_ascii_template.py LevelDesign_References/ASCII_Templates.md`：8 个模板全部 PASS，致命错误 0，保留既有设计警告 25 条。
+- `git diff --check`：通过。
+- 沙盒未安装 Unity Editor，无法在本环境执行真实 Unity Test Runner；仍需用户本地在 Unity 中执行 `MarioTrickster/Run Tests/Export Full Report (All)` 进行编辑器编译与 PlayMode 回归。

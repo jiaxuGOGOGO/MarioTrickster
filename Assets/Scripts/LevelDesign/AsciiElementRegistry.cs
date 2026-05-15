@@ -22,14 +22,14 @@ using System.Collections.Generic;
 ///
 /// 设计原则:
 ///   - ScriptableObject 资产，可在 Inspector 中可视化编辑字符分类
-///   - 每个元素定义包含：ASCII字符、元素名、物理属性标记（IsSolid/IsHazard/JumpBoost）
+///   - 每个元素定义包含：ASCII字符、元素名、物理属性、组件脚本、碰撞体、视觉参数
 ///   - 提供静态默认实例 + 运行时查询 API，供 Generator 和 Validator 使用
-///   - 新增元素只需在 Inspector 中 Add 一条记录，无需改代码
+///   - 新增元素只需新建逻辑脚本并在 Inspector 中 Add 一条记录，无需改 Generator 核心代码
 ///   - 向后兼容：无 Registry 资产时自动使用内置默认定义
 ///
 /// 扩展方式:
 ///   1. Project 面板右键 → Create → MarioTrickster → Ascii Element Registry
-///   2. 在 Inspector 中添加新元素条目（设置字符、名称、IsSolid/IsHazard/JumpBoost）
+///   2. 在 Inspector 中添加新元素条目（设置字符、名称、组件、碰撞体、视觉参数）
 ///   3. AsciiLevelGenerator 和 AsciiLevelValidator 自动识别新字符
 /// </summary>
 [CreateAssetMenu(fileName = "AsciiElementRegistry", menuName = "MarioTrickster/Ascii Element Registry", order = 101)]
@@ -42,7 +42,7 @@ public class AsciiElementRegistry : ScriptableObject
     [Header("=== ASCII 元素定义列表 ===")]
     [Tooltip("所有 ASCII 字符到关卡元素的映射。\n" +
              "新增元素只需 Add 一条记录，Generator 和 Validator 自动识别。\n" +
-             "ℹ️ 本项目采用白盒生成模式，无需配置 Prefab。")]
+             "Generator 通过 componentTypeNames + collider/visual 参数纯数据驱动生成，无需配置 Prefab。")]
     public AsciiElementEntry[] entries;
 
     // ═══════════════════════════════════════════════════
@@ -160,7 +160,7 @@ public class AsciiElementRegistry : ScriptableObject
     private static AsciiElementRegistry _defaultInstance;
 
     /// <summary>
-    /// 内置默认 entries 的数量（19 个元素）。
+    /// 内置默认 entries 的数量（24 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
     private const int BUILTIN_ENTRY_COUNT = 24;
@@ -241,40 +241,162 @@ public class AsciiElementRegistry : ScriptableObject
 
         registry.entries = new AsciiElementEntry[]
         {
-            // ── 地形（Solid）──
-            new AsciiElementEntry { asciiChar = '#', elementName = "Ground",     isSolid = true,  isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = '=', elementName = "Platform",   isSolid = true,  isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'W', elementName = "Wall",       isSolid = true,  isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'B', elementName = "BouncyPlatform",    isSolid = true,  isHazard = false, jumpBoost = 1f },
-            new AsciiElementEntry { asciiChar = 'C', elementName = "CollapsingPlatform", isSolid = true,  isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = '-', elementName = "OneWayPlatform",     isSolid = true,  isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'F', elementName = "FakeWall",   isSolid = true,  isHazard = false, jumpBoost = 0f },
+            // ── 合并生成实体（Generator 只保留 Ground/Platform Merge 逻辑）──
+            new AsciiElementEntry
+            {
+                asciiChar = '#', elementName = "Ground", isSolid = true, isHazard = false, jumpBoost = 0f,
+                generateObject = false, visualColor = new Color(0.55f, 0.55f, 0.55f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 0, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '=', elementName = "Platform", isSolid = true, isHazard = false, jumpBoost = 0f,
+                generateObject = false, visualColor = new Color(0.70f, 0.70f, 0.70f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'W', elementName = "Wall", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new string[0], visualColor = new Color(0.40f, 0.40f, 0.40f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'B', elementName = "BouncyPlatform", isSolid = true, isHazard = false, jumpBoost = 1f,
+                componentTypeNames = new[] { "BouncyPlatform" }, visualColor = new Color(0.30f, 0.85f, 0.30f), visualScale = new Vector2(2.0f, 0.3f),
+                customColliderSize = PhysicsMetrics.BOUNCY_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'C', elementName = "CollapsingPlatform", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "CollapsingPlatform" }, visualColor = new Color(0.80f, 0.65f, 0.30f), visualScale = new Vector2(2.0f, 0.4f),
+                customColliderSize = PhysicsMetrics.COLLAPSE_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '-', elementName = "OneWayPlatform", isSolid = true, isHazard = false, jumpBoost = 0f,
+                generateObject = false, componentTypeNames = new[] { "OneWayPlatform" }, visualColor = new Color(0.50f, 0.75f, 0.90f), visualScale = new Vector2(1.0f, 0.3f),
+                customColliderSize = PhysicsMetrics.ONEWAY_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'F', elementName = "FakeWall", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "FakeWall" }, visualColor = new Color(0.55f, 0.55f, 0.65f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '<', elementName = "ConveyorBelt", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "ConveyorBelt" }, visualColor = new Color(0.60f, 0.60f, 0.40f), visualScale = new Vector2(1.0f, 0.3f),
+                customColliderSize = PhysicsMetrics.CONVEYOR_BELT_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'X', elementName = "BreakableBlock", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "BreakableBlock" }, visualColor = new Color(0.75f, 0.55f, 0.30f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BREAKABLE_BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = false
+            },
 
-            // ── 空气/非实体 ──
-            new AsciiElementEntry { asciiChar = '.', elementName = "Air",        isSolid = false, isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = ' ', elementName = "Space",      isSolid = false, isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'M', elementName = "MarioSpawn", isSolid = false, isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'T', elementName = "TricksterSpawn", isSolid = false, isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'G', elementName = "GoalZone",   isSolid = false, isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'o', elementName = "Collectible", isSolid = false, isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'H', elementName = "HiddenPassage", isSolid = false, isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = '>', elementName = "MovingPlatform", isSolid = false, isHazard = false, jumpBoost = 0f },
+            // ── 空气/特殊字符（不走通用生成；M/T 由玩家生成特殊逻辑处理）──
+            new AsciiElementEntry { asciiChar = '.', elementName = "Air", isSolid = false, isHazard = false, jumpBoost = 0f, generateObject = false },
+            new AsciiElementEntry { asciiChar = ' ', elementName = "Space", isSolid = false, isHazard = false, jumpBoost = 0f, generateObject = false },
+            new AsciiElementEntry { asciiChar = 'M', elementName = "MarioSpawn", isSolid = false, isHazard = false, jumpBoost = 0f, generateObject = false },
+            new AsciiElementEntry { asciiChar = 'T', elementName = "TricksterSpawn", isSolid = false, isHazard = false, jumpBoost = 0f, generateObject = false },
 
-            // ── 危险物（Hazard，同时也是非实体/空气）──
-            new AsciiElementEntry { asciiChar = '^', elementName = "SpikeTrap",  isSolid = false, isHazard = true,  jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = '~', elementName = "FireTrap",   isSolid = false, isHazard = true,  jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'P', elementName = "PendulumTrap", isSolid = false, isHazard = true, jumpBoost = 0f },
-
-            // ── 敌人（非实体，非 hazard — 原始 Validator 中敌人在 airChars 而非 hazardChars）──
-            new AsciiElementEntry { asciiChar = 'E', elementName = "BouncingEnemy", isSolid = false, isHazard = false, jumpBoost = 1f },
-            new AsciiElementEntry { asciiChar = 'e', elementName = "SimpleEnemy",   isSolid = false, isHazard = false, jumpBoost = 0f },
-
-            // ── S56 新增元素 ──
-            new AsciiElementEntry { asciiChar = '@', elementName = "SawBlade",       isSolid = false, isHazard = true,  jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'f', elementName = "FlyingEnemy",    isSolid = false, isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = '<', elementName = "ConveyorBelt",   isSolid = true,  isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'S', elementName = "Checkpoint",     isSolid = false, isHazard = false, jumpBoost = 0f },
-            new AsciiElementEntry { asciiChar = 'X', elementName = "BreakableBlock", isSolid = true,  isHazard = false, jumpBoost = 0f },
+            // ── 通用 Registry 驱动生成元素 ──
+            new AsciiElementEntry
+            {
+                asciiChar = 'G', elementName = "GoalZone", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "GoalZone" }, visualColor = new Color(0.20f, 1.00f, 0.40f), visualScale = new Vector2(1.0f, 3.0f),
+                customColliderSize = PhysicsMetrics.GOAL_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'o', elementName = "Collectible", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "Collectible" }, visualColor = new Color(1.00f, 0.85f, 0.20f), visualScale = new Vector2(0.5f, 0.5f),
+                customColliderSize = PhysicsMetrics.COLLECTIBLE_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'H', elementName = "HiddenPassage", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "HiddenPassage" }, visualColor = new Color(0.40f, 0.70f, 0.55f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '>', elementName = "MovingPlatform", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "MovingPlatform" }, visualColor = new Color(0.50f, 0.50f, 0.90f), visualScale = new Vector2(3.0f, 0.4f),
+                customColliderSize = PhysicsMetrics.MOVING_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '^', elementName = "SpikeTrap", isSolid = false, isHazard = true, jumpBoost = 0f,
+                componentTypeNames = new[] { "SpikeTrap" }, visualColor = new Color(0.85f, 0.25f, 0.25f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.SPIKE_COLLIDER_SIZE, customColliderOffset = new Vector2(0f, PhysicsMetrics.SPIKE_COLLIDER_OFFSET_Y),
+                sortingOrder = 5, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '~', elementName = "FireTrap", isSolid = false, isHazard = true, jumpBoost = 0f,
+                componentTypeNames = new[] { "FireTrap" }, visualColor = new Color(1.00f, 0.50f, 0.10f), visualScale = new Vector2(0.5f, 0.5f),
+                customColliderSize = PhysicsMetrics.FIRE_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'P', elementName = "PendulumTrap", isSolid = false, isHazard = true, jumpBoost = 0f,
+                componentTypeNames = new[] { "PendulumTrap" }, visualColor = new Color(0.70f, 0.45f, 0.20f), visualScale = new Vector2(0.3f, 0.3f),
+                customColliderSize = PhysicsMetrics.PENDULUM_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'E', elementName = "BouncingEnemy", isSolid = false, isHazard = false, jumpBoost = 1f,
+                componentTypeNames = new[] { "BouncingEnemy" }, visualColor = new Color(0.90f, 0.20f, 0.60f), visualScale = new Vector2(0.8f, 0.8f),
+                customColliderSize = PhysicsMetrics.BOUNCING_ENEMY_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'e', elementName = "SimpleEnemy", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SimpleEnemy" }, visualColor = new Color(0.90f, 0.20f, 0.60f), visualScale = new Vector2(0.8f, 0.8f),
+                customColliderSize = PhysicsMetrics.SIMPLE_ENEMY_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '@', elementName = "SawBlade", isSolid = false, isHazard = true, jumpBoost = 0f,
+                componentTypeNames = new[] { "SawBlade" }, visualColor = new Color(0.70f, 0.70f, 0.70f), visualScale = new Vector2(0.8f, 0.8f),
+                customColliderSize = PhysicsMetrics.SAW_BLADE_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'f', elementName = "FlyingEnemy", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "Rigidbody2D", "FlyingEnemy" }, visualColor = new Color(0.85f, 0.40f, 0.85f), visualScale = new Vector2(0.8f, 0.8f),
+                customColliderSize = PhysicsMetrics.FLYING_ENEMY_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'S', elementName = "Checkpoint", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "Checkpoint" }, visualColor = new Color(0.20f, 0.80f, 0.90f), visualScale = new Vector2(0.5f, 1.2f),
+                customColliderSize = PhysicsMetrics.CHECKPOINT_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 5, isTrigger = true
+            },
         };
         registry.BuildCache();
         return registry;
@@ -292,8 +414,8 @@ public class AsciiElementRegistry : ScriptableObject
 /// <summary>
 /// ASCII 元素条目 — 单个字符到关卡元素的映射定义
 ///
-/// [AI防坑警告] 本项目不使用 Prefab，所有元素由 AsciiLevelGenerator 的 Spawn 方法
-/// 用 new GameObject 白盒生成。此数据结构仅提供字符分类元数据，不要添加 Prefab 字段。
+/// [AI防坑警告] 本项目不使用 Prefab，所有元素由 Registry 数据驱动生成。
+/// 新增元素严禁修改 AsciiLevelGenerator 核心代码，只允许新增逻辑脚本并配置 Registry。
 ///
 /// [AI防坑警告] S48: Unity 序列化系统不支持 char 类型。
 /// asciiChar 字段使用 string (_asciiCharStr) 作为序列化代理。
@@ -346,4 +468,30 @@ public class AsciiElementEntry
 
     [Tooltip("跳跃增益系数（0 = 无增益，1 = 标准弹跳，如弹跳平台B和弹跳怪E）")]
     public float jumpBoost;
+
+    [Header("=== Generator 生成参数 ===")]
+    [Tooltip("是否由通用生成器实例化 GameObject。空气、M/T 出生点、合并地形等特殊字符设为 false。")]
+    public bool generateObject = true;
+
+    [Tooltip("要挂载到根物体上的组件类型名。可填短类名（如 SpikeTrap）或完整类型名；新增逻辑脚本只需在此增加类名。")]
+    public string[] componentTypeNames = new string[0];
+
+    [Tooltip("根物体 BoxCollider2D 的尺寸。Vector2.zero 表示使用 Vector2.one 向后兼容。")]
+    public Vector2 customColliderSize = Vector2.one;
+
+    [Tooltip("根物体 BoxCollider2D 的偏移。")]
+    public Vector2 customColliderOffset = Vector2.zero;
+
+    [Tooltip("根物体 BoxCollider2D 是否为 Trigger。")]
+    public bool isTrigger = false;
+
+    [Header("=== Visual 白盒参数 ===")]
+    [Tooltip("Visual 子节点的本地缩放，用于保持旧版白盒视觉大小。")]
+    public Vector2 visualScale = Vector2.one;
+
+    [Tooltip("Visual 子节点 SpriteRenderer 的白盒颜色。")]
+    public Color visualColor = Color.white;
+
+    [Tooltip("Visual 子节点 SpriteRenderer 的排序层级。")]
+    public int sortingOrder = 5;
 }

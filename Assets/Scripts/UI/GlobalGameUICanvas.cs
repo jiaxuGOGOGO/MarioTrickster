@@ -101,6 +101,12 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
     private string scanHitDetail = string.Empty;
     private float rescanTimer;
 
+    // ── Interaction Log (防误判交互日志) ──
+    private RectTransform interactionLogPanel;
+    private Text interactionLogText;
+    private readonly System.Collections.Generic.List<string> interactionLogEntries = new System.Collections.Generic.List<string>();
+    private const int MaxLogEntries = 5;
+
     public static GlobalGameUICanvas EnsureInstance(Transform parent = null)
     {
         GlobalGameUICanvas existing = FindObjectOfType<GlobalGameUICanvas>();
@@ -135,6 +141,9 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         GameplayEventBus.OnCrisisWarning -= HandleCrisisWarning;
         GameplayEventBus.OnResidueSpotted -= HandleResidueSpotted;
         GameplayEventBus.OnTricksterRevealed -= HandleTricksterRevealed;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        GameplayEventBus.OnTrapTriggered -= HandleTrapTriggeredLog;
+#endif
     }
 
     private void OnEnable()
@@ -143,6 +152,9 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         GameplayEventBus.OnCrisisWarning += HandleCrisisWarning;
         GameplayEventBus.OnResidueSpotted += HandleResidueSpotted;
         GameplayEventBus.OnTricksterRevealed += HandleTricksterRevealed;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        GameplayEventBus.OnTrapTriggered += HandleTrapTriggeredLog;
+#endif
     }
 
     private void OnDisable()
@@ -151,6 +163,9 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         GameplayEventBus.OnCrisisWarning -= HandleCrisisWarning;
         GameplayEventBus.OnResidueSpotted -= HandleResidueSpotted;
         GameplayEventBus.OnTricksterRevealed -= HandleTricksterRevealed;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        GameplayEventBus.OnTrapTriggered -= HandleTrapTriggeredLog;
+#endif
     }
 
     private void Update()
@@ -225,6 +240,10 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         BuildScanPanels(root);
         BuildComboPanel(root);
         BuildRoutePanel(root);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        BuildInteractionLogPanel(root);
+#endif
     }
 
     private void BuildPauseOverlay(RectTransform root)
@@ -877,4 +896,80 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
     {
         GameManager.Instance?.ReturnToMainMenu();
     }
+
+    // ═══════════════════════════════════════════════════
+    // Interaction Log (防误判交互日志)
+    // 包裹在 #if UNITY_EDITOR || DEVELOPMENT_BUILD 宏下，Release 包零残留
+    // ═══════════════════════════════════════════════════
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void BuildInteractionLogPanel(RectTransform root)
+    {
+        // 左下角极简文本滚动区，位于 controlsText 上方
+        interactionLogPanel = CreatePanel("InteractionLogPanel", root,
+            new Vector2(0f, 0f), new Vector2(0f, 0f),
+            new Vector2(24f, 110f), new Vector2(520f, 120f),
+            new Color(0f, 0f, 0f, 0.35f), true);
+
+        Text titleText = CreateText("InteractionLogTitle", interactionLogPanel,
+            "Interaction Log", 14, new Color(1f, 0.8f, 0.3f), TextAnchor.UpperLeft);
+        SetRect(titleText.rectTransform,
+            new Vector2(0f, 1f), new Vector2(1f, 1f),
+            new Vector2(8f, -4f), new Vector2(-16f, 18f),
+            new Vector2(0f, 1f));
+
+        interactionLogText = CreateText("InteractionLogText", interactionLogPanel,
+            string.Empty, 13, new Color(0.9f, 0.9f, 0.9f, 0.9f), TextAnchor.LowerLeft);
+        interactionLogText.fontStyle = FontStyle.Normal;
+        interactionLogText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        interactionLogText.verticalOverflow = VerticalWrapMode.Truncate;
+        SetRect(interactionLogText.rectTransform,
+            new Vector2(0f, 0f), new Vector2(1f, 1f),
+            new Vector2(8f, 4f), new Vector2(-16f, -24f),
+            new Vector2(0f, 0f));
+    }
+
+    private void HandleTrapTriggeredLog(GameplayEventBus.TrapTriggeredPayload payload)
+    {
+        if (payload == null) return;
+
+        float gameTime = GameManager.Instance != null ? GameManager.Instance.GameTimer : Time.time;
+        string sourceName = payload.source != null ? payload.source.name : "Unknown";
+        string targetName = payload.target != null ? payload.target.name : "Unknown";
+
+        // 尝试获取 ControllablePropBase 的阶段信息
+        string phase = "N/A";
+        if (payload.source != null)
+        {
+            ControllablePropBase prop = payload.source.GetComponent<ControllablePropBase>();
+            if (prop != null)
+            {
+                phase = prop.GetControlState().ToString();
+            }
+            else
+            {
+                // 对于非 ControllableProp 的 hazard，标记为 Active
+                BaseHazard hazard = payload.source.GetComponent<BaseHazard>();
+                if (hazard != null) phase = "Active";
+            }
+        }
+
+        string result = !string.IsNullOrEmpty(payload.reason) ? payload.reason : "Hit";
+        string entry = $"[{gameTime:F1}s] Source={sourceName} Target={targetName} Phase={phase} Result={result}";
+
+        interactionLogEntries.Add(entry);
+        while (interactionLogEntries.Count > MaxLogEntries)
+        {
+            interactionLogEntries.RemoveAt(0);
+        }
+
+        RefreshInteractionLogText();
+        Debug.Log($"[InteractionLog] {entry}");
+    }
+
+    private void RefreshInteractionLogText()
+    {
+        if (interactionLogText == null) return;
+        interactionLogText.text = string.Join("\n", interactionLogEntries);
+    }
+#endif
 }

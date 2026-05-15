@@ -142,6 +142,33 @@ public partial class TestConsoleWindow
             (val) => SetInputDebug(val),
             new Color(0.8f, 0.8f, 0.3f));
 
+        EditorGUILayout.Space(4);
+
+        // ── Gameplay Box 可视化 ──
+        EditorGUILayout.LabelField("Gameplay Visualization", EditorStyles.boldLabel);
+
+        DrawDebugToggle(
+            "Show Gameplay Boxes (语义盒可视化)",
+            "Scene 视图中绘制 Solid/HurtBox/HitBox/ScanRange 语义线框",
+            GameplayBoxVisualizer.ShowGameplayBoxes,
+            (val) => {
+                GameplayBoxVisualizer.ShowGameplayBoxes = val;
+                SceneView.RepaintAll();
+                Debug.Log($"[TestConsole] Show Gameplay Boxes: {(val ? "ON" : "OFF")}");
+            },
+            new Color(0.4f, 0.9f, 0.8f));
+
+        DrawDebugToggle(
+            "Show Trap Phase (机关阶段标签)",
+            "在 ControllableProp 上方显示当前阶段 (Idle/Telegraph/Active/Recovery...)",
+            GameplayBoxVisualizer.ShowTrapPhase,
+            (val) => {
+                GameplayBoxVisualizer.ShowTrapPhase = val;
+                SceneView.RepaintAll();
+                Debug.Log($"[TestConsole] Show Trap Phase: {(val ? "ON" : "OFF")}");
+            },
+            new Color(0.4f, 0.9f, 0.8f));
+
         EditorGUILayout.EndVertical();
 
         // ── 一键全开 / 全关 ──
@@ -154,6 +181,9 @@ public partial class TestConsoleWindow
             SetNoCooldown(true);
             SetInfiniteEnergy(true);
             SetInstantBlend(true);
+            GameplayBoxVisualizer.ShowGameplayBoxes = true;
+            GameplayBoxVisualizer.ShowTrapPhase = true;
+            SceneView.RepaintAll();
         }
         GUI.color = Color.white;
         if (GUILayout.Button("Disable All Cheats", GUILayout.Height(28)))
@@ -164,6 +194,9 @@ public partial class TestConsoleWindow
             SetInstantBlend(false);
             timeScaleValue = 1f;
             Time.timeScale = 1f;
+            GameplayBoxVisualizer.ShowGameplayBoxes = false;
+            GameplayBoxVisualizer.ShowTrapPhase = false;
+            SceneView.RepaintAll();
         }
         EditorGUILayout.EndHorizontal();
 
@@ -525,5 +558,21 @@ public partial class TestConsoleWindow
         cachedTricksterHealth = null;
         cachedEnergy = null;
         cachedDisguise = null;
+    }
+
+    /// <summary>统计当前激活的调试开关数量（用于标题栏计数器）</summary>
+    private int CountActiveDebugFlags()
+    {
+        int count = 0;
+        if (GetGodMode()) count++;
+        if (GetNoCooldown()) count++;
+        if (GetInfiniteEnergy()) count++;
+        if (GetInstantBlend()) count++;
+        if (GetInputDebug()) count++;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (GameplayBoxVisualizer.ShowGameplayBoxes) count++;
+        if (GameplayBoxVisualizer.ShowTrapPhase) count++;
+#endif
+        return count;
     }
 }

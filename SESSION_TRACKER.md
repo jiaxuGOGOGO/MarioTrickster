@@ -91,16 +91,23 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 143（TestConsoleWindow 模块化解耦 + GlobalGameUICanvas UGUI HUD） |
+| **最新 Session** | Session 144（暗线网络 Underline、五段生命周期验证 + 短桥读心房原型 Snippet + Gameplay Boxes 可视化工具 + Interaction Log） |
 | **日期** | 2026-05-15 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — `Ctrl+T` Level Studio 已按 Tab 拆分为 partial 文件，冗长可玩环境构建已外移至 `PlayableEnvironmentBuilder`，运行时灰盒 HUD 已迁移到 `GlobalGameUICanvas` UGUI 体系并监听 `GameplayEventBus`。 |
-| **编译状态** | ✅ 本次改动文件通过 `syntax_check.py` 静态检查与 `git diff --check`；旧 HUD/GameUI 已无 IMGUI 绘制 API 残留；沙盒无 Unity CLI，EditMode/PlayMode 需用户本地 Unity 重跑确认。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — 新增 `S2_Duel_TrapBridge_01` 短桥读心房原型验证暗线换位与五段生命周期；Cheats Tab 新增 Gameplay Boxes 可视化开关 + Scene 语义线框绘制；`GlobalGameUICanvas` 新增 Interaction Log 左下角交互日志。 |
+| **编译状态** | ✅ 本次改动文件通过 `git diff --check`；新增代码全部包裹 `#if UNITY_EDITOR || DEVELOPMENT_BUILD` 宏；沙盒无 Unity CLI，EditMode/PlayMode 需用户本地 Unity 重跑确认。 |
 | **阻塞** | 无 |
-| **交接说明** | S143 已将 `TestConsoleWindow.cs` 主文件瘦身为入口与 Tab 路由，新增 `PlayableEnvironmentBuilder` 负责 `EnsurePlayableEnvironment`，并通过 `GlobalGameUICanvasPrefabBuilder` 在生成可玩环境/测试场景时优先实例化 `Assets/Prefabs/UI/GlobalGameUICanvas.prefab`。下一步请在 Unity 中打开 `Ctrl+T` 验证各 Tab 功能，并运行 135 个测试做最终编辑器回归。 |
+| **交接说明** | S144 新增三项功能：(1) `LevelSnippetLibrary` 新增 `S2_Duel_TrapBridge_01` 短桥读心房 Snippet，含 5 个可附身热点和 4 条暗线连接注释；(2) `GameplayBoxVisualizer.cs` Scene 视图语义线框工具 + Cheats Tab 两个可视化 Toggle；(3) `GlobalGameUICanvas` 左下角 Interaction Log 监听 `OnTrapTriggered` 打印判定日志。下一步请在 Unity 中生成短桥读心房并在 Inspector 连接 UnderlineLinks，验证五段生命周期切换。 |
 
 
-### [S143] 最新知识沉淀
+### [S144] 最新知识沉淀
+1. **短桥读心房原型已入库**：`LevelSnippetLibrary` 新增第 9 个 Snippet `S2_Duel_TrapBridge_01`，双路线三节点设计（上层短桥 + 中间单向平台过渡 + 下层管道绕行），5 个可附身热点（B×2 + X×3），所有间隙 ≤ 4 格、垂直层差 = 2 格。description 字段内嵌 UnderlineLinks 注释指引策划在 Inspector 中连接 `connectedUnderlineNodes`。
+2. **Gameplay Boxes 可视化工具已落地**：新建 `GameplayBoxVisualizer.cs`，在 Scene 视图中绘制四色语义线框（白=Solid/Rigidbody2D、蓝=PlayerHealth HurtBox、红=DamageDealer/BaseHazard HitBox、青=ScanAbility 范围）；开启 Show Trap Phase 后在 `ControllablePropBase` 上方显示当前阶段文字标签。
+3. **Interaction Log 已集成到 UGUI**：`GlobalGameUICanvas` 左下角新增极简文本滚动区，监听 `GameplayEventBus.OnTrapTriggered`，保留最近 5 条规范日志（格式：`[12.4s] Source=X Target=Y Phase=Z Result=W`），同时输出到 Console。
+4. **所有新增代码包裹在 `#if UNITY_EDITOR || DEVELOPMENT_BUILD` 宏下**，正式包零残留；UI 修改完全遵循 UGUI 体系，未引入 IMGUI。
+5. **Cheats Tab 联动**：Show Gameplay Boxes / Show Trap Phase 两个 Toggle 已接入一键全开/全关和 `CountActiveDebugFlags` 计数器。
+
+### [S143] 知识沉淀
 1. **TestConsoleWindow 已按 Tab 拆分为 partial class**：主文件 `Assets/Scripts/Editor/TestConsoleWindow.cs` 保留菜单入口 `MarioTrickster/Level Studio %t`、窗口状态和 `OnGUI` 路由；Level Builder、Art Theme、Teleport、Cheats、Game Loop Tuning 分别迁移到独立 partial 文件，`Ctrl+T` 的五个页签调用链保持不变。
 2. **可玩环境构建已外移到静态工具类**：`EnsurePlayableEnvironment` 及其 Managers、Camera、Bounds、KillZone、UI 创建辅助逻辑已移入 `Assets/Scripts/Editor/PlayableEnvironmentBuilder.cs`；`TestConsoleWindow.LevelBuilder` 与 Cheats 自动修复入口只调用 `PlayableEnvironmentBuilder.EnsurePlayableEnvironment(root)`。
 3. **运行时灰盒 HUD 已迁移到 UGUI Canvas**：新增 `Assets/Scripts/UI/GlobalGameUICanvas.cs`，集中显示基础 GameUI、Trickster Heat、Scan Wave、Prop Combo 与 Route Budget；它订阅 `GameplayEventBus` 的热度、危机、残留、揭穿事件，同时对尚未事件化的 Health/GameManager/Combo/Route 服务做只读订阅或快照同步。

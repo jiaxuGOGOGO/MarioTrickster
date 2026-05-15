@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 
 /// <summary>
-/// 关卡片段库 — 8 个经典 2D 平台跳跃局部片段 (S56: 新增 3 个展示新元素的片段)
+/// 关卡片段库 — 9 个经典 2D 平台跳跃局部片段 (S56: 新增 3 个展示新元素的片段; S144: 新增短桥读心房原型)
 /// 
 /// 核心设计:
 ///   - 每个片段是一个小型 ASCII 模板，可直接生成到场景
@@ -48,7 +48,7 @@ public static class LevelSnippetLibrary
     }
 
     // ═══════════════════════════════════════════════════
-    // 片段库（8 个核心片段）
+    // 片段库（9 个核心片段）
     // ═══════════════════════════════════════════════════
 
     private static List<Snippet> snippets;
@@ -179,7 +179,39 @@ public static class LevelSnippetLibrary
             "##############################"
         ));
 
-        // ── 8. 终点冲刺 ──
+        // ── 8. 短桥读心房 (S144 新增) ──
+        // 双路线三节点原型：上层短桥（快但危险，地刺密布）、中间单向平台过渡、
+        // 下层管道绕行（安全但耗时）。5 个可附身热点供 Trickster 暗线换位。
+        // 验证目标：暗线网络 (connectedUnderlineNodes) + 五段生命周期
+        //          (Idle → Telegraph → Active → Recovery → Cooldown → Exhausted)
+        //
+        // # UnderlineLinks (生成后需在 Inspector 中连入 connectedUnderlineNodes):
+        // #   BridgeBlockL (X@row2,col3) <-> BridgeBounce (B@row2,col9)
+        // #   BridgeBounce (B@row2,col9) <-> BridgeBlockR (X@row2,col15)
+        // #   BridgeBlockL (X@row2,col3) <-> LowerBounce  (B@row6,col4)  [跨层暗线]
+        // #   LowerBounce  (B@row6,col4) <-> LowerBlock   (X@row6,col11)
+        //
+        // 物理校验：上层桥连续无间隙；中间层间隙 2 格；下层最大间隙 3 格；
+        //          垂直层间距均为 2 格（row2→row4, row4→row6, row6→row8）。
+        snippets.Add(new Snippet(
+            "S2_Duel_TrapBridge_01 (短桥读心房)",
+            "双路线三节点原型。上层短桥(快但危险)=连续平台+地刺+弹跳+可破坏方块；" +
+            "下层管道绕行(安全但耗时)。5 个可附身热点(B×2 + X×3)供 Trickster 暗线换位。" +
+            "生成后请在 Inspector 连接 UnderlineLinks: " +
+            "BridgeBlockL<->BridgeBounce, BridgeBounce<->BridgeBlockR, " +
+            "BridgeBlockL<->LowerBounce(跨层), LowerBounce<->LowerBlock。",
+            "..............................\n" +
+            ".o..o.o.o.o.o.o..o............\n" +
+            ".==X==^^=B=^^==X==............\n" +
+            "..............................\n" +
+            "..---..---..---...........o...\n" +
+            "..............................\n" +
+            ".##.B.####.X.##...####.##.....\n" +
+            "..............................\n" +
+            "##############################"
+        ));
+
+        // ── 9. 终点冲刺 ──
         // 崩塌平台 + 移动平台 + 终点旗帜，紧张的最后冲刺
         snippets.Add(new Snippet(
             "Final Sprint (终点冲刺)",

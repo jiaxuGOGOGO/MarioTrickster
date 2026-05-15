@@ -91,14 +91,21 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 142（GameplayLoopConfigSO 对抗节奏唯一真理源） |
+| **最新 Session** | Session 143（TestConsoleWindow 模块化解耦 + GlobalGameUICanvas UGUI HUD） |
 | **日期** | 2026-05-15 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — 已将 Gameplay Loop 的能量、扫描、门禁、危机、路线预算、热度、连锁与干预补偿参数集中到 `GameplayLoopConfigSO`，通过 `GameplayMetrics` Facade 实时读取，并在 Level Studio 新增 `Game Loop Tuning` 页供策划 PlayMode 滑块调参。 |
-| **编译状态** | ✅ `git diff --check`、`Tools/static_art_pipeline_check.py` 与 Gameplay Loop 重构完整性静态检查通过；沙盒无 Unity CLI，EditMode/PlayMode 需用户本地 Unity 重跑确认。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — `Ctrl+T` Level Studio 已按 Tab 拆分为 partial 文件，冗长可玩环境构建已外移至 `PlayableEnvironmentBuilder`，运行时灰盒 HUD 已迁移到 `GlobalGameUICanvas` UGUI 体系并监听 `GameplayEventBus`。 |
+| **编译状态** | ✅ 本次改动文件通过 `syntax_check.py` 静态检查与 `git diff --check`；旧 HUD/GameUI 已无 IMGUI 绘制 API 残留；沙盒无 Unity CLI，EditMode/PlayMode 需用户本地 Unity 重跑确认。 |
 | **阻塞** | 无 |
-| **交接说明** | S142 已新增 `Assets/Resources/GameplayLoopConfig.asset`、`GameplayLoopConfigSO.cs` 与 `GameplayMetrics.cs`，并改造 Energy/Scan/Gate/Alarm/Route/Heat/Combo/Compensation 八个系统优先读取 Facade；Level Studio 现在有 `Game Loop Tuning` Tab，下一步请用户在 Unity 中重跑 135 个测试并实机拖动滑块验证整体玩法循环节奏。 |
+| **交接说明** | S143 已将 `TestConsoleWindow.cs` 主文件瘦身为入口与 Tab 路由，新增 `PlayableEnvironmentBuilder` 负责 `EnsurePlayableEnvironment`，并通过 `GlobalGameUICanvasPrefabBuilder` 在生成可玩环境/测试场景时优先实例化 `Assets/Prefabs/UI/GlobalGameUICanvas.prefab`。下一步请在 Unity 中打开 `Ctrl+T` 验证各 Tab 功能，并运行 135 个测试做最终编辑器回归。 |
 
+
+### [S143] 最新知识沉淀
+1. **TestConsoleWindow 已按 Tab 拆分为 partial class**：主文件 `Assets/Scripts/Editor/TestConsoleWindow.cs` 保留菜单入口 `MarioTrickster/Level Studio %t`、窗口状态和 `OnGUI` 路由；Level Builder、Art Theme、Teleport、Cheats、Game Loop Tuning 分别迁移到独立 partial 文件，`Ctrl+T` 的五个页签调用链保持不变。
+2. **可玩环境构建已外移到静态工具类**：`EnsurePlayableEnvironment` 及其 Managers、Camera、Bounds、KillZone、UI 创建辅助逻辑已移入 `Assets/Scripts/Editor/PlayableEnvironmentBuilder.cs`；`TestConsoleWindow.LevelBuilder` 与 Cheats 自动修复入口只调用 `PlayableEnvironmentBuilder.EnsurePlayableEnvironment(root)`。
+3. **运行时灰盒 HUD 已迁移到 UGUI Canvas**：新增 `Assets/Scripts/UI/GlobalGameUICanvas.cs`，集中显示基础 GameUI、Trickster Heat、Scan Wave、Prop Combo 与 Route Budget；它订阅 `GameplayEventBus` 的热度、危机、残留、揭穿事件，同时对尚未事件化的 Health/GameManager/Combo/Route 服务做只读订阅或快照同步。
+4. **Prefab 体系由编辑器保障工具创建**：新增 `GlobalGameUICanvasPrefabBuilder`，可在 `Assets/Prefabs/UI/GlobalGameUICanvas.prefab` 缺失时即时创建标准 Canvas Prefab；`PlayableEnvironmentBuilder` 与 `TestSceneBuilder` 生成场景时不再自动创建旧 `GameUI`/`TricksterHeatHUD`/`ScanWaveHUD`/`PropComboHUD`/`RouteBudgetHUD` 灰盒显示对象，而是实例化 `GlobalGameUICanvas`。
+5. **验证状态**：沙盒无 Unity Editor/Unity CLI，无法执行真实 Test Runner；已执行 `syntax_check.py`（本次改动文件均 ✅，失败项仍为历史 `AI_SmartSlicerWindow.cs`、`AssetApplyToSelected.cs`）、`git diff --check`、旧 HUD IMGUI 残留 grep 与 Ctrl+T 路由静态核对。
 
 ### [S142] 最新知识沉淀
 
@@ -397,8 +404,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 2：Trickster 移动 | **S125重点验证**: 对 Trickster 应用整组动作文件夹后，方向键左右移动和跳跃仍正常；若从 Visual 子节点执行 Apply Art，也必须自动回到 Trickster Root 并保持 InputManager 引用正确 |
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |
 | ✅ | 测试 4：伪装系统 | P 伪装/解除，O/I 切换 |
-| 🔄 | 测试 5：道具操控 | **S142重点验证**: 在 `Build Gameplay Loop Test Scene` 中验证 L 触发仍能推进路线预算/连锁热度；同时在 `Game Loop Tuning` 调整能量消耗、连锁窗口、热度倍率后 PlayMode 立即生效 |
-| 🔄 | 测试 6：扫描技能 | **S142重点验证**: Q 扫描命中仍必须真实解除伪装/附身；扫描半径、冷却、视觉暴露时间、额外门禁时间、扫描波预告/速度/冷却均可在 `Game Loop Tuning` 实时调整 |
+| 🔄 | 测试 5：道具操控 | **S143重点验证**: 在 `Build Gameplay Loop Test Scene` / `Ctrl+T` 生成可玩环境后，L 触发仍能推进路线预算/连锁热度，且连锁、预算、热度显示由 `GlobalGameUICanvas` 更新；同时保留 S142 的 `Game Loop Tuning` PlayMode 实时调参验证 |
+| 🔄 | 测试 6：扫描技能 | **S143重点验证**: Q 扫描命中仍必须真实解除伪装/附身；扫描波预告、命中、揭穿与危机提示应由 `GlobalGameUICanvas` 通过 `GameplayEventBus`/运行时服务同步显示；同时保留 S142 的扫描参数实时调参验证 |
 | 🔄 | 测试 6.5：镜头 | **S141重点验证**: 走完整体玩法循环测试关卡时，Mario/Trickster、拿宝撤离、扫描危机和终点段镜头始终跟随，不丢目标 |
 | 🔄 | 测试 7：胜负判定 | **S141重点验证**: 整体关卡中拿宝后进入 EscapeGate 可通关；末端 GoalZone 仍可作为最终胜利确认；掉出屏幕后应触发死亡且不刷多条日志 |
 | ✅ | 测试 8：暂停 | ESC 暂停/恢复 |
@@ -411,10 +418,10 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
-| 🔄 | 场景生成 | **S56重点验证**: ASCII Build 新字符(@f<SX)能正确生成对应元素，旧字符行为不变 |
+| 🔄 | 场景生成 | **S143重点验证**: `Ctrl+T` Level Builder、Cheats 自动修复与 `Build Gameplay Loop Test Scene` 生成后应自动存在单个 `GlobalGameUICanvas`，不再生成旧 IMGUI 灰盒 HUD；同时保留 S56 ASCII 新字符行为验证 |
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| 🔄 | EditMode 自动化 | **S142重点验证**: 109 个 EditMode 需本地 Unity 重跑，重点确认 `GameplayMetrics` 在存在/缺失 `GameplayLoopConfig` 时均安全回退，且新增 SO/Facade/Level Studio 页不引入编译红错 |
-| 🔄 | PlayMode 自动化 | **S142重点验证**: 26/26 需本地 Unity 重跑；重点确认 PlayMode 下拖动 `Game Loop Tuning` 滑块后 Energy/Scan/Gate/Alarm/Route/Heat/Combo/Compensation 参数实时生效且默认值不改变既有 TAS 行为 |
+| 🔄 | EditMode 自动化 | **S143重点验证**: 109 个 EditMode 需本地 Unity 重跑，重点确认 `TestConsoleWindow` partial 拆分、`PlayableEnvironmentBuilder`、`GlobalGameUICanvasPrefabBuilder` 与 UGUI 脚本不引入编译红错；同时保留 S142 `GameplayMetrics` 安全回退验证 |
+| 🔄 | PlayMode 自动化 | **S143重点验证**: 26/26 需本地 Unity 重跑；重点确认 `GlobalGameUICanvas` 在 PlayMode 中显示 Health/Timer/Heat/Scan/Combo/Route 状态并响应 `GameplayEventBus`，且不改变既有 TAS 行为；同时保留 S142 Game Loop Tuning 实时生效验证 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
 ---
@@ -465,6 +472,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **高** | **素材应用到已有物体 + 展位行为自动配置 + SEF 效果修复**：(1) Apply Art to Selected 窗口（Ctrl+Shift+A）；(2) ExplosiveHazard 爆炸型陷阱组件；(3) 行为模板自动推断与挂载；(4) SEF Quick Apply 编辑器可见性修复。 | ✅ 已完成（S107） |
 | **最高** | **恢复关卡白盒主线**：直接重新启用 `Level Studio / Custom Template Editor / Build From Text`，基于现有 ASCII 模板库与片段库继续拼装、测试并迭代 1~2 个完整关卡段；美术换肤只服务于已验证白盒，不再反向阻塞关卡设计。**S94 已固定执行原则**：A 轨（关卡白盒）永远是唯一上游任务源。**S95 已固定默认入口**：若当前要推项目总主线，应直接从“先继续白盒关卡，不等最终美术”这类窄入口启动。 | 🚀 已形成桥接结论，当前可立即恢复执行 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
+| **高** | **TestConsoleWindow 解耦与 HUD UGUI 迁移验收**：S143 已完成代码重构和静态验证；需用户本地 Unity 打开 `Ctrl+T` 逐页确认 Level Builder / Art Theme / Teleport / Cheats / Game Loop Tuning 功能一致，并运行 `MarioTrickster/Run Tests/Export Full Report (All)` 做最终回归。 | 🔄 待用户 Unity 实机验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |
 | **按需** | 参数调优：物理手感继续用 `PhysicsConfigSO`；对抗节奏统一用 `GameplayLoopConfigSO` / Level Studio `Game Loop Tuning` 页，若调参触发报错则由 AI 微创修复。 | 待触发 |
 | 远期 | 音效系统 / 动画完善 / 主菜单 UI | 未开始 |
@@ -1326,3 +1334,21 @@ Ran static grep for remaining `stateFrames` + `SpriteStateAnimator.MotionState` 
 ### 后续防坑规则
 
 今后新增视觉、音效、震动或 SEF 表现时，禁止写回机关、热度、危机、残留等核心逻辑脚本。应优先扩展 `GameplayEventBus` 的 payload 和 `VisualFeedbackBridge` 的监听处理；核心逻辑只负责发送事件，不负责决定表现细节。
+
+---
+## 2026-05-15 — TestConsoleWindow 模块化解耦与 GlobalGameUICanvas UGUI HUD 迁移
+### 本次目标
+将 1400 行级别的 `TestConsoleWindow.cs` 从“窗口、Tab、关卡环境生成、HUD 创建”混合脚本拆成可维护结构，并把 GameUI、TricksterHeatHUD、ScanWaveHUD、PropComboHUD、RouteBudgetHUD 等旧 OnGUI 灰盒显示迁移到标准 UGUI Canvas 体系。
+### 已完成修改
+1. `TestConsoleWindow.cs` 主文件瘦身为菜单入口、窗口状态、Tab 数组与路由；功能代码拆入 `TestConsoleWindow.LevelBuilder.cs`、`TestConsoleWindow.ArtTheme.cs`、`TestConsoleWindow.Teleport.cs`、`TestConsoleWindow.Cheats.cs`、`TestConsoleWindow.GameLoopTuning.cs`。
+2. 新增 `PlayableEnvironmentBuilder.cs`，集中承接 `EnsurePlayableEnvironment`、Managers/Camera/Bounds/KillZone/UI 自动构建逻辑；`TestConsoleWindow` 不再直接持有冗长环境搭建实现。
+3. 新增 `GlobalGameUICanvas.cs`，运行时自动构建 UGUI Canvas 层级并显示基础信息、热度、扫描波、连锁与路线预算；Canvas 监听 `GameplayEventBus`，同时订阅必要的运行时服务事件以保持旧 HUD 信息完整。
+4. 新增 `GlobalGameUICanvasPrefabBuilder.cs`，在标准 Prefab 资产缺失时自动创建 `Assets/Prefabs/UI/GlobalGameUICanvas.prefab`；`PlayableEnvironmentBuilder` 与 `TestSceneBuilder` 统一改为实例化该 Canvas，不再自动创建旧 OnGUI HUD 对象。
+5. `GameUI` 改为旧 Canvas 兼容与按钮回调脚本；`TricksterHeatHUD`、`ScanWaveHUD`、`PropComboHUD`、`RouteBudgetHUD` 简化为状态桥接/兼容组件，已移除 IMGUI 绘制入口和样式缓存。
+### 已执行验证
+- `python3.11 syntax_check.py`：本次新增/修改文件均通过；仓库仍有历史失败项 `Assets/Scripts/Editor/AI_SmartSlicerWindow.cs` 与 `Assets/Scripts/Editor/AssetApplyToSelected.cs`，非本次改动引入。
+- `git diff --check`：通过，无空白或补丁格式问题。
+- 旧 HUD IMGUI 残留检查：`GameUI`、`TricksterHeatHUD`、`ScanWaveHUD`、`PropComboHUD`、`RouteBudgetHUD` 中无 `OnGUI` / `GUIStyle` / `GUI.` / `GUILayout` / `DrawTexture` 残留。
+- Ctrl+T 静态核对：`MenuItem("MarioTrickster/Level Studio %t")`、`ShowWindow()` 与五个 Tab 路由仍保留；Level Builder 和 Cheats 均已改调 `PlayableEnvironmentBuilder.EnsurePlayableEnvironment(...)`。
+### 后续防坑规则
+沙盒无 Unity Editor / Unity CLI，无法在本环境执行真实 Unity Test Runner。后续接手者应优先在 Unity 中打开 `Ctrl+T` 逐页点击验证，并运行 `MarioTrickster/Run Tests/Export Full Report (All)`；若出现 Canvas Prefab 缺失，不要回退旧 OnGUI HUD，应检查 `GlobalGameUICanvasPrefabBuilder.EnsurePrefabAsset()` 是否能创建标准资产。

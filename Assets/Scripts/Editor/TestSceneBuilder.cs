@@ -182,21 +182,17 @@ public class TestSceneBuilder : Editor
         managers.AddComponent<InterferenceCompensationPolicy>();
         managers.AddComponent<RepeatInterferenceStack>();
         managers.AddComponent<CounterRevealReward>();
-        managers.AddComponent<RouteBudgetHUD>();
 
-        // Commit 3: 连锁追踪 + HUD
+        // Commit 3: 连锁追踪（HUD 由 GlobalGameUICanvas 承担）
         managers.AddComponent<PropComboTracker>();
-        managers.AddComponent<PropComboHUD>();
 
-        // Commit 4: 热度计 + 破绽提示 + HUD + 桥接
+        // Commit 4: 热度计 + 破绽提示 + 桥接（HUD 由 GlobalGameUICanvas 承担）
         managers.AddComponent<TricksterHeatMeter>();
         managers.AddComponent<HeatBreachHint>();
-        managers.AddComponent<TricksterHeatHUD>();
         managers.AddComponent<HeatSuspicionBridge>();
 
-        // Commit 6: 扫描波危机导演 + HUD
+        // Commit 6: 扫描波危机导演（HUD 由 GlobalGameUICanvas 承担）
         managers.AddComponent<AlarmCrisisDirector>();
-        managers.AddComponent<ScanWaveHUD>();
 
         GameManager gameManager = managers.AddComponent<GameManager>();
         InputManager inputManager = managers.AddComponent<InputManager>();
@@ -250,14 +246,7 @@ public class TestSceneBuilder : Editor
             mainCam.orthographicSize = 7;
         }
 
-        // GameUI
-        GameUI[] existingGameUIs = FindObjectsOfType<GameUI>();
-        foreach (GameUI existingUI in existingGameUIs)
-            DestroyImmediate(existingUI.gameObject);
-
-        GameObject uiObject = new GameObject("GameUI");
-        uiObject.transform.parent = managers.transform;
-        uiObject.AddComponent<GameUI>();
+        CreateGlobalGameUICanvas(managers.transform);
 
         // ═══════════════════════════════════════════════════════════
         // ██ STAGE 1: Mario 基础移动与跳跃 (测试 1)
@@ -934,15 +923,11 @@ public class TestSceneBuilder : Editor
         managers.AddComponent<InterferenceCompensationPolicy>();
         managers.AddComponent<RepeatInterferenceStack>();
         managers.AddComponent<CounterRevealReward>();
-        managers.AddComponent<RouteBudgetHUD>();
         managers.AddComponent<PropComboTracker>();
-        managers.AddComponent<PropComboHUD>();
         managers.AddComponent<TricksterHeatMeter>();
         managers.AddComponent<HeatBreachHint>();
-        managers.AddComponent<TricksterHeatHUD>();
         managers.AddComponent<HeatSuspicionBridge>();
         managers.AddComponent<AlarmCrisisDirector>();
-        managers.AddComponent<ScanWaveHUD>();
         managers.AddComponent<LootEscapeHUD>();
         GameManager gameManager = managers.AddComponent<GameManager>();
         InputManager inputManager = managers.AddComponent<InputManager>();
@@ -986,12 +971,7 @@ public class TestSceneBuilder : Editor
             mainCam.orthographicSize = 7;
         }
 
-        GameUI[] existingGameUIs = FindObjectsOfType<GameUI>();
-        foreach (GameUI existingUI in existingGameUIs)
-            DestroyImmediate(existingUI.gameObject);
-        GameObject uiObject = new GameObject("GameUI");
-        uiObject.transform.parent = managers.transform;
-        uiObject.AddComponent<GameUI>();
+        CreateGlobalGameUICanvas(managers.transform);
 
         CreateStageSign(8f, "Gameplay Loop Test Lane", "按设计循环从左到右跑：观察路线 → Trickster 伪装附身 → 连锁干预升热 → 拢宝撤离 → Mario Q 揭穿 → 终点。\n推荐先用 F9 开无冷却做灰盒验证，再关闭 F9 测真实节奏。", root, 18);
 
@@ -1435,6 +1415,23 @@ public class TestSceneBuilder : Editor
 
         Debug.LogError("[TestSceneBuilder] 无法创建 Layer：所有自定义 Layer 槽位已满！");
         return 0;
+    }
+
+    private static void CreateGlobalGameUICanvas(Transform parent)
+    {
+        GlobalGameUICanvas[] existingCanvases = FindObjectsOfType<GlobalGameUICanvas>();
+        foreach (GlobalGameUICanvas existingCanvas in existingCanvases)
+            DestroyImmediate(existingCanvas.gameObject);
+
+        GameObject prefab = GlobalGameUICanvasPrefabBuilder.EnsurePrefabAsset();
+        GameObject uiObject = prefab != null
+            ? (GameObject)PrefabUtility.InstantiatePrefab(prefab)
+            : new GameObject("GlobalGameUICanvas");
+
+        if (uiObject.GetComponent<GlobalGameUICanvas>() == null)
+            uiObject.AddComponent<GlobalGameUICanvas>();
+
+        uiObject.transform.parent = parent;
     }
 
     private static void SetSerializedField(Object target, string fieldName, object value)

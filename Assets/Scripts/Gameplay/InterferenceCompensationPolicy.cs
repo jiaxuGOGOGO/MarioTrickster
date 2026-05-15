@@ -40,6 +40,12 @@ public class InterferenceCompensationPolicy : MonoBehaviour
     [Tooltip("是否输出调试日志")]
     [SerializeField] private bool showDebugInfo = false;
 
+    private float RouteDegradeResidueBonusValue => GameplayMetrics.CompensationRouteDegradeResidueBonus(routeDegradeResidueBonus);
+    private int RouteDegradeEvidenceBonusValue => GameplayMetrics.CompensationRouteDegradeEvidenceBonus(routeDegradeEvidenceBonus);
+    private float PropActivateSuspicionBonusValue => GameplayMetrics.CompensationPropActivateSuspicionBonus(propActivateSuspicionBonus);
+    private float ProgressBoostDurationValue => GameplayMetrics.CompensationProgressBoostDuration(progressBoostDuration);
+    private float ProgressBoostMultiplierValue => GameplayMetrics.CompensationProgressBoostMultiplier(progressBoostMultiplier);
+
     // ── 引用 ──
     private RouteBudgetService routeBudget;
     private MarioSuspicionTracker suspicionTracker;
@@ -59,7 +65,7 @@ public class InterferenceCompensationPolicy : MonoBehaviour
     // ── 公共属性 ──
     public bool IsProgressBoosted => progressBoostTimer > 0f;
     public float ProgressBoostRemaining => progressBoostTimer;
-    public float CurrentProgressMultiplier => IsProgressBoosted ? progressBoostMultiplier : 1f;
+    public float CurrentProgressMultiplier => IsProgressBoosted ? ProgressBoostMultiplierValue : 1f;
 
     // ─────────────────────────────────────────────────────
     #region 生命周期
@@ -137,8 +143,8 @@ public class InterferenceCompensationPolicy : MonoBehaviour
         if (sourceAnchor != null)
         {
             AnchorSuspicionData data = suspicionTracker.GetOrCreateData(sourceAnchor);
-            data.SetResidue(Mathf.Max(data.Residue, routeDegradeResidueBonus));
-            data.AddEvidence(routeDegradeEvidenceBonus);
+            data.SetResidue(Mathf.Max(data.Residue, RouteDegradeResidueBonusValue));
+            data.AddEvidence(RouteDegradeEvidenceBonusValue);
 
             if (showDebugInfo)
             {
@@ -151,7 +157,7 @@ public class InterferenceCompensationPolicy : MonoBehaviour
         // 给 Mario 短期推进加速
         GrantProgressBoost("RouteDegraded");
 
-        OnCompensationGranted?.Invoke("RouteDegraded", routeDegradeResidueBonus);
+        OnCompensationGranted?.Invoke("RouteDegraded", RouteDegradeResidueBonusValue);
     }
 
     private void HandlePropActivated(IControllableProp prop)
@@ -166,15 +172,15 @@ public class InterferenceCompensationPolicy : MonoBehaviour
 
         // 机关出手 → 给 Mario 少量额外可疑度补偿（叠加到 Tracker 自身的量上）
         AnchorSuspicionData data = suspicionTracker.GetOrCreateData(anchor);
-        data.AddSuspicion(propActivateSuspicionBonus);
+        data.AddSuspicion(PropActivateSuspicionBonusValue);
 
         if (showDebugInfo)
         {
             Debug.Log($"[CompensationPolicy] Prop activated at {anchor.AnchorId} → " +
-                      $"Extra suspicion +{propActivateSuspicionBonus}, total={data.Suspicion:F0}");
+                      $"Extra suspicion +{PropActivateSuspicionBonusValue}, total={data.Suspicion:F0}");
         }
 
-        OnCompensationGranted?.Invoke("PropActivated", propActivateSuspicionBonus);
+        OnCompensationGranted?.Invoke("PropActivated", PropActivateSuspicionBonusValue);
     }
 
     private void HandleRoundStart()
@@ -189,13 +195,13 @@ public class InterferenceCompensationPolicy : MonoBehaviour
 
     private void GrantProgressBoost(string reason)
     {
-        progressBoostTimer = progressBoostDuration;
-        OnProgressBoostStart?.Invoke(progressBoostDuration);
+        progressBoostTimer = ProgressBoostDurationValue;
+        OnProgressBoostStart?.Invoke(ProgressBoostDurationValue);
 
         if (showDebugInfo)
         {
             Debug.Log($"[CompensationPolicy] Progress boost granted ({reason}): " +
-                      $"{progressBoostMultiplier}x for {progressBoostDuration}s");
+                      $"{ProgressBoostMultiplierValue}x for {ProgressBoostDurationValue}s");
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 /// <summary>
 /// Trickster 能量系统
@@ -67,13 +67,25 @@ public class EnergySystem : MonoBehaviour
     [System.NonSerialized] public bool DebugInfiniteEnergy = false;
 #endif
 
+    // GameplayLoopConfigSO Facade 读取：SO 存在时实时读取，缺失时回退本组件默认值
+    private float MaxEnergyValue => GameplayMetrics.EnergyMaxEnergy(maxEnergy);
+    private float StartEnergyValue => GameplayMetrics.EnergyStartEnergy(startEnergy);
+    private float DisguiseCostValue => GameplayMetrics.EnergyDisguiseCost(disguiseCost);
+    private float DisguiseDrainPerSecondValue => GameplayMetrics.EnergyDisguiseDrainPerSecond(disguiseDrainPerSecond);
+    private float BlendedDrainMultiplierValue => GameplayMetrics.EnergyBlendedDrainMultiplier(blendedDrainMultiplier);
+    private float ControlCostValue => GameplayMetrics.EnergyControlCost(controlCost);
+    private float RegenPerSecondValue => GameplayMetrics.EnergyRegenPerSecond(regenPerSecond);
+    private float DisguisedRegenMultiplierValue => GameplayMetrics.EnergyDisguisedRegenMultiplier(disguisedRegenMultiplier);
+    private float RegenDelayAfterControlValue => GameplayMetrics.EnergyRegenDelayAfterControl(regenDelayAfterControl);
+    private float LowEnergyThresholdValue => GameplayMetrics.EnergyLowEnergyThreshold(lowEnergyThreshold);
+
     // 公共属性
     public float CurrentEnergy => currentEnergy;
-    public float MaxEnergy => maxEnergy;
-    public float EnergyPercent => maxEnergy > 0 ? currentEnergy / maxEnergy : 0f;
-    public bool IsLowEnergy => EnergyPercent <= lowEnergyThreshold;
-    public bool HasEnoughForDisguise => currentEnergy >= disguiseCost;
-    public bool HasEnoughForControl => currentEnergy >= controlCost;
+    public float MaxEnergy => MaxEnergyValue;
+    public float EnergyPercent => MaxEnergyValue > 0 ? currentEnergy / MaxEnergyValue : 0f;
+    public bool IsLowEnergy => EnergyPercent <= LowEnergyThresholdValue;
+    public bool HasEnoughForDisguise => currentEnergy >= DisguiseCostValue;
+    public bool HasEnoughForControl => currentEnergy >= ControlCostValue;
 
     // 事件
     public System.Action<float, float> OnEnergyChanged;     // (当前, 最大)
@@ -83,20 +95,29 @@ public class EnergySystem : MonoBehaviour
     private void Awake()
     {
         disguiseSystem = GetComponent<DisguiseSystem>();
-        currentEnergy = startEnergy < 0 ? maxEnergy : Mathf.Clamp(startEnergy, 0, maxEnergy);
+        float activeMaxEnergy = MaxEnergyValue;
+        float activeStartEnergy = StartEnergyValue;
+        currentEnergy = activeStartEnergy < 0 ? activeMaxEnergy : Mathf.Clamp(activeStartEnergy, 0, activeMaxEnergy);
     }
 
     private void Update()
     {
         if (disguiseSystem == null) return;
 
+        float activeMaxEnergy = MaxEnergyValue;
+        if (currentEnergy > activeMaxEnergy)
+        {
+            currentEnergy = activeMaxEnergy;
+            OnEnergyChanged?.Invoke(currentEnergy, activeMaxEnergy);
+        }
+
         // 变身期间持续消耗能量
         if (disguiseSystem.IsDisguised)
         {
-            float drain = disguiseDrainPerSecond;
+            float drain = DisguiseDrainPerSecondValue;
             if (disguiseSystem.IsFullyBlended)
             {
-                drain *= blendedDrainMultiplier;
+                drain *= BlendedDrainMultiplierValue;
             }
             ConsumeEnergy(drain * Time.deltaTime, false);
 
@@ -123,8 +144,9 @@ public class EnergySystem : MonoBehaviour
     /// <returns>是否有足够能量</returns>
     public bool TryConsumeDisguiseCost()
     {
-        if (currentEnergy < disguiseCost) return false;
-        ConsumeEnergy(disguiseCost, true);
+        float activeCost = DisguiseCostValue;
+        if (currentEnergy < activeCost) return false;
+        ConsumeEnergy(activeCost, true);
         return true;
     }
 
@@ -134,9 +156,10 @@ public class EnergySystem : MonoBehaviour
     /// <returns>是否有足够能量</returns>
     public bool TryConsumeControlCost()
     {
-        if (currentEnergy < controlCost) return false;
-        ConsumeEnergy(controlCost, true);
-        regenDelayTimer = regenDelayAfterControl;
+        float activeCost = ControlCostValue;
+        if (currentEnergy < activeCost) return false;
+        ConsumeEnergy(activeCost, true);
+        regenDelayTimer = RegenDelayAfterControlValue;
         return true;
     }
 
@@ -149,7 +172,7 @@ public class EnergySystem : MonoBehaviour
         // [AI防坑警告] 无限能量拦截：仅在调试开关开启时跳过消耗，默认关闭，不影响自动化测试
         if (DebugInfiniteEnergy)
         {
-            currentEnergy = maxEnergy;
+            currentEnergy = MaxEnergyValue;
             return;
         }
 #endif
@@ -157,7 +180,7 @@ public class EnergySystem : MonoBehaviour
         currentEnergy = Mathf.Max(0f, currentEnergy - amount);
         if (notify || Mathf.Abs(prev - currentEnergy) > 0.5f)
         {
-            OnEnergyChanged?.Invoke(currentEnergy, maxEnergy);
+            OnEnergyChanged?.Invoke(currentEnergy, MaxEnergyValue);
         }
     }
 
@@ -174,25 +197,26 @@ public class EnergySystem : MonoBehaviour
             return;
         }
 
-        if (currentEnergy >= maxEnergy) return;
+        float activeMaxEnergy = MaxEnergyValue;
+        if (currentEnergy >= activeMaxEnergy) return;
 
-        float regenRate = regenPerSecond;
+        float regenRate = RegenPerSecondValue;
 
         // 变身时恢复倍率
         if (disguiseSystem != null && disguiseSystem.IsDisguised)
         {
-            regenRate *= disguisedRegenMultiplier;
+            regenRate *= DisguisedRegenMultiplierValue;
         }
 
         if (regenRate <= 0f) return;
 
         float prev = currentEnergy;
-        currentEnergy = Mathf.Min(maxEnergy, currentEnergy + regenRate * Time.deltaTime);
+        currentEnergy = Mathf.Min(activeMaxEnergy, currentEnergy + regenRate * Time.deltaTime);
 
         // 每恢复一定量通知一次（避免每帧触发事件）
         if (Mathf.FloorToInt(currentEnergy) != Mathf.FloorToInt(prev))
         {
-            OnEnergyChanged?.Invoke(currentEnergy, maxEnergy);
+            OnEnergyChanged?.Invoke(currentEnergy, MaxEnergyValue);
         }
     }
 
@@ -217,24 +241,24 @@ public class EnergySystem : MonoBehaviour
     /// <summary>重置能量（回合开始时调用）</summary>
     public void ResetEnergy()
     {
-        currentEnergy = maxEnergy;
+        currentEnergy = MaxEnergyValue;
         regenDelayTimer = 0f;
         wasLowEnergy = false;
-        OnEnergyChanged?.Invoke(currentEnergy, maxEnergy);
+        OnEnergyChanged?.Invoke(currentEnergy, MaxEnergyValue);
     }
 
     /// <summary>增加能量（道具/奖励）</summary>
     public void AddEnergy(float amount)
     {
-        currentEnergy = Mathf.Min(maxEnergy, currentEnergy + amount);
-        OnEnergyChanged?.Invoke(currentEnergy, maxEnergy);
+        currentEnergy = Mathf.Min(MaxEnergyValue, currentEnergy + amount);
+        OnEnergyChanged?.Invoke(currentEnergy, MaxEnergyValue);
     }
 
     /// <summary>获取变身消耗量（供 UI 显示）</summary>
-    public float GetDisguiseCost() => disguiseCost;
+    public float GetDisguiseCost() => DisguiseCostValue;
 
     /// <summary>获取操控消耗量（供 UI 显示）</summary>
-    public float GetControlCost() => controlCost;
+    public float GetControlCost() => ControlCostValue;
 
     #endregion
 

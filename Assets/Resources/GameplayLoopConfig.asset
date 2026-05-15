@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 72f3b2e0c6ad4d2fb8e1a340f5c9d827, type: 3}
+  m_Name: GameplayLoopConfig
+  m_EditorClassIdentifier: 
+  energyMaxEnergy: 100
+  energyStartEnergy: -1
+  energyDisguiseCost: 20
+  energyDisguiseDrainPerSecond: 5
+  energyBlendedDrainMultiplier: 0.5
+  energyControlCost: 15
+  energyRegenPerSecond: 8
+  energyDisguisedRegenMultiplier: 0
+  energyRegenDelayAfterControl: 2
+  energyLowEnergyThreshold: 0.25
+  scanRadius: 5
+  scanCooldown: 8
+  scanRevealDuration: 2
+  scanRevealGateBonusDuration: 1.2
+  scanPulseSpeed: 15
+  scanPulseLineWidth: 0.15
+  scanFlashFrequency: 6
+  scanRevealColor: {r: 1, g: 0.2, b: 0.2, a: 0.8}
+  possessionRevealDuration: 0.8
+  possessionEscapeDuration: 0.35
+  alarmWarningDuration: 2
+  alarmScanSpeed: 12
+  alarmScanWidth: 2
+  alarmEvidenceAmplifyFactor: 1.5
+  alarmScanSuspicionBonus: 15
+  alarmTriggerTier: 2
+  alarmScanCooldown: 15
+  alarmLockdownForcesScan: 1
+  routeAutoRecoveryTime: 6
+  routeMaxSimultaneousDegraded: 1
+  heatPerPossession: 5
+  heatPerActivation: 12
+  heatComboHeatFactor: 0.4
+  heatComboBreakHeatPerChain: 3
+  heatDecayPerSecond: 1.5
+  heatLockdownFallbackHeat: 60
+  heatLockdownCooldown: 10
+  heatToDecaySlowdown: 0.5
+  heatSuspiciousThreshold: 30
+  heatAlertThreshold: 60
+  heatLockdownThreshold: 85
+  comboWindow: 2.5
+  comboDifferentAnchorMultiplier: 1.5
+  comboDifferentPropTypeMultiplier: 1.3
+  comboSameAnchorMultiplier: 0.7
+  comboSamePropMultiplier: 0.5
+  comboSameAnchorSuspicionBonus: 15
+  comboBreakCooldown: 1
+  compensationRouteDegradeResidueBonus: 0.4
+  compensationRouteDegradeEvidenceBonus: 1
+  compensationPropActivateSuspicionBonus: 8
+  compensationProgressBoostDuration: 2
+  compensationProgressBoostMultiplier: 1.15

@@ -29,6 +29,9 @@ public class TricksterPossessionGate : MonoBehaviour
     [Tooltip("是否输出状态切换调试日志")]
     [SerializeField] private bool showDebugInfo = false;
 
+    private float RevealDurationValue => GameplayMetrics.PossessionRevealDuration(revealDuration);
+    private float EscapeDurationValue => GameplayMetrics.PossessionEscapeDuration(escapeDuration);
+
     private DisguiseSystem disguiseSystem;
     private TricksterAbilitySystem abilitySystem;
 
@@ -96,7 +99,7 @@ public class TricksterPossessionGate : MonoBehaviour
 
             if (currentState == TricksterPossessionState.Revealed)
             {
-                SetState(TricksterPossessionState.Escaping, escapeDuration);
+                SetState(TricksterPossessionState.Escaping, EscapeDurationValue);
                 return;
             }
         }
@@ -129,7 +132,7 @@ public class TricksterPossessionGate : MonoBehaviour
     /// </summary>
     public void ForceReveal(float bonusDuration = 0f, string source = "ExternalReveal")
     {
-        float duration = revealDuration + Mathf.Max(0f, bonusDuration);
+        float duration = RevealDurationValue + Mathf.Max(0f, bonusDuration);
         SetState(TricksterPossessionState.Revealed, duration);
 
         if (showDebugInfo)
@@ -175,7 +178,7 @@ public class TricksterPossessionGate : MonoBehaviour
     private void HandlePropActivated(IControllableProp prop)
     {
         SetCurrentAnchor(FindAnchor(prop), prop);
-        SetState(TricksterPossessionState.Revealed, revealDuration);
+        SetState(TricksterPossessionState.Revealed, RevealDurationValue);
     }
 
     private void RefreshStateFromDisguiseAndAnchor()

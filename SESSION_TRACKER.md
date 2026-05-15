@@ -91,16 +91,23 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 141（整体玩法循环测试关卡一键生成） |
-| **日期** | 2026-05-14 |
+| **最新 Session** | Session 142（GameplayLoopConfigSO 对抗节奏唯一真理源） |
+| **日期** | 2026-05-15 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — 根据用户要求在 `TestSceneBuilder` 中新增整体玩法循环测试关卡，一键生成覆盖 Commit 0–6 的路线预算、反制证据、连锁热度、拿宝撤离、扫描危机、Q 揭穿和终点闭环。 |
-| **编译状态** | ✅ `git diff --check` 通过；新增关卡静态自检通过。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — 已将 Gameplay Loop 的能量、扫描、门禁、危机、路线预算、热度、连锁与干预补偿参数集中到 `GameplayLoopConfigSO`，通过 `GameplayMetrics` Facade 实时读取，并在 Level Studio 新增 `Game Loop Tuning` 页供策划 PlayMode 滑块调参。 |
+| **编译状态** | ✅ `git diff --check`、`Tools/static_art_pipeline_check.py` 与 Gameplay Loop 重构完整性静态检查通过；沙盒无 Unity CLI，EditMode/PlayMode 需用户本地 Unity 重跑确认。 |
 | **阻塞** | 无 |
-| **交接说明** | Commit 0→1→2→3→4→5→6 全部完成并推送；S139 修复 Q 揭穿假命中，S140 外放 Q 揭穿禁控时长参数，S141 新增整体玩法循环测试关卡，下一步请用户一键生成并按路牌完成全链路灰盒体验验证。 |
+| **交接说明** | S142 已新增 `Assets/Resources/GameplayLoopConfig.asset`、`GameplayLoopConfigSO.cs` 与 `GameplayMetrics.cs`，并改造 Energy/Scan/Gate/Alarm/Route/Heat/Combo/Compensation 八个系统优先读取 Facade；Level Studio 现在有 `Game Loop Tuning` Tab，下一步请用户在 Unity 中重跑 135 个测试并实机拖动滑块验证整体玩法循环节奏。 |
 
 
-### [S141] 最新知识沉淀
+### [S142] 最新知识沉淀
+
+1. **Gameplay Loop 参数已集中到唯一真理源**：新增 `Assets/Resources/GameplayLoopConfig.asset` 与 `GameplayLoopConfigSO.cs`，覆盖 EnergySystem、ScanAbility、TricksterPossessionGate、AlarmCrisisDirector、RouteBudgetService、TricksterHeatMeter、PropComboTracker、InterferenceCompensationPolicy 中的消耗、冷却、倍率、阈值、衰减和持续时间参数。
+2. **GameplayMetrics Facade 已成为运行时读取入口**：八个系统保留本地 `[SerializeField]` 默认值作为安全回退，但运行时优先从 `GameplayMetrics` 读取 SO 当前值；SO 缺失、测试隔离或旧场景未绑定时不会破坏既有默认行为。
+3. **Level Studio 已新增 Game Loop Tuning 页**：`Ctrl+T → Game Loop Tuning` 会加载/创建 `GameplayLoopConfig`，并按 Energy、Scan、Gate、Alarm、Route、Heat、Combo、Compensation 分组显示滑块；PlayMode 下拖动会通过 Facade 实时生效。
+4. **验证状态**：沙盒无 Unity CLI，无法直接跑 EditMode/PlayMode；已通过 `git diff --check`、`Tools/static_art_pipeline_check.py` 与本次重构完整性静态检查，需用户本地 Unity 重跑 109 EditMode + 26 PlayMode。
+
+### [S141] 知识沉淀
 
 1. **整体玩法循环测试关卡已加入一键生成入口**：`MarioTrickster/Build Gameplay Loop Test Scene` 会生成一条从教学、潜入附身、路线预算、连锁热度、拿宝撤离、扫描危机、Q 揭穿到终点的完整灰盒长廊。
 2. **该关卡服务于 Commit 0–6 总体验证**：它不是普通元素堆叠关，而是用明确分段和路牌串起 `PossessionAnchor`、`MarioSuspicionTracker`、`RouteBudgetService`、`PropComboTracker`、`TricksterHeatMeter`、`LootObjective/EscapeGate` 与 `AlarmCrisisDirector`。
@@ -390,8 +397,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 2：Trickster 移动 | **S125重点验证**: 对 Trickster 应用整组动作文件夹后，方向键左右移动和跳跃仍正常；若从 Visual 子节点执行 Apply Art，也必须自动回到 Trickster Root 并保持 InputManager 引用正确 |
 | ✅ | 测试 3：移动平台 | 站上不被甩飞 |
 | ✅ | 测试 4：伪装系统 | P 伪装/解除，O/I 切换 |
-| 🔄 | 测试 5：道具操控 | **S141重点验证**: 在 `Build Gameplay Loop Test Scene` 生成的整体关卡中，融入后红/灰连线正常；方向键磁吸切换；L 触发红线目标并能推进路线预算/连锁热度段 |
-| 🔄 | 测试 6：扫描技能 | **S141重点验证**: 整体关卡扫描危机段触发后，Q 扫描命中 Trickster 必须真实解除伪装/附身；`ScanAbility.scanRevealGateBonusDuration` 生成默认 2.0s，仍可在 Inspector 调整 |
+| 🔄 | 测试 5：道具操控 | **S142重点验证**: 在 `Build Gameplay Loop Test Scene` 中验证 L 触发仍能推进路线预算/连锁热度；同时在 `Game Loop Tuning` 调整能量消耗、连锁窗口、热度倍率后 PlayMode 立即生效 |
+| 🔄 | 测试 6：扫描技能 | **S142重点验证**: Q 扫描命中仍必须真实解除伪装/附身；扫描半径、冷却、视觉暴露时间、额外门禁时间、扫描波预告/速度/冷却均可在 `Game Loop Tuning` 实时调整 |
 | 🔄 | 测试 6.5：镜头 | **S141重点验证**: 走完整体玩法循环测试关卡时，Mario/Trickster、拿宝撤离、扫描危机和终点段镜头始终跟随，不丢目标 |
 | 🔄 | 测试 7：胜负判定 | **S141重点验证**: 整体关卡中拿宝后进入 EscapeGate 可通关；末端 GoalZone 仍可作为最终胜利确认；掉出屏幕后应触发死亡且不刷多条日志 |
 | ✅ | 测试 8：暂停 | ESC 暂停/恢复 |
@@ -406,8 +413,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S56重点验证**: ASCII Build 新字符(@f<SX)能正确生成对应元素，旧字符行为不变 |
 | 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| 🔄 | EditMode 自动化 | **S125重点验证**: `ArtAssetClassifierTests` idle/run/jump/fall 边界测试、主角单 RUN 状态动画测试、商业语义状态摘要测试、道具 idle 与特效 cast 防误判测试通过；Apply Art 对主角应用整组文件夹后仍挂 `SpriteStateAnimator`，并且角色 Root 的 Rigidbody2D/Collider2D/visualTransform/InputManager 引用不会被换皮破坏；Unity Editor 重新编译无新增红错 |
-| 🔄 | PlayMode 自动化 | **S53重点验证**: 26/26 通过 + 柔性模式下应看到 S53 耗时校验日志 |
+| 🔄 | EditMode 自动化 | **S142重点验证**: 109 个 EditMode 需本地 Unity 重跑，重点确认 `GameplayMetrics` 在存在/缺失 `GameplayLoopConfig` 时均安全回退，且新增 SO/Facade/Level Studio 页不引入编译红错 |
+| 🔄 | PlayMode 自动化 | **S142重点验证**: 26/26 需本地 Unity 重跑；重点确认 PlayMode 下拖动 `Game Loop Tuning` 滑块后 Energy/Scan/Gate/Alarm/Route/Heat/Combo/Compensation 参数实时生效且默认值不改变既有 TAS 行为 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
 ---
@@ -429,6 +436,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 |--------|------|------|
 | **最高** | **整体玩法循环测试关卡一键生成**：按 Commit 0–6 设计循环新增 `MarioTrickster/Build Gameplay Loop Test Scene`，用于一次性验证路线预算、证据反制、连锁热度、拿宝撤离、扫描危机、Q 揭穿和终点闭环。 | 🔄 待用户生成并整体验证（S141） |
 | **最高** | **灰盒体验验证：Mario Q 揭穿参数调优**：Q 扫描已真实解除 Trickster 伪装/附身；禁控加时已外放为 `ScanAbility.scanRevealGateBonusDuration`，默认 1.2s；整体关卡生成时先设为 2.0s，等待用户按手感继续调参。 | 🔄 待用户调参复测（S140/S141） |
+| **最高** | **Gameplay Loop 一站式调参入口**：新增 `GameplayLoopConfigSO` + `GameplayMetrics`，把能量、扫描、附身门禁、扫描波危机、路线预算、热度、连锁和干预补偿参数集中到 `Assets/Resources/GameplayLoopConfig.asset`；Level Studio 新增 `Game Loop Tuning` Tab，支持 PlayMode 实时拖滑块。 | ✅ 已完成（S142，待用户 Unity 重跑测试确认） |
 | **最高** | **`trickster_style` 本地验证闭环**：用户已完成 30 张测试图出图与回传，AI 已完成全部审图与判定。触发词甜区、推荐权重、污染物清单与专属去污词均已实测落库到 `PROMPT_RECIPES.md`。同时本轮还将工单派发中暴露的三个问题（全局设置必须从用户工作流截图提取、文件命名利用自动编号、回传模板禁止要求用户填写主观判定项）固化到 `WORKORDER_QA_STANDARD.md` 第九条。 | ✅ 已完成（S97） |
 | **高** | **标准提示词体系与固定入口落地**：后续所有“更新 / 升级 / 优化项目”的新对话必须优先走标准协议与模板库，禁止再以过度随意的自然语言直接开局；用户自定义问题保留在补充插槽，不得替代固定骨架。 | ✅ 已完成（S96 已写入 `docs/STANDARD_CONVERSATION_PROTOCOL.md`、`prompts/STANDARD_PROJECT_PROMPTS.md`、`README.md` 与本文件） |
 
@@ -458,7 +466,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **最高** | **恢复关卡白盒主线**：直接重新启用 `Level Studio / Custom Template Editor / Build From Text`，基于现有 ASCII 模板库与片段库继续拼装、测试并迭代 1~2 个完整关卡段；美术换肤只服务于已验证白盒，不再反向阻塞关卡设计。**S94 已固定执行原则**：A 轨（关卡白盒）永远是唯一上游任务源。**S95 已固定默认入口**：若当前要推项目总主线，应直接从“先继续白盒关卡，不等最终美术”这类窄入口启动。 | 🚀 已形成桥接结论，当前可立即恢复执行 |
 | **高** | 验证 S57c 编辑器工作流：Visual 模式选取是否彻底只落到 Visual；`Size Sync` 是否能同步 `Visual.localScale` 与 `BoxCollider2D.size`；新增机关是否自动继承该行为。 | ⏳ 待用户验证 |
 | **按需** | JIT 机制填充：仅当设计关卡极度需要时，才由 AI 在后台静默实现新机制。 | 待触发 |
-| **按需** | 参数调优：拖动 PhysicsConfigSO 滑块调手感，若触发报错则由 AI 微创手术抹平。 | 待触发 |
+| **按需** | 参数调优：物理手感继续用 `PhysicsConfigSO`；对抗节奏统一用 `GameplayLoopConfigSO` / Level Studio `Game Loop Tuning` 页，若调参触发报错则由 AI 微创修复。 | 待触发 |
 | 远期 | 音效系统 / 动画完善 / 主菜单 UI | 未开始 |
 
 <details>

@@ -66,6 +66,9 @@ public class RouteBudgetService : MonoBehaviour
 
     #endregion
 
+    private float AutoRecoveryTimeValue => GameplayMetrics.RouteAutoRecoveryTime(autoRecoveryTime);
+    private int MaxSimultaneousDegradedValue => GameplayMetrics.RouteMaxSimultaneousDegraded(maxSimultaneousDegraded);
+
     // ─────────────────────────────────────────────────────
     #region 运行时状态
 
@@ -173,7 +176,7 @@ public class RouteBudgetService : MonoBehaviour
 
         // 护栏检查：当前降级数是否已达上限
         int currentDegraded = CountByStatus(RouteStatus.Degraded) + CountByStatus(RouteStatus.Blocked);
-        int effectiveMax = (routes.Count <= 2) ? 1 : maxSimultaneousDegraded;
+        int effectiveMax = (routes.Count <= 2) ? 1 : MaxSimultaneousDegradedValue;
 
         if (currentDegraded >= effectiveMax)
         {
@@ -200,7 +203,7 @@ public class RouteBudgetService : MonoBehaviour
         route.Status = RouteStatus.Degraded;
         route.DegradedSince = Time.time;
         route.DegradedBy = source;
-        route.RecoveryTimer = duration > 0f ? duration : autoRecoveryTime;
+        route.RecoveryTimer = duration > 0f ? duration : AutoRecoveryTimeValue;
 
         if (showDebugInfo)
         {

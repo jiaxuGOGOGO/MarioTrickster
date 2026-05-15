@@ -80,6 +80,18 @@ public class TricksterHeatMeter : MonoBehaviour
 
     #endregion
 
+    private float HeatPerPossessionValue => GameplayMetrics.HeatPerPossession(heatPerPossession);
+    private float HeatPerActivationValue => GameplayMetrics.HeatPerActivation(heatPerActivation);
+    private float ComboHeatFactorValue => GameplayMetrics.HeatComboHeatFactor(comboHeatFactor);
+    private float ComboBreakHeatPerChainValue => GameplayMetrics.HeatComboBreakHeatPerChain(comboBreakHeatPerChain);
+    private float HeatDecayPerSecondValue => GameplayMetrics.HeatDecayPerSecond(heatDecayPerSecond);
+    private float LockdownFallbackHeatValue => GameplayMetrics.HeatLockdownFallbackHeat(lockdownFallbackHeat);
+    private float LockdownCooldownValue => GameplayMetrics.HeatLockdownCooldown(lockdownCooldown);
+    private float HeatToDecaySlowdownValue => GameplayMetrics.HeatToDecaySlowdown(heatToDecaySlowdown);
+    private float SuspiciousThresholdValue => GameplayMetrics.HeatSuspiciousThreshold(suspiciousThreshold);
+    private float AlertThresholdValue => GameplayMetrics.HeatAlertThreshold(alertThreshold);
+    private float LockdownThresholdValue => GameplayMetrics.HeatLockdownThreshold(lockdownThreshold);
+
     // ─────────────────────────────────────────────────────
     #region 运行时状态
 
@@ -119,7 +131,7 @@ public class TricksterHeatMeter : MonoBehaviour
     public bool IsLockdownCooling => lockdownCooldownTimer > 0f;
 
     /// <summary>当前热度对 Mario 证据衰减的减速系数（0=无减速, 1=完全停止衰减）</summary>
-    public float EvidenceDecaySlowdown => Mathf.Clamp01((heat / MaxHeat) * heatToDecaySlowdown);
+    public float EvidenceDecaySlowdown => Mathf.Clamp01((heat / MaxHeat) * HeatToDecaySlowdownValue);
 
     #endregion
 
@@ -181,7 +193,7 @@ public class TricksterHeatMeter : MonoBehaviour
         // 热度自然衰减
         if (heat > 0f)
         {
-            float decay = heatDecayPerSecond * Time.deltaTime;
+            float decay = HeatDecayPerSecondValue * Time.deltaTime;
             SetHeat(heat - decay);
         }
 
@@ -230,8 +242,8 @@ public class TricksterHeatMeter : MonoBehaviour
     private void HandleComboHit(int comboCount, float hitMult, bool diffAnchor, bool diffProp)
     {
         // 操控机关增加热度，连锁越高增加越多
-        float comboBonus = 1f + (comboCount - 1) * comboHeatFactor;
-        float heatGain = heatPerActivation * comboBonus;
+        float comboBonus = 1f + (comboCount - 1) * ComboHeatFactorValue;
+        float heatGain = HeatPerActivationValue * comboBonus;
 
         // 同一锚点出手额外加热（与 RepeatInterferenceStack 联动）
         if (!diffAnchor && comboCount > 1)
@@ -253,7 +265,7 @@ public class TricksterHeatMeter : MonoBehaviour
         // 高连锁断裂给额外热度（贪多了被抓的惩罚感）
         if (finalCount >= 3)
         {
-            float breakHeat = comboBreakHeatPerChain * finalCount;
+            float breakHeat = ComboBreakHeatPerChainValue * finalCount;
             AddHeat(breakHeat);
 
             if (showDebugInfo)
@@ -269,7 +281,7 @@ public class TricksterHeatMeter : MonoBehaviour
         // 进入附身状态时增加少量热度
         if (newState == TricksterPossessionState.Possessing)
         {
-            AddHeat(heatPerPossession);
+            AddHeat(HeatPerPossessionValue);
 
             if (showDebugInfo)
             {
@@ -327,25 +339,25 @@ public class TricksterHeatMeter : MonoBehaviour
 
     private HeatTier CalculateTier(float h)
     {
-        if (h >= lockdownThreshold) return HeatTier.Lockdown;
-        if (h >= alertThreshold) return HeatTier.Alert;
-        if (h >= suspiciousThreshold) return HeatTier.Suspicious;
+        if (h >= LockdownThresholdValue) return HeatTier.Lockdown;
+        if (h >= AlertThresholdValue) return HeatTier.Alert;
+        if (h >= SuspiciousThresholdValue) return HeatTier.Suspicious;
         return HeatTier.Calm;
     }
 
     private void TriggerLockdown()
     {
-        lockdownCooldownTimer = lockdownCooldown;
+        lockdownCooldownTimer = LockdownCooldownValue;
 
         if (showDebugInfo)
         {
-            Debug.Log($"[TricksterHeatMeter] LOCKDOWN triggered! Heat will fall to {lockdownFallbackHeat}");
+            Debug.Log($"[TricksterHeatMeter] LOCKDOWN triggered! Heat will fall to {LockdownFallbackHeatValue}");
         }
 
         OnLockdownTriggered?.Invoke();
 
         // 热度回落到目标值（延迟一帧避免事件处理冲突）
-        heat = lockdownFallbackHeat;
+        heat = LockdownFallbackHeatValue;
         currentTier = CalculateTier(heat);
         OnHeatChanged?.Invoke(heat, heat / MaxHeat);
     }

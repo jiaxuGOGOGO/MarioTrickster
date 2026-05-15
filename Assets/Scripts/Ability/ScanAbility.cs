@@ -84,12 +84,22 @@ public class ScanAbility : MonoBehaviour
     private GUIStyle cachedMarkerStyle;
     private GUIStyle cachedResultStyle;
 
+    // GameplayLoopConfigSO Facade 读取：SO 存在时实时读取，缺失时回退本组件默认值
+    private float ScanRadiusValue => GameplayMetrics.ScanRadius(scanRadius);
+    private float ScanCooldownValue => GameplayMetrics.ScanCooldown(scanCooldown);
+    private float RevealDurationValue => GameplayMetrics.ScanRevealDuration(revealDuration);
+    private float ScanRevealGateBonusDurationValue => GameplayMetrics.ScanRevealGateBonusDuration(scanRevealGateBonusDuration);
+    private float PulseSpeedValue => GameplayMetrics.ScanPulseSpeed(pulseSpeed);
+    private float PulseLineWidthValue => GameplayMetrics.ScanPulseLineWidth(pulseLineWidth);
+    private float FlashFrequencyValue => GameplayMetrics.ScanFlashFrequency(flashFrequency);
+    private Color RevealColorValue => GameplayMetrics.ScanRevealColor(revealColor);
+
     // 公共属性
     public float CooldownRemaining => cooldownTimer;
-    public float CooldownProgress => scanCooldown > 0 ? 1f - (cooldownTimer / scanCooldown) : 1f;
+    public float CooldownProgress => ScanCooldownValue > 0 ? 1f - (cooldownTimer / ScanCooldownValue) : 1f;
     public bool IsReady => cooldownTimer <= 0f;
     public bool IsRevealing => isRevealing;
-    public float ScanRadius => scanRadius;
+    public float ScanRadius => ScanRadiusValue;
 
     // 事件
     public System.Action OnScanActivated;
@@ -161,7 +171,7 @@ public class ScanAbility : MonoBehaviour
         if (cooldownTimer > 0f) return;
 
         // 开始冷却
-        cooldownTimer = scanCooldown;
+        cooldownTimer = ScanCooldownValue;
 
         OnScanActivated?.Invoke();
 
@@ -197,7 +207,7 @@ public class ScanAbility : MonoBehaviour
         if (!targetDisguise.IsDisguised) return false;
 
         float distance = Vector2.Distance(transform.position, targetTrickster.transform.position);
-        return distance <= scanRadius;
+        return distance <= ScanRadiusValue;
     }
 
     /// <summary>获取扫描未命中的具体原因（用于UI提示）</summary>
@@ -208,7 +218,7 @@ public class ScanAbility : MonoBehaviour
         if (!targetDisguise.IsDisguised) return "Trickster not disguised";
 
         float distance = Vector2.Distance(transform.position, targetTrickster.transform.position);
-        if (distance > scanRadius) return $"Out of range ({distance:F1}m)";
+        if (distance > ScanRadiusValue) return $"Out of range ({distance:F1}m)";
 
         return "Scan clear";
     }
@@ -221,7 +231,7 @@ public class ScanAbility : MonoBehaviour
     private void StartReveal()
     {
         isRevealing = true;
-        revealTimer = revealDuration;
+        revealTimer = RevealDurationValue;
 
         if (targetDisguise != null && targetDisguise.IsDisguised)
         {
@@ -230,7 +240,7 @@ public class ScanAbility : MonoBehaviour
 
         if (targetPossessionGate != null)
         {
-            targetPossessionGate.ForceReveal(scanRevealGateBonusDuration, "ScanAbility");
+            targetPossessionGate.ForceReveal(ScanRevealGateBonusDurationValue, "ScanAbility");
         }
     }
 
@@ -239,10 +249,10 @@ public class ScanAbility : MonoBehaviour
         if (targetSpriteRenderer == null) return;
 
         // 闪烁效果：在原色和红色之间切换
-        float flash = Mathf.Sin(Time.time * flashFrequency * Mathf.PI * 2f);
+        float flash = Mathf.Sin(Time.time * FlashFrequencyValue * Mathf.PI * 2f);
         if (flash > 0)
         {
-            targetSpriteRenderer.color = revealColor;
+            targetSpriteRenderer.color = RevealColorValue;
         }
         else
         {
@@ -272,8 +282,8 @@ public class ScanAbility : MonoBehaviour
 
     private void UpdatePulse()
     {
-        pulseRadius += pulseSpeed * Time.deltaTime;
-        pulseAlpha = 1f - (pulseRadius / (scanRadius * 1.2f));
+        pulseRadius += PulseSpeedValue * Time.deltaTime;
+        pulseAlpha = 1f - (pulseRadius / (ScanRadiusValue * 1.2f));
 
         if (pulseAlpha <= 0f)
         {
@@ -289,7 +299,7 @@ public class ScanAbility : MonoBehaviour
     {
         // 显示扫描范围
         Gizmos.color = new Color(0.2f, 0.5f, 1f, 0.3f);
-        Gizmos.DrawWireSphere(transform.position, scanRadius);
+        Gizmos.DrawWireSphere(transform.position, ScanRadiusValue);
     }
 
     /// <summary>Session 18: 惰性初始化缓存样式</summary>
@@ -388,7 +398,7 @@ public class ScanAbility : MonoBehaviour
         // S57: 从 36 降到 24 段，减少 OnGUI 中 GUI.DrawTexture 调用次数，降低内存压力
         int segments = 24;
         float angleStep = 360f / segments;
-        float lineWidthScreen = pulseLineWidth * (edgeScreen.x - center.x) / Mathf.Max(pulseRadius, 0.01f);
+        float lineWidthScreen = PulseLineWidthValue * (edgeScreen.x - center.x) / Mathf.Max(pulseRadius, 0.01f);
         lineWidthScreen = Mathf.Max(2f, lineWidthScreen);
 
         GUI.color = pulseColor;
@@ -410,7 +420,7 @@ public class ScanAbility : MonoBehaviour
         Vector3 markerPos = Camera.main.WorldToScreenPoint(targetTrickster.transform.position + Vector3.up * 2f);
         if (markerPos.z < 0) return;
 
-        float blinkAlpha = Mathf.Abs(Mathf.Sin(Time.time * flashFrequency * Mathf.PI));
+        float blinkAlpha = Mathf.Abs(Mathf.Sin(Time.time * FlashFrequencyValue * Mathf.PI));
 
         // Session 18: 使用缓存样式，只更新动态颜色
         cachedMarkerStyle.normal.textColor = new Color(1f, 0.1f, 0.1f, blinkAlpha);

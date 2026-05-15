@@ -52,6 +52,14 @@ public class PropComboTracker : MonoBehaviour
 
     #endregion
 
+    private float ComboWindowValue => GameplayMetrics.ComboWindow(comboWindow);
+    private float DifferentAnchorMultiplierValue => GameplayMetrics.ComboDifferentAnchorMultiplier(differentAnchorMultiplier);
+    private float DifferentPropTypeMultiplierValue => GameplayMetrics.ComboDifferentPropTypeMultiplier(differentPropTypeMultiplier);
+    private float SameAnchorMultiplierValue => GameplayMetrics.ComboSameAnchorMultiplier(sameAnchorMultiplier);
+    private float SamePropMultiplierValue => GameplayMetrics.ComboSamePropMultiplier(samePropMultiplier);
+    private float SameAnchorSuspicionBonusValue => GameplayMetrics.ComboSameAnchorSuspicionBonus(sameAnchorSuspicionBonus);
+    private float BreakCooldownValue => GameplayMetrics.ComboBreakCooldown(breakCooldown);
+
     // ─────────────────────────────────────────────────────
     #region 运行时状态
 
@@ -108,7 +116,7 @@ public class PropComboTracker : MonoBehaviour
     public int ComboCount => comboCount;
     public float CurrentMultiplier => currentMultiplier;
     public float ComboTimeRemaining => comboTimer;
-    public float ComboWindowMax => comboWindow;
+    public float ComboWindowMax => ComboWindowValue;
     public bool IsComboActive => comboCount > 0 && comboTimer > 0f;
     public IReadOnlyList<ComboEntry> ComboHistory => comboHistory;
 
@@ -238,11 +246,11 @@ public class PropComboTracker : MonoBehaviour
 
             if (isDifferentAnchor)
             {
-                hitMultiplier = differentAnchorMultiplier;
+                hitMultiplier = DifferentAnchorMultiplierValue;
             }
             else
             {
-                hitMultiplier = sameAnchorMultiplier;
+                hitMultiplier = SameAnchorMultiplierValue;
 
                 // 重复同一附身点：额外叠加 Suspicion
                 ApplySameAnchorPenalty(currentAnchorId);
@@ -250,11 +258,11 @@ public class PropComboTracker : MonoBehaviour
 
             if (isDifferentProp)
             {
-                hitMultiplier *= differentPropTypeMultiplier;
+                hitMultiplier *= DifferentPropTypeMultiplierValue;
             }
             else
             {
-                hitMultiplier *= samePropMultiplier;
+                hitMultiplier *= SamePropMultiplierValue;
             }
         }
         else
@@ -268,7 +276,7 @@ public class PropComboTracker : MonoBehaviour
         currentMultiplier = CalculateCumulativeMultiplier(hitMultiplier);
 
         // 重置连锁窗口
-        comboTimer = comboWindow;
+        comboTimer = ComboWindowValue;
 
         // 记录本次出手
         lastAnchorId = currentAnchorId;
@@ -331,7 +339,7 @@ public class PropComboTracker : MonoBehaviour
         comboCount = 0;
         comboTimer = 0f;
         currentMultiplier = 1f;
-        breakCooldownTimer = breakCooldown;
+        breakCooldownTimer = BreakCooldownValue;
         lastAnchorId = "";
         lastPropName = "";
         comboHistory.Clear();
@@ -360,7 +368,7 @@ public class PropComboTracker : MonoBehaviour
         if (possessionGate == null || possessionGate.CurrentAnchor == null) return;
 
         AnchorSuspicionData data = suspicionTracker.GetOrCreateData(possessionGate.CurrentAnchor);
-        data.AddSuspicion(sameAnchorSuspicionBonus);
+        data.AddSuspicion(SameAnchorSuspicionBonusValue);
 
         if (showDebugInfo)
         {

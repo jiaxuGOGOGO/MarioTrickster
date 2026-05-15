@@ -60,6 +60,15 @@ public class AlarmCrisisDirector : MonoBehaviour
 
     #endregion
 
+    private float WarningDurationValue => GameplayMetrics.AlarmWarningDuration(warningDuration);
+    private float ScanSpeedValue => GameplayMetrics.AlarmScanSpeed(scanSpeed);
+    private float ScanWidthValue => GameplayMetrics.AlarmScanWidth(scanWidth);
+    private float EvidenceAmplifyFactorValue => GameplayMetrics.AlarmEvidenceAmplifyFactor(evidenceAmplifyFactor);
+    private float ScanSuspicionBonusValue => GameplayMetrics.AlarmScanSuspicionBonus(scanSuspicionBonus);
+    private TricksterHeatMeter.HeatTier TriggerTierValue => GameplayMetrics.AlarmTriggerTier(triggerTier);
+    private float ScanCooldownValue => GameplayMetrics.AlarmScanCooldown(scanCooldown);
+    private bool LockdownForcesScanValue => GameplayMetrics.AlarmLockdownForcesScan(lockdownForcesScan);
+
     // ─────────────────────────────────────────────────────
     #region 运行时状态
 
@@ -112,7 +121,7 @@ public class AlarmCrisisDirector : MonoBehaviour
     public float ScanX => scanX;
     public float ScanStartX => scanStartX;
     public float ScanEndX => scanEndX;
-    public float WarningDuration => warningDuration;
+    public float WarningDuration => WarningDurationValue;
 
     #endregion
 
@@ -188,7 +197,7 @@ public class AlarmCrisisDirector : MonoBehaviour
     private void UpdateScanning()
     {
         float prevX = scanX;
-        scanX += scanSpeed * Time.deltaTime;
+        scanX += ScanSpeedValue * Time.deltaTime;
 
         // 检查扫描波经过的锚点
         CheckAnchorsInRange(prevX, scanX);
@@ -219,14 +228,14 @@ public class AlarmCrisisDirector : MonoBehaviour
         if (currentPhase != ScanPhase.Idle) return;
 
         currentPhase = ScanPhase.Warning;
-        phaseTimer = warningDuration;
+        phaseTimer = WarningDurationValue;
 
         if (showDebugInfo)
         {
-            Debug.Log($"[AlarmCrisisDirector] Scan wave WARNING! {warningDuration}s to scan.");
+            Debug.Log($"[AlarmCrisisDirector] Scan wave WARNING! {WarningDurationValue}s to scan.");
         }
 
-        OnScanWarning?.Invoke(warningDuration);
+        OnScanWarning?.Invoke(WarningDurationValue);
     }
 
     private void StartScanning()
@@ -246,7 +255,7 @@ public class AlarmCrisisDirector : MonoBehaviour
     private void EndScanning()
     {
         currentPhase = ScanPhase.Cooldown;
-        cooldownTimer = scanCooldown;
+        cooldownTimer = ScanCooldownValue;
 
         if (showDebugInfo)
         {
@@ -260,8 +269,8 @@ public class AlarmCrisisDirector : MonoBehaviour
     {
         if (cachedAnchors == null) return;
 
-        float leftEdge = fromX - scanWidth * 0.5f;
-        float rightEdge = toX + scanWidth * 0.5f;
+        float leftEdge = fromX - ScanWidthValue * 0.5f;
+        float rightEdge = toX + ScanWidthValue * 0.5f;
 
         for (int i = 0; i < cachedAnchors.Length; i++)
         {
@@ -289,17 +298,17 @@ public class AlarmCrisisDirector : MonoBehaviour
             if (data != null && (data.Residue > 0.05f || data.Suspicion > 5f))
             {
                 // 放大已有 Suspicion
-                float amplified = data.Suspicion * (evidenceAmplifyFactor - 1f);
-                data.AddSuspicion(amplified + scanSuspicionBonus);
+                float amplified = data.Suspicion * (EvidenceAmplifyFactorValue - 1f);
+                data.AddSuspicion(amplified + ScanSuspicionBonusValue);
 
                 // 放大已有 Residue
-                float newResidue = Mathf.Min(1f, data.Residue * evidenceAmplifyFactor);
+                float newResidue = Mathf.Min(1f, data.Residue * EvidenceAmplifyFactorValue);
                 data.SetResidue(newResidue);
 
                 if (showDebugInfo)
                 {
                     Debug.Log($"[AlarmCrisisDirector] Amplified evidence on {anchor.AnchorId}: " +
-                              $"Suspicion+{amplified + scanSuspicionBonus:F0}, Residue→{newResidue:F2}");
+                              $"Suspicion+{amplified + ScanSuspicionBonusValue:F0}, Residue→{newResidue:F2}");
                 }
             }
         }
@@ -343,7 +352,7 @@ public class AlarmCrisisDirector : MonoBehaviour
     private void HandleTierChanged(TricksterHeatMeter.HeatTier newTier, TricksterHeatMeter.HeatTier oldTier)
     {
         // 进入 Alert 时触发扫描波（如果不是从更高档降下来的）
-        if (newTier == triggerTier && oldTier < triggerTier)
+        if (newTier == TriggerTierValue && oldTier < TriggerTierValue)
         {
             TriggerScanWave();
         }
@@ -351,7 +360,7 @@ public class AlarmCrisisDirector : MonoBehaviour
 
     private void HandleLockdownTriggered()
     {
-        if (lockdownForcesScan)
+        if (LockdownForcesScanValue)
         {
             // Lockdown 强制触发，即使在冷却中也重置
             if (currentPhase == ScanPhase.Cooldown)

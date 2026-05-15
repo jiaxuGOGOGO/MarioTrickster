@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -20,6 +21,13 @@ public class PossessionAnchor : MonoBehaviour
 
     [Tooltip("仅作为 Commit 1+ 暴露/残留系统的默认提示时间，不在 Commit 0 主动生成残留")]
     [SerializeField] private float defaultResidueSeconds = 1.2f;
+
+    [Header("=== 暗线转移 (S143) ===")]
+    [Tooltip("允许从当前锚点通过暗线转移抵达的相邻锚点；由关卡设计师在 Inspector 中显式配置")]
+    public List<PossessionAnchor> connectedUnderlineNodes = new List<PossessionAnchor>();
+
+    [Tooltip("从其他锚点暗线转移到当前锚点所需时间（秒）")]
+    public float underlineTransitTime = 0.5f;
 
     private IControllableProp controllableProp;
 
@@ -66,6 +74,7 @@ public class PossessionAnchor : MonoBehaviour
         }
 
         defaultResidueSeconds = Mathf.Max(0f, defaultResidueSeconds);
+        underlineTransitTime = Mathf.Max(0f, underlineTransitTime);
     }
 
     private void CacheControllableProp()

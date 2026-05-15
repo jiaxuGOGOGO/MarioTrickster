@@ -89,6 +89,11 @@ public class TricksterPossessionGate : MonoBehaviour
 
     private void Update()
     {
+        if (currentState == TricksterPossessionState.Underlining)
+        {
+            return;
+        }
+
         if (currentState == TricksterPossessionState.Revealed || currentState == TricksterPossessionState.Escaping)
         {
             stateTimer -= Time.deltaTime;
@@ -124,6 +129,34 @@ public class TricksterPossessionGate : MonoBehaviour
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// S143：暗线转移开始。该状态由 TricksterAbilitySystem 协程短暂持有，
+    /// 只阻断切换/出手授权，不改碰撞体、刚体或底层运动参数。
+    /// </summary>
+    public void BeginUnderlineTransit()
+    {
+        if (currentState != TricksterPossessionState.Possessing)
+        {
+            return;
+        }
+
+        SetState(TricksterPossessionState.Underlining, 0f);
+    }
+
+    /// <summary>
+    /// S143：暗线转移结束后回到由伪装状态与当前锚点推导出的常规状态。
+    /// 若期间被外部强制揭穿，则不覆盖 Revealed/Escaping。
+    /// </summary>
+    public void EndUnderlineTransit()
+    {
+        if (currentState != TricksterPossessionState.Underlining)
+        {
+            return;
+        }
+
+        RefreshStateFromDisguiseAndAnchor();
     }
 
     /// <summary>

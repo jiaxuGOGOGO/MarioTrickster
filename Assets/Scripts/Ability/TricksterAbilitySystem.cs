@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -95,6 +96,10 @@ public class TricksterAbilitySystem : MonoBehaviour
     private int controlsUsedThisDisguise;         // 本次变身已使用的操控次数
     private float controlTimeUsed;                // 本次变身已使用的操控时间
     private bool isAbilityActive;                 // 能力系统是否激活（变身且融入后）
+    private bool _isUnderlining;                  // S143：暗线转移协程进行中
+    private Coroutine _underlineCoroutine;        // S143：暗线转移协程引用
+    private SpriteRenderer[] _underlineRenderers; // S143：暗线期间临时隐藏的渲染器缓存
+    private bool[] _underlineRendererStates;      // S143：恢复暗线前的渲染器启用状态
     private Vector2 lastInputDirection;           // 最近一次输入方向
 
     // Session 18 性能优化：缓存道具列表，避免每帧 FindObjectsByType
@@ -157,6 +162,19 @@ public class TricksterAbilitySystem : MonoBehaviour
 
         // Session 20: 创建 LineRenderer 对象池（P5 合规：Awake 中预实例化）
         InitLineRendererPool();
+    }
+
+    private void OnDisable()
+    {
+        if (!_isUnderlining)
+        {
+            return;
+        }
+
+        SetUnderlineVisibility(true);
+        _isUnderlining = false;
+        _underlineCoroutine = null;
+        possessionGate?.EndUnderlineTransit();
     }
 
     #region Session 20: LineRenderer 对象池
@@ -403,6 +421,13 @@ public class TricksterAbilitySystem : MonoBehaviour
         if (possessionGate != null && !possessionGate.CanSwitchTarget) return;
         if (inputDirection.sqrMagnitude < 0.01f) return;
 
+        // S143：暗线转移优先于普通磁吸切换。
+        // 只有在已完全附身且当前锚点显式配置了相邻暗线节点时才触发。
+        if (TryStartUnderlineFromDirection(inputDirection))
+        {
+            return;
+        }
+
         // 刷新范围内道具列表
         RefreshPropsInRange();
 
@@ -457,6 +482,144 @@ public class TricksterAbilitySystem : MonoBehaviour
                 Debug.Log($"[TricksterAbility] 磁吸切换目标 → {boundProp.PropName} (dot={bestDot:F2})");
             }
         }
+    }
+
+    /// <summary>
+    /// S143：尝试按方向键从当前附身锚点进入暗线网络。
+    /// 该分支只使用显式配置的 connectedUnderlineNodes，不扫描、不实例化、不改物理参数。
+    /// </summary>
+    private bool TryStartUnderlineFromDirection(Vector2 inputDirection)
+    {
+        if (_isUnderlining) return false;
+        if (PossessionState != TricksterPossessionState.Possessing) return false;
+
+        PossessionAnchor currentAnchor = GetCurrentPossessionAnchor();
+        if (currentAnchor == null || currentAnchor.connectedUnderlineNodes == null || currentAnchor.connectedUnderlineNodes.Count == 0)
+        {
+            return false;
+        }
+
+        Vector2 inputDir = inputDirection.normalized;
+        Vector2 currentPos = currentAnchor.transform.position;
+        PossessionAnchor bestTarget = null;
+        float bestDot = 0.5f; // 至少大致同向，避免轻触方向键误入暗线。
+
+        for (int i = 0; i < currentAnchor.connectedUnderlineNodes.Count; i++)
+        {
+            PossessionAnchor candidate = currentAnchor.connectedUnderlineNodes[i];
+            if (candidate == null || candidate == currentAnchor) continue;
+            if (!candidate.CanBePossessed()) continue;
+
+            Vector2 dirToCandidate = (Vector2)candidate.transform.position - currentPos;
+            if (dirToCandidate.sqrMagnitude < 0.01f) continue;
+
+            float dot = Vector2.Dot(inputDir, dirToCandidate.normalized);
+            if (dot > bestDot)
+            {
+                bestDot = dot;
+                bestTarget = candidate;
+            }
+        }
+
+        if (bestTarget == null)
+        {
+            return false;
+        }
+
+        StartUnderlineTransit(bestTarget);
+        return true;
+    }
+
+    private PossessionAnchor GetCurrentPossessionAnchor()
+    {
+        if (possessionGate != null && possessionGate.CurrentAnchor != null)
+        {
+            return possessionGate.CurrentAnchor;
+        }
+
+        if (boundPropObject != null)
+        {
+            return boundPropObject.GetComponent<PossessionAnchor>();
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// S143：启动暗线转移协程。外层方法负责去重，协程负责状态恢复。
+    /// </summary>
+    private void StartUnderlineTransit(PossessionAnchor target)
+    {
+        if (target == null || _isUnderlining)
+        {
+            return;
+        }
+
+        _underlineCoroutine = StartCoroutine(UnderlineTransitRoutine(target));
+    }
+
+    private IEnumerator UnderlineTransitRoutine(PossessionAnchor target)
+    {
+        _isUnderlining = true;
+        possessionGate?.BeginUnderlineTransit();
+        SetUnderlineVisibility(false);
+
+        Vector3 departPosition = transform.position;
+        GameplayEventBus.SendResidueSpotted(null, gameObject, departPosition, TricksterHeatMeter.HeatTier.Low, 0.2f, 0.15f, 0.3f, "underline_depart");
+        GameplayEventBus.SendCrisisWarning(null, departPosition, 0.1f, 1f, 0.06f, 0.02f, "underline_depart");
+
+        float transitTime = target != null ? Mathf.Max(0f, target.underlineTransitTime) : 0f;
+        yield return new WaitForSeconds(transitTime);
+
+        if (target != null)
+        {
+            Vector3 arrivePosition = target.transform.position;
+            transform.position = arrivePosition;
+
+            GameplayEventBus.SendResidueSpotted(target, gameObject, arrivePosition, TricksterHeatMeter.HeatTier.Low, 0.2f, 0.15f, 0.3f, "underline_arrive");
+            GameplayEventBus.SendCrisisWarning(null, arrivePosition, 0.1f, 1f, 0.06f, 0.02f, "underline_arrive");
+
+            propsCacheDirty = true;
+            BindNearestProp();
+        }
+
+        SetUnderlineVisibility(true);
+        _isUnderlining = false;
+        _underlineCoroutine = null;
+        possessionGate?.EndUnderlineTransit();
+    }
+
+    private void SetUnderlineVisibility(bool visible)
+    {
+        if (!visible)
+        {
+            _underlineRenderers = GetComponentsInChildren<SpriteRenderer>(true);
+            _underlineRendererStates = new bool[_underlineRenderers.Length];
+
+            for (int i = 0; i < _underlineRenderers.Length; i++)
+            {
+                if (_underlineRenderers[i] == null) continue;
+                _underlineRendererStates[i] = _underlineRenderers[i].enabled;
+                _underlineRenderers[i].enabled = false;
+            }
+
+            return;
+        }
+
+        if (_underlineRenderers == null || _underlineRendererStates == null)
+        {
+            return;
+        }
+
+        int count = Mathf.Min(_underlineRenderers.Length, _underlineRendererStates.Length);
+        for (int i = 0; i < count; i++)
+        {
+            if (_underlineRenderers[i] == null) continue;
+            _underlineRenderers[i].enabled = _underlineRendererStates[i];
+        }
+
+        _underlineRenderers = null;
+        _underlineRendererStates = null;
     }
 
     #endregion

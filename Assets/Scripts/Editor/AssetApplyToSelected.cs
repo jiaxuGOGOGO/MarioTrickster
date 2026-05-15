@@ -646,6 +646,8 @@ public class AssetApplyToSelected : EditorWindow
         if (target == null) return;
 
         Undo.RegisterCompleteObjectUndo(target, "Apply Art to Selected");
+        bool freezeGameplayBox = IsCoreGameplayEntity(target);
+        FrozenGameplayBoxSnapshot frozenBox = CaptureRootGameplayBox(target);
 
         // Step 1: 规范化贴图 / 文件夹批量贴图，并在真正应用前完成切片
         if (_artFolder != null)
@@ -677,27 +679,10 @@ public class AssetApplyToSelected : EditorWindow
         Sprite primarySprite = spritesToApply[0];
 
         // Step 3: 找到或创建 SpriteRenderer
-        SpriteRenderer sr = target.GetComponentInChildren<SpriteRenderer>();
-        if (sr == null)
-        {
-            // 遵循 S37 视碰分离架构：在 Visual 子物体上创建
-            Transform visual = target.transform.Find("Visual");
-            if (visual == null)
-            {
-                GameObject visualGO = new GameObject("Visual");
-                Undo.RegisterCreatedObjectUndo(visualGO, "Create Visual");
-                visualGO.transform.SetParent(target.transform);
-                // S-Fix: 视碰对齐 — 角色类型时立即给正确偏移，非角色保持 zero
-                bool isChar = PivotPresetUtility.HasCharacterControllerPublic(target);
-                float yOffset = isChar ? (HasComponentNamed(target, "TricksterController")
-                    ? PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y
-                    : PhysicsMetrics.MARIO_VISUAL_OFFSET_Y) : 0f;
-                visualGO.transform.localPosition = new Vector3(0f, yOffset, 0f);
-                visualGO.transform.localScale = Vector3.one;
-                visual = visualGO.transform;
-            }
-            sr = Undo.AddComponent<SpriteRenderer>(visual.gameObject);
-        }
+        // [TA防御塔] 核心玩法实体必须严格 Root/Visual 分离：Root 保留白盒物理真相，Visual 承载全部美术表现。
+        SpriteRenderer sr = freezeGameplayBox
+            ? ResolveFrozenVisualSpriteRenderer(target)
+            : ResolveDefaultSpriteRenderer(target);
 
         // Step 4: 统一分类，并按素材语义配置循环动画或状态动画
         ArtAssetClassifier.Classification classification = ArtAssetClassifier.Classify(target, spritesToApply, GetPhysicsTypeHint(target));
@@ -717,10 +702,20 @@ public class AssetApplyToSelected : EditorWindow
         }
 
         // Step 6: 应用行为模板
-        ApplyBehaviorTemplate(target, sr, classification);
+        ApplyBehaviorTemplate(target, sr, classification, freezeGameplayBox);
 
-        // Step 6.5: 角色换皮后再次加固移动控制链路，避免历史错误应用留下 Static/Trigger/Freeze 状态。
-        EnsureCharacterControlChain(target);
+        // Step 6.5: 核心玩法实体只允许 Visual 按白盒适配，绝不反向修改 Root BoxCollider2D。
+        if (freezeGameplayBox)
+        {
+            FitVisualToFrozenGameplayBox(target, sr, frozenBox);
+            RestoreRootGameplayBox(frozenBox);
+            LogGameplayBoxFreeze(target);
+        }
+        else
+        {
+            // 角色换皮后再次加固移动控制链路，避免历史错误应用留下 Static/Trigger/Freeze 状态。
+            EnsureCharacterControlChain(target);
+        }
 
         // Step 7: 更新 ImportedAssetMarker
         UpdateMarker(target, spritesToApply, classification);
@@ -751,10 +746,164 @@ public class AssetApplyToSelected : EditorWindow
     }
 
     // =========================================================================
+    // TA 防御塔：Gameplay Boxes Freeze
+    // =========================================================================
+    private struct FrozenGameplayBoxSnapshot
+    {
+        public bool hasRootBox;
+        public BoxCollider2D box;
+        public Vector2 size;
+        public Vector2 offset;
+    }
+
+    private bool IsCoreGameplayEntity(GameObject target)
+    {
+        if (target == null) return false;
+        if (PivotPresetUtility.HasCharacterControllerPublic(target)) return true;
+        if (target.GetComponent<ControllableLevelElement>() != null) return true;
+        if (target.GetComponentInChildren<ControllableLevelElement>(true) != null) return true;
+        if (target.GetComponent<BaseHazard>() != null) return true;
+        if (target.GetComponentInChildren<BaseHazard>(true) != null) return true;
+        if (target.GetComponent<DamageDealer>() != null) return true;
+        if (target.GetComponentInChildren<DamageDealer>(true) != null) return true;
+        if (target.GetComponent<ControllableHazard>() != null) return true;
+        if (target.GetComponentInChildren<ControllableHazard>(true) != null) return true;
+
+        return HasComponentNamed(target, "MarioController")
+            || HasComponentNamed(target, "TricksterController")
+            || HasComponentNamed(target, "ControllableLevelElement")
+            || HasComponentNamed(target, "BaseHazard")
+            || HasComponentNamed(target, "LootObjective")
+            || HasComponentNamed(target, "EscapeGate")
+            || HasComponentNamed(target, "AlarmCrisisDirector");
+    }
+
+    private FrozenGameplayBoxSnapshot CaptureRootGameplayBox(GameObject target)
+    {
+        var snapshot = new FrozenGameplayBoxSnapshot();
+        if (target == null) return snapshot;
+
+        BoxCollider2D box = target.GetComponent<BoxCollider2D>();
+        if (box == null) return snapshot;
+
+        snapshot.hasRootBox = true;
+        snapshot.box = box;
+        snapshot.size = box.size;
+        snapshot.offset = box.offset;
+        return snapshot;
+    }
+
+    private void RestoreRootGameplayBox(FrozenGameplayBoxSnapshot snapshot)
+    {
+        if (!snapshot.hasRootBox || snapshot.box == null) return;
+
+        if (snapshot.box.size != snapshot.size || snapshot.box.offset != snapshot.offset)
+        {
+            Undo.RecordObject(snapshot.box, "Restore Frozen Gameplay Box");
+            snapshot.box.size = snapshot.size;
+            snapshot.box.offset = snapshot.offset;
+            EditorUtility.SetDirty(snapshot.box);
+            Debug.LogWarning($"[TA防御塔] 已拦截并回滚 Root BoxCollider2D 形变: {snapshot.box.gameObject.name}");
+        }
+    }
+
+    private SpriteRenderer ResolveDefaultSpriteRenderer(GameObject target)
+    {
+        SpriteRenderer sr = target.GetComponentInChildren<SpriteRenderer>(true);
+        if (sr != null) return sr;
+
+        Transform visual = EnsureVisualChild(target);
+        return Undo.AddComponent<SpriteRenderer>(visual.gameObject);
+    }
+
+    private SpriteRenderer ResolveFrozenVisualSpriteRenderer(GameObject target)
+    {
+        Transform visual = EnsureVisualChild(target);
+        SpriteRenderer sr = visual.GetComponent<SpriteRenderer>();
+        if (sr != null) return sr;
+
+        sr = visual.GetComponentInChildren<SpriteRenderer>(true);
+        if (sr != null && sr.transform != target.transform) return sr;
+
+        return Undo.AddComponent<SpriteRenderer>(visual.gameObject);
+    }
+
+    private Transform EnsureVisualChild(GameObject target)
+    {
+        Transform visual = target.transform.Find("Visual");
+        if (visual != null) return visual;
+
+        GameObject visualGO = new GameObject("Visual");
+        Undo.RegisterCreatedObjectUndo(visualGO, "Create Visual");
+        visualGO.transform.SetParent(target.transform);
+        visualGO.transform.localRotation = Quaternion.identity;
+        visualGO.transform.localScale = Vector3.one;
+
+        float yOffset = 0f;
+        if (PivotPresetUtility.HasCharacterControllerPublic(target))
+        {
+            yOffset = HasComponentNamed(target, "TricksterController")
+                ? PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y
+                : PhysicsMetrics.MARIO_VISUAL_OFFSET_Y;
+        }
+        else
+        {
+            BoxCollider2D box = target.GetComponent<BoxCollider2D>();
+            if (box != null) yOffset = box.offset.y;
+        }
+        visualGO.transform.localPosition = new Vector3(0f, yOffset, 0f);
+        return visualGO.transform;
+    }
+
+    private void FitVisualToFrozenGameplayBox(GameObject target, SpriteRenderer sr, FrozenGameplayBoxSnapshot snapshot)
+    {
+        if (target == null || sr == null || sr.sprite == null) return;
+        if (sr.transform == target.transform)
+        {
+            Debug.LogWarning($"[TA防御塔] 核心玩法实体禁止在 Root 上换皮，请使用 Visual 子节点: {target.name}");
+            return;
+        }
+        if (!snapshot.hasRootBox || snapshot.box == null) return;
+
+        Vector2 spriteSize = sr.sprite.bounds.size;
+        if (spriteSize.x <= 0.0001f || spriteSize.y <= 0.0001f) return;
+
+        Vector2 boxSize = snapshot.size;
+        if (boxSize.x <= 0.0001f || boxSize.y <= 0.0001f) return;
+
+        Vector3 oldScale = sr.transform.localScale;
+        float signX = Mathf.Approximately(oldScale.x, 0f) ? 1f : Mathf.Sign(oldScale.x);
+        float signY = Mathf.Approximately(oldScale.y, 0f) ? 1f : Mathf.Sign(oldScale.y);
+        Vector3 fittedScale = new Vector3(
+            signX * boxSize.x / spriteSize.x,
+            signY * boxSize.y / spriteSize.y,
+            Mathf.Approximately(oldScale.z, 0f) ? 1f : oldScale.z);
+
+        Undo.RecordObject(sr.transform, "Fit Visual To Frozen Gameplay Box");
+        sr.transform.localScale = fittedScale;
+        EditorUtility.SetDirty(sr.transform);
+
+        Debug.Log($"[AssetApplyToSelected] Visual 已按冻结白盒适配: target={target.name}, box={boxSize}, sprite={spriteSize}, visualScale={fittedScale}");
+    }
+
+    private void LogGameplayBoxFreeze(GameObject target)
+    {
+        Debug.Log($"<color=green>[TA防御塔] 玩法盒已冻结。仅替换表现层 (Visual)，物理碰撞与受击判定已锁定为白盒竞技标准，未发生形变！</color> target={target.name}");
+    }
+
+    // =========================================================================
     // 行为模板应用
     // =========================================================================
-    private void ApplyBehaviorTemplate(GameObject target, SpriteRenderer sr, ArtAssetClassifier.Classification classification)
+    private void ApplyBehaviorTemplate(GameObject target, SpriteRenderer sr, ArtAssetClassifier.Classification classification, bool freezeGameplayBox)
     {
+        if (freezeGameplayBox)
+        {
+            // [TA防御塔] Apply Art 给核心玩法实体换皮时，只能改 Visual/SpriteStateAnimator。
+            // 禁止按商业素材名或已有 Trigger 误套陷阱/道具模板，更禁止用 Sprite 尺寸反推 Root BoxCollider2D。
+            Debug.Log($"[AssetApplyToSelected] 玩法盒冻结保护：跳过行为模板和碰撞体自适应，仅更新 Visual 表现层: {target.name}");
+            return;
+        }
+
         if (PivotPresetUtility.HasCharacterControllerPublic(target))
         {
             // [AI防坑警告] Apply Art 给 Mario/Trickster 换皮时，只能改 Visual/SpriteStateAnimator。

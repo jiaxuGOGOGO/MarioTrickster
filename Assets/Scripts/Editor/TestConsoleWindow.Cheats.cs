@@ -232,6 +232,9 @@ public partial class TestConsoleWindow
             }
 
             EditorGUILayout.EndVertical();
+
+            // ── AI Auto-Arena 折叠栏 ──
+            DrawAIArenaSection();
         }
     }
 

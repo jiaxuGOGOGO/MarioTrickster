@@ -168,6 +168,7 @@ public partial class TestConsoleWindow : EditorWindow
         }
         if (state == PlayModeStateChange.ExitingPlayMode)
         {
+            CleanupAIArena();
             Time.timeScale = 1f;
         }
         Repaint();

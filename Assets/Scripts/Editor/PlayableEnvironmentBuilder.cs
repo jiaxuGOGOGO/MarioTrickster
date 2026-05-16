@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEditor;
+using System.Collections.Generic;
 
 /// <summary>
 /// PlayableEnvironmentBuilder — TestConsole ASCII 关卡生成后的可玩环境补全工具。
@@ -153,9 +154,12 @@ public static class PlayableEnvironmentBuilder
 
             tricksterCtrl = trickster.AddComponent<TricksterController>();
             tricksterCtrl.visualTransform = tricksterVisual.transform; // S37: 赋值视觉代理节点
-            trickster.AddComponent<DisguiseSystem>();
+            DisguiseSystem disguiseSystem = trickster.AddComponent<DisguiseSystem>();
             trickster.AddComponent<TricksterAbilitySystem>();
             trickster.AddComponent<EnergySystem>();
+
+            // S60-Fix: 自动配置默认伪装形态，消除 "未配置伪装形态" 警告
+            ConfigureDefaultDisguisesForPlayable(disguiseSystem);
 
             SetSerializedFieldForPlayable(tricksterCtrl, "groundLayer", groundLayerMask);
 
@@ -328,6 +332,94 @@ public static class PlayableEnvironmentBuilder
 
         Debug.LogError($"[TestConsole] Cannot create Layer '{layerName}': all custom layer slots are full!");
         return 0;
+    }
+
+    // ═══════════════════════════════════════════════════
+    // S60-Fix: 配置默认伪装形态
+    // 与 TestSceneBuilder.ConfigureDefaultTricksterDisguises 逻辑一致，
+    // 确保 Custom Template Editor 生成的关卡也能正常使用 Trickster 伪装功能。
+    // ═══════════════════════════════════════════════════
+
+    private static void ConfigureDefaultDisguisesForPlayable(DisguiseSystem disguiseSystem)
+    {
+        if (disguiseSystem == null) return;
+
+        SerializedObject so = new SerializedObject(disguiseSystem);
+        SerializedProperty disguises = so.FindProperty("availableDisguises");
+        SerializedProperty currentIndex = so.FindProperty("currentDisguiseIndex");
+
+        if (disguises == null)
+        {
+            Debug.LogWarning("[PlayableEnvironmentBuilder] 找不到 DisguiseSystem.availableDisguises，无法自动配置伪装。");
+            return;
+        }
+
+        // 只在列表为空时配置（避免覆盖用户手动设置）
+        if (disguises.arraySize > 0)
+        {
+            so.Dispose();
+            return;
+        }
+
+        disguises.ClearArray();
+        disguises.arraySize = 2;
+
+        // 伪装形态 1: 蓝色方块
+        ConfigureDisguiseEntryForPlayable(
+            disguises.GetArrayElementAtIndex(0),
+            "Default Blue Block",
+            CreateSolidColorSpriteForPlayable(new Color(0.25f, 0.55f, 1f)),
+            new Vector2(1.2f, 1.2f),
+            Vector2.zero,
+            new Vector3(1.2f, 1.2f, 1f),
+            0); // DisguiseType.Static
+
+        // 伪装形态 2: 细长平台
+        ConfigureDisguiseEntryForPlayable(
+            disguises.GetArrayElementAtIndex(1),
+            "Default Slim Platform",
+            CreateSolidColorSpriteForPlayable(new Color(0.35f, 0.85f, 1f)),
+            new Vector2(2.4f, 0.5f),
+            Vector2.zero,
+            new Vector3(2.4f, 0.5f, 1f),
+            0); // DisguiseType.Static
+
+        if (currentIndex != null)
+            currentIndex.intValue = 0;
+
+        so.ApplyModifiedProperties();
+        Debug.Log("[PlayableEnvironmentBuilder] ✅ 已为 Trickster 配置 2 个默认伪装形态。");
+    }
+
+    private static void ConfigureDisguiseEntryForPlayable(
+        SerializedProperty entry,
+        string disguiseName,
+        Sprite sprite,
+        Vector2 colliderSize,
+        Vector2 colliderOffset,
+        Vector3 customScale,
+        int typeIndex)
+    {
+        if (entry == null) return;
+
+        entry.FindPropertyRelative("disguiseName").stringValue = disguiseName;
+        entry.FindPropertyRelative("disguiseSprite").objectReferenceValue = sprite;
+        entry.FindPropertyRelative("iconSprite").objectReferenceValue = sprite;
+        entry.FindPropertyRelative("customColliderSize").vector2Value = colliderSize;
+        entry.FindPropertyRelative("customColliderOffset").vector2Value = colliderOffset;
+        entry.FindPropertyRelative("customScale").vector3Value = customScale;
+        entry.FindPropertyRelative("type").enumValueIndex = typeIndex;
+    }
+
+    private static Sprite CreateSolidColorSpriteForPlayable(Color color)
+    {
+        Texture2D tex = new Texture2D(4, 4);
+        Color[] pixels = new Color[16];
+        for (int i = 0; i < 16; i++) pixels[i] = color;
+        tex.SetPixels(pixels);
+        tex.Apply();
+        tex.filterMode = FilterMode.Point;
+        return Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4);
     }
 
     /// <summary>为可玩环境对象分配默认白盒 Sprite</summary>

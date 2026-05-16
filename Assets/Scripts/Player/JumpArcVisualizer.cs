@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 跳跃抛物线可视化器 — 关卡设计师的秘密武器
+/// 跳跃抛物线可视化器 — 关卡设计师的秘密武器（上下文感知版）
 /// 
 /// 挂在 Mario 身上，在 Scene 视图中用 OnDrawGizmos 绘制多条半透明抛物线：
 ///   1. 绿色：原地最高跳轨迹（垂直极限，含半重力顶点）
@@ -9,6 +9,12 @@ using UnityEngine;
 ///   3. 黄色：短跳弧线（立即松开跳跃键）
 ///   4. 红色虚线：极限标注线（最大高度、最大距离）
 ///   5. 白色网格：格子刻度线
+///
+/// 智能降噪策略（Context-Aware）：
+///   · 默认状态：仅绘制极低透明度的简化轮廓（外框 + 顶点标记）
+///   · 选中 Mario 或带有 BouncyPlatform 组件的物体时：完整渲染全部抛物线束、
+///     参数面板、极限外框和网格刻度
+///   · 保护策划的视觉心流，避免庞大的跳跃网格干扰关卡布局工作
 ///
 /// S53 改造：参数读取优先级
 ///   1. PhysicsConfigSO（通过 PhysicsMetrics.ActiveConfig）— 编辑器实时调参时自动同步
@@ -27,12 +33,6 @@ using UnityEngine;
 ///   y(t) = v_y * t - 0.5 * g * t²
 ///   其中 v_y = jumpPower, g = fallAcceleration, v_x = maxSpeed
 ///   顶点区域（|v_y| < apexThreshold）: g *= apexGravityMultiplier
-///
-/// 业界参考：
-///   - 任天堂关卡设计师使用类似工具在编辑器中预览跳跃弧线
-///   - GDC "Building a Better Jump": 从设计参数推导物理曲线
-///   - GMTK Platformer Toolkit: gravity = (-2*h)/(t²)
-///   - Celeste: 半重力跳跃顶点让弧线更平缓
 ///
 /// Session 32: 视碰分离与关卡度量转译系统
 /// Session 53: PhysicsConfigSO 实时监听 + PhysicsMetrics Facade 联动
@@ -79,11 +79,37 @@ public class JumpArcVisualizer : MonoBehaviour
     // 缓存
     private MarioController cachedMario;
 
+    // ═══════════════════════════════════════════════════
+    // 降噪常量
+    // ═══════════════════════════════════════════════════
+    private const float DIMMED_ALPHA = 0.08f;
+
 #if UNITY_EDITOR
     private void OnValidate()
     {
-        // 尝试同步参数
         SyncPhysicsParams();
+    }
+
+    /// <summary>
+    /// 上下文感知：判断当前是否应该完整渲染。
+    /// 只有选中 Mario 本身或带有 BouncyPlatform 组件的物体时才完整显示。
+    /// </summary>
+    private bool ShouldRenderFull()
+    {
+        GameObject selected = UnityEditor.Selection.activeGameObject;
+        if (selected == null) return false;
+
+        // 选中了 Mario 自身（或 Mario 的子物体）
+        if (selected == gameObject) return true;
+        if (selected.transform.IsChildOf(transform)) return true;
+        if (transform.IsChildOf(selected.transform)) return true;
+
+        // 选中了带 BouncyPlatform 的物体
+        if (selected.GetComponent<BouncyPlatform>() != null) return true;
+        if (selected.GetComponentInParent<BouncyPlatform>() != null) return true;
+        if (selected.GetComponentInChildren<BouncyPlatform>() != null) return true;
+
+        return false;
     }
 
     private void OnDrawGizmos()
@@ -93,44 +119,80 @@ public class JumpArcVisualizer : MonoBehaviour
         SyncPhysicsParams();
 
         Vector3 origin = transform.position;
-        // 碰撞体底部中心作为起跳点
         BoxCollider2D col = GetComponent<BoxCollider2D>();
         if (col != null)
         {
             origin.y -= col.size.y * 0.5f - col.offset.y;
         }
 
-        // 1. 原地最高跳（绿色）— 纯垂直，含半重力顶点
-        DrawVerticalJumpArc(origin);
+        bool fullRender = ShouldRenderFull();
 
-        // 2. 极限远跳-右（蓝色）— 满速向右，含半重力顶点
-        DrawHorizontalJumpArc(origin, 1f);
-
-        // 3. 极限远跳-左（蓝色，镜像）
-        DrawHorizontalJumpArc(origin, -1f);
-
-        // 4. 短跳弧线（黄色）— 立即松开跳跃键
-        DrawShortJumpArc(origin, 1f);
-        DrawShortJumpArc(origin, -1f);
-
-        // 5. 网格刻度
-        if (showGrid)
+        if (fullRender)
         {
-            DrawGridOverlay(origin);
+            // ── 完整渲染模式 ──
+            // 1. 原地最高跳（绿色）
+            DrawVerticalJumpArc(origin);
+            // 2. 极限远跳（蓝色）
+            DrawHorizontalJumpArc(origin, 1f);
+            DrawHorizontalJumpArc(origin, -1f);
+            // 3. 短跳弧线（黄色）
+            DrawShortJumpArc(origin, 1f);
+            DrawShortJumpArc(origin, -1f);
+            // 4. 网格刻度
+            if (showGrid)
+            {
+                DrawGridOverlay(origin);
+            }
+            // 5. 极限标注
+            DrawLimitAnnotations(origin);
         }
-
-        // 6. 极限标注
-        DrawLimitAnnotations(origin);
+        else
+        {
+            // ── 降噪模式：仅绘制极低透明度的极限外框 ──
+            DrawDimmedLimitOutline(origin);
+        }
     }
+
+    // ═══════════════════════════════════════════════════
+    // 降噪模式：极简外框
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// 降噪模式下仅绘制极低透明度的极限矩形外框和顶点标记，
+    /// 让策划知道弧线存在但不干扰视觉心流。
+    /// </summary>
+    private void DrawDimmedLimitOutline(Vector3 origin)
+    {
+        float maxH = PhysicsMetrics.MAX_JUMP_HEIGHT;
+        float maxD = PhysicsMetrics.MAX_JUMP_DISTANCE;
+
+        Color dimColor = new Color(limitLineColor.r, limitLineColor.g, limitLineColor.b, DIMMED_ALPHA);
+        Gizmos.color = dimColor;
+
+        // 极限矩形外框
+        Vector3 bl = origin + new Vector3(-maxD, 0, 0);
+        Vector3 br = origin + new Vector3(maxD, 0, 0);
+        Vector3 tl = origin + new Vector3(-maxD, maxH, 0);
+        Vector3 tr = origin + new Vector3(maxD, maxH, 0);
+
+        Gizmos.DrawLine(bl, br);
+        Gizmos.DrawLine(br, tr);
+        Gizmos.DrawLine(tr, tl);
+        Gizmos.DrawLine(tl, bl);
+
+        // 顶点小球标记
+        Color dimGreen = new Color(verticalArcColor.r, verticalArcColor.g, verticalArcColor.b, DIMMED_ALPHA * 2f);
+        Gizmos.color = dimGreen;
+        Gizmos.DrawWireSphere(origin + new Vector3(0, maxH, 0), 0.15f);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 物理模拟
+    // ═══════════════════════════════════════════════════
 
     /// <summary>
     /// 模拟一帧的重力，考虑半重力顶点效果。
-    /// 这是精确模拟 MarioController.HandleGravity 的逻辑。
     /// </summary>
-    /// <param name="vy">当前垂直速度</param>
-    /// <param name="dt">时间步长</param>
-    /// <param name="endedEarly">是否提前松开跳跃键</param>
-    /// <returns>更新后的垂直速度</returns>
     private float SimulateGravityStep(float vy, float dt, bool endedEarly)
     {
         float g = gravity;
@@ -141,7 +203,6 @@ public class JumpArcVisualizer : MonoBehaviour
         }
         else if (!endedEarly && Mathf.Abs(vy) < apexThreshold)
         {
-            // 半重力顶点：长按跳跃键 + 接近顶点
             g *= apexGravityMultiplier;
         }
 
@@ -153,12 +214,12 @@ public class JumpArcVisualizer : MonoBehaviour
     {
         Gizmos.color = verticalArcColor;
 
-        float dt = 0.01f; // 高精度时间步长
+        float dt = 0.01f;
         float vy = jumpPower;
         float y = 0f;
         Vector3 prev = origin;
 
-        for (int i = 0; i < 500; i++) // 最多5秒
+        for (int i = 0; i < 500; i++)
         {
             vy = SimulateGravityStep(vy, dt, false);
             y += vy * dt;
@@ -200,7 +261,7 @@ public class JumpArcVisualizer : MonoBehaviour
             prev = point;
         }
 
-        // 落点标记（精确计算落地位置）
+        // 落点标记
         Vector3 landPoint = prev;
         landPoint.y = origin.y;
         Gizmos.DrawWireSphere(landPoint, 0.12f);
@@ -219,7 +280,7 @@ public class JumpArcVisualizer : MonoBehaviour
 
         for (int i = 0; i < 500; i++)
         {
-            vy = SimulateGravityStep(vy, dt, true); // endedEarly = true
+            vy = SimulateGravityStep(vy, dt, true);
             x += maxSpeed * dt * direction;
             y += vy * dt;
 
@@ -235,7 +296,6 @@ public class JumpArcVisualizer : MonoBehaviour
     private void DrawGridOverlay(Vector3 origin)
     {
         Gizmos.color = gridColor;
-        // S53: 从 PhysicsMetrics Facade 读取动态值（随 SO 参数实时变化）
         float maxH = PhysicsMetrics.MAX_JUMP_HEIGHT + 1f;
         float maxD = PhysicsMetrics.MAX_JUMP_DISTANCE + 1f;
 
@@ -259,7 +319,6 @@ public class JumpArcVisualizer : MonoBehaviour
     /// <summary>绘制极限标注线 — S53: 使用 PhysicsMetrics 动态值</summary>
     private void DrawLimitAnnotations(Vector3 origin)
     {
-        // S53: 从 PhysicsMetrics Facade 读取动态值
         // 最大高度水平线
         Gizmos.color = limitLineColor;
         float maxH = PhysicsMetrics.MAX_JUMP_HEIGHT;
@@ -279,7 +338,7 @@ public class JumpArcVisualizer : MonoBehaviour
         Gizmos.DrawLine(dBottomL, dTopL);
 
 #if UNITY_EDITOR
-        // 文字标注 — S53: 使用 PhysicsMetrics 动态值
+        // 文字标注
         UnityEditor.Handles.color = verticalArcColor;
         UnityEditor.Handles.Label(origin + new Vector3(0.2f, maxH + 0.2f, 0),
             $"Max Height: {maxH:F1} units");
@@ -298,7 +357,7 @@ public class JumpArcVisualizer : MonoBehaviour
         UnityEditor.Handles.Label(origin + new Vector3(-3f, maxH - 0.3f, 0),
             $"Apex Zone: |vy| < {apexThreshold:F1}, gravity x {apexGravityMultiplier:F1}");
 
-        // S53: 数据源指示器 — 让设计师知道当前参数来自哪里
+        // S53: 数据源指示器
         string source = PhysicsMetrics.ActiveConfig != null ? "PhysicsConfigSO" : "Default";
         UnityEditor.Handles.color = new Color(0.6f, 0.6f, 0.6f, 0.5f);
         UnityEditor.Handles.Label(origin + new Vector3(-3f, -0.8f, 0),
@@ -309,14 +368,9 @@ public class JumpArcVisualizer : MonoBehaviour
     /// <summary>
     /// S53: 统一参数同步方法。
     /// 优先级：PhysicsConfigSO > MarioController > 本地默认值。
-    /// 
-    /// 当 PhysicsConfigSO 存在时，直接从 SO 读取所有手感参数，
-    /// 确保 Scene 视图中的弧线与运行时的实际物理完全一致。
-    /// 当 SO 不存在时，回退到从 MarioController 反射读取（兼容旧流程）。
     /// </summary>
     private void SyncPhysicsParams()
     {
-        // S53: 优先从 PhysicsConfigSO 读取
         PhysicsConfigSO config = PhysicsMetrics.ActiveConfig;
         if (config != null)
         {
@@ -329,7 +383,6 @@ public class JumpArcVisualizer : MonoBehaviour
             return;
         }
 
-        // 回退：从 MarioController 同步参数
         SyncFromMarioController();
     }
 
@@ -341,7 +394,6 @@ public class JumpArcVisualizer : MonoBehaviour
 
         if (cachedMario == null) return;
 
-        // 通过 SerializedObject 读取私有字段（仅编辑器）
 #if UNITY_EDITOR
         var so = new UnityEditor.SerializedObject(cachedMario);
         var jpProp = so.FindProperty("jumpPower");

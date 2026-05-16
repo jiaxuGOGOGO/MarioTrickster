@@ -275,6 +275,10 @@ public static class PlayableEnvironmentBuilder
 
         Debug.Log($"[TestConsole] ✅ Playable environment ready! Mario at {mario.transform.position}, bounds: X[{boundMinX},{boundMaxX}] Y[{boundMinY},{boundMaxY}]");
 
+        // S60-Fix: 为所有带 IControllableProp 的对象自动补齐 PossessionAnchor
+        // 确保 Trickster AI 的 Roaming 逻辑能找到可用的附身目标
+        EnsurePossessionAnchors();
+
         // S41: 补全环境后同步 Picking 状态（Mario/Trickster 的 Visual 子节点在此方法中创建）
         LevelEditorPickingManager.SyncState();
     }
@@ -483,5 +487,44 @@ public static class PlayableEnvironmentBuilder
         }
 
         so.ApplyModifiedProperties();
+    }
+
+    // ═══════════════════════════════════════════════════
+    // S60-Fix: 自动补齐 PossessionAnchor
+    // ASCII 关卡生成器通过 Registry 创建的 ControllableLevelElement
+    // （SpikeTrap、FireTrap、ControllableBlocker、StateQueueTrap 等）
+    // 实现了 IControllableProp 接口，但没有挂载 PossessionAnchor。
+    // Trickster AI 的 Roaming 逻辑通过 FindObjectsOfType<PossessionAnchor>
+    // 查找移动目标，没有锡点就会原地待命。
+    // 此方法在环境补全后扫描场景，为所有缺少锡点的
+    // IControllableProp 对象自动添加 PossessionAnchor。
+    // ═══════════════════════════════════════════════════
+
+    private static void EnsurePossessionAnchors()
+    {
+        // 查找场景中所有实现 IControllableProp 的 MonoBehaviour
+        MonoBehaviour[] allBehaviours = Object.FindObjectsOfType<MonoBehaviour>();
+        int addedCount = 0;
+
+        foreach (MonoBehaviour mb in allBehaviours)
+        {
+            if (mb == null) continue;
+            if (!(mb is IControllableProp)) continue;
+
+            // 已经有 PossessionAnchor 的跳过
+            if (mb.GetComponent<PossessionAnchor>() != null) continue;
+
+            // 添加 PossessionAnchor
+            PossessionAnchor anchor = Undo.AddComponent<PossessionAnchor>(mb.gameObject);
+            if (anchor != null)
+            {
+                addedCount++;
+            }
+        }
+
+        if (addedCount > 0)
+        {
+            Debug.Log($"[PlayableEnvironmentBuilder] \u2705 已为 {addedCount} 个可控元素自动添加 PossessionAnchor。");
+        }
     }
 }

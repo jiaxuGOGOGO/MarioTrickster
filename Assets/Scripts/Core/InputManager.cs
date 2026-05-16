@@ -87,10 +87,10 @@ public class InputManager : MonoBehaviour
 
     private void Start()
     {
-        // S49: 默认使用键盘输入提供者
+        // S49→S60: 默认使用 HybridInputProvider（人机混合路由）
         if (_inputProvider == null)
         {
-            _inputProvider = new KeyboardInputProvider();
+            _inputProvider = new HybridInputProvider();
         }
 
         // 自动查找 Mario 的扫描技能
@@ -103,10 +103,10 @@ public class InputManager : MonoBehaviour
     // ─────────────────────────────────────────────────────
     private void Update()
     {
-        // S49: 确保 inputProvider 已初始化（防御 Start 未执行的边界情况）
+        // S49→S60: 确保 inputProvider 已初始化（防御 Start 未执行的边界情况）
         if (_inputProvider == null)
         {
-            _inputProvider = new KeyboardInputProvider();
+            _inputProvider = new HybridInputProvider();
         }
 
         // S49: 更新输入源（手柄检测 / 自动化帧推进）
@@ -124,13 +124,18 @@ public class InputManager : MonoBehaviour
 
     /// <summary>
     /// 更新输入源的内部状态。
+    /// HybridInputProvider: 同时更新 keyboard + bot + 热键检测
     /// KeyboardInputProvider: 检测手柄连接
     /// AutomatedInputProvider: 推进帧计数器
     /// HeuristicBotInputProvider: AI 决策 + 单帧事件清零
     /// </summary>
     private void UpdateInputProvider()
     {
-        if (_inputProvider is KeyboardInputProvider kbProvider)
+        if (_inputProvider is HybridInputProvider hybridProvider)
+        {
+            hybridProvider.Tick(Time.deltaTime);
+        }
+        else if (_inputProvider is KeyboardInputProvider kbProvider)
         {
             kbProvider.UpdateGamepads();
         }
@@ -360,19 +365,19 @@ public class InputManager : MonoBehaviour
     public void SetTricksterController(TricksterController c) => tricksterController = c;
 
     /// <summary>
-    /// S49: 热替换输入源。
+    /// S49→S60: 热替换输入源。
     /// 
-    /// 正常游戏时使用 KeyboardInputProvider（默认）。
+    /// 正常游戏时使用 HybridInputProvider（默认，人机混合路由）。
     /// 自动化测试时注入 AutomatedInputProvider。
     /// 
     /// 用法：
     ///   inputManager.SetInputProvider(new AutomatedInputProvider(sequence));
     /// 
-    /// 传入 null 会回退到 KeyboardInputProvider。
+    /// 传入 null 会回退到 HybridInputProvider。
     /// </summary>
     public void SetInputProvider(IInputProvider provider)
     {
-        _inputProvider = provider ?? new KeyboardInputProvider();
+        _inputProvider = provider ?? new HybridInputProvider();
     }
 
     /// <summary>

@@ -3,17 +3,20 @@ using UnityEditor;
 using System.Collections;
 
 // ═══════════════════════════════════════════════════════════════════
-// TestConsoleWindow.AIArena — AI 自动挂机角斗场
+// TestConsoleWindow.AIArena — AI 自动挂机角斗场 (S60 升级版)
 //
 // 在 Cheats Tab 末尾绘制折叠栏，提供：
-//   1. [Enable AI Bots] Toggle — 接管 InputManager，注入 HeuristicBotInputProvider
-//   2. [Time Scale] 滑动条 — 1x~5x 快进对局
-//   3. [Auto Restart] Toggle — 回合结束后自动延迟 1s 重开
-//   4. [Print Match Report] 按钮 — 输出汇总战报
+//   1. [Mario 托管 (F1)] Toggle — 切换 Mario 人机控制
+//   2. [Trickster 托管 (F2)] Toggle — 切换 Trickster 人机控制
+//   3. [Time Scale] 滑动条 — 1x~5x 快进对局
+//   4. [Auto Restart] Toggle — 回合结束后自动延迟 1s 重开
+//   5. [Print Match Report] 按钮 — 输出汇总战报
 //
-// [AI防坑警告]
-//   - 关闭挂机时：Time.timeScale 强制恢复 1.0f，切回 KeyboardInputProvider
-//   - 绝不影响玩家后续手操试玩体验
+// S60 改动：
+//   - 移除原来的单体 [Enable AI Bots]，改为两个独立 Toggle
+//   - 通过 HybridInputProvider（默认 Provider）的 MarioIsAI / TricksterIsAI 控制
+//   - F1/F2 热键在 HybridInputProvider.Tick() 中检测，Editor UI 仅做同步显示
+//   - 关闭时 Time.timeScale 恢复 1.0f，MarioIsAI/TricksterIsAI 恢复 false
 // ═══════════════════════════════════════════════════════════════════
 
 public partial class TestConsoleWindow
@@ -22,14 +25,27 @@ public partial class TestConsoleWindow
     // AI Arena 状态字段
     // ═══════════════════════════════════════════════════
 
-    private bool aiBotsEnabled = false;
     private float arenaTimeScale = 1.0f;
     private bool autoRestartEnabled = false;
     private bool showAIArena = true;
 
-    private HeuristicBotInputProvider _activeBotProvider;
     private AutoTestAnalytics _analytics;
     private AutoRestartHelper _autoRestartHelper;
+
+    // ═══════════════════════════════════════════════════
+    // 获取当前 HybridInputProvider（从 InputManager）
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// 从 InputManager 获取当前的 HybridInputProvider。
+    /// 如果当前 Provider 不是 Hybrid（如被测试注入了 AutomatedInputProvider），返回 null。
+    /// </summary>
+    private HybridInputProvider GetHybridProvider()
+    {
+        EnsureCache();
+        if (cachedInputManager == null) return null;
+        return cachedInputManager.GetCurrentProvider() as HybridInputProvider;
+    }
 
     // ═══════════════════════════════════════════════════
     // 绘制 AI Arena 折叠栏（由 DrawCheatsTab 末尾调用）
@@ -39,10 +55,13 @@ public partial class TestConsoleWindow
     {
         EditorGUILayout.Space(8);
 
+        var hybrid = GetHybridProvider();
+        bool anyAI = hybrid != null && (hybrid.MarioIsAI || hybrid.TricksterIsAI);
+
         // 折叠栏标题
-        GUI.color = aiBotsEnabled ? new Color(0.3f, 1f, 0.5f) : Color.white;
+        GUI.color = anyAI ? new Color(0.3f, 1f, 0.5f) : Color.white;
         showAIArena = EditorGUILayout.Foldout(showAIArena,
-            "\U0001f916 AI Auto-Arena (\u81ea\u52a8\u6302\u673a\u89d2\u6597\u573a)" + (aiBotsEnabled ? " [ACTIVE]" : ""),
+            "\U0001f916 AI Auto-Arena (\u81ea\u52a8\u6302\u673a\u89d2\u6597\u573a)" + (anyAI ? " [ACTIVE]" : ""),
             true, EditorStyles.foldoutHeader);
         GUI.color = Color.white;
 
@@ -51,25 +70,56 @@ public partial class TestConsoleWindow
         EditorGUILayout.BeginVertical("box");
 
         EditorGUILayout.HelpBox(
-            "\u5f00\u542f\u540e AI \u5c06\u63a5\u7ba1\u53cc\u65b9\u8f93\u5165\uff0c\u5feb\u8fdb\u5bf9\u5c40\u5e76\u6536\u96c6\u6570\u636e\u3002\n" +
-            "\u5173\u95ed\u65f6\u81ea\u52a8\u6062\u590d Time.timeScale = 1.0 \u5e76\u5207\u56de\u952e\u76d8\u8f93\u5165\u3002",
+            "\u72ec\u7acb\u63a7\u5236 Mario \u548c Trickster \u7684\u4eba\u673a\u5207\u6362\u3002\n" +
+            "\u6e38\u73a9\u4e2d\u6309 F1/F2 \u4e00\u952e\u593a\u820d\uff0c\u6216\u5728\u6b64\u52fe\u9009\u3002\n" +
+            "\u5173\u95ed\u65f6\u81ea\u52a8\u6062\u590d Time.timeScale = 1.0\u3002",
             MessageType.Info);
 
-        // ── Enable AI Bots Toggle ──
-        bool newBotsEnabled = EditorGUILayout.Toggle(
-            new GUIContent("Enable AI Bots", "\u63a5\u7ba1 InputManager\uff0c\u6ce8\u5165 HeuristicBotInputProvider"),
-            aiBotsEnabled);
-
-        if (newBotsEnabled != aiBotsEnabled)
+        if (hybrid == null)
         {
-            aiBotsEnabled = newBotsEnabled;
-            if (aiBotsEnabled)
-                EnableAIBots();
-            else
-                DisableAIBots();
+            EditorGUILayout.HelpBox(
+                "\u5f53\u524d InputProvider \u4e0d\u662f HybridInputProvider\uff0c\u65e0\u6cd5\u63a7\u5236\u4eba\u673a\u5207\u6362\u3002\n" +
+                "\u53ef\u80fd\u662f\u81ea\u52a8\u5316\u6d4b\u8bd5\u6b63\u5728\u8fd0\u884c\u3002",
+                MessageType.Warning);
+            EditorGUILayout.EndVertical();
+            return;
         }
 
-        EditorGUI.BeginDisabledGroup(!aiBotsEnabled);
+        // ── Mario 托管 (F1) Toggle ──
+        EditorGUILayout.Space(4);
+        GUI.color = hybrid.MarioIsAI ? new Color(0.4f, 0.9f, 1f) : Color.white;
+        bool newMarioAI = EditorGUILayout.Toggle(
+            new GUIContent("Mario \u6258\u7ba1 (F1)", "\u5207\u6362 Mario \u4e3a AI \u63a7\u5236\uff0c\u6216\u6309 F1 \u70ed\u952e"),
+            hybrid.MarioIsAI);
+        GUI.color = Color.white;
+
+        if (newMarioAI != hybrid.MarioIsAI)
+        {
+            hybrid.MarioIsAI = newMarioAI;
+            string who = newMarioAI ? "\U0001f916 AI" : "\U0001f464 \u4eba\u7c7b";
+            Debug.Log($"<color=#00FF88><b>[\u8f93\u5165\u6d41] Mario \u5df2\u5207\u6362\u4e3a{who}\u63a7\u5236\uff01(Editor Toggle)</b></color>");
+        }
+
+        // ── Trickster 托管 (F2) Toggle ──
+        GUI.color = hybrid.TricksterIsAI ? new Color(1f, 0.6f, 0.2f) : Color.white;
+        bool newTricksterAI = EditorGUILayout.Toggle(
+            new GUIContent("Trickster \u6258\u7ba1 (F2)", "\u5207\u6362 Trickster \u4e3a AI \u63a7\u5236\uff0c\u6216\u6309 F2 \u70ed\u952e"),
+            hybrid.TricksterIsAI);
+        GUI.color = Color.white;
+
+        if (newTricksterAI != hybrid.TricksterIsAI)
+        {
+            hybrid.TricksterIsAI = newTricksterAI;
+            string who = newTricksterAI ? "\U0001f916 AI" : "\U0001f464 \u4eba\u7c7b";
+            Debug.Log($"<color=#FF8800><b>[\u8f93\u5165\u6d41] Trickster \u5df2\u5207\u6362\u4e3a{who}\u63a7\u5236\uff01(Editor Toggle)</b></color>");
+        }
+
+        // ── 当前状态指示 ──
+        EditorGUILayout.BeginHorizontal();
+        string marioLabel = hybrid.MarioIsAI ? "\U0001f916 AI" : "\U0001f464 Human";
+        string trickLabel = hybrid.TricksterIsAI ? "\U0001f916 AI" : "\U0001f464 Human";
+        EditorGUILayout.LabelField($"Mario: {marioLabel}  |  Trickster: {trickLabel}", EditorStyles.miniLabel);
+        EditorGUILayout.EndHorizontal();
 
         // ── Time Scale 滑动条 ──
         EditorGUILayout.Space(4);
@@ -79,13 +129,12 @@ public partial class TestConsoleWindow
         if (!Mathf.Approximately(newArenaTimeScale, arenaTimeScale))
         {
             arenaTimeScale = newArenaTimeScale;
-            if (aiBotsEnabled)
-                Time.timeScale = arenaTimeScale;
+            Time.timeScale = arenaTimeScale;
         }
         // 快捷按钮
-        if (GUILayout.Button("1x", GUILayout.Width(30))) { arenaTimeScale = 1f; if (aiBotsEnabled) Time.timeScale = 1f; }
-        if (GUILayout.Button("3x", GUILayout.Width(30))) { arenaTimeScale = 3f; if (aiBotsEnabled) Time.timeScale = 3f; }
-        if (GUILayout.Button("5x", GUILayout.Width(30))) { arenaTimeScale = 5f; if (aiBotsEnabled) Time.timeScale = 5f; }
+        if (GUILayout.Button("1x", GUILayout.Width(30))) { arenaTimeScale = 1f; Time.timeScale = 1f; }
+        if (GUILayout.Button("3x", GUILayout.Width(30))) { arenaTimeScale = 3f; Time.timeScale = 3f; }
+        if (GUILayout.Button("5x", GUILayout.Width(30))) { arenaTimeScale = 5f; Time.timeScale = 5f; }
         EditorGUILayout.EndHorizontal();
 
         // ── Auto Restart Toggle ──
@@ -97,14 +146,38 @@ public partial class TestConsoleWindow
         if (newAutoRestart != autoRestartEnabled)
         {
             autoRestartEnabled = newAutoRestart;
-            if (aiBotsEnabled)
+            if (autoRestartEnabled)
+                EnableAutoRestart();
+            else
+                DisableAutoRestart();
+        }
+
+        // ── Analytics 控制 ──
+        EditorGUILayout.Space(4);
+        EditorGUILayout.LabelField("Data Collection", EditorStyles.boldLabel);
+
+        EditorGUILayout.BeginHorizontal();
+        bool analyticsActive = _analytics != null;
+        if (!analyticsActive)
+        {
+            if (GUILayout.Button("Start Collecting"))
             {
-                if (autoRestartEnabled)
-                    EnableAutoRestart();
-                else
-                    DisableAutoRestart();
+                _analytics = new AutoTestAnalytics();
+                EnsureCache();
+                if (cachedGameManager != null)
+                    _analytics.StartCollecting(cachedGameManager);
+                Debug.Log("[AI Arena] Analytics started.");
             }
         }
+        else
+        {
+            if (GUILayout.Button("Stop Collecting"))
+            {
+                _analytics.StopCollecting();
+                Debug.Log("[AI Arena] Analytics stopped (data preserved).");
+            }
+        }
+        EditorGUILayout.EndHorizontal();
 
         // ── 实时统计显示 ──
         if (_analytics != null && _analytics.TotalMatches > 0)
@@ -126,7 +199,7 @@ public partial class TestConsoleWindow
             if (_analytics != null)
                 _analytics.PrintMatchReport();
             else
-                Debug.LogWarning("[AI Arena] No analytics data. Enable AI Bots first.");
+                Debug.LogWarning("[AI Arena] No analytics data. Click 'Start Collecting' first.");
         }
         GUI.color = Color.white;
 
@@ -137,69 +210,12 @@ public partial class TestConsoleWindow
             Debug.Log("[AI Arena] Stats reset.");
         }
 
-        EditorGUI.EndDisabledGroup();
-
         EditorGUILayout.EndVertical();
     }
 
     // ═══════════════════════════════════════════════════
-    // AI Arena 控制逻辑
+    // Auto Restart 控制
     // ═══════════════════════════════════════════════════
-
-    private void EnableAIBots()
-    {
-        EnsureCache();
-
-        if (cachedInputManager == null)
-        {
-            Debug.LogWarning("[AI Arena] InputManager not found. Cannot enable AI Bots.");
-            aiBotsEnabled = false;
-            return;
-        }
-
-        // 创建并注入 HeuristicBotInputProvider
-        _activeBotProvider = new HeuristicBotInputProvider();
-        cachedInputManager.SetInputProvider(_activeBotProvider);
-
-        // 创建数据收集器
-        _analytics = new AutoTestAnalytics();
-        if (cachedGameManager != null)
-            _analytics.StartCollecting(cachedGameManager);
-
-        // 设置时间缩放
-        Time.timeScale = arenaTimeScale;
-
-        // 如果 Auto Restart 已勾选，立即启用
-        if (autoRestartEnabled)
-            EnableAutoRestart();
-
-        Debug.Log($"[AI Arena] AI Bots ENABLED. TimeScale={arenaTimeScale:F1}x");
-    }
-
-    private void DisableAIBots()
-    {
-        // 停止数据收集
-        _analytics?.StopCollecting();
-
-        // 停止自动重启
-        DisableAutoRestart();
-
-        // 切回键盘输入
-        EnsureCache();
-        if (cachedInputManager != null)
-            cachedInputManager.SetInputProvider(null); // null → 自动回退到 KeyboardInputProvider
-
-        _activeBotProvider = null;
-
-        // 强制恢复 Time.timeScale = 1.0f
-        Time.timeScale = 1.0f;
-        arenaTimeScale = 1.0f;
-
-        // 同步 Cheats Tab 的 timeScaleValue
-        timeScaleValue = 1.0f;
-
-        Debug.Log("[AI Arena] AI Bots DISABLED. TimeScale restored to 1.0x, input restored to keyboard.");
-    }
 
     private void EnableAutoRestart()
     {
@@ -225,17 +241,36 @@ public partial class TestConsoleWindow
         }
     }
 
+    // ═══════════════════════════════════════════════════
+    // PlayMode 退出时自动清理
+    // ═══════════════════════════════════════════════════
+
     /// <summary>
-    /// PlayMode 退出时自动清理（由 OnEnable/OnDisable 中的 playModeStateChanged 回调触发）。
+    /// PlayMode 退出时自动清理（由 OnPlayModeChanged 回调触发）。
+    /// 恢复 MarioIsAI/TricksterIsAI = false，Time.timeScale = 1.0f。
     /// </summary>
     private void CleanupAIArena()
     {
-        if (aiBotsEnabled)
+        // 恢复 HybridInputProvider 状态
+        var hybrid = GetHybridProvider();
+        if (hybrid != null)
         {
-            DisableAIBots();
-            aiBotsEnabled = false;
-            autoRestartEnabled = false;
+            hybrid.MarioIsAI = false;
+            hybrid.TricksterIsAI = false;
         }
+
+        // 停止数据收集
+        _analytics?.StopCollecting();
+        _analytics = null;
+
+        // 停止自动重启
+        DisableAutoRestart();
+        autoRestartEnabled = false;
+
+        // 强制恢复 Time.timeScale
+        Time.timeScale = 1.0f;
+        arenaTimeScale = 1.0f;
+        timeScaleValue = 1.0f;
     }
 }
 

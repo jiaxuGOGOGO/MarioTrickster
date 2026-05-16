@@ -93,6 +93,12 @@ public class HeuristicBotInputProvider : IInputProvider
     private const float WALL_CHECK_DISTANCE  = 0.5f;
     private const float WALL_CHECK_HEIGHT    = 0.3f;
 
+    // 陷阱雷达参数
+    private const float TRAP_RADAR_RANGE     = 4.0f;   // 前方探测距离（格）
+    private const float TRAP_RADAR_HEIGHT    = 1.5f;   // BoxCast 高度
+    private const float TRAP_SAFE_DISTANCE   = 1.5f;   // 安全停步距离
+    private bool _waitingForTrap;                       // 当前是否因陷阱停步
+
     // ═══════════════════════════════════════════════════════════
     // Trickster Brain 内部状态
     // ═══════════════════════════════════════════════════════════
@@ -181,7 +187,43 @@ public class HeuristicBotInputProvider : IInputProvider
             facingDir = 1f;
         }
 
-        // ── 2. 射线避障与跳跃 ──
+        // ── 2. 陷阱雷达：前方 3~4 格探测 ControllablePropBase ──
+        _waitingForTrap = false;
+        RaycastHit2D[] trapHits = Physics2D.BoxCastAll(
+            marioPos + new Vector2(facingDir * 0.5f, 0.5f),  // 起点略偏前、抬高半格
+            new Vector2(0.5f, TRAP_RADAR_HEIGHT),             // BoxCast 尺寸
+            0f,                                               // 无旋转
+            new Vector2(facingDir, 0f),                       // 朝面向方向
+            TRAP_RADAR_RANGE                                  // 探测距离
+        );
+
+        foreach (var hit in trapHits)
+        {
+            if (hit.collider == null) continue;
+            ControllablePropBase prop = hit.collider.GetComponent<ControllablePropBase>();
+            if (prop == null)
+                prop = hit.collider.GetComponentInParent<ControllablePropBase>();
+            if (prop == null) continue;
+
+            PropControlState trapState = prop.GetControlState();
+            if (trapState == PropControlState.Active || trapState == PropControlState.Telegraph)
+            {
+                // 机关正在激活或预警中 → 强制停步等待
+                _waitingForTrap = true;
+                break;
+            }
+        }
+
+        // 预判停步：如果前方有危险机关，原地等待
+        if (_waitingForTrap)
+        {
+            p1Horizontal = 0f;
+            p1JumpHeld = false;
+            _jumpHoldTimer = 0f;
+            return;
+        }
+
+        // ── 3. 射线避障与跳跃 ──
         int groundLayerIndex = LayerMask.NameToLayer("Ground");
         LayerMask solidMask = groundLayerIndex >= 0 ? (1 << groundLayerIndex) : Physics2D.AllLayers;
 
@@ -223,7 +265,7 @@ public class HeuristicBotInputProvider : IInputProvider
             }
         }
 
-        // ── 3. 自动反制 ──
+        // ── 4. 自动反制 ──
         if (_probe != null && _probe.IsStrongScanReady)
             p1ScanDown = true;
     }

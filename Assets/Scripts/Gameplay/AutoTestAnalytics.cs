@@ -281,7 +281,7 @@ public class AutoTestAnalytics
 
             _stuckTriggeredThisRound = true;
 
-            Debug.LogWarning($"<color=#FFFF00><b>[\u7a7a\u95f4\u75c5\u7076] \u52a8\u7ebf\u5361\u6b7b\u68c0\u6d4b\uff01\u4f4d\u7f6e: {gridPos} | \u505c\u6ede {_stuckTimer:F1}s</b></color>");
+            Debug.LogWarning($"<color=#FFFF00><b>[空间病灶] 动线卡死检测！位置: {gridPos} | 停滞 {_stuckTimer:F1}s</b></color>");
 
             // 强制结束回合，防止挂机卡死
             if (GameManager.Instance != null)
@@ -339,8 +339,8 @@ public class AutoTestAnalytics
             matchIndex = totalMatches + 1
         });
 
-        string causeStr = cause == DeathCause.FallOffCliff ? "\u5760\u5d16" : "\u673a\u5173\u81f4\u6b7b";
-        Debug.Log($"<color=#FF4444>[\u7a7a\u95f4\u75c5\u7076] Mario \u6b7b\u4ea1\u8bb0\u5f55: {gridPos} ({causeStr})</color>");
+        string causeStr = cause == DeathCause.FallOffCliff ? "坠崖" : "机关致死";
+        Debug.Log($"<color=#FF4444>[空间病灶] Mario 死亡记录: {gridPos} ({causeStr})</color>");
 
         SyncGizmoData();
     }
@@ -481,12 +481,12 @@ public class AutoTestAnalytics
 
         // ── 基础战报 ──
         string report =
-            "=== \U0001f916 AI \u81ea\u52a8\u5bf9\u6218\u6d4b\u8bd5\u62a5\u544a ===\n" +
-            $"\u5bf9\u6218\u603b\u5c40\u6570: {totalMatches} | Mario \u80dc\u7387: {MarioWinRate:F0}% | Trickster \u80dc\u7387: {TricksterWinRate:F0}%\n" +
-            $"\u6700\u81f4\u547d\u9677\u9631: {deadliestTrap} (\u89e6\u53d1 {deadliestCount} \u6b21)\n" +
-            $"\u5e73\u5747\u5355\u5c40\u8017\u65f6: {AverageMatchTime:F1} \u79d2\n" +
-            "--- \u7a7a\u95f4\u75c5\u7076\u7edf\u8ba1 ---\n" +
-            $"\u6b7b\u4ea1\u603b\u6b21: {TotalDeaths} (\u5760\u5d16: {CliffDeaths} | \u673a\u5173: {TrapDeaths}) | \u5361\u6b7b\u6b21\u6570: {TotalStucks}";
+            "=== \U0001f916 AI 自动对战测试报告 ===\n" +
+            $"对战总局数: {totalMatches} | Mario 胜率: {MarioWinRate:F0}% | Trickster 胜率: {TricksterWinRate:F0}%\n" +
+            $"最致命陷阱: {deadliestTrap} (触发 {deadliestCount} 次)\n" +
+            $"平均单局耗时: {AverageMatchTime:F1} 秒\n" +
+            "--- 空间病灶统计 ---\n" +
+            $"死亡总次: {TotalDeaths} (坠崖: {CliffDeaths} | 机关: {TrapDeaths}) | 卡死次数: {TotalStucks}";
 
         Debug.LogWarning(report);
 
@@ -549,14 +549,14 @@ public class AutoTestAnalytics
 
         if (allDefects.Count == 0)
         {
-            Debug.Log("<color=#88FF88>[\u5173\u5361\u75c5\u7076\u8bca\u65ad] \u672a\u53d1\u73b0\u9ad8\u5371\u533a\u57df\uff0c\u5173\u5361\u8bbe\u8ba1\u826f\u597d\uff01</color>");
+            Debug.Log("<color=#88FF88>[关卡病灶诊断] 未发现高危区域，关卡设计良好！</color>");
             return;
         }
 
         // 按频次降序排列，取前 2 个
         var topDefects = allDefects.OrderByDescending(d => d.count).Take(2).ToList();
 
-        string header = "<color=yellow><b>[\u5173\u5361\u75c5\u7076\u8bca\u65ad] \u53d1\u73b0\u9ad8\u5371\u533a\u57df\uff01</b></color>";
+        string header = "<color=yellow><b>[关卡病灶诊断] 发现高危区域！</b></color>";
         Debug.LogWarning(header);
 
         for (int i = 0; i < topDefects.Count; i++)
@@ -576,7 +576,7 @@ public class AutoTestAnalytics
     private string FormatDefectDiagnosis(int index, DefectEntry defect, int col, int row)
     {
         string posLabel = $"(X: {col}, Y: {row})";
-        string asciiHint = $"\u3010\u7b2c {col} \u5217\uff0c\u4ece\u4e0b\u5f80\u4e0a\u6570 \u7b2c {row} \u884c\u3011\uff08\u6700\u5e95\u5c42\u5730\u9762\u4e3a\u7b2c0\u884c\uff09";
+        string asciiHint = $"【第 {col} 列，从下往上数 第 {row} 行】（最底层地面为第0行）";
 
         string result;
 
@@ -584,31 +584,31 @@ public class AutoTestAnalytics
         {
             case DefectType.DeathCliff:
                 result =
-                    $"<color=#FF6666><b>\u75c5\u7076 {index}: Mario \u5728\u7f51\u683c {posLabel} \u8fde\u7eed\u6b7b\u4ea1 {defect.count} \u6b21\u3002</b></color>\n" +
-                    $"  \u279c\ufe0f \u5bf9\u5e94 ASCII \u6587\u672c\u5b9a\u4f4d\uff1a{asciiHint}\u3002\n" +
-                    $"  \U0001f4a1 <color=yellow><b>\u8bca\u65ad\u4e0e\u5efa\u8bae\uff1a</b></color>\n" +
-                    $"  - \u6b7b\u4e8e\u5760\u5d16 {defect.cliffCount} \u6b21\uff1a\u6b64\u5904\u6c34\u5e73\u8de8\u5ea6\u53ef\u80fd > 4\u683c\uff08\u7a81\u7834\u4e86 MAX_JUMP_DISTANCE=4.5 \u7684\u6781\u9650\uff09\u3002\n" +
-                    $"    \u5efa\u8bae\u53bb Custom Template Editor \u8be5\u4f4d\u7f6e\u63d2\u5165 '=' (\u5e73\u53f0) \u6216 'B' (\u5f39\u8df3\u677f)\u3002\n" +
-                    $"  - \u6b7b\u4e8e\u673a\u5173 {defect.trapCount} \u6b21\uff1a\u673a\u5173\u9884\u8b66\u53ef\u80fd\u8fc7\u77ed\uff0c\u5efa\u8bae\u6309 Ctrl+T \u5728 Game Loop Tuning \u62c9\u957f\u5176 Windup \u6ed1\u5757\u3002";
+                    $"<color=#FF6666><b>病灶 {index}: Mario 在网格 {posLabel} 连续死亡 {defect.count} 次。</b></color>\n" +
+                    $"  ➜️ 对应 ASCII 文本定位：{asciiHint}。\n" +
+                    $"  \U0001f4a1 <color=yellow><b>诊断与建议：</b></color>\n" +
+                    $"  - 死于坠崖 {defect.cliffCount} 次：此处水平跨度可能 > 4格（突破了 MAX_JUMP_DISTANCE=4.5 的极限）。\n" +
+                    $"    建议去 Custom Template Editor 该位置插入 '=' (平台) 或 'B' (弹跳板)。\n" +
+                    $"  - 死于机关 {defect.trapCount} 次：机关预警可能过短，建议按 Ctrl+T 在 Game Loop Tuning 拉长其 Windup 滑块。";
                 break;
 
             case DefectType.DeathTrap:
                 result =
-                    $"<color=#FF6666><b>\u75c5\u7076 {index}: Mario \u5728\u7f51\u683c {posLabel} \u8fde\u7eed\u6b7b\u4ea1 {defect.count} \u6b21\u3002</b></color>\n" +
-                    $"  \u279c\ufe0f \u5bf9\u5e94 ASCII \u6587\u672c\u5b9a\u4f4d\uff1a{asciiHint}\u3002\n" +
-                    $"  \U0001f4a1 <color=yellow><b>\u8bca\u65ad\u4e0e\u5efa\u8bae\uff1a</b></color>\n" +
-                    $"  - \u6b7b\u4e8e\u673a\u5173 {defect.trapCount} \u6b21\uff1a\u673a\u5173\u9884\u8b66\u53ef\u80fd\u8fc7\u77ed\uff0c\u5efa\u8bae\u6309 Ctrl+T \u5728 Game Loop Tuning \u62c9\u957f\u5176 Windup \u6ed1\u5757\u3002\n" +
-                    $"  - \u6b7b\u4e8e\u5760\u5d16 {defect.cliffCount} \u6b21\uff1a\u82e5\u5b58\u5728\u5760\u5d16\uff0c\u53bb Custom Template Editor \u63d2\u5165 '=' (\u5e73\u53f0) \u6216 'B' (\u5f39\u8df3\u677f)\u3002";
+                    $"<color=#FF6666><b>病灶 {index}: Mario 在网格 {posLabel} 连续死亡 {defect.count} 次。</b></color>\n" +
+                    $"  ➜️ 对应 ASCII 文本定位：{asciiHint}。\n" +
+                    $"  \U0001f4a1 <color=yellow><b>诊断与建议：</b></color>\n" +
+                    $"  - 死于机关 {defect.trapCount} 次：机关预警可能过短，建议按 Ctrl+T 在 Game Loop Tuning 拉长其 Windup 滑块。\n" +
+                    $"  - 死于坠崖 {defect.cliffCount} 次：若存在坠崖，去 Custom Template Editor 插入 '=' (平台) 或 'B' (弹跳板)。";
                 break;
 
             case DefectType.Stuck:
                 result =
-                    $"<color=#FFFF00><b>\u75c5\u7076 {index}: Mario \u5728\u7f51\u683c {posLabel} \u5361\u6b7b {defect.count} \u6b21\u3002</b></color>\n" +
-                    $"  \u279c\ufe0f \u5bf9\u5e94 ASCII \u6587\u672c\u5b9a\u4f4d\uff1a{asciiHint}\u3002\n" +
-                    $"  \U0001f4a1 <color=yellow><b>\u8bca\u65ad\u4e0e\u5efa\u8bae\uff1a</b></color>\n" +
-                    $"  - \u6b64\u5904\u53ef\u80fd\u6709\u65e0\u6cd5\u903e\u8d8a\u7684\u9ad8\u5899\uff08\u843d\u5dee > 2.5\u683c\uff0c\u7a81\u7834\u4e86 MAX_JUMP_HEIGHT=2.5 \u7684\u6781\u9650\uff09\u3002\n" +
-                    $"    \u8bf7\u53bb Custom Template Editor \u7528 '-' \u5355\u5411\u5e73\u53f0\u964d\u4f4e\u9636\u68af\u9ad8\u5ea6\uff0c\u6216\u6316\u7a7a\u5899\u58c1\u521b\u5efa\u901a\u8def\u3002\n" +
-                    $"  - \u4e5f\u53ef\u80fd\u662f\u6b7b\u80e1\u540c\u5730\u5f62\uff08\u5de6\u53f3\u90fd\u662f\u5899\uff09\uff0c\u5efa\u8bae\u68c0\u67e5\u8be5\u5217\u524d\u540e 2~3 \u683c\u662f\u5426\u6709\u901a\u8def\u3002";
+                    $"<color=#FFFF00><b>病灶 {index}: Mario 在网格 {posLabel} 卡死 {defect.count} 次。</b></color>\n" +
+                    $"  ➜️ 对应 ASCII 文本定位：{asciiHint}。\n" +
+                    $"  \U0001f4a1 <color=yellow><b>诊断与建议：</b></color>\n" +
+                    $"  - 此处可能有无法逾越的高墙（落差 > 2.5格，突破了 MAX_JUMP_HEIGHT=2.5 的极限）。\n" +
+                    $"    请去 Custom Template Editor 用 '-' 单向平台降低阶梯高度，或挖空墙壁创建通路。\n" +
+                    $"  - 也可能是死胡同地形（左右都是墙），建议检查该列前后 2~3 格是否有通路。";
                 break;
 
             default:
@@ -649,18 +649,45 @@ public class AutoTestAnalytics
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// AnalyticsGizmoRenderer — Scene 视图 Gizmos 可视化
+// AnalyticsGizmoRenderer — Scene 视图热力图可视化 (S60 升级版)
 //
-// 挂载到隐形 GameObject 上，在 Scene 视图中绘制：
-//   - 死亡点：红色半透明球体
-//   - 卡死点：黄色方块
+// 挂载到隐形 GameObject 上，职责：
+//   1. 驱动 AutoTestAnalytics.Tick()（每帧卡死检测）
+//   2. 通过 SceneView.duringSceneGui 在 Scene 视图绘制热力图：
+//      - 死亡点：半透明红色球体 (Handles.SphereHandleCap)
+//        同一网格多次死亡 → Alpha 叠加（越死越红）
+//        上方 Handles.Label 显示死亡次数 + 死因
+//      - 卡死点：黄色警告方块
+//   3. 受 ShowTestHeatmap 静态开关控制（由 AIArena Toggle 切换）
+//
+// [AI防坑警告]
+//   - 全部 Editor 绘制逻辑包裹在 #if UNITY_EDITOR 下，Release 零残留
+//   - 使用 SceneView.duringSceneGui（与 GameplayBoxVisualizer 同模式）
+//   - 不修改任何 transform，纯可视化
 // ═══════════════════════════════════════════════════════════════════
 
 public class AnalyticsGizmoRenderer : MonoBehaviour
 {
+    /// <summary>
+    /// 全局开关：是否在 Scene 视图显示测试热力图。
+    /// 由 TestConsoleWindow.AIArena 面板的 Toggle 控制。
+    /// </summary>
+    public static bool ShowTestHeatmap = true;
+
     private AutoTestAnalytics _analytics;
     private List<DeathRecord> _deathPoints = new List<DeathRecord>();
     private List<StuckRecord> _stuckPoints = new List<StuckRecord>();
+
+    // 聚合后的热力图数据（按网格坐标合并）
+    private Dictionary<Vector2Int, HeatmapCell> _deathHeatmap = new Dictionary<Vector2Int, HeatmapCell>();
+    private Dictionary<Vector2Int, int> _stuckHeatmap = new Dictionary<Vector2Int, int>();
+
+    private struct HeatmapCell
+    {
+        public int totalCount;
+        public int cliffCount;
+        public int trapCount;
+    }
 
     public void SetAnalytics(AutoTestAnalytics analytics)
     {
@@ -671,6 +698,35 @@ public class AnalyticsGizmoRenderer : MonoBehaviour
     {
         _deathPoints = new List<DeathRecord>(deaths);
         _stuckPoints = new List<StuckRecord>(stucks);
+        RebuildHeatmaps();
+    }
+
+    private void RebuildHeatmaps()
+    {
+        // 聚合死亡点
+        _deathHeatmap.Clear();
+        foreach (var d in _deathPoints)
+        {
+            if (!_deathHeatmap.TryGetValue(d.position, out var cell))
+            {
+                cell = new HeatmapCell();
+            }
+            cell.totalCount++;
+            if (d.cause == DeathCause.FallOffCliff)
+                cell.cliffCount++;
+            else
+                cell.trapCount++;
+            _deathHeatmap[d.position] = cell;
+        }
+
+        // 聚合卡死点
+        _stuckHeatmap.Clear();
+        foreach (var s in _stuckPoints)
+        {
+            if (!_stuckHeatmap.ContainsKey(s.position))
+                _stuckHeatmap[s.position] = 0;
+            _stuckHeatmap[s.position]++;
+        }
     }
 
     private void Update()
@@ -682,41 +738,115 @@ public class AnalyticsGizmoRenderer : MonoBehaviour
         }
     }
 
-    private void OnDrawGizmos()
-    {
-        // ── 死亡点：红色半透明球体 ──
-        Gizmos.color = new Color(1f, 0.15f, 0.15f, 0.55f);
-        foreach (var death in _deathPoints)
-        {
-            Vector3 worldPos = new Vector3(death.position.x, death.position.y, 0f);
-            Gizmos.DrawSphere(worldPos, 0.4f);
-        }
-
-        // ── 卡死点：黄色方块 ──
-        Gizmos.color = new Color(1f, 0.95f, 0.1f, 0.6f);
-        foreach (var stuck in _stuckPoints)
-        {
-            Vector3 worldPos = new Vector3(stuck.position.x, stuck.position.y, 0f);
-            Gizmos.DrawCube(worldPos, new Vector3(0.8f, 0.8f, 0.1f));
-        }
-
-        // ── 标签（仅在有数据时绘制线框辅助） ──
 #if UNITY_EDITOR
-        // 死亡点线框
-        Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
-        foreach (var death in _deathPoints)
-        {
-            Vector3 worldPos = new Vector3(death.position.x, death.position.y, 0f);
-            Gizmos.DrawWireSphere(worldPos, 0.5f);
-        }
-
-        // 卡死点线框
-        Gizmos.color = new Color(1f, 1f, 0f, 0.3f);
-        foreach (var stuck in _stuckPoints)
-        {
-            Vector3 worldPos = new Vector3(stuck.position.x, stuck.position.y, 0f);
-            Gizmos.DrawWireCube(worldPos, new Vector3(1f, 1f, 0.1f));
-        }
-#endif
+    private void OnEnable()
+    {
+        UnityEditor.SceneView.duringSceneGui += OnSceneGUI;
     }
+
+    private void OnDisable()
+    {
+        UnityEditor.SceneView.duringSceneGui -= OnSceneGUI;
+    }
+
+    private void OnDestroy()
+    {
+        UnityEditor.SceneView.duringSceneGui -= OnSceneGUI;
+    }
+
+    private void OnSceneGUI(UnityEditor.SceneView sceneView)
+    {
+        if (!ShowTestHeatmap) return;
+        if (!Application.isPlaying) return;
+
+        DrawDeathHeatmap();
+        DrawStuckMarkers();
+    }
+
+    private void DrawDeathHeatmap()
+    {
+        foreach (var kvp in _deathHeatmap)
+        {
+            Vector2Int gridPos = kvp.Key;
+            HeatmapCell cell = kvp.Value;
+
+            Vector3 worldPos = new Vector3(gridPos.x, gridPos.y, 0f);
+
+            // Alpha 随死亡次数叠加：基础 0.3，每次 +0.1，上限 0.95
+            float alpha = Mathf.Clamp(0.3f + cell.totalCount * 0.1f, 0.3f, 0.95f);
+            // 球体大小随次数增大：基础 0.3，每次 +0.05，上限 0.8
+            float radius = Mathf.Clamp(0.3f + cell.totalCount * 0.05f, 0.3f, 0.8f);
+
+            // 绘制半透明红色球体
+            UnityEditor.Handles.color = new Color(1f, 0.1f, 0.1f, alpha);
+            UnityEditor.Handles.SphereHandleCap(
+                0,
+                worldPos,
+                Quaternion.identity,
+                radius * 2f, // SphereHandleCap size = diameter
+                EventType.Repaint
+            );
+
+            // 绘制标签：死亡次数 + 死因分布
+            string causeDetail = "";
+            if (cell.cliffCount > 0)
+                causeDetail += $"坠崖: {cell.cliffCount}次";
+            if (cell.trapCount > 0)
+            {
+                if (causeDetail.Length > 0) causeDetail += " | ";
+                causeDetail += $"机关: {cell.trapCount}次";
+            }
+
+            string label = $"☠ {cell.totalCount}次\n{causeDetail}";
+
+            GUIStyle labelStyle = new GUIStyle(UnityEditor.EditorStyles.boldLabel)
+            {
+                normal = { textColor = new Color(1f, 0.3f, 0.3f, 1f) },
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 11
+            };
+
+            Vector3 labelPos = worldPos + Vector3.up * (radius + 0.4f);
+            UnityEditor.Handles.Label(labelPos, label, labelStyle);
+        }
+    }
+
+    private void DrawStuckMarkers()
+    {
+        foreach (var kvp in _stuckHeatmap)
+        {
+            Vector2Int gridPos = kvp.Key;
+            int count = kvp.Value;
+
+            Vector3 worldPos = new Vector3(gridPos.x, gridPos.y, 0f);
+
+            // Alpha 随卡死次数叠加
+            float alpha = Mathf.Clamp(0.4f + count * 0.15f, 0.4f, 0.95f);
+            float size = Mathf.Clamp(0.6f + count * 0.1f, 0.6f, 1.2f);
+
+            // 绘制黄色方块
+            UnityEditor.Handles.color = new Color(1f, 0.9f, 0.1f, alpha);
+            UnityEditor.Handles.CubeHandleCap(
+                0,
+                worldPos,
+                Quaternion.identity,
+                size,
+                EventType.Repaint
+            );
+
+            // 绘制警告标签
+            string label = $"⚠ 卡死 {count}次";
+
+            GUIStyle labelStyle = new GUIStyle(UnityEditor.EditorStyles.boldLabel)
+            {
+                normal = { textColor = new Color(1f, 0.95f, 0.2f, 1f) },
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 11
+            };
+
+            Vector3 labelPos = worldPos + Vector3.up * (size * 0.5f + 0.4f);
+            UnityEditor.Handles.Label(labelPos, label, labelStyle);
+        }
+    }
+#endif
 }

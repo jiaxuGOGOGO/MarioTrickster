@@ -179,6 +179,23 @@ public partial class TestConsoleWindow
         }
         EditorGUILayout.EndHorizontal();
 
+        // ── Show Test Heatmap Toggle ──
+        EditorGUILayout.Space(4);
+        bool currentHeatmap = AnalyticsGizmoRenderer.ShowTestHeatmap;
+        GUI.color = currentHeatmap ? new Color(1f, 0.5f, 0.3f) : Color.white;
+        bool newHeatmap = EditorGUILayout.Toggle(
+            new GUIContent("Show Test Heatmap (\u663e\u793a\u6d4b\u8bd5\u70ed\u529b\u56fe)",
+                "\u5728 Scene \u89c6\u56fe\u4e2d\u663e\u793a\u6b7b\u4ea1\u70ed\u529b\u56fe\uff08\u7ea2\u7403\uff09\u548c\u5361\u6b7b\u8b66\u544a\uff08\u9ec4\u5757\uff09"),
+            currentHeatmap);
+        GUI.color = Color.white;
+
+        if (newHeatmap != currentHeatmap)
+        {
+            AnalyticsGizmoRenderer.ShowTestHeatmap = newHeatmap;
+            SceneView.RepaintAll();
+            Debug.Log($"[AI Arena] Show Test Heatmap: {(newHeatmap ? "ON" : "OFF")}");
+        }
+
         // ── 实时统计显示 ──
         if (_analytics != null && _analytics.TotalMatches > 0)
         {

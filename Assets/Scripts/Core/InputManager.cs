@@ -126,6 +126,7 @@ public class InputManager : MonoBehaviour
     /// 更新输入源的内部状态。
     /// KeyboardInputProvider: 检测手柄连接
     /// AutomatedInputProvider: 推进帧计数器
+    /// HeuristicBotInputProvider: AI 决策 + 单帧事件清零
     /// </summary>
     private void UpdateInputProvider()
     {
@@ -136,6 +137,10 @@ public class InputManager : MonoBehaviour
         else if (_inputProvider is AutomatedInputProvider autoProvider)
         {
             autoProvider.Tick();
+        }
+        else if (_inputProvider is HeuristicBotInputProvider botProvider)
+        {
+            botProvider.Tick(Time.deltaTime);
         }
     }
 

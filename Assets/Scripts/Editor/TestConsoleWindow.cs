@@ -113,6 +113,7 @@ public partial class TestConsoleWindow : EditorWindow
     // S26b: Custom Template Editor + Snippet Library 状态
     private bool showCustomTemplateEditor = true;
     private string customAsciiTemplate = "";
+    private string _backupAsciiTemplate = ""; // AI Auto-Healer 撤销备份
     private bool showSnippetLibrary = false;
 
     // Art & Effects Hub 状态

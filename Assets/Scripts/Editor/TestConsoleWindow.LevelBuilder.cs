@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using System.Collections.Generic;
-
+using System.Linq;
 public partial class TestConsoleWindow
 {
     // ═══════════════════════════════════════════════════
@@ -1038,8 +1038,143 @@ public partial class TestConsoleWindow
         }
         EditorGUILayout.EndHorizontal();
 
+        // ═══ AI Auto-Healer 按钮行 ═══
+        DrawAIHealerButtons();
+
         EditorGUILayout.EndVertical();
         EditorGUI.EndDisabledGroup();
+    }
+
+    // ═════════════════════════════════════════════════
+    // AI Auto-Healer —— 魔法治愈 + 撤销
+    // ═════════════════════════════════════════════════
+
+    /// <summary>
+    /// 绘制 AI 自动修复按钮行（魔法治愈 + 撤销）。
+    /// </summary>
+    private void DrawAIHealerButtons()
+    {
+        EditorGUILayout.Space(4);
+        EditorGUILayout.BeginHorizontal();
+
+        // ── 魔法治愈按钮 ──
+        GUI.color = new Color(0.6f, 0.8f, 1.0f);
+        EditorGUI.BeginDisabledGroup(string.IsNullOrEmpty(customAsciiTemplate));
+        if (GUILayout.Button("\u2728 \u5582\u7ed9 AI \u6839\u636e\u6218\u62a5\u81ea\u52a8\u4fee\u590d\u5173\u5361", GUILayout.Height(28)))
+        {
+            RunAIHealerAsync();
+        }
+        EditorGUI.EndDisabledGroup();
+        GUI.color = Color.white;
+
+        // ── 撤销按钮 ──
+        EditorGUI.BeginDisabledGroup(string.IsNullOrEmpty(_backupAsciiTemplate));
+        if (GUILayout.Button("\u21a9 \u64a4\u9500 AI \u4fee\u6539", GUILayout.Height(28), GUILayout.Width(120)))
+        {
+            customAsciiTemplate = _backupAsciiTemplate;
+            _backupAsciiTemplate = "";
+            GenerateFromCustomTemplate(customAsciiTemplate, "AI_Healer_Undo");
+            Debug.Log("<color=#FFAA00>[AI Auto-Healer] \u2586 \u5df2\u64a4\u9500 AI \u4fee\u6539\uff0c\u6062\u590d\u539f\u59cb\u5173\u5361\u3002</color>");
+        }
+        EditorGUI.EndDisabledGroup();
+
+        EditorGUILayout.EndHorizontal();
+    }
+
+    /// <summary>
+    /// 异步调用 LevelAutoHealer 修复关卡。
+    /// </summary>
+    private async void RunAIHealerAsync()
+    {
+        // 1) 获取病灶报告
+        string diagnosticReport = BuildDiagnosticReportText();
+        if (string.IsNullOrEmpty(diagnosticReport))
+        {
+            Debug.LogWarning("[AI Auto-Healer] \u6682\u65e0\u75c5\u7076\u6570\u636e\uff01\u8bf7\u5148\u5728 AI Arena \u8dd1\u51e0\u5c40\u81ea\u52a8\u5bf9\u6218\u6536\u96c6\u6570\u636e\u3002");
+            return;
+        }
+
+        // 2) 备份当前模板
+        _backupAsciiTemplate = customAsciiTemplate;
+
+        // 3) 显示进度条
+        EditorUtility.DisplayProgressBar("AI Auto-Healer", "\u5927\u6a21\u578b\u6b63\u5728\u601d\u8003\u5982\u4f55\u4fee\u590d\u5173\u5361...", 0.5f);
+
+        try
+        {
+            // 4) 异步调用 LLM
+            string newAscii = await LevelAutoHealer.HealAsciiLevelAsync(customAsciiTemplate, diagnosticReport);
+
+            // 5) 应用修复结果
+            if (!string.IsNullOrEmpty(newAscii))
+            {
+                customAsciiTemplate = newAscii;
+                GenerateFromCustomTemplate(customAsciiTemplate, "AI_Healed_Level", false);
+                Debug.Log("<color=#88FF88>[AI Auto-Healer] \u2705 \u5173\u5361\u5df2\u81ea\u52a8\u4fee\u590d\u5e76\u91cd\u65b0\u751f\u6210\uff01\u70b9\u51fb [\u21a9 \u64a4\u9500 AI \u4fee\u6539] \u53ef\u6062\u590d\u539f\u59cb\u7248\u672c\u3002</color>");
+                Repaint();
+            }
+            else
+            {
+                Debug.LogError("[AI Auto-Healer] AI \u8fd4\u56de\u4e3a\u7a7a\uff0c\u4fee\u590d\u5931\u8d25\u3002\u539f\u59cb\u5173\u5361\u672a\u53d8\u3002");
+                _backupAsciiTemplate = ""; // 回\u6eda\u5907\u4efd
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[AI Auto-Healer] \u4fee\u590d\u5931\u8d25: {ex.Message}");
+            _backupAsciiTemplate = ""; // 回\u6eda\u5907\u4efd
+        }
+        finally
+        {
+            // 6) 强\u5236\u6e05\u9664\u8fdb\u5ea6\u6761\uff0c\u9632\u6b62\u7f51\u7edc\u8d85\u65f6\u5bfc\u81f4\u7f16\u8f91\u5668\u6c38\u4e45\u6b7b\u9501
+            EditorUtility.ClearProgressBar();
+        }
+    }
+
+    /// <summary>
+    /// 从 AI Arena 的 AutoTestAnalytics 构建\u75c5\u7076\u62a5\u544a\u6587\u672c\u3002
+    /// \u5982\u679c\u6ca1\u6709\u6570\u636e\u8fd4\u56de null\u3002
+    /// </summary>
+    private string BuildDiagnosticReportText()
+    {
+        // _analytics 是 AI Arena partial 中的字段
+        if (_analytics == null || (_analytics.TotalDeaths == 0 && _analytics.TotalStucks == 0))
+            return null;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"\u5bf9\u6218\u603b\u5c40\u6570: {_analytics.TotalMatches}");
+        sb.AppendLine($"Mario \u80dc\u7387: {_analytics.MarioWinRate:F0}% | Trickster \u80dc\u7387: {_analytics.TricksterWinRate:F0}%");
+        sb.AppendLine();
+
+        // \u6b7b\u4ea1\u70b9\u7edf\u8ba1
+        if (_analytics.TotalDeaths > 0)
+        {
+            sb.AppendLine($"--- \u6b7b\u4ea1\u70b9 ({_analytics.TotalDeaths} \u6b21) ---");
+            var deathGroups = _analytics.DeathPoints
+                .GroupBy(d => d.position)
+                .OrderByDescending(g => g.Count());
+            foreach (var g in deathGroups)
+            {
+                int cliff = g.Count(d => d.cause == DeathCause.FallOffCliff);
+                int trap = g.Count(d => d.cause == DeathCause.TrapKill);
+                sb.AppendLine($"  \u7f51\u683c ({g.Key.x}, {g.Key.y}): \u6b7b\u4ea1 {g.Count()} \u6b21 (\u5760\u5d16 {cliff} / \u673a\u5173 {trap})");
+            }
+        }
+
+        // \u5361\u6b7b\u70b9\u7edf\u8ba1
+        if (_analytics.TotalStucks > 0)
+        {
+            sb.AppendLine($"--- \u5361\u6b7b\u70b9 ({_analytics.TotalStucks} \u6b21) ---");
+            var stuckGroups = _analytics.StuckPoints
+                .GroupBy(s => s.position)
+                .OrderByDescending(g => g.Count());
+            foreach (var g in stuckGroups)
+            {
+                sb.AppendLine($"  \u7f51\u683c ({g.Key.x}, {g.Key.y}): \u5361\u6b7b {g.Count()} \u6b21");
+            }
+        }
+
+        return sb.ToString();
     }
 
     // ═════════════════════════════════════════════════

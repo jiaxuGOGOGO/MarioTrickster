@@ -680,9 +680,61 @@ public class GameplayTests
 
         yield return null;
 
-        Assert.IsFalse(trickster.IsDisguised,
+                Assert.IsFalse(trickster.IsDisguised,
             "没有 DisguiseSystem 时 IsDisguised 应该返回 false");
-
         Object.Destroy(go);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 12. Mario 胜利表现测试
+    // ═══════════════════════════════════════════════════════
+
+    [UnityTest]
+    public IEnumerator Mario_Win_DisablesControllerAndFiresEvent()
+    {
+        GameObject marioGO = CreateTestMario(new Vector3(0, 1, 0));
+        MarioController mario = marioGO.GetComponent<MarioController>();
+
+        yield return null;
+
+        bool winEventFired = false;
+        mario.OnWin += () => winEventFired = true;
+
+        mario.Win();
+
+        Assert.IsTrue(winEventFired, "Win() 应该触发 OnWin 事件");
+        Assert.IsFalse(mario.enabled, "Win() 后 MarioController 应该被禁用");
+
+        Rigidbody2D rb = marioGO.GetComponent<Rigidbody2D>();
+        Assert.AreEqual(0f, rb.velocity.x, 0.01f, "Win() 后 X 速度应为 0");
+        Assert.AreEqual(0f, rb.velocity.y, 0.01f, "Win() 后 Y 速度应为 0");
+
+        Object.Destroy(marioGO);
+    }
+
+    [UnityTest]
+    public IEnumerator GameManager_MarioReachesGoal_CallsWinAndShowsGameOver()
+    {
+        GameObject gmGO = new GameObject("TestGM");
+        GameManager gm = gmGO.AddComponent<GameManager>();
+
+        GameObject marioGO = CreateTestMario(new Vector3(0, 1, 0));
+        MarioController mario = marioGO.GetComponent<MarioController>();
+
+        yield return null;
+
+        string winner = null;
+        gm.OnGameOver += (w) => winner = w;
+
+        gm.OnMarioReachedGoal();
+
+        yield return null;
+
+        Assert.AreEqual("Mario", winner, "Mario 到达终点后应该判定 Mario 胜利");
+        Assert.AreEqual(GameState.RoundOver, gm.CurrentState, "回合结束后状态应该是 RoundOver");
+        Assert.IsFalse(mario.enabled, "Mario 胜利后控制器应被禁用");
+
+        Object.Destroy(marioGO);
+        Object.Destroy(gmGO);
     }
 }

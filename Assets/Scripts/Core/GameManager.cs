@@ -228,6 +228,12 @@ public class GameManager : MonoBehaviour
     /// <summary>Mario到达终点时调用</summary>
     public void OnMarioReachedGoal()
     {
+        // 通知 Mario 控制器执行胜利表现（动画、冻结物理、禁用输入）
+        if (mario != null)
+        {
+            mario.Win();
+        }
+
         EndRound("Mario");
     }
 

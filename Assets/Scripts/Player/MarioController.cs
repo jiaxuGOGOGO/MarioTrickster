@@ -248,6 +248,7 @@ public class MarioController : MonoBehaviour
     public System.Action OnJump;
     public System.Action<bool, float> OnGroundedChanged;
     public System.Action OnDeath;
+    public System.Action OnWin;
 
     // ─────────────────────────────────────────────────────
     #region 初始化
@@ -903,6 +904,57 @@ public class MarioController : MonoBehaviour
         OnDeath?.Invoke();
         rb.velocity = Vector2.zero;
         _frameVelocity = Vector2.zero;
+        enabled = false;
+    }
+
+    /// <summary>Mario 胜利（到达终点 / 成功撤离）</summary>
+    public void Win()
+    {
+        // 解除所有弹射状态
+        _isPreparingBounce = false;
+        _isBouncing = false;
+
+        // 恢复 Kinematic（如果在蓄力冻结期胜利）
+        if (rb.isKinematic)
+        {
+            rb.isKinematic = false;
+        }
+
+        // 重置形变状态
+        _bounceSquashActive = false;
+        _landSquashActive = false;
+        if (visualTransform != null) visualTransform.localScale = _baseVisualScale;
+
+        // 清零速度，角色定住
+        rb.velocity = Vector2.zero;
+        _frameVelocity = Vector2.zero;
+
+        // 尝试播放胜利动画（如果 SpriteStateAnimator 有 "win" 帧组）
+        SpriteStateAnimator stateAnimator = GetComponentInChildren<SpriteStateAnimator>();
+        if (stateAnimator != null)
+        {
+            if (stateAnimator.HasFramesForTag("win"))
+            {
+                stateAnimator.SetStateByTag("win");
+            }
+            else
+            {
+                // 没有专门的胜利动画，切到 idle 并停止自动状态切换
+                stateAnimator.SetStateByTag("idle");
+            }
+        }
+
+        // 如果有 Animator 组件，设置胜利触发器
+        if (animator != null)
+        {
+            animator.SetBool("IsGrounded", true);
+            animator.SetFloat("Speed", 0f);
+            animator.SetFloat("VerticalSpeed", 0f);
+        }
+
+        OnWin?.Invoke();
+
+        // 禁用控制器，停止物理更新
         enabled = false;
     }
 

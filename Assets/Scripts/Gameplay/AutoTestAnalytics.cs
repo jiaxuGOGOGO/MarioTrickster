@@ -465,7 +465,7 @@ public class AutoTestAnalytics
     // ═══════════════════════════════════════════════════════════
 
     /// <summary>
-    /// 在 Unity Console 输出汇总战报（含空间病灶统计）。
+    /// 在 Unity Console 输出汇总战报（含空间病灶统计 + 大白话 ASCII 坐标修改建议）。
     /// </summary>
     public void PrintMatchReport()
     {
@@ -479,37 +479,164 @@ public class AutoTestAnalytics
             deadliestCount = top.Value;
         }
 
-        // 统计死亡热点（出现次数最多的网格坐标）
-        string deathHotspot = "N/A";
-        if (deathPoints.Count > 0)
-        {
-            var hotspot = deathPoints
-                .GroupBy(d => d.position)
-                .OrderByDescending(g => g.Count())
-                .First();
-            deathHotspot = $"{hotspot.Key} ({hotspot.Count()}\u6b21)";
-        }
-
+        // ── 基础战报 ──
         string report =
             "=== \U0001f916 AI \u81ea\u52a8\u5bf9\u6218\u6d4b\u8bd5\u62a5\u544a ===\n" +
             $"\u5bf9\u6218\u603b\u5c40\u6570: {totalMatches} | Mario \u80dc\u7387: {MarioWinRate:F0}% | Trickster \u80dc\u7387: {TricksterWinRate:F0}%\n" +
             $"\u6700\u81f4\u547d\u9677\u9631: {deadliestTrap} (\u89e6\u53d1 {deadliestCount} \u6b21)\n" +
             $"\u5e73\u5747\u5355\u5c40\u8017\u65f6: {AverageMatchTime:F1} \u79d2\n" +
             "--- \u7a7a\u95f4\u75c5\u7076\u7edf\u8ba1 ---\n" +
-            $"\u6b7b\u4ea1\u603b\u6b21: {TotalDeaths} (\u5760\u5d16: {CliffDeaths} | \u673a\u5173: {TrapDeaths})\n" +
-            $"\u6b7b\u4ea1\u70ed\u70b9: {deathHotspot}\n" +
-            $"\u5361\u6b7b\u6b21\u6570: {TotalStucks}";
-
-        if (stuckPoints.Count > 0)
-        {
-            var stuckHotspot = stuckPoints
-                .GroupBy(s => s.position)
-                .OrderByDescending(g => g.Count())
-                .First();
-            report += $" | \u5361\u6b7b\u70ed\u70b9: {stuckHotspot.Key} ({stuckHotspot.Count()}\u6b21)";
-        }
+            $"\u6b7b\u4ea1\u603b\u6b21: {TotalDeaths} (\u5760\u5d16: {CliffDeaths} | \u673a\u5173: {TrapDeaths}) | \u5361\u6b7b\u6b21\u6570: {TotalStucks}";
 
         Debug.LogWarning(report);
+
+        // ── 大白话病灶诊断 ──
+        PrintDefectDiagnosis();
+    }
+
+    /// <summary>
+    /// 汇总所有死亡点 + 卡死点的频次，取前 2 个高频病灶，
+    /// 输出带 RichText 的大白话 ASCII 坐标修改建议。
+    /// </summary>
+    private void PrintDefectDiagnosis()
+    {
+        // 合并所有病灶点（死亡 + 卡死）到统一列表
+        var allDefects = new List<DefectEntry>();
+
+        // 按坐标聚合死亡点
+        if (deathPoints.Count > 0)
+        {
+            var deathGroups = deathPoints
+                .GroupBy(d => d.position)
+                .OrderByDescending(g => g.Count());
+
+            foreach (var g in deathGroups)
+            {
+                int cliffCount = g.Count(d => d.cause == DeathCause.FallOffCliff);
+                int trapCount = g.Count(d => d.cause == DeathCause.TrapKill);
+                DefectType dtype = cliffCount >= trapCount ? DefectType.DeathCliff : DefectType.DeathTrap;
+
+                allDefects.Add(new DefectEntry
+                {
+                    position = g.Key,
+                    count = g.Count(),
+                    type = dtype,
+                    cliffCount = cliffCount,
+                    trapCount = trapCount
+                });
+            }
+        }
+
+        // 按坐标聚合卡死点
+        if (stuckPoints.Count > 0)
+        {
+            var stuckGroups = stuckPoints
+                .GroupBy(s => s.position)
+                .OrderByDescending(g => g.Count());
+
+            foreach (var g in stuckGroups)
+            {
+                allDefects.Add(new DefectEntry
+                {
+                    position = g.Key,
+                    count = g.Count(),
+                    type = DefectType.Stuck,
+                    cliffCount = 0,
+                    trapCount = 0
+                });
+            }
+        }
+
+        if (allDefects.Count == 0)
+        {
+            Debug.Log("<color=#88FF88>[\u5173\u5361\u75c5\u7076\u8bca\u65ad] \u672a\u53d1\u73b0\u9ad8\u5371\u533a\u57df\uff0c\u5173\u5361\u8bbe\u8ba1\u826f\u597d\uff01</color>");
+            return;
+        }
+
+        // 按频次降序排列，取前 2 个
+        var topDefects = allDefects.OrderByDescending(d => d.count).Take(2).ToList();
+
+        string header = "<color=yellow><b>[\u5173\u5361\u75c5\u7076\u8bca\u65ad] \u53d1\u73b0\u9ad8\u5371\u533a\u57df\uff01</b></color>";
+        Debug.LogWarning(header);
+
+        for (int i = 0; i < topDefects.Count; i++)
+        {
+            var defect = topDefects[i];
+            int col = defect.position.x;
+            int row = defect.position.y;
+
+            string diagnosis = FormatDefectDiagnosis(i + 1, defect, col, row);
+            Debug.LogWarning(diagnosis);
+        }
+    }
+
+    /// <summary>
+    /// 格式化单个病灶的大白话诊断文本。
+    /// </summary>
+    private string FormatDefectDiagnosis(int index, DefectEntry defect, int col, int row)
+    {
+        string posLabel = $"(X: {col}, Y: {row})";
+        string asciiHint = $"\u3010\u7b2c {col} \u5217\uff0c\u4ece\u4e0b\u5f80\u4e0a\u6570 \u7b2c {row} \u884c\u3011\uff08\u6700\u5e95\u5c42\u5730\u9762\u4e3a\u7b2c0\u884c\uff09";
+
+        string result;
+
+        switch (defect.type)
+        {
+            case DefectType.DeathCliff:
+                result =
+                    $"<color=#FF6666><b>\u75c5\u7076 {index}: Mario \u5728\u7f51\u683c {posLabel} \u8fde\u7eed\u6b7b\u4ea1 {defect.count} \u6b21\u3002</b></color>\n" +
+                    $"  \u279c\ufe0f \u5bf9\u5e94 ASCII \u6587\u672c\u5b9a\u4f4d\uff1a{asciiHint}\u3002\n" +
+                    $"  \U0001f4a1 <color=yellow><b>\u8bca\u65ad\u4e0e\u5efa\u8bae\uff1a</b></color>\n" +
+                    $"  - \u6b7b\u4e8e\u5760\u5d16 {defect.cliffCount} \u6b21\uff1a\u6b64\u5904\u6c34\u5e73\u8de8\u5ea6\u53ef\u80fd > 4\u683c\uff08\u7a81\u7834\u4e86 MAX_JUMP_DISTANCE=4.5 \u7684\u6781\u9650\uff09\u3002\n" +
+                    $"    \u5efa\u8bae\u53bb Custom Template Editor \u8be5\u4f4d\u7f6e\u63d2\u5165 '=' (\u5e73\u53f0) \u6216 'B' (\u5f39\u8df3\u677f)\u3002\n" +
+                    $"  - \u6b7b\u4e8e\u673a\u5173 {defect.trapCount} \u6b21\uff1a\u673a\u5173\u9884\u8b66\u53ef\u80fd\u8fc7\u77ed\uff0c\u5efa\u8bae\u6309 Ctrl+T \u5728 Game Loop Tuning \u62c9\u957f\u5176 Windup \u6ed1\u5757\u3002";
+                break;
+
+            case DefectType.DeathTrap:
+                result =
+                    $"<color=#FF6666><b>\u75c5\u7076 {index}: Mario \u5728\u7f51\u683c {posLabel} \u8fde\u7eed\u6b7b\u4ea1 {defect.count} \u6b21\u3002</b></color>\n" +
+                    $"  \u279c\ufe0f \u5bf9\u5e94 ASCII \u6587\u672c\u5b9a\u4f4d\uff1a{asciiHint}\u3002\n" +
+                    $"  \U0001f4a1 <color=yellow><b>\u8bca\u65ad\u4e0e\u5efa\u8bae\uff1a</b></color>\n" +
+                    $"  - \u6b7b\u4e8e\u673a\u5173 {defect.trapCount} \u6b21\uff1a\u673a\u5173\u9884\u8b66\u53ef\u80fd\u8fc7\u77ed\uff0c\u5efa\u8bae\u6309 Ctrl+T \u5728 Game Loop Tuning \u62c9\u957f\u5176 Windup \u6ed1\u5757\u3002\n" +
+                    $"  - \u6b7b\u4e8e\u5760\u5d16 {defect.cliffCount} \u6b21\uff1a\u82e5\u5b58\u5728\u5760\u5d16\uff0c\u53bb Custom Template Editor \u63d2\u5165 '=' (\u5e73\u53f0) \u6216 'B' (\u5f39\u8df3\u677f)\u3002";
+                break;
+
+            case DefectType.Stuck:
+                result =
+                    $"<color=#FFFF00><b>\u75c5\u7076 {index}: Mario \u5728\u7f51\u683c {posLabel} \u5361\u6b7b {defect.count} \u6b21\u3002</b></color>\n" +
+                    $"  \u279c\ufe0f \u5bf9\u5e94 ASCII \u6587\u672c\u5b9a\u4f4d\uff1a{asciiHint}\u3002\n" +
+                    $"  \U0001f4a1 <color=yellow><b>\u8bca\u65ad\u4e0e\u5efa\u8bae\uff1a</b></color>\n" +
+                    $"  - \u6b64\u5904\u53ef\u80fd\u6709\u65e0\u6cd5\u903e\u8d8a\u7684\u9ad8\u5899\uff08\u843d\u5dee > 2.5\u683c\uff0c\u7a81\u7834\u4e86 MAX_JUMP_HEIGHT=2.5 \u7684\u6781\u9650\uff09\u3002\n" +
+                    $"    \u8bf7\u53bb Custom Template Editor \u7528 '-' \u5355\u5411\u5e73\u53f0\u964d\u4f4e\u9636\u68af\u9ad8\u5ea6\uff0c\u6216\u6316\u7a7a\u5899\u58c1\u521b\u5efa\u901a\u8def\u3002\n" +
+                    $"  - \u4e5f\u53ef\u80fd\u662f\u6b7b\u80e1\u540c\u5730\u5f62\uff08\u5de6\u53f3\u90fd\u662f\u5899\uff09\uff0c\u5efa\u8bae\u68c0\u67e5\u8be5\u5217\u524d\u540e 2~3 \u683c\u662f\u5426\u6709\u901a\u8def\u3002";
+                break;
+
+            default:
+                result = "";
+                break;
+        }
+
+        return result;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 病灶诊断辅助类型
+    // ═══════════════════════════════════════════════════════════
+
+    private enum DefectType
+    {
+        DeathCliff,
+        DeathTrap,
+        Stuck
+    }
+
+    private struct DefectEntry
+    {
+        public Vector2Int position;
+        public int count;
+        public DefectType type;
+        public int cliffCount;
+        public int trapCount;
     }
 
     /// <summary>

@@ -104,8 +104,6 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
     // ── Interaction Log (防误判交互日志) ──
     private RectTransform interactionLogPanel;
     private Text interactionLogText;
-    private readonly System.Collections.Generic.List<string> interactionLogEntries = new System.Collections.Generic.List<string>();
-    private const int MaxLogEntries = 5;
 
     public static GlobalGameUICanvas EnsureInstance(Transform parent = null)
     {
@@ -141,9 +139,7 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         GameplayEventBus.OnCrisisWarning -= HandleCrisisWarning;
         GameplayEventBus.OnResidueSpotted -= HandleResidueSpotted;
         GameplayEventBus.OnTricksterRevealed -= HandleTricksterRevealed;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        GameplayEventBus.OnTrapTriggered -= HandleTrapTriggeredLog;
-#endif
+        InteractionLogSink.OnLogUpdated -= HandleInteractionLogUpdated;
     }
 
     private void OnEnable()
@@ -152,9 +148,8 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         GameplayEventBus.OnCrisisWarning += HandleCrisisWarning;
         GameplayEventBus.OnResidueSpotted += HandleResidueSpotted;
         GameplayEventBus.OnTricksterRevealed += HandleTricksterRevealed;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        GameplayEventBus.OnTrapTriggered += HandleTrapTriggeredLog;
-#endif
+        InteractionLogSink.EnsureInstance();
+        InteractionLogSink.OnLogUpdated += HandleInteractionLogUpdated;
     }
 
     private void OnDisable()
@@ -163,9 +158,7 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         GameplayEventBus.OnCrisisWarning -= HandleCrisisWarning;
         GameplayEventBus.OnResidueSpotted -= HandleResidueSpotted;
         GameplayEventBus.OnTricksterRevealed -= HandleTricksterRevealed;
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-        GameplayEventBus.OnTrapTriggered -= HandleTrapTriggeredLog;
-#endif
+        InteractionLogSink.OnLogUpdated -= HandleInteractionLogUpdated;
     }
 
     private void Update()
@@ -241,9 +234,7 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         BuildComboPanel(root);
         BuildRoutePanel(root);
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
         BuildInteractionLogPanel(root);
-#endif
     }
 
     private void BuildPauseOverlay(RectTransform root)
@@ -898,78 +889,92 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
     }
 
     // ═══════════════════════════════════════════════════
-    // Interaction Log (防误判交互日志)
-    // 包裹在 #if UNITY_EDITOR || DEVELOPMENT_BUILD 宏下，Release 包零残留
+    // Interaction Log (交互黑匣子)
+    // 只消费 InteractionLogSink 的只读快照，UI 不参与任何物理或判定逻辑。
     // ═══════════════════════════════════════════════════
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
     private void BuildInteractionLogPanel(RectTransform root)
     {
-        // 左下角极简文本滚动区，位于 controlsText 上方
+        // 左下角极简半透明滚动区，位于 controlsText 上方。
         interactionLogPanel = CreatePanel("InteractionLogPanel", root,
             new Vector2(0f, 0f), new Vector2(0f, 0f),
-            new Vector2(24f, 110f), new Vector2(520f, 120f),
-            new Color(0f, 0f, 0f, 0.35f), true);
+            new Vector2(24f, 112f), new Vector2(560f, 184f),
+            new Color(0f, 0f, 0f, 0.42f), true);
 
         Text titleText = CreateText("InteractionLogTitle", interactionLogPanel,
-            "Interaction Log", 14, new Color(1f, 0.8f, 0.3f), TextAnchor.UpperLeft);
+            "Interaction Log  |  recent 15", 14, new Color(1f, 0.82f, 0.28f, 0.95f), TextAnchor.UpperLeft);
         SetRect(titleText.rectTransform,
             new Vector2(0f, 1f), new Vector2(1f, 1f),
-            new Vector2(8f, -4f), new Vector2(-16f, 18f),
+            new Vector2(10f, -6f), new Vector2(-20f, 20f),
             new Vector2(0f, 1f));
 
         interactionLogText = CreateText("InteractionLogText", interactionLogPanel,
-            string.Empty, 13, new Color(0.9f, 0.9f, 0.9f, 0.9f), TextAnchor.LowerLeft);
+            "(waiting for interaction events)", 12, new Color(0.9f, 0.9f, 0.9f, 0.92f), TextAnchor.LowerLeft);
         interactionLogText.fontStyle = FontStyle.Normal;
-        interactionLogText.horizontalOverflow = HorizontalWrapMode.Overflow;
+        interactionLogText.horizontalOverflow = HorizontalWrapMode.Wrap;
         interactionLogText.verticalOverflow = VerticalWrapMode.Truncate;
+        interactionLogText.supportRichText = true;
+        interactionLogText.lineSpacing = 0.95f;
         SetRect(interactionLogText.rectTransform,
             new Vector2(0f, 0f), new Vector2(1f, 1f),
-            new Vector2(8f, 4f), new Vector2(-16f, -24f),
+            new Vector2(10f, 8f), new Vector2(-20f, -32f),
             new Vector2(0f, 0f));
+
+        RefreshInteractionLogText(InteractionLogSink.RecentEntries);
     }
 
-    private void HandleTrapTriggeredLog(GameplayEventBus.TrapTriggeredPayload payload)
+    private void HandleInteractionLogUpdated(System.Collections.Generic.IReadOnlyList<InteractionLogEntry> entries)
     {
-        if (payload == null) return;
-
-        float gameTime = GameManager.Instance != null ? GameManager.Instance.GameTimer : Time.time;
-        string sourceName = payload.source != null ? payload.source.name : "Unknown";
-        string targetName = payload.target != null ? payload.target.name : "Unknown";
-
-        // 尝试获取 ControllablePropBase 的阶段信息
-        string phase = "N/A";
-        if (payload.source != null)
-        {
-            ControllablePropBase prop = payload.source.GetComponent<ControllablePropBase>();
-            if (prop != null)
-            {
-                phase = prop.GetControlState().ToString();
-            }
-            else
-            {
-                // 对于非 ControllableProp 的 hazard，标记为 Active
-                BaseHazard hazard = payload.source.GetComponent<BaseHazard>();
-                if (hazard != null) phase = "Active";
-            }
-        }
-
-        string result = !string.IsNullOrEmpty(payload.reason) ? payload.reason : "Hit";
-        string entry = $"[{gameTime:F1}s] Source={sourceName} Target={targetName} Phase={phase} Result={result}";
-
-        interactionLogEntries.Add(entry);
-        while (interactionLogEntries.Count > MaxLogEntries)
-        {
-            interactionLogEntries.RemoveAt(0);
-        }
-
-        RefreshInteractionLogText();
-        Debug.Log($"[InteractionLog] {entry}");
+        RefreshInteractionLogText(entries);
     }
 
-    private void RefreshInteractionLogText()
+    private void RefreshInteractionLogText(System.Collections.Generic.IReadOnlyList<InteractionLogEntry> entries)
     {
         if (interactionLogText == null) return;
-        interactionLogText.text = string.Join("\n", interactionLogEntries);
+
+        if (entries == null || entries.Count == 0)
+        {
+            interactionLogText.text = "<color=#B0B0B0>(waiting for interaction events)</color>";
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder(entries.Count * 96);
+        for (int i = 0; i < entries.Count; i++)
+        {
+            InteractionLogEntry entry = entries[i];
+            string phaseColor = GetInteractionPhaseColor(entry.Phase);
+            sb.AppendFormat("[{0:F1}s] {1} <color=#{2}>{3}</color> {4}→{5}  {6}",
+                entry.Timestamp,
+                entry.InteractionType,
+                phaseColor,
+                entry.Phase,
+                EscapeRichText(entry.SourceId),
+                EscapeRichText(entry.TargetId),
+                EscapeRichText(entry.Result));
+
+            if (i < entries.Count - 1) sb.Append('\n');
+        }
+
+        interactionLogText.text = sb.ToString();
     }
-#endif
+
+    private static string GetInteractionPhaseColor(InteractionPhase phase)
+    {
+        switch (phase)
+        {
+            case InteractionPhase.Windup:
+                return "FFD447"; // 预警：黄色
+            case InteractionPhase.Active:
+                return "FF4C4C"; // 生效：红色
+            case InteractionPhase.Recovery:
+                return "7FB7FF"; // 回收：蓝色
+            default:
+                return "E6E6E6";
+        }
+    }
+
+    private static string EscapeRichText(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        return value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+    }
 }

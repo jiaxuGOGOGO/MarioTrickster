@@ -264,7 +264,7 @@ public partial class TestConsoleWindow
         {
             _autoRestartHelper.Shutdown();
             if (_autoRestartHelper.gameObject != null)
-                Object.DestroyImmediate(_autoRestartHelper.gameObject);
+                UnityEngine.Object.DestroyImmediate(_autoRestartHelper.gameObject);
             _autoRestartHelper = null;
         }
     }
@@ -316,7 +316,7 @@ public class AutoRestartHelper : MonoBehaviour
 
     public void Initialize()
     {
-        _gm = GameManager.Instance ?? Object.FindObjectOfType<GameManager>();
+        _gm = GameManager.Instance ?? UnityEngine.Object.FindObjectOfType<GameManager>();
         if (_gm != null)
         {
             _gm.OnGameOver += OnGameOver;

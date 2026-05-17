@@ -86,6 +86,8 @@ public class HeuristicBotInputProvider : IInputProvider
     private MarioCounterplayProbe _probe;
     private bool _marioCacheReady;
     private float _jumpHoldTimer;
+    private LayerMask _solidMask;
+    private bool _solidMaskReady;
 
     private const float JUMP_HOLD_DURATION   = 0.35f;
     private const float PIT_CHECK_DEPTH      = 2.5f;
@@ -224,15 +226,14 @@ public class HeuristicBotInputProvider : IInputProvider
         }
 
         // ── 3. 射线避障与跳跃 ──
-        int groundLayerIndex = LayerMask.NameToLayer("Ground");
-        LayerMask solidMask = groundLayerIndex >= 0 ? (1 << groundLayerIndex) : Physics2D.AllLayers;
+        LayerMask solidMask = GetSolidMask();
 
         bool shouldJump = false;
 
         if (_mario.IsGrounded)
         {
-            // 遇坑跳
-            Vector2 pitOrigin = marioPos + new Vector2(facingDir * PIT_CHECK_FORWARD, 0f);
+            // 遇坑跳（从 Mario 脚底前方向下打射线）
+            Vector2 pitOrigin = marioPos + new Vector2(facingDir * PIT_CHECK_FORWARD, -0.3f);
             RaycastHit2D pitHit = Physics2D.Raycast(pitOrigin, Vector2.down, PIT_CHECK_DEPTH, solidMask);
             if (pitHit.collider == null)
                 shouldJump = true;
@@ -570,6 +571,7 @@ public class HeuristicBotInputProvider : IInputProvider
         _mario = null;
         _probe = null;
         _jumpHoldTimer = 0f;
+        _solidMaskReady = false;
 
         _tricksterCacheReady = false;
         _trickster = null;
@@ -580,6 +582,46 @@ public class HeuristicBotInputProvider : IInputProvider
         _executeArmed = false;
         _executeDelayTimer = 0f;
         _heatCooloffTimer = 0f;
+    }
+
+    /// <summary>
+    /// 获取地面检测用的 LayerMask。
+    /// 优先从 MarioController 的 groundLayer 字段读取（通过反射），
+    /// 保证 AI 射线与角色自身地面检测使用完全相同的层。
+    /// 回退顺序：MarioController.groundLayer → "Ground" 层 → "Land" 层 → Default 层。
+    /// </summary>
+    private LayerMask GetSolidMask()
+    {
+        if (_solidMaskReady) return _solidMask;
+
+        // 优先从 MarioController 读取 groundLayer（与角色地面检测完全一致）
+        if (_mario != null)
+        {
+            var field = typeof(MarioController).GetField("groundLayer",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (field != null)
+            {
+                _solidMask = (LayerMask)field.GetValue(_mario);
+                if (_solidMask.value != 0)
+                {
+                    _solidMaskReady = true;
+                    return _solidMask;
+                }
+            }
+        }
+
+        // 回退：尝试 "Ground" 层名
+        int idx = LayerMask.NameToLayer("Ground");
+        if (idx >= 0) { _solidMask = 1 << idx; _solidMaskReady = true; return _solidMask; }
+
+        // 回退：尝试 "Land" 层名（项目实际使用的层名）
+        idx = LayerMask.NameToLayer("Land");
+        if (idx >= 0) { _solidMask = 1 << idx; _solidMaskReady = true; return _solidMask; }
+
+        // 最终回退：Default 层
+        _solidMask = 1 << 0;
+        _solidMaskReady = true;
+        return _solidMask;
     }
 
     // ═══════════════════════════════════════════════════════════

@@ -13,10 +13,10 @@ using UnityEditor;
 ///   · Trap Phase 文字 — ControllablePropBase 物体上方显示当前阶段
 ///
 /// 智能降噪策略：
-///   · 全局静态物体仅绘制极低透明度（Alpha=0.15）轮廓
-///   · 当策划选中包含特定碰撞体的物体（Trap/Enemy/HitBox/HurtBox）时，
-///     以高亮不透明颜色绘制其 HitBox/HurtBox
-///   · 选中物体的子物体和父物体也一并高亮（视碰分离架构）
+///   · 全局未被选中的物体仅绘制极低透明度（Alpha=0.1）轮廓
+///   · 只有当物体本身就是 Selection.activeGameObject 时，
+///     才以高亮不透明颜色绘制其 HitBox/HurtBox
+///   · 避免父子层级误触发高亮，保护 Scene 视图视觉心流
 ///
 /// 开关由 GameplayBoxVisualizer.ShowGameplayBoxes / ShowTrapPhase 控制，
 /// TestConsoleWindow.Cheats Tab 中提供 Toggle 入口。
@@ -46,7 +46,7 @@ public static class GameplayBoxVisualizer
     // ═══════════════════════════════════════════════════
     // 降噪透明度
     // ═══════════════════════════════════════════════════
-    private const float DIMMED_ALPHA = 0.15f;
+    private const float DIMMED_ALPHA = 0.1f;
 
     private static int landLayerIndex = -1;
 
@@ -80,74 +80,29 @@ public static class GameplayBoxVisualizer
     }
 
     // ═══════════════════════════════════════════════════
-    // 上下文感知：判断物体是否被选中（含父子层级）
+    // 上下文感知：只认当前真实选中的物体
     // ═══════════════════════════════════════════════════
 
     /// <summary>
-    /// 判断给定 GameObject 是否属于当前选中的上下文。
-    /// 包含：直接选中、选中其父物体、选中其子物体（视碰分离架构兼容）。
+    /// 判断给定 GameObject 是否就是当前真实选中的物体。
+    /// 用户要求以 Selection.activeGameObject 为唯一高亮信号，避免父子层级误触发。
     /// </summary>
-    private static bool IsInSelectionContext(GameObject go)
+    private static bool IsTrulySelectedObject(GameObject go)
     {
-        GameObject selected = Selection.activeGameObject;
-        if (selected == null) return false;
-        if (selected == go) return true;
-
-        // 选中的是 go 的祖先
-        Transform t = go.transform;
-        while (t.parent != null)
-        {
-            t = t.parent;
-            if (t.gameObject == selected) return true;
-        }
-
-        // 选中的是 go 的后代
-        if (selected.transform.IsChildOf(go.transform)) return true;
-
-        return false;
+        return go != null && Selection.activeGameObject == go;
     }
 
     /// <summary>
-    /// 判断选中的物体是否包含「值得高亮」的组件（Trap/Enemy/HitBox/HurtBox）。
-    /// </summary>
-    private static bool SelectionHasRelevantComponent()
-    {
-        GameObject selected = Selection.activeGameObject;
-        if (selected == null) return false;
-
-        // 检查选中物体及其父子链上是否有关键组件
-        if (selected.GetComponentInParent<ControllablePropBase>() != null) return true;
-        if (selected.GetComponentInChildren<ControllablePropBase>() != null) return true;
-        if (selected.GetComponentInParent<DamageDealer>() != null) return true;
-        if (selected.GetComponentInChildren<DamageDealer>() != null) return true;
-        if (selected.GetComponentInParent<BaseHazard>() != null) return true;
-        if (selected.GetComponentInChildren<BaseHazard>() != null) return true;
-        if (selected.GetComponentInParent<PlayerHealth>() != null) return true;
-        if (selected.GetComponentInChildren<PlayerHealth>() != null) return true;
-
-        return false;
-    }
-
-    /// <summary>
-    /// 根据选中状态返回适当的颜色：选中时高亮，未选中时极低透明度。
+    /// 根据选中状态返回适当的颜色：真实选中时高亮，未选中时极低透明度。
     /// </summary>
     private static Color GetContextColor(Color baseColor, GameObject go)
     {
-        // 如果没有选中任何「值得高亮」的物体，全部用低透明度
-        if (!SelectionHasRelevantComponent())
+        if (IsTrulySelectedObject(go))
         {
-            return new Color(baseColor.r, baseColor.g, baseColor.b, DIMMED_ALPHA);
+            return baseColor;
         }
 
-        // 有选中物体时：选中的高亮，其余降噪
-        if (IsInSelectionContext(go))
-        {
-            return baseColor; // 原始高亮颜色
-        }
-        else
-        {
-            return new Color(baseColor.r, baseColor.g, baseColor.b, DIMMED_ALPHA);
-        }
+        return new Color(baseColor.r, baseColor.g, baseColor.b, DIMMED_ALPHA);
     }
 
     // ═══════════════════════════════════════════════════
@@ -270,8 +225,8 @@ public static class GameplayBoxVisualizer
                     break;
             }
 
-            // 智能降噪：未选中的 Trap 标签也降低透明度
-            if (SelectionHasRelevantComponent() && !IsInSelectionContext(prop.gameObject))
+            // 智能降噪：未被真实选中的 Trap 标签也降低透明度
+            if (!IsTrulySelectedObject(prop.gameObject))
             {
                 textColor.a = DIMMED_ALPHA;
             }

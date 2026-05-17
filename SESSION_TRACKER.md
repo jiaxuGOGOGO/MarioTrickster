@@ -91,14 +91,20 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 145（原型 B/C 与四段白盒验证灰盒落地） |
-| **日期** | 2026-05-15 |
+| **最新 Session** | Session 146（上下文感知可视化智能降噪） |
+| **日期** | 2026-05-17 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — 已落地原型 B 临时封路机关 `[`、原型 C 公开下一状态机关 `]`，并在 `LevelSnippetLibrary` 追加 `S2_Validation_1_Demo` → `S2_Validation_4_Combat` 四段白盒验证灰盒。 |
-| **编译状态** | 🔄 本次为 ASCII 数据驱动片段追加，推送前执行 `git diff --check` 与自定义 Snippet 轻量验证；沙盒无 Unity CLI，EditMode/PlayMode 需用户本地 Unity 重跑确认。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — Scene 视图辅助线已做上下文感知降噪：Gameplay Boxes 仅真实选中对象高亮，Jump Arc 仅在选中 Mario / BouncyPlatform 时完整渲染。 |
+| **编译状态** | 🔄 本次为 Editor/Scene Gizmo 微创改动，推送前执行 `git diff --check`；沙盒无 Unity CLI，需用户本地 Unity 打开 Scene 视图验证 Show Gameplay Boxes 与 Jump Arc 选择态表现。 |
 | **阻塞** | 无 |
-| **交接说明** | S145 已把原型 B/C 与四段白盒验证关卡连成可生成灰盒：演示房展示基础地刺/摆锤，干扰房引入 `[` 双路线封路，反制房引入 `]` 与暗线/诱饵金币，实战房放置 `o`/`G` 并预留扫描波高压验证。不要改 `MASTER_TRACKER.md`，后续只在 Unity Level Studio 中生成四段 Snippet 体验验证。 |
+| **交接说明** | S146 已完成 Context-Aware Visualizer：`GameplayBoxVisualizer` 未选中对象统一 Alpha=0.1，仅 `Selection.activeGameObject` 高亮；`JumpArcVisualizer` 未选中 Mario/BouncyPlatform 时完全不渲染，保持宏隔离与运行时零侵入。不要改 `MASTER_TRACKER.md`，后续只需在 Unity Scene 视图验证视觉噪音是否下降。 |
 
+
+### [S146] 最新知识沉淀
+1. **Gameplay Boxes 只认真实选中对象**：`GameplayBoxVisualizer` 现在以 `Selection.activeGameObject` 作为唯一高亮信号，未被真实选中的 Solid/HurtBox/HitBox/Scan 范围统一降到 Alpha=0.1，避免父子层级或全局 Show Gameplay Boxes 造成 Scene 视图噪音。
+2. **Trap Phase 标签同步降噪**：未真实选中的 `ControllablePropBase` 标签也降到 Alpha=0.1；真实选中时保留既有 Ready/Active/Cooldown/Disabled 颜色语义。
+3. **Jump Arc 未选中即不渲染**：`JumpArcVisualizer` 取消未选中时的极限外框与顶点标记，只有选中 Mario 或 BouncyPlatform 相关对象时才完整绘制抛物线束、网格、极限外框和参数面板。
+4. **宏隔离保持不变**：可视化改动仍限制在 Editor/Gizmo 侧，不改变运行时玩法、物理参数、自动化测试数据或 ASCII Registry。
 
 ### [S145] 最新知识沉淀
 1. **原型 B/C 已落地并纳入 ASCII 字典**：`[` 表示 Santorini 式临时封路机关 `ControllableBlocker`，`]` 表示 Onitama 式公开下一状态机关 `StateQueueTrap`；两者已可从 Level Studio 片段库直接参与灰盒验证。
@@ -427,14 +433,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | 🔄 | 测试 9B：摆锤 | Trickster L键可控制 |
 | 🔄 | 测试 9C：火陷阱 | 碰到向后退，不向上飞 |
 | 🔄 | 测试 9D：弹跳怪 | **S44重点验证**: 弹跳怪站在地面上弹跳、碰到有击退，踩踏消灭 |
-| 🔄 | 测试 9E：弹跳平台 | **S39重点验证**：(1)从上方落下应向上弹，侧面蹭到不触发 (2)每次弹跳高度一致（不再先高后矮） (3)按住 Space 蓄力大跳 1.4x (4)Trickster L键操控仍正常 (5)冻结期角色不滑动 |
+| 🔄 | 测试 9E：弹跳平台 | **S146重点验证**: 选中带 `BouncyPlatform` 组件的物体时 Jump Arc 完整显示，未选中时不显示；同时保留 S39 弹跳平台运行验证：(1)从上方落下应向上弹，侧面蹭到不触发 (2)每次弹跳高度一致 (3)按住 Space 蓄力大跳 1.4x (4)Trickster L键操控仍正常 (5)冻结期角色不滑动 |
 | 🔄 | 测试 9F：单向平台 | **S44c重点验证**: ASCII关卡中单向平台已合并为长条，S+Space 下落、边缘行走、单独S不落 |
 | 🔄 | 测试 9G：崩塌平台 | 重生在新位置 + Trickster可触发 |
 | 🔄 | 测试 9H：隐藏通道 | 双向穿越 + 冷却时间 |
 | 🔄 | 测试 9I：伪装墙 | 走入变透明 + L键变实体 |
 | 🔄 | 场景生成 | **S145重点验证**: `Ctrl+T` Level Builder 中四段 `S2_Validation_*` Snippet 均应可生成，`[`/`]`/`o`/`G` 字符不报未注册；自动修复仍只生成单个 `GlobalGameUICanvas`，并保留 S56/S143 验证 |
-| 🔄 | 编辑器 Picking / Size Sync | **S57c重点验证**: Visual 模式点击/框选 `Visual` 只选中 Visual，不再回跳 Root；开启 Size Sync 后修改 `Visual.localScale` 与 `Root.BoxCollider2D.size` 会双向同步；Mario/Trickster Root 仍保持不缩放 |
-| 🔄 | EditMode 自动化 | **S145重点验证**: 109 个 EditMode 需本地 Unity 重跑，重点确认四段 `S2_Validation_*` Snippet、`[`/`]` Registry 与 Level Studio 片段库不引入编译红错；同时保留 S142/S143 验证 |
+| 🔄 | 编辑器 Picking / Size Sync | **S146重点验证**: 开启 Show Gameplay Boxes 后，全局未选中静态物体仅以 Alpha=0.1 轮廓显示，只有 `Selection.activeGameObject` 对应物体高亮；同时保留 S57c Visual 模式点击/框选、Size Sync 与 Mario/Trickster Root/Visual 标准偏移验证 |
+| 🔄 | EditMode 自动化 | **S146重点验证**: 109 个 EditMode 需本地 Unity 重跑，重点确认 `GameplayBoxVisualizer` / `JumpArcVisualizer` 宏隔离与 Scene Gizmo 改动不引入编译红错；同时保留 S142/S143/S145 验证 |
 | 🔄 | PlayMode 自动化 | **S145重点验证**: 26/26 需本地 Unity 重跑；重点走通四段白盒验证循环，确认演示、干扰、反制、拿宝撤离与扫描危机均不改变既有 TAS 行为；同时保留 S142/S143 验证 |
 | 🔄 | AnimPipeline：idle 自动生成链路 | **S105重点验证**: 删除/改名 `assets/videos/idle_drive.mp4` 后执行 `python run_pipeline.py --action idle`，应触发 Blender 从 `Breathing Idle.fbx` 重建 drive video；日志中需出现“有效可渲染网格数”“动作振幅已放大 1.30x”与 `padding=1.40` 提示，若为 animation-only FBX 则继续出现“自动生成代理人体”；`02_nobg` 阶段还应新增“安全构图重排”“逐帧回正”日志；最终 `final_no_alpha.png` 应成功写回，QC 仍保持 `480×480 / 17帧 / 6步`，且成图颜色不再发灰、头顶/帽檐/武器不再轻易裁切、微动作观感不回退 |
 
@@ -455,6 +461,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **高** | **Context-Aware Visualizer 智能降噪**：Show Gameplay Boxes 开启时未选中对象 Alpha=0.1，真实选中对象才高亮；Jump Arc 仅在选中 Mario/BouncyPlatform 时完整渲染，降低 Scene 视图噪音。 | ✅ 已完成（S146，待用户 Unity Scene 视图验证） |
 | **最高** | **四段白盒验证灰盒**：基于原型 B `[`、原型 C `]` 与既有拿宝撤离/扫描危机服务，新增 `S2_Validation_1_Demo` → `S2_Validation_4_Combat`，用于按“演示→干扰→反制→实战”验证完整游戏循环。 | ✅ 已完成（S145，待用户 Unity 生成体验） |
 | **最高** | **整体玩法循环测试关卡一键生成**：按 Commit 0–6 设计循环新增 `MarioTrickster/Build Gameplay Loop Test Scene`，用于一次性验证路线预算、证据反制、连锁热度、拿宝撤离、扫描危机、Q 揭穿和终点闭环。 | 🔄 待用户生成并整体验证（S141） |
 | **最高** | **灰盒体验验证：Mario Q 揭穿参数调优**：Q 扫描已真实解除 Trickster 伪装/附身；禁控加时已外放为 `ScanAbility.scanRevealGateBonusDuration`，默认 1.2s；整体关卡生成时先设为 2.0s，等待用户按手感继续调参。 | 🔄 待用户调参复测（S140/S141） |

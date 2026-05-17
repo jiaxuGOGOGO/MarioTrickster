@@ -11,7 +11,7 @@ using UnityEngine;
 ///   5. 白色网格：格子刻度线
 ///
 /// 智能降噪策略（Context-Aware）：
-///   · 默认状态：仅绘制极低透明度的简化轮廓（外框 + 顶点标记）
+///   · 未选中 Mario 或带有 BouncyPlatform 组件的物体时：完全不渲染
 ///   · 选中 Mario 或带有 BouncyPlatform 组件的物体时：完整渲染全部抛物线束、
 ///     参数面板、极限外框和网格刻度
 ///   · 保护策划的视觉心流，避免庞大的跳跃网格干扰关卡布局工作
@@ -79,11 +79,6 @@ public class JumpArcVisualizer : MonoBehaviour
     // 缓存
     private MarioController cachedMario;
 
-    // ═══════════════════════════════════════════════════
-    // 降噪常量
-    // ═══════════════════════════════════════════════════
-    private const float DIMMED_ALPHA = 0.08f;
-
 #if UNITY_EDITOR
     private void OnValidate()
     {
@@ -127,63 +122,23 @@ public class JumpArcVisualizer : MonoBehaviour
 
         bool fullRender = ShouldRenderFull();
 
-        if (fullRender)
+        if (!fullRender) return;
+
+        // 1. 原地最高跳（绿色）
+        DrawVerticalJumpArc(origin);
+        // 2. 极限远跳（蓝色）
+        DrawHorizontalJumpArc(origin, 1f);
+        DrawHorizontalJumpArc(origin, -1f);
+        // 3. 短跳弧线（黄色）
+        DrawShortJumpArc(origin, 1f);
+        DrawShortJumpArc(origin, -1f);
+        // 4. 网格刻度
+        if (showGrid)
         {
-            // ── 完整渲染模式 ──
-            // 1. 原地最高跳（绿色）
-            DrawVerticalJumpArc(origin);
-            // 2. 极限远跳（蓝色）
-            DrawHorizontalJumpArc(origin, 1f);
-            DrawHorizontalJumpArc(origin, -1f);
-            // 3. 短跳弧线（黄色）
-            DrawShortJumpArc(origin, 1f);
-            DrawShortJumpArc(origin, -1f);
-            // 4. 网格刻度
-            if (showGrid)
-            {
-                DrawGridOverlay(origin);
-            }
-            // 5. 极限标注
-            DrawLimitAnnotations(origin);
+            DrawGridOverlay(origin);
         }
-        else
-        {
-            // ── 降噪模式：仅绘制极低透明度的极限外框 ──
-            DrawDimmedLimitOutline(origin);
-        }
-    }
-
-    // ═══════════════════════════════════════════════════
-    // 降噪模式：极简外框
-    // ═══════════════════════════════════════════════════
-
-    /// <summary>
-    /// 降噪模式下仅绘制极低透明度的极限矩形外框和顶点标记，
-    /// 让策划知道弧线存在但不干扰视觉心流。
-    /// </summary>
-    private void DrawDimmedLimitOutline(Vector3 origin)
-    {
-        float maxH = PhysicsMetrics.MAX_JUMP_HEIGHT;
-        float maxD = PhysicsMetrics.MAX_JUMP_DISTANCE;
-
-        Color dimColor = new Color(limitLineColor.r, limitLineColor.g, limitLineColor.b, DIMMED_ALPHA);
-        Gizmos.color = dimColor;
-
-        // 极限矩形外框
-        Vector3 bl = origin + new Vector3(-maxD, 0, 0);
-        Vector3 br = origin + new Vector3(maxD, 0, 0);
-        Vector3 tl = origin + new Vector3(-maxD, maxH, 0);
-        Vector3 tr = origin + new Vector3(maxD, maxH, 0);
-
-        Gizmos.DrawLine(bl, br);
-        Gizmos.DrawLine(br, tr);
-        Gizmos.DrawLine(tr, tl);
-        Gizmos.DrawLine(tl, bl);
-
-        // 顶点小球标记
-        Color dimGreen = new Color(verticalArcColor.r, verticalArcColor.g, verticalArcColor.b, DIMMED_ALPHA * 2f);
-        Gizmos.color = dimGreen;
-        Gizmos.DrawWireSphere(origin + new Vector3(0, maxH, 0), 0.15f);
+        // 5. 极限标注
+        DrawLimitAnnotations(origin);
     }
 
     // ═══════════════════════════════════════════════════

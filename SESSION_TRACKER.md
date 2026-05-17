@@ -91,14 +91,21 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 149（TAS 录像系统接入 AI Arena） |
+| **最新 Session** | Session 150（UI Layer 隔离 — Scene 视图防遮挡） |
 | **日期** | 2026-05-17 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — TAS 录像系统已接入 AI Arena，HybridInputProvider 新增 TAS 桥接层，AIArena 面板新增加载/开关/循环播放 UI。 |
-| **编译状态** | 🔄 本次修改 HybridInputProvider.cs + TestConsoleWindow.AIArena.cs（纯增量），新增字段均使用已有公开 API（AutomatedInputProvider、InputRecorder.ImportFromJson、EditorUtility.OpenFilePanel），需用户本地 Unity 编译验证。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — GlobalGameUICanvas Layer 隔离方案落地，Scene 视图编辑时自动隐藏 UI 层，策划可正常点选关卡元素。 |
+| **编译状态** | 🔄 本次新增 UIWorldSpaceLayerSetup.cs（Editor only），修改 GlobalGameUICanvasPrefabBuilder.cs + TagManager.asset，需用户本地 Unity 编译验证。 |
 | **阻塞** | 无 |
-| **交接说明** | S149 将 TAS 录像系统接入 AI Arena：(1) `HybridInputProvider` 新增 `TasProvider`、`MarioIsTAS`、`IsTasPlaying`、`ResetTasPlayback()`，P1 路由优先级 TAS>Bot>Keyboard；(2) `TestConsoleWindow.AIArena` 新增 TAS Data-Driven Testing 区域：Load Replay JSON 按钮 + TAS Toggle + 播放状态指示；(3) `AutoRestartHelper` 新增 `OnBeforeRestart` 回调，Auto Restart 时自动重置 TAS 播放头实现循环回放；(4) Start Collecting 时若 TAS 开启也自动重置播放头。不触碰 InputRecorder/AutomatedInputProvider/InputManager 等底层脚本。 |
+| **交接说明** | S150 实现 GlobalGameUICanvas Layer 隔离方案：(1) TagManager.asset 注册 UI_WorldSpace Layer（slot 7）；(2) 新增 UIWorldSpaceLayerSetup.cs（InitializeOnLoad），场景打开/保存时自动将 Canvas 及子物体设为 UI_WorldSpace Layer，Edit Mode 自动隐藏、Play Mode 自动恢复；(3) GlobalGameUICanvasPrefabBuilder 创建预制体时同步设置 Layer。Canvas 使用 ScreenSpaceOverlay 渲染，改 Layer 不影响运行时显示。 |
 
+
+### [S150] 最新知识沉淀
+1. **UI_WorldSpace Layer 隔离**：TagManager.asset 注册 Layer 7 为 UI_WorldSpace。UIWorldSpaceLayerSetup（InitializeOnLoad）自动将 GlobalGameUICanvas 及所有子物体递归设置到该 Layer。
+2. **Scene 视图自动隐藏**：Edit Mode 下通过 `Tools.visibleLayers &= ~layerMask` 隐藏 UI_WorldSpace Layer，策划可正常点选关卡元素；Play Mode 下自动恢复可见性。
+3. **Prefab 同步**：GlobalGameUICanvasPrefabBuilder.EnsurePrefabAsset 创建预制体时同步设置 UI_WorldSpace Layer，新场景实例化后即生效。
+4. **安全性**：Canvas 使用 ScreenSpaceOverlay 渲染模式，不受 Camera.cullingMask 影响，改 Layer 不影响运行时 UI。不修改任何 Camera 设置，不影响物理射线。
+5. **可控开关**：UIWorldSpaceLayerSetup.IsAutoHideEnabled 通过 EditorPrefs 持久化，可在 Level Studio 面板中关闭自动隐藏。
 
 ### [S149] 最新知识沉淀
 1. **HybridInputProvider TAS 桥接**：新增 `TasProvider`（AutomatedInputProvider）、`MarioIsTAS`（bool）、`IsTasPlaying`（只读属性）、`ResetTasPlayback()`。P1 系列方法路由优先级：TAS > Bot > Keyboard，TAS 播完自动回退。Tick() 中统一驱动 TasProvider.Tick()。

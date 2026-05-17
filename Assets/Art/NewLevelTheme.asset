@@ -1,0 +1,100 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 83258f8fc135202448f21d22ed102cac, type: 3}
+  m_Name: NewLevelTheme
+  m_EditorClassIdentifier: 
+  themeName: New Theme
+  themeDescription: 
+  backgroundColor: {r: 0.53, g: 0.81, b: 0.92, a: 1}
+  groundSprite: {fileID: 0}
+  groundColor: {r: 0.4, g: 0.3, b: 0.2, a: 1}
+  platformSprite: {fileID: 0}
+  platformColor: {r: 0.3, g: 0.6, b: 0.8, a: 1}
+  wallSprite: {fileID: 0}
+  wallColor: {r: 0.35, g: 0.25, b: 0.15, a: 1}
+  elementSprites:
+  - elementKey: SpikeTrap
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: FireTrap
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: PendulumTrap
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: BouncingEnemy
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: BouncyPlatform
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: CollapsingPlatform
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: OneWayPlatform
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: MovingPlatform
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: HiddenPassage
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: FakeWall
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: GoalZone
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: Collectible
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: SimpleEnemy
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: SawBlade
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: FlyingEnemy
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: ConveyorBelt
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: Checkpoint
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  - elementKey: BreakableBlock
+    sprite: {fileID: 0}
+    useCustomColor: 0
+    customColor: {r: 1, g: 1, b: 1, a: 1}
+  marioSprite: {fileID: 0}
+  marioColor: {r: 0.9, g: 0.2, b: 0.2, a: 1}
+  tricksterSprite: {fileID: 0}
+  tricksterColor: {r: 0.5, g: 0.2, b: 0.8, a: 1}

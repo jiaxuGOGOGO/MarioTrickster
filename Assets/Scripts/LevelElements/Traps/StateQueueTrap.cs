@@ -88,7 +88,6 @@ public class StateQueueTrap : ControllableLevelElement
 
     private BoxCollider2D boxCollider;
     private SpriteRenderer sr;
-    private MarioSuspicionTracker suspicionTracker;
     private TricksterHeatMeter heatMeter;
     // 使用基类 ControllablePropBase.originalColor (protected)，不再重复声明
 
@@ -108,7 +107,7 @@ public class StateQueueTrap : ControllableLevelElement
         sr = GetComponentInChildren<SpriteRenderer>();
         originalColor = sr != null ? sr.color : Color.white;
 
-        suspicionTracker = FindObjectOfType<MarioSuspicionTracker>();
+        // suspicionTracker 已由 base.Awake() 初始化（ControllablePropBase.protected）
         heatMeter = FindObjectOfType<TricksterHeatMeter>();
 
         if (boxCollider != null)

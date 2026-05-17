@@ -26,8 +26,10 @@ public class PropComboHUD : MonoBehaviour
     private float breakMessageTimer;
     private int lastBreakCount;
     private float lastBreakMultiplier;
+#pragma warning disable CS0414 // 预留给后续 HUD 渲染使用
     private string lastHitMessage;
     private float hitMessageTimer;
+#pragma warning restore CS0414
 
     private void Start()
     {

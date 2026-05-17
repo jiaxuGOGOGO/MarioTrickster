@@ -68,7 +68,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     protected SpriteRenderer spriteRenderer;
     protected Color originalColor;
     private Vector3 originalLocalPosition;
-    private MarioSuspicionTracker suspicionTracker;
+    protected MarioSuspicionTracker suspicionTracker;
 
     // Session 20: 高亮状态
     private bool _isHighlighted;

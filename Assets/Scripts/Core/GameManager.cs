@@ -34,7 +34,9 @@ public class GameManager : MonoBehaviour
     [Header("=== 重生设置 ===")]
     [SerializeField] private Transform marioSpawnPoint;
     [SerializeField] private Transform tricksterSpawnPoint;
+#pragma warning disable CS0414 // Inspector 可调参数，待后续重生流程接入
     [SerializeField] private float respawnDelay = 2f;
+#pragma warning restore CS0414
 
     [Header("=== 关卡设置 ===")]
     [SerializeField] private string nextLevelScene = "";

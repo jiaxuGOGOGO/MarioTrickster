@@ -47,8 +47,10 @@ public class JumpArcVisualizer : MonoBehaviour
     [Tooltip("是否显示网格刻度线")]
     [SerializeField] private bool showGrid = true;
 
+#pragma warning disable CS0414 // Inspector 可调参数，待后续替换硬编码采样步长
     [Tooltip("抛物线采样点数（越多越平滑）")]
     [SerializeField, Range(20, 100)] private int arcResolution = 60;
+#pragma warning restore CS0414
 
     [Header("=== 物理参数（S53: 自动从 PhysicsConfigSO 或 MarioController 读取）===")]
     [Tooltip("跳跃初速度（优先从 PhysicsConfigSO 读取）")]

@@ -44,8 +44,10 @@ public class CameraController : MonoBehaviour
     [SerializeField] private float lookAheadDistance = 1.5f;
     [Tooltip("前瞻平滑时间（越大越慢，防止转向时抖动）")]
     [SerializeField] private float lookAheadSmoothTime = 0.8f;
+#pragma warning disable CS0414 // Inspector 可调参数，待后续替换硬编码阈值
     [Tooltip("位置变化低于此值视为静止（不触发前瞻）")]
     [SerializeField] private float movingThreshold = 0.01f;
+#pragma warning restore CS0414
     
     [Header("=== 关卡边界限制 ===")]
     [SerializeField] private bool useBounds = true;

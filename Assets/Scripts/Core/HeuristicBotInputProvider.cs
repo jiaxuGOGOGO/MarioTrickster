@@ -273,34 +273,34 @@ public class HeuristicBotInputProvider : IInputProvider
 
     /// <summary>
     /// Mario 目标选择策略：
-    ///   - 已拿宝：直接去最近的撤离门 (EscapeGate / GoalZone)
-    ///   - 未拿宝：收集所有可达目标（LootObjective、Collectible、EscapeGate、GoalZone），选最近的
+    ///   - 已拿宝 (IsLootCarried=true)：直接去最近的撤离门
+    ///   - 实战房未拿宝 (场景有 LootObjective)：必须先去拿 LootObjective，不能贪近去终点
+    ///   - 旧关卡 (无 LootObjective)：去最近的 Collectible 或 GoalZone
     ///   - 无目标时默认向右探索
-    /// 这样 Mario 不会傻跑回起点去拿已经路过的目标，而是就近前进。
     /// </summary>
     private Vector2? FindMarioTarget()
     {
         if (_mario == null) return null;
         Vector2 marioPos = (Vector2)_mario.transform.position;
 
-        // 已拿宝：直接去最近的撤离门/终点
+        // ── 已拿宝：直接去最近的撤离门/终点 ──
         if (LootObjective.IsLootCarried)
         {
             return FindNearestTarget<EscapeGate>(marioPos)
                 ?? FindNearestTarget<GoalZone>(marioPos);
         }
 
-        // 未拿宝：收集所有可达目标，选最近的
+        // ── 实战房未拿宝：必须先拿 LootObjective ──
+        Vector2? lootPos = FindNearestTarget<LootObjective>(marioPos);
+        if (lootPos.HasValue)
+            return lootPos;
+
+        // ── 旧关卡兼容：没有 LootObjective，去最近的 Collectible 或 GoalZone ──
         Vector2? best = null;
         float bestDist = float.MaxValue;
-
-        // 拿宝目标（LootObjective / Collectible）
-        TryUpdateNearest<LootObjective>(marioPos, ref best, ref bestDist);
         TryUpdateNearest<Collectible>(marioPos, ref best, ref bestDist);
-
-        // 终点目标（EscapeGate / GoalZone）—— 如果终点比拿宝点更近，Mario 会先去终点
-        TryUpdateNearest<EscapeGate>(marioPos, ref best, ref bestDist);
         TryUpdateNearest<GoalZone>(marioPos, ref best, ref bestDist);
+        TryUpdateNearest<EscapeGate>(marioPos, ref best, ref bestDist);
 
         return best;
     }

@@ -94,11 +94,20 @@ public class HeuristicBotInputProvider : IInputProvider
     private const float WALL_CHECK_DISTANCE  = 0.5f;
     private const float WALL_CHECK_HEIGHT    = 0.3f;
 
+    // ── AI 意图标签（供 UI / Debug 显示） ──
+    public string MarioIntent  = "";
+    public string TricksterIntent = "";
+
     // 陷阱雷达参数
     private const float TRAP_RADAR_RANGE     = 4.0f;   // 前方探测距离（格）
     private const float TRAP_RADAR_HEIGHT    = 1.5f;   // BoxCast 高度
     private const float TRAP_SAFE_DISTANCE   = 1.5f;   // 安全停步距离
     private bool _waitingForTrap;                       // 当前是否因陷阱停步
+    private bool _baitingTrap;                          // 当前是否后退骗技能
+    private const float BAIT_RETREAT_SPEED   = -1f;     // 骗技能时后退速度（反向）
+
+    // ── Mario 强扫描条件参数 ──
+    private const float SCAN_ANCHOR_RANGE    = 6.0f;    // 附近有锚点才扫描的范围
 
     // ── Mario 垂直寻路 & 防卡死参数 ──
     // [AI防坑警告] 以下参数用于解决 Mario 遇高台发呆的问题。
@@ -126,7 +135,12 @@ public class HeuristicBotInputProvider : IInputProvider
     private TricksterPossessionGate _gate;
     private TricksterAbilitySystem _ability;
     private TricksterHeatMeter _heatMeter;
+    private PropComboTracker _comboTracker;
     private bool _tricksterCacheReady;
+
+    // ── Trickster 连锁追击参数 ──
+    private const float COMBO_RUSH_RANGE_MAX = 12.0f;   // 连锁中扩大搜索范围
+    private string _lastComboPropName = "";             // 上次连锁使用的道具类型名
 
     // 目标锚点（当前选定的伏击位置）
     private PossessionAnchor _targetAnchor;
@@ -187,6 +201,8 @@ public class HeuristicBotInputProvider : IInputProvider
 
     protected virtual void UpdateMarioBrain(float dt)
     {
+        MarioIntent = "";
+
         if (!_marioCacheReady)
         {
             _mario = Object.FindObjectOfType<MarioController>();
@@ -267,12 +283,13 @@ public class HeuristicBotInputProvider : IInputProvider
 
         // ── 2. 陷阱雷达：前方 3~4 格探测 ControllablePropBase ──
         _waitingForTrap = false;
+        _baitingTrap = false;
         RaycastHit2D[] trapHits = Physics2D.BoxCastAll(
-            marioPos + new Vector2(facingDir * 0.5f, 0.5f),  // 起点略偏前、抬高半格
-            new Vector2(0.5f, TRAP_RADAR_HEIGHT),             // BoxCast 尺寸
-            0f,                                               // 无旋转
-            new Vector2(facingDir, 0f),                       // 朝面向方向
-            TRAP_RADAR_RANGE                                  // 探测距离
+            marioPos + new Vector2(facingDir * 0.5f, 0.5f),
+            new Vector2(0.5f, TRAP_RADAR_HEIGHT),
+            0f,
+            new Vector2(facingDir, 0f),
+            TRAP_RADAR_RANGE
         );
         foreach (var hit in trapHits)
         {
@@ -282,20 +299,37 @@ public class HeuristicBotInputProvider : IInputProvider
                 prop = hit.collider.GetComponentInParent<ControllablePropBase>();
             if (prop == null) continue;
             PropControlState trapState = prop.GetControlState();
-            if (trapState == PropControlState.Active || trapState == PropControlState.Telegraph)
+            if (trapState == PropControlState.Active)
             {
-                // 机关正在激活或预警中 → 强制停步等待
+                // 机关正在激活中 → 停步等待
                 _waitingForTrap = true;
+                break;
+            }
+            if (trapState == PropControlState.Telegraph)
+            {
+                // 机关处于预警期 → 后退骗技能（Baiting）
+                _baitingTrap = true;
                 break;
             }
         }
 
-        // 预判停步：如果前方有危险机关，原地等待
+        // 停步：机关正在激活，原地等待
         if (_waitingForTrap)
         {
             p1Horizontal = 0f;
             p1JumpHeld = false;
             _jumpHoldTimer = 0f;
+            MarioIntent = "[Dodging Active Trap]";
+            return;
+        }
+
+        // 骗技能：机关处于预警期，后退拉距离
+        if (_baitingTrap)
+        {
+            p1Horizontal = -facingDir; // 反向后退
+            p1JumpHeld = false;
+            _jumpHoldTimer = 0f;
+            MarioIntent = "[Baiting Trap]";
             return;
         }
 
@@ -382,9 +416,17 @@ public class HeuristicBotInputProvider : IInputProvider
             _stuckCheckTimer = 0f;
         }
 
-        // ── 5. 自动反制 ──
-        if (_probe != null && _probe.IsStrongScanReady)
+        // ── 5. 自动反制（强扫描） ──
+        // 只有 IsStrongScanReady 且附近有可附身锚点时才按 Q，避免浪费扫描
+        if (_probe != null && _probe.IsStrongScanReady && HasNearbyAnchor(marioPos, SCAN_ANCHOR_RANGE))
+        {
             p1ScanDown = true;
+            MarioIntent = "[Executing Strong Scan]";
+        }
+        else if (string.IsNullOrEmpty(MarioIntent))
+        {
+            MarioIntent = "[Pathing]";
+        }
     }
 
     /// <summary>
@@ -472,9 +514,9 @@ public class HeuristicBotInputProvider : IInputProvider
                 _ability = _trickster.AbilitySystem;
             }
             _heatMeter = Object.FindObjectOfType<TricksterHeatMeter>();
+            _comboTracker = Object.FindObjectOfType<PropComboTracker>();
             _tricksterCacheReady = true;
         }
-
         if (_trickster == null || !_trickster.enabled)
         {
             p2Horizontal = 0f;
@@ -483,6 +525,8 @@ public class HeuristicBotInputProvider : IInputProvider
 
         // Mario 引用（共享 Mario Brain 的缓存）
         if (_mario == null) return;
+
+        TricksterIntent = "";
 
         // ── 热度规避计时器 ──
         if (_heatCooloffTimer > 0f)
@@ -507,6 +551,27 @@ public class HeuristicBotInputProvider : IInputProvider
 
         bool heatSuppressed = _heatCooloffTimer > 0f;
 
+        // ── Lockdown 强制逃跑：解除附身 + 反向跑 ──
+        if (_heatMeter != null && _heatMeter.CurrentTier == TricksterHeatMeter.HeatTier.Lockdown)
+        {
+            TricksterPossessionState lockState = TricksterPossessionState.Roaming;
+            if (_gate != null) lockState = _gate.CurrentState;
+            // 如果还在附身状态，强制解除
+            if (lockState == TricksterPossessionState.Possessing ||
+                lockState == TricksterPossessionState.Blending)
+            {
+                p2DisguiseDown = true;
+            }
+            // 向远离 Mario 的方向逃跑
+            Vector2 tPos = _trickster.transform.position;
+            Vector2 mPos = _mario.transform.position;
+            float fleeDir = (tPos.x >= mPos.x) ? 1f : -1f;
+            p2Horizontal = fleeDir;
+            p2JumpDown = true; // 跳跃辅助越障
+            TricksterIntent = "[Fleeing! High Heat]";
+            return;
+        }
+
         // ── 获取当前附身状态 ──
         TricksterPossessionState state = TricksterPossessionState.Roaming;
         if (_gate != null)
@@ -516,13 +581,25 @@ public class HeuristicBotInputProvider : IInputProvider
         Vector2 marioPos = _mario.transform.position;
         float marioFacing = _mario.IsFacingRight ? 1f : -1f;
 
+        // ── 连锁追击：在连锁窗口内加速寻找不同类型锚点 ──
+        bool comboRushing = false;
+        if (_comboTracker != null && _comboTracker.IsComboActive && !heatSuppressed)
+        {
+            // 记录上次连锁的道具类型
+            var history = _comboTracker.ComboHistory;
+            if (history.Count > 0)
+                _lastComboPropName = history[history.Count - 1].PropName;
+            comboRushing = true;
+            TricksterIntent = "[Chasing Combo]";
+        }
+
         switch (state)
         {
             // ────────────────────────────────────────
             // 状态 A: Roaming — 战术走位 + 自动伪装 + 射线避障
             // ────────────────────────────────────────
             case TricksterPossessionState.Roaming:
-                HandleRoaming(tricksterPos, marioPos, marioFacing);
+                HandleRoaming(tricksterPos, marioPos, marioFacing, comboRushing);
                 _possessTimer = 0f; // 重置附身计时器
                 break;
 
@@ -573,12 +650,20 @@ public class HeuristicBotInputProvider : IInputProvider
     /// Roaming 状态：寻找 Mario 前方的空闲锚点并走过去，到达后自动伪装。
     /// [升级] 加入射线检测：遇墙或遇坑时强制跳跃越障。
     /// </summary>
-    private void HandleRoaming(Vector2 tricksterPos, Vector2 marioPos, float marioFacing)
+    private void HandleRoaming(Vector2 tricksterPos, Vector2 marioPos, float marioFacing, bool comboRushing = false)
     {
         // 如果没有目标锚点或目标锚点已失效，重新选择
         if (_targetAnchor == null || !_targetAnchor.CanBePossessed())
         {
-            _targetAnchor = FindAmbushAnchor(marioPos, marioFacing);
+            _targetAnchor = comboRushing
+                ? FindComboAnchor(marioPos, marioFacing)
+                : FindAmbushAnchor(marioPos, marioFacing);
+        }
+        // 连锁中如果当前锚点和上次同类型，强制重新选择不同类型
+        if (comboRushing && _targetAnchor != null && _targetAnchor.ControllableProp != null
+            && _targetAnchor.ControllableProp.PropName == _lastComboPropName)
+        {
+            _targetAnchor = FindComboAnchor(marioPos, marioFacing);
         }
 
         if (_targetAnchor == null)
@@ -632,7 +717,12 @@ public class HeuristicBotInputProvider : IInputProvider
             // 到达锚点，停止移动并触发伪装
             p2Horizontal = 0f;
             p2DisguiseDown = true;
+            if (string.IsNullOrEmpty(TricksterIntent))
+                TricksterIntent = "[Disguising]";
         }
+
+        if (string.IsNullOrEmpty(TricksterIntent))
+            TricksterIntent = "[Roaming to Anchor]";
     }
 
     /// <summary>
@@ -663,6 +753,7 @@ public class HeuristicBotInputProvider : IInputProvider
             _executeDelayTimer = 0f;
             _targetAnchor = null;
             _possessTimer = 0f;
+            TricksterIntent = "[Anti-Deadlock: Unpossessing]";
             return;
         }
 
@@ -705,6 +796,9 @@ public class HeuristicBotInputProvider : IInputProvider
 
         if (inKillZone || leadTargetHit)
         {
+            TricksterIntent = leadTargetHit && !inKillZone
+                ? "[Lead Target: Pre-firing]"
+                : "[Executing Kill]";
             // Mario 进入危险距离（实际或预测）
             if (!_executeArmed)
             {
@@ -737,6 +831,8 @@ public class HeuristicBotInputProvider : IInputProvider
                 _executeArmed = false;
                 _executeDelayTimer = 0f;
             }
+            if (string.IsNullOrEmpty(TricksterIntent))
+                TricksterIntent = "[Possessing: Waiting]";
         }
     }
 
@@ -790,6 +886,62 @@ public class HeuristicBotInputProvider : IInputProvider
         return best;
     }
 
+    /// <summary>
+    /// 连锁追击用锚点选择：优先选择与上次连锁不同类型的锚点，扩大搜索范围。
+    /// </summary>
+    private PossessionAnchor FindComboAnchor(Vector2 marioPos, float marioFacing)
+    {
+        PossessionAnchor[] anchors = Object.FindObjectsOfType<PossessionAnchor>();
+        if (anchors == null || anchors.Length == 0) return null;
+
+        PossessionAnchor bestDiff = null;  // 不同类型优先
+        float bestDiffDist = float.MaxValue;
+        PossessionAnchor bestAny = null;   // 任意可用回退
+        float bestAnyDist = float.MaxValue;
+
+        foreach (var anchor in anchors)
+        {
+            if (anchor == null || !anchor.CanBePossessed()) continue;
+            float dist = Vector2.Distance(marioPos, (Vector2)anchor.AnchorTransform.position);
+            if (dist > COMBO_RUSH_RANGE_MAX) continue;
+
+            // 记录任意可用锚点
+            if (dist < bestAnyDist)
+            {
+                bestAnyDist = dist;
+                bestAny = anchor;
+            }
+
+            // 优先选不同类型
+            string propName = anchor.ControllableProp != null ? anchor.ControllableProp.PropName : "";
+            if (!string.IsNullOrEmpty(_lastComboPropName) && propName == _lastComboPropName)
+                continue;
+
+            if (dist < bestDiffDist)
+            {
+                bestDiffDist = dist;
+                bestDiff = anchor;
+            }
+        }
+
+        return bestDiff != null ? bestDiff : bestAny;
+    }
+
+    /// <summary>
+    /// 检测指定位置附近是否有可附身锚点（用于 Mario 强扫描前置条件）。
+    /// </summary>
+    private static bool HasNearbyAnchor(Vector2 pos, float range)
+    {
+        PossessionAnchor[] anchors = Object.FindObjectsOfType<PossessionAnchor>();
+        foreach (var anchor in anchors)
+        {
+            if (anchor == null || !anchor.CanBePossessed()) continue;
+            if (Vector2.Distance(pos, (Vector2)anchor.AnchorTransform.position) <= range)
+                return true;
+        }
+        return false;
+    }
+
     // ═══════════════════════════════════════════════════════════
     // 引用缓存管理
     // ═══════════════════════════════════════════════════════════
@@ -817,6 +969,8 @@ public class HeuristicBotInputProvider : IInputProvider
         _gate = null;
         _ability = null;
         _heatMeter = null;
+        _comboTracker = null;
+        _lastComboPropName = "";
         _targetAnchor = null;
         _executeArmed = false;
         _executeDelayTimer = 0f;

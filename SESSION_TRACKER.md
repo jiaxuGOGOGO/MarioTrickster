@@ -91,14 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 150（UI Layer 隔离 — Scene 视图防遮挡） |
+| **最新 Session** | Session 151（AI 博弈机制接入 — 热度/连锁/骗技能/强扫描） |
 | **日期** | 2026-05-17 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — GlobalGameUICanvas Layer 隔离方案落地，Scene 视图编辑时自动隐藏 UI 层，策划可正常点选关卡元素。 |
-| **编译状态** | 🔄 本次新增 UIWorldSpaceLayerSetup.cs（Editor only），修改 GlobalGameUICanvasPrefabBuilder.cs + TagManager.asset，需用户本地 Unity 编译验证。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — AI 大脑接入博弈机制：Trickster 热度 Lockdown 逃跑 + 连锁追击，Mario 骗技能后退 + 强扫描条件判断。 |
+| **编译状态** | 🔄 本次修改 HeuristicBotInputProvider.cs（+168行），需用户本地 Unity 编译验证。 |
 | **阻塞** | 无 |
-| **交接说明** | S150 实现 GlobalGameUICanvas Layer 隔离方案：(1) TagManager.asset 注册 UI_WorldSpace Layer（slot 7）；(2) 新增 UIWorldSpaceLayerSetup.cs（InitializeOnLoad），场景打开/保存时自动将 Canvas 及子物体设为 UI_WorldSpace Layer，Edit Mode 自动隐藏、Play Mode 自动恢复；(3) GlobalGameUICanvasPrefabBuilder 创建预制体时同步设置 Layer。Canvas 使用 ScreenSpaceOverlay 渲染，改 Layer 不影响运行时显示。 |
+| **交接说明** | S151 重塑 AI 大脑接入博弈机制：(1) Trickster 读取 HeatMeter，Lockdown 时强制解除附身反向逃跑；(2) Trickster 读取 PropComboTracker，连锁窗口内寻找不同类型锚点加速攻击；(3) Mario 遇 Telegraph 预警后退骗技能；(4) Mario 强扫描加入"附近有锚点"前置条件。新增 MarioIntent/TricksterIntent 字段实时反映 AI 意图。 |
 
+
+### [S151] 最新知识沉淀
+1. **Trickster Lockdown 逃跑**：读取 `TricksterHeatMeter.CurrentTier`，当热度达到 `Lockdown` 时强制 `p2DisguiseDown=true` 解除附身，并以 Mario 反方向全速逃跑 + 跳跃，持续到热度降为非 Lockdown。Intent="[Fleeing! High Heat]"。
+2. **Trickster 连锁追击**：读取 `PropComboTracker.IsComboActive`，连锁窗口内使用 `FindComboAnchor` 优先选择与上次不同 PropName 的锚点，搜索范围扩大到 COMBO_RUSH_RANGE_MAX=15。Intent="[Chasing Combo]"。
+3. **Mario 骗技能后退**：原有 Telegraph 停步逻辑升级为后退拉距离（反向移动 + 小跳），引诱机关提前触发而空放。Intent="[Baiting Trap]"。
+4. **Mario 强扫描条件判断**：原有 `IsStrongScanReady` 无条件按 Q 升级为必须 `HasNearbyAnchor(marioPos, SCAN_ANCHOR_DETECT_RANGE=6)` 才触发，避免浪费扫描。Intent="[Executing Strong Scan]"。
+5. **Intent 字段**：新增 `public string MarioIntent` 和 `public string TricksterIntent`，每帧重置后由各决策分支赋值，可在 Inspector 或 AI Arena 中实时查看 AI 当前意图。
+6. **安全边界**：所有改动限制在 HeuristicBotInputProvider.cs 内，纯增量不破坏接口，不触碰底层脚本。FindComboAnchor 和 HasNearbyAnchor 中的 FindObjectsOfType 仅在决策分支内调用（非每帧热路径）。
 
 ### [S150] 最新知识沉淀（修订版）
 1. **SceneVisibilityManager 主方案**：放弃不可靠的 `Tools.visibleLayers`，改用 Unity 官方 `SceneVisibilityManager.Hide/Show` API。Edit Mode 下 Canvas 在 Scene 视图中完全不可见且不可选，但 GameObject 始终保持 active（FindObjectOfType 正常工作）。

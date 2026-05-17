@@ -332,6 +332,31 @@ public partial class TestConsoleWindow
         }
         GUI.color = Color.white;
 
+        GameObject autoFixRoot = GameplayLoopSceneBootstrapper.ResolveActiveLevelRoot();
+        if (GameplayLoopSceneBootstrapper.NeedsGameplayLoopAutoFix(autoFixRoot))
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.HelpBox(
+                "检测到当前场景仍缺少 Gameplay Loop 服务，或实战房仍保留 Collectible/GoalZone 的旧语义。可使用 Auto-Fix 旁路补齐，不改 ASCII 字典与核心底层。",
+                MessageType.Warning);
+
+            Color previousColor = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.25f, 0.85f, 0.35f);
+            if (GUILayout.Button("🛠️ Auto-Fix: 一键补齐 Gameplay Loop 服务与实战语义", GUILayout.Height(34)))
+            {
+                int undoGroup = Undo.GetCurrentGroup();
+                Undo.SetCurrentGroupName("Auto-Fix Gameplay Loop Services And Combat Semantics");
+
+                GameObject root = GameplayLoopSceneBootstrapper.ResolveActiveLevelRoot();
+                GameplayLoopSceneBootstrapper.EnsureGameplayLoopServices(root);
+                GameplayLoopSceneBootstrapper.EnsureCombatRoomSemantics(root);
+
+                Undo.CollapseUndoOperations(undoGroup);
+                RunMechanicsValidation();
+            }
+            GUI.backgroundColor = previousColor;
+        }
+
         EditorGUI.indentLevel--;
     }
 

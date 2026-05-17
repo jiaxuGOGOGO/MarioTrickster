@@ -276,7 +276,7 @@ public class HeuristicBotInputProvider : IInputProvider
     ///   1. LootObjective（未收集）—— 实战房拿宝目标
     ///   2. EscapeGate（已收集）—— 实战房撤离门
     ///   3. Collectible（未 Auto-Fix 的旧语义）—— 兼容旧关卡
-    ///   4. GoalZone（旧终点）—— 兼容旧关卡
+    ///   4. GoalZone / EscapeGate（终点）—— Collectible 被销毁后的最终目标
     ///   5. 无目标时默认向右探索
     /// </summary>
     private Vector2? FindMarioTarget()
@@ -297,12 +297,17 @@ public class HeuristicBotInputProvider : IInputProvider
                 return (Vector2)gate.transform.position;
         }
 
-        // 优先级 3: 旧语义 Collectible（未执行 Auto-Fix 时的兼容）
+        // 优先级 3: 旧语义 Collectible（未执行 Auto-Fix 时的兼容，被收集后会 Destroy）
         Collectible collectible = Object.FindObjectOfType<Collectible>();
         if (collectible != null && collectible.gameObject.activeInHierarchy)
             return (Vector2)collectible.transform.position;
 
-        // 优先级 4: 旧语义 GoalZone
+        // 优先级 4: 终点——Collectible 被销毁后，直接去终点
+        // 先找 EscapeGate（实战房撤离门），再找 GoalZone（旧终点）
+        EscapeGate escapeGate = Object.FindObjectOfType<EscapeGate>();
+        if (escapeGate != null && escapeGate.gameObject.activeInHierarchy)
+            return (Vector2)escapeGate.transform.position;
+
         GoalZone goal = Object.FindObjectOfType<GoalZone>();
         if (goal != null && goal.gameObject.activeInHierarchy)
             return (Vector2)goal.transform.position;

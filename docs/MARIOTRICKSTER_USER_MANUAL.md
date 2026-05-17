@@ -13,11 +13,14 @@
 
 **操作步骤：**
 1. **打开 Level Studio**：点击顶部菜单栏 `MarioTrickster -> Level Studio (Ctrl+T)`。
-2. **选择关卡片段**：在 `Level Design` 页签下，找到 `Quick Whitebox Generator` 区块。在下拉菜单中选择一个 `Combat Snippet`（例如 `S2_Validation_4_Combat`）。
-3. **查看设计意图**：选中片段后，上方会出现黄色的 HelpBox，展示该片段的 **Budget（路线预算）** 和 **TestGoal（测试目标）** 等元数据，确保生成前了解设计意图。
-4. **生成白盒**：点击绿色的 `[Generate Whitebox Level]` 按钮，场景中心会立刻生成由 ASCII 字典驱动的白盒关卡。
-5. **一键升级实战房**：如果关卡缺少完整的 Gameplay Loop 服务（如热度、扫描波、撤离门），点击下方醒目的绿色按钮 `[🛠️ Auto-Fix: 一键补齐 Gameplay Loop 服务与实战语义]`。
-   - **发生现象**：系统会自动在后台注入 `RouteBudgetService`、`TricksterHeatMeter`、`AlarmCrisisDirector` 等核心服务，并将旧的 `Collectible/GoalZone` 升级为拥有『拿宝撤离、路线预算、扫描波危机』的实战语义，全程不破坏原有 ASCII 字典与物理结构。
+2. **展开 Custom Template Editor**：在 `Level Design` 页签最上方，点击 `★ Custom Template Editor (自定义模板编辑器)` 折叠栏将其展开。
+3. **选择关卡片段**：在 Custom Template Editor 内部，有两种方式使用片段：
+   - **方式 A（片段库浏览）**：展开 `经典片段库 (点击追加到下方文本框)` 折叠栏，找到目标片段（如 `S2_Validation_4_Combat`），点击 `[追加]` 将其 ASCII 文本追加到编辑框，或点击 `[直接生成]` 立即生成到场景。
+   - **方式 B（下拉选择 + 元数据预览）**：在片段库下方的 `选中片段设计意图` 区块中，通过 `Snippet` 下拉菜单选择一个片段（如 `S2_Validation_4_Combat`）。
+4. **查看设计意图**：选中含元数据的片段后，下方会出现黄色的 HelpBox，展示该片段的 **主路线 / 影子路线 / 机关角色 / Budget（预算）/ TestGoal（测试目标）** 等结构化设计意图，确保生成前了解设计目标。
+5. **生成白盒**：点击 `[直接生成选中片段]` 按钮（或在文本框编辑完成后点击 `[Build Level from Template]`），场景中心会立刻生成由 ASCII 字典驱动的白盒关卡。
+6. **一键升级实战房**：切换到 `★ Gameplay Mechanics (机制驱动关卡设计)` 折叠栏 → 展开 `◆ Mechanics Validation (关卡机制验证)` 子区块。如果关卡缺少完整的 Gameplay Loop 服务，面板会显示黄色警告，并出现醒目的绿色按钮 `[🛠️ Auto-Fix: 一键补齐 Gameplay Loop 服务与实战语义]`，点击它。
+   - **发生现象**：系统会自动在后台注入 `RouteBudgetService`、`TricksterHeatMeter`、`AlarmCrisisDirector` 等核心服务，并将旧的 `Collectible/GoalZone` 升级为拥有『拿宝撤离、路线预算、扫描波危机』的实战语义，全程不破坏原有 ASCII 字典与物理结构。完成后自动运行一次机制验证，弹窗展示通过/警告/错误汇总。
 
 ---
 

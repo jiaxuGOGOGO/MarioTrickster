@@ -272,10 +272,16 @@ public class HeuristicBotInputProvider : IInputProvider
     }
 
     /// <summary>
-    /// Mario 目标优先级：LootObjective（未收集）→ EscapeGate（已收集）→ GoalZone
+    /// Mario 目标优先级：
+    ///   1. LootObjective（未收集）—— 实战房拿宝目标
+    ///   2. EscapeGate（已收集）—— 实战房撤离门
+    ///   3. Collectible（未 Auto-Fix 的旧语义）—— 兼容旧关卡
+    ///   4. GoalZone（旧终点）—— 兼容旧关卡
+    ///   5. 无目标时默认向右探索
     /// </summary>
     private Vector2? FindMarioTarget()
     {
+        // 优先级 1: 实战房拿宝目标（未收集）
         if (!LootObjective.IsLootCarried)
         {
             LootObjective loot = Object.FindObjectOfType<LootObjective>();
@@ -283,6 +289,7 @@ public class HeuristicBotInputProvider : IInputProvider
                 return (Vector2)loot.transform.position;
         }
 
+        // 优先级 2: 实战房撤离门（已收集）
         if (LootObjective.IsLootCarried)
         {
             EscapeGate gate = Object.FindObjectOfType<EscapeGate>();
@@ -290,6 +297,12 @@ public class HeuristicBotInputProvider : IInputProvider
                 return (Vector2)gate.transform.position;
         }
 
+        // 优先级 3: 旧语义 Collectible（未执行 Auto-Fix 时的兼容）
+        Collectible collectible = Object.FindObjectOfType<Collectible>();
+        if (collectible != null && collectible.gameObject.activeInHierarchy)
+            return (Vector2)collectible.transform.position;
+
+        // 优先级 4: 旧语义 GoalZone
         GoalZone goal = Object.FindObjectOfType<GoalZone>();
         if (goal != null && goal.gameObject.activeInHierarchy)
             return (Vector2)goal.transform.position;

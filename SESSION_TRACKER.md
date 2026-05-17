@@ -91,14 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 148（HeuristicBot AI 智商升级：垂直寻路 + 提前量预判 + 防死锁） |
+| **最新 Session** | Session 149（TAS 录像系统接入 AI Arena） |
 | **日期** | 2026-05-17 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — HeuristicBotInputProvider 三项 AI 升级：Mario 垂直寻路 Wiggle + 防卡死反向跳跃、Trickster Lead Target 提前量预判、Trickster Roaming 射线避障 + Possessing 防死锁超时解除。 |
-| **编译状态** | 🔄 本次仅修改 HeuristicBotInputProvider.cs（纯增量，无接口变更），所有新增字段/方法均使用已有公开 API（MarioController.Velocity、BoundProp.GetTelegraphDuration()、TricksterController.IsGrounded 等），需用户本地 Unity 编译验证。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — TAS 录像系统已接入 AI Arena，HybridInputProvider 新增 TAS 桥接层，AIArena 面板新增加载/开关/循环播放 UI。 |
+| **编译状态** | 🔄 本次修改 HybridInputProvider.cs + TestConsoleWindow.AIArena.cs（纯增量），新增字段均使用已有公开 API（AutomatedInputProvider、InputRecorder.ImportFromJson、EditorUtility.OpenFilePanel），需用户本地 Unity 编译验证。 |
 | **阻塞** | 无 |
-| **交接说明** | S148 升级 `HeuristicBotInputProvider`：(1) Mario Brain 新增垂直寻路 Wiggle（目标在头顶时左右徘徊+高频跳跃）和防卡死机制（0.5s 内 X 位移<0.1 则反向跳跃 0.5s）；(2) Trickster HandlePossessing 新增 Lead Target 提前量预判（读取 BoundProp.GetTelegraphDuration + Mario.Velocity 计算预测距离）；(3) HandleRoaming 新增射线避障（遇墙/遇坑跳跃），HandlePossessing 新增 6s 超时防死锁（Mario 距离>8 时强制 p2DisguiseDown 解除附身）。所有改动纯增量，不修改任何其他脚本。 |
+| **交接说明** | S149 将 TAS 录像系统接入 AI Arena：(1) `HybridInputProvider` 新增 `TasProvider`、`MarioIsTAS`、`IsTasPlaying`、`ResetTasPlayback()`，P1 路由优先级 TAS>Bot>Keyboard；(2) `TestConsoleWindow.AIArena` 新增 TAS Data-Driven Testing 区域：Load Replay JSON 按钮 + TAS Toggle + 播放状态指示；(3) `AutoRestartHelper` 新增 `OnBeforeRestart` 回调，Auto Restart 时自动重置 TAS 播放头实现循环回放；(4) Start Collecting 时若 TAS 开启也自动重置播放头。不触碰 InputRecorder/AutomatedInputProvider/InputManager 等底层脚本。 |
 
+
+### [S149] 最新知识沉淀
+1. **HybridInputProvider TAS 桥接**：新增 `TasProvider`（AutomatedInputProvider）、`MarioIsTAS`（bool）、`IsTasPlaying`（只读属性）、`ResetTasPlayback()`。P1 系列方法路由优先级：TAS > Bot > Keyboard，TAS 播完自动回退。Tick() 中统一驱动 TasProvider.Tick()。
+2. **AIArena TAS UI 区域**：在 Auto Restart 下方新增 "🎬 TAS Data-Driven Testing" 折叠区：「📁 Load Replay JSON」按钮用 EditorUtility.OpenFilePanel 从 LevelReplays 目录加载，调用 InputRecorder.ImportFromJson 解析并创建 TasProvider；「Mario 使用录像回放 (TAS)」Toggle 开关；实时播放状态指示（segment 进度 / 播放完毕）。
+3. **Auto Restart TAS 循环播放**：AutoRestartHelper 新增 `OnBeforeRestart` 回调，EnableAutoRestart 中挂载 lambda，每次自动重开前调用 `hybrid.ResetTasPlayback()` 重置播放头，实现无限循环回放收集数据。
+4. **Start Collecting 联动**：点击 Start Collecting 时，若 TAS 模式已开启，自动重置 TAS 播放头确保从头开始收集。
+5. **PlayMode 退出清理**：CleanupAIArena 中增加 MarioIsTAS=false、TasProvider=null、_tasEnabled=false 清理。
+6. **安全边界**：仅修改 HybridInputProvider.cs 和 TestConsoleWindow.AIArena.cs，不触碰 InputRecorder/AutomatedInputProvider/InputManager 等底层脚本。
 
 ### [S148] 最新知识沉淀
 1. **Mario 垂直寻路 Wiggle**：当目标在头顶（dy > 1.5 且 |dx| < 1）时，禁止 p1Horizontal=0，改为 0.6s 周期左右徘徊并高频触发 shouldJump，让 Mario 主动寻找可跳跃路径而不是发呆。

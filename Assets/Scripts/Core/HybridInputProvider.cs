@@ -8,8 +8,14 @@ using UnityEngine;
 //   bot（HeuristicBotInputProvider）。通过 MarioIsAI / TricksterIsAI
 //   两个布尔值，在每个接口方法中动态路由到对应的输入源。
 //
+// S149: 新增 TAS 桥接
+//   - TasProvider: 外部注入的 AutomatedInputProvider，用于回放录像
+//   - MarioIsTAS: 当 true 且 TasProvider 存在且未播完时，P1 优先读 TAS 数据
+//   - 优先级：TAS > Bot > Keyboard（TAS 播完自动回退到 Bot/Keyboard）
+//   - TasProvider.Tick() 在 HybridInputProvider.Tick() 中统一驱动
+//
 // 路由规则：
-//   - P1 (Mario) 方法：MarioIsAI ? bot : keyboard
+//   - P1 (Mario) 方法：MarioIsTAS && TAS播放中 ? TAS : MarioIsAI ? bot : keyboard
 //   - P2 (Trickster) 方法：TricksterIsAI ? bot : keyboard
 //   - 系统级按键（Pause/Restart/NoCooldown/RestartRound/NextRound）：
 //     永远优先读取 keyboard，保证人类玩家随时能暂停/重启
@@ -30,11 +36,12 @@ using UnityEngine;
 //   - 切换时不干扰底层物理和跳跃状态机
 //   - bot 始终在后台运转（即使当前未被路由），随时准备接管
 //   - keyboard 始终在后台运转（即使当前未被路由），随时准备接管
+//   - TasProvider 仅在 MarioIsTAS=true 时被 Tick，播完后自动回退
 // ═══════════════════════════════════════════════════════════════════
 
 /// <summary>
 /// 人机混合输入路由。
-/// 根据 MarioIsAI / TricksterIsAI 动态路由 P1/P2 输入到 keyboard 或 bot。
+/// 根据 MarioIsAI / TricksterIsAI / MarioIsTAS 动态路由 P1/P2 输入。
 /// 系统级按键永远走 keyboard。
 /// </summary>
 public class HybridInputProvider : IInputProvider
@@ -57,6 +64,22 @@ public class HybridInputProvider : IInputProvider
     public bool TricksterIsAI;
 
     // ═══════════════════════════════════════════════════════════
+    // S149: TAS 桥接
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 外部注入的 TAS 录像回放 Provider。
+    /// 由 AIArena 面板加载 JSON 后创建并赋值。
+    /// </summary>
+    public AutomatedInputProvider TasProvider;
+
+    /// <summary>
+    /// true = Mario 使用 TAS 录像回放（优先级最高）。
+    /// 当 TasProvider 为 null 或已播完时，自动回退到 Bot/Keyboard。
+    /// </summary>
+    public bool MarioIsTAS;
+
+    // ═══════════════════════════════════════════════════════════
     // 公开访问器（供 Editor UI 和外部代码查询）
     // ═══════════════════════════════════════════════════════════
 
@@ -66,6 +89,12 @@ public class HybridInputProvider : IInputProvider
     /// <summary>获取内部的 bot provider（只读访问）</summary>
     public HeuristicBotInputProvider Bot => bot;
 
+    /// <summary>
+    /// S149: TAS 是否正在有效播放中。
+    /// 用于 UI 状态显示和路由判断。
+    /// </summary>
+    public bool IsTasPlaying => MarioIsTAS && TasProvider != null && !TasProvider.IsFinished;
+
     // ═══════════════════════════════════════════════════════════
     // Tick — 每帧更新
     // ═══════════════════════════════════════════════════════════
@@ -73,6 +102,7 @@ public class HybridInputProvider : IInputProvider
     /// <summary>
     /// 每帧由 InputManager.UpdateInputProvider() 调用。
     /// 同时更新 keyboard 和 bot，保证两者状态都是最新的。
+    /// S149: 当 TAS 模式激活时也驱动 TasProvider.Tick()。
     /// 检测 F1/F2 热键实现游玩中一键夺舍。
     /// </summary>
     public void Tick(float dt)
@@ -83,7 +113,13 @@ public class HybridInputProvider : IInputProvider
         // 2. 更新 bot（AI 决策 + 单帧事件清零）
         bot.Tick(dt);
 
-        // 3. 检测 F1/F2 热键
+        // 3. S149: 驱动 TAS 回放帧推进
+        if (IsTasPlaying)
+        {
+            TasProvider.Tick();
+        }
+
+        // 4. 检测 F1/F2 热键
         CheckHotSwapKeys();
     }
 
@@ -129,7 +165,21 @@ public class HybridInputProvider : IInputProvider
     {
         MarioIsAI = false;
         TricksterIsAI = false;
+        MarioIsTAS = false;
+        TasProvider = null;
         bot.ResetAll();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // S149: TAS 辅助方法
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 重置 TAS 回放到序列开头（用于 Auto Restart 循环播放）。
+    /// </summary>
+    public void ResetTasPlayback()
+    {
+        TasProvider?.Reset();
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -137,15 +187,16 @@ public class HybridInputProvider : IInputProvider
     // ═══════════════════════════════════════════════════════════
 
     // ── P1 (Mario) ──
-    // MarioIsAI ? bot : keyboard
+    // [AI防坑警告] S149 路由优先级：TAS > Bot > Keyboard
+    // MarioIsTAS && TAS播放中 ? TAS : MarioIsAI ? bot : keyboard
 
-    public float GetP1Horizontal() => MarioIsAI ? bot.GetP1Horizontal() : keyboard.GetP1Horizontal();
-    public float GetP1Vertical()   => MarioIsAI ? bot.GetP1Vertical()   : keyboard.GetP1Vertical();
-    public bool GetP1JumpHeld()    => MarioIsAI ? bot.GetP1JumpHeld()   : keyboard.GetP1JumpHeld();
-    public bool GetP1JumpDown()    => MarioIsAI ? bot.GetP1JumpDown()   : keyboard.GetP1JumpDown();
-    public bool GetP1SHeld()       => MarioIsAI ? bot.GetP1SHeld()     : keyboard.GetP1SHeld();
-    public bool GetP1SDown()       => MarioIsAI ? bot.GetP1SDown()     : keyboard.GetP1SDown();
-    public bool GetP1ScanDown()    => MarioIsAI ? bot.GetP1ScanDown()  : keyboard.GetP1ScanDown();
+    public float GetP1Horizontal() => IsTasPlaying ? TasProvider.GetP1Horizontal() : MarioIsAI ? bot.GetP1Horizontal() : keyboard.GetP1Horizontal();
+    public float GetP1Vertical()   => IsTasPlaying ? TasProvider.GetP1Vertical()   : MarioIsAI ? bot.GetP1Vertical()   : keyboard.GetP1Vertical();
+    public bool GetP1JumpHeld()    => IsTasPlaying ? TasProvider.GetP1JumpHeld()   : MarioIsAI ? bot.GetP1JumpHeld()   : keyboard.GetP1JumpHeld();
+    public bool GetP1JumpDown()    => IsTasPlaying ? TasProvider.GetP1JumpDown()   : MarioIsAI ? bot.GetP1JumpDown()   : keyboard.GetP1JumpDown();
+    public bool GetP1SHeld()       => IsTasPlaying ? TasProvider.GetP1SHeld()      : MarioIsAI ? bot.GetP1SHeld()      : keyboard.GetP1SHeld();
+    public bool GetP1SDown()       => IsTasPlaying ? TasProvider.GetP1SDown()      : MarioIsAI ? bot.GetP1SDown()      : keyboard.GetP1SDown();
+    public bool GetP1ScanDown()    => IsTasPlaying ? TasProvider.GetP1ScanDown()   : MarioIsAI ? bot.GetP1ScanDown()   : keyboard.GetP1ScanDown();
 
     // ── P2 (Trickster) ──
     // TricksterIsAI ? bot : keyboard

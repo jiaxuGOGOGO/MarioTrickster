@@ -33,6 +33,12 @@ public partial class TestConsoleWindow
     private AutoTestAnalytics _analytics;
     private AutoRestartHelper _autoRestartHelper;
 
+    // S149: TAS Data-Driven Testing 状态字段
+    private bool _tasEnabled = false;
+    private string _tasLoadedFileName = "";
+    private TasReplayData _tasReplayData = null;
+    private int _tasFrameCount = 0;
+
     // ═══════════════════════════════════════════════════
     // 获取当前 HybridInputProvider（从 InputManager）
     // ═══════════════════════════════════════════════════
@@ -141,7 +147,7 @@ public partial class TestConsoleWindow
         // ── Auto Restart Toggle ──
         EditorGUILayout.Space(4);
         bool newAutoRestart = EditorGUILayout.Toggle(
-            new GUIContent("Auto Restart", "\u56de\u5408\u7ed3\u675f\u540e\u5ef6\u8fdf 1 \u79d2\u81ea\u52a8\u91cd\u5f00"),
+            new GUIContent("Auto Restart", "回合结束后延迟 1 秒自动重开"),
             autoRestartEnabled);
 
         if (newAutoRestart != autoRestartEnabled)
@@ -153,6 +159,11 @@ public partial class TestConsoleWindow
                 DisableAutoRestart();
         }
 
+        // ═════════════════════════════════════════════════
+        // S149: TAS Data-Driven Testing 区域
+        // ═════════════════════════════════════════════════
+        DrawTasSection(hybrid);
+
         // ── Analytics 控制 ──
         EditorGUILayout.Space(4);
         EditorGUILayout.LabelField("Data Collection", EditorStyles.boldLabel);
@@ -163,6 +174,12 @@ public partial class TestConsoleWindow
         {
             if (GUILayout.Button("Start Collecting"))
             {
+                // S149: Start Collecting 时，如果 TAS 模式开启，自动重置并开始播放
+                if (_tasEnabled && hybrid.TasProvider != null)
+                {
+                    hybrid.ResetTasPlayback();
+                    Debug.Log("[AI Arena] TAS replay reset for data collection.");
+                }
                 _analytics = new AutoTestAnalytics();
                 EnsureCache();
                 if (cachedGameManager != null)
@@ -255,6 +272,17 @@ public partial class TestConsoleWindow
         _autoRestartHelper = go.AddComponent<AutoRestartHelper>();
         _autoRestartHelper.Initialize();
 
+        // S149: 挂载 TAS 循环播放回调
+        _autoRestartHelper.OnBeforeRestart = () =>
+        {
+            var h = GetHybridProvider();
+            if (h != null && h.MarioIsTAS && h.TasProvider != null)
+            {
+                h.ResetTasPlayback();
+                Debug.Log("[AutoRestartHelper] TAS replay reset for next round.");
+            }
+        };
+
         Debug.Log("[AI Arena] Auto Restart ENABLED.");
     }
 
@@ -275,7 +303,7 @@ public partial class TestConsoleWindow
 
     /// <summary>
     /// PlayMode 退出时自动清理（由 OnPlayModeChanged 回调触发）。
-    /// 恢复 MarioIsAI/TricksterIsAI = false，Time.timeScale = 1.0f。
+    /// 恢复 MarioIsAI/TricksterIsAI/MarioIsTAS = false，Time.timeScale = 1.0f。
     /// </summary>
     private void CleanupAIArena()
     {
@@ -285,7 +313,12 @@ public partial class TestConsoleWindow
         {
             hybrid.MarioIsAI = false;
             hybrid.TricksterIsAI = false;
+            hybrid.MarioIsTAS = false;
+            hybrid.TasProvider = null;
         }
+
+        // S149: 清理 TAS 状态
+        _tasEnabled = false;
 
         // 停止数据收集
         _analytics?.StopCollecting();
@@ -300,6 +333,132 @@ public partial class TestConsoleWindow
         arenaTimeScale = 1.0f;
         timeScaleValue = 1.0f;
     }
+
+    // ═════════════════════════════════════════════════
+    // S149: TAS Data-Driven Testing UI
+    // ═════════════════════════════════════════════════
+
+    /// <summary>
+    /// 绘制 TAS Data-Driven Testing 区域。
+    /// 提供加载录像 JSON、开关 TAS 模式、状态显示。
+    /// </summary>
+    private void DrawTasSection(HybridInputProvider hybrid)
+    {
+        EditorGUILayout.Space(8);
+        GUI.color = _tasEnabled ? new Color(0.2f, 0.9f, 1f) : new Color(0.7f, 0.7f, 0.7f);
+        EditorGUILayout.LabelField("🎬 TAS Data-Driven Testing", EditorStyles.boldLabel);
+        GUI.color = Color.white;
+
+        EditorGUILayout.BeginVertical("box");
+
+        EditorGUILayout.HelpBox(
+            "加载录像 JSON 后，Mario 将用预录制输入替代 AI/人类操作。\n" +
+            "配合 Auto Restart 可循环回放收集数据。\n" +
+            "优先级：TAS > Bot > Keyboard",
+            MessageType.Info);
+
+        // ── Load Replay JSON 按钮 ──
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("📁 Load Replay JSON", GUILayout.Height(24)))
+        {
+            string defaultDir = System.IO.Path.Combine(Application.dataPath, "Tests", "LevelReplays");
+            if (!System.IO.Directory.Exists(defaultDir))
+                defaultDir = Application.dataPath;
+
+            string path = EditorUtility.OpenFilePanel("选择 TAS 录像 JSON", defaultDir, "json");
+            if (!string.IsNullOrEmpty(path))
+            {
+                try
+                {
+                    string json = System.IO.File.ReadAllText(path);
+                    _tasReplayData = InputRecorder.ImportFromJson(json);
+
+                    if (_tasReplayData != null && _tasReplayData.frames != null && _tasReplayData.frames.Count > 0)
+                    {
+                        _tasFrameCount = _tasReplayData.frames.Count;
+                        _tasLoadedFileName = System.IO.Path.GetFileName(path);
+
+                        // 创建 AutomatedInputProvider 并注入到 HybridInputProvider
+                        hybrid.TasProvider = new AutomatedInputProvider(_tasReplayData.frames);
+
+                        Debug.Log($"<color=#00FFFF><b>[TAS] 录像已加载: {_tasLoadedFileName} ({_tasFrameCount} segments)</b></color>");
+
+                        if (!string.IsNullOrEmpty(_tasReplayData.description))
+                            Debug.Log($"[TAS] 备注: {_tasReplayData.description}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[TAS] JSON 解析成功但 frames 为空。确认是 TasReplayData Wrapper 格式而非裸数组。");
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    Debug.LogError($"[TAS] 加载失败: {ex.Message}");
+                }
+            }
+        }
+
+        // 显示已加载文件名
+        if (!string.IsNullOrEmpty(_tasLoadedFileName))
+        {
+            EditorGUILayout.LabelField($"✔ {_tasLoadedFileName} ({_tasFrameCount} seg)", EditorStyles.miniLabel);
+        }
+        else
+        {
+            EditorGUILayout.LabelField("未加载录像", EditorStyles.miniLabel);
+        }
+        EditorGUILayout.EndHorizontal();
+
+        // ── TAS 模式 Toggle ──
+        EditorGUILayout.Space(2);
+        bool canEnableTas = hybrid.TasProvider != null;
+        EditorGUI.BeginDisabledGroup(!canEnableTas);
+        GUI.color = _tasEnabled ? new Color(0.2f, 1f, 0.8f) : Color.white;
+        bool newTasEnabled = EditorGUILayout.Toggle(
+            new GUIContent("Mario 使用录像回放 (TAS)",
+                canEnableTas ? "开启后 Mario 优先使用 TAS 录像数据" : "请先加载录像 JSON"),
+            _tasEnabled);
+        GUI.color = Color.white;
+        EditorGUI.EndDisabledGroup();
+
+        if (newTasEnabled != _tasEnabled)
+        {
+            _tasEnabled = newTasEnabled;
+            hybrid.MarioIsTAS = _tasEnabled;
+
+            if (_tasEnabled)
+            {
+                // 开启时重置播放头
+                hybrid.ResetTasPlayback();
+                Debug.Log("<color=#00FFFF><b>[TAS] Mario TAS 模式已开启。</b></color>");
+            }
+            else
+            {
+                Debug.Log("[TAS] Mario TAS 模式已关闭，回退到 Bot/Keyboard。");
+            }
+        }
+
+        // ── TAS 播放状态指示 ──
+        if (_tasEnabled && hybrid.TasProvider != null)
+        {
+            string status;
+            if (hybrid.IsTasPlaying)
+            {
+                int seg = hybrid.TasProvider.CurrentSegmentIndex;
+                status = $"▶ 播放中: segment {seg}/{_tasFrameCount}";
+                GUI.color = new Color(0.2f, 1f, 0.8f);
+            }
+            else
+            {
+                status = "■ 播放完毕（等待重开或手动重置）";
+                GUI.color = Color.yellow;
+            }
+            EditorGUILayout.LabelField(status, EditorStyles.miniLabel);
+            GUI.color = Color.white;
+        }
+
+        EditorGUILayout.EndVertical();
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -313,6 +472,12 @@ public class AutoRestartHelper : MonoBehaviour
 {
     private GameManager _gm;
     private bool _initialized;
+
+    /// <summary>
+    /// S149: 自动重开时的 TAS 重置回调。
+    /// 由 EnableAutoRestart 设置，在 DelayedRestart 中调用。
+    /// </summary>
+    public System.Action OnBeforeRestart;
 
     public void Initialize()
     {
@@ -353,6 +518,9 @@ public class AutoRestartHelper : MonoBehaviour
 
         if (_gm != null)
         {
+            // S149: 重开前触发回调（用于 TAS 重置播放头）
+            OnBeforeRestart?.Invoke();
+
             _gm.ResetRound();
             Debug.Log("[AutoRestartHelper] Auto restart triggered.");
         }

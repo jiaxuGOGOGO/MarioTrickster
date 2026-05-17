@@ -91,14 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 147（Snippet 结构化元数据） |
+| **最新 Session** | Session 148（HeuristicBot AI 智商升级：垂直寻路 + 提前量预判 + 防死锁） |
 | **日期** | 2026-05-17 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — Level Snippet 已支持结构化设计意图元数据，S2_Validation_4_Combat 实战房可在生成前展示路线、机关角色、预算与测试目标。 |
-| **编译状态** | 🔄 本次为 Editor/LevelSnippetLibrary 微创改动，推送前执行 `git diff --check`；沙盒无 Unity CLI，需用户本地 Unity 打开 Level Studio 验证下拉片段元数据 HelpBox。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — HeuristicBotInputProvider 三项 AI 升级：Mario 垂直寻路 Wiggle + 防卡死反向跳跃、Trickster Lead Target 提前量预判、Trickster Roaming 射线避障 + Possessing 防死锁超时解除。 |
+| **编译状态** | 🔄 本次仅修改 HeuristicBotInputProvider.cs（纯增量，无接口变更），所有新增字段/方法均使用已有公开 API（MarioController.Velocity、BoundProp.GetTelegraphDuration()、TricksterController.IsGrounded 等），需用户本地 Unity 编译验证。 |
 | **阻塞** | 无 |
-| **交接说明** | S147 已完成 Snippet Metadata：`LevelSnippetLibrary.Snippet` 新增 MainRoute/ShadowRoute/TrapRoles/Budget/TestGoal 字段，`S2_Validation_4_Combat` 已硬编码实战房设计意图；`TestConsoleWindow.LevelBuilder` 在 ASCII 文本框上方新增片段下拉，并在选中含元数据片段时用 HelpBox 醒目展示。不要改 `MASTER_TRACKER.md`，后续可继续给其他片段补元数据。 |
+| **交接说明** | S148 升级 `HeuristicBotInputProvider`：(1) Mario Brain 新增垂直寻路 Wiggle（目标在头顶时左右徘徊+高频跳跃）和防卡死机制（0.5s 内 X 位移<0.1 则反向跳跃 0.5s）；(2) Trickster HandlePossessing 新增 Lead Target 提前量预判（读取 BoundProp.GetTelegraphDuration + Mario.Velocity 计算预测距离）；(3) HandleRoaming 新增射线避障（遇墙/遇坑跳跃），HandlePossessing 新增 6s 超时防死锁（Mario 距离>8 时强制 p2DisguiseDown 解除附身）。所有改动纯增量，不修改任何其他脚本。 |
 
+
+### [S148] 最新知识沉淀
+1. **Mario 垂直寻路 Wiggle**：当目标在头顶（dy > 1.5 且 |dx| < 1）时，禁止 p1Horizontal=0，改为 0.6s 周期左右徘徊并高频触发 shouldJump，让 Mario 主动寻找可跳跃路径而不是发呆。
+2. **Mario 防卡死机制**：引入位置缓存，每 0.5s 检测 X 位移，若有水平输入但位移 < 0.1 则判定卡死，强制反向跳跃 0.5s 脱离死角。反向跳跃期间优先级最高，跳过正常寻路逻辑。
+3. **Trickster Lead Target 提前量预判**：HandlePossessing 读取 `_ability.BoundProp.GetTelegraphDuration()` 获取预警时长，结合 `_mario.Velocity` 在机关方向上的分量计算接近速度，预测 Mario 在预警时间后的距离；同高度层（|dy|≤2）且预测距离进入危险区时提前触发处决。
+4. **Trickster Roaming 射线避障**：HandleRoaming 新增墙壁和坑洞射线检测，复用 GetSolidMask()，遇障碍时强制 p2JumpDown + p2JumpHeld。
+5. **Trickster Possessing 防死锁**：新增 `_possessTimer` 累计计时，超过 6s 且 Mario 距离 > 8 时强制 p2DisguiseDown 解除附身，重置目标锚点重新走位。
+6. **安全边界**：所有改动限制在 HeuristicBotInputProvider.cs 内，纯增量不破坏接口，不触碰 MarioController/TricksterController/TricksterPossessionGate 等底层脚本，完全符合 S53 宪章。
 
 ### [S147] 最新知识沉淀
 1. **Snippet 数据结构已支持设计意图**：`LevelSnippetLibrary.Snippet` 新增 `MainRoute`、`ShadowRoute`、`TrapRoles`、`Budget`、`TestGoal` 五个字符串字段，并保留默认空字符串参数，旧片段构造无需迁移。

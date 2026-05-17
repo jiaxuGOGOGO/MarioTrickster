@@ -1,5 +1,4 @@
 using UnityEngine;
-
 // ═══════════════════════════════════════════════════════════════════
 // HeuristicBotInputProvider — 启发式 AI 玩家输入桥接层
 //
@@ -101,6 +100,24 @@ public class HeuristicBotInputProvider : IInputProvider
     private const float TRAP_SAFE_DISTANCE   = 1.5f;   // 安全停步距离
     private bool _waitingForTrap;                       // 当前是否因陷阱停步
 
+    // ── Mario 垂直寻路 & 防卡死参数 ──
+    // [AI防坑警告] 以下参数用于解决 Mario 遇高台发呆的问题。
+    // Wiggle 让 Mario 在目标正上方时左右徘徊寻找可跳跃路径，
+    // 防卡死机制在 Mario 有水平输入但实际位移极小时强制反向跳跃脱离死角。
+    private const float VERTICAL_TARGET_DY   = 1.5f;   // 目标在头顶的 Y 阈值
+    private const float VERTICAL_TARGET_DX   = 1.0f;   // 目标在头顶的 X 容差
+    private const float WIGGLE_PERIOD        = 0.6f;    // 左右徘徊周期（秒）
+    private float _wiggleTimer;                         // 徘徊计时器
+
+    private const float STUCK_CHECK_INTERVAL = 0.5f;    // 卡死检测间隔（秒）
+    private const float STUCK_MIN_DISPLACEMENT = 0.1f;  // 最小位移阈值
+    private const float STUCK_ESCAPE_DURATION  = 0.5f;  // 反向跳跃持续时间
+    private float _stuckCheckTimer;                      // 卡死检测计时器
+    private Vector2 _lastMarioPos;                       // 上次记录的 Mario 位置
+    private bool _lastMarioPosValid;                     // 位置缓存是否有效
+    private float _stuckEscapeTimer;                     // 反向跳跃剩余时间
+    private float _stuckEscapeDir;                       // 反向跳跃方向（-1 或 1）
+
     // ═══════════════════════════════════════════════════════════
     // Trickster Brain 内部状态
     // ═══════════════════════════════════════════════════════════
@@ -130,6 +147,25 @@ public class HeuristicBotInputProvider : IInputProvider
     private const float ANCHOR_ARRIVE_DIST = 0.5f;  // 到达锚点的判定距离
     private const float EXECUTE_KILL_DIST = 2.5f;   // Mario 进入此距离时触发处决
 
+    // ── Trickster 提前量预判参数 ──
+    // [AI防坑警告] Lead Target 机制：不再死等 Mario 贴脸，
+    // 而是结合 Mario 速度和机关预警时间提前触发，提高拦截成功率。
+    private const float LEAD_TARGET_RANGE    = 6.0f;   // 提前量预判的最大距离
+    private const float LEAD_HEIGHT_TOLERANCE = 2.0f;  // 同高度层判定容差
+
+    // ── Trickster 防死锁参数 ──
+    // [AI防坑警告] 防止 Trickster 在 Possessing 状态下无限等待 Mario。
+    // 超过 POSSESS_TIMEOUT 秒且 Mario 未靠近时，强制解除附身重新走位。
+    private const float POSSESS_TIMEOUT      = 6.0f;   // 附身超时（秒）
+    private const float POSSESS_TIMEOUT_DIST = 8.0f;   // Mario 未靠近的距离阈值
+    private float _possessTimer;                        // 附身状态累计时间
+
+    // ── Trickster Roaming 射线避障参数 ──
+    private const float T_WALL_CHECK_DIST    = 0.6f;   // 前方墙壁检测距离
+    private const float T_WALL_CHECK_HEIGHT  = 0.4f;   // 墙壁检测射线高度
+    private const float T_PIT_CHECK_FORWARD  = 0.8f;   // 前方坑洞检测偏移
+    private const float T_PIT_CHECK_DEPTH    = 2.5f;   // 坑洞检测深度
+
     // ═══════════════════════════════════════════════════════════
     // Tick
     // ═══════════════════════════════════════════════════════════
@@ -157,7 +193,6 @@ public class HeuristicBotInputProvider : IInputProvider
             _probe = Object.FindObjectOfType<MarioCounterplayProbe>();
             _marioCacheReady = true;
         }
-
         if (_mario == null || !_mario.enabled)
         {
             p1Horizontal = 0f;
@@ -169,16 +204,57 @@ public class HeuristicBotInputProvider : IInputProvider
         Vector2 marioPos = _mario.transform.position;
         float facingDir = _mario.IsFacingRight ? 1f : -1f;
 
+        // ── 0. 防卡死：反向跳跃逃脱中，优先执行 ──
+        if (_stuckEscapeTimer > 0f)
+        {
+            _stuckEscapeTimer -= dt;
+            p1Horizontal = _stuckEscapeDir;
+            facingDir = _stuckEscapeDir;
+            if (_mario.IsGrounded && _jumpHoldTimer <= 0f)
+            {
+                p1JumpDown = true;
+                p1JumpHeld = true;
+                _jumpHoldTimer = JUMP_HOLD_DURATION;
+            }
+            // 跳跃持续按住
+            if (_jumpHoldTimer > 0f)
+            {
+                _jumpHoldTimer -= dt;
+                p1JumpHeld = true;
+                if (_jumpHoldTimer <= 0f)
+                {
+                    p1JumpHeld = false;
+                    _jumpHoldTimer = 0f;
+                }
+            }
+            return;
+        }
+
         // ── 1. 目标寻路 ──
         Vector2? targetPos = FindMarioTarget();
+        bool verticalWiggle = false;
 
         if (targetPos.HasValue)
         {
             float dx = targetPos.Value.x - marioPos.x;
-            if (Mathf.Abs(dx) > 0.3f)
-                p1Horizontal = dx > 0f ? 1f : -1f;
+            float dy = targetPos.Value.y - marioPos.y;
+
+            // [垂直寻路] 目标在头顶且水平距离很近 → Wiggle 模式
+            if (dy > VERTICAL_TARGET_DY && Mathf.Abs(dx) < VERTICAL_TARGET_DX)
+            {
+                verticalWiggle = true;
+                _wiggleTimer += dt;
+                // 左右徘徊：半周期向右，半周期向左
+                float phase = _wiggleTimer % WIGGLE_PERIOD;
+                p1Horizontal = phase < WIGGLE_PERIOD * 0.5f ? 1f : -1f;
+            }
             else
-                p1Horizontal = 0f;
+            {
+                if (Mathf.Abs(dx) > 0.3f)
+                    p1Horizontal = dx > 0f ? 1f : -1f;
+                else
+                    p1Horizontal = 0f;
+            }
 
             if (Mathf.Abs(p1Horizontal) > 0.01f)
                 facingDir = p1Horizontal > 0f ? 1f : -1f;
@@ -198,7 +274,6 @@ public class HeuristicBotInputProvider : IInputProvider
             new Vector2(facingDir, 0f),                       // 朝面向方向
             TRAP_RADAR_RANGE                                  // 探测距离
         );
-
         foreach (var hit in trapHits)
         {
             if (hit.collider == null) continue;
@@ -206,7 +281,6 @@ public class HeuristicBotInputProvider : IInputProvider
             if (prop == null)
                 prop = hit.collider.GetComponentInParent<ControllablePropBase>();
             if (prop == null) continue;
-
             PropControlState trapState = prop.GetControlState();
             if (trapState == PropControlState.Active || trapState == PropControlState.Telegraph)
             {
@@ -227,7 +301,6 @@ public class HeuristicBotInputProvider : IInputProvider
 
         // ── 3. 射线避障与跳跃 ──
         LayerMask solidMask = GetSolidMask();
-
         bool shouldJump = false;
 
         if (_mario.IsGrounded)
@@ -248,6 +321,10 @@ public class HeuristicBotInputProvider : IInputProvider
             }
         }
 
+        // [垂直寻路] Wiggle 模式下高频触发跳跃
+        if (verticalWiggle && _mario.IsGrounded)
+            shouldJump = true;
+
         if (shouldJump && _jumpHoldTimer <= 0f)
         {
             p1JumpDown = true;
@@ -266,7 +343,46 @@ public class HeuristicBotInputProvider : IInputProvider
             }
         }
 
-        // ── 4. 自动反制 ──
+        // ── 4. 防卡死检测：有水平输入但位移极小 → 反向跳跃脱离 ──
+        if (Mathf.Abs(p1Horizontal) > 0.01f)
+        {
+            if (!_lastMarioPosValid)
+            {
+                _lastMarioPos = marioPos;
+                _lastMarioPosValid = true;
+                _stuckCheckTimer = 0f;
+            }
+            else
+            {
+                _stuckCheckTimer += dt;
+                if (_stuckCheckTimer >= STUCK_CHECK_INTERVAL)
+                {
+                    float displacement = Mathf.Abs(marioPos.x - _lastMarioPos.x);
+                    if (displacement < STUCK_MIN_DISPLACEMENT)
+                    {
+                        // 卡住了！强制反向跳跃
+                        _stuckEscapeDir = -p1Horizontal;
+                        if (Mathf.Abs(_stuckEscapeDir) < 0.01f)
+                            _stuckEscapeDir = 1f;
+                        else
+                            _stuckEscapeDir = _stuckEscapeDir > 0f ? 1f : -1f;
+                        _stuckEscapeTimer = STUCK_ESCAPE_DURATION;
+                        _jumpHoldTimer = 0f; // 重置跳跃计时器以便立即跳
+                    }
+                    // 重置检测周期
+                    _lastMarioPos = marioPos;
+                    _stuckCheckTimer = 0f;
+                }
+            }
+        }
+        else
+        {
+            // 无水平输入时重置卡死检测
+            _lastMarioPosValid = false;
+            _stuckCheckTimer = 0f;
+        }
+
+        // ── 5. 自动反制 ──
         if (_probe != null && _probe.IsStrongScanReady)
             p1ScanDown = true;
     }
@@ -301,7 +417,6 @@ public class HeuristicBotInputProvider : IInputProvider
         TryUpdateNearest<Collectible>(marioPos, ref best, ref bestDist);
         TryUpdateNearest<GoalZone>(marioPos, ref best, ref bestDist);
         TryUpdateNearest<EscapeGate>(marioPos, ref best, ref bestDist);
-
         return best;
     }
 
@@ -338,10 +453,12 @@ public class HeuristicBotInputProvider : IInputProvider
 
     /// <summary>
     /// Trickster 的启发式决策：
-    ///   1. 战术走位 — 找 Mario 前方 3~8 格的空闲锚点并走过去
+    ///   1. 战术走位 — 找 Mario 前方 3~8 格的空闲锚点并走过去（含射线避障）
     ///   2. 自动伪装 — 到达锚点后钻入
     ///   3. 精准处决 — 完全融入后等 Mario 踏入危险距离，加人类延迟后开机关
+    ///      3b. 提前量预判 — 结合 Mario 速度和预警时间提前触发
     ///   4. 热度管理 — Alert/Lockdown 时强制停手 3 秒
+    ///   5. 防死锁 — Possessing 超时且 Mario 未靠近时强制解除附身
     /// </summary>
     protected virtual void UpdateTricksterBrain(float dt)
     {
@@ -402,10 +519,11 @@ public class HeuristicBotInputProvider : IInputProvider
         switch (state)
         {
             // ────────────────────────────────────────
-            // 状态 A: Roaming — 战术走位 + 自动伪装
+            // 状态 A: Roaming — 战术走位 + 自动伪装 + 射线避障
             // ────────────────────────────────────────
             case TricksterPossessionState.Roaming:
                 HandleRoaming(tricksterPos, marioPos, marioFacing);
+                _possessTimer = 0f; // 重置附身计时器
                 break;
 
             // ────────────────────────────────────────
@@ -416,10 +534,11 @@ public class HeuristicBotInputProvider : IInputProvider
                 // 清除处决状态（新一轮伏击）
                 _executeArmed = false;
                 _executeDelayTimer = 0f;
+                _possessTimer = 0f;
                 break;
 
             // ────────────────────────────────────────
-            // 状态 C: Possessing — 精准处决
+            // 状态 C: Possessing — 精准处决 + 提前量预判 + 防死锁
             // ────────────────────────────────────────
             case TricksterPossessionState.Possessing:
                 HandlePossessing(dt, marioPos, heatSuppressed);
@@ -434,6 +553,7 @@ public class HeuristicBotInputProvider : IInputProvider
                 _executeArmed = false;
                 _executeDelayTimer = 0f;
                 _targetAnchor = null;
+                _possessTimer = 0f;
                 break;
 
             // ────────────────────────────────────────
@@ -451,6 +571,7 @@ public class HeuristicBotInputProvider : IInputProvider
 
     /// <summary>
     /// Roaming 状态：寻找 Mario 前方的空闲锚点并走过去，到达后自动伪装。
+    /// [升级] 加入射线检测：遇墙或遇坑时强制跳跃越障。
     /// </summary>
     private void HandleRoaming(Vector2 tricksterPos, Vector2 marioPos, float marioFacing)
     {
@@ -473,7 +594,38 @@ public class HeuristicBotInputProvider : IInputProvider
         if (Mathf.Abs(dx) > ANCHOR_ARRIVE_DIST)
         {
             // 还没到，继续走
-            p2Horizontal = dx > 0f ? 1f : -1f;
+            float moveDir = dx > 0f ? 1f : -1f;
+            p2Horizontal = moveDir;
+
+            // ── 射线避障：遇墙或遇坑强制跳跃 ──
+            if (_trickster.IsGrounded)
+            {
+                LayerMask solidMask = GetSolidMask();
+                bool needJump = false;
+
+                // 遇墙检测
+                Vector2 wallOrigin = tricksterPos + new Vector2(0f, T_WALL_CHECK_HEIGHT);
+                RaycastHit2D wallHit = Physics2D.Raycast(
+                    wallOrigin, new Vector2(moveDir, 0f), T_WALL_CHECK_DIST, solidMask);
+                if (wallHit.collider != null)
+                    needJump = true;
+
+                // 遇坑检测
+                if (!needJump)
+                {
+                    Vector2 pitOrigin = tricksterPos + new Vector2(moveDir * T_PIT_CHECK_FORWARD, -0.3f);
+                    RaycastHit2D pitHit = Physics2D.Raycast(
+                        pitOrigin, Vector2.down, T_PIT_CHECK_DEPTH, solidMask);
+                    if (pitHit.collider == null)
+                        needJump = true;
+                }
+
+                if (needJump)
+                {
+                    p2JumpDown = true;
+                    p2JumpHeld = true;
+                }
+            }
         }
         else
         {
@@ -486,10 +638,33 @@ public class HeuristicBotInputProvider : IInputProvider
     /// <summary>
     /// Possessing 状态：完全融入后等待 Mario 进入危险距离，加人类延迟后触发处决。
     /// 热度过高时强制停手。
+    /// [升级] 提前量预判：结合 Mario 速度和预警时间提前触发。
+    /// [升级] 防死锁：超时且 Mario 未靠近时强制解除附身。
     /// </summary>
     private void HandlePossessing(float dt, Vector2 marioPos, bool heatSuppressed)
     {
         p2Horizontal = 0f;
+
+        // ── 防死锁：附身超时检测 ──
+        _possessTimer += dt;
+
+        // 必须有附身锚点
+        PossessionAnchor currentAnchor = _gate != null ? _gate.CurrentAnchor : null;
+        if (currentAnchor == null) return;
+
+        Vector2 anchorPos = (Vector2)currentAnchor.AnchorTransform.position;
+        float distToMario = Vector2.Distance(marioPos, anchorPos);
+
+        // [防死锁] 附身超过 POSSESS_TIMEOUT 秒且 Mario 未靠近 → 强制解除附身重新走位
+        if (_possessTimer >= POSSESS_TIMEOUT && distToMario > POSSESS_TIMEOUT_DIST)
+        {
+            p2DisguiseDown = true;
+            _executeArmed = false;
+            _executeDelayTimer = 0f;
+            _targetAnchor = null;
+            _possessTimer = 0f;
+            return;
+        }
 
         // 热度压制：高热度时不开机关
         if (heatSuppressed) return;
@@ -497,17 +672,40 @@ public class HeuristicBotInputProvider : IInputProvider
         // 必须完全融入
         if (!_trickster.IsFullyBlended) return;
 
-        // 必须有附身锚点
-        PossessionAnchor currentAnchor = _gate != null ? _gate.CurrentAnchor : null;
-        if (currentAnchor == null) return;
+        // ── 提前量预判 (Lead Target) ──
+        // 获取当前绑定机关的预警时间
+        float telegraphDuration = 0f;
+        IControllableProp boundProp = _ability != null ? _ability.BoundProp : null;
+        if (boundProp != null)
+            telegraphDuration = boundProp.GetTelegraphDuration();
 
-        // 计算 Mario 与当前附身机关的距离
-        Vector2 anchorPos = (Vector2)currentAnchor.AnchorTransform.position;
-        float distToMario = Vector2.Distance(marioPos, anchorPos);
+        // 计算 Mario 速度在机关方向上的分量
+        Vector2 marioVelocity = _mario.Velocity;
+        Vector2 toAnchor = anchorPos - marioPos;
+        float approachSpeed = 0f;
+        if (toAnchor.sqrMagnitude > 0.01f)
+            approachSpeed = Vector2.Dot(marioVelocity, toAnchor.normalized);
 
-        if (distToMario <= EXECUTE_KILL_DIST)
+        // 预测 Mario 在预警时间后的距离
+        // 只有 Mario 正在靠近（approachSpeed > 0）时才做提前量
+        float predictedDist = distToMario;
+        if (approachSpeed > 0.1f && telegraphDuration > 0f)
+            predictedDist = distToMario - approachSpeed * telegraphDuration;
+
+        // 同高度层判定：Mario 和机关的 Y 差距在容差内
+        float heightDiff = Mathf.Abs(marioPos.y - anchorPos.y);
+        bool sameHeight = heightDiff <= LEAD_HEIGHT_TOLERANCE;
+
+        // 判定条件：Mario 贴脸（原逻辑）或 提前量预判命中
+        bool inKillZone = distToMario <= EXECUTE_KILL_DIST;
+        bool leadTargetHit = sameHeight
+            && distToMario <= LEAD_TARGET_RANGE
+            && approachSpeed > 0.1f
+            && predictedDist <= EXECUTE_KILL_DIST;
+
+        if (inKillZone || leadTargetHit)
         {
-            // Mario 进入危险距离
+            // Mario 进入危险距离（实际或预测）
             if (!_executeArmed)
             {
                 // 首次进入：启动人类延迟计时器
@@ -608,6 +806,12 @@ public class HeuristicBotInputProvider : IInputProvider
         _jumpHoldTimer = 0f;
         _solidMaskReady = false;
 
+        // Mario 防卡死状态重置
+        _wiggleTimer = 0f;
+        _stuckCheckTimer = 0f;
+        _lastMarioPosValid = false;
+        _stuckEscapeTimer = 0f;
+
         _tricksterCacheReady = false;
         _trickster = null;
         _gate = null;
@@ -617,6 +821,7 @@ public class HeuristicBotInputProvider : IInputProvider
         _executeArmed = false;
         _executeDelayTimer = 0f;
         _heatCooloffTimer = 0f;
+        _possessTimer = 0f;
     }
 
     /// <summary>

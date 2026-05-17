@@ -91,14 +91,20 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 146（上下文感知可视化智能降噪） |
+| **最新 Session** | Session 147（Snippet 结构化元数据） |
 | **日期** | 2026-05-17 |
 | **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — Scene 视图辅助线已做上下文感知降噪：Gameplay Boxes 仅真实选中对象高亮，Jump Arc 仅在选中 Mario / BouncyPlatform 时完整渲染。 |
-| **编译状态** | 🔄 本次为 Editor/Scene Gizmo 微创改动，推送前执行 `git diff --check`；沙盒无 Unity CLI，需用户本地 Unity 打开 Scene 视图验证 Show Gameplay Boxes 与 Jump Arc 选择态表现。 |
+| **阶段** | Sprint 2.6 灰盒体验验证期 — Level Snippet 已支持结构化设计意图元数据，S2_Validation_4_Combat 实战房可在生成前展示路线、机关角色、预算与测试目标。 |
+| **编译状态** | 🔄 本次为 Editor/LevelSnippetLibrary 微创改动，推送前执行 `git diff --check`；沙盒无 Unity CLI，需用户本地 Unity 打开 Level Studio 验证下拉片段元数据 HelpBox。 |
 | **阻塞** | 无 |
-| **交接说明** | S146 已完成 Context-Aware Visualizer：`GameplayBoxVisualizer` 未选中对象统一 Alpha=0.1，仅 `Selection.activeGameObject` 高亮；`JumpArcVisualizer` 未选中 Mario/BouncyPlatform 时完全不渲染，保持宏隔离与运行时零侵入。不要改 `MASTER_TRACKER.md`，后续只需在 Unity Scene 视图验证视觉噪音是否下降。 |
+| **交接说明** | S147 已完成 Snippet Metadata：`LevelSnippetLibrary.Snippet` 新增 MainRoute/ShadowRoute/TrapRoles/Budget/TestGoal 字段，`S2_Validation_4_Combat` 已硬编码实战房设计意图；`TestConsoleWindow.LevelBuilder` 在 ASCII 文本框上方新增片段下拉，并在选中含元数据片段时用 HelpBox 醒目展示。不要改 `MASTER_TRACKER.md`，后续可继续给其他片段补元数据。 |
 
+
+### [S147] 最新知识沉淀
+1. **Snippet 数据结构已支持设计意图**：`LevelSnippetLibrary.Snippet` 新增 `MainRoute`、`ShadowRoute`、`TrapRoles`、`Budget`、`TestGoal` 五个字符串字段，并保留默认空字符串参数，旧片段构造无需迁移。
+2. **实战房元数据已硬编码**：`S2_Validation_4_Combat` 现在记录上层主路线、下层影子路线、`]` 队列机关、`[` 封路机关、`^^` 固定伤害、`P` 摆锤压力、双路线预算和 AI Arena 固定跑局测试目标。
+3. **LevelBuilder 生成前显式提示设计目标**：`TestConsoleWindow.LevelBuilder` 在 ASCII 文本框上方新增片段下拉选择；当选中片段含结构化元数据时，用 `EditorGUILayout.HelpBox(..., MessageType.Warning)` 展示，确保策划生成前先看到路线、预算与测试意图。
+4. **兼容性策略**：无元数据片段不额外显示提示，不增加旧片段 UI 噪音；构造函数兼容旧调用，ASCII 字典、生成器、物理参数和灰盒玩法逻辑保持不变。
 
 ### [S146] 最新知识沉淀
 1. **Gameplay Boxes 只认真实选中对象**：`GameplayBoxVisualizer` 现在以 `Selection.activeGameObject` 作为唯一高亮信号，未被真实选中的 Solid/HurtBox/HitBox/Scan 范围统一降到 Alpha=0.1，避免父子层级或全局 Show Gameplay Boxes 造成 Scene 视图噪音。

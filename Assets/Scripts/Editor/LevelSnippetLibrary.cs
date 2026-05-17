@@ -30,14 +30,32 @@ public static class LevelSnippetLibrary
         public string name;           // 片段名称
         public string description;    // 一句话设计说明
         public string ascii;          // ASCII 模板内容
+        public string MainRoute;      // 主路线设计意图
+        public string ShadowRoute;    // 影子路线 / 备选路线设计意图
+        public string TrapRoles;      // 机关角色与组合职责
+        public string Budget;         // 路线 / 干预 / 风险预算
+        public string TestGoal;       // 片段测试目标
         public int width;             // 宽度（字符数）
         public int height;            // 高度（行数）
 
-        public Snippet(string name, string description, string ascii)
+        public Snippet(
+            string name,
+            string description,
+            string ascii,
+            string mainRoute = "",
+            string shadowRoute = "",
+            string trapRoles = "",
+            string budget = "",
+            string testGoal = "")
         {
             this.name = name;
             this.description = description;
             this.ascii = ascii;
+            this.MainRoute = mainRoute;
+            this.ShadowRoute = shadowRoute;
+            this.TrapRoles = trapRoles;
+            this.Budget = budget;
+            this.TestGoal = testGoal;
 
             string[] lines = ascii.Split('\n');
             this.height = lines.Length;
@@ -312,7 +330,12 @@ public static class LevelSnippetLibrary
             "..............................\n" +
             "..##[###..##^^##..##P###......\n" +
             "..............................\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "上层主路线：从左侧进入后沿高台快速拿取 o / LootObjective，再向右压到 G / EscapeGate；路线短、收益高，但会暴露在 ] 队列机关与扫描压力下。",
+            shadowRoute: "下层影子路线：通过 [ 封路机关、^^ 危险带与 P 摆锤形成慢速绕行 / 返程压力，确保 Mario 被干扰后仍有可走解法。",
+            trapRoles: "] = 公开队列机关，制造可读但会变奏的返程节奏；[ = 临时封路机关，消耗路线预算但不得硬锁；^^ = 固定伤害边界；P = 动态摆锤压力；o/G = 拿宝撤离目标链。",
+            budget: "双路线预算：任意时刻至少保留一条可通行目标链；Trickster 可短暂降级主路，但必须通过 ShadowRoute、倒计时或补偿保持 Mario 行动权。",
+            testGoal: "验证 S2 实战房是否从‘看起来像实战房’升级为可解释样板房：生成 Loot/Escape 目标链、触发扫描危机、记录路线预算消耗，并供 AI Arena 固定跑局。"
         ));
 
         // ── 15. 终点冲刺 ──

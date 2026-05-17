@@ -115,6 +115,7 @@ public partial class TestConsoleWindow : EditorWindow
     private string customAsciiTemplate = "";
     private string _backupAsciiTemplate = ""; // AI Auto-Healer 撤销备份
     private bool showSnippetLibrary = false;
+    private int selectedSnippetIndex = 0;
 
     // Art & Effects Hub 状态
     private bool showArtEffectsHub = false;

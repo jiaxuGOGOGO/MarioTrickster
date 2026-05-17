@@ -1019,6 +1019,45 @@ public partial class TestConsoleWindow
 
         EditorGUILayout.Space(6);
 
+        // ── 当前片段结构化元数据预览 ──
+        var snippetsForSelection = LevelSnippetLibrary.GetAllSnippets();
+        if (snippetsForSelection != null && snippetsForSelection.Count > 0)
+        {
+            if (selectedSnippetIndex < 0) selectedSnippetIndex = 0;
+            if (selectedSnippetIndex >= snippetsForSelection.Count) selectedSnippetIndex = snippetsForSelection.Count - 1;
+
+            string[] snippetNames = snippetsForSelection.Select(s => s.name).ToArray();
+            EditorGUILayout.BeginVertical("box");
+            EditorGUILayout.LabelField("选中片段设计意图", EditorStyles.boldLabel);
+            selectedSnippetIndex = EditorGUILayout.Popup("Snippet", selectedSnippetIndex, snippetNames);
+
+            LevelSnippetLibrary.Snippet selectedSnippet = snippetsForSelection[selectedSnippetIndex];
+            if (HasSnippetMetadata(selectedSnippet))
+            {
+                EditorGUILayout.HelpBox(BuildSnippetMetadataHelp(selectedSnippet), MessageType.Warning);
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            GUI.color = new Color(1f, 0.85f, 0.3f);
+            if (GUILayout.Button("追加选中片段到文本框", GUILayout.Height(24)))
+            {
+                if (!string.IsNullOrEmpty(customAsciiTemplate))
+                    customAsciiTemplate += "\n\n";
+                customAsciiTemplate += selectedSnippet.ascii;
+                Debug.Log($"[TestConsole] Snippet '{selectedSnippet.name}' appended to template editor from metadata selector.");
+            }
+            GUI.color = new Color(0.4f, 0.9f, 0.4f);
+            if (GUILayout.Button("直接生成选中片段", GUILayout.Height(24)))
+            {
+                GenerateFromCustomTemplate(selectedSnippet.ascii, selectedSnippet.name, true);
+            }
+            GUI.color = Color.white;
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.EndVertical();
+        }
+
+        EditorGUILayout.Space(6);
+
         // ── 模板编辑文本框 ──
         EditorGUILayout.LabelField("模板内容 (每行一层，第一行=最高层):", EditorStyles.boldLabel);
         GUIStyle textAreaStyle = new GUIStyle(EditorStyles.textArea)
@@ -1205,6 +1244,34 @@ public partial class TestConsoleWindow
     // ═════════════════════════════════════════════════
     // S26b: 通用模板生成方法
     // ═════════════════════════════════════════════════
+
+    private bool HasSnippetMetadata(LevelSnippetLibrary.Snippet snippet)
+    {
+        return snippet != null &&
+            (!string.IsNullOrEmpty(snippet.MainRoute) ||
+             !string.IsNullOrEmpty(snippet.ShadowRoute) ||
+             !string.IsNullOrEmpty(snippet.TrapRoles) ||
+             !string.IsNullOrEmpty(snippet.Budget) ||
+             !string.IsNullOrEmpty(snippet.TestGoal));
+    }
+
+    private string BuildSnippetMetadataHelp(LevelSnippetLibrary.Snippet snippet)
+    {
+        string message = "结构化设计意图\n";
+
+        if (!string.IsNullOrEmpty(snippet.MainRoute))
+            message += $"\n主路线：{snippet.MainRoute}";
+        if (!string.IsNullOrEmpty(snippet.ShadowRoute))
+            message += $"\n影子路线：{snippet.ShadowRoute}";
+        if (!string.IsNullOrEmpty(snippet.TrapRoles))
+            message += $"\n机关角色：{snippet.TrapRoles}";
+        if (!string.IsNullOrEmpty(snippet.Budget))
+            message += $"\n预算：{snippet.Budget}";
+        if (!string.IsNullOrEmpty(snippet.TestGoal))
+            message += $"\n测试目标：{snippet.TestGoal}";
+
+        return message;
+    }
 
     /// <summary>从自定义 ASCII 模板生成关卡</summary>
     /// <param name="template">ASCII 模板字符串</param>

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEditor;
+using System;
 using System.Collections;
 
 // ═══════════════════════════════════════════════════════════════════
@@ -10,7 +11,7 @@ using System.Collections;
 //   2. [Trickster 托管 (F2)] Toggle — 切换 Trickster 人机控制
 //   3. [Time Scale] 滑动条 — 1x~5x 快进对局
 //   4. [Auto Restart] Toggle — 回合结束后自动延迟 1s 重开
-//   5. [Print Match Report] 按钮 — 输出汇总战报
+//   5. [Print Match Report] 按钮 — 输出汇总战报，并导出 JSON/Markdown 结构化报告
 //
 // S60 改动：
 //   - 移除原来的单体 [Enable AI Bots]，改为两个独立 Toggle
@@ -214,9 +215,19 @@ public partial class TestConsoleWindow
         if (GUILayout.Button("Print Match Report", GUILayout.Height(28)))
         {
             if (_analytics != null)
+            {
                 _analytics.PrintMatchReport();
+                string mdPath = AIArenaReportExporter.ExportMatchReport(_analytics);
+                if (!string.IsNullOrEmpty(mdPath))
+                {
+                    string mdUrl = new Uri(mdPath).AbsoluteUri;
+                    Debug.Log($"<color=#88FF88><b>[AI Arena] 结构化战报已导出。</b></color> <a href=\"{mdUrl}\">点击打开 auto_test_summary.md</a>\n{mdPath}");
+                }
+            }
             else
+            {
                 Debug.LogWarning("[AI Arena] No analytics data. Click 'Start Collecting' first.");
+            }
         }
         GUI.color = Color.white;
 

@@ -272,47 +272,64 @@ public class HeuristicBotInputProvider : IInputProvider
     }
 
     /// <summary>
-    /// Mario 目标优先级：
-    ///   1. LootObjective（未收集）—— 实战房拿宝目标
-    ///   2. EscapeGate（已收集）—— 实战房撤离门
-    ///   3. Collectible（未 Auto-Fix 的旧语义）—— 兼容旧关卡
-    ///   4. GoalZone / EscapeGate（终点）—— Collectible 被销毁后的最终目标
-    ///   5. 无目标时默认向右探索
+    /// Mario 目标选择策略：
+    ///   - 已拿宝：直接去最近的撤离门 (EscapeGate / GoalZone)
+    ///   - 未拿宝：收集所有可达目标（LootObjective、Collectible、EscapeGate、GoalZone），选最近的
+    ///   - 无目标时默认向右探索
+    /// 这样 Mario 不会傻跑回起点去拿已经路过的目标，而是就近前进。
     /// </summary>
     private Vector2? FindMarioTarget()
     {
-        // 优先级 1: 实战房拿宝目标（未收集）
-        if (!LootObjective.IsLootCarried)
-        {
-            LootObjective loot = Object.FindObjectOfType<LootObjective>();
-            if (loot != null && loot.gameObject.activeInHierarchy)
-                return (Vector2)loot.transform.position;
-        }
+        if (_mario == null) return null;
+        Vector2 marioPos = (Vector2)_mario.transform.position;
 
-        // 优先级 2: 实战房撤离门（已收集）
+        // 已拿宝：直接去最近的撤离门/终点
         if (LootObjective.IsLootCarried)
         {
-            EscapeGate gate = Object.FindObjectOfType<EscapeGate>();
-            if (gate != null && gate.gameObject.activeInHierarchy)
-                return (Vector2)gate.transform.position;
+            return FindNearestTarget<EscapeGate>(marioPos)
+                ?? FindNearestTarget<GoalZone>(marioPos);
         }
 
-        // 优先级 3: 旧语义 Collectible（未执行 Auto-Fix 时的兼容，被收集后会 Destroy）
-        Collectible collectible = Object.FindObjectOfType<Collectible>();
-        if (collectible != null && collectible.gameObject.activeInHierarchy)
-            return (Vector2)collectible.transform.position;
+        // 未拿宝：收集所有可达目标，选最近的
+        Vector2? best = null;
+        float bestDist = float.MaxValue;
 
-        // 优先级 4: 终点——Collectible 被销毁后，直接去终点
-        // 先找 EscapeGate（实战房撤离门），再找 GoalZone（旧终点）
-        EscapeGate escapeGate = Object.FindObjectOfType<EscapeGate>();
-        if (escapeGate != null && escapeGate.gameObject.activeInHierarchy)
-            return (Vector2)escapeGate.transform.position;
+        // 拿宝目标（LootObjective / Collectible）
+        TryUpdateNearest<LootObjective>(marioPos, ref best, ref bestDist);
+        TryUpdateNearest<Collectible>(marioPos, ref best, ref bestDist);
 
-        GoalZone goal = Object.FindObjectOfType<GoalZone>();
-        if (goal != null && goal.gameObject.activeInHierarchy)
-            return (Vector2)goal.transform.position;
+        // 终点目标（EscapeGate / GoalZone）—— 如果终点比拿宝点更近，Mario 会先去终点
+        TryUpdateNearest<EscapeGate>(marioPos, ref best, ref bestDist);
+        TryUpdateNearest<GoalZone>(marioPos, ref best, ref bestDist);
 
-        return null;
+        return best;
+    }
+
+    /// <summary>查找场景中最近的 T 类型组件位置</summary>
+    private static Vector2? FindNearestTarget<T>(Vector2 from) where T : Component
+    {
+        T[] all = Object.FindObjectsOfType<T>();
+        Vector2? best = null;
+        float bestDist = float.MaxValue;
+        foreach (var obj in all)
+        {
+            if (obj == null || !obj.gameObject.activeInHierarchy) continue;
+            float dist = Vector2.Distance(from, (Vector2)obj.transform.position);
+            if (dist < bestDist) { bestDist = dist; best = (Vector2)obj.transform.position; }
+        }
+        return best;
+    }
+
+    /// <summary>尝试用 T 类型的最近实例更新当前最佳目标</summary>
+    private static void TryUpdateNearest<T>(Vector2 from, ref Vector2? best, ref float bestDist) where T : Component
+    {
+        T[] all = Object.FindObjectsOfType<T>();
+        foreach (var obj in all)
+        {
+            if (obj == null || !obj.gameObject.activeInHierarchy) continue;
+            float dist = Vector2.Distance(from, (Vector2)obj.transform.position);
+            if (dist < bestDist) { bestDist = dist; best = (Vector2)obj.transform.position; }
+        }
     }
 
     // ═══════════════════════════════════════════════════════════

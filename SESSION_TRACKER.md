@@ -100,12 +100,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **交接说明** | S150 实现 GlobalGameUICanvas Layer 隔离方案：(1) TagManager.asset 注册 UI_WorldSpace Layer（slot 7）；(2) 新增 UIWorldSpaceLayerSetup.cs（InitializeOnLoad），场景打开/保存时自动将 Canvas 及子物体设为 UI_WorldSpace Layer，Edit Mode 自动隐藏、Play Mode 自动恢复；(3) GlobalGameUICanvasPrefabBuilder 创建预制体时同步设置 Layer。Canvas 使用 ScreenSpaceOverlay 渲染，改 Layer 不影响运行时显示。 |
 
 
-### [S150] 最新知识沉淀
-1. **UI_WorldSpace Layer 隔离**：TagManager.asset 注册 Layer 7 为 UI_WorldSpace。UIWorldSpaceLayerSetup（InitializeOnLoad）自动将 GlobalGameUICanvas 及所有子物体递归设置到该 Layer。
-2. **Scene 视图自动隐藏**：Edit Mode 下通过 `Tools.visibleLayers &= ~layerMask` 隐藏 UI_WorldSpace Layer，策划可正常点选关卡元素；Play Mode 下自动恢复可见性。
-3. **Prefab 同步**：GlobalGameUICanvasPrefabBuilder.EnsurePrefabAsset 创建预制体时同步设置 UI_WorldSpace Layer，新场景实例化后即生效。
-4. **安全性**：Canvas 使用 ScreenSpaceOverlay 渲染模式，不受 Camera.cullingMask 影响，改 Layer 不影响运行时 UI。不修改任何 Camera 设置，不影响物理射线。
-5. **可控开关**：UIWorldSpaceLayerSetup.IsAutoHideEnabled 通过 EditorPrefs 持久化，可在 Level Studio 面板中关闭自动隐藏。
+### [S150] 最新知识沉淀（修订版）
+1. **SceneVisibilityManager 主方案**：放弃不可靠的 `Tools.visibleLayers`，改用 Unity 官方 `SceneVisibilityManager.Hide/Show` API。Edit Mode 下 Canvas 在 Scene 视图中完全不可见且不可选，但 GameObject 始终保持 active（FindObjectOfType 正常工作）。
+2. **绝对禁止 SetActive(false)**：PlayableEnvironmentBuilder、GameplayLoopSceneBootstrapper、TestSceneBuilder 均用 `FindObjectOfType<GlobalGameUICanvas>()` 检测是否已存在 Canvas，SetActive(false) 会导致重复创建。
+3. **HierarchyChanged 监听**：新增 hierarchyChanged 回调（节流 0.5s），关卡生成器新创建的 Canvas 会被自动捕获并隐藏，无需手动操作。
+4. **Layer 隔离保留**：UI_WorldSpace Layer 仍然自动分配，作为额外隔离层。
+5. **Play Mode 自动恢复**：进入 Play Mode 时自动 Show，退出时自动重新 Hide。
+6. **可控开关**：IsAutoHideEnabled 通过 EditorPrefs 持久化，可在 Level Studio 面板中关闭。
 
 ### [S149] 最新知识沉淀
 1. **HybridInputProvider TAS 桥接**：新增 `TasProvider`（AutomatedInputProvider）、`MarioIsTAS`（bool）、`IsTasPlaying`（只读属性）、`ResetTasPlayback()`。P1 系列方法路由优先级：TAS > Bot > Keyboard，TAS 播完自动回退。Tick() 中统一驱动 TasProvider.Tick()。

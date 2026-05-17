@@ -357,7 +357,7 @@ public class AsciiElementRegistry : ScriptableObject
             },
             new AsciiElementEntry
             {
-                asciiChar = 'P', elementName = "PendulumTrap", isSolid = false, isHazard = true, jumpBoost = 0f,
+                asciiChar = 'P', elementName = "PendulumTrap", isSolid = true, isHazard = true, jumpBoost = 0f,
                 componentTypeNames = new[] { "PendulumTrap" }, visualColor = new Color(0.70f, 0.45f, 0.20f), visualScale = new Vector2(0.3f, 0.3f),
                 customColliderSize = PhysicsMetrics.PENDULUM_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
                 sortingOrder = 5, isTrigger = false

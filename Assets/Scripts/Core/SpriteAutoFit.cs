@@ -115,7 +115,7 @@ public class SpriteAutoFit : MonoBehaviour
         bool isRoot = GetComponent<MarioController>() != null || GetComponent<TricksterController>() != null || GetComponent<LevelElementBase>() != null;
         if (!isRoot) return false;
 
-        Debug.LogWarning("[防腐层拦截] SpriteAutoFit 严禁缩放包含核心物理的 Root 节点！已拦截，请将其挂载到 Visual 子节点。");
+        Debug.LogWarning("[防腐层拦截] SpriteAutoFit 严禁修改包含核心物理的 Root 节点的缩放或尺寸！已拦截，请将图片与 SpriteAutoFit 挂载到 Visual 子节点。");
         return true;
     }
 

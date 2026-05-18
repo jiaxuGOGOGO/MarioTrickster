@@ -649,103 +649,108 @@ public class AssetApplyToSelected : EditorWindow
         bool freezeGameplayBox = IsCoreGameplayEntity(target);
         FrozenGameplayBoxSnapshot frozenBox = CaptureRootGameplayBox(target);
 
-        // Step 1: 规范化贴图 / 文件夹批量贴图，并在真正应用前完成切片
-        if (_artFolder != null)
+        try
         {
-            PrepareFolderTexturesForApply(_artFolder, GetPhysicsTypeHint(target), target);
-        }
-
-        if (_artTexture != null)
-        {
-            if (_normalizeSettings)
+            // Step 1: 规范化贴图 / 文件夹批量贴图，并在真正应用前完成切片
+            if (_artFolder != null)
             {
-                NormalizeTexture(_artTexture);
+                PrepareFolderTexturesForApply(_artFolder, GetPhysicsTypeHint(target), target);
             }
-            AutoSliceTextureSheetIfNeeded(_artTexture, GetPhysicsTypeHint(target), target);
-        }
 
-        // Step 1.5: 强制更新 Pivot（无论切片是否被跳过）
-        // [AI防坑警告] AutoSliceTextureSheetIfNeeded 在已切片贴图 + AutoDetect 模式下会跳过，
-        // 导致用户选择的 Pivot 永远不会写入。此步骤独立于切片逻辑，确保 Pivot 始终生效。
-        ApplyPivotToTextureSprites(_artTexture, _artSprite, GetPhysicsTypeHint(target), target);
-
-        // Step 2: 确保 Sprite / Sprite Sheet 帧可用
-        Sprite[] spritesToApply = ResolveSpritesForApply();
-        if (spritesToApply.Length == 0)
-        {
-            EditorUtility.DisplayDialog("错误", "无法获取有效的 Sprite", "好的");
-            return;
-        }
-        Sprite primarySprite = spritesToApply[0];
-
-        // Step 3: 找到或创建 SpriteRenderer
-        // [TA防御塔] 核心玩法实体必须严格 Root/Visual 分离：Root 保留白盒物理真相，Visual 承载全部美术表现。
-        SpriteRenderer sr = freezeGameplayBox
-            ? ResolveFrozenVisualSpriteRenderer(target)
-            : ResolveDefaultSpriteRenderer(target);
-
-        // Step 4: 统一分类，并按素材语义配置循环动画或状态动画
-        ArtAssetClassifier.Classification classification = ArtAssetClassifier.Classify(target, spritesToApply, GetPhysicsTypeHint(target));
-        Undo.RecordObject(sr, "Replace Sprite");
-        sr.sprite = spritesToApply[0];
-        ConfigureSpriteAnimation(sr, spritesToApply, classification);
-
-        // Step 5: 配置 SEF Material + Controller
-        if (_attachSEF)
-        {
-            EnsureSEFMaterial(sr);
-            var secCtrl = sr.gameObject.GetComponent<SpriteEffectController>();
-            if (secCtrl == null)
+            if (_artTexture != null)
             {
-                secCtrl = Undo.AddComponent<SpriteEffectController>(sr.gameObject);
+                if (_normalizeSettings)
+                {
+                    NormalizeTexture(_artTexture);
+                }
+                AutoSliceTextureSheetIfNeeded(_artTexture, GetPhysicsTypeHint(target), target);
             }
+
+            // Step 1.5: 强制更新 Pivot（无论切片是否被跳过）
+            // [AI防坑警告] AutoSliceTextureSheetIfNeeded 在已切片贴图 + AutoDetect 模式下会跳过，
+            // 导致用户选择的 Pivot 永远不会写入。此步骤独立于切片逻辑，确保 Pivot 始终生效。
+            ApplyPivotToTextureSprites(_artTexture, _artSprite, GetPhysicsTypeHint(target), target);
+
+            // Step 2: 确保 Sprite / Sprite Sheet 帧可用
+            Sprite[] spritesToApply = ResolveSpritesForApply();
+            if (spritesToApply.Length == 0)
+            {
+                EditorUtility.DisplayDialog("错误", "无法获取有效的 Sprite", "好的");
+                return;
+            }
+            Sprite primarySprite = spritesToApply[0];
+
+            // Step 3: 找到或创建 SpriteRenderer
+            // [TA防御塔] 核心玩法实体必须严格 Root/Visual 分离：Root 保留白盒物理真相，Visual 承载全部美术表现。
+            SpriteRenderer sr = freezeGameplayBox
+                ? ResolveFrozenVisualSpriteRenderer(target)
+                : ResolveDefaultSpriteRenderer(target);
+
+            // Step 4: 统一分类，并按素材语义配置循环动画或状态动画
+            ArtAssetClassifier.Classification classification = ArtAssetClassifier.Classify(target, spritesToApply, GetPhysicsTypeHint(target));
+            Undo.RecordObject(sr, "Replace Sprite");
+            sr.sprite = spritesToApply[0];
+            ConfigureSpriteAnimation(sr, spritesToApply, classification);
+
+            // Step 5: 配置 SEF Material + Controller
+            if (_attachSEF)
+            {
+                EnsureSEFMaterial(sr);
+                var secCtrl = sr.gameObject.GetComponent<SpriteEffectController>();
+                if (secCtrl == null)
+                {
+                    secCtrl = Undo.AddComponent<SpriteEffectController>(sr.gameObject);
+                }
+            }
+
+            // Step 6: 应用行为模板
+            ApplyBehaviorTemplate(target, sr, classification, freezeGameplayBox);
+
+            // Step 6.5: 玩法实体只允许 Visual 按白盒适配，绝不反向修改 Root BoxCollider2D。
+            if (freezeGameplayBox)
+            {
+                FitVisualToFrozenGameplayBox(target, sr, frozenBox);
+                LogGameplayBoxFreeze(target);
+            }
+            else
+            {
+                // 角色换皮后再次加固移动控制链路，避免历史错误应用留下 Static/Trigger/Freeze 状态。
+                EnsureCharacterControlChain(target);
+            }
+
+            // Step 7: 更新 ImportedAssetMarker
+            UpdateMarker(target, spritesToApply, classification);
+
+            // Step 8: 自动保存 Prefab
+            if (_autoSavePrefab)
+            {
+                SavePrefab(target);
+            }
+
+            // 标记脏
+            EditorUtility.SetDirty(target);
+            EditorUtility.SetDirty(sr);
+            SceneView.RepaintAll();
+
+            // Pivot 信息
+            var resolvedPivot = PivotPresetUtility.ResolvePreset(
+                _pivotPreset, GetPhysicsTypeHint(target), target);
+            string pivotHint = $"Pivot: {PivotPresetUtility.GetPresetDisplayName(resolvedPivot)}";
+            if (_pivotPreset == PivotPresetUtility.PivotPreset.Custom)
+                pivotHint += $" ({_customPivot.x:F2}, {_customPivot.y:F2})";
+
+            string animationHint = classification != null ? $"，素材分类: {classification.role}/{classification.animationMode}" : "";
+            _lastResult = spritesToApply.Length > 1
+                ? $"已将 [{primarySprite.name}] 等 {spritesToApply.Length} 帧应用到 [{target.name}]，{pivotHint}，已自动配置动画，行为模板: {_behaviorTemplate}{animationHint}"
+                : $"已将 [{primarySprite.name}] 应用到 [{target.name}]，{pivotHint}，行为模板: {_behaviorTemplate}{animationHint}";
+            Debug.Log($"[AssetApplyToSelected] {_lastResult}");
         }
-
-        // Step 6: 应用行为模板
-        ApplyBehaviorTemplate(target, sr, classification, freezeGameplayBox);
-
-        // Step 6.5: 玩法实体只允许 Visual 按白盒适配，绝不反向修改 Root BoxCollider2D。
-        if (freezeGameplayBox)
+        finally
         {
-            FitVisualToFrozenGameplayBox(target, sr, frozenBox);
-            LogGameplayBoxFreeze(target);
+            // Apply Freeze 防腐层。无论换皮流程成功、早退或抛出异常，一律恢复 Root 缩放和原始玩法盒，
+            // 防止商业素材尺寸、Pivot、模板逻辑或历史错误路径污染 Root 物理真相源。
+            RestoreRootGameplayBox(frozenBox);
         }
-        else
-        {
-            // 角色换皮后再次加固移动控制链路，避免历史错误应用留下 Static/Trigger/Freeze 状态。
-            EnsureCharacterControlChain(target);
-        }
-
-        // Step 6.6: Apply Freeze 防腐层。换皮流程结束前一律恢复 Root 缩放和原始玩法盒，
-        // 防止商业素材尺寸、Pivot、模板逻辑或历史错误路径污染 Root 物理真相源。
-        RestoreRootGameplayBox(frozenBox);
-
-        // Step 7: 更新 ImportedAssetMarker
-        UpdateMarker(target, spritesToApply, classification);
-
-        // Step 8: 自动保存 Prefab
-        if (_autoSavePrefab)
-        {
-            SavePrefab(target);
-        }
-
-        // 标记脏
-        EditorUtility.SetDirty(target);
-        EditorUtility.SetDirty(sr);
-        SceneView.RepaintAll();
-
-        // Pivot 信息
-        var resolvedPivot = PivotPresetUtility.ResolvePreset(
-            _pivotPreset, GetPhysicsTypeHint(target), target);
-        string pivotHint = $"Pivot: {PivotPresetUtility.GetPresetDisplayName(resolvedPivot)}";
-        if (_pivotPreset == PivotPresetUtility.PivotPreset.Custom)
-            pivotHint += $" ({_customPivot.x:F2}, {_customPivot.y:F2})";
-
-        string animationHint = classification != null ? $"，素材分类: {classification.role}/{classification.animationMode}" : "";
-        _lastResult = spritesToApply.Length > 1
-            ? $"已将 [{primarySprite.name}] 等 {spritesToApply.Length} 帧应用到 [{target.name}]，{pivotHint}，已自动配置动画，行为模板: {_behaviorTemplate}{animationHint}"
-            : $"已将 [{primarySprite.name}] 应用到 [{target.name}]，{pivotHint}，行为模板: {_behaviorTemplate}{animationHint}";
-        Debug.Log($"[AssetApplyToSelected] {_lastResult}");
     }
 
     // =========================================================================

@@ -355,7 +355,7 @@ public static class TA_AssetValidator
         int fixedCount = 0;
 
         // ── Mario ──
-        var marios = Object.FindObjectsByType<MarioController>(FindObjectsSortMode.None);
+        var marios = UnityEngine.Object.FindObjectsByType<MarioController>(FindObjectsSortMode.None);
         foreach (var mario in marios)
         {
             BoxCollider2D col = mario.GetComponent<BoxCollider2D>();
@@ -376,7 +376,7 @@ public static class TA_AssetValidator
         }
 
         // ── Trickster ──
-        var tricksters = Object.FindObjectsByType<TricksterController>(FindObjectsSortMode.None);
+        var tricksters = UnityEngine.Object.FindObjectsByType<TricksterController>(FindObjectsSortMode.None);
         foreach (var trickster in tricksters)
         {
             BoxCollider2D col = trickster.GetComponent<BoxCollider2D>();
@@ -397,7 +397,7 @@ public static class TA_AssetValidator
         }
 
         // ── SpikeTrap ──
-        var spikes = Object.FindObjectsByType<SpikeTrap>(FindObjectsSortMode.None);
+        var spikes = UnityEngine.Object.FindObjectsByType<SpikeTrap>(FindObjectsSortMode.None);
         foreach (var spike in spikes)
         {
             BoxCollider2D col = spike.GetComponent<BoxCollider2D>();
@@ -418,7 +418,7 @@ public static class TA_AssetValidator
         }
 
         // ── BouncyPlatform ──
-        var bouncyPlatforms = Object.FindObjectsByType<BouncyPlatform>(FindObjectsSortMode.None);
+        var bouncyPlatforms = UnityEngine.Object.FindObjectsByType<BouncyPlatform>(FindObjectsSortMode.None);
         foreach (var bouncy in bouncyPlatforms)
         {
             BoxCollider2D col = bouncy.GetComponent<BoxCollider2D>();
@@ -449,6 +449,7 @@ public static class TA_AssetValidator
         }
 
         Debug.Log("<color=yellow>══════════════════════════════════════</color>");
+        Debug.Log("[AI Arena] 第三阶段：美术防腐层（Layer 6）部署完成");
     }
 }
 #endif

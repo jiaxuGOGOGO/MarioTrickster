@@ -1,4 +1,6 @@
 using UnityEngine;
+using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -34,6 +36,7 @@ public struct DeathRecord
     public Vector2Int position;
     public DeathCause cause;
     public int matchIndex;
+    public string[] recentInteractions;
 }
 
 /// <summary>
@@ -55,6 +58,7 @@ public struct StuckRecord
     public Vector2Int position;
     public int matchIndex;
     public float stuckDuration;
+    public string[] recentInteractions;
 }
 
 /// <summary>
@@ -272,11 +276,16 @@ public class AutoTestAnalytics
 
             // 确认卡死！
             Vector2Int gridPos = WorldToGrid(_mario.transform.position);
+
+            // 抓取最近 3 条交互日志作为卡死上下文
+            string[] interactions = GrabRecentInteractions(3);
+
             stuckPoints.Add(new StuckRecord
             {
                 position = gridPos,
                 matchIndex = totalMatches + 1,
-                stuckDuration = _stuckTimer
+                stuckDuration = _stuckTimer,
+                recentInteractions = interactions
             });
 
             _stuckTriggeredThisRound = true;
@@ -332,11 +341,15 @@ public class AutoTestAnalytics
             ? DeathCause.FallOffCliff
             : DeathCause.TrapKill;
 
+        // 抓取最近 5 条交互日志作为死亡上下文
+        string[] interactions = GrabRecentInteractions(5);
+
         deathPoints.Add(new DeathRecord
         {
             position = gridPos,
             cause = cause,
-            matchIndex = totalMatches + 1
+            matchIndex = totalMatches + 1,
+            recentInteractions = interactions
         });
 
         string causeStr = cause == DeathCause.FallOffCliff ? "坠崖" : "机关致死";
@@ -368,6 +381,9 @@ public class AutoTestAnalytics
 
         // 重置卡死检测（下一局重新开始）
         ResetStuckDetection();
+
+        // 导出全息 JSON 战报
+        ExportReportToJson();
     }
 
     private void HandleGameStateChanged(GameState newState)
@@ -646,6 +662,90 @@ public class AutoTestAnalytics
     {
         return new Dictionary<string, int>(trapTriggerCounts);
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // 交互日志抓取辅助
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 从 InteractionLogSink 抓取最近 N 条交互日志，转为紧凑字符串数组。
+    /// </summary>
+    private static string[] GrabRecentInteractions(int count)
+    {
+        var entries = InteractionLogSink.RecentEntries;
+        if (entries == null || entries.Count == 0)
+            return new string[0];
+
+        int start = Mathf.Max(0, entries.Count - count);
+        int length = entries.Count - start;
+        string[] result = new string[length];
+        for (int i = 0; i < length; i++)
+            result[i] = entries[start + i].ToCompactString();
+        return result;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 全息 JSON 战报导出
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 将当前累计数据组装为 AITestReportData 并导出为 JSON 文件。
+    /// </summary>
+    /// <param name="currentAsciiTemplate">当前关卡 ASCII 模板（可空）</param>
+    /// <param name="metadata">关卡元数据键值对（可 null）</param>
+    public void ExportReportToJson(string currentAsciiTemplate = "", Dictionary<string, string> metadata = null)
+    {
+        var data = new AITestReportData();
+
+        // 基本信息
+        data.matchId = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        data.marioPersona = "Default";
+        data.tricksterPersona = "Default";
+
+        // 关卡元数据
+        data.levelMetadata = new List<AITestReportData.StringPair>();
+        if (metadata != null)
+        {
+            foreach (var kv in metadata)
+                data.levelMetadata.Add(new AITestReportData.StringPair { key = kv.Key, value = kv.Value });
+        }
+        if (!string.IsNullOrEmpty(currentAsciiTemplate))
+            data.levelMetadata.Add(new AITestReportData.StringPair { key = "asciiTemplate", value = currentAsciiTemplate });
+
+        // 配置快照
+        data.configSnapshot = new AITestReportData.ConfigSnapshot
+        {
+            maxJumpHeight = PhysicsMetrics.MAX_JUMP_HEIGHT,
+            maxJumpDistance = PhysicsMetrics.MAX_JUMP_DISTANCE,
+            scanCooldown = GameplayMetrics.ScanCooldown(8f),
+            energyControlCost = GameplayMetrics.EnergyControlCost(15f)
+        };
+
+        // 统计数据
+        data.marioWins = marioWins;
+        data.tricksterWins = tricksterWins;
+        data.totalMatches = totalMatches;
+        data.averageMatchTime = AverageMatchTime;
+
+        // 空间病灶数据
+        data.deathPoints = new List<DeathRecord>(deathPoints);
+        data.stuckPoints = new List<StuckRecord>(stuckPoints);
+
+        // 陷阱触发统计
+        data.trapTriggerStats = new List<AITestReportData.TrapStat>();
+        foreach (var kv in trapTriggerCounts)
+            data.trapTriggerStats.Add(new AITestReportData.TrapStat { name = kv.Key, count = kv.Value });
+
+        // 序列化并保存
+        string json = JsonUtility.ToJson(data, true);
+        string dir = Application.dataPath + "/../reports/ai_arena_reports";
+        Directory.CreateDirectory(dir);
+        string timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+        string filePath = Path.Combine(dir, $"MatchReport_{timestamp}.json");
+        File.WriteAllText(filePath, json);
+
+        Debug.Log($"<color=#88FFFF>[AutoTestAnalytics] JSON 战报已导出: {filePath}</color>");
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -849,4 +949,66 @@ public class AnalyticsGizmoRenderer : MonoBehaviour
         }
     }
 #endif
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// AITestReportData — 全息 JSON 战报数据结构
+//
+// 用途：
+//   作为 JsonUtility 序列化的载体，包含大模型分析所需的全部“病历本”信息。
+//
+// [AI防坑警告]
+//   - 所有字段必须为 public 且标记 [Serializable] 才能被 JsonUtility 序列化
+//   - 嵌套结构体也必须标记 [Serializable]
+// ═══════════════════════════════════════════════════════════════════
+
+[Serializable]
+public class AITestReportData
+{
+    // ── 基本信息 ──
+    public string matchId;
+    public string marioPersona;
+    public string tricksterPersona;
+
+    // ── 关卡元数据 ──
+    public List<StringPair> levelMetadata;
+
+    [Serializable]
+    public struct StringPair
+    {
+        public string key;
+        public string value;
+    }
+
+    // ── 配置快照 ──
+    public ConfigSnapshot configSnapshot;
+
+    [Serializable]
+    public struct ConfigSnapshot
+    {
+        public float maxJumpHeight;
+        public float maxJumpDistance;
+        public float scanCooldown;
+        public float energyControlCost;
+    }
+
+    // ── 统计数据 ──
+    public int marioWins;
+    public int tricksterWins;
+    public int totalMatches;
+    public float averageMatchTime;
+
+    // ── 空间病灶数据 ──
+    public List<DeathRecord> deathPoints;
+    public List<StuckRecord> stuckPoints;
+
+    // ── 陷阱触发统计 ──
+    public List<TrapStat> trapTriggerStats;
+
+    [Serializable]
+    public struct TrapStat
+    {
+        public string name;
+        public int count;
+    }
 }

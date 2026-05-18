@@ -48,6 +48,14 @@ public class AITestAnalystWindow : EditorWindow
     private bool isRequesting = false;
 
     // ═══════════════════════════════════════════════════
+    // 战报 JSON 选择
+    // ═══════════════════════════════════════════════════
+    private List<string> reportFiles = new List<string>();
+    private string[] reportFileNames = Array.Empty<string>();
+    private int selectedReportIndex = 0;
+    private string reportContent = "";
+
+    // ═══════════════════════════════════════════════════
     // MenuItem 入口
     // ═══════════════════════════════════════════════════
     [MenuItem("MarioTrickster/AI Arena/AI Test Analyst (LLM)")]
@@ -65,6 +73,7 @@ public class AITestAnalystWindow : EditorWindow
     {
         LoadPrefs();
         RefreshFileList();
+        RefreshReportList();
     }
 
     private void OnDisable()
@@ -163,6 +172,33 @@ public class AITestAnalystWindow : EditorWindow
         else
         {
             EditorGUILayout.HelpBox("No .txt / .log / .json / .md files found in the search directory.", MessageType.Info);
+        }
+
+        EditorGUILayout.Space(8);
+
+        // ── 战报选择区 ──
+        EditorGUILayout.LabelField("AI Arena Reports", EditorStyles.miniBoldLabel);
+        EditorGUILayout.BeginHorizontal();
+        if (reportFileNames.Length > 0)
+        {
+            selectedReportIndex = EditorGUILayout.Popup("Battle Report", selectedReportIndex, reportFileNames);
+        }
+        else
+        {
+            EditorGUILayout.LabelField("No reports found in reports/ai_arena_reports/");
+        }
+        if (GUILayout.Button("Refresh List", GUILayout.Width(90)))
+        {
+            RefreshReportList();
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (reportFileNames.Length > 0)
+        {
+            if (GUILayout.Button("Load Report", GUILayout.Height(24)))
+            {
+                LoadSelectedReport();
+            }
         }
 
         EditorGUILayout.Space(8);
@@ -320,6 +356,57 @@ public class AITestAnalystWindow : EditorWindow
             }
         }
         return sb.ToString();
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 战报目录扫描与加载
+    // ═══════════════════════════════════════════════════
+    private void RefreshReportList()
+    {
+        reportFiles.Clear();
+
+        string reportsDir = Path.Combine(Application.dataPath, "..", "reports", "ai_arena_reports");
+        reportsDir = Path.GetFullPath(reportsDir);
+
+        if (Directory.Exists(reportsDir))
+        {
+            string[] jsonFiles = Directory.GetFiles(reportsDir, "*.json", SearchOption.TopDirectoryOnly);
+            Array.Sort(jsonFiles, StringComparer.OrdinalIgnoreCase);
+            reportFiles.AddRange(jsonFiles);
+        }
+
+        reportFileNames = new string[reportFiles.Count];
+        for (int i = 0; i < reportFiles.Count; i++)
+        {
+            reportFileNames[i] = Path.GetFileName(reportFiles[i]);
+        }
+
+        if (selectedReportIndex >= reportFiles.Count)
+            selectedReportIndex = 0;
+    }
+
+    private void LoadSelectedReport()
+    {
+        if (selectedReportIndex < 0 || selectedReportIndex >= reportFiles.Count)
+        {
+            reportContent = "[Error] No report selected.";
+            analysisResult = reportContent;
+            Repaint();
+            return;
+        }
+
+        string path = reportFiles[selectedReportIndex];
+        if (!File.Exists(path))
+        {
+            reportContent = "[Error] File not found: " + path;
+            analysisResult = reportContent;
+            Repaint();
+            return;
+        }
+
+        reportContent = File.ReadAllText(path, Encoding.UTF8);
+        analysisResult = "[Report Loaded] " + Path.GetFileName(path) + "\n\n" + reportContent;
+        Repaint();
     }
 
     private static string ParseResponseContent(string json)

@@ -315,11 +315,11 @@ public class AutoTestAnalytics
     /// </summary>
     private bool IsNearGoal(Vector3 pos)
     {
-        GoalZone goal = Object.FindObjectOfType<GoalZone>();
+        GoalZone goal = UnityEngine.Object.FindObjectOfType<GoalZone>();
         if (goal != null && Vector2.Distance(pos, goal.transform.position) < 3f)
             return true;
 
-        EscapeGate gate = Object.FindObjectOfType<EscapeGate>();
+        EscapeGate gate = UnityEngine.Object.FindObjectOfType<EscapeGate>();
         if (gate != null && Vector2.Distance(pos, gate.transform.position) < 3f)
             return true;
 
@@ -421,7 +421,7 @@ public class AutoTestAnalytics
         if (_mario != null)
             _mario.OnDeath -= HandleMarioDeath;
 
-        _mario = Object.FindObjectOfType<MarioController>();
+        _mario = UnityEngine.Object.FindObjectOfType<MarioController>();
         _marioCached = true;
 
         if (_mario != null)
@@ -465,7 +465,7 @@ public class AutoTestAnalytics
         if (_gizmoRenderer != null)
         {
             if (_gizmoRenderer.gameObject != null)
-                Object.DestroyImmediate(_gizmoRenderer.gameObject);
+                UnityEngine.Object.DestroyImmediate(_gizmoRenderer.gameObject);
             _gizmoRenderer = null;
         }
     }

@@ -660,6 +660,10 @@ public class HeuristicBotInputProvider : IInputProvider
         Vector2 marioPos = _mario.transform.position;
         float marioFacing = _mario.IsFacingRight ? 1f : -1f;
 
+        // ── Persona 参数提取 ──
+        float ambushAgg = tricksterPersona != null ? tricksterPersona.ambushAggression : 0.5f;
+        float comboPref = tricksterPersona != null ? tricksterPersona.comboPreference : 0.5f;
+
         // ── 连锁追击：在连锁窗口内加速寻找不同类型锚点 ──
         bool comboRushing = false;
         if (_comboTracker != null && _comboTracker.IsComboActive && !heatSuppressed)
@@ -670,6 +674,13 @@ public class HeuristicBotInputProvider : IInputProvider
                 _lastComboPropName = history[history.Count - 1].PropName;
             comboRushing = true;
             TricksterIntent = "[Chasing Combo]";
+        }
+        // Persona 行为注入：贪婪连击 — 高 comboPref 时即使热度压制也有概率强行追击
+        if (!comboRushing && _comboTracker != null && _comboTracker.IsComboActive
+            && heatSuppressed && comboPref > 0.6f && Random.value < comboPref * dt * 2f)
+        {
+            comboRushing = true;
+            TricksterIntent = "[Persona] Greedy Combo Rush!";
         }
 
         switch (state)
@@ -697,7 +708,7 @@ public class HeuristicBotInputProvider : IInputProvider
             // 状态 C: Possessing — 精准处决 + 提前量预判 + 防死锁
             // ────────────────────────────────────────
             case TricksterPossessionState.Possessing:
-                HandlePossessing(dt, marioPos, heatSuppressed);
+                HandlePossessing(dt, marioPos, heatSuppressed, ambushAgg);
                 break;
 
             // ────────────────────────────────────────
@@ -810,7 +821,7 @@ public class HeuristicBotInputProvider : IInputProvider
     /// [升级] 提前量预判：结合 Mario 速度和预警时间提前触发。
     /// [升级] 防死锁：超时且 Mario 未靠近时强制解除附身。
     /// </summary>
-    private void HandlePossessing(float dt, Vector2 marioPos, bool heatSuppressed)
+    private void HandlePossessing(float dt, Vector2 marioPos, bool heatSuppressed, float ambushAgg)
     {
         p2Horizontal = 0f;
 
@@ -883,7 +894,10 @@ public class HeuristicBotInputProvider : IInputProvider
             {
                 // 首次进入：启动人类延迟计时器
                 _executeArmed = true;
-                _executeDelayTimer = Random.Range(EXECUTE_DELAY_MIN, EXECUTE_DELAY_MAX);
+                // Persona 行为注入：攻击性越高，处决延迟越低
+                float actualMin = Mathf.Lerp(0.4f, 0.0f, ambushAgg);
+                float actualMax = Mathf.Lerp(0.7f, 0.1f, ambushAgg);
+                _executeDelayTimer = Random.Range(actualMin, actualMax);
             }
             else
             {

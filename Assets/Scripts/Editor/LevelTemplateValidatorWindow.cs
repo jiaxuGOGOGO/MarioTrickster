@@ -199,14 +199,63 @@ public class LevelTemplateValidatorWindow : EditorWindow
         foreach (LevelSnippetLibrary.Snippet snippet in untaggedSnippets)
         {
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(GetSnippetName(snippet), EditorStyles.boldLabel);
+            if (GUILayout.Button("[Copy Tag Prompt]", GUILayout.Width(140f)))
+            {
+                CopyTagPromptToClipboard(snippet);
+            }
+            EditorGUILayout.EndHorizontal();
             EditorGUILayout.HelpBox(
-                "缺少可用设计标签。请策划补齐 # MainRoute、# ShadowRoute、# TrapRoles、# Budget 等元数据，以便语义指纹去重。",
+                "缺少可用设计标签。点击 [Copy Tag Prompt] 复制提示词给 AI，获取标签后填入代码即可。",
                 MessageType.None);
             EditorGUILayout.EndVertical();
         }
 
         EditorGUILayout.Space(8f);
+    }
+
+    /// <summary>
+    /// 生成补标签的 AI Prompt 并复制到系统剪贴板。
+    /// 包含片段名称、ASCII 内容和明确的标签补充指令。
+    /// </summary>
+    private void CopyTagPromptToClipboard(LevelSnippetLibrary.Snippet snippet)
+    {
+        string asciiContent = snippet != null ? snippet.ascii : "(empty)";
+        string snippetName = GetSnippetName(snippet);
+        string snippetDesc = snippet != null && !string.IsNullOrEmpty(snippet.description)
+            ? snippet.description : "(无描述)";
+
+        string prompt =
+$@"以下是一个 2D 平台跳跃关卡片段的 ASCII 地形，请根据实际地形结构分析并补充以下 5 个设计标签。
+
+片段名称: {snippetName}
+片段说明: {snippetDesc}
+
+ASCII 地形:
+{asciiContent}
+
+字符映射参考:
+# = 实心地面(Ground)  = = 平台(Platform)  - = 单向平台(OneWay)
+o = 金币(Collectible)  M = 起点(Mario)  G = 终点(GoalZone)
+e = 巡逻敌人  E = 弹跳怪  f = 飞行敌人
+^ = 地刺(SpikeTrap)  ~ = 火焰(FireTrap)  P = 摆锤(Pendulum)  @ = 锯片(SawBlade)
+< = 传送带(Conveyor)  > = 移动平台(Moving)  B = 弹跳平台(Bouncy)
+C = 崩塌平台(Collapse)  S = 检查点(Checkpoint)  X = 可破坏方块(Breakable)
+[ = 封路机关(ControllableBlocker)  ] = 队列机关(StateQueueTrap)
+
+请输出以下 5 个标签(用中文描述，必须基于实际地形而非猜测):
+
+MainRoute: (主路线方向和特征)
+ShadowRoute: (影子路线/备选路线，没有则写 none)
+TrapRoles: (每个陷阱/机关符号的角色职责)
+Budget: (路线数量、压力级别、容错度)
+TestGoal: (这个片段的测试验证目标)
+
+注意: 标签必须基于实际 ASCII 地形中可见的符号和结构，不要编造不存在的元素。";
+
+        EditorGUIUtility.systemCopyBuffer = prompt;
+        Debug.Log($"[Validator] 已复制 '{snippetName}' 的补标签 Prompt 到剪贴板。粘贴给 AI 获取标签后填入 LevelSnippetLibrary 对应片段的构造参数即可。");
     }
 
     // ═══════════════════════════════════════════════════

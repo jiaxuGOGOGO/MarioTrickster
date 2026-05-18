@@ -110,7 +110,12 @@ public static class LevelSnippetLibrary
             "..............................\n" +
             "..............................\n" +
             "..M.................e.........\n" +
-            "..##...####...##..############"
+            "..##...####...##..############",
+            mainRoute: "left-to-right, flat ground with single gap",
+            shadowRoute: "none (单路线教学)",
+            trapRoles: "e = 单个地面巡逻敌人, 无陷阱",
+            budget: "单路线, 零压力, 纯教学",
+            testGoal: "验证新手引导：跳跃间隙可达、第一个敌人可踩踏或跳过"
         ));
 
         // ── 2. 连续弹跳深渊 ──
@@ -134,7 +139,12 @@ public static class LevelSnippetLibrary
             "......B.....................\n" +
             "............................\n" +
             "..B.........................\n" +
-            "##.........................."
+            "##..........................",
+            mainRoute: "bottom-left to top-right, vertical ascending via bounce pads",
+            shadowRoute: "none (单路线强制弹跳)",
+            trapRoles: "B = 弹跳平台(唯一落脚点), 无地面即死亡深渊",
+            budget: "单路线, 高节奏压力, 零容错",
+            testGoal: "验证弹跳平台连跳物理可达性(间距≤4格), 掉落即死的节奏挑战"
         ));
 
         // ── 3. 多层陷阱走廊 ──
@@ -150,7 +160,12 @@ public static class LevelSnippetLibrary
             "..............................\n" +
             "....==......==......==........\n" +
             "..^^...^^^......^^...^^.......\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "left-to-right, mid-level platforms dodging traps",
+            shadowRoute: "none (单路线穿越)",
+            trapRoles: "P = 摆锤(动态节奏威胁), ~ = 火焰(定时伤害), ^^ = 地刺(静态伤害边界)",
+            budget: "单路线, 中等压力, 需观察节奏窗口",
+            testGoal: "验证陷阱组合走廊的节奏可穿越性, 安全缓冲格是否足够"
         ));
 
         // ── 4. 敌人+平台混战 ──
@@ -167,7 +182,12 @@ public static class LevelSnippetLibrary
             ".....e..............####......\n" +
             "..######....e.........####....\n" +
             "............####...^^..####...\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "left-to-right, multi-level platforms ascending then descending",
+            shadowRoute: "none (单路线多层)",
+            trapRoles: "e = 地面巡逻敌人, E = 弹跳怪(高威胁), ^^ = 地刺(平台间惩罚)",
+            budget: "单路线, 高压力, 需边跳边躲",
+            testGoal: "验证多层平台间距物理可达, 敌人密度下的生存空间"
         ));
 
         // ── 5. 锯片+传送带组合 (S56 新增) ──
@@ -182,7 +202,12 @@ public static class LevelSnippetLibrary
             "....o.o.o.........o.o.o.......\n" +
             "..<<<<<<<<<...<<<<<<<<<.......\n" +
             "..............................\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "left-to-right, conveyor belt platforms with overhead saws",
+            shadowRoute: "none (单路线)",
+            trapRoles: "@ = 旋转锯片(动态伤害), <<< = 传送带(向左推力速度干扰)",
+            budget: "单路线, 中等压力, 需计算时机和速度补偿",
+            testGoal: "验证传送带推力下的跳跃可达性, 锯片节奏窗口"
         ));
 
         // ── 6. 飞行敌人+检查点 (S56 新增) ──
@@ -197,7 +222,12 @@ public static class LevelSnippetLibrary
             "..####...####...####...####...\n" +
             "..............................\n" +
             "..^^......^^......^^..........\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "left-to-right, platform hopping with aerial threats",
+            shadowRoute: "none (单路线)",
+            trapRoles: "f = 飞行敌人(空中巡逻威胁), ^^ = 地刺(落地惩罚), S = 检查点(安全区)",
+            budget: "单路线, 中等压力, 检查点提供容错",
+            testGoal: "验证飞行敌人巡逻路径下的平台跳跃安全窗口"
         ));
 
         // ── 7. 可破坏方块迷宫 (S56 新增) ──
@@ -212,7 +242,12 @@ public static class LevelSnippetLibrary
             "..........o.o.o...............\n" +
             "..........XXXXXX..............\n" +
             "..............................\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "left-to-right, break through X blocks to progress",
+            shadowRoute: "none (单路线, 上下两层可破坏区域)",
+            trapRoles: "X = 可破坏方块(封堵通路, 从下方撞击开路)",
+            budget: "单路线, 低压力, 探索型",
+            testGoal: "验证可破坏方块的撞击开路机制, 多层封堵的路径规划"
         ));
 
         // ── 8. 短桥读心房 (S144 新增) ──
@@ -244,7 +279,12 @@ public static class LevelSnippetLibrary
             "..............................\n" +
             ".##.B.####.X.##...####.##.....\n" +
             "..............................\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "upper bridge, left-to-right, fast but dangerous (spikes + bounce pads + breakable blocks)",
+            shadowRoute: "lower pipe route, left-to-right, safe but slow (solid platforms)",
+            trapRoles: "^^ = 地刺(上层桥面惩罚), B = 弹跳平台/暗线附身点, X = 可破坏方块/暗线附身点, --- = 单向平台(中间过渡层)",
+            budget: "双路线预算, 上层高风险高收益, 下层安全保底; 5个暗线热点供Trickster换位",
+            testGoal: "验证暗线网络(connectedUnderlineNodes)连接 + 五段生命周期状态机 + 双路线物理可达"
         ));
 
         // ── 9. Santorini 式临时封路机关 (S53 原型 B) ──
@@ -262,7 +302,12 @@ public static class LevelSnippetLibrary
             "..............................\n" +
             "..############..############..\n" +
             "..............................\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "upper route, left-to-right, shorter but blocked by [ ControllableBlocker",
+            shadowRoute: "lower route via solid platforms, safe bypass when upper blocked",
+            trapRoles: "[ = ControllableBlocker(Trickster临时封路), --- = 单向平台(中间过渡)",
+            budget: "双路线预算, Trickster可短暂降级主路但不得硬锁; Mario可用Scan在Windup阶段反制",
+            testGoal: "验证封路机关Windup可通过 + Scan反制减半 + Active前路线预算TryDegradeRoute"
         ));
 
         // ── 10. Onitama 式公开下一状态机关 (S53 原型 C) ──
@@ -280,7 +325,12 @@ public static class LevelSnippetLibrary
             "..............................\n" +
             "..############..############..\n" +
             "..............................\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "upper route, left-to-right, shorter but has ] StateQueueTrap",
+            shadowRoute: "lower route via solid platforms, safe bypass",
+            trapRoles: "] = StateQueueTrap(公开Current/Next状态, Trickster可强行跳状态但代价高)",
+            budget: "双路线预算, 机关公开透明但变奏不可预测; Trickster激活追加Suspicion/Evidence/Heat",
+            testGoal: "验证队列机关状态公开显示 + Trickster跳状态的高代价惩罚 + 双路线不死锁"
         ));
 
         // ── 11. S53 四段白盒验证 1：演示房 ──
@@ -297,7 +347,12 @@ public static class LevelSnippetLibrary
             ".....---....---....---........\n" +
             "......^^...........^^.........\n" +
             "..##########################..\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "left-to-right, multi-platform with pendulums overhead",
+            shadowRoute: "none (单路线演示, 无Trickster压力)",
+            trapRoles: "P = 摆锤(动态节奏展示), ^^ = 地刺(静态危险标记), --- = 单向平台(垂直过渡)",
+            budget: "单路线, 零对抗压力, 纯灰盒节奏展示",
+            testGoal: "验证演示房作为教学样板: 玩家可安全读取危险节奏, 水平跨度≤4格, 垂直≤2格"
         ));
 
         // ── 12. S53 四段白盒验证 2：干扰房 ──
@@ -314,7 +369,12 @@ public static class LevelSnippetLibrary
             "..............................\n" +
             "..############..############..\n" +
             "..............................\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "upper route, left-to-right, blocked by [ ControllableBlocker",
+            shadowRoute: "lower route via solid platforms, guaranteed safe bypass",
+            trapRoles: "[ = ControllableBlocker(低压干扰, Trickster可封路)",
+            budget: "双路线预算, 低压干扰级别, 下层绕行保证不死锁",
+            testGoal: "验证低压干扰下路线预算不死锁, 所有平台间距物理安全"
         ));
 
         // ── 13. S53 四段白盒验证 3：反制房 ──
@@ -331,7 +391,12 @@ public static class LevelSnippetLibrary
             "..............................\n" +
             "..##B###..##X###..##[###......\n" +
             "..............................\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "upper route, left-to-right, multiple traps (] queue + [ blocker + X/B underline nodes)",
+            shadowRoute: "lower route via solid platforms with B/X underline nodes",
+            trapRoles: "] = 队列机关, [ = 封路机关, X = 可破坏暗线节点, B = 弹跳暗线节点, o = 诱饵金币",
+            budget: "双路线预算, 高压反制级别, 诱饵金币鼓励试探骗出Trickster高代价操作",
+            testGoal: "验证高压反制房: 多机关叠加不死锁, 暗线节点可连接, 诱饵金币引导博弈"
         ));
 
         // ── 14. S53 四段白盒验证 4：实战房 ──
@@ -368,7 +433,12 @@ public static class LevelSnippetLibrary
             "...........>..............G...\n" +
             "..............................\n" +
             "...CC...CC..........CC..###...\n" +
-            "##############################"
+            "##############################",
+            mainRoute: "left-to-right, collapsing platforms to moving platform to goal",
+            shadowRoute: "none (单路线冲刺)",
+            trapRoles: "CC = 崩塌平台(限时落脚), > = 移动平台(动态载具), G = 终点旗帜",
+            budget: "单路线, 高节奏压力, 崩塌平台限时+移动平台时机",
+            testGoal: "验证终点冲刺节奏: 崩塌平台存活时间足够跳跃, 移动平台可接住玩家"
         ));
     }
 }

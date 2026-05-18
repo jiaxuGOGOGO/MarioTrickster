@@ -65,6 +65,9 @@ public class AITestAnalystWindow : EditorWindow
         "2. 【致命病灶分析】：找出高频死亡/卡死坐标。结合 recentInteractions 日志分析死因（如：是距离太远跳不过去，还是预警太短没反应过来？）。\n" +
         "3. 【Actionable 修改建议】：给出具体的 ASCII 关卡坐标修改建议（增加平台或垫脚石），或者给出 GameplayLoopConfigSO 的具体参数调整建议。";
 
+    private const string DEPLOYMENT_LOG = "[AI Arena] 第四阶段：大模型战报分析助手 (AITestAnalyst) 部署完成";
+    private static bool deploymentLogPrinted = false;
+
     // ═══════════════════════════════════════════════════
     // EditorPrefs Keys
     // ═══════════════════════════════════════════════════
@@ -118,6 +121,12 @@ public class AITestAnalystWindow : EditorWindow
         LoadPrefs();
         RefreshFileList();
         RefreshReportList();
+
+        if (!deploymentLogPrinted)
+        {
+            Debug.Log(DEPLOYMENT_LOG);
+            deploymentLogPrinted = true;
+        }
     }
 
     private void OnDisable()
@@ -550,6 +559,13 @@ public class AITestAnalystWindow : EditorWindow
     /// </summary>
     private string BuildOpenAIRequestJson(OpenAIRequest req)
     {
+        string json = JsonUtility.ToJson(req);
+        if (!string.IsNullOrEmpty(json) && json.Contains("\"messages\""))
+        {
+            return json;
+        }
+
+        // Fallback: keep a manual builder for older Unity versions or unexpected JsonUtility limitations.
         var sb = new StringBuilder(512);
         sb.Append("{");
         sb.Append("\"model\":\"").Append(EscapeJsonString(req.model)).Append("\",");

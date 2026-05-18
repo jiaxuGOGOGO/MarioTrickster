@@ -406,7 +406,7 @@ public class HeuristicBotInputProvider : IInputProvider
 
         // ── 2d. Persona 行为注入：风险容忍度 (riskTolerance) ──
         // 高风险容忍度的人有概率无视预警继续前冲
-        if (_baitingTrap && Random.value < riskTol * 0.6f)
+        if (_baitingTrap && Random.value < riskTol * 0.5f)
         {
             _baitingTrap = false;
             MarioIntent = "[Persona] High Risk Rush!";
@@ -499,7 +499,7 @@ public class HeuristicBotInputProvider : IInputProvider
         if (_randomScanTimer <= 0f)
         {
             doBlindScan = Random.value < scanAgg;
-            _randomScanTimer = Random.Range(2f, 4f);
+            _randomScanTimer = Random.Range(1f, 3f);
         }
 
         bool strongScanReady = _probe != null && _probe.IsStrongScanReady;
@@ -903,8 +903,8 @@ public class HeuristicBotInputProvider : IInputProvider
                 // 首次进入：启动人类延迟计时器
                 _executeArmed = true;
                 // Persona 行为注入：攻击性越高，处决延迟越低
-                float actualMin = Mathf.Lerp(0.4f, 0.0f, ambushAgg);
-                float actualMax = Mathf.Lerp(0.7f, 0.1f, ambushAgg);
+                float actualMin = Mathf.Lerp(0.5f, 0.05f, ambushAgg);
+                float actualMax = Mathf.Lerp(0.9f, 0.15f, ambushAgg);
                 _executeDelayTimer = Random.Range(actualMin, actualMax);
             }
             else

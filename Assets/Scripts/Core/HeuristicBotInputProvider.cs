@@ -100,6 +100,10 @@ public class HeuristicBotInputProvider : IInputProvider
     // ═══════════════════════════════════════════════════════════
 
     private MarioController _mario;
+
+    // ── Persona 行为注入：反应延迟状态 ──
+    private float _marioReactionTimer = 0f;
+    private bool _dangerDetectedLastFrame = false;
     private MarioCounterplayProbe _probe;
     private bool _marioCacheReady;
     private float _jumpHoldTimer;
@@ -331,27 +335,7 @@ public class HeuristicBotInputProvider : IInputProvider
             }
         }
 
-        // 停步：机关正在激活，原地等待
-        if (_waitingForTrap)
-        {
-            p1Horizontal = 0f;
-            p1JumpHeld = false;
-            _jumpHoldTimer = 0f;
-            MarioIntent = "[Dodging Active Trap]";
-            return;
-        }
-
-        // 骗技能：机关处于预警期，后退拉距离
-        if (_baitingTrap)
-        {
-            p1Horizontal = -facingDir; // 反向后退
-            p1JumpHeld = false;
-            _jumpHoldTimer = 0f;
-            MarioIntent = "[Baiting Trap]";
-            return;
-        }
-
-        // ── 3. 射线避障与跳跃 ──
+        // ── 2b. 射线避障预判（提前计算 shouldJump 以供 Persona 反应延迟使用） ──
         LayerMask solidMask = GetSolidMask();
         bool shouldJump = false;
 
@@ -377,6 +361,67 @@ public class HeuristicBotInputProvider : IInputProvider
         if (verticalWiggle && _mario.IsGrounded)
             shouldJump = true;
 
+        // ── 2c. Persona 行为注入：反应延迟 (reactionDelay) ──
+        float reactionDelay = marioPersona != null ? marioPersona.reactionDelay : 0.25f;
+        float riskTol = marioPersona != null ? marioPersona.riskTolerance : 0.5f;
+
+        bool currentDanger = shouldJump || _waitingForTrap || _baitingTrap;
+
+        // 刚发现危险 → 启动反应计时器
+        if (currentDanger && !_dangerDetectedLastFrame)
+            _marioReactionTimer = reactionDelay;
+        _dangerDetectedLastFrame = currentDanger;
+
+        // 反应延迟拦截：计时器未归零时，强制维持原有移动意图，不执行避险动作
+        if (_marioReactionTimer > 0f)
+        {
+            _marioReactionTimer -= dt;
+            shouldJump = false;
+            _waitingForTrap = false;
+            _baitingTrap = false;
+            p1Horizontal = facingDir;
+            p1JumpDown = false;
+            p1JumpHeld = false;
+            MarioIntent = "[Persona] Reaction Delay...";
+            // 跳跃持续计时器仍需递减以保持物理一致性
+            if (_jumpHoldTimer > 0f)
+            {
+                _jumpHoldTimer -= dt;
+                if (_jumpHoldTimer <= 0f)
+                    _jumpHoldTimer = 0f;
+            }
+            return;
+        }
+
+        // ── 2d. Persona 行为注入：风险容忍度 (riskTolerance) ──
+        // 高风险容忍度的人有概率无视预警继续前冲
+        if (_baitingTrap && Random.value < riskTol * 0.6f)
+        {
+            _baitingTrap = false;
+            MarioIntent = "[Persona] High Risk Rush!";
+        }
+
+        // 停步：机关正在激活，原地等待
+        if (_waitingForTrap)
+        {
+            p1Horizontal = 0f;
+            p1JumpHeld = false;
+            _jumpHoldTimer = 0f;
+            MarioIntent = "[Dodging Active Trap]";
+            return;
+        }
+
+        // 骗技能：机关处于预警期，后退拉距离
+        if (_baitingTrap)
+        {
+            p1Horizontal = -facingDir; // 反向后退
+            p1JumpHeld = false;
+            _jumpHoldTimer = 0f;
+            MarioIntent = "[Baiting Trap]";
+            return;
+        }
+
+        // ── 3. 执行跳跃 ──
         if (shouldJump && _jumpHoldTimer <= 0f)
         {
             p1JumpDown = true;

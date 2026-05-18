@@ -200,14 +200,12 @@ public class LevelTemplateValidatorWindow : EditorWindow
             return;
         }
 
-        // 冗余检测用的临时字典：以 ascii 内容的 hash 为 key
-        Dictionary<string, List<LevelSnippetLibrary.Snippet>> asciiHashGroups =
-            new Dictionary<string, List<LevelSnippetLibrary.Snippet>>();
+        // 物理可达的片段暂存列表，等待第二阶段语义指纹去重
+        List<LevelSnippetLibrary.Snippet> physicallyReachable = new List<LevelSnippetLibrary.Snippet>();
 
         foreach (var snippet in allSnippets)
         {
             bool isBroken = false;
-            bool isUntagged = false;
             List<string> errors = new List<string>();
 
             // ── 基础格式校验 ──
@@ -250,53 +248,79 @@ public class LevelTemplateValidatorWindow : EditorWindow
                 }
             }
 
-            // ── 语义标签完整性校验（仅在物理可达时进入）──
-            if (!isBroken)
-            {
-                List<string> missingTags = new List<string>();
-                if (string.IsNullOrEmpty(snippet.MainRoute)) missingTags.Add("MainRoute");
-                if (string.IsNullOrEmpty(snippet.TrapRoles)) missingTags.Add("TrapRoles");
-                if (string.IsNullOrEmpty(snippet.TestGoal)) missingTags.Add("TestGoal");
-
-                if (missingTags.Count > 0)
-                {
-                    isUntagged = true;
-                    errors.Add("Missing tags: " + string.Join(", ", missingTags));
-                }
-            }
-
-            // ── 冗余检测（按 ASCII 内容分组）──
-            string asciiKey = snippet.ascii != null ? snippet.ascii.Trim() : "";
-            if (!asciiHashGroups.ContainsKey(asciiKey))
-            {
-                asciiHashGroups[asciiKey] = new List<LevelSnippetLibrary.Snippet>();
-            }
-            asciiHashGroups[asciiKey].Add(snippet);
-
-            // ── 分类 ──
+            // ── 分类（第一轮：仅处理 broken）──
             if (isBroken)
             {
                 brokenSnippets.Add(snippet);
                 errorPrompts[snippet] = string.Join("\n", errors);
             }
-            else if (isUntagged)
-            {
-                untaggedSnippets.Add(snippet);
-                errorPrompts[snippet] = string.Join("\n", errors);
-            }
             else
             {
-                passedSnippets.Add(snippet);
+                // 物理可达的片段暂存，等待语义指纹去重
+                physicallyReachable.Add(snippet);
             }
         }
 
-        // ── 冗余分组：超过 1 个片段共享相同 ASCII 内容 ──
-        foreach (var kvp in asciiHashGroups)
+        // ═══════════════════════════════════════════════════
+        // 第二阶段：语义指纹去重 (Semantic Deduplication)
+        // ═══════════════════════════════════════════════════
+        Dictionary<string, List<LevelSnippetLibrary.Snippet>> fingerprintGroups =
+            new Dictionary<string, List<LevelSnippetLibrary.Snippet>>();
+
+        foreach (var snippet in physicallyReachable)
+        {
+            // 构建语义指纹：将标签组合为小写字符串
+            string fingerprint = $"{snippet.MainRoute}|{snippet.ShadowRoute}|{snippet.TrapRoles}|{snippet.Budget}".Trim().ToLower();
+
+            // 判断指纹是否为空/无效（全是分隔符或不含有效字母数字）
+            bool isEmptyFingerprint = true;
+            foreach (char c in fingerprint)
+            {
+                if (char.IsLetterOrDigit(c))
+                {
+                    isEmptyFingerprint = false;
+                    break;
+                }
+            }
+
+            if (isEmptyFingerprint)
+            {
+                // 未打标签
+                untaggedSnippets.Add(snippet);
+                List<string> missingTags = new List<string>();
+                if (string.IsNullOrEmpty(snippet.MainRoute)) missingTags.Add("MainRoute");
+                if (string.IsNullOrEmpty(snippet.ShadowRoute)) missingTags.Add("ShadowRoute");
+                if (string.IsNullOrEmpty(snippet.TrapRoles)) missingTags.Add("TrapRoles");
+                if (string.IsNullOrEmpty(snippet.Budget)) missingTags.Add("Budget");
+                errorPrompts[snippet] = "Missing tags (empty semantic fingerprint): " + string.Join(", ", missingTags);
+            }
+            else
+            {
+                // 按指纹分组
+                if (!fingerprintGroups.ContainsKey(fingerprint))
+                {
+                    fingerprintGroups[fingerprint] = new List<LevelSnippetLibrary.Snippet>();
+                }
+                fingerprintGroups[fingerprint].Add(snippet);
+            }
+        }
+
+        // 遍历指纹分组：Count > 1 为冗余，Count == 1 为通过
+        foreach (var kvp in fingerprintGroups)
         {
             if (kvp.Value.Count > 1)
             {
-                string groupLabel = $"Identical ASCII ({kvp.Value.Count} snippets, {kvp.Value[0].width}x{kvp.Value[0].height})";
+                // 语义冗余：相同设计意图的多个片段
+                string groupLabel = $"Semantic Duplicate ({kvp.Value.Count} snippets): {kvp.Key}";
+                // 截断过长的指纹标签用于显示
+                if (groupLabel.Length > 120)
+                    groupLabel = groupLabel.Substring(0, 117) + "...";
                 redundantSnippets[groupLabel] = kvp.Value;
+            }
+            else
+            {
+                // 设计意图唯一且物理可达 → 通过
+                passedSnippets.Add(kvp.Value[0]);
             }
         }
 

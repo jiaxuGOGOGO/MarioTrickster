@@ -187,20 +187,42 @@ public class AITestAnalystWindow : EditorWindow
     // ═══════════════════════════════════════════════════
     private void OnGUI()
     {
-        EditorGUILayout.Space(8);
-        EditorGUILayout.LabelField("AI Test Analyst (LLM)", EditorStyles.boldLabel);
+        // ── 窗口标题 ──
+        EditorGUILayout.Space(10);
+        GUIStyle titleStyle = new GUIStyle(EditorStyles.boldLabel)
+        {
+            fontSize = 16,
+            alignment = TextAnchor.MiddleCenter
+        };
+        EditorGUILayout.LabelField("AI Test Analyst (LLM)", titleStyle);
+        EditorGUILayout.Space(6);
+
+        // ════════════════════════════════════════════════
+        // Section 1: Settings (API Configuration)
+        // ════════════════════════════════════════════════
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+        GUIStyle sectionHeader = new GUIStyle(EditorStyles.boldLabel) { fontSize = 12 };
+        EditorGUILayout.LabelField("\u2699  Settings", sectionHeader);
         EditorGUILayout.Space(4);
 
-        // ── API 配置区 ──
-        EditorGUILayout.LabelField("API Configuration", EditorStyles.miniBoldLabel);
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
         apiKey = EditorGUILayout.PasswordField("API Key", apiKey);
         baseUrl = EditorGUILayout.TextField("Base URL", baseUrl);
         modelName = EditorGUILayout.TextField("Model Name", modelName);
+        EditorGUILayout.EndVertical();
 
-        EditorGUILayout.Space(8);
+        EditorGUILayout.Space(10);
 
-        // ── 文件选择区 ──
-        EditorGUILayout.LabelField("File Selection", EditorStyles.miniBoldLabel);
+        // ════════════════════════════════════════════════
+        // Section 2: File Selection (通用文件 + 战报)
+        // ════════════════════════════════════════════════
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+        EditorGUILayout.LabelField("\U0001F4C2  File Selection", sectionHeader);
+        EditorGUILayout.Space(4);
+
+        // ── 通用文件选择 ──
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("General Files", EditorStyles.miniBoldLabel);
         EditorGUILayout.BeginHorizontal();
         searchDirectory = EditorGUILayout.TextField("Search Directory", searchDirectory);
         if (GUILayout.Button("Refresh", GUILayout.Width(60)))
@@ -218,10 +240,19 @@ public class AITestAnalystWindow : EditorWindow
             EditorGUILayout.HelpBox("No .txt / .log / .json / .md files found in the search directory.", MessageType.Info);
         }
 
-        EditorGUILayout.Space(8);
+        EditorGUI.BeginDisabledGroup(isRequesting || availableFiles.Count == 0 || string.IsNullOrEmpty(apiKey));
+        if (GUILayout.Button(isRequesting ? "Analyzing... Please wait" : "Analyze Selected File", GUILayout.Height(26)))
+        {
+            SendAnalysisRequest();
+        }
+        EditorGUI.EndDisabledGroup();
+        EditorGUILayout.EndVertical();
 
-        // ── 战报选择区 ──
-        EditorGUILayout.LabelField("AI Arena Reports", EditorStyles.miniBoldLabel);
+        EditorGUILayout.Space(6);
+
+        // ── 战报选择 ──
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("AI Arena Battle Reports", EditorStyles.miniBoldLabel);
         EditorGUILayout.BeginHorizontal();
         if (reportFileNames.Length > 0)
         {
@@ -244,32 +275,49 @@ public class AITestAnalystWindow : EditorWindow
             {
                 LoadSelectedReport();
             }
+
+            // ── 醒目的分析按钮 ──
             EditorGUI.BeginDisabledGroup(isRequesting || reportFiles.Count == 0 || string.IsNullOrEmpty(apiKey));
-            if (GUILayout.Button(isRequesting ? "Analyzing... Please wait" : "Analyze Report (LLM)", GUILayout.Height(24)))
+            Color originalBg = GUI.backgroundColor;
+            GUI.backgroundColor = isRequesting ? Color.gray : new Color(0.3f, 0.9f, 0.5f);
+            GUIStyle analyzeButtonStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontStyle = FontStyle.Bold,
+                fontSize = 12
+            };
+            if (GUILayout.Button(
+                isRequesting ? "\u23F3 Analyzing... Please wait" : "\u2728 Analyze Selected Report",
+                analyzeButtonStyle,
+                GUILayout.Height(28)))
             {
                 string reportPath = reportFiles[selectedReportIndex];
                 AnalyzeReportAsync(reportPath);
             }
+            GUI.backgroundColor = originalBg;
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.EndHorizontal();
         }
+        EditorGUILayout.EndVertical();
 
-        EditorGUILayout.Space(8);
+        EditorGUILayout.Space(10);
 
-        // ── 通用文件分析按钮 ──
-        EditorGUI.BeginDisabledGroup(isRequesting || availableFiles.Count == 0 || string.IsNullOrEmpty(apiKey));
-        if (GUILayout.Button(isRequesting ? "Analyzing... Please wait" : "Analyze Selected File", GUILayout.Height(30)))
+        // ════════════════════════════════════════════════
+        // Section 3: Analysis Result (大面积可选中复制)
+        // ════════════════════════════════════════════════
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+        EditorGUILayout.LabelField("\U0001F4CB  Analysis Result", sectionHeader);
+        EditorGUILayout.Space(4);
+
+        // 使用 WordWrap 样式确保长文本自动换行，支持选中复制
+        GUIStyle textAreaStyle = new GUIStyle(EditorStyles.textArea)
         {
-            SendAnalysisRequest();
-        }
-        EditorGUI.EndDisabledGroup();
+            wordWrap = true,
+            richText = false,
+            fontSize = 12
+        };
 
-        EditorGUILayout.Space(8);
-
-        // ── 结果显示区 ──
-        EditorGUILayout.LabelField("Analysis Result", EditorStyles.miniBoldLabel);
         scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.ExpandHeight(true));
-        EditorGUILayout.TextArea(analysisResult, GUILayout.ExpandHeight(true));
+        analysisResult = EditorGUILayout.TextArea(analysisResult, textAreaStyle, GUILayout.ExpandHeight(true));
         EditorGUILayout.EndScrollView();
     }
 

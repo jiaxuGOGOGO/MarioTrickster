@@ -58,11 +58,18 @@ public class HybridInputProvider : IInputProvider
     // ═══════════════════════════════════════════════════════════
 
     /// <summary>
-    /// 当前生效的 AI 画像配置。
+    /// Mario 侧 AI 画像配置。
     /// 赋值后会在每帧 Tick 中自动同步给内部 bot。
     /// 可通过 AIArena 面板或代码动态切换。
     /// </summary>
-    public BotPersonaConfigSO Persona;
+    public BotPersonaConfigSO marioPersona;
+
+    /// <summary>
+    /// Trickster 侧 AI 画像配置。
+    /// 赋值后会在每帧 Tick 中自动同步给内部 bot。
+    /// 可通过 AIArena 面板或代码动态切换。
+    /// </summary>
+    public BotPersonaConfigSO tricksterPersona;
 
     // ═══════════════════════════════════════════════════════════
     // 公开控制：人机切换
@@ -119,7 +126,8 @@ public class HybridInputProvider : IInputProvider
     public void Tick(float dt)
     {
         // 0. 同步 Persona 配置到 bot（支持运行时热切换）
-        bot.Persona = Persona;
+        bot.marioPersona = marioPersona;
+        bot.tricksterPersona = tricksterPersona;
 
         // 1. 更新 keyboard（手柄检测）
         keyboard.UpdateGamepads();

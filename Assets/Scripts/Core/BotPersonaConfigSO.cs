@@ -5,8 +5,8 @@ using UnityEngine;
 //
 // 用途：
 //   以 ScriptableObject 形式参数化不同类型的 AI 玩家行为偏好。
-//   分为 Mario 画像和 Trickster 画像两组参数，可独立创建资产实例
-//   并注入到 HeuristicBotInputProvider / HybridInputProvider 中。
+//   一个 SO 实例代表一种"人格"，可分别赋给 Mario 或 Trickster。
+//   同一 SO 中包含两侧通用参数 + 各自专属参数。
 //
 // 使用方式：
 //   1. 在 Project 面板右键 → Create → MarioTrickster → Bot Persona
@@ -21,34 +21,37 @@ using UnityEngine;
 public class BotPersonaConfigSO : ScriptableObject
 {
     // ═══════════════════════════════════════════════════════════
-    // Mario 画像参数
+    // 通用标识
     // ═══════════════════════════════════════════════════════════
 
-    [Header("Mario Persona")]
+    [Header("Identity")]
 
-    [Tooltip("Mario 画像名称，如 Cautious / Speedrunner")]
-    public string marioPersonaName = "Default";
+    [Tooltip("画像名称，如 Cautious / Speedrunner / Aggressive")]
+    public string personaName = "Default";
+
+    // ═══════════════════════════════════════════════════════════
+    // Mario 侧参数
+    // ═══════════════════════════════════════════════════════════
+
+    [Header("Mario Parameters")]
 
     [Tooltip("危险反应延迟（秒）。越高反应越慢，模拟不同水平玩家。")]
     [Range(0f, 1.5f)]
     public float reactionDelay = 0.25f;
 
+    [Tooltip("是否愿意顶着预警走高风险主路线。0=极度保守，1=全速冲刺。")]
+    [Range(0f, 1f)]
+    public float riskTolerance = 0.5f;
+
     [Tooltip("主动使用扫描的频率。0=从不扫描，1=有机会就扫。")]
     [Range(0f, 1f)]
     public float scanAggression = 0.5f;
 
-    [Tooltip("是否愿意走高风险主路线。0=极度保守，1=全速冲刺。")]
-    [Range(0f, 1f)]
-    public float riskTolerance = 0.5f;
-
     // ═══════════════════════════════════════════════════════════
-    // Trickster 画像参数
+    // Trickster 侧参数
     // ═══════════════════════════════════════════════════════════
 
-    [Header("Trickster Persona")]
-
-    [Tooltip("Trickster 画像名称，如 Aggressive / Patient")]
-    public string tricksterPersonaName = "Default";
+    [Header("Trickster Parameters")]
 
     [Tooltip("主动出手的积极性。0=被动等待，1=见面就打。")]
     [Range(0f, 1f)]

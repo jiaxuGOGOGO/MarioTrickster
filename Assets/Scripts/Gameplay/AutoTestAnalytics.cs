@@ -691,9 +691,9 @@ public class AutoTestAnalytics
     /// <summary>
     /// 将当前累计数据组装为 AITestReportData 并导出为 JSON 文件。
     /// </summary>
-    /// <param name="currentAsciiTemplate">当前关卡 ASCII 模板（可空）</param>
+    /// <param name="levelName">当前关卡名称（默认 "Unknown"）</param>
     /// <param name="metadata">关卡元数据键值对（可 null）</param>
-    public void ExportReportToJson(string currentAsciiTemplate = "", Dictionary<string, string> metadata = null)
+    public void ExportReportToJson(string levelName = "Unknown", Dictionary<string, string> metadata = null)
     {
         var data = new AITestReportData();
 
@@ -704,13 +704,12 @@ public class AutoTestAnalytics
 
         // 关卡元数据
         data.levelMetadata = new List<AITestReportData.StringPair>();
+        data.levelMetadata.Add(new AITestReportData.StringPair { key = "levelName", value = levelName });
         if (metadata != null)
         {
             foreach (var kv in metadata)
                 data.levelMetadata.Add(new AITestReportData.StringPair { key = kv.Key, value = kv.Value });
         }
-        if (!string.IsNullOrEmpty(currentAsciiTemplate))
-            data.levelMetadata.Add(new AITestReportData.StringPair { key = "asciiTemplate", value = currentAsciiTemplate });
 
         // 配置快照
         data.configSnapshot = new AITestReportData.ConfigSnapshot
@@ -745,6 +744,7 @@ public class AutoTestAnalytics
         File.WriteAllText(filePath, json);
 
         Debug.Log($"<color=#88FFFF>[AutoTestAnalytics] JSON 战报已导出: {filePath}</color>");
+        Debug.Log("<color=#00FF88><b>[AI Arena] 第一阶段：全息遥测与画像基建完成</b></color>");
     }
 }
 

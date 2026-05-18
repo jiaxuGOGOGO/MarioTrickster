@@ -79,9 +79,9 @@ public class LevelTemplateValidatorWindow : EditorWindow
 
         // ── 操作按钮 ──
         EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-        if (GUILayout.Button("Run Full Validation Scan", GUILayout.Height(30)))
+        if (GUILayout.Button("Run Full Validation Scan (Physical Regression)", GUILayout.Height(30)))
         {
-            RunValidation();
+            RunValidationAndDeduplication();
         }
         EditorGUILayout.Space(8);
 
@@ -175,9 +175,20 @@ public class LevelTemplateValidatorWindow : EditorWindow
     }
 
     // ═══════════════════════════════════════════════════
-    // 校验逻辑（占位，后续任务扩展）
+    // 校验逻辑（物理回归 + 语义检查 + 冗余检测）
     // ═══════════════════════════════════════════════════
+
+    /// <summary>旧入口保留，委托给新方法</summary>
     private void RunValidation()
+    {
+        RunValidationAndDeduplication();
+    }
+
+    /// <summary>
+    /// 核心校验方法：清空缓存 → 物理可达性回归 → 语义标签检查 → 冗余检测。
+    /// 每次点击时清空上轮结果，重新全量扫描。
+    /// </summary>
+    private void RunValidationAndDeduplication()
     {
         ClearResults();
         hasScanned = true;
@@ -212,16 +223,46 @@ public class LevelTemplateValidatorWindow : EditorWindow
                 isBroken = true;
             }
 
-            // ── 标签完整性校验 ──
-            List<string> missingTags = new List<string>();
-            if (string.IsNullOrEmpty(snippet.MainRoute)) missingTags.Add("MainRoute");
-            if (string.IsNullOrEmpty(snippet.TrapRoles)) missingTags.Add("TrapRoles");
-            if (string.IsNullOrEmpty(snippet.TestGoal)) missingTags.Add("TestGoal");
-
-            if (missingTags.Count > 0)
+            // ── 物理可达性回归测试 (Physical Regression) ──
+            // 传 true 声明为 Snippet 模式，避免强校验 M/G 点报错。
+            // 对于包含 M 和 G 的片段，传 false 以触发完整 BFS 可达性分析。
+            if (!isBroken && !string.IsNullOrWhiteSpace(snippet.ascii))
             {
-                isUntagged = true;
-                errors.Add("Missing tags: " + string.Join(", ", missingTags));
+                bool hasStart = snippet.ascii.Contains("M");
+                bool hasGoal = snippet.ascii.Contains("G");
+                bool useSnippetMode = !(hasStart && hasGoal);
+
+                var reachResult = LevelReachabilityAnalyzer.Analyze(snippet.ascii, useSnippetMode);
+
+                if (reachResult != null && !reachResult.IsReachable)
+                {
+                    isBroken = true;
+                    string reachError = "[Physical Regression] BFS unreachable: ";
+                    if (!string.IsNullOrEmpty(reachResult.ErrorPrompt))
+                    {
+                        reachError += reachResult.ErrorPrompt;
+                    }
+                    else
+                    {
+                        reachError += reachResult.GetReport();
+                    }
+                    errors.Add(reachError);
+                }
+            }
+
+            // ── 语义标签完整性校验（仅在物理可达时进入）──
+            if (!isBroken)
+            {
+                List<string> missingTags = new List<string>();
+                if (string.IsNullOrEmpty(snippet.MainRoute)) missingTags.Add("MainRoute");
+                if (string.IsNullOrEmpty(snippet.TrapRoles)) missingTags.Add("TrapRoles");
+                if (string.IsNullOrEmpty(snippet.TestGoal)) missingTags.Add("TestGoal");
+
+                if (missingTags.Count > 0)
+                {
+                    isUntagged = true;
+                    errors.Add("Missing tags: " + string.Join(", ", missingTags));
+                }
             }
 
             // ── 冗余检测（按 ASCII 内容分组）──

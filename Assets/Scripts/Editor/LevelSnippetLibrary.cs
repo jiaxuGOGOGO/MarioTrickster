@@ -57,7 +57,25 @@ public static class LevelSnippetLibrary
             this.Budget = budget;
             this.TestGoal = testGoal;
 
+            // ── 从 ASCII 文本中解析嵌入式元数据注释行 ──
+            // 格式：以 "# Key: Value" 开头的行会被提取到对应字段。
+            // 仅当构造参数未显式传入（为空）时，才从 ASCII 中解析补充。
             string[] lines = ascii.Split('\n');
+            foreach (string line in lines)
+            {
+                string trimmed = line.TrimStart();
+                if (trimmed.StartsWith("# MainRoute:") && string.IsNullOrEmpty(this.MainRoute))
+                    this.MainRoute = trimmed.Substring("# MainRoute:".Length).Trim();
+                else if (trimmed.StartsWith("# ShadowRoute:") && string.IsNullOrEmpty(this.ShadowRoute))
+                    this.ShadowRoute = trimmed.Substring("# ShadowRoute:".Length).Trim();
+                else if (trimmed.StartsWith("# TrapRoles:") && string.IsNullOrEmpty(this.TrapRoles))
+                    this.TrapRoles = trimmed.Substring("# TrapRoles:".Length).Trim();
+                else if (trimmed.StartsWith("# Budget:") && string.IsNullOrEmpty(this.Budget))
+                    this.Budget = trimmed.Substring("# Budget:".Length).Trim();
+                else if (trimmed.StartsWith("# TestGoal:") && string.IsNullOrEmpty(this.TestGoal))
+                    this.TestGoal = trimmed.Substring("# TestGoal:".Length).Trim();
+            }
+
             this.height = lines.Length;
             this.width = 0;
             foreach (string line in lines)

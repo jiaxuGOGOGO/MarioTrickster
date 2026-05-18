@@ -172,10 +172,63 @@ public static class AsciiLevelGenerator
             return null;
         }
 
+        // ── S6 Override 解析：先从模板中提取 # Override_{x}_{y}: pointB={px},{py} 标签 ──
+        // [AI防坑警告] Override 标签是 ASCII 元数据，绝不能进入验证器或主网格解析；
+        // 否则底部附加的标签会被当作真实关卡行，导致坐标整体上移并生成错误地形。
+        Dictionary<Vector2Int, Vector3> platformOverrides = new Dictionary<Vector2Int, Vector3>();
+        List<string> gridLines = new List<string>();
+        Regex overrideRegex = new Regex(
+            @"^\s*#\s*Override_(\d+)_(\d+)\s*:\s*pointB\s*=\s*([-+]?(?:\d+\.?\d*|\.\d+))\s*,\s*([-+]?(?:\d+\.?\d*|\.\d+))\s*$",
+            RegexOptions.Compiled);
+
+        string[] rawLines = template.Split('\n');
+        foreach (string rawLine in rawLines)
+        {
+            string line = rawLine.TrimEnd('\r');
+            string trimmedStart = line.TrimStart();
+
+            if (trimmedStart.StartsWith("# Override_", StringComparison.Ordinal))
+            {
+                Match m = overrideRegex.Match(line);
+                if (m.Success &&
+                    int.TryParse(m.Groups[1].Value, out int ox) &&
+                    int.TryParse(m.Groups[2].Value, out int oy) &&
+                    float.TryParse(m.Groups[3].Value, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out float px) &&
+                    float.TryParse(m.Groups[4].Value, System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out float py))
+                {
+                    platformOverrides[new Vector2Int(ox, oy)] = new Vector3(px, py, 0f);
+                }
+                else
+                {
+                    Debug.LogWarning($"[AsciiLevelGen] Malformed Override line ignored: {line}");
+                }
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(line))
+            {
+                gridLines.Add(line);
+            }
+        }
+
+        string gridTemplate = string.Join("\n", gridLines);
+        if (string.IsNullOrWhiteSpace(gridTemplate))
+        {
+            Debug.LogWarning("[AsciiLevelGen] Template contains no ASCII grid rows after parsing Override metadata!");
+            return null;
+        }
+
+        if (platformOverrides.Count > 0)
+        {
+            Debug.Log($"[AsciiLevelGen] Parsed {platformOverrides.Count} platform override(s).");
+        }
+
         // Session 32: 生成前自动验证模板的物理可行性
         // Session 43: 支持片段模式验证（片段不要求 M/G）
         // L1: 静态结构检查（间隙/高台/出生安全/弹跳净空/陷阱缓冲）
-        var validationResult = AsciiLevelValidator.ValidateTemplate(template, isSnippet);
+        var validationResult = AsciiLevelValidator.ValidateTemplate(gridTemplate, isSnippet);
         if (validationResult.HasErrors)
         {
             Debug.LogError($"[AsciiLevelGen] ⚠️ L1 Template has physical issues!\n{validationResult.GetReport()}");
@@ -190,7 +243,7 @@ public static class AsciiLevelGenerator
         }
 
         // Session 47: L2 BFS 可达性验证（图搜索：M → G 路径是否存在）
-        var reachResult = LevelReachabilityAnalyzer.Analyze(template, isSnippet);
+        var reachResult = LevelReachabilityAnalyzer.Analyze(gridTemplate, isSnippet);
         if (!reachResult.IsReachable)
         {
             Debug.LogError($"[AsciiLevelGen] ❌ L2 BFS: {reachResult.GetReport()}");
@@ -205,32 +258,6 @@ public static class AsciiLevelGenerator
 
         InitElementMap();
 
-        // ── S6 Override 解析：从模板中提取 # Override_{x}_{y}: pointB={px},{py} 标签 ──
-        Dictionary<Vector2Int, Vector3> platformOverrides = new Dictionary<Vector2Int, Vector3>();
-        {
-            string[] overrideLines = template.Split('\n');
-            // 匹配格式: # Override_{x}_{y}: pointB={px},{py}
-            Regex overrideRegex = new Regex(@"^#\s*Override_(\d+)_(\d+):\s*pointB=([\-\d\.]+),([\-\d\.]+)",
-                RegexOptions.Compiled);
-            foreach (string oLine in overrideLines)
-            {
-                string trimmed = oLine.TrimEnd('\r');
-                Match m = overrideRegex.Match(trimmed);
-                if (m.Success)
-                {
-                    int ox = int.Parse(m.Groups[1].Value);
-                    int oy = int.Parse(m.Groups[2].Value);
-                    float px = float.Parse(m.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture);
-                    float py = float.Parse(m.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture);
-                    platformOverrides[new Vector2Int(ox, oy)] = new Vector3(px, py, 0f);
-                }
-            }
-            if (platformOverrides.Count > 0)
-            {
-                Debug.Log($"[AsciiLevelGen] Parsed {platformOverrides.Count} platform override(s).");
-            }
-        }
-
         // 创建根节点
         GameObject root = new GameObject(ROOT_NAME);
         rootTransform = root.transform;
@@ -240,7 +267,7 @@ public static class AsciiLevelGenerator
         if (groundLayerIndex == -1) groundLayerIndex = 0;
 
         // 解析模板
-        string[] lines = template.Split('\n');
+        string[] lines = gridTemplate.Split('\n');
         int height = lines.Length;
 
         for (int row = 0; row < height; row++)

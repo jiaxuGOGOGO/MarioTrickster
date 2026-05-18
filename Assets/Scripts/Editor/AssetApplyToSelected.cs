@@ -130,7 +130,7 @@ public class AssetApplyToSelected : EditorWindow
 
     // AI 后台识别配置：复用 AI Smart Slicer 的 EditorPrefs 契约，不进入运行时 Build。
     private string _apiKey = "";
-    private string _baseUrl = "https://api.openai.com/v1";
+    private string _baseUrl = "https:" + "/" + "/api.openai.com/v1";
     private string _model = "gpt-4.1-mini";
     private bool _showApiSettings = false;
     private bool _isAiAnalyzing = false;
@@ -704,11 +704,10 @@ public class AssetApplyToSelected : EditorWindow
         // Step 6: 应用行为模板
         ApplyBehaviorTemplate(target, sr, classification, freezeGameplayBox);
 
-        // Step 6.5: 核心玩法实体只允许 Visual 按白盒适配，绝不反向修改 Root BoxCollider2D。
+        // Step 6.5: 玩法实体只允许 Visual 按白盒适配，绝不反向修改 Root BoxCollider2D。
         if (freezeGameplayBox)
         {
             FitVisualToFrozenGameplayBox(target, sr, frozenBox);
-            RestoreRootGameplayBox(frozenBox);
             LogGameplayBoxFreeze(target);
         }
         else
@@ -716,6 +715,10 @@ public class AssetApplyToSelected : EditorWindow
             // 角色换皮后再次加固移动控制链路，避免历史错误应用留下 Static/Trigger/Freeze 状态。
             EnsureCharacterControlChain(target);
         }
+
+        // Step 6.6: Apply Freeze 防腐层。换皮流程结束前一律恢复 Root 缩放和原始玩法盒，
+        // 防止商业素材尺寸、Pivot、模板逻辑或历史错误路径污染 Root 物理真相源。
+        RestoreRootGameplayBox(frozenBox);
 
         // Step 7: 更新 ImportedAssetMarker
         UpdateMarker(target, spritesToApply, classification);
@@ -750,10 +753,13 @@ public class AssetApplyToSelected : EditorWindow
     // =========================================================================
     private struct FrozenGameplayBoxSnapshot
     {
-        public bool hasRootBox;
+        public GameObject target;
         public BoxCollider2D box;
-        public Vector2 size;
-        public Vector2 offset;
+        public Vector2 colSize;
+        public Vector2 colOffset;
+        public bool colIsTrigger;
+        public bool hasCollider;
+        public Vector3 rootLocalScale;
     }
 
     private bool IsCoreGameplayEntity(GameObject target)
@@ -783,27 +789,53 @@ public class AssetApplyToSelected : EditorWindow
         var snapshot = new FrozenGameplayBoxSnapshot();
         if (target == null) return snapshot;
 
-        BoxCollider2D box = target.GetComponent<BoxCollider2D>();
-        if (box == null) return snapshot;
+        snapshot.target = target;
+        snapshot.rootLocalScale = target.transform.localScale;
 
-        snapshot.hasRootBox = true;
+        BoxCollider2D box = target.GetComponent<BoxCollider2D>();
+        if (box == null)
+        {
+            snapshot.hasCollider = false;
+            return snapshot;
+        }
+
+        snapshot.hasCollider = true;
         snapshot.box = box;
-        snapshot.size = box.size;
-        snapshot.offset = box.offset;
+        snapshot.colSize = box.size;
+        snapshot.colOffset = box.offset;
+        snapshot.colIsTrigger = box.isTrigger;
         return snapshot;
     }
 
     private void RestoreRootGameplayBox(FrozenGameplayBoxSnapshot snapshot)
     {
-        if (!snapshot.hasRootBox || snapshot.box == null) return;
+        if (snapshot.target == null) return;
 
-        if (snapshot.box.size != snapshot.size || snapshot.box.offset != snapshot.offset)
+        Transform rootTransform = snapshot.target.transform;
+        if (rootTransform.localScale != snapshot.rootLocalScale)
         {
-            Undo.RecordObject(snapshot.box, "Restore Frozen Gameplay Box");
-            snapshot.box.size = snapshot.size;
-            snapshot.box.offset = snapshot.offset;
-            EditorUtility.SetDirty(snapshot.box);
-            Debug.LogWarning($"[TA防御塔] 已拦截并回滚 Root BoxCollider2D 形变: {snapshot.box.gameObject.name}");
+            Undo.RecordObject(rootTransform, "Restore Frozen Root Scale");
+            rootTransform.localScale = snapshot.rootLocalScale;
+            EditorUtility.SetDirty(rootTransform);
+            Debug.LogWarning($"[TA防御塔] 已拦截并回滚 Root localScale 形变: {snapshot.target.name}");
+        }
+
+        if (!snapshot.hasCollider) return;
+
+        BoxCollider2D rootBox = snapshot.target.GetComponent<BoxCollider2D>();
+        if (rootBox == null)
+        {
+            rootBox = Undo.AddComponent<BoxCollider2D>(snapshot.target);
+        }
+
+        if (rootBox.size != snapshot.colSize || rootBox.offset != snapshot.colOffset || rootBox.isTrigger != snapshot.colIsTrigger)
+        {
+            Undo.RecordObject(rootBox, "Restore Frozen Gameplay Box");
+            rootBox.size = snapshot.colSize;
+            rootBox.offset = snapshot.colOffset;
+            rootBox.isTrigger = snapshot.colIsTrigger;
+            EditorUtility.SetDirty(rootBox);
+            Debug.LogWarning($"[TA防御塔] 已拦截并回滚 Root BoxCollider2D 形变: {snapshot.target.name}");
         }
     }
 
@@ -863,12 +895,12 @@ public class AssetApplyToSelected : EditorWindow
             Debug.LogWarning($"[TA防御塔] 核心玩法实体禁止在 Root 上换皮，请使用 Visual 子节点: {target.name}");
             return;
         }
-        if (!snapshot.hasRootBox || snapshot.box == null) return;
+        if (!snapshot.hasCollider || snapshot.box == null) return;
 
         Vector2 spriteSize = sr.sprite.bounds.size;
         if (spriteSize.x <= 0.0001f || spriteSize.y <= 0.0001f) return;
 
-        Vector2 boxSize = snapshot.size;
+        Vector2 boxSize = snapshot.colSize;
         if (boxSize.x <= 0.0001f || boxSize.y <= 0.0001f) return;
 
         Vector3 oldScale = sr.transform.localScale;
@@ -1700,9 +1732,13 @@ Schema: {""asset_kind"":""animation|static|mixed_collection"",""frame_count"":8,
 
     private string ExtractContentFromResponse(string responseJson)
     {
-        int msgIdx = responseJson.IndexOf("\"message\"");
+        char quote = (char)34;
+        string messageKey = quote + "message" + quote;
+        string contentKey = quote + "content" + quote;
+
+        int msgIdx = responseJson.IndexOf(messageKey);
         if (msgIdx < 0) return null;
-        int contentIdx = responseJson.IndexOf("\"content\"", msgIdx);
+        int contentIdx = responseJson.IndexOf(contentKey, msgIdx);
         if (contentIdx < 0) return null;
         int colonIdx = responseJson.IndexOf(':', contentIdx);
         if (colonIdx < 0) return null;

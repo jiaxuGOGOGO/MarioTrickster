@@ -10,12 +10,15 @@
 
 本工作流允许你在 Scene 视图中像搭积木一样拼关卡，并一键逆向烘焙为 ASCII 文本供 AI 训练。
 
-### 第一步：怎么从 Snippet 生成基础关卡？
+### 第一步：怎么从内置模板生成基础关卡？
 1. 点击顶部菜单栏：`MarioTrickster -> Level Studio %t`（或直接按快捷键 `Ctrl+T` / `Cmd+T`）。
-2. 在弹出的 **Level Studio** 面板中，找到 **Quick Whitebox Generator** 区块。
-3. 在 `Template` 下拉菜单中选择一个你想编辑的关卡模板（Snippet）。
+2. 在弹出的 **Level Studio** 面板中，切换到 **Level Design** Tab，找到 **Quick Whitebox Generator** 区块。
+3. 在 `Template` 下拉菜单中选择一个内置关卡模板（当前可选：`Classic Plains`、`Underground Cavern`）。
 4. 点击绿色的 `Generate Whitebox Level` 按钮。
-5. 此时，Scene 视图中会自动生成一个名为 `[Generated_Ascii_Level]` 的白盒关卡。
+5. 此时，Scene 视图中会自动生成一个名为 `AsciiLevel_Root` 的白盒关卡。
+6. 如需清除当前关卡，点击旁边红色的 `Clear ASCII Level` 按钮即可。
+
+> **注意**：Template 下拉菜单中的内置模板（2 个完整关卡）与下方 **Custom Template Editor** 折叠栏中的 **经典片段库 (Snippet Library)**（15 个可组合片段）是两套独立系统。Snippet 用于拼接组合自定义关卡，Template 用于一键生成完整白盒。
 
 ### 第二步：如何在 Scene 视图里拖拽移动平台的 3D 箭头把手？如何用 Ctrl+D 自由复制道具？
 - **拖拽移动平台终点**：在 Scene 视图中选中任意 `MovingPlatform` 或 `ControllablePlatform`，你会看到一条青色的虚线和一个 **3D 箭头把手 (PositionHandle)**。直接拖拽这个把手，即可直观地修改平台的终点（`pointB`），无需手动输入坐标。
@@ -23,7 +26,7 @@
 
 ### 第三步：点击哪个菜单能把场景逆向烘焙成带 `# Override` 参数重载标签的文本，并存回剪贴板？
 1. 关卡编辑满意后，点击顶部菜单栏：`MarioTrickster -> Level Builder -> Bake Scene to ASCII (Clipboard)`。
-2. 系统会自动扫描 `[Generated_Ascii_Level]` 下的所有物体，将其转换为 ASCII 字符阵列。
+2. 系统会自动扫描 `AsciiLevel_Root` 下的所有物体，将其转换为 ASCII 字符阵列。
 3. **重点**：你刚才拖拽的移动平台终点，会被自动提取为带有 `# Override` 参数重载标签的文本（例如 `# Override_12_5: pointB=3.00,0.00`）。
 4. 烘焙结果已**自动存入你的系统剪贴板**，直接 `Ctrl+V` 粘贴到你的代码或文档中即可！
 
@@ -55,12 +58,12 @@ AI 生成的关卡可能会出现死路或语义重复，本工作流教你如�
 
 本工作流教你如何配置不同性格的 AI 进行对战，并提取全息战报让大模型进行战术复盘。
 
-### 去哪配置 `BotPersonaConfigSO` 捏出“手残党”和“贪刀老阴比”？怎么挂载到输入系统上？
-1. **配置画像**：在 Project 窗口中，右键点击空白处，选择 `Create -> MarioTrickster -> Bot Persona`。这会创建一个 `BotPersonaConfigSO.cs` 的配置文件。在 Inspector 中调整参数，即可捏出“手残党”（反应慢、跳跃犹豫）或“贪刀老阴比”（极度偏好高风险收益）的画像。
-2. **挂载画像**：点击顶部菜单栏：`MarioTrickster -> Level Studio %t`，展开 **TestSceneBuilder** 区块。找到 **InputManager** 所在的物体（通常在 Managers 节点下）。在 InputManager 的 Inspector 中，找到 `HybridInputProvider` 相关的配置槽位。将你捏好的 `BotPersonaConfigSO` 拖入 `marioPersona` 和 `tricksterPersona` 字段。
+### 去哪配置 `BotPersonaConfigSO` 捏出"手残党"和"贪刀老阴比"？怎么挂载到输入系统上？
+1. **配置画像**：在 Project 窗口中，右键点击空白处，选择 `Create -> MarioTrickster -> Bot Persona`。这会创建一个 `BotPersonaConfigSO` 的配置文件（ScriptableObject）。在 Inspector 中调整参数，即可捏出"手残党"（反应慢、跳跃犹豫）或"贪刀老阴比"（极度偏好高风险收益）的画像。
+2. **挂载画像**：在场景 Hierarchy 中找到 **InputManager** 所在的物体（通常在 Managers 节点下）。在 InputManager 的 Inspector 中，找到 `HybridInputProvider` 组件的配置槽位。将你捏好的 `BotPersonaConfigSO` 拖入 `marioPersona` 和 `tricksterPersona` 字段即可。
 
 ### 挂机跑对战后，去哪个目录找 `MatchReport_xxx.json` 全息战报？
-在 Level Studio 的 **AI Arena** 面板中，勾选 `Mario 托管 (F1)` 和 `Trickster 托管 (F2)`，点击 `Start Collecting` 按钮开始对战。挂机结束后，战报会自动保存在项目根目录外的 `reports/ai_arena_reports/` 文件夹中，文件名为 `MatchReport_时间戳.json`。
+在 Level Studio 的 **Cheats** Tab 中，展开 **AI Auto-Arena** 折叠栏，勾选 `Mario 托管 (F1)` 和 `Trickster 托管 (F2)`，点击 `Start Collecting` 按钮开始对战。挂机结束后，战报会自动保存在项目根目录外的 `reports/ai_arena_reports/` 文件夹中，文件名为 `MatchReport_时间戳.json`。
 
 ### 点击哪个菜单打开 `AI Test Analyst (LLM)`？如何选中 JSON 战报并让大模型输出大白话诊断建议？
 1. 点击顶部菜单栏：`MarioTrickster -> AI Arena -> AI Test Analyst (LLM)`。
@@ -76,11 +79,12 @@ AI 生成的关卡可能会出现死路或语义重复，本工作流教你如�
 所有关于手感和数值的调整，**严禁修改代码**，必须通过以下两个核心 ScriptableObject (SO) 进行，且强调 PlayMode 拖拽滑块实时生效的特性！
 
 ### 调 Mario 跑跳手感找哪个 SO？
-- **绝对路径**：`Assets/Scripts/LevelDesign/PhysicsConfigSO.cs`（实例通常在 `Assets/Resources/PhysicsConfig.asset`）。
-- **能调什么**：最大速度、跳跃初速度、重力加速度、Coyote Time（土狼时间）、Jump Buffer（跳跃缓冲）等。
+- **脚本路径**：`Assets/Scripts/LevelDesign/PhysicsConfigSO.cs`。
+- **实例位置**：需手动创建（`Create -> ScriptableObject -> PhysicsConfigSO`），建议放在 `Assets/Resources/PhysicsConfig.asset`。如果项目中已有实例，可在 MarioController 的 Inspector 中找到引用。
+- **能调什么**：最大速度 (`maxSpeed`)、跳跃力 (`jumpPower`)、下落加速度 (`fallAcceleration`)、Coyote Time（土狼时间）、Jump Buffer（跳跃缓冲）等。
 
 ### 调 Trickster 能量、热度、扫描找哪个 SO？
-- **绝对路径**：`Assets/Scripts/LevelDesign/GameplayLoopConfigSO.cs`（实例通常在 `Assets/Resources/GameplayLoopConfig.asset`）。
+- **脚本路径**：`Assets/Scripts/LevelDesign/GameplayLoopConfigSO.cs`（实例在 `Assets/Resources/GameplayLoopConfig.asset`）。
 - **能调什么**：Trickster 的最大能量、变身消耗、Mario 的 Q 扫描半径与冷却、热度 (Heat) 衰减速度、连锁 (Combo) 倍率等。
 
 > 💡 **提示**：在 PlayMode 下，直接在 Inspector 中拖动这两个 SO 的滑块，游戏内的手感和数值会**立刻改变**，无需重启游戏！
@@ -89,7 +93,7 @@ AI 生成的关卡可能会出现死路或语义重复，本工作流教你如�
 
 ## 5. 🛡️ 【防腐流】：美术绝对安全换皮
 
-为了防止美术在替换商业素材时意外破坏策划调好的物理碰撞盒，我们引入了“物理防腐层”机制。
+为了防止美术在替换商业素材时意外破坏策划调好的物理碰撞盒，我们引入了"物理防腐层"机制。
 
 ### 美术用 `AssetApplyToSelected` 换皮时，物理防腐层是怎么冻结碰撞盒的？为什么 `SpriteAutoFit` 绝对不能挂在 Root 节点？
 1. **防腐层原理**：当你选中一个白盒物体并使用顶部菜单栏 `MarioTrickster -> Apply Art to Selected %#a` 换皮时，工具会**冻结**根节点（Root）的 `BoxCollider2D`（即玩法盒，决定了能不能跳过去），并将新贴图挂载到 `Visual` 子节点上。无论图片多大，都不会改变物理判定范围！

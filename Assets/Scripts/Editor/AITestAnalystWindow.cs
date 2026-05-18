@@ -14,6 +14,7 @@ using UnityEngine.Networking;
 /// 功能：
 ///   - 连接 OpenAI 兼容 API（支持自定义 Base URL / Model）
 ///   - 选择项目内测试日志文件并发送给 LLM 进行智能分析
+///   - 选择 AI Arena 战报 JSON 并通过专业 Prompt 进行深度诊断
 ///   - 在 Editor 窗口内直接展示分析结果
 ///
 /// 配置通过 EditorPrefs 持久化，无需每次重填。
@@ -21,6 +22,49 @@ using UnityEngine.Networking;
 /// </summary>
 public class AITestAnalystWindow : EditorWindow
 {
+    // ═══════════════════════════════════════════════════
+    // Serializable Data Classes for JsonUtility
+    // ═══════════════════════════════════════════════════
+
+    [Serializable]
+    private class OpenAIMessage
+    {
+        public string role;
+        public string content;
+    }
+
+    [Serializable]
+    private class OpenAIRequest
+    {
+        public string model;
+        public List<OpenAIMessage> messages;
+        public float temperature;
+    }
+
+    [Serializable]
+    private class OpenAIChoice
+    {
+        public OpenAIMessage message;
+    }
+
+    [Serializable]
+    private class OpenAIResponse
+    {
+        public List<OpenAIChoice> choices;
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 硬编码 System Prompt — 战报诊断专用
+    // ═══════════════════════════════════════════════════
+    private const string BATTLE_REPORT_SYSTEM_PROMPT =
+        "你是一名资深的游戏关卡设计师与 QA 专家。你正在分析《MarioTrickster》的双人非对称对抗游戏战报。\n" +
+        "游戏基于 ASCII 生成关卡（'='是平台，'^'是地刺，'['是封路门）。物理红线：最大跳跃距离约4.5格，高度约2.5格。\n" +
+        "请阅读以下包含玩家画像(Persona)、参数快照(ConfigSnapshot)、卡死点(StuckPoints)和死亡点(DeathPoints)的 JSON 遥测数据。\n" +
+        "请用中文输出一份专业的 Markdown 诊断报告，必须包含：\n" +
+        "1. 【对局评价】：结合双方 Persona 风格，评估节奏和胜率是否符合预期。\n" +
+        "2. 【致命病灶分析】：找出高频死亡/卡死坐标。结合 recentInteractions 日志分析死因（如：是距离太远跳不过去，还是预警太短没反应过来？）。\n" +
+        "3. 【Actionable 修改建议】：给出具体的 ASCII 关卡坐标修改建议（增加平台或垫脚石），或者给出 GameplayLoopConfigSO 的具体参数调整建议。";
+
     // ═══════════════════════════════════════════════════
     // EditorPrefs Keys
     // ═══════════════════════════════════════════════════
@@ -195,17 +239,26 @@ public class AITestAnalystWindow : EditorWindow
 
         if (reportFileNames.Length > 0)
         {
+            EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("Load Report", GUILayout.Height(24)))
             {
                 LoadSelectedReport();
             }
+            EditorGUI.BeginDisabledGroup(isRequesting || reportFiles.Count == 0 || string.IsNullOrEmpty(apiKey));
+            if (GUILayout.Button(isRequesting ? "Analyzing... Please wait" : "Analyze Report (LLM)", GUILayout.Height(24)))
+            {
+                string reportPath = reportFiles[selectedReportIndex];
+                AnalyzeReportAsync(reportPath);
+            }
+            EditorGUI.EndDisabledGroup();
+            EditorGUILayout.EndHorizontal();
         }
 
         EditorGUILayout.Space(8);
 
-        // ── 操作按钮 ──
+        // ── 通用文件分析按钮 ──
         EditorGUI.BeginDisabledGroup(isRequesting || availableFiles.Count == 0 || string.IsNullOrEmpty(apiKey));
-        if (GUILayout.Button(isRequesting ? "Analyzing..." : "Analyze Selected File", GUILayout.Height(30)))
+        if (GUILayout.Button(isRequesting ? "Analyzing... Please wait" : "Analyze Selected File", GUILayout.Height(30)))
         {
             SendAnalysisRequest();
         }
@@ -221,7 +274,120 @@ public class AITestAnalystWindow : EditorWindow
     }
 
     // ═══════════════════════════════════════════════════
-    // LLM 请求
+    // 战报专用 LLM 分析（核心方法）
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// 异步发送战报 JSON 到 LLM 进行专业诊断分析。
+    /// 使用硬编码的 BATTLE_REPORT_SYSTEM_PROMPT 作为系统提示词。
+    /// 通过 JsonUtility + Serializable class 构建标准 OpenAI ChatCompletion payload。
+    /// </summary>
+    private async void AnalyzeReportAsync(string jsonFilePath)
+    {
+        if (string.IsNullOrEmpty(jsonFilePath) || !File.Exists(jsonFilePath))
+        {
+            analysisResult = "[Error] Report file not found: " + jsonFilePath;
+            Repaint();
+            return;
+        }
+
+        // 读取战报 JSON 内容
+        string reportJson = File.ReadAllText(jsonFilePath, Encoding.UTF8);
+        if (string.IsNullOrWhiteSpace(reportJson))
+        {
+            analysisResult = "[Error] Report file is empty.";
+            Repaint();
+            return;
+        }
+
+        // 截断过长内容防止超出 token 限制
+        const int maxChars = 15000;
+        if (reportJson.Length > maxChars)
+        {
+            reportJson = reportJson.Substring(0, maxChars) + "\n\n... [TRUNCATED] ...";
+        }
+
+        // 禁用按钮，显示等待状态
+        isRequesting = true;
+        analysisResult = "Analyzing... Please wait";
+        Repaint();
+
+        try
+        {
+            // 构建 OpenAI ChatCompletion 请求体
+            var requestBody = new OpenAIRequest
+            {
+                model = modelName,
+                temperature = 0.7f,
+                messages = new List<OpenAIMessage>
+                {
+                    new OpenAIMessage { role = "system", content = BATTLE_REPORT_SYSTEM_PROMPT },
+                    new OpenAIMessage { role = "user", content = reportJson }
+                }
+            };
+
+            // JsonUtility 不支持直接序列化 List 内嵌对象的 messages 数组，
+            // 因此使用手动 JSON 构建确保格式正确
+            string jsonPayload = BuildOpenAIRequestJson(requestBody);
+
+            // 发送 HTTP POST 请求
+            UnityWebRequest webRequest = new UnityWebRequest(baseUrl, "POST");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonPayload);
+            webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            webRequest.downloadHandler = new DownloadHandlerBuffer();
+            webRequest.SetRequestHeader("Content-Type", "application/json");
+            webRequest.SetRequestHeader("Authorization", "Bearer " + apiKey);
+
+            var operation = webRequest.SendWebRequest();
+
+            // 异步等待请求完成，避免卡死主线程
+            while (!operation.isDone)
+            {
+                await Task.Yield();
+            }
+
+            // 处理响应
+            if (webRequest.result == UnityWebRequest.Result.Success)
+            {
+                string responseJson = webRequest.downloadHandler.text;
+
+                // 尝试用 JsonUtility 反序列化
+                OpenAIResponse response = JsonUtility.FromJson<OpenAIResponse>(responseJson);
+                if (response != null && response.choices != null && response.choices.Count > 0
+                    && response.choices[0].message != null)
+                {
+                    analysisResult = response.choices[0].message.content;
+                }
+                else
+                {
+                    // JsonUtility 解析失败时回退到手动解析
+                    analysisResult = ParseResponseContent(responseJson);
+                }
+            }
+            else
+            {
+                string errorDetail = string.IsNullOrEmpty(webRequest.downloadHandler.text)
+                    ? webRequest.error
+                    : webRequest.downloadHandler.text;
+                analysisResult = $"[Request Failed] HTTP {webRequest.responseCode}: {errorDetail}";
+            }
+
+            webRequest.Dispose();
+        }
+        catch (Exception ex)
+        {
+            analysisResult = $"[Exception] {ex.GetType().Name}: {ex.Message}\n\n{ex.StackTrace}";
+            Debug.LogError($"[AI Test Analyst] AnalyzeReportAsync exception: {ex}");
+        }
+        finally
+        {
+            isRequesting = false;
+            Repaint();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 通用文件 LLM 请求（保留原有功能）
     // ═══════════════════════════════════════════════════
     private async void SendAnalysisRequest()
     {
@@ -249,17 +415,75 @@ public class AITestAnalystWindow : EditorWindow
         }
 
         isRequesting = true;
-        analysisResult = "Sending request to LLM...";
+        analysisResult = "Analyzing... Please wait";
         Repaint();
 
         try
         {
-            string result = await RequestLLMAnalysis(fileContent, filePath);
-            analysisResult = result;
+            string genericSystemPrompt = "You are a senior QA analyst for a Unity 2D platformer game called MarioTrickster. " +
+                "Analyze the following test log / data file and provide: " +
+                "1) A brief summary of what the file contains. " +
+                "2) Any errors, warnings, or anomalies detected. " +
+                "3) Actionable recommendations for the development team.";
+
+            string userContent = $"File: {Path.GetFileName(filePath)}\n\n```\n{fileContent}\n```";
+
+            var requestBody = new OpenAIRequest
+            {
+                model = modelName,
+                temperature = 0.3f,
+                messages = new List<OpenAIMessage>
+                {
+                    new OpenAIMessage { role = "system", content = genericSystemPrompt },
+                    new OpenAIMessage { role = "user", content = userContent }
+                }
+            };
+
+            string jsonPayload = BuildOpenAIRequestJson(requestBody);
+
+            UnityWebRequest webRequest = new UnityWebRequest(baseUrl, "POST");
+            byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonPayload);
+            webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            webRequest.downloadHandler = new DownloadHandlerBuffer();
+            webRequest.SetRequestHeader("Content-Type", "application/json");
+            webRequest.SetRequestHeader("Authorization", "Bearer " + apiKey);
+
+            var operation = webRequest.SendWebRequest();
+
+            // 异步等待请求完成，避免卡死主线程
+            while (!operation.isDone)
+            {
+                await Task.Yield();
+            }
+
+            if (webRequest.result == UnityWebRequest.Result.Success)
+            {
+                string responseJson = webRequest.downloadHandler.text;
+                OpenAIResponse response = JsonUtility.FromJson<OpenAIResponse>(responseJson);
+                if (response != null && response.choices != null && response.choices.Count > 0
+                    && response.choices[0].message != null)
+                {
+                    analysisResult = response.choices[0].message.content;
+                }
+                else
+                {
+                    analysisResult = ParseResponseContent(responseJson);
+                }
+            }
+            else
+            {
+                string errorDetail = string.IsNullOrEmpty(webRequest.downloadHandler.text)
+                    ? webRequest.error
+                    : webRequest.downloadHandler.text;
+                analysisResult = $"[Request Failed] HTTP {webRequest.responseCode}: {errorDetail}";
+            }
+
+            webRequest.Dispose();
         }
         catch (Exception ex)
         {
-            analysisResult = $"[Error] {ex.Message}";
+            analysisResult = $"[Exception] {ex.GetType().Name}: {ex.Message}";
+            Debug.LogError($"[AI Test Analyst] SendAnalysisRequest exception: {ex}");
         }
         finally
         {
@@ -268,67 +492,31 @@ public class AITestAnalystWindow : EditorWindow
         }
     }
 
-    private Task<string> RequestLLMAnalysis(string fileContent, string filePath)
-    {
-        var tcs = new TaskCompletionSource<string>();
-
-        string systemPrompt = "You are a senior QA analyst for a Unity 2D platformer game called MarioTrickster. " +
-            "Analyze the following test log / data file and provide: " +
-            "1) A brief summary of what the file contains. " +
-            "2) Any errors, warnings, or anomalies detected. " +
-            "3) Actionable recommendations for the development team.";
-
-        string userPrompt = $"File: {Path.GetFileName(filePath)}\n\n```\n{fileContent}\n```";
-
-        // 构建 JSON body（手动拼接避免引入 JsonUtility 对嵌套数组的限制）
-        string jsonBody = BuildRequestJson(systemPrompt, userPrompt);
-
-        UnityWebRequest request = new UnityWebRequest(baseUrl, "POST");
-        byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
-        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-        request.downloadHandler = new DownloadHandlerBuffer();
-        request.SetRequestHeader("Content-Type", "application/json");
-        request.SetRequestHeader("Authorization", "Bearer " + apiKey);
-
-        var operation = request.SendWebRequest();
-        operation.completed += _ =>
-        {
-            if (request.result == UnityWebRequest.Result.Success)
-            {
-                string responseText = request.downloadHandler.text;
-                string parsed = ParseResponseContent(responseText);
-                tcs.SetResult(parsed);
-            }
-            else
-            {
-                string errorDetail = string.IsNullOrEmpty(request.downloadHandler.text)
-                    ? request.error
-                    : request.downloadHandler.text;
-                tcs.SetResult($"[Request Failed] {request.responseCode}: {errorDetail}");
-            }
-            request.Dispose();
-        };
-
-        return tcs.Task;
-    }
-
     // ═══════════════════════════════════════════════════
     // JSON 构建与解析（零第三方依赖）
     // ═══════════════════════════════════════════════════
-    private string BuildRequestJson(string systemPrompt, string userPrompt)
-    {
-        // 转义 JSON 特殊字符
-        string sysEscaped = EscapeJsonString(systemPrompt);
-        string usrEscaped = EscapeJsonString(userPrompt);
 
-        return "{" +
-            "\"model\":\"" + EscapeJsonString(modelName) + "\"," +
-            "\"messages\":[" +
-                "{\"role\":\"system\",\"content\":\"" + sysEscaped + "\"}," +
-                "{\"role\":\"user\",\"content\":\"" + usrEscaped + "\"}" +
-            "]," +
-            "\"temperature\":0.3" +
-        "}";
+    /// <summary>
+    /// 使用 Serializable class 数据构建标准 OpenAI ChatCompletion JSON payload。
+    /// 由于 JsonUtility 对 List 嵌套序列化存在限制，此处手动构建确保格式正确。
+    /// </summary>
+    private string BuildOpenAIRequestJson(OpenAIRequest req)
+    {
+        var sb = new StringBuilder(512);
+        sb.Append("{");
+        sb.Append("\"model\":\"").Append(EscapeJsonString(req.model)).Append("\",");
+        sb.Append("\"temperature\":").Append(req.temperature.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)).Append(",");
+        sb.Append("\"messages\":[");
+
+        for (int i = 0; i < req.messages.Count; i++)
+        {
+            if (i > 0) sb.Append(",");
+            sb.Append("{\"role\":\"").Append(EscapeJsonString(req.messages[i].role)).Append("\",");
+            sb.Append("\"content\":\"").Append(EscapeJsonString(req.messages[i].content)).Append("\"}");
+        }
+
+        sb.Append("]}");
+        return sb.ToString();
     }
 
     private static string EscapeJsonString(string input)
@@ -409,9 +597,11 @@ public class AITestAnalystWindow : EditorWindow
         Repaint();
     }
 
+    /// <summary>
+    /// 回退解析方法：当 JsonUtility 反序列化失败时，手动提取 content 字段。
+    /// </summary>
     private static string ParseResponseContent(string json)
     {
-        // 简易解析：提取 "content":"..." 字段值
         const string marker = "\"content\":\"";
         int startIdx = json.LastIndexOf(marker, StringComparison.Ordinal);
         if (startIdx < 0)
@@ -454,7 +644,7 @@ public class AITestAnalystWindow : EditorWindow
             }
             else if (c == '\"')
             {
-                break; // 结束
+                break;
             }
             else
             {

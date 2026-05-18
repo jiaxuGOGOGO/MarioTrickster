@@ -68,21 +68,30 @@ public class LevelTemplateValidatorWindow : EditorWindow
     // ═══════════════════════════════════════════════════
     private void OnGUI()
     {
+        // ── 窗口标题 ──
         EditorGUILayout.Space(10);
         GUIStyle titleStyle = new GUIStyle(EditorStyles.boldLabel)
         {
-            fontSize = 15,
+            fontSize = 16,
             alignment = TextAnchor.MiddleCenter
         };
         EditorGUILayout.LabelField("Level Template Validator (QA)", titleStyle);
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(8);
 
-        // ── 操作按钮 ──
+        // ── 醒目大按钮 ──
         EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-        if (GUILayout.Button("Run Full Validation Scan (Physical Regression)", GUILayout.Height(30)))
+        Color originalBg = GUI.backgroundColor;
+        GUI.backgroundColor = new Color(0.2f, 0.6f, 1f);
+        GUIStyle bigButtonStyle = new GUIStyle(GUI.skin.button)
+        {
+            fontStyle = FontStyle.Bold,
+            fontSize = 13
+        };
+        if (GUILayout.Button("\U0001F680 Run Full Regression & Deduplication", bigButtonStyle, GUILayout.Height(40)))
         {
             RunValidationAndDeduplication();
         }
+        GUI.backgroundColor = originalBg;
         EditorGUILayout.Space(8);
 
         if (!hasScanned)
@@ -93,82 +102,151 @@ public class LevelTemplateValidatorWindow : EditorWindow
 
         // ── 结果摘要 ──
         EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-        GUIStyle sectionHeader = new GUIStyle(EditorStyles.boldLabel) { fontSize = 12 };
-        EditorGUILayout.LabelField("Scan Summary", sectionHeader);
+        GUIStyle summaryStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 12 };
+        EditorGUILayout.LabelField("Scan Summary", summaryStyle);
         EditorGUILayout.Space(4);
 
         int totalSnippets = LevelSnippetLibrary.GetAllSnippets().Count;
         EditorGUILayout.LabelField($"Total Snippets: {totalSnippets}");
-        EditorGUILayout.LabelField($"Passed: {passedSnippets.Count}  |  Broken: {brokenSnippets.Count}  |  Untagged: {untaggedSnippets.Count}  |  Redundant Groups: {redundantSnippets.Count}");
+        EditorGUILayout.LabelField(
+            $"\u2705 Passed: {passedSnippets.Count}  |  " +
+            $"\u274C Broken: {brokenSnippets.Count}  |  " +
+            $"\u26A0\uFE0F Untagged: {untaggedSnippets.Count}  |  " +
+            $"\U0001F504 Redundant Groups: {redundantSnippets.Count}");
 
-        EditorGUILayout.Space(8);
+        EditorGUILayout.Space(10);
 
         // ── 详细结果滚动区 ──
-        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-        EditorGUILayout.LabelField("Detailed Results", sectionHeader);
-        EditorGUILayout.Space(4);
-
         scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.ExpandHeight(true));
 
-        // Broken
+        // ════════════════════════════════════════════════
+        // Block 1: ❌ Broken Levels (红色)
+        // ════════════════════════════════════════════════
         if (brokenSnippets.Count > 0)
         {
-            EditorGUILayout.LabelField("BROKEN (Physics / Format Errors)", EditorStyles.miniBoldLabel);
+            GUIStyle brokenHeader = new GUIStyle(EditorStyles.boldLabel)
+            {
+                fontSize = 13,
+                normal = { textColor = new Color(0.9f, 0.2f, 0.2f) }
+            };
+            EditorGUILayout.LabelField("\u274C Broken Levels (Physical / Format Errors)", brokenHeader);
+            EditorGUILayout.Space(4);
+
             foreach (var snippet in brokenSnippets)
             {
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                EditorGUILayout.BeginHorizontal();
                 EditorGUILayout.LabelField(snippet.name, EditorStyles.boldLabel);
+
+                // Copy AI Fix Prompt 按钮
                 if (errorPrompts.ContainsKey(snippet))
                 {
-                    EditorGUILayout.HelpBox(errorPrompts[snippet], MessageType.Error);
+                    if (GUILayout.Button("[Copy AI Fix Prompt]", GUILayout.Width(150)))
+                    {
+                        EditorGUIUtility.systemCopyBuffer = errorPrompts[snippet];
+                        Debug.Log($"[Level Template Validator] \u2705 已复制修复提示词: {snippet.name}");
+                    }
+                }
+                EditorGUILayout.EndHorizontal();
+
+                if (errorPrompts.ContainsKey(snippet))
+                {
+                    // 截取摘要显示，避免过长
+                    string summary = errorPrompts[snippet];
+                    if (summary.Length > 300)
+                        summary = summary.Substring(0, 297) + "...";
+                    EditorGUILayout.HelpBox(summary, MessageType.Error);
                 }
                 EditorGUILayout.EndVertical();
+                EditorGUILayout.Space(2);
             }
-            EditorGUILayout.Space(6);
+            EditorGUILayout.Space(10);
         }
 
-        // Untagged
+        // ════════════════════════════════════════════════
+        // Block 2: \U0001F504 Redundant Templates (黄色)
+        // ════════════════════════════════════════════════
+        if (redundantSnippets.Count > 0)
+        {
+            GUIStyle redundantHeader = new GUIStyle(EditorStyles.boldLabel)
+            {
+                fontSize = 13,
+                normal = { textColor = new Color(0.9f, 0.7f, 0.1f) }
+            };
+            EditorGUILayout.LabelField("\U0001F504 Redundant Templates (Semantic Duplicates)", redundantHeader);
+            EditorGUILayout.Space(4);
+
+            foreach (var kvp in redundantSnippets)
+            {
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+                // 指纹信息
+                EditorGUILayout.LabelField($"Fingerprint: {kvp.Key}", EditorStyles.miniLabel);
+
+                // 列出共享该指纹的关卡名称
+                System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                sb.Append($"\u26A0\uFE0F 发现 {kvp.Value.Count} 个关卡的博弈解法完全一致\uFF1a");
+                for (int i = 0; i < kvp.Value.Count; i++)
+                {
+                    if (i > 0) sb.Append(", ");
+                    sb.Append(kvp.Value[i].name);
+                }
+                EditorGUILayout.HelpBox(sb.ToString(), MessageType.Warning);
+
+                EditorGUILayout.EndVertical();
+                EditorGUILayout.Space(2);
+            }
+            EditorGUILayout.Space(10);
+        }
+
+        // ════════════════════════════════════════════════
+        // Block 3: \u26A0\uFE0F Untagged Templates (灰色)
+        // ════════════════════════════════════════════════
         if (untaggedSnippets.Count > 0)
         {
-            EditorGUILayout.LabelField("UNTAGGED (Missing Metadata)", EditorStyles.miniBoldLabel);
+            GUIStyle untaggedHeader = new GUIStyle(EditorStyles.boldLabel)
+            {
+                fontSize = 13,
+                normal = { textColor = new Color(0.6f, 0.6f, 0.6f) }
+            };
+            EditorGUILayout.LabelField("\u26A0\uFE0F Untagged Templates (Missing Design Tags)", untaggedHeader);
+            EditorGUILayout.Space(4);
+
             foreach (var snippet in untaggedSnippets)
             {
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
                 EditorGUILayout.LabelField(snippet.name, EditorStyles.boldLabel);
+                string tagHint = "请补齐设计标签: # MainRoute, # ShadowRoute, # TrapRoles, # Budget";
                 if (errorPrompts.ContainsKey(snippet))
                 {
-                    EditorGUILayout.HelpBox(errorPrompts[snippet], MessageType.Warning);
+                    tagHint = errorPrompts[snippet] + "\n" + tagHint;
                 }
+                EditorGUILayout.HelpBox(tagHint, MessageType.Info);
                 EditorGUILayout.EndVertical();
+                EditorGUILayout.Space(2);
             }
-            EditorGUILayout.Space(6);
+            EditorGUILayout.Space(10);
         }
 
-        // Redundant
-        if (redundantSnippets.Count > 0)
-        {
-            EditorGUILayout.LabelField("REDUNDANT (Duplicate Patterns)", EditorStyles.miniBoldLabel);
-            foreach (var kvp in redundantSnippets)
-            {
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.LabelField($"Group: {kvp.Key}", EditorStyles.boldLabel);
-                foreach (var snippet in kvp.Value)
-                {
-                    EditorGUILayout.LabelField($"  - {snippet.name}");
-                }
-                EditorGUILayout.EndVertical();
-            }
-            EditorGUILayout.Space(6);
-        }
-
-        // Passed
+        // ════════════════════════════════════════════════
+        // Block 4: \u2705 Passed Levels (绿色)
+        // ════════════════════════════════════════════════
         if (passedSnippets.Count > 0)
         {
-            EditorGUILayout.LabelField("PASSED", EditorStyles.miniBoldLabel);
+            GUIStyle passedHeader = new GUIStyle(EditorStyles.boldLabel)
+            {
+                fontSize = 13,
+                normal = { textColor = new Color(0.1f, 0.8f, 0.3f) }
+            };
+            EditorGUILayout.LabelField($"\u2705 Passed Levels ({passedSnippets.Count} healthy)", passedHeader);
+            EditorGUILayout.Space(4);
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
             foreach (var snippet in passedSnippets)
             {
                 EditorGUILayout.LabelField($"  \u2713 {snippet.name}");
             }
+            EditorGUILayout.EndVertical();
         }
 
         EditorGUILayout.EndScrollView();

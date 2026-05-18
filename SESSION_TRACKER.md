@@ -1412,3 +1412,29 @@ Ran static grep for remaining `stateFrames` + `SpriteStateAnimator.MotionState` 
 - Ctrl+T 静态核对：`MenuItem("MarioTrickster/Level Studio %t")`、`ShowWindow()` 与五个 Tab 路由仍保留；Level Builder 和 Cheats 均已改调 `PlayableEnvironmentBuilder.EnsurePlayableEnvironment(...)`。
 ### 后续防坑规则
 沙盒无 Unity Editor / Unity CLI，无法在本环境执行真实 Unity Test Runner。后续接手者应优先在 Unity 中打开 `Ctrl+T` 逐页点击验证，并运行 `MarioTrickster/Run Tests/Export Full Report (All)`；若出现 Canvas Prefab 缺失，不要回退旧 OnGUI HUD，应检查 `GlobalGameUICanvasPrefabBuilder.EnsurePrefabAsset()` 是否能创建标准资产。
+
+---
+## 2026-05-18 — 冗余审计与非编译产物瘦身
+### 本次目标
+在不触碰当前实现、未来必要实现、底层寻路和物理碰撞体系的前提下，审计仓库中重复、过期或生成型冗余内容，并只清理可安全复原或已被权威文档吸收的非编译输入。
+
+### 已完成修改
+1. 删除根目录历史交付 patch `0001-feat-Editor-UI_WorldSpace-Layer-isolation-for-Global.patch`。该文件只是过往提交的邮件补丁副本，真实源码变更已存在于仓库历史和当前文件中，继续跟踪会造成根目录噪声。
+2. 删除根目录生成型测试报告 `TestReport.txt`，并在 `.gitignore` 中新增 `/TestReport.txt`。`TestReportRunner` 仍会按需重新生成该文件，本次只避免报告输出被误当源码提交。
+3. 删除 `bgg_research_notes_s130.md`。其可复用结论已进入 `S130_PLAYER_EXPERIENCE_RISK_REVIEW.md` 与 `docs/GAMEPLAY_LOOP_IMPLEMENTATION_PLAN_2026-05-14.md`，包括 Hidden Movement、Push Your Luck、Take That 对 Route Budget、Heat、Residue、SilentMark 与 Counter-Reveal 的约束。
+4. 删除 `validation_notes.md`。其 `trickster_style` LoRA 甜区、污染物、负面词和量产准入结论已进入 `Assets/MarioTrickster-Art/prompts/PROMPT_RECIPES.md` 顶部权威 LoRA 卡。
+5. 在 `.gitignore` 中新增 `/manus_work/`，用于后续审计草稿和本地中间记录，避免临时工作笔记污染仓库。
+
+### 零影响校验重点
+- 本次没有修改任何 `Assets/Scripts/**/*.cs`、`Assets/Tests/**/*.cs`、场景、预制体、材质、Animator、Sprite、`ProjectSettings/TagManager.asset` 或物理相关 ProjectSettings。
+- 本次没有修改 `LevelReachabilityAnalyzer`、`AsciiLevelValidator`、`LevelDesign_References/validate_ascii_template.py`、Player/机关物理脚本或碰撞层配置。
+- 低引用 C# 候选只作为审计参考保留；Unity 菜单、MonoBehaviour、测试、事件 payload、EditorWindow 与序列化字段均不按静态引用数删除。
+
+### 已执行验证
+- `git grep` 确认被删除的历史 patch、BGG 草稿和 LoRA 验证草稿除本条交接记录外，没有被源码或权威文档按文件名依赖。
+- `python3.11 syntax_check.py` 运行结果仍只暴露既有历史失败项：`Assets/Scripts/Editor/AI_SmartSlicerWindow.cs`、`Assets/Scripts/Editor/AssetApplyToSelected.cs`、`Assets/Scripts/Editor/LevelAutoHealer.cs`、`Assets/Scripts/Editor/TestConsoleWindow.GameLoopTuning.cs`。本次未改任何 C# 文件，因此不引入新的编译面风险。
+- `python3.11 LevelDesign_References/validate_ascii_template.py`：8 个 ASCII 模板全部 PASS。
+- `git diff --check`：通过，无空白或补丁格式问题。
+
+### 后续防坑规则
+今后生成的测试报告、审计草稿和一次性交付 patch 不应直接入库；如果某份临时笔记形成可复用结论，应先并入对应权威文档（如 `SESSION_TRACKER.md`、`PROMPT_RECIPES.md`、玩法方案文档或测试指南），再删除临时笔记。

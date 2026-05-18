@@ -136,3 +136,7 @@ input/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# MarioTrickster local/generated reports
+/TestReport.txt
+/manus_work/

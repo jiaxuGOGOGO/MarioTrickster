@@ -108,12 +108,26 @@ public class SpriteAutoFit : MonoBehaviour
     }
 
     /// <summary>
+    /// 核心物理 Root 缩放防腐层：SpriteAutoFit 只能挂在 Visual 表现节点上。
+    /// </summary>
+    private bool ShouldBlockRootScaleMutation()
+    {
+        bool isRoot = GetComponent<MarioController>() != null || GetComponent<TricksterController>() != null || GetComponent<LevelElementBase>() != null;
+        if (!isRoot) return false;
+
+        Debug.LogWarning("[防腐层拦截] SpriteAutoFit 严禁缩放包含核心物理的 Root 节点！已拦截，请将其挂载到 Visual 子节点。");
+        return true;
+    }
+
+    /// <summary>
     /// Tiled 模式：使用 SpriteRenderer.drawMode = Tiled
     /// Sprite 以原始尺寸平铺，不拉伸不变形。
     /// transform.localScale 锁定为 (1,1,1)。
     /// </summary>
     private void FitTiled()
     {
+        if (ShouldBlockRootScaleMutation()) return;
+
         // 锁定 Scale 为 1（Tiled 模式下 Scale 必须为 1，否则平铺计算会错）
         transform.localScale = Vector3.one;
 
@@ -131,6 +145,8 @@ public class SpriteAutoFit : MonoBehaviour
     /// </summary>
     private void FitScaled()
     {
+        if (ShouldBlockRootScaleMutation()) return;
+
         // 确保 drawMode 是 Simple（非 Tiled/Sliced）
         sr.drawMode = SpriteDrawMode.Simple;
 
@@ -155,6 +171,8 @@ public class SpriteAutoFit : MonoBehaviour
     /// </summary>
     private void FitSliced()
     {
+        if (ShouldBlockRootScaleMutation()) return;
+
         transform.localScale = Vector3.one;
 
         sr.drawMode = SpriteDrawMode.Sliced;

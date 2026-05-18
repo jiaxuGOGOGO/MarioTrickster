@@ -335,5 +335,120 @@ public static class TA_AssetValidator
         Debug.Log($"<color=green>[TA 防御塔 3] 修复完成！共修复 {totalFixed} 个资产，跳过 {totalSkipped} 个自定义 Pivot。</color>");
         Debug.Log("<color=yellow>══════════════════════════════════════</color>");
     }
+
+    // ═══════════════════════════════════════════════════
+    // 防御塔 4：物理碰撞盒反腐败扫描 (Anti-Corruption Physics Box Validator)
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>
+    /// 一键扫描当前场景中所有核心对象的 BoxCollider2D，
+    /// 将被意外篡改的碰撞盒强制恢复到 PhysicsMetrics 定义的真理值。
+    /// </summary>
+    [MenuItem("MarioTrickster/Art Pipeline/Validate Physics Boxes (Anti-Corruption)")]
+    public static void ValidateCorePhysicsBoxes()
+    {
+        Debug.Log("<color=yellow>══════════════════════════════════════</color>");
+        Debug.Log("<color=yellow>[TA 防御塔 4] 开始物理碰撞盒反腐败扫描...</color>");
+        Debug.Log("<color=yellow>══════════════════════════════════════</color>");
+
+        bool isDirty = false;
+        int fixedCount = 0;
+
+        // ── Mario ──
+        var marios = Object.FindObjectsByType<MarioController>(FindObjectsSortMode.None);
+        foreach (var mario in marios)
+        {
+            BoxCollider2D col = mario.GetComponent<BoxCollider2D>();
+            if (col == null) continue;
+
+            Vector2 expectedSize = new Vector2(PhysicsMetrics.MARIO_COLLIDER_WIDTH, PhysicsMetrics.MARIO_COLLIDER_HEIGHT);
+            float expectedOffsetY = PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
+
+            if (col.size != expectedSize || !Mathf.Approximately(col.offset.y, expectedOffsetY))
+            {
+                Debug.LogWarning($"[TA 防御塔 4] MarioController '{mario.gameObject.name}' 碰撞盒被篡改！" +
+                    $" Size: {col.size} → {expectedSize}, Offset.y: {col.offset.y} → {expectedOffsetY}。已强制恢复。");
+                col.size = expectedSize;
+                col.offset = new Vector2(col.offset.x, expectedOffsetY);
+                isDirty = true;
+                fixedCount++;
+            }
+        }
+
+        // ── Trickster ──
+        var tricksters = Object.FindObjectsByType<TricksterController>(FindObjectsSortMode.None);
+        foreach (var trickster in tricksters)
+        {
+            BoxCollider2D col = trickster.GetComponent<BoxCollider2D>();
+            if (col == null) continue;
+
+            Vector2 expectedSize = new Vector2(PhysicsMetrics.TRICKSTER_COLLIDER_WIDTH, PhysicsMetrics.TRICKSTER_COLLIDER_HEIGHT);
+            float expectedOffsetY = PhysicsMetrics.TRICKSTER_COLLIDER_OFFSET_Y;
+
+            if (col.size != expectedSize || !Mathf.Approximately(col.offset.y, expectedOffsetY))
+            {
+                Debug.LogWarning($"[TA 防御塔 4] TricksterController '{trickster.gameObject.name}' 碰撞盒被篡改！" +
+                    $" Size: {col.size} → {expectedSize}, Offset.y: {col.offset.y} → {expectedOffsetY}。已强制恢复。");
+                col.size = expectedSize;
+                col.offset = new Vector2(col.offset.x, expectedOffsetY);
+                isDirty = true;
+                fixedCount++;
+            }
+        }
+
+        // ── SpikeTrap ──
+        var spikes = Object.FindObjectsByType<SpikeTrap>(FindObjectsSortMode.None);
+        foreach (var spike in spikes)
+        {
+            BoxCollider2D col = spike.GetComponent<BoxCollider2D>();
+            if (col == null) continue;
+
+            Vector2 expectedSize = PhysicsMetrics.SPIKE_COLLIDER_SIZE;
+            Vector2 expectedOffset = new Vector2(0f, PhysicsMetrics.SPIKE_COLLIDER_OFFSET_Y);
+
+            if (col.size != expectedSize || col.offset != expectedOffset)
+            {
+                Debug.LogWarning($"[TA 防御塔 4] SpikeTrap '{spike.gameObject.name}' 碰撞盒被篡改！" +
+                    $" Size: {col.size} → {expectedSize}, Offset: {col.offset} → {expectedOffset}。已强制恢复。");
+                col.size = expectedSize;
+                col.offset = expectedOffset;
+                isDirty = true;
+                fixedCount++;
+            }
+        }
+
+        // ── BouncyPlatform ──
+        var bouncyPlatforms = Object.FindObjectsByType<BouncyPlatform>(FindObjectsSortMode.None);
+        foreach (var bouncy in bouncyPlatforms)
+        {
+            BoxCollider2D col = bouncy.GetComponent<BoxCollider2D>();
+            if (col == null) continue;
+
+            Vector2 expectedSize = PhysicsMetrics.BOUNCY_COLLIDER_SIZE;
+
+            if (col.size != expectedSize)
+            {
+                Debug.LogWarning($"[TA 防御塔 4] BouncyPlatform '{bouncy.gameObject.name}' 碰撞盒被篡改！" +
+                    $" Size: {col.size} → {expectedSize}。已强制恢复。");
+                col.size = expectedSize;
+                isDirty = true;
+                fixedCount++;
+            }
+        }
+
+        // ── 标记场景为脏（触发保存） ──
+        if (isDirty)
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+            Debug.LogWarning($"<color=red>[TA 防御塔 4] 扫描完成，共修复 {fixedCount} 个被篡改的碰撞盒。场景已标记为需保存。</color>");
+        }
+        else
+        {
+            Debug.Log("<color=green>[TA 防御塔 4] 扫描完成，所有碰撞盒均符合 PhysicsMetrics 真理值。基建安全！</color>");
+        }
+
+        Debug.Log("<color=yellow>══════════════════════════════════════</color>");
+    }
 }
 #endif

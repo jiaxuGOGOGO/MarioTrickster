@@ -107,6 +107,9 @@ public class HeuristicBotInputProvider : IInputProvider
 
     // ── Persona 行为注入：神经质扫描计时器 ──
     private float _randomScanTimer = 0f;
+
+    // ── 阶段完成日志（仅打印一次） ──
+    private static bool _personaLogPrinted = false;
     private MarioCounterplayProbe _probe;
     private bool _marioCacheReady;
     private float _jumpHoldTimer;
@@ -215,6 +218,11 @@ public class HeuristicBotInputProvider : IInputProvider
     /// </summary>
     public void Tick(float dt)
     {
+        if (!_personaLogPrinted)
+        {
+            _personaLogPrinted = true;
+            Debug.Log("<color=#00FF88><b>[AI Arena] 第二阶段：拟人化灵魂注入完成</b></color>");
+        }
         ResetDownFlags();
         UpdateMarioBrain(dt);
         UpdateTricksterBrain(dt);
@@ -1057,6 +1065,11 @@ public class HeuristicBotInputProvider : IInputProvider
         _lastMarioPosValid = false;
         _stuckEscapeTimer = 0f;
 
+        // Persona 行为注入状态重置
+        _marioReactionTimer = 0f;
+        _dangerDetectedLastFrame = false;
+        _randomScanTimer = 0f;
+
         _tricksterCacheReady = false;
         _trickster = null;
         _gate = null;
@@ -1150,6 +1163,11 @@ public class HeuristicBotInputProvider : IInputProvider
         p2JumpHeld = false;
 
         _jumpHoldTimer = 0f;
+
+        // Persona 行为注入状态重置
+        _marioReactionTimer = 0f;
+        _dangerDetectedLastFrame = false;
+        _randomScanTimer = 0f;
 
         ResetDownFlags();
         InvalidateCache();

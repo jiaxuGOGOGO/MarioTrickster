@@ -1,6 +1,8 @@
 using UnityEngine;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Text.RegularExpressions;
 
 /// <summary>
 /// ASCII 关卡模板生成器 — 基于 AsciiElementRegistry 的数据驱动字符解析系统
@@ -203,6 +205,32 @@ public static class AsciiLevelGenerator
 
         InitElementMap();
 
+        // ── S6 Override 解析：从模板中提取 # Override_{x}_{y}: pointB={px},{py} 标签 ──
+        Dictionary<Vector2Int, Vector3> platformOverrides = new Dictionary<Vector2Int, Vector3>();
+        {
+            string[] overrideLines = template.Split('\n');
+            // 匹配格式: # Override_{x}_{y}: pointB={px},{py}
+            Regex overrideRegex = new Regex(@"^#\s*Override_(\d+)_(\d+):\s*pointB=([\-\d\.]+),([\-\d\.]+)",
+                RegexOptions.Compiled);
+            foreach (string oLine in overrideLines)
+            {
+                string trimmed = oLine.TrimEnd('\r');
+                Match m = overrideRegex.Match(trimmed);
+                if (m.Success)
+                {
+                    int ox = int.Parse(m.Groups[1].Value);
+                    int oy = int.Parse(m.Groups[2].Value);
+                    float px = float.Parse(m.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    float py = float.Parse(m.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    platformOverrides[new Vector2Int(ox, oy)] = new Vector3(px, py, 0f);
+                }
+            }
+            if (platformOverrides.Count > 0)
+            {
+                Debug.Log($"[AsciiLevelGen] Parsed {platformOverrides.Count} platform override(s).");
+            }
+        }
+
         // 创建根节点
         GameObject root = new GameObject(ROOT_NAME);
         rootTransform = root.transform;
@@ -241,6 +269,40 @@ public static class AsciiLevelGenerator
                 else if (c != '\r' && c != '\n')
                 {
                     Debug.LogWarning($"[AsciiLevelGen] Unknown char '{c}' at ({col}, {worldY}), skipped.");
+                }
+            }
+        }
+
+        // ── S6 Override 应用：遍历生成的子物体，按网格坐标查字典并反射赋值 pointB ──
+        if (platformOverrides.Count > 0)
+        {
+            FieldInfo movingPointB = typeof(MovingPlatform).GetField("pointB",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo controllablePointB = typeof(ControllablePlatform).GetField("pointB",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+
+            foreach (Transform child in rootTransform)
+            {
+                Vector3 pos = child.position;
+                int gridX = Mathf.RoundToInt(pos.x);
+                int gridY = Mathf.RoundToInt(pos.y);
+                Vector2Int key = new Vector2Int(gridX, gridY);
+
+                if (platformOverrides.TryGetValue(key, out Vector3 overridePointB))
+                {
+                    MovingPlatform mp = child.GetComponent<MovingPlatform>();
+                    if (mp != null && movingPointB != null)
+                    {
+                        movingPointB.SetValue(mp, overridePointB);
+                        Debug.Log($"[AsciiLevelGen] Override applied: MovingPlatform at ({gridX},{gridY}) pointB={overridePointB}");
+                    }
+
+                    ControllablePlatform cp = child.GetComponent<ControllablePlatform>();
+                    if (cp != null && controllablePointB != null)
+                    {
+                        controllablePointB.SetValue(cp, overridePointB);
+                        Debug.Log($"[AsciiLevelGen] Override applied: ControllablePlatform at ({gridX},{gridY}) pointB={overridePointB}");
+                    }
                 }
             }
         }

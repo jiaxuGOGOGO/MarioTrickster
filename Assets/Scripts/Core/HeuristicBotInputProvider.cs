@@ -43,6 +43,17 @@ using UnityEngine;
 public class HeuristicBotInputProvider : IInputProvider
 {
     // ═══════════════════════════════════════════════════════════
+    // Bot Persona 配置（外部注入）
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 当前生效的 AI 画像配置。
+    /// 由外部（AIArena 面板或 HybridInputProvider）注入。
+    /// 为 null 时使用硬编码默认值，保持向后兼容。
+    /// </summary>
+    public BotPersonaConfigSO Persona;
+
+    // ═══════════════════════════════════════════════════════════
     // P1 (Mario) 输入字段
     // ═══════════════════════════════════════════════════════════
 

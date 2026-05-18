@@ -54,6 +54,17 @@ public class HybridInputProvider : IInputProvider
     private readonly HeuristicBotInputProvider bot = new HeuristicBotInputProvider();
 
     // ═══════════════════════════════════════════════════════════
+    // Bot Persona 配置（外部注入，自动同步到 bot）
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// 当前生效的 AI 画像配置。
+    /// 赋值后会在每帧 Tick 中自动同步给内部 bot。
+    /// 可通过 AIArena 面板或代码动态切换。
+    /// </summary>
+    public BotPersonaConfigSO Persona;
+
+    // ═══════════════════════════════════════════════════════════
     // 公开控制：人机切换
     // ═══════════════════════════════════════════════════════════
 
@@ -107,6 +118,9 @@ public class HybridInputProvider : IInputProvider
     /// </summary>
     public void Tick(float dt)
     {
+        // 0. 同步 Persona 配置到 bot（支持运行时热切换）
+        bot.Persona = Persona;
+
         // 1. 更新 keyboard（手柄检测）
         keyboard.UpdateGamepads();
 

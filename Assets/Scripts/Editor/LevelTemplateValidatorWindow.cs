@@ -4,409 +4,382 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Level Template Validator Window — 关卡模板片段 QA 校验工具
+/// Level Template Validator Window — 第五阶段：关卡模板自动化回归与去重。
 ///
-/// 核心职责：
-///   扫描 LevelSnippetLibrary 中所有 Snippet，执行物理可达性、标签完整性、
-///   冗余检测等校验，将结果分类展示（通过 / 损坏 / 冗余 / 未标记），
-///   辅助关卡设计师快速定位问题片段。
+/// The Content Enforcer 负责从源头巡检 LevelSnippetLibrary：
+///   1. 对所有 Snippet 执行可达性回归；
+///   2. 使用设计标签构建语义指纹；
+///   3. 将不可达、重复、未打标签与健康模板分区展示；
+///   4. 为不可达模板提供一键复制 AI 修复提示词能力。
 ///
-/// 仅依赖 Unity 原生库，零第三方依赖。
+/// 仅依赖现有 LevelSnippetLibrary 与 LevelReachabilityAnalyzer，不引入外部库。
 /// </summary>
 public class LevelTemplateValidatorWindow : EditorWindow
 {
     // ═══════════════════════════════════════════════════
     // MenuItem 入口
     // ═══════════════════════════════════════════════════
+
     [MenuItem("MarioTrickster/AI Arena/Level Template Validator (QA)")]
     public static void ShowWindow()
     {
-        var window = GetWindow<LevelTemplateValidatorWindow>("Level Template Validator");
-        window.minSize = new Vector2(520, 400);
+        LevelTemplateValidatorWindow window = GetWindow<LevelTemplateValidatorWindow>("Level Template Validator");
+        window.minSize = new Vector2(560f, 420f);
         window.Show();
     }
 
     // ═══════════════════════════════════════════════════
-    // GUI 状态变量
+    // GUI 变量与扫描结果缓存
     // ═══════════════════════════════════════════════════
+
     private Vector2 scrollPos;
 
-    // ═══════════════════════════════════════════════════
-    // 扫描结果缓存
-    // ═══════════════════════════════════════════════════
-
-    /// <summary>通过校验的片段列表</summary>
     private List<LevelSnippetLibrary.Snippet> passedSnippets = new List<LevelSnippetLibrary.Snippet>();
-
-    /// <summary>存在物理缺陷或格式错误的片段列表</summary>
     private List<LevelSnippetLibrary.Snippet> brokenSnippets = new List<LevelSnippetLibrary.Snippet>();
-
-    /// <summary>冗余片段（按重复特征分组）：key 为冗余特征描述，value 为该组重复片段</summary>
     private Dictionary<string, List<LevelSnippetLibrary.Snippet>> redundantSnippets =
         new Dictionary<string, List<LevelSnippetLibrary.Snippet>>();
-
-    /// <summary>缺少关键标签（MainRoute/TrapRoles/TestGoal 等）的片段列表</summary>
     private List<LevelSnippetLibrary.Snippet> untaggedSnippets = new List<LevelSnippetLibrary.Snippet>();
-
-    /// <summary>每个问题片段对应的详细报错信息</summary>
     private Dictionary<LevelSnippetLibrary.Snippet, string> errorPrompts =
         new Dictionary<LevelSnippetLibrary.Snippet, string>();
 
-    /// <summary>是否已执行过扫描</summary>
     private bool hasScanned = false;
+    private int lastScannedTotal = 0;
 
     // ═══════════════════════════════════════════════════
-    // 生命周期
+    // Unity Editor GUI
     // ═══════════════════════════════════════════════════
-    private void OnEnable()
-    {
-        ClearResults();
-    }
 
-    // ═══════════════════════════════════════════════════
-    // OnGUI
-    // ═══════════════════════════════════════════════════
     private void OnGUI()
     {
-        // ── 窗口标题 ──
-        EditorGUILayout.Space(10);
+        DrawHeader();
+
+        Color oldBackgroundColor = GUI.backgroundColor;
+        GUI.backgroundColor = new Color(0.25f, 0.55f, 1f);
+        if (GUILayout.Button("🚀 Run Full Regression & Deduplication", GUILayout.Height(40)))
+        {
+            RunValidationAndDeduplication();
+        }
+        GUI.backgroundColor = oldBackgroundColor;
+
+        EditorGUILayout.Space(8f);
+
+        if (!hasScanned)
+        {
+            EditorGUILayout.HelpBox(
+                "点击上方按钮后，将扫描 LevelSnippetLibrary.GetAllSnippets() 返回的全部关卡模板，并按不可达、语义重复、缺少标签与健康模板四类输出 QA 报告。",
+                MessageType.Info);
+            return;
+        }
+
+        DrawSummary();
+
+        scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.ExpandHeight(true));
+        DrawBrokenLevelsBlock();
+        DrawRedundantTemplatesBlock();
+        DrawUntaggedTemplatesBlock();
+        DrawPassedLevelsBlock();
+        EditorGUILayout.EndScrollView();
+    }
+
+    private void DrawHeader()
+    {
+        EditorGUILayout.Space(10f);
+
         GUIStyle titleStyle = new GUIStyle(EditorStyles.boldLabel)
         {
             fontSize = 16,
             alignment = TextAnchor.MiddleCenter
         };
         EditorGUILayout.LabelField("Level Template Validator (QA)", titleStyle);
-        EditorGUILayout.Space(8);
 
-        // ── 醒目大按钮 ──
-        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-        Color originalBg = GUI.backgroundColor;
-        GUI.backgroundColor = new Color(0.2f, 0.6f, 1f);
-        GUIStyle bigButtonStyle = new GUIStyle(GUI.skin.button)
+        GUIStyle subtitleStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel)
         {
-            fontStyle = FontStyle.Bold,
-            fontSize = 13
+            wordWrap = true
         };
-        if (GUILayout.Button("\U0001F680 Run Full Regression & Deduplication", bigButtonStyle, GUILayout.Height(40)))
-        {
-            RunValidationAndDeduplication();
-        }
-        GUI.backgroundColor = originalBg;
-        EditorGUILayout.Space(8);
+        EditorGUILayout.LabelField("The Content Enforcer — Physical Regression + Semantic Deduplication", subtitleStyle);
+        EditorGUILayout.Space(8f);
+    }
 
-        if (!hasScanned)
+    private void DrawSummary()
+    {
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+        EditorGUILayout.LabelField("Scan Summary", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField(
+            $"Total: {lastScannedTotal}  |  " +
+            $"❌ Broken: {brokenSnippets.Count}  |  " +
+            $"🔄 Redundant Groups: {redundantSnippets.Count}  |  " +
+            $"⚠️ Untagged: {untaggedSnippets.Count}  |  " +
+            $"✅ Passed: {passedSnippets.Count}");
+        EditorGUILayout.Space(8f);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Block 1: Broken Levels
+    // ═══════════════════════════════════════════════════
+
+    private void DrawBrokenLevelsBlock()
+    {
+        DrawSectionHeader("❌ Broken Levels", new Color(0.9f, 0.2f, 0.2f));
+
+        if (brokenSnippets.Count == 0)
         {
-            EditorGUILayout.HelpBox("Click the button above to scan all snippets in LevelSnippetLibrary.", MessageType.Info);
+            EditorGUILayout.HelpBox("未发现物理不可达或格式异常的关卡模板。", MessageType.Info);
+            EditorGUILayout.Space(8f);
             return;
         }
 
-        // ── 结果摘要 ──
-        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-        GUIStyle summaryStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 12 };
-        EditorGUILayout.LabelField("Scan Summary", summaryStyle);
-        EditorGUILayout.Space(4);
-
-        int totalSnippets = LevelSnippetLibrary.GetAllSnippets().Count;
-        EditorGUILayout.LabelField($"Total Snippets: {totalSnippets}");
-        EditorGUILayout.LabelField(
-            $"\u2705 Passed: {passedSnippets.Count}  |  " +
-            $"\u274C Broken: {brokenSnippets.Count}  |  " +
-            $"\u26A0\uFE0F Untagged: {untaggedSnippets.Count}  |  " +
-            $"\U0001F504 Redundant Groups: {redundantSnippets.Count}");
-
-        EditorGUILayout.Space(10);
-
-        // ── 详细结果滚动区 ──
-        scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.ExpandHeight(true));
-
-        // ════════════════════════════════════════════════
-        // Block 1: ❌ Broken Levels (红色)
-        // ════════════════════════════════════════════════
-        if (brokenSnippets.Count > 0)
+        foreach (LevelSnippetLibrary.Snippet snippet in brokenSnippets)
         {
-            GUIStyle brokenHeader = new GUIStyle(EditorStyles.boldLabel)
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(GetSnippetName(snippet), EditorStyles.boldLabel);
+
+            if (GUILayout.Button("[Copy AI Fix Prompt]", GUILayout.Width(160f)))
             {
-                fontSize = 13,
-                normal = { textColor = new Color(0.9f, 0.2f, 0.2f) }
-            };
-            EditorGUILayout.LabelField("\u274C Broken Levels (Physical / Format Errors)", brokenHeader);
-            EditorGUILayout.Space(4);
-
-            foreach (var snippet in brokenSnippets)
-            {
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(snippet.name, EditorStyles.boldLabel);
-
-                // Copy AI Fix Prompt 按钮
-                if (errorPrompts.ContainsKey(snippet))
-                {
-                    if (GUILayout.Button("[Copy AI Fix Prompt]", GUILayout.Width(150)))
-                    {
-                        EditorGUIUtility.systemCopyBuffer = errorPrompts[snippet];
-                        Debug.Log($"[Level Template Validator] \u2705 已复制修复提示词: {snippet.name}");
-                    }
-                }
-                EditorGUILayout.EndHorizontal();
-
-                if (errorPrompts.ContainsKey(snippet))
-                {
-                    // 截取摘要显示，避免过长
-                    string summary = errorPrompts[snippet];
-                    if (summary.Length > 300)
-                        summary = summary.Substring(0, 297) + "...";
-                    EditorGUILayout.HelpBox(summary, MessageType.Error);
-                }
-                EditorGUILayout.EndVertical();
-                EditorGUILayout.Space(2);
+                string prompt = errorPrompts.ContainsKey(snippet) ? errorPrompts[snippet] : "";
+                EditorGUIUtility.systemCopyBuffer = prompt;
+                Debug.Log($"[AI Arena] 已复制修复提示词：{GetSnippetName(snippet)}");
             }
-            EditorGUILayout.Space(10);
+
+            EditorGUILayout.EndHorizontal();
+
+            string errorPrompt = errorPrompts.ContainsKey(snippet)
+                ? errorPrompts[snippet]
+                : "No ErrorPrompt was provided by LevelReachabilityAnalyzer.";
+            EditorGUILayout.HelpBox(MakeSummary(errorPrompt, 420), MessageType.Error);
+            EditorGUILayout.EndVertical();
         }
 
-        // ════════════════════════════════════════════════
-        // Block 2: \U0001F504 Redundant Templates (黄色)
-        // ════════════════════════════════════════════════
-        if (redundantSnippets.Count > 0)
+        EditorGUILayout.Space(8f);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Block 2: Redundant Templates
+    // ═══════════════════════════════════════════════════
+
+    private void DrawRedundantTemplatesBlock()
+    {
+        DrawSectionHeader("🔄 Redundant Templates", new Color(0.9f, 0.7f, 0.1f));
+
+        if (redundantSnippets.Count == 0)
         {
-            GUIStyle redundantHeader = new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 13,
-                normal = { textColor = new Color(0.9f, 0.7f, 0.1f) }
-            };
-            EditorGUILayout.LabelField("\U0001F504 Redundant Templates (Semantic Duplicates)", redundantHeader);
-            EditorGUILayout.Space(4);
-
-            foreach (var kvp in redundantSnippets)
-            {
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-
-                // 指纹信息
-                EditorGUILayout.LabelField($"Fingerprint: {kvp.Key}", EditorStyles.miniLabel);
-
-                // 列出共享该指纹的关卡名称
-                System.Text.StringBuilder sb = new System.Text.StringBuilder();
-                sb.Append($"\u26A0\uFE0F 发现 {kvp.Value.Count} 个关卡的博弈解法完全一致\uFF1a");
-                for (int i = 0; i < kvp.Value.Count; i++)
-                {
-                    if (i > 0) sb.Append(", ");
-                    sb.Append(kvp.Value[i].name);
-                }
-                EditorGUILayout.HelpBox(sb.ToString(), MessageType.Warning);
-
-                EditorGUILayout.EndVertical();
-                EditorGUILayout.Space(2);
-            }
-            EditorGUILayout.Space(10);
+            EditorGUILayout.HelpBox("未发现语义指纹重复的模板组。", MessageType.Info);
+            EditorGUILayout.Space(8f);
+            return;
         }
 
-        // ════════════════════════════════════════════════
-        // Block 3: \u26A0\uFE0F Untagged Templates (灰色)
-        // ════════════════════════════════════════════════
-        if (untaggedSnippets.Count > 0)
+        foreach (KeyValuePair<string, List<LevelSnippetLibrary.Snippet>> kvp in redundantSnippets)
         {
-            GUIStyle untaggedHeader = new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 13,
-                normal = { textColor = new Color(0.6f, 0.6f, 0.6f) }
-            };
-            EditorGUILayout.LabelField("\u26A0\uFE0F Untagged Templates (Missing Design Tags)", untaggedHeader);
-            EditorGUILayout.Space(4);
-
-            foreach (var snippet in untaggedSnippets)
-            {
-                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                EditorGUILayout.LabelField(snippet.name, EditorStyles.boldLabel);
-                string tagHint = "请补齐设计标签: # MainRoute, # ShadowRoute, # TrapRoles, # Budget";
-                if (errorPrompts.ContainsKey(snippet))
-                {
-                    tagHint = errorPrompts[snippet] + "\n" + tagHint;
-                }
-                EditorGUILayout.HelpBox(tagHint, MessageType.Info);
-                EditorGUILayout.EndVertical();
-                EditorGUILayout.Space(2);
-            }
-            EditorGUILayout.Space(10);
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField($"Fingerprint: {kvp.Key}", EditorStyles.miniLabel);
+            EditorGUILayout.HelpBox(
+                $"⚠️ 发现 {kvp.Value.Count} 个关卡的博弈解法完全一致：{JoinSnippetNames(kvp.Value)}",
+                MessageType.Warning);
+            EditorGUILayout.EndVertical();
         }
 
-        // ════════════════════════════════════════════════
-        // Block 4: \u2705 Passed Levels (绿色)
-        // ════════════════════════════════════════════════
+        EditorGUILayout.Space(8f);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Block 3: Untagged Templates
+    // ═══════════════════════════════════════════════════
+
+    private void DrawUntaggedTemplatesBlock()
+    {
+        DrawSectionHeader("⚠️ Untagged Templates", new Color(0.6f, 0.6f, 0.6f));
+
+        if (untaggedSnippets.Count == 0)
+        {
+            EditorGUILayout.HelpBox("所有物理可达模板均已具备可用于语义去重的设计标签。", MessageType.Info);
+            EditorGUILayout.Space(8f);
+            return;
+        }
+
+        foreach (LevelSnippetLibrary.Snippet snippet in untaggedSnippets)
+        {
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            EditorGUILayout.LabelField(GetSnippetName(snippet), EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "缺少可用设计标签。请策划补齐 # MainRoute、# ShadowRoute、# TrapRoles、# Budget 等元数据，以便语义指纹去重。",
+                MessageType.None);
+            EditorGUILayout.EndVertical();
+        }
+
+        EditorGUILayout.Space(8f);
+    }
+
+    // ═══════════════════════════════════════════════════
+    // Block 4: Passed Levels
+    // ═══════════════════════════════════════════════════
+
+    private void DrawPassedLevelsBlock()
+    {
+        DrawSectionHeader("✅ Passed Levels", new Color(0.1f, 0.8f, 0.3f));
+        EditorGUILayout.HelpBox($"共有 {passedSnippets.Count} 个物理可达且标签规范的健康关卡。", MessageType.Info);
+
         if (passedSnippets.Count > 0)
         {
-            GUIStyle passedHeader = new GUIStyle(EditorStyles.boldLabel)
-            {
-                fontSize = 13,
-                normal = { textColor = new Color(0.1f, 0.8f, 0.3f) }
-            };
-            EditorGUILayout.LabelField($"\u2705 Passed Levels ({passedSnippets.Count} healthy)", passedHeader);
-            EditorGUILayout.Space(4);
-
             EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-            foreach (var snippet in passedSnippets)
+            foreach (LevelSnippetLibrary.Snippet snippet in passedSnippets)
             {
-                EditorGUILayout.LabelField($"  \u2713 {snippet.name}");
+                EditorGUILayout.LabelField($"✓ {GetSnippetName(snippet)}");
             }
             EditorGUILayout.EndVertical();
         }
 
-        EditorGUILayout.EndScrollView();
+        EditorGUILayout.Space(8f);
     }
 
-    // ═══════════════════════════════════════════════════
-    // 校验逻辑（物理回归 + 语义检查 + 冗余检测）
-    // ═══════════════════════════════════════════════════
-
-    /// <summary>旧入口保留，委托给新方法</summary>
-    private void RunValidation()
+    private void DrawSectionHeader(string title, Color color)
     {
-        RunValidationAndDeduplication();
+        GUIStyle headerStyle = new GUIStyle(EditorStyles.boldLabel)
+        {
+            fontSize = 13,
+            normal = { textColor = color }
+        };
+        EditorGUILayout.LabelField(title, headerStyle);
+        EditorGUILayout.Space(3f);
     }
 
-    /// <summary>
-    /// 核心校验方法：清空缓存 → 物理可达性回归 → 语义标签检查 → 冗余检测。
-    /// 每次点击时清空上轮结果，重新全量扫描。
-    /// </summary>
+    // ═══════════════════════════════════════════════════
+    // 核心逻辑：物理回归 + 语义指纹去重
+    // ═══════════════════════════════════════════════════
+
     private void RunValidationAndDeduplication()
     {
         ClearResults();
         hasScanned = true;
 
         List<LevelSnippetLibrary.Snippet> allSnippets = LevelSnippetLibrary.GetAllSnippets();
+        lastScannedTotal = allSnippets != null ? allSnippets.Count : 0;
+
         if (allSnippets == null || allSnippets.Count == 0)
         {
-            Debug.LogWarning("[Level Template Validator] No snippets found in LevelSnippetLibrary.");
+            Debug.LogWarning("[AI Arena] LevelTemplateValidatorWindow 未找到任何 LevelSnippetLibrary.Snippet。");
             return;
         }
 
-        // 物理可达的片段暂存列表，等待第二阶段语义指纹去重
-        List<LevelSnippetLibrary.Snippet> physicallyReachable = new List<LevelSnippetLibrary.Snippet>();
-
-        foreach (var snippet in allSnippets)
-        {
-            bool isBroken = false;
-            List<string> errors = new List<string>();
-
-            // ── 基础格式校验 ──
-            if (string.IsNullOrWhiteSpace(snippet.ascii))
-            {
-                errors.Add("ASCII content is empty or whitespace-only.");
-                isBroken = true;
-            }
-
-            if (snippet.width <= 0 || snippet.height <= 0)
-            {
-                errors.Add($"Invalid dimensions: width={snippet.width}, height={snippet.height}.");
-                isBroken = true;
-            }
-
-            // ── 物理可达性回归测试 (Physical Regression) ──
-            // 传 true 声明为 Snippet 模式，避免强校验 M/G 点报错。
-            // 对于包含 M 和 G 的片段，传 false 以触发完整 BFS 可达性分析。
-            if (!isBroken && !string.IsNullOrWhiteSpace(snippet.ascii))
-            {
-                bool hasStart = snippet.ascii.Contains("M");
-                bool hasGoal = snippet.ascii.Contains("G");
-                bool useSnippetMode = !(hasStart && hasGoal);
-
-                var reachResult = LevelReachabilityAnalyzer.Analyze(snippet.ascii, useSnippetMode);
-
-                if (reachResult != null && !reachResult.IsReachable)
-                {
-                    isBroken = true;
-                    string reachError = "[Physical Regression] BFS unreachable: ";
-                    if (!string.IsNullOrEmpty(reachResult.ErrorPrompt))
-                    {
-                        reachError += reachResult.ErrorPrompt;
-                    }
-                    else
-                    {
-                        reachError += reachResult.GetReport();
-                    }
-                    errors.Add(reachError);
-                }
-            }
-
-            // ── 分类（第一轮：仅处理 broken）──
-            if (isBroken)
-            {
-                brokenSnippets.Add(snippet);
-                errorPrompts[snippet] = string.Join("\n", errors);
-            }
-            else
-            {
-                // 物理可达的片段暂存，等待语义指纹去重
-                physicallyReachable.Add(snippet);
-            }
-        }
-
-        // ═══════════════════════════════════════════════════
-        // 第二阶段：语义指纹去重 (Semantic Deduplication)
-        // ═══════════════════════════════════════════════════
         Dictionary<string, List<LevelSnippetLibrary.Snippet>> fingerprintGroups =
             new Dictionary<string, List<LevelSnippetLibrary.Snippet>>();
 
-        foreach (var snippet in physicallyReachable)
+        foreach (LevelSnippetLibrary.Snippet snippet in allSnippets)
         {
-            // 构建语义指纹：将标签组合为小写字符串
-            string fingerprint = $"{snippet.MainRoute}|{snippet.ShadowRoute}|{snippet.TrapRoles}|{snippet.Budget}".Trim().ToLower();
+            if (snippet == null)
+                continue;
 
-            // 判断指纹是否为空/无效（全是分隔符或不含有效字母数字）
-            bool isEmptyFingerprint = true;
-            foreach (char c in fingerprint)
+            LevelReachabilityAnalyzer.ReachabilityResult reachResult = AnalyzeSnippetReachability(snippet);
+            if (reachResult != null && !reachResult.IsReachable)
             {
-                if (char.IsLetterOrDigit(c))
-                {
-                    isEmptyFingerprint = false;
-                    break;
-                }
+                brokenSnippets.Add(snippet);
+                errorPrompts[snippet] = !string.IsNullOrEmpty(reachResult.ErrorPrompt)
+                    ? reachResult.ErrorPrompt
+                    : reachResult.GetReport();
+                continue;
             }
 
-            if (isEmptyFingerprint)
+            string fingerprint = BuildSemanticFingerprint(snippet);
+            if (IsUntaggedFingerprint(fingerprint))
             {
-                // 未打标签
                 untaggedSnippets.Add(snippet);
-                List<string> missingTags = new List<string>();
-                if (string.IsNullOrEmpty(snippet.MainRoute)) missingTags.Add("MainRoute");
-                if (string.IsNullOrEmpty(snippet.ShadowRoute)) missingTags.Add("ShadowRoute");
-                if (string.IsNullOrEmpty(snippet.TrapRoles)) missingTags.Add("TrapRoles");
-                if (string.IsNullOrEmpty(snippet.Budget)) missingTags.Add("Budget");
-                errorPrompts[snippet] = "Missing tags (empty semantic fingerprint): " + string.Join(", ", missingTags);
+                continue;
             }
-            else
+
+            if (!fingerprintGroups.ContainsKey(fingerprint))
             {
-                // 按指纹分组
-                if (!fingerprintGroups.ContainsKey(fingerprint))
-                {
-                    fingerprintGroups[fingerprint] = new List<LevelSnippetLibrary.Snippet>();
-                }
-                fingerprintGroups[fingerprint].Add(snippet);
+                fingerprintGroups[fingerprint] = new List<LevelSnippetLibrary.Snippet>();
             }
+            fingerprintGroups[fingerprint].Add(snippet);
         }
 
-        // 遍历指纹分组：Count > 1 为冗余，Count == 1 为通过
-        foreach (var kvp in fingerprintGroups)
+        foreach (KeyValuePair<string, List<LevelSnippetLibrary.Snippet>> kvp in fingerprintGroups)
         {
             if (kvp.Value.Count > 1)
             {
-                // 语义冗余：相同设计意图的多个片段
-                string groupLabel = $"Semantic Duplicate ({kvp.Value.Count} snippets): {kvp.Key}";
-                // 截断过长的指纹标签用于显示
-                if (groupLabel.Length > 120)
-                    groupLabel = groupLabel.Substring(0, 117) + "...";
-                redundantSnippets[groupLabel] = kvp.Value;
+                redundantSnippets[kvp.Key] = kvp.Value;
             }
-            else
+            else if (kvp.Value.Count == 1)
             {
-                // 设计意图唯一且物理可达 → 通过
                 passedSnippets.Add(kvp.Value[0]);
             }
         }
 
-        Debug.Log($"[Level Template Validator] Scan complete: {passedSnippets.Count} passed, " +
-            $"{brokenSnippets.Count} broken, {untaggedSnippets.Count} untagged, " +
-            $"{redundantSnippets.Count} redundant groups.");
+        Debug.Log(
+            $"[AI Arena] Level Template Validator scan complete: total={lastScannedTotal}, " +
+            $"broken={brokenSnippets.Count}, redundantGroups={redundantSnippets.Count}, " +
+            $"untagged={untaggedSnippets.Count}, passed={passedSnippets.Count}.");
+        Debug.Log("[AI Arena] 第五阶段：关卡模板自动化去重与回归验证（The Content Enforcer）部署完成");
 
         Repaint();
+    }
+
+    /// <summary>
+    /// 调用现有 LevelReachabilityAnalyzer。
+    /// Snippet 默认不强制要求 M/G；若模板显式同时包含 M 与 G，则启用完整 BFS，避免真正完整模板被误放行。
+    /// </summary>
+    private LevelReachabilityAnalyzer.ReachabilityResult AnalyzeSnippetReachability(LevelSnippetLibrary.Snippet snippet)
+    {
+        if (snippet == null || string.IsNullOrEmpty(snippet.ascii))
+        {
+            LevelReachabilityAnalyzer.ReachabilityResult emptyResult =
+                new LevelReachabilityAnalyzer.ReachabilityResult();
+            emptyResult.IsReachable = false;
+            emptyResult.ErrorPrompt = "Snippet ASCII is empty; please provide a valid ASCII template before QA validation.";
+            return emptyResult;
+        }
+
+        bool hasStart = snippet.ascii.Contains("M");
+        bool hasGoal = snippet.ascii.Contains("G");
+        bool isSnippetMode = !(hasStart && hasGoal);
+
+        return LevelReachabilityAnalyzer.Analyze(snippet.ascii, isSnippetMode);
+    }
+
+    private string BuildSemanticFingerprint(LevelSnippetLibrary.Snippet snippet)
+    {
+        return $"{snippet.MainRoute}|{snippet.ShadowRoute}|{snippet.TrapRoles}|{snippet.Budget}".Trim().ToLower();
+    }
+
+    private bool IsUntaggedFingerprint(string fingerprint)
+    {
+        if (string.IsNullOrEmpty(fingerprint))
+            return true;
+
+        for (int i = 0; i < fingerprint.Length; i++)
+        {
+            if (char.IsLetterOrDigit(fingerprint[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private string JoinSnippetNames(List<LevelSnippetLibrary.Snippet> snippets)
+    {
+        if (snippets == null || snippets.Count == 0)
+            return "(none)";
+
+        System.Text.StringBuilder builder = new System.Text.StringBuilder();
+        for (int i = 0; i < snippets.Count; i++)
+        {
+            if (i > 0) builder.Append(", ");
+            builder.Append(GetSnippetName(snippets[i]));
+        }
+        return builder.ToString();
+    }
+
+    private string GetSnippetName(LevelSnippetLibrary.Snippet snippet)
+    {
+        if (snippet == null)
+            return "(null snippet)";
+        return string.IsNullOrEmpty(snippet.name) ? "(unnamed snippet)" : snippet.name;
+    }
+
+    private string MakeSummary(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+        return text.Substring(0, maxLength - 3) + "...";
     }
 
     private void ClearResults()
@@ -416,6 +389,7 @@ public class LevelTemplateValidatorWindow : EditorWindow
         redundantSnippets.Clear();
         untaggedSnippets.Clear();
         errorPrompts.Clear();
+        lastScannedTotal = 0;
         hasScanned = false;
     }
 }

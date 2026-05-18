@@ -104,6 +104,9 @@ public class HeuristicBotInputProvider : IInputProvider
     // ── Persona 行为注入：反应延迟状态 ──
     private float _marioReactionTimer = 0f;
     private bool _dangerDetectedLastFrame = false;
+
+    // ── Persona 行为注入：神经质扫描计时器 ──
+    private float _randomScanTimer = 0f;
     private MarioCounterplayProbe _probe;
     private bool _marioCacheReady;
     private float _jumpHoldTimer;
@@ -479,12 +482,25 @@ public class HeuristicBotInputProvider : IInputProvider
             _stuckCheckTimer = 0f;
         }
 
-        // ── 5. 自动反制（强扫描） ──
-        // 只有 IsStrongScanReady 且附近有可附身锚点时才按 Q，避免浪费扫描
-        if (_probe != null && _probe.IsStrongScanReady && HasNearbyAnchor(marioPos, SCAN_ANCHOR_RANGE))
+        // ── 5. 自动反制（强扫描 + Persona 神经质盲扫） ──
+        float scanAgg = marioPersona != null ? marioPersona.scanAggression : 0.5f;
+
+        // 盲扫计时器递减，归零时重置并判定是否触发盲扫
+        _randomScanTimer -= dt;
+        bool doBlindScan = false;
+        if (_randomScanTimer <= 0f)
+        {
+            doBlindScan = Random.value < scanAgg;
+            _randomScanTimer = Random.Range(2f, 4f);
+        }
+
+        bool strongScanReady = _probe != null && _probe.IsStrongScanReady;
+        if ((strongScanReady || doBlindScan) && HasNearbyAnchor(marioPos, SCAN_ANCHOR_RANGE))
         {
             p1ScanDown = true;
-            MarioIntent = "[Executing Strong Scan]";
+            MarioIntent = doBlindScan && !strongScanReady
+                ? "[Persona] Aggressive Blind Scan"
+                : "[Executing Strong Scan]";
         }
         else if (string.IsNullOrEmpty(MarioIntent))
         {

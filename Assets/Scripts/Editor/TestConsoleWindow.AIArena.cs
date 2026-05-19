@@ -184,6 +184,14 @@ public partial class TestConsoleWindow
                 EnsureCache();
                 if (cachedGameManager != null)
                     _analytics.StartCollecting(cachedGameManager);
+                // 同步当前人格名到 Analytics
+                var hybrid2 = GetHybridProvider();
+                if (hybrid2 != null)
+                {
+                    string mName = hybrid2.marioPersona != null ? hybrid2.marioPersona.personaName : "Default";
+                    string tName = hybrid2.tricksterPersona != null ? hybrid2.tricksterPersona.personaName : "Default";
+                    _analytics.SetPersonaNames(mName, tName);
+                }
                 Debug.Log("[AI Arena] Analytics started.");
             }
         }
@@ -233,6 +241,14 @@ public partial class TestConsoleWindow
         {
             if (_analytics != null)
             {
+                // 导出前同步最新人格名（支持运行中热切换人格）
+                var hp = GetHybridProvider();
+                if (hp != null)
+                {
+                    string mn = hp.marioPersona != null ? hp.marioPersona.personaName : "Default";
+                    string tn = hp.tricksterPersona != null ? hp.tricksterPersona.personaName : "Default";
+                    _analytics.SetPersonaNames(mn, tn);
+                }
                 _analytics.PrintMatchReport();
                 string mdPath = AIArenaReportExporter.ExportMatchReport(_analytics);
                 if (!string.IsNullOrEmpty(mdPath))

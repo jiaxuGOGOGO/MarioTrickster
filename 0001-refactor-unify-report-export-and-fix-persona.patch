@@ -1,0 +1,139 @@
+From 1a5dd7a0bb1da61820ac694657ad00c8a550e9a8 Mon Sep 17 00:00:00 2001
+From: Manus AI <ai@manus.im>
+Date: Tue, 19 May 2026 03:53:25 +0000
+Subject: [PATCH] =?UTF-8?q?refactor:=20=E7=BB=9F=E4=B8=80=E6=88=98?=
+ =?UTF-8?q?=E6=8A=A5=E5=AF=BC=E5=87=BA=E5=85=A5=E5=8F=A3=20+=20=E4=BF=AE?=
+ =?UTF-8?q?=E5=A4=8D=E4=BA=BA=E6=A0=BC=E5=90=8D=E5=86=99=E6=AD=BB=20Defaul?=
+ =?UTF-8?q?t?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+变更摘要：
+  1. AutoTestAnalytics 新增 SetPersonaNames() 公共方法和内部字段，
+     ExportReportToJson 不再写死 "Default"，改读实际人格名。
+  2. HandleGameOver 中移除每局自动调用 ExportReportToJson()，
+     避免挂机 N 局产生 N 个冗余 JSON。
+  3. AIArenaReportExporter.ExportMatchReport() 末尾统一调用
+     analytics.ExportReportToJson()，一次按钮两份输出。
+  4. TestConsoleWindow.AIArena 在 Start Collecting 和 Print Match Report
+     时均从 HybridInputProvider 读取当前 BotPersonaConfigSO.personaName
+     并同步到 Analytics，支持运行中热切换人格。
+
+影响：
+  - AI Test Analyst 面板照常读取 reports/ai_arena_reports/ 下的 JSON，
+    且 JSON 中 marioPersona/tricksterPersona 字段现在反映真实画像名。
+  - 新文档管线照常输出到 docs/validation/。
+  - 不再每局自动写文件，仅在用户主动点击时导出。
+  - 无新增依赖，无 API 破坏性变更。
+---
+ .../Scripts/Editor/AIArenaReportExporter.cs   |  4 +++
+ .../Editor/TestConsoleWindow.AIArena.cs       | 16 +++++++++++
+ Assets/Scripts/Gameplay/AutoTestAnalytics.cs  | 28 ++++++++++++++++---
+ 3 files changed, 44 insertions(+), 4 deletions(-)
+
+diff --git a/Assets/Scripts/Editor/AIArenaReportExporter.cs b/Assets/Scripts/Editor/AIArenaReportExporter.cs
+index ba65311..88c8c3e 100644
+--- a/Assets/Scripts/Editor/AIArenaReportExporter.cs
++++ b/Assets/Scripts/Editor/AIArenaReportExporter.cs
+@@ -47,6 +47,10 @@ public static class AIArenaReportExporter
+ 
+             AssetDatabase.Refresh();
+             Debug.Log($"[AIArenaReportExporter] Exported AI Arena report:\nJSON: {jsonPath}\nMarkdown: {mdPath}");
++
++            // --- Legacy Export (for AITestAnalystWindow) ---
++            // 统一在此调用老逻辑，确保 AI Test Analyst 面板可读取
++            analytics.ExportReportToJson();
+             return mdPath;
+         }
+         catch (Exception e)
+diff --git a/Assets/Scripts/Editor/TestConsoleWindow.AIArena.cs b/Assets/Scripts/Editor/TestConsoleWindow.AIArena.cs
+index e59353b..628b76d 100644
+--- a/Assets/Scripts/Editor/TestConsoleWindow.AIArena.cs
++++ b/Assets/Scripts/Editor/TestConsoleWindow.AIArena.cs
+@@ -184,6 +184,14 @@ public partial class TestConsoleWindow
+                 EnsureCache();
+                 if (cachedGameManager != null)
+                     _analytics.StartCollecting(cachedGameManager);
++                // 同步当前人格名到 Analytics
++                var hybrid2 = GetHybridProvider();
++                if (hybrid2 != null)
++                {
++                    string mName = hybrid2.marioPersona != null ? hybrid2.marioPersona.personaName : "Default";
++                    string tName = hybrid2.tricksterPersona != null ? hybrid2.tricksterPersona.personaName : "Default";
++                    _analytics.SetPersonaNames(mName, tName);
++                }
+                 Debug.Log("[AI Arena] Analytics started.");
+             }
+         }
+@@ -233,6 +241,14 @@ public partial class TestConsoleWindow
+         {
+             if (_analytics != null)
+             {
++                // 导出前同步最新人格名（支持运行中热切换人格）
++                var hp = GetHybridProvider();
++                if (hp != null)
++                {
++                    string mn = hp.marioPersona != null ? hp.marioPersona.personaName : "Default";
++                    string tn = hp.tricksterPersona != null ? hp.tricksterPersona.personaName : "Default";
++                    _analytics.SetPersonaNames(mn, tn);
++                }
+                 _analytics.PrintMatchReport();
+                 string mdPath = AIArenaReportExporter.ExportMatchReport(_analytics);
+                 if (!string.IsNullOrEmpty(mdPath))
+diff --git a/Assets/Scripts/Gameplay/AutoTestAnalytics.cs b/Assets/Scripts/Gameplay/AutoTestAnalytics.cs
+index 646ca26..675dd26 100644
+--- a/Assets/Scripts/Gameplay/AutoTestAnalytics.cs
++++ b/Assets/Scripts/Gameplay/AutoTestAnalytics.cs
+@@ -67,6 +67,27 @@ public struct StuckRecord
+ /// </summary>
+ public class AutoTestAnalytics
+ {
++
++    // ═══════════════════════════════════════════════════════════
++    // 人格画像追踪
++    // ═══════════════════════════════════════════════════════════
++
++    /// <summary>当前 Mario 侧人格名称（由外部设置，导出时写入战报）</summary>
++    private string _marioPersonaName = "Default";
++
++    /// <summary>当前 Trickster 侧人格名称（由外部设置，导出时写入战报）</summary>
++    private string _tricksterPersonaName = "Default";
++
++    /// <summary>
++    /// 设置当前对战双方的人格名称。
++    /// 由 AIArena 面板在开始收集时或切换人格时调用。
++    /// </summary>
++    public void SetPersonaNames(string marioPersona, string tricksterPersona)
++    {
++        _marioPersonaName = string.IsNullOrEmpty(marioPersona) ? "Default" : marioPersona;
++        _tricksterPersonaName = string.IsNullOrEmpty(tricksterPersona) ? "Default" : tricksterPersona;
++    }
++
+     // ═══════════════════════════════════════════════════════════
+     // 统计数据
+     // ═══════════════════════════════════════════════════════════
+@@ -382,8 +403,7 @@ public class AutoTestAnalytics
+         // 重置卡死检测（下一局重新开始）
+         ResetStuckDetection();
+ 
+-        // 导出全息 JSON 战报
+-        ExportReportToJson();
++        // 导出全息 JSON 战报 (已移至 AIArenaReportExporter 统一处理)
+     }
+ 
+     private void HandleGameStateChanged(GameState newState)
+@@ -699,8 +719,8 @@ public class AutoTestAnalytics
+ 
+         // 基本信息
+         data.matchId = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+-        data.marioPersona = "Default";
+-        data.tricksterPersona = "Default";
++        data.marioPersona = _marioPersonaName;
++        data.tricksterPersona = _tricksterPersonaName;
+ 
+         // 关卡元数据
+         data.levelMetadata = new List<AITestReportData.StringPair>();
+-- 
+2.34.1
+

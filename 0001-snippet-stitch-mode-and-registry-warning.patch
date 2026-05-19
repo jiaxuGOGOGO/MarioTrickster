@@ -1,0 +1,221 @@
+From 199e0521daa70f064a553fa11e17f2259dc7dad1 Mon Sep 17 00:00:00 2001
+From: Manus AI <manus@manus.im>
+Date: Tue, 19 May 2026 01:56:30 +0000
+Subject: [PATCH] =?UTF-8?q?feat(LevelStudio):=20=E7=89=87=E6=AE=B5?=
+ =?UTF-8?q?=E6=8B=BC=E6=8E=A5=E6=A8=A1=E5=BC=8F(=E6=B0=B4=E5=B9=B3/?=
+ =?UTF-8?q?=E5=9E=82=E7=9B=B4)=20+=20=E6=96=B0=E5=85=83=E7=B4=A0=E6=B3=A8?=
+ =?UTF-8?q?=E5=86=8C=E6=8F=90=E7=A4=BA=20+=20SOP=E6=96=87=E6=A1=A3?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+1. Custom Template Editor 新增拼接模式选择器:
+   - 垂直拼接 (上下堆叠) — 保留原有默认行为
+   - 水平拼接 (左右连接) — 逐行拼接，短行用 '.' 填充对齐
+
+2. SnippetSaveWindow 新增注册提示 HelpBox:
+   - 烘焙成功后显示警告，提醒未注册元素会在保存后丢失
+   - 给出解决方案指引 (AsciiElementRegistry 注册)
+
+3. 新增 docs/NEW_ELEMENT_REGISTRATION_GUIDE.md:
+   - 标准操作流程 (SOP): 编写脚本 → 注册 Registry → 测试验证
+   - 明确红线: 禁止修改 AsciiLevelGenerator 核心代码
+
+不影响现有功能，所有改动仅为 Editor 工具层新增。
+---
+ Assets/Scripts/Editor/SnippetSaveWindow.cs    |  9 +++
+ .../Editor/TestConsoleWindow.LevelBuilder.cs  | 77 ++++++++++++++++---
+ Assets/Scripts/Editor/TestConsoleWindow.cs    |  3 +
+ docs/NEW_ELEMENT_REGISTRATION_GUIDE.md        | 39 ++++++++++
+ 4 files changed, 119 insertions(+), 9 deletions(-)
+ create mode 100644 docs/NEW_ELEMENT_REGISTRATION_GUIDE.md
+
+diff --git a/Assets/Scripts/Editor/SnippetSaveWindow.cs b/Assets/Scripts/Editor/SnippetSaveWindow.cs
+index bc41b99..9d56d43 100644
+--- a/Assets/Scripts/Editor/SnippetSaveWindow.cs
++++ b/Assets/Scripts/Editor/SnippetSaveWindow.cs
+@@ -87,6 +87,15 @@ public class SnippetSaveWindow : EditorWindow
+         {
+             EditorGUILayout.HelpBox($"ASCII \u5df2\u70d8\u7119\u6210\u529f\uff08{CountLines(bakedAscii)} \u884c\uff09\u3002\u53ef\u5728\u4e0b\u65b9\u9884\u89c8\u548c\u7f16\u8f91\u3002", MessageType.Info);
+ 
++            // 新元素注册提示
++            EditorGUILayout.HelpBox(
++                "【⚠️ 新元素保存提示】\n" +
++                "如果场景中包含了你自己制作的全新机关，请注意：\n" +
++                "1. 如果它在 AsciiElementRegistry 中已有对应的字符映射 → 可以正常保存\n" +
++                "2. 如果它是全新的、未注册的元素 → 烘焙时会被忽略，保存后再生成就会丢失！\n\n" +
++                "解决办法：在 Project 面板找到 AsciiElementRegistry (或创建一个)，为新元素添加一条字符映射记录。",
++                MessageType.Warning);
++
+             EditorGUILayout.LabelField("ASCII \u9884\u89c8 (\u53ef\u7f16\u8f91):", EditorStyles.miniLabel);
+             asciiScrollPos = EditorGUILayout.BeginScrollView(asciiScrollPos, GUILayout.Height(120f));
+             bakedAscii = EditorGUILayout.TextArea(bakedAscii, GUILayout.ExpandHeight(true));
+diff --git a/Assets/Scripts/Editor/TestConsoleWindow.LevelBuilder.cs b/Assets/Scripts/Editor/TestConsoleWindow.LevelBuilder.cs
+index 2fef329..c171c38 100644
+--- a/Assets/Scripts/Editor/TestConsoleWindow.LevelBuilder.cs
++++ b/Assets/Scripts/Editor/TestConsoleWindow.LevelBuilder.cs
+@@ -967,6 +967,15 @@ public partial class TestConsoleWindow
+ 
+         EditorGUILayout.Space(4);
+ 
++        // ── 片段拼接模式选择 ──
++        EditorGUILayout.BeginHorizontal();
++        EditorGUILayout.LabelField("拼接模式:", GUILayout.Width(60));
++        string[] stitchOptions = { "垂直拼接 (上下堆叠)", "水平拼接 (左右连接)" };
++        snippetStitchMode = EditorGUILayout.Popup(snippetStitchMode, stitchOptions);
++        EditorGUILayout.EndHorizontal();
++
++        EditorGUILayout.Space(4);
++
+         // ── 片段库 (Snippet Library) ──
+         showSnippetLibrary = EditorGUILayout.Foldout(showSnippetLibrary, "经典片段库 (点击追加到下方文本框)", true);
+         if (showSnippetLibrary)
+@@ -990,11 +999,8 @@ public partial class TestConsoleWindow
+                 GUI.color = new Color(1f, 0.85f, 0.3f);
+                 if (GUILayout.Button("追加到文本框", GUILayout.Height(22)))
+                 {
+-                    // 追加到文本框（如果已有内容，用空行分隔）
+-                    if (!string.IsNullOrEmpty(customAsciiTemplate))
+-                        customAsciiTemplate += "\n\n";
+-                    customAsciiTemplate += snippet.ascii;
+-                    Debug.Log($"[TestConsole] Snippet '{snippet.name}' appended to template editor.");
++                    customAsciiTemplate = StitchSnippet(customAsciiTemplate, snippet.ascii, snippetStitchMode);
++                    Debug.Log($"[TestConsole] Snippet '{snippet.name}' appended to template editor (mode={(snippetStitchMode == 0 ? "vertical" : "horizontal")}).");
+                 }
+                 GUI.color = new Color(0.4f, 0.9f, 0.4f);
+                 if (GUILayout.Button("直接生成", GUILayout.Height(22)))
+@@ -1041,10 +1047,8 @@ public partial class TestConsoleWindow
+             GUI.color = new Color(1f, 0.85f, 0.3f);
+             if (GUILayout.Button("追加选中片段到文本框", GUILayout.Height(24)))
+             {
+-                if (!string.IsNullOrEmpty(customAsciiTemplate))
+-                    customAsciiTemplate += "\n\n";
+-                customAsciiTemplate += selectedSnippet.ascii;
+-                Debug.Log($"[TestConsole] Snippet '{selectedSnippet.name}' appended to template editor from metadata selector.");
++                customAsciiTemplate = StitchSnippet(customAsciiTemplate, selectedSnippet.ascii, snippetStitchMode);
++                Debug.Log($"[TestConsole] Snippet '{selectedSnippet.name}' appended to template editor from metadata selector (mode={(snippetStitchMode == 0 ? "vertical" : "horizontal")}).");
+             }
+             GUI.color = new Color(0.4f, 0.9f, 0.4f);
+             if (GUILayout.Button("直接生成选中片段", GUILayout.Height(24)))
+@@ -1302,4 +1306,59 @@ public partial class TestConsoleWindow
+             Debug.Log($"[TestConsole] Level '{sourceName}' generated with playable environment.");
+         }
+     }
++
++    // ═════════════════════════════════════════════════
++    // 片段拼接工具方法
++    // ═════════════════════════════════════════════════
++
++    /// <summary>
++    /// 将新片段拼接到已有模板上。
++    /// mode 0 = 垂直拼接（上下堆叠，用 \n\n 分隔）
++    /// mode 1 = 水平拼接（左右连接，逐行拼接）
++    /// </summary>
++    private static string StitchSnippet(string existing, string newSnippet, int mode)
++    {
++        if (string.IsNullOrEmpty(existing))
++            return newSnippet;
++
++        if (mode == 1)
++        {
++            // 水平拼接：将片段 B 接在片段 A 的右边（逐行拼接）
++            string[] linesA = existing.Split('\n');
++            string[] linesB = newSnippet.Split('\n');
++
++            // 找到 A 的最大行宽，用于对齐
++            int maxWidthA = 0;
++            for (int i = 0; i < linesA.Length; i++)
++            {
++                if (linesA[i].Length > maxWidthA)
++                    maxWidthA = linesA[i].Length;
++            }
++
++            int totalLines = linesA.Length > linesB.Length ? linesA.Length : linesB.Length;
++            var sb = new System.Text.StringBuilder();
++
++            for (int i = 0; i < totalLines; i++)
++            {
++                string lineA = i < linesA.Length ? linesA[i] : "";
++                string lineB = i < linesB.Length ? linesB[i] : "";
++
++                // 将 A 行填充到最大宽度，然后拼接 B 行
++                sb.Append(lineA);
++                if (lineA.Length < maxWidthA)
++                    sb.Append('.', maxWidthA - lineA.Length);
++                sb.Append(lineB);
++
++                if (i < totalLines - 1)
++                    sb.Append('\n');
++            }
++
++            return sb.ToString();
++        }
++        else
++        {
++            // 垂直拼接（默认）：用空行分隔
++            return existing + "\n\n" + newSnippet;
++        }
++    }
+ }
+diff --git a/Assets/Scripts/Editor/TestConsoleWindow.cs b/Assets/Scripts/Editor/TestConsoleWindow.cs
+index e5ce51a..b50c938 100644
+--- a/Assets/Scripts/Editor/TestConsoleWindow.cs
++++ b/Assets/Scripts/Editor/TestConsoleWindow.cs
+@@ -117,6 +117,9 @@ public partial class TestConsoleWindow : EditorWindow
+     private bool showSnippetLibrary = false;
+     private int selectedSnippetIndex = 0;
+ 
++    // 片段拼接模式 (水平 / 垂直)
++    private int snippetStitchMode = 0; // 0 = 垂直(上下), 1 = 水平(左右)
++
+     // Art & Effects Hub 状态
+     private bool showArtEffectsHub = false;
+ 
+diff --git a/docs/NEW_ELEMENT_REGISTRATION_GUIDE.md b/docs/NEW_ELEMENT_REGISTRATION_GUIDE.md
+new file mode 100644
+index 0000000..ae536e5
+--- /dev/null
++++ b/docs/NEW_ELEMENT_REGISTRATION_GUIDE.md
+@@ -0,0 +1,39 @@
++# MarioTrickster 新机制元素注册标准操作流程 (SOP)
++
++本文档旨在说明如何在 MarioTrickster 项目中安全地添加全新机制元素，并确保其能够被正确保存、烘焙 (Bake) 和生成，从而避免对项目其他潜在开发功能产生破坏。
++
++## 背景说明
++
++MarioTrickster 采用纯数据驱动的白盒生成模式，关卡元素由 `AsciiLevelGenerator` 动态创建。当你通过 Inspector 在场景中手动添加一个新类型的机关（例如“旋转锯片2.0”）时，它在当前场景中可以正常工作。
++
++但是，当你尝试将该场景保存为关卡片段（Snippet）或模板时，系统需要将场景对象“反向烘焙”回 ASCII 字符：
++- **如果该元素在 `AsciiElementRegistry` 中已有对应的字符映射**：系统能正确识别并将其转换为对应的 ASCII 字符，保存与再次生成均无问题。
++- **如果是全新的、未注册的元素**：烘焙系统无法识别该元素，在转换为 ASCII 模板时它会被忽略（或者在验证器中被标记为 `[Misc] Unknown Element`）。**保存后再重新生成该模板时，这个新机关就会永久丢失。**
++
++## 标准操作流程 (SOP)
++
++为了避免新机制丢失或破坏项目结构，请严格遵循以下三步流程：
++
++### 1. 编写独立的行为脚本
++首先，为你的新机制编写一个自包含的 C# 逻辑脚本（例如 `NewTrap.cs`）。
++- **规则**：脚本应自行处理所有逻辑。如果需要刚体或碰撞体，优先在脚本内部使用 `RequireComponent` 或在 `Awake` 中处理兜底。
++- **红线**：**绝对不要**修改 `AsciiLevelGenerator.cs` 核心代码来添加专属的 `SpawnXXX` 方法。
++
++### 2. 在 AsciiElementRegistry 中注册新元素
++你需要将新元素注册到 ASCII 字典中，使其获得一个专属字符。
++
++1. **定位或创建 Registry**：在 Project 面板中找到 `AsciiElementRegistry` 资产（如果没有，可以右键 `Create -> MarioTrickster -> Ascii Element Registry` 创建一个）。或者，你可以直接修改 `AsciiElementRegistry.cs` 中的 `CreateDefaultInstance()` 方法添加内置默认条目。
++2. **添加条目 (AsciiElementEntry)**：
++   - `asciiChar`：分配一个未被占用的 ASCII 字符（例如 `&` 或 `*`）。
++   - `elementName`：设置元素名称（例如 `NewTrap`），需保持稳定。
++   - `componentTypeNames`：填入你刚才编写的逻辑脚本名称（例如 `NewTrap`）。
++   - `customColliderSize` / `isTrigger`：根据需要配置物理属性。
++   - `visualColor` / `visualScale`：配置白盒阶段的视觉表现。
++
++### 3. 测试与验证
++1. **测试生成**：在 Level Studio 的 `Custom Template Editor` 中输入你分配的新字符，点击生成，确认新机关能够被正确实例化并挂载了相应的脚本。
++2. **测试烘焙 (Bake)**：在场景中摆放你的新机关，使用 `Save Scene to Snippet Library` 功能。检查生成的 ASCII 预览中是否正确包含了你分配的新字符。
++3. **QA 验证**：运行 Full Level Validator，确保没有出现 `Unknown Element` 警告。
++
++## 总结
++**“无注册，不保存”**。所有新机制必须先在 `AsciiElementRegistry` 中注册字符映射，这是确保关卡数据可持久化、可复用且不破坏现有架构的唯一标准路径。
+-- 
+2.34.1
+

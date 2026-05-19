@@ -1,0 +1,868 @@
+From 2173eab509830b4e2a2164e943749a7d2bdc35a3 Mon Sep 17 00:00:00 2001
+From: Manus AI <ai@manus.im>
+Date: Tue, 19 May 2026 01:12:23 +0000
+Subject: [PATCH] =?UTF-8?q?feat(Editor):=20Add=20[Save=20to=20Snippet=20Li?=
+ =?UTF-8?q?brary]=20window=20=E2=80=94=20save=20scene=20levels=20as=20temp?=
+ =?UTF-8?q?lates?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- New editor window: MarioTrickster > Level Builder > Save Scene to Snippet Library
+- Step 1: Bake current AsciiLevel_Root to ASCII (reuses AsciiLevelBaker reverse logic)
+- Step 2: Choose save mode — Add New or Replace Existing
+- Step 3: One-click save to LevelSnippetLibrary.cs (auto-persisted)
+- Replace mode preserves existing tags (mainRoute/shadowRoute/trapRoles/budget/testGoal)
+- Add New mode auto-generates timestamp-based name if left blank
+- Duplicate name detection with optional overwrite prompt
+- ASCII preview editable before save
+- Zero external dependencies, compiles standalone under Unity Editor
+---
+ Assets/Scripts/Editor/SnippetSaveWindow.cs | 835 +++++++++++++++++++++
+ 1 file changed, 835 insertions(+)
+ create mode 100644 Assets/Scripts/Editor/SnippetSaveWindow.cs
+
+diff --git a/Assets/Scripts/Editor/SnippetSaveWindow.cs b/Assets/Scripts/Editor/SnippetSaveWindow.cs
+new file mode 100644
+index 0000000..bc41b99
+--- /dev/null
++++ b/Assets/Scripts/Editor/SnippetSaveWindow.cs
+@@ -0,0 +1,835 @@
++#if UNITY_EDITOR
++using System;
++using System.Collections.Generic;
++using System.Globalization;
++using System.Reflection;
++using System.Text;
++using System.Text.RegularExpressions;
++using UnityEditor;
++using UnityEngine;
++
++/// <summary>
++/// Snippet Save Window — 将当前场景关卡反向导出为 ASCII 并存入 LevelSnippetLibrary。
++///
++/// 功能：
++///   1. 一键从场景 AsciiLevel_Root 烘焙 ASCII 模板（复用 AsciiLevelBaker 的反向解析逻辑）
++///   2. 支持"新增片段"或"替换已有片段"两种模式
++///   3. 自动将片段写入 LevelSnippetLibrary.cs 源文件并刷新
++///   4. 标签可后续通过 Validator 的 [Copy Tag Prompt] + [Apply Tags] 补充
++///
++/// 仅依赖项目内现有类，不引入外部库。
++/// </summary>
++public class SnippetSaveWindow : EditorWindow
++{
++    // ═══════════════════════════════════════════════════
++    // MenuItem 入口
++    // ═══════════════════════════════════════════════════
++
++    [MenuItem("MarioTrickster/Level Builder/Save Scene to Snippet Library")]
++    public static void ShowWindow()
++    {
++        SnippetSaveWindow window = GetWindow<SnippetSaveWindow>("Save to Snippet Library");
++        window.minSize = new Vector2(480f, 380f);
++        window.Show();
++    }
++
++    // ═══════════════════════════════════════════════════
++    // GUI 状态
++    // ═══════════════════════════════════════════════════
++
++    private const string GENERATED_ROOT_NAME = "AsciiLevel_Root";
++
++    private enum SaveMode { AddNew, ReplaceExisting }
++    private SaveMode saveMode = SaveMode.AddNew;
++
++    private string snippetName = "";
++    private string snippetDescription = "";
++    private string bakedAscii = "";
++    private bool hasBaked = false;
++
++    private int replaceIndex = 0;
++    private string[] existingSnippetNames;
++
++    private Vector2 asciiScrollPos;
++
++    // ═══════════════════════════════════════════════════
++    // OnGUI
++    // ═══════════════════════════════════════════════════
++
++    private void OnGUI()
++    {
++        EditorGUILayout.Space(10f);
++
++        GUIStyle titleStyle = new GUIStyle(EditorStyles.boldLabel)
++        {
++            fontSize = 15,
++            alignment = TextAnchor.MiddleCenter
++        };
++        EditorGUILayout.LabelField("Save Scene to Snippet Library", titleStyle);
++
++        GUIStyle subtitleStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel) { wordWrap = true };
++        EditorGUILayout.LabelField("\u573a\u666f\u5173\u5361 \u2192 ASCII \u2192 LevelSnippetLibrary\uff08\u65b0\u589e\u6216\u66ff\u6362\uff09", subtitleStyle);
++        EditorGUILayout.Space(8f);
++
++        // ── Step 1: Bake ──
++        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
++        EditorGUILayout.LabelField("Step 1: \u70d8\u7119\u573a\u666f\u4e3a ASCII", EditorStyles.boldLabel);
++
++        Color oldBg = GUI.backgroundColor;
++        GUI.backgroundColor = new Color(0.3f, 0.7f, 1f);
++        if (GUILayout.Button("\ud83d\udd04 Bake Scene to ASCII", GUILayout.Height(30f)))
++        {
++            BakeCurrentScene();
++        }
++        GUI.backgroundColor = oldBg;
++
++        if (hasBaked)
++        {
++            EditorGUILayout.HelpBox($"ASCII \u5df2\u70d8\u7119\u6210\u529f\uff08{CountLines(bakedAscii)} \u884c\uff09\u3002\u53ef\u5728\u4e0b\u65b9\u9884\u89c8\u548c\u7f16\u8f91\u3002", MessageType.Info);
++
++            EditorGUILayout.LabelField("ASCII \u9884\u89c8 (\u53ef\u7f16\u8f91):", EditorStyles.miniLabel);
++            asciiScrollPos = EditorGUILayout.BeginScrollView(asciiScrollPos, GUILayout.Height(120f));
++            bakedAscii = EditorGUILayout.TextArea(bakedAscii, GUILayout.ExpandHeight(true));
++            EditorGUILayout.EndScrollView();
++        }
++        else
++        {
++            EditorGUILayout.HelpBox(
++                $"\u70b9\u51fb\u4e0a\u65b9\u6309\u94ae\uff0c\u5c06\u573a\u666f\u4e2d '{GENERATED_ROOT_NAME}' \u4e0b\u7684\u5173\u5361\u5143\u7d20\u53cd\u5411\u5bfc\u51fa\u4e3a ASCII \u6a21\u677f\u3002",
++                MessageType.None);
++        }
++
++        EditorGUILayout.Space(10f);
++
++        // ── Step 2: 配置 ──
++        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
++        EditorGUILayout.LabelField("Step 2: \u914d\u7f6e\u4fdd\u5b58\u65b9\u5f0f", EditorStyles.boldLabel);
++
++        saveMode = (SaveMode)EditorGUILayout.EnumPopup("\u4fdd\u5b58\u6a21\u5f0f", saveMode);
++
++        if (saveMode == SaveMode.AddNew)
++        {
++            snippetName = EditorGUILayout.TextField("\u7247\u6bb5\u540d\u79f0", snippetName);
++            snippetDescription = EditorGUILayout.TextField("\u4e00\u53e5\u8bdd\u63cf\u8ff0", snippetDescription);
++        }
++        else
++        {
++            RefreshExistingSnippetNames();
++            if (existingSnippetNames != null && existingSnippetNames.Length > 0)
++            {
++                replaceIndex = EditorGUILayout.Popup("\u66ff\u6362\u76ee\u6807", replaceIndex, existingSnippetNames);
++            }
++            else
++            {
++                EditorGUILayout.HelpBox("\u7247\u6bb5\u5e93\u4e3a\u7a7a\uff0c\u65e0\u53ef\u66ff\u6362\u7684\u6a21\u677f\u3002", MessageType.Warning);
++            }
++            snippetDescription = EditorGUILayout.TextField("\u66f4\u65b0\u63cf\u8ff0 (\u53ef\u9009)", snippetDescription);
++        }
++
++        EditorGUILayout.Space(10f);
++
++        // ── Step 3: Save ──
++        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
++
++        EditorGUI.BeginDisabledGroup(!hasBaked || string.IsNullOrEmpty(bakedAscii));
++        GUI.backgroundColor = new Color(0.3f, 0.85f, 0.4f);
++        if (GUILayout.Button("\u2705 Save to Snippet Library", GUILayout.Height(34f)))
++        {
++            ExecuteSave();
++        }
++        GUI.backgroundColor = oldBg;
++        EditorGUI.EndDisabledGroup();
++
++        EditorGUILayout.Space(6f);
++        EditorGUILayout.HelpBox(
++            "\u63d0\u793a\uff1a\u4fdd\u5b58\u540e\u6807\u7b7e\u4e3a\u7a7a\uff0c\u53ef\u7528 Validator \u9762\u677f\u7684 [Copy Tag Prompt] + [Apply Tags] \u8865\u5145\u3002",
++            MessageType.None);
++    }
++
++    // ═══════════════════════════════════════════════════
++    // Bake 逻辑（复用 AsciiLevelBaker 的核心算法）
++    // ═══════════════════════════════════════════════════
++
++    private void BakeCurrentScene()
++    {
++        string result = BakeSceneToAsciiString();
++        if (result == null)
++        {
++            hasBaked = false;
++            return;
++        }
++
++        bakedAscii = result.TrimEnd();
++        hasBaked = true;
++
++        // 自动填充片段名（如果为空）
++        if (string.IsNullOrEmpty(snippetName))
++        {
++            snippetName = $"Custom_{DateTime.Now:yyyyMMdd_HHmmss}";
++        }
++    }
++
++    /// <summary>
++    /// 将场景 AsciiLevel_Root 反向烘焙为 ASCII 字符串。
++    /// 核心逻辑与 AsciiLevelBaker.BakeSceneToAscii() 相同，但返回字符串而非写入剪贴板。
++    /// </summary>
++    private string BakeSceneToAsciiString()
++    {
++        GameObject root = GameObject.Find(GENERATED_ROOT_NAME);
++        if (root == null)
++        {
++            EditorUtility.DisplayDialog("Bake Failed",
++                $"\u573a\u666f\u4e2d\u672a\u627e\u5230 '{GENERATED_ROOT_NAME}'\u3002\u8bf7\u5148\u751f\u6210\u6216\u786e\u4fdd\u5173\u5361\u5143\u7d20\u5728\u8be5\u6839\u8282\u70b9\u4e0b\u3002", "OK");
++            return null;
++        }
++
++        if (root.transform.childCount == 0)
++        {
++            EditorUtility.DisplayDialog("Bake Failed",
++                $"'{GENERATED_ROOT_NAME}' \u4e0b\u6ca1\u6709\u5b50\u5bf9\u8c61\u3002", "OK");
++            return null;
++        }
++
++        AsciiElementRegistry registry = AsciiElementRegistry.GetDefault();
++        if (registry == null)
++        {
++            EditorUtility.DisplayDialog("Bake Failed",
++                "AsciiElementRegistry.GetDefault() \u8fd4\u56de null\uff0c\u65e0\u6cd5\u6784\u5efa\u53cd\u5411\u6620\u5c04\u3002", "OK");
++            return null;
++        }
++
++        registry.BuildCache();
++
++        // 构建反向映射
++        Dictionary<string, char> elementNameToChar = new Dictionary<string, char>(StringComparer.Ordinal);
++        Dictionary<string, char> componentTypeToChar = new Dictionary<string, char>(StringComparer.Ordinal);
++        BuildReverseMaps(registry, elementNameToChar, componentTypeToChar);
++
++        // 收集所有对象
++        List<BakedEntry> entries = new List<BakedEntry>();
++        int maxX = 0;
++        int maxY = 0;
++
++        foreach (Transform child in root.transform)
++        {
++            Vector2Int gridPos = new Vector2Int(
++                Mathf.RoundToInt(child.position.x),
++                Mathf.RoundToInt(child.position.y));
++
++            if (gridPos.x < 0 || gridPos.y < 0)
++                continue;
++
++            char asciiChar = ResolveCharForObject(child.gameObject, elementNameToChar, componentTypeToChar);
++            if (asciiChar == '\0' || asciiChar == '.')
++                continue;
++
++            bool mergeable = IsMergeableTerrain(asciiChar);
++            int width = mergeable ? Mathf.Max(1, GetTerrainWidth(child)) : 1;
++            int startX = mergeable ? GetTerrainStartX(child, gridPos.x, width) : gridPos.x;
++
++            if (startX < 0)
++                continue;
++
++            entries.Add(new BakedEntry
++            {
++                asciiChar = asciiChar,
++                startX = startX,
++                y = gridPos.y,
++                width = width
++            });
++
++            maxX = Mathf.Max(maxX, startX + width - 1);
++            maxY = Mathf.Max(maxY, gridPos.y);
++        }
++
++        if (entries.Count == 0)
++        {
++            EditorUtility.DisplayDialog("Bake Failed",
++                $"'{GENERATED_ROOT_NAME}' \u4e0b\u672a\u627e\u5230\u53ef\u8bc6\u522b\u7684 ASCII \u5143\u7d20\u3002", "OK");
++            return null;
++        }
++
++        // 填充网格
++        char[,] grid = new char[maxX + 1, maxY + 1];
++        bool[,] priority = new bool[maxX + 1, maxY + 1];
++        for (int y = 0; y <= maxY; y++)
++            for (int x = 0; x <= maxX; x++)
++            {
++                grid[x, y] = '.';
++                priority[x, y] = false;
++            }
++
++        foreach (BakedEntry entry in entries)
++        {
++            bool isPriority = !IsMergeableTerrain(entry.asciiChar);
++            for (int dx = 0; dx < entry.width; dx++)
++            {
++                int x = entry.startX + dx;
++                int y = entry.y;
++                if (x < 0 || x > maxX || y < 0 || y > maxY)
++                    continue;
++
++                if (isPriority || !priority[x, y])
++                {
++                    grid[x, y] = entry.asciiChar;
++                    priority[x, y] = isPriority;
++                }
++            }
++        }
++
++        // 输出（从上到下）
++        StringBuilder sb = new StringBuilder();
++        for (int y = maxY; y >= 0; y--)
++        {
++            for (int x = 0; x <= maxX; x++)
++                sb.Append(grid[x, y]);
++            if (y > 0)
++                sb.Append('\n');
++        }
++
++        return sb.ToString();
++    }
++
++    // ═══════════════════════════════════════════════════
++    // Save 逻辑
++    // ═══════════════════════════════════════════════════
++
++    private void ExecuteSave()
++    {
++        if (saveMode == SaveMode.AddNew)
++        {
++            if (string.IsNullOrEmpty(snippetName) || snippetName.Trim().Length == 0)
++            {
++                EditorUtility.DisplayDialog("Save Failed", "\u8bf7\u586b\u5199\u7247\u6bb5\u540d\u79f0\u3002", "OK");
++                return;
++            }
++
++            // 检查重名
++            List<LevelSnippetLibrary.Snippet> existing = LevelSnippetLibrary.GetAllSnippets();
++            if (existing != null)
++            {
++                foreach (LevelSnippetLibrary.Snippet s in existing)
++                {
++                    if (s != null && s.name == snippetName.Trim())
++                    {
++                        bool overwrite = EditorUtility.DisplayDialog("Name Conflict",
++                            $"\u5df2\u5b58\u5728\u540c\u540d\u7247\u6bb5 '{snippetName}'\u3002\u662f\u5426\u66ff\u6362\u5b83\uff1f",
++                            "Replace", "Cancel");
++                        if (!overwrite) return;
++                        // 转为替换模式
++                        ReplaceSnippetInSource(snippetName.Trim(), snippetDescription.Trim(), bakedAscii);
++                        return;
++                    }
++                }
++            }
++
++            AddNewSnippetToSource(snippetName.Trim(), snippetDescription.Trim(), bakedAscii);
++        }
++        else
++        {
++            if (existingSnippetNames == null || existingSnippetNames.Length == 0)
++            {
++                EditorUtility.DisplayDialog("Save Failed", "\u65e0\u53ef\u66ff\u6362\u7684\u6a21\u677f\u3002", "OK");
++                return;
++            }
++
++            string targetName = existingSnippetNames[replaceIndex];
++            bool confirmed = EditorUtility.DisplayDialog("Confirm Replace",
++                $"\u5c06\u66ff\u6362\u7247\u6bb5 '{targetName}' \u7684 ASCII \u5185\u5bb9\u3002\u539f\u6709\u6807\u7b7e\u5c06\u4fdd\u7559\u3002\n\n\u786e\u8ba4\uff1f",
++                "Replace", "Cancel");
++            if (!confirmed) return;
++
++            string desc = string.IsNullOrEmpty(snippetDescription) ? null : snippetDescription.Trim();
++            ReplaceSnippetInSource(targetName, desc, bakedAscii);
++        }
++    }
++
++    /// <summary>在 LevelSnippetLibrary.cs 末尾追加新片段</summary>
++    private void AddNewSnippetToSource(string name, string description, string ascii)
++    {
++        string sourcePath = GetLibrarySourcePath();
++        if (sourcePath == null) return;
++
++        string content = System.IO.File.ReadAllText(sourcePath, Encoding.UTF8);
++
++        // 找到 InitSnippets() 方法的最后一个 "));" 之后插入新片段
++        // 策略：在最后一个 "});" 或 "));" 之前的位置插入（在方法闭合 "}" 之前）
++        int insertPos = FindInsertPositionForNewSnippet(content);
++        if (insertPos < 0)
++        {
++            EditorUtility.DisplayDialog("Save Failed",
++                "\u672a\u80fd\u5728 LevelSnippetLibrary.cs \u4e2d\u5b9a\u4f4d\u63d2\u5165\u70b9\u3002", "OK");
++            return;
++        }
++
++        string escapedName = EscapeCSharp(name);
++        string escapedDesc = EscapeCSharp(description);
++        string escapedAscii = BuildAsciiLiteral(ascii);
++
++        string newSnippet =
++            "\n\n        // \u2500\u2500 (SnippetSaveWindow \u81ea\u52a8\u6dfb\u52a0) \u2500\u2500\n" +
++            "        snippets.Add(new Snippet(\n" +
++            $"            \"{escapedName}\",\n" +
++            $"            \"{escapedDesc}\",\n" +
++            $"            {escapedAscii}\n" +
++            "        ));\n";
++
++        string newContent = content.Substring(0, insertPos) + newSnippet + content.Substring(insertPos);
++        System.IO.File.WriteAllText(sourcePath, newContent, Encoding.UTF8);
++        AssetDatabase.Refresh();
++
++        // 运行时也立即添加
++        LevelSnippetLibrary.GetAllSnippets().Add(new LevelSnippetLibrary.Snippet(name, description, ascii));
++
++        EditorUtility.DisplayDialog("Save Successful",
++            $"\u2705 \u7247\u6bb5 '{name}' \u5df2\u6dfb\u52a0\u5230 LevelSnippetLibrary\u3002\n\n" +
++            "\u6807\u7b7e\u53ef\u7a0d\u540e\u901a\u8fc7 Validator \u9762\u677f\u8865\u5145\u3002", "OK");
++        Debug.Log($"[SnippetSaveWindow] \u2705 New snippet '{name}' added to LevelSnippetLibrary.cs");
++    }
++
++    /// <summary>替换已有片段的 ASCII 内容（保留标签）</summary>
++    private void ReplaceSnippetInSource(string targetName, string newDescription, string ascii)
++    {
++        string sourcePath = GetLibrarySourcePath();
++        if (sourcePath == null) return;
++
++        string content = System.IO.File.ReadAllText(sourcePath, Encoding.UTF8);
++
++        // 定位目标 Snippet
++        string escapedTargetName = Regex.Escape(targetName);
++        string pattern = @"new\s+Snippet\s*\(\s*\r?\n\s*""" + escapedTargetName + @"""";
++        Match match = Regex.Match(content, pattern);
++
++        if (!match.Success)
++        {
++            EditorUtility.DisplayDialog("Save Failed",
++                $"\u672a\u80fd\u5728\u6e90\u6587\u4ef6\u4e2d\u5b9a\u4f4d\u7247\u6bb5 '{targetName}'\u3002", "OK");
++            return;
++        }
++
++        int blockStart = match.Index;
++        int blockEnd = FindSnippetBlockEnd(content, blockStart);
++        if (blockEnd < 0)
++        {
++            EditorUtility.DisplayDialog("Save Failed",
++                $"\u672a\u80fd\u627e\u5230\u7247\u6bb5 '{targetName}' \u7684\u7ed3\u675f\u4f4d\u7f6e\u3002", "OK");
++            return;
++        }
++
++        string originalBlock = content.Substring(blockStart, blockEnd - blockStart + 1);
++
++        // 提取原有标签
++        string origMainRoute = ExtractNamedParam(originalBlock, "mainRoute");
++        string origShadowRoute = ExtractNamedParam(originalBlock, "shadowRoute");
++        string origTrapRoles = ExtractNamedParam(originalBlock, "trapRoles");
++        string origBudget = ExtractNamedParam(originalBlock, "budget");
++        string origTestGoal = ExtractNamedParam(originalBlock, "testGoal");
++
++        // 构建新块
++        string escapedName = EscapeCSharp(targetName);
++        string desc = newDescription ?? ExtractPositionalParam(originalBlock, 1);
++        string escapedDesc = EscapeCSharp(desc);
++        string escapedAscii = BuildAsciiLiteral(ascii);
++
++        StringBuilder sb = new StringBuilder();
++        sb.Append("new Snippet(\n");
++        sb.Append($"            \"{escapedName}\",\n");
++        sb.Append($"            \"{escapedDesc}\",\n");
++        sb.Append($"            {escapedAscii}");
++
++        // 保留原有标签
++        bool hasAnyTag = !string.IsNullOrEmpty(origMainRoute) || !string.IsNullOrEmpty(origShadowRoute) ||
++                         !string.IsNullOrEmpty(origTrapRoles) || !string.IsNullOrEmpty(origBudget) ||
++                         !string.IsNullOrEmpty(origTestGoal);
++        if (hasAnyTag)
++        {
++            sb.Append(",\n");
++            sb.Append($"            mainRoute: \"{EscapeCSharp(origMainRoute)}\",\n");
++            sb.Append($"            shadowRoute: \"{EscapeCSharp(origShadowRoute)}\",\n");
++            sb.Append($"            trapRoles: \"{EscapeCSharp(origTrapRoles)}\",\n");
++            sb.Append($"            budget: \"{EscapeCSharp(origBudget)}\",\n");
++            sb.Append($"            testGoal: \"{EscapeCSharp(origTestGoal)}\"");
++        }
++
++        sb.Append("\n        )");
++
++        // 检查原始块末尾是否有 ");"（外层 Add 的闭合）
++        string afterBlock = content.Substring(blockEnd + 1).TrimStart();
++        if (afterBlock.StartsWith(";"))
++        {
++            // 原始块包含了外层 ");", 我们需要保留
++        }
++
++        string newBlock = sb.ToString();
++
++        // 替换
++        string newContent = content.Substring(0, blockStart) + newBlock + content.Substring(blockEnd + 1);
++        System.IO.File.WriteAllText(newContent.Length > 0 ? sourcePath : sourcePath, newContent, Encoding.UTF8);
++        AssetDatabase.Refresh();
++
++        // 运行时更新
++        List<LevelSnippetLibrary.Snippet> allSnippets = LevelSnippetLibrary.GetAllSnippets();
++        if (allSnippets != null)
++        {
++            foreach (LevelSnippetLibrary.Snippet s in allSnippets)
++            {
++                if (s != null && s.name == targetName)
++                {
++                    s.ascii = ascii;
++                    if (newDescription != null)
++                        s.description = newDescription;
++                    // 重算宽高
++                    string[] lines = ascii.Split('\n');
++                    s.height = lines.Length;
++                    s.width = 0;
++                    foreach (string line in lines)
++                        if (line.Length > s.width) s.width = line.Length;
++                    break;
++                }
++            }
++        }
++
++        EditorUtility.DisplayDialog("Replace Successful",
++            $"\u2705 \u7247\u6bb5 '{targetName}' \u7684 ASCII \u5185\u5bb9\u5df2\u66f4\u65b0\u3002\n" +
++            (hasAnyTag ? "\u539f\u6709\u6807\u7b7e\u5df2\u4fdd\u7559\u3002" : "\u6807\u7b7e\u4e3a\u7a7a\uff0c\u53ef\u7a0d\u540e\u901a\u8fc7 Validator \u8865\u5145\u3002"), "OK");
++        Debug.Log($"[SnippetSaveWindow] \u2705 Snippet '{targetName}' replaced in LevelSnippetLibrary.cs");
++    }
++
++    // ═══════════════════════════════════════════════════
++    // 辅助方法
++    // ═══════════════════════════════════════════════════
++
++    private string GetLibrarySourcePath()
++    {
++        string relativePath = "Assets/Scripts/Editor/LevelSnippetLibrary.cs";
++        string fullPath = System.IO.Path.Combine(
++            System.IO.Path.GetDirectoryName(Application.dataPath),
++            relativePath);
++
++        if (!System.IO.File.Exists(fullPath))
++        {
++            // 尝试 FindAssets
++            string[] guids = AssetDatabase.FindAssets("LevelSnippetLibrary t:TextAsset");
++            if (guids != null && guids.Length > 0)
++            {
++                foreach (string guid in guids)
++                {
++                    string path = AssetDatabase.GUIDToAssetPath(guid);
++                    if (path.EndsWith("LevelSnippetLibrary.cs"))
++                    {
++                        fullPath = System.IO.Path.Combine(
++                            System.IO.Path.GetDirectoryName(Application.dataPath), path);
++                        break;
++                    }
++                }
++            }
++        }
++
++        if (!System.IO.File.Exists(fullPath))
++        {
++            EditorUtility.DisplayDialog("Save Failed",
++                $"\u672a\u627e\u5230 LevelSnippetLibrary.cs\u3002\n\u8def\u5f84: {fullPath}", "OK");
++            return null;
++        }
++
++        return fullPath;
++    }
++
++    /// <summary>找到 InitSnippets() 方法体的最后一个 "));" 之后、方法闭合 "}" 之前的位置</summary>
++    private int FindInsertPositionForNewSnippet(string content)
++    {
++        // 找到 "private static void InitSnippets()" 方法
++        int methodStart = content.IndexOf("private static void InitSnippets()");
++        if (methodStart < 0)
++            methodStart = content.IndexOf("static void InitSnippets()");
++        if (methodStart < 0)
++            return -1;
++
++        // 找到方法体的开始 '{'
++        int braceStart = content.IndexOf('{', methodStart);
++        if (braceStart < 0) return -1;
++
++        // 找到方法体的闭合 '}'
++        int depth = 0;
++        int methodEnd = -1;
++        for (int i = braceStart; i < content.Length; i++)
++        {
++            char c = content[i];
++            if (c == '"')
++            {
++                i++;
++                while (i < content.Length)
++                {
++                    if (content[i] == '\\') { i++; }
++                    else if (content[i] == '"') { break; }
++                    i++;
++                }
++                continue;
++            }
++            if (c == '{') depth++;
++            else if (c == '}')
++            {
++                depth--;
++                if (depth == 0) { methodEnd = i; break; }
++            }
++        }
++
++        if (methodEnd < 0) return -1;
++
++        // 在方法闭合 '}' 之前插入
++        return methodEnd;
++    }
++
++    /// <summary>找到 Snippet 构造块的结束位置（包含外层 Add 的 ')'）</summary>
++    private int FindSnippetBlockEnd(string content, int startIndex)
++    {
++        // 找到 "snippets.Add(" 中的 '(' — 从 startIndex 往前找
++        int addStart = content.LastIndexOf("snippets.Add(", startIndex, Math.Min(startIndex, 200));
++        if (addStart < 0)
++            addStart = content.LastIndexOf("snippets.Add(", startIndex);
++        if (addStart < 0)
++        {
++            // 直接从 new Snippet 开始找
++            addStart = startIndex;
++        }
++
++        int firstParen = content.IndexOf('(', addStart);
++        if (firstParen < 0) return -1;
++
++        int depth = 0;
++        for (int i = firstParen; i < content.Length; i++)
++        {
++            char c = content[i];
++            if (c == '"')
++            {
++                i++;
++                while (i < content.Length)
++                {
++                    if (content[i] == '\\') { i++; }
++                    else if (content[i] == '"') { break; }
++                    i++;
++                }
++                continue;
++            }
++            if (c == '(') depth++;
++            else if (c == ')')
++            {
++                depth--;
++                if (depth == 0)
++                {
++                    // 找到外层 ')' 后找 ';'
++                    int j = i + 1;
++                    while (j < content.Length && char.IsWhiteSpace(content[j])) j++;
++                    if (j < content.Length && content[j] == ';')
++                        return j;
++                    return i;
++                }
++            }
++        }
++
++        return -1;
++    }
++
++    /// <summary>从 Snippet 构造块中提取命名参数的值</summary>
++    private string ExtractNamedParam(string block, string paramName)
++    {
++        string pattern = paramName + @"\s*:\s*""([^""]*)""";
++        Match m = Regex.Match(block, pattern);
++        return m.Success ? m.Groups[1].Value : "";
++    }
++
++    /// <summary>从 Snippet 构造块中提取位置参数（0=name, 1=description, 2=ascii）</summary>
++    private string ExtractPositionalParam(string block, int index)
++    {
++        // 简单提取第 N 个字符串字面量
++        MatchCollection matches = Regex.Matches(block, @"""([^""\\]*(?:\\.[^""\\]*)*)""");
++        if (matches.Count > index)
++            return matches[index].Groups[1].Value;
++        return "";
++    }
++
++    private string BuildAsciiLiteral(string ascii)
++    {
++        string[] lines = ascii.Split('\n');
++        if (lines.Length == 1)
++            return $"\"{EscapeCSharp(lines[0])}\"";
++
++        StringBuilder sb = new StringBuilder();
++        for (int i = 0; i < lines.Length; i++)
++        {
++            string line = lines[i].TrimEnd('\r');
++            if (i == 0)
++                sb.Append($"\"{EscapeCSharp(line)}\\n\" +\n");
++            else if (i == lines.Length - 1)
++                sb.Append($"            \"{EscapeCSharp(line)}\"");
++            else
++                sb.Append($"            \"{EscapeCSharp(line)}\\n\" +\n");
++        }
++        return sb.ToString();
++    }
++
++    private string EscapeCSharp(string input)
++    {
++        if (string.IsNullOrEmpty(input)) return "";
++        return input
++            .Replace("\\", "\\\\")
++            .Replace("\"", "\\\"")
++            .Replace("\n", "\\n")
++            .Replace("\r", "\\r")
++            .Replace("\t", "\\t");
++    }
++
++    private int CountLines(string text)
++    {
++        if (string.IsNullOrEmpty(text)) return 0;
++        return text.Split('\n').Length;
++    }
++
++    private void RefreshExistingSnippetNames()
++    {
++        List<LevelSnippetLibrary.Snippet> all = LevelSnippetLibrary.GetAllSnippets();
++        if (all == null || all.Count == 0)
++        {
++            existingSnippetNames = new string[0];
++            return;
++        }
++
++        existingSnippetNames = new string[all.Count];
++        for (int i = 0; i < all.Count; i++)
++        {
++            existingSnippetNames[i] = all[i] != null && !string.IsNullOrEmpty(all[i].name)
++                ? all[i].name : $"(unnamed #{i})";
++        }
++    }
++
++    // ═══════════════════════════════════════════════════
++    // 反向烘焙辅助（镜像 AsciiLevelBaker 逻辑）
++    // ═══════════════════════════════════════════════════
++
++    private static readonly HashSet<char> MergeableTerrainChars = new HashSet<char> { '#', '=', '-' };
++
++    private static bool IsMergeableTerrain(char c) => MergeableTerrainChars.Contains(c);
++
++    private void BuildReverseMaps(
++        AsciiElementRegistry registry,
++        Dictionary<string, char> elementNameToChar,
++        Dictionary<string, char> componentTypeToChar)
++    {
++        if (registry.entries == null) return;
++
++        foreach (AsciiElementEntry entry in registry.entries)
++        {
++            if (entry == null) continue;
++
++            char asciiChar = entry.AsciiChar;
++            if (asciiChar == '\0') continue;
++
++            if (!string.IsNullOrEmpty(entry.elementName))
++                elementNameToChar[entry.elementName] = asciiChar;
++
++            if (entry.componentTypeNames == null) continue;
++
++            foreach (string typeName in entry.componentTypeNames)
++            {
++                if (string.IsNullOrWhiteSpace(typeName)) continue;
++                componentTypeToChar[typeName] = asciiChar;
++
++                int lastDot = typeName.LastIndexOf('.');
++                if (lastDot >= 0 && lastDot < typeName.Length - 1)
++                    componentTypeToChar[typeName.Substring(lastDot + 1)] = asciiChar;
++            }
++        }
++
++        if (!componentTypeToChar.ContainsKey("ControllablePlatform") &&
++            componentTypeToChar.TryGetValue("MovingPlatform", out char mpChar))
++        {
++            componentTypeToChar["ControllablePlatform"] = mpChar;
++        }
++    }
++
++    private char ResolveCharForObject(
++        GameObject obj,
++        Dictionary<string, char> elementNameToChar,
++        Dictionary<string, char> componentTypeToChar)
++    {
++        Component[] components = obj.GetComponents<Component>();
++        foreach (Component component in components)
++        {
++            if (component == null) continue;
++            Type componentType = component.GetType();
++            if (IsGenericUnityComponent(componentType)) continue;
++
++            if (componentTypeToChar.TryGetValue(componentType.Name, out char c1))
++                return c1;
++            if (!string.IsNullOrEmpty(componentType.FullName) &&
++                componentTypeToChar.TryGetValue(componentType.FullName, out char c2))
++                return c2;
++        }
++
++        foreach (KeyValuePair<string, char> pair in elementNameToChar)
++        {
++            if (NameMatchesElement(obj.name, pair.Key))
++                return pair.Value;
++        }
++
++        return '\0';
++    }
++
++    private static bool IsGenericUnityComponent(Type t)
++    {
++        return t == typeof(Transform) || t == typeof(Rigidbody2D) ||
++               t == typeof(BoxCollider2D) || t == typeof(CircleCollider2D) ||
++               t == typeof(PolygonCollider2D) || t == typeof(EdgeCollider2D) ||
++               t == typeof(CapsuleCollider2D) || t == typeof(SpriteRenderer) ||
++               t == typeof(Animator) || t == typeof(AudioSource);
++        }
++
++    private static bool NameMatchesElement(string objectName, string elementName)
++    {
++        if (string.IsNullOrEmpty(objectName) || string.IsNullOrEmpty(elementName))
++            return false;
++        if (string.Equals(objectName, elementName, StringComparison.Ordinal))
++            return true;
++        if (objectName.StartsWith(elementName + "_", StringComparison.Ordinal))
++            return true;
++        return objectName.StartsWith(elementName + " (", StringComparison.Ordinal);
++    }
++
++    private static int GetTerrainWidth(Transform obj)
++    {
++        if (TryParseWidthFromName(obj.name, out int w))
++            return Mathf.Max(1, w);
++
++        BoxCollider2D col = obj.GetComponent<BoxCollider2D>();
++        if (col != null && col.size.x > 1.5f)
++            return Mathf.Max(1, Mathf.RoundToInt(col.size.x));
++
++        return 1;
++    }
++
++    private static int GetTerrainStartX(Transform obj, int roundedX, int width)
++    {
++        if (width <= 1) return roundedX;
++        return Mathf.RoundToInt(obj.position.x - (width - 1) * 0.5f);
++    }
++
++    private static bool TryParseWidthFromName(string name, out int width)
++    {
++        width = 1;
++        int marker = name.LastIndexOf("_w", StringComparison.Ordinal);
++        if (marker < 0) return false;
++        int start = marker + 2;
++        int end = start;
++        while (end < name.Length && char.IsDigit(name[end])) end++;
++        return end > start && int.TryParse(name.Substring(start, end - start), out width);
++    }
++
++    private struct BakedEntry
++    {
++        public char asciiChar;
++        public int startX;
++        public int y;
++        public int width;
++    }
++}
++#endif
+-- 
+2.34.1
+

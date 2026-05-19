@@ -1,0 +1,69 @@
+From d669e9d961edeb4a3b2c74605056a43eb1b5bc71 Mon Sep 17 00:00:00 2001
+From: Manus AI <ai@manus.im>
+Date: Tue, 19 May 2026 03:42:05 +0000
+Subject: [PATCH] =?UTF-8?q?refactor:=20=E5=90=88=E5=B9=B6=E4=B8=A4?=
+ =?UTF-8?q?=E5=A5=97=E6=88=98=E6=8A=A5=E5=AF=BC=E5=87=BA=E9=80=BB=E8=BE=91?=
+ =?UTF-8?q?=EF=BC=8C=E7=BB=9F=E4=B8=80=E5=9C=A8=20Print=20Match=20Report?=
+ =?UTF-8?q?=20=E6=97=B6=E8=A7=A6=E5=8F=91?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+问题：
+  点击 Print Match Report 时，AutoTestAnalytics.ExportReportToJson()
+  和 AIArenaReportExporter.ExportMatchReport() 各自独立导出 JSON，
+  且 HandleGameOver 每局结束也会自动调用 ExportReportToJson()，
+  导致 reports/ai_arena_reports/ 下堆积大量冗余文件。
+
+方案：
+  1. 移除 HandleGameOver 中的 ExportReportToJson() 自动调用，
+     避免每局结束都写磁盘（挂机 100 局 = 100 个 JSON 文件）。
+  2. 在 AIArenaReportExporter.ExportMatchReport() 末尾统一调用
+     analytics.ExportReportToJson()，确保点击按钮时两套输出
+     一次性完成：
+       - docs/validation/auto_test_metrics_*.json + summary.md（新管线）
+       - reports/ai_arena_reports/MatchReport_*.json（老管线，供 AI Test Analyst 面板）
+
+影响：
+  - AI Test Analyst 面板照常读取 reports/ai_arena_reports/ 下的 JSON
+  - 新文档管线照常输出到 docs/validation/
+  - 不再每局自动写文件，仅在用户主动点击时导出
+  - 无新增依赖，无 API 变更
+---
+ Assets/Scripts/Editor/AIArenaReportExporter.cs | 5 +++++
+ Assets/Scripts/Gameplay/AutoTestAnalytics.cs   | 3 +--
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/Assets/Scripts/Editor/AIArenaReportExporter.cs b/Assets/Scripts/Editor/AIArenaReportExporter.cs
+index ba65311..5699cca 100644
+--- a/Assets/Scripts/Editor/AIArenaReportExporter.cs
++++ b/Assets/Scripts/Editor/AIArenaReportExporter.cs
+@@ -47,6 +47,11 @@ public static class AIArenaReportExporter
+ 
+             AssetDatabase.Refresh();
+             Debug.Log($"[AIArenaReportExporter] Exported AI Arena report:\nJSON: {jsonPath}\nMarkdown: {mdPath}");
++
++            // --- Legacy Export (for AITestAnalystWindow) ---
++            // 统一在此调用老逻辑，确保 AI Test Analyst 面板可读取
++            analytics.ExportReportToJson();
++
+             return mdPath;
+         }
+         catch (Exception e)
+diff --git a/Assets/Scripts/Gameplay/AutoTestAnalytics.cs b/Assets/Scripts/Gameplay/AutoTestAnalytics.cs
+index 646ca26..18ac79f 100644
+--- a/Assets/Scripts/Gameplay/AutoTestAnalytics.cs
++++ b/Assets/Scripts/Gameplay/AutoTestAnalytics.cs
+@@ -382,8 +382,7 @@ public class AutoTestAnalytics
+         // 重置卡死检测（下一局重新开始）
+         ResetStuckDetection();
+ 
+-        // 导出全息 JSON 战报
+-        ExportReportToJson();
++        // 导出全息 JSON 战报 (已移至 AIArenaReportExporter 统一处理)
+     }
+ 
+     private void HandleGameStateChanged(GameState newState)
+-- 
+2.34.1
+

@@ -67,6 +67,27 @@ public struct StuckRecord
 /// </summary>
 public class AutoTestAnalytics
 {
+
+    // ═══════════════════════════════════════════════════════════
+    // 人格画像追踪
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>当前 Mario 侧人格名称（由外部设置，导出时写入战报）</summary>
+    private string _marioPersonaName = "Default";
+
+    /// <summary>当前 Trickster 侧人格名称（由外部设置，导出时写入战报）</summary>
+    private string _tricksterPersonaName = "Default";
+
+    /// <summary>
+    /// 设置当前对战双方的人格名称。
+    /// 由 AIArena 面板在开始收集时或切换人格时调用。
+    /// </summary>
+    public void SetPersonaNames(string marioPersona, string tricksterPersona)
+    {
+        _marioPersonaName = string.IsNullOrEmpty(marioPersona) ? "Default" : marioPersona;
+        _tricksterPersonaName = string.IsNullOrEmpty(tricksterPersona) ? "Default" : tricksterPersona;
+    }
+
     // ═══════════════════════════════════════════════════════════
     // 统计数据
     // ═══════════════════════════════════════════════════════════
@@ -698,8 +719,8 @@ public class AutoTestAnalytics
 
         // 基本信息
         data.matchId = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8);
-        data.marioPersona = "Default";
-        data.tricksterPersona = "Default";
+        data.marioPersona = _marioPersonaName;
+        data.tricksterPersona = _tricksterPersonaName;
 
         // 关卡元数据
         data.levelMetadata = new List<AITestReportData.StringPair>();

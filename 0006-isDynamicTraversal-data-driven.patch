@@ -1,0 +1,158 @@
+From 4e186d46897b6e92a4e6e796d239c7e47a5c417b Mon Sep 17 00:00:00 2001
+From: Manus AI <manus@manus.im>
+Date: Tue, 19 May 2026 02:57:38 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20isDynamicTraversal=20=E6=95=B0=E6=8D=AE?=
+ =?UTF-8?q?=E9=A9=B1=E5=8A=A8=20=E2=80=94=20=E6=B3=A8=E5=86=8C=E6=97=B6?=
+ =?UTF-8?q?=E5=8B=BE=E9=80=89=E5=8D=B3=E8=87=AA=E5=8A=A8=E8=AF=86=E5=88=AB?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+将 Validator 的动态元素检测从硬编码字符集改为 Registry 数据驱动：
+
+1. AsciiElementEntry 新增 isDynamicTraversal 字段:
+   - Inspector 中可勾选
+   - Tooltip 说明用途和效果
+   - 默认 false，不影响现有元素
+
+2. AsciiElementRegistry 新增缓存和查询 API:
+   - BuildCache 中构建 _dynamicTraversalCharsCache
+   - GetDynamicTraversalChars() 供 Validator 使用
+
+3. 内置默认 entries 中为 4 个动态元素设置 isDynamicTraversal=true:
+   - B (BouncyPlatform)
+   - C (CollapsingPlatform)
+   - < (ConveyorBelt)
+   - > (MovingPlatform)
+
+4. Validator 的 HasDynamicTraversalElements 改为从 Registry 查询:
+   - 不再硬编码字符列表
+   - 以后注册新动态元素只需勾选 isDynamicTraversal，Validator 自动识别
+
+效果: 新增任何动态载具类元素时，只要在注册时勾选 isDynamicTraversal=true，
+Validator 就会自动将涉及该元素的不可达判定降级为警告，无需修改其他代码。
+---
+ .../Editor/FullLevelValidatorWindow.cs        | 11 ++++----
+ .../LevelDesign/AsciiElementRegistry.cs       | 25 ++++++++++++++++---
+ 2 files changed, 27 insertions(+), 9 deletions(-)
+
+diff --git a/Assets/Scripts/Editor/FullLevelValidatorWindow.cs b/Assets/Scripts/Editor/FullLevelValidatorWindow.cs
+index 05919c2..b506207 100644
+--- a/Assets/Scripts/Editor/FullLevelValidatorWindow.cs
++++ b/Assets/Scripts/Editor/FullLevelValidatorWindow.cs
+@@ -464,15 +464,16 @@ public class FullLevelValidatorWindow : EditorWindow
+             report.warnings.Add($"\u627e\u5230 {report.goalCount} \u4e2a Goal \u7ec8\u70b9\uff0c\u5efa\u8bae\u4ec5\u4fdd\u7559 1 \u4e2a\u3002");
+     }
+ 
+-    // 动态元素字符集（静态 BFS 无法模拟其可达贡献）
+-    private static readonly HashSet<char> DynamicTraversalChars = new HashSet<char> { '>', 'B', '<', 'C' };
+-
+-    /// <summary>检测 ASCII 中是否包含动态遍历元素</summary>
++    /// <summary>检测 ASCII 中是否包含动态遍历元素（从 Registry 查询，新增元素勾选 isDynamicTraversal 即自动识别）</summary>
+     private static bool HasDynamicTraversalElements(string ascii)
+     {
++        var registry = AsciiElementRegistry.GetDefault();
++        HashSet<char> dynamicChars = registry.GetDynamicTraversalChars();
++        if (dynamicChars == null || dynamicChars.Count == 0) return false;
++
+         foreach (char c in ascii)
+         {
+-            if (DynamicTraversalChars.Contains(c))
++            if (dynamicChars.Contains(c))
+                 return true;
+         }
+         return false;
+diff --git a/Assets/Scripts/LevelDesign/AsciiElementRegistry.cs b/Assets/Scripts/LevelDesign/AsciiElementRegistry.cs
+index ac82d6c..6877f86 100644
+--- a/Assets/Scripts/LevelDesign/AsciiElementRegistry.cs
++++ b/Assets/Scripts/LevelDesign/AsciiElementRegistry.cs
+@@ -53,6 +53,7 @@ public class AsciiElementRegistry : ScriptableObject
+     private HashSet<char> _solidCharsCache;
+     private HashSet<char> _airCharsCache;
+     private HashSet<char> _hazardCharsCache;
++    private HashSet<char> _dynamicTraversalCharsCache;
+ 
+     /// <summary>构建/重建运行时查询缓存</summary>
+     public void BuildCache()
+@@ -61,6 +62,7 @@ public class AsciiElementRegistry : ScriptableObject
+         _solidCharsCache = new HashSet<char>();
+         _airCharsCache = new HashSet<char>();
+         _hazardCharsCache = new HashSet<char>();
++        _dynamicTraversalCharsCache = new HashSet<char>();
+ 
+         if (entries == null) return;
+ 
+@@ -91,6 +93,9 @@ public class AsciiElementRegistry : ScriptableObject
+ 
+             if (entry.isHazard)
+                 _hazardCharsCache.Add(c);
++
++            if (entry.isDynamicTraversal)
++                _dynamicTraversalCharsCache.Add(c);
+         }
+     }
+ 
+@@ -153,6 +158,13 @@ public class AsciiElementRegistry : ScriptableObject
+         return new HashSet<char>(_hazardCharsCache);
+     }
+ 
++    /// <summary>获取所有动态遍历字符的集合（供 Validator 使用）</summary>
++    public HashSet<char> GetDynamicTraversalChars()
++    {
++        EnsureCache();
++        return new HashSet<char>(_dynamicTraversalCharsCache);
++    }
++
+     // ═══════════════════════════════════════════════════
+     // 静态默认实例（向后兼容：无资产时使用内置定义）
+     // ═══════════════════════════════════════════════════
+@@ -268,14 +280,14 @@ public class AsciiElementRegistry : ScriptableObject
+                 asciiChar = 'B', elementName = "BouncyPlatform", isSolid = true, isHazard = false, jumpBoost = 1f,
+                 componentTypeNames = new[] { "BouncyPlatform" }, visualColor = new Color(0.30f, 0.85f, 0.30f), visualScale = new Vector2(2.0f, 0.3f),
+                 customColliderSize = PhysicsMetrics.BOUNCY_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+-                sortingOrder = 5, isTrigger = false
++                sortingOrder = 5, isTrigger = false, isDynamicTraversal = true
+             },
+             new AsciiElementEntry
+             {
+                 asciiChar = 'C', elementName = "CollapsingPlatform", isSolid = true, isHazard = false, jumpBoost = 0f,
+                 componentTypeNames = new[] { "CollapsingPlatform" }, visualColor = new Color(0.80f, 0.65f, 0.30f), visualScale = new Vector2(2.0f, 0.4f),
+                 customColliderSize = PhysicsMetrics.COLLAPSE_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+-                sortingOrder = 5, isTrigger = false
++                sortingOrder = 5, isTrigger = false, isDynamicTraversal = true
+             },
+             new AsciiElementEntry
+             {
+@@ -296,7 +308,7 @@ public class AsciiElementRegistry : ScriptableObject
+                 asciiChar = '<', elementName = "ConveyorBelt", isSolid = true, isHazard = false, jumpBoost = 0f,
+                 componentTypeNames = new[] { "ConveyorBelt" }, visualColor = new Color(0.60f, 0.60f, 0.40f), visualScale = new Vector2(1.0f, 0.3f),
+                 customColliderSize = PhysicsMetrics.CONVEYOR_BELT_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+-                sortingOrder = 1, isTrigger = false
++                sortingOrder = 1, isTrigger = false, isDynamicTraversal = true
+             },
+             new AsciiElementEntry
+             {
+@@ -339,7 +351,7 @@ public class AsciiElementRegistry : ScriptableObject
+                 asciiChar = '>', elementName = "MovingPlatform", isSolid = true, isHazard = false, jumpBoost = 0f,
+                 componentTypeNames = new[] { "MovingPlatform" }, visualColor = new Color(0.50f, 0.50f, 0.90f), visualScale = new Vector2(3.0f, 0.4f),
+                 customColliderSize = PhysicsMetrics.MOVING_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+-                sortingOrder = 5, isTrigger = false
++                sortingOrder = 5, isTrigger = false, isDynamicTraversal = true
+             },
+             new AsciiElementEntry
+             {
+@@ -499,6 +511,11 @@ public class AsciiElementEntry
+     [Tooltip("根物体 BoxCollider2D 是否为 Trigger。")]
+     public bool isTrigger = false;
+ 
++    [Header("=== 动态行为标记 ===")]
++    [Tooltip("是否为动态遍历元素（能改变玩家可达范围：移动平台、弹跳、传送带等）。\n" +
++             "Validator 遇到此类元素时不会将不可达判定为硬错误，而是降级为警告建议 PlayMode 实测。")]
++    public bool isDynamicTraversal = false;
++
+     [Header("=== Visual 白盒参数 ===")]
+     [Tooltip("Visual 子节点的本地缩放，用于保持旧版白盒视觉大小。")]
+     public Vector2 visualScale = Vector2.one;
+-- 
+2.34.1
+

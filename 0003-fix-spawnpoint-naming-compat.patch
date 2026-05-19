@@ -1,0 +1,175 @@
+From aa14d1ce1a186669c6e611fa82989df2f0bc6565 Mon Sep 17 00:00:00 2001
+From: Manus AI <manus@manus.im>
+Date: Tue, 19 May 2026 02:30:10 +0000
+Subject: [PATCH] =?UTF-8?q?fix:=20=E7=BB=9F=E4=B8=80=20SpawnPoint=20?=
+ =?UTF-8?q?=E5=91=BD=E5=90=8D=E5=85=BC=E5=AE=B9=EF=BC=8C=E4=BF=AE=E5=A4=8D?=
+ =?UTF-8?q?=204=20=E4=B8=AA=E6=BD=9C=E5=9C=A8=E5=85=B3=E8=81=94=E9=97=AE?=
+ =?UTF-8?q?=E9=A2=98?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+根因: 项目中存在两套 SpawnPoint 命名约定未统一:
+  - Generator (CreateVisualMarker): 创建 "MarioSpawn_x_y"
+  - PlayableEnvironmentBuilder/TestSceneBuilder: 创建 "MarioSpawnPoint"
+导致多处代码用精确名查找时找不到 Generator 创建的对象。
+
+修复内容:
+
+1. Checkpoint.cs (运行时, 中高风险):
+   - 优先通过 LevelManager.MarioSpawn 引用更新复活点（不依赖对象名）
+   - Fallback: 先找 "MarioSpawnPoint"，再找 StartsWith("MarioSpawn")
+   - 修复: 检查点激活后复活位置不更新的问题
+
+2. TestConsoleWindow.Teleport.cs (编辑器, 低风险):
+   - StartsWith("MarioSpawnPoint") 改为 StartsWith("MarioSpawn")
+   - 同理 TricksterSpawn
+   - 修复: 传送面板缺少 Spawn 锚点按钮
+
+3. GameplayLoopSceneBootstrapper.cs (编辑器, 低风险):
+   - FindOrCreateSpawn 增加前缀匹配 fallback
+   - 精确名找不到时，去掉 "Point" 后缀用 StartsWith 再找一次
+   - 修复: Gameplay Loop 补全时 SpawnPoint 位置不在关卡设计起点
+
+所有修改向后兼容:
+  - 旧版 "MarioSpawnPoint" 命名仍然能被匹配（StartsWith 覆盖）
+  - 不修改任何核心逻辑，仅扩展查找范围
+  - 不影响 TestSceneBuilder 的 9-Stage 流程
+---
+ .../Editor/GameplayLoopSceneBootstrapper.cs   | 30 +++++++++++++
+ .../Editor/TestConsoleWindow.Teleport.cs      |  5 ++-
+ Assets/Scripts/LevelElements/Checkpoint.cs    | 42 ++++++++++++++++---
+ 3 files changed, 70 insertions(+), 7 deletions(-)
+
+diff --git a/Assets/Scripts/Editor/GameplayLoopSceneBootstrapper.cs b/Assets/Scripts/Editor/GameplayLoopSceneBootstrapper.cs
+index c3571c8..45194cb 100644
+--- a/Assets/Scripts/Editor/GameplayLoopSceneBootstrapper.cs
++++ b/Assets/Scripts/Editor/GameplayLoopSceneBootstrapper.cs
+@@ -243,6 +243,15 @@ public static class GameplayLoopSceneBootstrapper
+     private static Transform FindOrCreateSpawn(GameObject root, GameObject managers, string spawnName, Vector3 fallbackPosition)
+     {
+         GameObject spawn = FindChildByExactName(root, spawnName);
++
++        // [BugFix] Fallback: Generator 创建的对象名为 "MarioSpawn_x_y" 而非 "MarioSpawnPoint"。
++        // 如果精确名找不到，用前缀匹配查找（去掉 "Point" 后缀）。
++        if (spawn == null)
++        {
++            string prefix = spawnName.Replace("Point", ""); // "MarioSpawnPoint" -> "MarioSpawn"
++            spawn = FindChildByPrefix(root, prefix);
++        }
++
+         if (spawn == null)
+         {
+             spawn = new GameObject(spawnName);
+@@ -254,6 +263,27 @@ public static class GameplayLoopSceneBootstrapper
+         return spawn.transform;
+     }
+ 
++    /// <summary>按前缀查找子对象（兼容 Generator 命名格式）</summary>
++    private static GameObject FindChildByPrefix(GameObject root, string prefix)
++    {
++        if (root != null)
++        {
++            Transform[] children = root.GetComponentsInChildren<Transform>(true);
++            for (int i = 0; i < children.Length; i++)
++            {
++                if (children[i] != null && children[i].name.StartsWith(prefix))
++                    return children[i].gameObject;
++            }
++        }
++        // 场景级查找
++        foreach (GameObject obj in Object.FindObjectsOfType<GameObject>())
++        {
++            if (obj.name.StartsWith(prefix))
++                return obj;
++        }
++        return null;
++    }
++
+     private static Bounds CalculateSceneBounds(GameObject root)
+     {
+         Renderer[] renderers = root != null ? root.GetComponentsInChildren<Renderer>(true) : Object.FindObjectsOfType<Renderer>();
+diff --git a/Assets/Scripts/Editor/TestConsoleWindow.Teleport.cs b/Assets/Scripts/Editor/TestConsoleWindow.Teleport.cs
+index d70eb26..84f6011 100644
+--- a/Assets/Scripts/Editor/TestConsoleWindow.Teleport.cs
++++ b/Assets/Scripts/Editor/TestConsoleWindow.Teleport.cs
+@@ -326,7 +326,8 @@ public partial class TestConsoleWindow
+             foreach (Transform child in asciiRoot.transform)
+             {
+                 if (child == null) continue;
+-                if (child.name.StartsWith("MarioSpawnPoint"))
++                // [BugFix] 兼容 Generator 命名 "MarioSpawn_x_y" 和旧版 "MarioSpawnPoint"
++                if (child.name.StartsWith("MarioSpawn"))
+                 {
+                     cachedAnchors.Add(new TeleportAnchor
+                     {
+@@ -339,7 +340,7 @@ public partial class TestConsoleWindow
+                         SourceObject = child.gameObject
+                     });
+                 }
+-                else if (child.name.StartsWith("TricksterSpawnPoint"))
++                else if (child.name.StartsWith("TricksterSpawn"))
+                 {
+                     cachedAnchors.Add(new TeleportAnchor
+                     {
+diff --git a/Assets/Scripts/LevelElements/Checkpoint.cs b/Assets/Scripts/LevelElements/Checkpoint.cs
+index bcba0a7..5272694 100644
+--- a/Assets/Scripts/LevelElements/Checkpoint.cs
++++ b/Assets/Scripts/LevelElements/Checkpoint.cs
+@@ -66,16 +66,48 @@ public class Checkpoint : LevelElementBase
+         if (spriteRenderer != null)
+             spriteRenderer.color = activeColor;
+ 
+-        // 更新复活点：查找 MarioSpawnPoint 并移动到检查点位置
+-        GameObject spawnPoint = GameObject.Find("MarioSpawnPoint");
+-        if (spawnPoint != null)
++        // [BugFix] 更新复活点：优先通过 LevelManager 的引用更新，
++        // 避免 GameObject.Find 与 Generator 命名不匹配的问题。
++        // Fallback: 按 "MarioSpawnPoint" 和 "MarioSpawn" 两种命名查找。
++        Transform spawnTransform = null;
++
++        // 方式 1: 通过 LevelManager 获取引用（最可靠，不依赖对象名）
++        LevelManager levelManager = Object.FindObjectOfType<LevelManager>();
++        if (levelManager != null && levelManager.MarioSpawn != null)
++        {
++            spawnTransform = levelManager.MarioSpawn;
++        }
++
++        // 方式 2: Fallback — 在场景中查找 SpawnPoint 对象（兼容两种命名）
++        if (spawnTransform == null)
++        {
++            GameObject spawnPoint = GameObject.Find("MarioSpawnPoint");
++            if (spawnPoint == null)
++            {
++                // Generator 创建的命名格式: MarioSpawn_x_y
++                GameObject[] allObjects = Object.FindObjectsOfType<GameObject>();
++                foreach (GameObject obj in allObjects)
++                {
++                    if (obj.name.StartsWith("MarioSpawn"))
++                    {
++                        spawnPoint = obj;
++                        break;
++                    }
++                }
++            }
++            if (spawnPoint != null)
++                spawnTransform = spawnPoint.transform;
++        }
++
++        // 更新位置
++        if (spawnTransform != null)
+         {
+-            spawnPoint.transform.position = transform.position;
++            spawnTransform.position = transform.position;
+             Debug.Log($"[Checkpoint] Activated at {transform.position}. Spawn point updated.");
+         }
+         else
+         {
+-            // 如果没有 MarioSpawnPoint，创建一个
++            // 最终 fallback: 创建一个 MarioSpawnPoint
+             GameObject newSpawn = new GameObject("MarioSpawnPoint");
+             newSpawn.transform.position = transform.position;
+             Debug.Log($"[Checkpoint] Activated at {transform.position}. New spawn point created.");
+-- 
+2.34.1
+

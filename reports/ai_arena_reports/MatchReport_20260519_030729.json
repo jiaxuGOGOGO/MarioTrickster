@@ -1,0 +1,22 @@
+{
+    "matchId": "20260519_030729_5de8b196",
+    "marioPersona": "Default",
+    "tricksterPersona": "Default",
+    "levelMetadata": [
+        {
+            "key": "levelName",
+            "value": "Unknown"
+        }
+    ],
+    "configSnapshot": {
+        "maxJumpHeight": 2.5,
+        "maxJumpDistance": 4.5,
+        "scanCooldown": 8.0,
+        "energyControlCost": 15.0
+    },
+    "marioWins": 0,
+    "tricksterWins": 1,
+    "totalMatches": 1,
+    "averageMatchTime": 3.00274658203125,
+    "trapTriggerStats": []
+}

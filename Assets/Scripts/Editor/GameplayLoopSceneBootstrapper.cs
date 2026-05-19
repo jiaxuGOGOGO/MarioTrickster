@@ -44,6 +44,10 @@ public static class GameplayLoopSceneBootstrapper
         BindCoreManagers(root, managers, gameManager, inputManager, levelManager);
         EnsureGlobalGameUICanvas(managers.transform);
 
+        // [BugFix] 补齐 PossessionAnchor：确保所有 IControllableProp 都有锡点，
+        // 否则 Trickster AI 的 FindAmbushAnchor() 返回 null 导致原地不动。
+        EnsurePossessionAnchors(root);
+
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
         Debug.Log("[GameplayLoopSceneBootstrapper] Gameplay Loop services ensured.");
     }
@@ -373,5 +377,35 @@ public static class GameplayLoopSceneBootstrapper
 
         serializedObject.ApplyModifiedProperties();
         EditorUtility.SetDirty(target);
+    }
+
+    // ═════════════════════════════════════════════════
+    // [BugFix] 为所有实现 IControllableProp 但缺少 PossessionAnchor 的对象补齐锡点
+    // Trickster AI 的 Roaming 逻辑通过 FindObjectsOfType<PossessionAnchor>
+    // 查找伏击目标，没有锡点就会原地待命。
+    // ═════════════════════════════════════════════════
+
+    private static void EnsurePossessionAnchors(GameObject root)
+    {
+        MonoBehaviour[] allBehaviours = root != null
+            ? root.GetComponentsInChildren<MonoBehaviour>(true)
+            : Object.FindObjectsOfType<MonoBehaviour>();
+
+        int addedCount = 0;
+        foreach (MonoBehaviour mb in allBehaviours)
+        {
+            if (mb == null) continue;
+            if (!(mb is IControllableProp)) continue;
+            if (mb.GetComponent<PossessionAnchor>() != null) continue;
+
+            PossessionAnchor anchor = Undo.AddComponent<PossessionAnchor>(mb.gameObject);
+            if (anchor != null)
+                addedCount++;
+        }
+
+        if (addedCount > 0)
+        {
+            Debug.Log($"[GameplayLoopSceneBootstrapper] \u2705 \u5df2\u4e3a {addedCount} \u4e2a\u53ef\u63a7\u5143\u7d20\u81ea\u52a8\u6dfb\u52a0 PossessionAnchor\u3002");
+        }
     }
 }

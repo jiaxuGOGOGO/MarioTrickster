@@ -287,6 +287,15 @@ public class AutoTestAnalytics
     {
         if (_stuckTriggeredThisRound) return;
 
+        // [BugFix] Bot 未激活时（Human 模式）跳过卡死检测，避免开局误判
+        if (!IsMarioAIActive())
+        {
+            // 持续刷新基准位置，防止切换到 AI 后瞬间误判
+            _lastMarioX = _mario.transform.position.x;
+            _stuckTimer = 0f;
+            return;
+        }
+
         float currentX = _mario.transform.position.x;
         float deltaX = Mathf.Abs(currentX - _lastMarioX);
 
@@ -345,6 +354,23 @@ public class AutoTestAnalytics
         _stuckTriggeredThisRound = false;
         if (_mario != null)
             _lastMarioX = _mario.transform.position.x;
+    }
+
+    /// <summary>
+    /// 检查 Mario 当前是否由 AI Bot 控制。
+    /// 用于避免 Human 模式下无输入导致的卡死误判。
+    /// </summary>
+    private bool IsMarioAIActive()
+    {
+        if (_gameManager == null) return true; // 安全降级：无法判断时不阻断检测
+        InputManager im = _gameManager.GetComponent<InputManager>();
+        if (im == null) im = UnityEngine.Object.FindObjectOfType<InputManager>();
+        if (im == null) return true;
+        IInputProvider provider = im.GetCurrentProvider();
+        if (provider is HybridInputProvider hybrid)
+            return hybrid.MarioIsAI;
+        // 非 Hybrid 模式（如 AutomatedInputProvider）视为 AI 激活
+        return true;
     }
 
     /// <summary>

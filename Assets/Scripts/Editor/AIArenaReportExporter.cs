@@ -52,6 +52,17 @@ public static class AIArenaReportExporter
             // 统一在此调用老逻辑，确保 AI Test Analyst 面板可读取
             analytics.ExportReportToJson();
 
+            // --- Runtime Log Export ---
+            // 导出完整运行时日志到独立文件，供深度排查代码/UI/物理问题
+            if (analytics.LogCapture != null && analytics.LogCapture.TotalCount > 0)
+            {
+                string logFileName = $"runtime_log_{dateStamp}.txt";
+                string logPath = Path.Combine(validationDir, logFileName);
+                string logText = analytics.LogCapture.ExportAsText("Info", 0);
+                File.WriteAllText(logPath, logText, Encoding.UTF8);
+                Debug.Log($"[AIArenaReportExporter] Runtime log exported: {logPath} ({analytics.LogCapture.TotalCount} entries)");
+            }
+
             return mdPath;
         }
         catch (Exception e)

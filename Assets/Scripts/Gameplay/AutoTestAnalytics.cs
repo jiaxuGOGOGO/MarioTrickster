@@ -89,6 +89,16 @@ public class AutoTestAnalytics
     }
 
     // ═══════════════════════════════════════════════════════════
+    // 运行时日志捕获
+    // ═══════════════════════════════════════════════════════════
+
+    /// <summary>运行时日志捕获器实例（随 Analytics 生命周期自动管理）</summary>
+    private RuntimeLogCapture _logCapture = new RuntimeLogCapture(2000);
+
+    /// <summary>获取日志捕获器（供外部查询日志统计）</summary>
+    public RuntimeLogCapture LogCapture => _logCapture;
+
+    // ═══════════════════════════════════════════════════════════
     // 统计数据
     // ═══════════════════════════════════════════════════════════
 
@@ -189,7 +199,10 @@ public class AutoTestAnalytics
         // 创建 Gizmos 渲染器
         EnsureGizmoRenderer();
 
-        Debug.Log("[AutoTestAnalytics] Data collection started (with spatial defect tracker).");
+        // 启动运行时日志捕获
+        _logCapture.Clear();
+        _logCapture.StartCapture();
+        Debug.Log("[AutoTestAnalytics] Data collection started (with spatial defect tracker + runtime log capture).");
     }
 
     /// <summary>
@@ -220,6 +233,8 @@ public class AutoTestAnalytics
         // 销毁 Gizmos 渲染器
         DestroyGizmoRenderer();
 
+        // 停止运行时日志捕获（保留数据供导出）
+        _logCapture.StopCapture();
         Debug.Log("[AutoTestAnalytics] Data collection stopped.");
     }
 
@@ -237,6 +252,7 @@ public class AutoTestAnalytics
         trapTriggerCounts.Clear();
         deathPoints.Clear();
         stuckPoints.Clear();
+        _logCapture.Clear();
         ResetStuckDetection();
 
         // 刷新 Gizmos 渲染器数据
@@ -755,6 +771,26 @@ public class AutoTestAnalytics
         foreach (var kv in trapTriggerCounts)
             data.trapTriggerStats.Add(new AITestReportData.TrapStat { name = kv.Key, count = kv.Value });
 
+        // 运行时日志摘要
+        var logEntries = _logCapture.GetEntries("Warning");
+        data.runtimeLogSummary = new AITestReportData.RuntimeLogSummary
+        {
+            totalLogs = _logCapture.TotalCount,
+            infoCount = _logCapture.InfoCount,
+            warningCount = _logCapture.WarningCount,
+            errorCount = _logCapture.ErrorCount,
+            warnings = new List<string>(),
+            errors = new List<string>()
+        };
+        for (int i = 0; i < logEntries.Count && i < 100; i++)
+        {
+            var entry = logEntries[i];
+            string line = $"[{entry.timestamp:F2}s] {entry.message}";
+            if (entry.level == "Warning")
+                data.runtimeLogSummary.warnings.Add(line);
+            else
+                data.runtimeLogSummary.errors.Add(line);
+        }
         // 序列化并保存
         string json = JsonUtility.ToJson(data, true);
         string dir = Application.dataPath + "/../reports/ai_arena_reports";
@@ -1030,5 +1066,17 @@ public class AITestReportData
     {
         public string name;
         public int count;
+    }
+    // ── 运行时日志摘要 ──
+    public RuntimeLogSummary runtimeLogSummary;
+    [Serializable]
+    public struct RuntimeLogSummary
+    {
+        public int totalLogs;
+        public int infoCount;
+        public int warningCount;
+        public int errorCount;
+        public List<string> warnings;
+        public List<string> errors;
     }
 }

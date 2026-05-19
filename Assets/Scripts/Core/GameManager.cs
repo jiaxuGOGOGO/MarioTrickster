@@ -329,7 +329,7 @@ public class GameManager : MonoBehaviour
         if (mario != null && marioSpawnPoint != null)
         {
             mario.transform.position = marioSpawnPoint.position;
-            mario.enabled = true;
+            mario.ResetForNewRound();
         }
 
         if (marioHealth != null)
@@ -341,6 +341,7 @@ public class GameManager : MonoBehaviour
         if (trickster != null && tricksterSpawnPoint != null)
         {
             trickster.transform.position = tricksterSpawnPoint.position;
+            trickster.ResetForNewRound();
         }
 
         // 重置场景中的 GoalZone 触发状态（修复 B020：第二回合终点无反应）
@@ -355,6 +356,16 @@ public class GameManager : MonoBehaviour
         foreach (ControllablePropBase prop in props)
         {
             prop.ResetUses();
+        }
+
+        // 通知 AI 输入系统刷新缓存（修复 Bot 防卡死误判）
+        if (inputManager != null)
+        {
+            IInputProvider provider = inputManager.GetCurrentProvider();
+            if (provider is HybridInputProvider hybrid)
+            {
+                hybrid.InvalidateCache();
+            }
         }
 
         Debug.Log($"[GameManager] 回合 {currentRound} 开始，所有状态已重置");

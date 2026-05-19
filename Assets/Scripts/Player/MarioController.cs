@@ -965,6 +965,56 @@ public class MarioController : MonoBehaviour
         rb.velocity = _frameVelocity;
     }
 
+    /// <summary>
+    /// 回合重置时调用：清零所有运行时物理/状态，使角色回到干净的初始态。
+    /// 由 GameManager.ResetRound() 在传送位置之后调用。
+    /// </summary>
+    public void ResetForNewRound()
+    {
+        // 1. 恢复 Kinematic（如果上一轮在蓄力冻结期结束）
+        if (rb.isKinematic)
+        {
+            rb.isKinematic = false;
+        }
+
+        // 2. 清零速度
+        rb.velocity = Vector2.zero;
+        _frameVelocity = Vector2.zero;
+
+        // 3. 重置弹射状态机
+        _isPreparingBounce = false;
+        _isBouncing = false;
+
+        // 4. 重置击退状态
+        _isKnockbackStunned = false;
+        _knockbackStunTimer = 0f;
+
+        // 5. 重置跳跃状态
+        _jumpToConsume = false;
+        _bufferedJumpUsable = false;
+        _endedJumpEarly = false;
+        _coyoteUsable = false;
+        jumpPressedThisFrame = false;
+        jumpHeld = false;
+
+        // 6. 重置平台速度
+        _platformVelocity = Vector2.zero;
+        _lastPlatformVelocity = Vector2.zero;
+        _onPlatform = false;
+
+        // 7. 重置形变动画
+        _bounceSquashActive = false;
+        _landSquashActive = false;
+        if (visualTransform != null)
+            visualTransform.localScale = _baseVisualScale;
+
+        // 8. 重置输入
+        moveInput = Vector2.zero;
+
+        // 9. 确保控制器启用
+        enabled = true;
+    }
+
     #endregion
 
     // ─────────────────────────────────────────────────────

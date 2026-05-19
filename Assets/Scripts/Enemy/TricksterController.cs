@@ -415,6 +415,51 @@ public class TricksterController : MonoBehaviour
         enabled = false;
     }
 
+    /// <summary>
+    /// 回合重置时调用：清零物理状态、解除伪装、恢复控制器。
+    /// 由 GameManager.ResetRound() 在传送位置之后调用。
+    /// </summary>
+    public void ResetForNewRound()
+    {
+        // 1. 清零速度
+        rb.velocity = Vector2.zero;
+        _frameVelocity = Vector2.zero;
+
+        // 2. 重置击退状态
+        _isKnockbackStunned = false;
+        _knockbackStunTimer = 0f;
+
+        // 3. 重置跳跃状态
+        _jumpToConsume = false;
+        _bufferedJumpUsable = false;
+        _endedJumpEarly = false;
+        _coyoteUsable = false;
+        jumpPressedThisFrame = false;
+        jumpHeld = false;
+
+        // 4. 重置平台速度
+        _platformVelocity = Vector2.zero;
+        _lastPlatformVelocity = Vector2.zero;
+        _onPlatform = false;
+
+        // 5. 重置输入
+        moveInput = Vector2.zero;
+
+        // 6. 解除伪装（通过事件链级联清理 AbilitySystem 和 PossessionGate）
+        if (disguiseSystem != null && disguiseSystem.IsDisguised)
+        {
+            disguiseSystem.Undisguise();
+        }
+        // 重置伪装冷却（新回合立即可用）
+        if (disguiseSystem != null)
+        {
+            disguiseSystem.ResetCooldown();
+        }
+
+        // 7. 确保控制器启用
+        enabled = true;
+    }
+
     #endregion
 
     // ─────────────────────────────────────────────────────

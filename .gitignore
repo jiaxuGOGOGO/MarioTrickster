@@ -140,3 +140,4 @@ desktop.ini
 # MarioTrickster local/generated reports
 /TestReport.txt
 /manus_work/
+"*.patch" 

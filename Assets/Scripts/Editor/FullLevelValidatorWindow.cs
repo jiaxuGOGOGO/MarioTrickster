@@ -412,6 +412,47 @@ public class FullLevelValidatorWindow : EditorWindow
         report.hasMario = report.marioCount > 0;
         report.hasGoal = report.goalCount > 0;
 
+        // [BugFix] Fallback: 如果 Bake 的 ASCII 中没有 M/G，但场景中存在对应对象，仍然视为通过。
+        // 这覆盖了以下场景：
+        //   - 用户用片段生成关卡（片段不含 M/G），但 PlayableEnvironmentBuilder 已补全 Mario
+        //   - AsciiLevel_Root 下存在 MarioSpawn 标记对象但 Bake 未能识别
+        if (!report.hasMario)
+        {
+            // 检查场景中是否存在 MarioController 或 MarioSpawn 标记
+            if (Object.FindObjectOfType<MarioController>() != null)
+            {
+                report.hasMario = true;
+                report.marioCount = 1;
+            }
+            else
+            {
+                // 检查 AsciiLevel_Root 下是否有 MarioSpawn 命名的对象
+                GameObject root = GameObject.Find("AsciiLevel_Root");
+                if (root != null)
+                {
+                    foreach (Transform child in root.transform)
+                    {
+                        if (child.name.StartsWith("MarioSpawn"))
+                        {
+                            report.hasMario = true;
+                            report.marioCount = 1;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!report.hasGoal)
+        {
+            // 检查场景中是否存在 GoalZone 组件
+            if (Object.FindObjectOfType<GoalZone>() != null)
+            {
+                report.hasGoal = true;
+                report.goalCount = 1;
+            }
+        }
+
         if (!report.hasMario)
             report.errors.Add("\u7f3a\u5c11 Mario \u8d77\u70b9 (M)\u3002\u5b8c\u6574\u5173\u5361\u5fc5\u987b\u5305\u542b\u4e00\u4e2a\u8d77\u70b9\u3002");
         else if (report.marioCount > 1)

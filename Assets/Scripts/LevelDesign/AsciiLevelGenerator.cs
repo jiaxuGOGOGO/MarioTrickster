@@ -603,8 +603,10 @@ public static class AsciiLevelGenerator
     /// </summary>
     private static void SpawnRegisteredElement(AsciiElementEntry entry, int gridX, int gridY)
     {
-        if (entry == null || !entry.generateObject) return;
+        if (entry == null) return;
 
+        // [BugFix] M/T 出生点特殊逻辑必须在 generateObject 检查之前执行。
+        // M/T 的 generateObject=false（不走通用生成），但仍需创建 SpawnPoint 标记对象。
         if (entry.elementName == "MarioSpawn")
         {
             SpawnMarioSpawn(gridX, gridY);
@@ -615,6 +617,8 @@ public static class AsciiLevelGenerator
             SpawnTricksterSpawn(gridX, gridY);
             return;
         }
+
+        if (!entry.generateObject) return;
 
         GameObject go = CreateRegisteredBlock(entry, gridX, gridY);
         AttachConfiguredComponents(go, entry);

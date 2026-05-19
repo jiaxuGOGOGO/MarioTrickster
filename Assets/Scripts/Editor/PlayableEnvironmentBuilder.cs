@@ -31,9 +31,10 @@ public static class PlayableEnvironmentBuilder
 
         foreach (Transform child in asciiRoot.transform)
         {
-            if (child.name.StartsWith("MarioSpawnPoint"))
+            // [BugFix] Generator 创建的对象名为 "MarioSpawn_x_y"，同时兼容旧版 "MarioSpawnPoint" 命名
+            if (child.name.StartsWith("MarioSpawn"))
                 marioSpawnT = child;
-            else if (child.name.StartsWith("TricksterSpawnPoint"))
+            else if (child.name.StartsWith("TricksterSpawn"))
                 tricksterSpawnT = child;
 
             // 计算关卡边界

@@ -419,7 +419,7 @@ public class FullLevelValidatorWindow : EditorWindow
         if (!report.hasMario)
         {
             // 检查场景中是否存在 MarioController 或 MarioSpawn 标记
-            if (Object.FindObjectOfType<MarioController>() != null)
+            if (UnityEngine.Object.FindObjectOfType<MarioController>() != null)
             {
                 report.hasMario = true;
                 report.marioCount = 1;
@@ -446,7 +446,7 @@ public class FullLevelValidatorWindow : EditorWindow
         if (!report.hasGoal)
         {
             // 检查场景中是否存在 GoalZone 组件
-            if (Object.FindObjectOfType<GoalZone>() != null)
+            if (UnityEngine.Object.FindObjectOfType<GoalZone>() != null)
             {
                 report.hasGoal = true;
                 report.goalCount = 1;

@@ -117,6 +117,9 @@ public partial class TestConsoleWindow : EditorWindow
     private bool showSnippetLibrary = false;
     private int selectedSnippetIndex = 0;
 
+    // 片段拼接模式 (水平 / 垂直)
+    private int snippetStitchMode = 0; // 0 = 垂直(上下), 1 = 水平(左右)
+
     // Art & Effects Hub 状态
     private bool showArtEffectsHub = false;
 

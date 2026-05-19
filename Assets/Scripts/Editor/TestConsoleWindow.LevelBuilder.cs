@@ -967,6 +967,15 @@ public partial class TestConsoleWindow
 
         EditorGUILayout.Space(4);
 
+        // ── 片段拼接模式选择 ──
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("拼接模式:", GUILayout.Width(60));
+        string[] stitchOptions = { "垂直拼接 (上下堆叠)", "水平拼接 (左右连接)" };
+        snippetStitchMode = EditorGUILayout.Popup(snippetStitchMode, stitchOptions);
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(4);
+
         // ── 片段库 (Snippet Library) ──
         showSnippetLibrary = EditorGUILayout.Foldout(showSnippetLibrary, "经典片段库 (点击追加到下方文本框)", true);
         if (showSnippetLibrary)
@@ -990,11 +999,8 @@ public partial class TestConsoleWindow
                 GUI.color = new Color(1f, 0.85f, 0.3f);
                 if (GUILayout.Button("追加到文本框", GUILayout.Height(22)))
                 {
-                    // 追加到文本框（如果已有内容，用空行分隔）
-                    if (!string.IsNullOrEmpty(customAsciiTemplate))
-                        customAsciiTemplate += "\n\n";
-                    customAsciiTemplate += snippet.ascii;
-                    Debug.Log($"[TestConsole] Snippet '{snippet.name}' appended to template editor.");
+                    customAsciiTemplate = StitchSnippet(customAsciiTemplate, snippet.ascii, snippetStitchMode);
+                    Debug.Log($"[TestConsole] Snippet '{snippet.name}' appended to template editor (mode={(snippetStitchMode == 0 ? "vertical" : "horizontal")}).");
                 }
                 GUI.color = new Color(0.4f, 0.9f, 0.4f);
                 if (GUILayout.Button("直接生成", GUILayout.Height(22)))
@@ -1041,10 +1047,8 @@ public partial class TestConsoleWindow
             GUI.color = new Color(1f, 0.85f, 0.3f);
             if (GUILayout.Button("追加选中片段到文本框", GUILayout.Height(24)))
             {
-                if (!string.IsNullOrEmpty(customAsciiTemplate))
-                    customAsciiTemplate += "\n\n";
-                customAsciiTemplate += selectedSnippet.ascii;
-                Debug.Log($"[TestConsole] Snippet '{selectedSnippet.name}' appended to template editor from metadata selector.");
+                customAsciiTemplate = StitchSnippet(customAsciiTemplate, selectedSnippet.ascii, snippetStitchMode);
+                Debug.Log($"[TestConsole] Snippet '{selectedSnippet.name}' appended to template editor from metadata selector (mode={(snippetStitchMode == 0 ? "vertical" : "horizontal")}).");
             }
             GUI.color = new Color(0.4f, 0.9f, 0.4f);
             if (GUILayout.Button("直接生成选中片段", GUILayout.Height(24)))
@@ -1300,6 +1304,61 @@ public partial class TestConsoleWindow
             SceneView.lastActiveSceneView?.FrameSelected();
             EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
             Debug.Log($"[TestConsole] Level '{sourceName}' generated with playable environment.");
+        }
+    }
+
+    // ═════════════════════════════════════════════════
+    // 片段拼接工具方法
+    // ═════════════════════════════════════════════════
+
+    /// <summary>
+    /// 将新片段拼接到已有模板上。
+    /// mode 0 = 垂直拼接（上下堆叠，用 \n\n 分隔）
+    /// mode 1 = 水平拼接（左右连接，逐行拼接）
+    /// </summary>
+    private static string StitchSnippet(string existing, string newSnippet, int mode)
+    {
+        if (string.IsNullOrEmpty(existing))
+            return newSnippet;
+
+        if (mode == 1)
+        {
+            // 水平拼接：将片段 B 接在片段 A 的右边（逐行拼接）
+            string[] linesA = existing.Split('\n');
+            string[] linesB = newSnippet.Split('\n');
+
+            // 找到 A 的最大行宽，用于对齐
+            int maxWidthA = 0;
+            for (int i = 0; i < linesA.Length; i++)
+            {
+                if (linesA[i].Length > maxWidthA)
+                    maxWidthA = linesA[i].Length;
+            }
+
+            int totalLines = linesA.Length > linesB.Length ? linesA.Length : linesB.Length;
+            var sb = new System.Text.StringBuilder();
+
+            for (int i = 0; i < totalLines; i++)
+            {
+                string lineA = i < linesA.Length ? linesA[i] : "";
+                string lineB = i < linesB.Length ? linesB[i] : "";
+
+                // 将 A 行填充到最大宽度，然后拼接 B 行
+                sb.Append(lineA);
+                if (lineA.Length < maxWidthA)
+                    sb.Append('.', maxWidthA - lineA.Length);
+                sb.Append(lineB);
+
+                if (i < totalLines - 1)
+                    sb.Append('\n');
+            }
+
+            return sb.ToString();
+        }
+        else
+        {
+            // 垂直拼接（默认）：用空行分隔
+            return existing + "\n\n" + newSnippet;
         }
     }
 }

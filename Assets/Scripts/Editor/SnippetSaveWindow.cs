@@ -87,6 +87,15 @@ public class SnippetSaveWindow : EditorWindow
         {
             EditorGUILayout.HelpBox($"ASCII \u5df2\u70d8\u7119\u6210\u529f\uff08{CountLines(bakedAscii)} \u884c\uff09\u3002\u53ef\u5728\u4e0b\u65b9\u9884\u89c8\u548c\u7f16\u8f91\u3002", MessageType.Info);
 
+            // 新元素注册提示
+            EditorGUILayout.HelpBox(
+                "【⚠️ 新元素保存提示】\n" +
+                "如果场景中包含了你自己制作的全新机关，请注意：\n" +
+                "1. 如果它在 AsciiElementRegistry 中已有对应的字符映射 → 可以正常保存\n" +
+                "2. 如果它是全新的、未注册的元素 → 烘焙时会被忽略，保存后再生成就会丢失！\n\n" +
+                "解决办法：在 Project 面板找到 AsciiElementRegistry (或创建一个)，为新元素添加一条字符映射记录。",
+                MessageType.Warning);
+
             EditorGUILayout.LabelField("ASCII \u9884\u89c8 (\u53ef\u7f16\u8f91):", EditorStyles.miniLabel);
             asciiScrollPos = EditorGUILayout.BeginScrollView(asciiScrollPos, GUILayout.Height(120f));
             bakedAscii = EditorGUILayout.TextArea(bakedAscii, GUILayout.ExpandHeight(true));

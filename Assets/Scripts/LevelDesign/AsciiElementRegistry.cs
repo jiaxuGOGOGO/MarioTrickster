@@ -53,6 +53,7 @@ public class AsciiElementRegistry : ScriptableObject
     private HashSet<char> _solidCharsCache;
     private HashSet<char> _airCharsCache;
     private HashSet<char> _hazardCharsCache;
+    private HashSet<char> _dynamicTraversalCharsCache;
 
     /// <summary>构建/重建运行时查询缓存</summary>
     public void BuildCache()
@@ -61,6 +62,7 @@ public class AsciiElementRegistry : ScriptableObject
         _solidCharsCache = new HashSet<char>();
         _airCharsCache = new HashSet<char>();
         _hazardCharsCache = new HashSet<char>();
+        _dynamicTraversalCharsCache = new HashSet<char>();
 
         if (entries == null) return;
 
@@ -91,6 +93,9 @@ public class AsciiElementRegistry : ScriptableObject
 
             if (entry.isHazard)
                 _hazardCharsCache.Add(c);
+
+            if (entry.isDynamicTraversal)
+                _dynamicTraversalCharsCache.Add(c);
         }
     }
 
@@ -151,6 +156,13 @@ public class AsciiElementRegistry : ScriptableObject
     {
         EnsureCache();
         return new HashSet<char>(_hazardCharsCache);
+    }
+
+    /// <summary>获取所有动态遍历字符的集合（供 Validator 使用）</summary>
+    public HashSet<char> GetDynamicTraversalChars()
+    {
+        EnsureCache();
+        return new HashSet<char>(_dynamicTraversalCharsCache);
     }
 
     // ═══════════════════════════════════════════════════
@@ -268,14 +280,14 @@ public class AsciiElementRegistry : ScriptableObject
                 asciiChar = 'B', elementName = "BouncyPlatform", isSolid = true, isHazard = false, jumpBoost = 1f,
                 componentTypeNames = new[] { "BouncyPlatform" }, visualColor = new Color(0.30f, 0.85f, 0.30f), visualScale = new Vector2(2.0f, 0.3f),
                 customColliderSize = PhysicsMetrics.BOUNCY_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
-                sortingOrder = 5, isTrigger = false
+                sortingOrder = 5, isTrigger = false, isDynamicTraversal = true
             },
             new AsciiElementEntry
             {
                 asciiChar = 'C', elementName = "CollapsingPlatform", isSolid = true, isHazard = false, jumpBoost = 0f,
                 componentTypeNames = new[] { "CollapsingPlatform" }, visualColor = new Color(0.80f, 0.65f, 0.30f), visualScale = new Vector2(2.0f, 0.4f),
                 customColliderSize = PhysicsMetrics.COLLAPSE_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
-                sortingOrder = 5, isTrigger = false
+                sortingOrder = 5, isTrigger = false, isDynamicTraversal = true
             },
             new AsciiElementEntry
             {
@@ -296,7 +308,7 @@ public class AsciiElementRegistry : ScriptableObject
                 asciiChar = '<', elementName = "ConveyorBelt", isSolid = true, isHazard = false, jumpBoost = 0f,
                 componentTypeNames = new[] { "ConveyorBelt" }, visualColor = new Color(0.60f, 0.60f, 0.40f), visualScale = new Vector2(1.0f, 0.3f),
                 customColliderSize = PhysicsMetrics.CONVEYOR_BELT_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
-                sortingOrder = 1, isTrigger = false
+                sortingOrder = 1, isTrigger = false, isDynamicTraversal = true
             },
             new AsciiElementEntry
             {
@@ -339,7 +351,7 @@ public class AsciiElementRegistry : ScriptableObject
                 asciiChar = '>', elementName = "MovingPlatform", isSolid = true, isHazard = false, jumpBoost = 0f,
                 componentTypeNames = new[] { "MovingPlatform" }, visualColor = new Color(0.50f, 0.50f, 0.90f), visualScale = new Vector2(3.0f, 0.4f),
                 customColliderSize = PhysicsMetrics.MOVING_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
-                sortingOrder = 5, isTrigger = false
+                sortingOrder = 5, isTrigger = false, isDynamicTraversal = true
             },
             new AsciiElementEntry
             {
@@ -498,6 +510,11 @@ public class AsciiElementEntry
 
     [Tooltip("根物体 BoxCollider2D 是否为 Trigger。")]
     public bool isTrigger = false;
+
+    [Header("=== 动态行为标记 ===")]
+    [Tooltip("是否为动态遍历元素（能改变玩家可达范围：移动平台、弹跳、传送带等）。\n" +
+             "Validator 遇到此类元素时不会将不可达判定为硬错误，而是降级为警告建议 PlayMode 实测。")]
+    public bool isDynamicTraversal = false;
 
     [Header("=== Visual 白盒参数 ===")]
     [Tooltip("Visual 子节点的本地缩放，用于保持旧版白盒视觉大小。")]

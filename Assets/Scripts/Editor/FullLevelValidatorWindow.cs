@@ -464,15 +464,16 @@ public class FullLevelValidatorWindow : EditorWindow
             report.warnings.Add($"\u627e\u5230 {report.goalCount} \u4e2a Goal \u7ec8\u70b9\uff0c\u5efa\u8bae\u4ec5\u4fdd\u7559 1 \u4e2a\u3002");
     }
 
-    // 动态元素字符集（静态 BFS 无法模拟其可达贡献）
-    private static readonly HashSet<char> DynamicTraversalChars = new HashSet<char> { '>', 'B', '<', 'C' };
-
-    /// <summary>检测 ASCII 中是否包含动态遍历元素</summary>
+    /// <summary>检测 ASCII 中是否包含动态遍历元素（从 Registry 查询，新增元素勾选 isDynamicTraversal 即自动识别）</summary>
     private static bool HasDynamicTraversalElements(string ascii)
     {
+        var registry = AsciiElementRegistry.GetDefault();
+        HashSet<char> dynamicChars = registry.GetDynamicTraversalChars();
+        if (dynamicChars == null || dynamicChars.Count == 0) return false;
+
         foreach (char c in ascii)
         {
-            if (DynamicTraversalChars.Contains(c))
+            if (dynamicChars.Contains(c))
                 return true;
         }
         return false;

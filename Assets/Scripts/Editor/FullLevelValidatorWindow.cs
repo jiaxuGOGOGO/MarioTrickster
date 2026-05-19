@@ -464,6 +464,20 @@ public class FullLevelValidatorWindow : EditorWindow
             report.warnings.Add($"\u627e\u5230 {report.goalCount} \u4e2a Goal \u7ec8\u70b9\uff0c\u5efa\u8bae\u4ec5\u4fdd\u7559 1 \u4e2a\u3002");
     }
 
+    // 动态元素字符集（静态 BFS 无法模拟其可达贡献）
+    private static readonly HashSet<char> DynamicTraversalChars = new HashSet<char> { '>', 'B', '<', 'C' };
+
+    /// <summary>检测 ASCII 中是否包含动态遍历元素</summary>
+    private static bool HasDynamicTraversalElements(string ascii)
+    {
+        foreach (char c in ascii)
+        {
+            if (DynamicTraversalChars.Contains(c))
+                return true;
+        }
+        return false;
+    }
+
     private void CheckReachability(string ascii)
     {
         if (!report.hasMario || !report.hasGoal)
@@ -480,7 +494,20 @@ public class FullLevelValidatorWindow : EditorWindow
             : $"\u274c \u4e0d\u53ef\u8fbe\uff01\u6700\u8fdc\u5230\u8fbe ({result.ClosestReachedX},{result.ClosestReachedY})\uff0c\u8ddd\u7ec8\u70b9 {result.ClosestDistance:F1} \u683c";
 
         if (!result.IsReachable)
-            report.errors.Add($"\u7269\u7406\u6b7b\u8def: {report.reachabilityDetail}");
+        {
+            // 检测关卡中是否包含动态遍历元素（移动平台/弹跳平台/传送带/崩塌平台）
+            // 静态 BFS 无法模拟这些元素的动态可达贡献，因此降级为警告而非错误
+            if (HasDynamicTraversalElements(ascii))
+            {
+                report.isReachable = true; // 不影响 passed 判定
+                report.reachabilityDetail += "\n\u26a0\ufe0f \u5173\u5361\u5305\u542b\u52a8\u6001\u5143\u7d20(\u79fb\u52a8\u5e73\u53f0/\u5f39\u8df3/\u4f20\u9001\u5e26)\uff0c\u9759\u6001\u68c0\u6d4b\u53ef\u80fd\u8bef\u62a5\uff0c\u5efa\u8bae PlayMode \u5b9e\u6d4b\u9a8c\u8bc1";
+                report.warnings.Add("\u7269\u7406\u53ef\u8fbe\u6027: \u9759\u6001\u68c0\u6d4b\u663e\u793a\u4e0d\u53ef\u8fbe\uff0c\u4f46\u5173\u5361\u5305\u542b\u52a8\u6001\u5143\u7d20(>/B/<)\uff0c\u5efa\u8bae\u901a\u8fc7 AI Arena \u5b9e\u6d4b\u9a8c\u8bc1\u3002");
+            }
+            else
+            {
+                report.errors.Add($"\u7269\u7406\u6b7b\u8def: {report.reachabilityDetail}");
+            }
+        }
     }
 
     private void CheckCoinReachability(string ascii, string[] lines)
@@ -531,7 +558,14 @@ public class FullLevelValidatorWindow : EditorWindow
 
         if (report.unreachableCoinPositions.Count > 0)
         {
-            report.warnings.Add($"{report.unreachableCoinPositions.Count} \u4e2a\u91d1\u5e01\u4e0d\u53ef\u8fbe\uff0c\u73a9\u5bb6\u65e0\u6cd5\u6536\u96c6\u3002");
+            if (HasDynamicTraversalElements(ascii))
+            {
+                report.warnings.Add($"{report.unreachableCoinPositions.Count} \u4e2a\u91d1\u5e01\u9759\u6001\u68c0\u6d4b\u4e0d\u53ef\u8fbe\uff0c\u4f46\u5173\u5361\u5305\u542b\u52a8\u6001\u5143\u7d20\uff0c\u5efa\u8bae AI Arena \u5b9e\u6d4b\u9a8c\u8bc1\u3002");
+            }
+            else
+            {
+                report.warnings.Add($"{report.unreachableCoinPositions.Count} \u4e2a\u91d1\u5e01\u4e0d\u53ef\u8fbe\uff0c\u73a9\u5bb6\u65e0\u6cd5\u6536\u96c6\u3002");
+            }
         }
     }
 

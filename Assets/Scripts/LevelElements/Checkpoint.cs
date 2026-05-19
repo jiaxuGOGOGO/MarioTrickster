@@ -66,16 +66,48 @@ public class Checkpoint : LevelElementBase
         if (spriteRenderer != null)
             spriteRenderer.color = activeColor;
 
-        // 更新复活点：查找 MarioSpawnPoint 并移动到检查点位置
-        GameObject spawnPoint = GameObject.Find("MarioSpawnPoint");
-        if (spawnPoint != null)
+        // [BugFix] 更新复活点：优先通过 LevelManager 的引用更新，
+        // 避免 GameObject.Find 与 Generator 命名不匹配的问题。
+        // Fallback: 按 "MarioSpawnPoint" 和 "MarioSpawn" 两种命名查找。
+        Transform spawnTransform = null;
+
+        // 方式 1: 通过 LevelManager 获取引用（最可靠，不依赖对象名）
+        LevelManager levelManager = Object.FindObjectOfType<LevelManager>();
+        if (levelManager != null && levelManager.MarioSpawn != null)
         {
-            spawnPoint.transform.position = transform.position;
+            spawnTransform = levelManager.MarioSpawn;
+        }
+
+        // 方式 2: Fallback — 在场景中查找 SpawnPoint 对象（兼容两种命名）
+        if (spawnTransform == null)
+        {
+            GameObject spawnPoint = GameObject.Find("MarioSpawnPoint");
+            if (spawnPoint == null)
+            {
+                // Generator 创建的命名格式: MarioSpawn_x_y
+                GameObject[] allObjects = Object.FindObjectsOfType<GameObject>();
+                foreach (GameObject obj in allObjects)
+                {
+                    if (obj.name.StartsWith("MarioSpawn"))
+                    {
+                        spawnPoint = obj;
+                        break;
+                    }
+                }
+            }
+            if (spawnPoint != null)
+                spawnTransform = spawnPoint.transform;
+        }
+
+        // 更新位置
+        if (spawnTransform != null)
+        {
+            spawnTransform.position = transform.position;
             Debug.Log($"[Checkpoint] Activated at {transform.position}. Spawn point updated.");
         }
         else
         {
-            // 如果没有 MarioSpawnPoint，创建一个
+            // 最终 fallback: 创建一个 MarioSpawnPoint
             GameObject newSpawn = new GameObject("MarioSpawnPoint");
             newSpawn.transform.position = transform.position;
             Debug.Log($"[Checkpoint] Activated at {transform.position}. New spawn point created.");

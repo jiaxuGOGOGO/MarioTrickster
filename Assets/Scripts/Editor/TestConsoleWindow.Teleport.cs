@@ -326,7 +326,8 @@ public partial class TestConsoleWindow
             foreach (Transform child in asciiRoot.transform)
             {
                 if (child == null) continue;
-                if (child.name.StartsWith("MarioSpawnPoint"))
+                // [BugFix] 兼容 Generator 命名 "MarioSpawn_x_y" 和旧版 "MarioSpawnPoint"
+                if (child.name.StartsWith("MarioSpawn"))
                 {
                     cachedAnchors.Add(new TeleportAnchor
                     {
@@ -339,7 +340,7 @@ public partial class TestConsoleWindow
                         SourceObject = child.gameObject
                     });
                 }
-                else if (child.name.StartsWith("TricksterSpawnPoint"))
+                else if (child.name.StartsWith("TricksterSpawn"))
                 {
                     cachedAnchors.Add(new TeleportAnchor
                     {

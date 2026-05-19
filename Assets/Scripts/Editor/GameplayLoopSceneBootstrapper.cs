@@ -243,6 +243,15 @@ public static class GameplayLoopSceneBootstrapper
     private static Transform FindOrCreateSpawn(GameObject root, GameObject managers, string spawnName, Vector3 fallbackPosition)
     {
         GameObject spawn = FindChildByExactName(root, spawnName);
+
+        // [BugFix] Fallback: Generator 创建的对象名为 "MarioSpawn_x_y" 而非 "MarioSpawnPoint"。
+        // 如果精确名找不到，用前缀匹配查找（去掉 "Point" 后缀）。
+        if (spawn == null)
+        {
+            string prefix = spawnName.Replace("Point", ""); // "MarioSpawnPoint" -> "MarioSpawn"
+            spawn = FindChildByPrefix(root, prefix);
+        }
+
         if (spawn == null)
         {
             spawn = new GameObject(spawnName);
@@ -252,6 +261,27 @@ public static class GameplayLoopSceneBootstrapper
         if (spawn.transform.parent == null && managers != null)
             Undo.SetTransformParent(spawn.transform, managers.transform, $"Parent {spawnName}");
         return spawn.transform;
+    }
+
+    /// <summary>按前缀查找子对象（兼容 Generator 命名格式）</summary>
+    private static GameObject FindChildByPrefix(GameObject root, string prefix)
+    {
+        if (root != null)
+        {
+            Transform[] children = root.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < children.Length; i++)
+            {
+                if (children[i] != null && children[i].name.StartsWith(prefix))
+                    return children[i].gameObject;
+            }
+        }
+        // 场景级查找
+        foreach (GameObject obj in Object.FindObjectsOfType<GameObject>())
+        {
+            if (obj.name.StartsWith(prefix))
+                return obj;
+        }
+        return null;
     }
 
     private static Bounds CalculateSceneBounds(GameObject root)

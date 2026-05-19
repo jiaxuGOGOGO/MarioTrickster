@@ -47,6 +47,11 @@ public static class AIArenaReportExporter
 
             AssetDatabase.Refresh();
             Debug.Log($"[AIArenaReportExporter] Exported AI Arena report:\nJSON: {jsonPath}\nMarkdown: {mdPath}");
+
+            // --- Legacy Export (for AITestAnalystWindow) ---
+            // 统一在此调用老逻辑，确保 AI Test Analyst 面板可读取
+            analytics.ExportReportToJson();
+
             return mdPath;
         }
         catch (Exception e)

@@ -382,8 +382,7 @@ public class AutoTestAnalytics
         // 重置卡死检测（下一局重新开始）
         ResetStuckDetection();
 
-        // 导出全息 JSON 战报
-        ExportReportToJson();
+        // 导出全息 JSON 战报 (已移至 AIArenaReportExporter 统一处理)
     }
 
     private void HandleGameStateChanged(GameState newState)

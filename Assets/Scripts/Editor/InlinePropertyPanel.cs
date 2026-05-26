@@ -349,7 +349,7 @@ public static class InlinePropertyPanel
         if (obj.GetComponent<ControllablePlatform>() != null) return true;
         if (obj.GetComponent<ConveyorBelt>() != null) return true;
         if (obj.GetComponent<BouncyPlatform>() != null) return true;
-        if (obj.GetComponent<CollapsePlatform>() != null) return true;
+        if (obj.GetComponent<CollapsingPlatform>() != null) return true;
         if (obj.GetComponent<PossessionAnchor>() != null) return true;
 
         return false;
@@ -365,7 +365,7 @@ public static class InlinePropertyPanel
             return "传送带";
         if (obj.GetComponent<BouncyPlatform>() != null || obj.GetComponentInParent<BouncyPlatform>() != null)
             return "弹跳平台";
-        if (obj.GetComponent<CollapsePlatform>() != null || obj.GetComponentInParent<CollapsePlatform>() != null)
+        if (obj.GetComponent<CollapsingPlatform>() != null || obj.GetComponentInParent<CollapsingPlatform>() != null)
             return "崩塌平台";
         if (obj.GetComponent<PossessionAnchor>() != null || obj.GetComponentInParent<PossessionAnchor>() != null)
             return "附身锚点";

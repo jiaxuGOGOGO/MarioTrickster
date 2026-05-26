@@ -335,7 +335,10 @@ public static class NodeConnectionVisualizer
                 ConveyorBelt belt = child.GetComponent<ConveyorBelt>();
                 if (belt != null)
                 {
-                    float dir = belt.speed > 0 ? 1f : -1f;
+                    var speedField = typeof(ConveyorBelt).GetField("conveyorSpeed",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    float spd = speedField != null ? (float)speedField.GetValue(belt) : -3f;
+                    float dir = spd > 0 ? 1f : -1f;
                     DrawArrow(pos, Vector3.right * dir, 0.4f, COLOR_CONVEYOR);
                 }
                 else

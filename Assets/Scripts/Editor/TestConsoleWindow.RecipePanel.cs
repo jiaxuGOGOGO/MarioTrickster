@@ -17,7 +17,6 @@ public partial class TestConsoleWindow : EditorWindow
     private bool showRecipePanel = true;
     private int selectedRecipeCategory = 0;
     private Vector2 recipeScrollPos;
-    private int hoveredRecipeIndex = -1;
 
     private readonly string[] recipeCategoryNames = { "🔴 挑战", "🟢 机关", "🔵 路线", "🟠 场景" };
     private readonly Color[] recipeCategoryColors = {

@@ -55,7 +55,7 @@ public static class QuickPlayController
             // 正在播放 → 停止
             EditorApplication.isPlaying = false;
         }
-        else if (!EditorApplication.isPlayModeWillChange)
+        else if (!EditorApplication.isCompiling && !EditorApplication.isUpdating)
         {
             // 未在播放 → 启动快速播放流程
             StartQuickPlay();

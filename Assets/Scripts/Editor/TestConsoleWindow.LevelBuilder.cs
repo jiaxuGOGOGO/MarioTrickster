@@ -29,6 +29,11 @@ public partial class TestConsoleWindow
 
         EditorGUILayout.Space(6);
 
+        // ── 区块 2.3: 行为配方面板 (GBG-style Fancy Objects) ──
+        DrawRecipePanel();
+
+        EditorGUILayout.Space(6);
+
         // ── 区块 2.5: Gameplay Mechanics (机制驱动关卡设计) ──
         showGameplayMechanics = EditorGUILayout.Foldout(showGameplayMechanics, "\u2605 Gameplay Mechanics (\u673a\u5236\u9a71\u52a8\u5173\u5361\u8bbe\u8ba1)", true, EditorStyles.foldoutHeader);
         if (showGameplayMechanics)

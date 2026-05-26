@@ -115,7 +115,7 @@ public class WelcomeScreen : EditorWindow
         DrawShortcutRow("F8", "创作工具栏");
         DrawShortcutRow("Ctrl+T", "打开 Level Studio");
         DrawShortcutRow("Ctrl+Shift+W", "智能片段向导");
-        DrawShortcutRow("Ctrl+Shift+G", "创作引导教程");
+        DrawShortcutRow("Ctrl+Alt+G", "创作引导教程");
         EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space(8);

@@ -210,13 +210,14 @@ public static class QuickPlayController
     {
         Handles.BeginGUI();
 
-        // 在 Scene 视图右上角绘制浮动按钮
+        // 在 Scene 视图右上角绘制浮动按钮（位于工具栏下方，避免遮挡）
         float btnWidth = 90f;
         float btnHeight = 28f;
-        float margin = 10f;
+        float marginX = 10f;
+        float marginY = 42f; // [FIX UI-1] 下移到工具栏下方，避免与验证按钮重叠
         Rect btnRect = new Rect(
-            sceneView.position.width - btnWidth - margin,
-            margin,
+            sceneView.position.width - btnWidth - marginX,
+            marginY,
             btnWidth,
             btnHeight);
 

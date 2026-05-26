@@ -79,7 +79,9 @@ public class GuidedTutorialSystem : EditorWindow
     // 菜单入口
     // ═══════════════════════════════════════════════════
 
-    [MenuItem("MarioTrickster/Guided Tutorial %#g", false, 12)]
+    // [FIX UI-3] 快捷键从 %#g (Ctrl+Shift+G) 改为 %&g (Ctrl+Alt+G)
+    // 避免与 Unity 内置 Create Empty Parent (Ctrl+Shift+G) 冲突
+    [MenuItem("MarioTrickster/Guided Tutorial %&g", false, 12)]
     public static void ShowWindow()
     {
         var window = GetWindow<GuidedTutorialSystem>("Creation Guide");
@@ -509,7 +511,7 @@ public class GuidedTutorialSystem : EditorWindow
             "• F7 = 内嵌属性面板\n" +
             "• F8 = 创作工具栏\n" +
             "• Ctrl+Shift+W = 智能向导\n" +
-            "• Ctrl+Shift+G = 创作引导"
+            "• Ctrl+Alt+G = 创作引导"
         ));
 
         return list;

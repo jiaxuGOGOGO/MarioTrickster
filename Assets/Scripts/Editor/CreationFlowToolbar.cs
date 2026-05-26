@@ -107,15 +107,30 @@ public static class CreationFlowToolbar
 
     private static void DrawToolbar(SceneView sceneView)
     {
-        float toolbarWidth = 460f;
+        // [FIX UI-1] 增加工具栏宽度以容纳所有按钮（包括验证），避免与右上角 PLAY 按钮重叠
+        float toolbarWidth = 560f;
         float toolbarHeight = 32f;
-        float startX = (sceneView.position.width - toolbarWidth) / 2f;
+        // 工具栏居左偏移，避免与右上角 QuickPlay 浮动按钮重叠
+        float startX = Mathf.Max(8f, (sceneView.position.width - toolbarWidth) / 2f - 50f);
         Rect toolbarRect = new Rect(startX, 4, toolbarWidth, toolbarHeight);
 
-        // 背景
-        GUI.color = new Color(0.12f, 0.12f, 0.15f, 0.92f);
+        // [FIX UI-2] 背景色调亮，提高文字对比度（原值 0.12/0.12/0.15 → 0.22/0.22/0.26）
+        GUI.color = new Color(0.22f, 0.22f, 0.26f, 0.95f);
         GUI.DrawTexture(toolbarRect, EditorGUIUtility.whiteTexture);
         GUI.color = Color.white;
+
+        // [FIX UI-2] 绘制 1px 亮色边框增强可见性
+        Handles.color = new Color(0.45f, 0.45f, 0.5f, 0.8f);
+        Vector3[] border = new Vector3[]
+        {
+            new Vector3(toolbarRect.xMin, toolbarRect.yMin, 0),
+            new Vector3(toolbarRect.xMax, toolbarRect.yMin, 0),
+            new Vector3(toolbarRect.xMax, toolbarRect.yMax, 0),
+            new Vector3(toolbarRect.xMin, toolbarRect.yMax, 0),
+            new Vector3(toolbarRect.xMin, toolbarRect.yMin, 0)
+        };
+        Handles.DrawPolyLine(border);
+        Handles.color = Color.white;
 
         GUILayout.BeginArea(toolbarRect);
         GUILayout.BeginHorizontal();
@@ -131,7 +146,7 @@ public static class CreationFlowToolbar
         GUILayout.Space(12);
 
         // 快捷操作
-        GUI.color = new Color(0.7f, 0.7f, 0.7f);
+        GUI.color = new Color(0.85f, 0.85f, 0.85f);
         if (GUILayout.Button("新建", GUILayout.Width(40), GUILayout.Height(24)))
         {
             CreateNewLevel();
@@ -194,7 +209,7 @@ public static class CreationFlowToolbar
 
         GUIStyle statsStyle = new GUIStyle(EditorStyles.miniLabel)
         {
-            normal = { textColor = new Color(0.7f, 0.7f, 0.7f, 0.8f) },
+            normal = { textColor = new Color(0.8f, 0.8f, 0.8f, 0.9f) },
             alignment = TextAnchor.MiddleCenter,
             fontSize = 10
         };

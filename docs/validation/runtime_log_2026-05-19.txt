@@ -1,0 +1,29 @@
+﻿=== Runtime Log Capture ===
+Total: 13 | Info: 9 | Warning: 4 | Error: 0
+Capture duration: 68.2s
+---
+[0.00s] [Info] [AutoTestAnalytics] Data collection started (with spatial defect tracker + runtime log capture).
+[0.00s] [Info] [AI Arena] Analytics started.
+[2.99s] [Warning] <color=#FFFF00><b>[空间病灶] 动线卡死检测！位置: (2, 5) | 停滞 3.0s</b></color>
+[2.99s] [Info] [GameManager] Trickster 胜利！(总计: Mario 0 - Trickster 1)
+[3.50s] [Info] [AI Arena] Auto Restart ENABLED.
+[17.42s] [Info] <color=#00FF88><b>[输入流] Mario 已切换为🤖 AI控制！(Editor Toggle)</b></color>
+[17.83s] [Info] <color=#FF8800><b>[输入流] Trickster 已切换为🤖 AI控制！(Editor Toggle)</b></color>
+[68.16s] [Warning] === 🤖 AI 自动对战测试报告 ===
+对战总局数: 1 | Mario 胜率: 0% | Trickster 胜率: 100%
+最致命陷阱: N/A (触发 0 次)
+平均单局耗时: 3.0 秒
+--- 空间病灶统计 ---
+死亡总次: 0 (坠崖: 0 | 机关: 0) | 卡死次数: 1
+[68.17s] [Warning] <color=yellow><b>[关卡病灶诊断] 发现高危区域！</b></color>
+[68.17s] [Warning] <color=#FFFF00><b>病灶 1: Mario 在网格 (X: 2, Y: 5) 卡死 1 次。</b></color>
+  ➜️ 对应 ASCII 文本定位：【第 2 列，从下往上数 第 5 行】（最底层地面为第0行）。
+  💡 <color=yellow><b>诊断与建议：</b></color>
+  - 此处可能有无法逾越的高墙（落差 > 2.5格，突破了 MAX_JUMP_HEIGHT=2.5 的极限）。
+    请去 Custom Template Editor 用 '-' 单向平台降低阶梯高度，或挖空墙壁创建通路。
+  - 也可能是死胡同地形（左右都是墙），建议检查该列前后 2~3 格是否有通路。
+[68.19s] [Info] [AIArenaReportExporter] Exported AI Arena report:
+JSON: C:\Users\71034\Desktop\12.18new find jp book design\MarioTricker\docs\validation\auto_test_metrics_2026-05-19.json
+Markdown: C:\Users\71034\Desktop\12.18new find jp book design\MarioTricker\docs\validation\auto_test_summary.md
+[68.19s] [Info] <color=#88FFFF>[AutoTestAnalytics] JSON 战报已导出: C:/Users/71034/Desktop/12.18new find jp book design/MarioTricker/Assets/../reports/ai_arena_reports\MatchReport_20260519_074132.json</color>
+[68.19s] [Info] <color=#00FF88><b>[AI Arena] 第一阶段：全息遥测与画像基建完成</b></color>

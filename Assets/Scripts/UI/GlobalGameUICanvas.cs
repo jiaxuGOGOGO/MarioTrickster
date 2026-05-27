@@ -192,7 +192,7 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
 
-        defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
     }
 
     private void BuildHierarchy()

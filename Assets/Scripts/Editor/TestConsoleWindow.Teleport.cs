@@ -6,82 +6,80 @@ using System.Collections.Generic;
 public partial class TestConsoleWindow
 {
     // ═══════════════════════════════════════════════════
-    // Tab 2: 传送与状态管理
+    // Tab 3: Teleport & Reset (传送与状态管理)
+    //
+    // v2 清爽化重构要点：
+    //   - HelpBox → CompactTip（节省垂直空间）
+    //   - Stage 按钮改为 3 列布局（更紧凑）
+    //   - Quick Actions 改为单行图标按钮
+    //   - 动态锚点按钮改为紧凑单行卡片
+    //   - 所有功能 100% 保留
     // ═══════════════════════════════════════════════════
     private void DrawTeleportTab()
     {
-        EditorGUILayout.LabelField("Stage Quick Teleport", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "一键将 Mario + Trickster 传送到指定 Stage，相机硬切跟随。\n仅在 PlayMode 下可用。",
-            MessageType.Info);
-
         EditorGUI.BeginDisabledGroup(!EditorApplication.isPlaying);
 
-        // Stage 按钮网格（2 列布局）
+        // ── 区块 1: Stage 快速传送（3 列紧凑网格） ──
         EditorGUILayout.BeginVertical("box");
-        for (int i = 0; i < STAGE_NAMES.Length; i += 2)
+        EditorGUILayout.LabelField("Stage Teleport", EditorStyles.boldLabel);
+        LevelStudioStyles.CompactTip("一键传送 Mario+Trickster 到指定 Stage，相机硬切跟随 (PlayMode)");
+
+        for (int i = 0; i < STAGE_NAMES.Length; i += 3)
         {
             EditorGUILayout.BeginHorizontal();
             DrawStageButton(i);
-            if (i + 1 < STAGE_NAMES.Length)
-            {
-                DrawStageButton(i + 1);
-            }
+            if (i + 1 < STAGE_NAMES.Length) DrawStageButton(i + 1);
+            if (i + 2 < STAGE_NAMES.Length) DrawStageButton(i + 2);
             EditorGUILayout.EndHorizontal();
         }
         EditorGUILayout.EndVertical();
 
-        EditorGUILayout.Space(8);
+        EditorGUILayout.Space(4);
 
-        // ═══════════════════════════════════════════════════
-        // S33: 动态锚点系统 — 自动扫描场景中的兴趣点 (POI)
-        // 设计理念（参考 Celeste Debug Map）：
-        //   - 不硬编码任何坐标，通过“场景自省”动态发现传送目标
-        //   - 优先从 LevelElementRegistry 查询（已有 Fake Null 防御）
-        //   - 补充扫描 SpawnPoint、GoalZone 等非 Registry 对象
-        //   - 白名单过滤：仅保留有调试价值的 POI，剔除纯静态地形噪声
-        //   - 危险对象自动叠加安全传送偏移量
-        // ═══════════════════════════════════════════════════
+        // ── 区块 2: 动态锚点（Celeste Debug Map 风格） ──
         showDynamicAnchors = EditorGUILayout.Foldout(showDynamicAnchors,
-            "Dynamic Level Anchors (动态关卡锚点)", true, EditorStyles.foldoutHeader);
+            "Dynamic Level Anchors", true, EditorStyles.foldoutHeader);
         if (showDynamicAnchors)
         {
             DrawDynamicAnchorsSection();
         }
 
-        EditorGUILayout.Space(8);
+        EditorGUILayout.Space(4);
 
-        // 自定义坐标传送
-        EditorGUILayout.LabelField("Custom Teleport", EditorStyles.boldLabel);
+        // ── 区块 3: 自定义坐标 + Quick Actions（合并为一行组） ──
+        EditorGUILayout.BeginVertical("box");
+
+        // 自定义坐标传送（紧凑单行）
         EditorGUILayout.BeginHorizontal();
-        customTeleportX = EditorGUILayout.FloatField("X", customTeleportX);
-        customTeleportY = EditorGUILayout.FloatField("Y", customTeleportY);
-        if (GUILayout.Button("Go", GUILayout.Width(40)))
+        EditorGUILayout.LabelField("XY:", GUILayout.Width(22));
+        customTeleportX = EditorGUILayout.FloatField(customTeleportX, GUILayout.Width(55));
+        customTeleportY = EditorGUILayout.FloatField(customTeleportY, GUILayout.Width(55));
+        if (GUILayout.Button("Go", GUILayout.Width(32), GUILayout.Height(20)))
         {
             TeleportBothPlayers(new Vector3(customTeleportX, customTeleportY, 0));
         }
+        GUILayout.FlexibleSpace();
         EditorGUILayout.EndHorizontal();
 
-        EditorGUILayout.Space(8);
+        EditorGUILayout.Space(2);
 
-        // 角色状态快速操作
-        EditorGUILayout.LabelField("Quick Actions", EditorStyles.boldLabel);
+        // Quick Actions（紧凑按钮行）
         EditorGUILayout.BeginHorizontal();
-
-        if (GUILayout.Button("Revive Mario\n(满血复活)", GUILayout.Height(40)))
+        if (LevelStudioStyles.ColorButton("Revive Mario", LevelStudioStyles.AccentGreen, 24f))
         {
             ReviveMario();
         }
-        if (GUILayout.Button("Refill Energy\n(补满能量)", GUILayout.Height(40)))
+        if (LevelStudioStyles.ColorButton("Refill Energy", LevelStudioStyles.AccentBlue, 24f))
         {
             RefillEnergy();
         }
-        if (GUILayout.Button("Reset Elements\n(重置关卡)", GUILayout.Height(40)))
+        if (LevelStudioStyles.ColorButton("Reset Elements", LevelStudioStyles.AccentOrange, 24f))
         {
             ResetAllElements();
         }
-
         EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.EndVertical();
 
         EditorGUI.EndDisabledGroup();
     }
@@ -91,7 +89,11 @@ public partial class TestConsoleWindow
         bool isGoal = index == STAGE_NAMES.Length - 1;
         if (isGoal) GUI.color = new Color(0.5f, 1f, 0.5f);
 
-        if (GUILayout.Button(STAGE_NAMES[index], GUILayout.Height(30)))
+        // 紧凑化：缩短标签，只显示编号+关键词
+        string shortName = STAGE_NAMES[index];
+        if (shortName.Length > 20) shortName = shortName.Substring(0, 20) + "…";
+
+        if (GUILayout.Button(new GUIContent(shortName, STAGE_NAMES[index]), GUILayout.Height(26)))
         {
             TeleportToStage(index);
         }
@@ -106,8 +108,6 @@ public partial class TestConsoleWindow
 
     // [AI防坑警告] 传送后必须调用 CameraController.SnapToTarget() 实现相机硬切！
     // 绝对不能让相机花 5 秒钟缓慢滑动过去，这是核心红线。
-    // SnapToTarget() 会重置 smoothDampVelocity、lookAheadVelocity、currentLookAhead、
-    // smoothedSpeed、isMoving、lastTargetPosition 等所有平滑状态。
 
     /// <summary>传送到指定 Stage（0-based index，最后一个为 GoalZone）</summary>
     private void TeleportToStage(int stageIndex)
@@ -136,7 +136,6 @@ public partial class TestConsoleWindow
     }
 
     // [AI防坑警告] 此方法末尾的 SnapToTarget() 调用是核心红线，绝对不能删除！
-    // 没有它，传送后相机会花 5 秒慢飘过去，严重浪费测试时间。
     /// <summary>将 Mario 和 Trickster 传送到指定位置，相机硬切</summary>
     private void TeleportBothPlayers(Vector3 position)
     {
@@ -184,7 +183,6 @@ public partial class TestConsoleWindow
         if (cachedMario != null)
         {
             cachedMario.enabled = true;
-            // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
             SpriteRenderer sr = cachedMario.GetComponentInChildren<SpriteRenderer>();
             if (sr != null)
             {
@@ -231,38 +229,20 @@ public partial class TestConsoleWindow
 
     // ═════════════════════════════════════════════════════════
     // S33: 动态锚点系统 (Dynamic Teleport Anchors)
-    //
-    // 设计背景：
-    //   Level Builder 生成的 ASCII 关卡布局不固定，无法像 TestSceneBuilder 的
-    //   9-Stage 那样硬编码传送坐标。参考 Celeste Debug Map 的“场景自省”理念，
-    //   通过运行时扫描自动发现关卡中的兴趣点 (POI)，动态生成传送按钮。
-    //
-    // 核心原则：
-    //   1. 优先从 LevelElementRegistry 查询（已有 Fake Null 防御）
-    //   2. 补充扫描 SpawnPoint、GoalZone 等非 Registry 对象
-    //   3. 白名单过滤：仅保留有调试价值的 POI，剔除纯静态地形噪声
-    //   4. 危险对象自动叠加安全传送偏移量 (Vector3.up * 2f)
-    //   5. [System.NonSerialized] 缓存 + 懒加载，Domain Reload 安全
-    //   6. Fake Null 防御：遍历时跳过已销毁对象
-    //   7. ScrollView 限制最大高度，防止大量元素撑爆窗口
     // ═════════════════════════════════════════════════════════
 
     /// <summary>动态传送锚点数据结构</summary>
     private struct TeleportAnchor
     {
-        public string Name;           // 显示名称
-        public string Category;       // 分组名称
-        public Vector3 RawPosition;   // 原始坐标
-        public Vector3 SafePosition;  // 安全传送坐标（危险对象已叠加偏移）
-        public bool IsDangerous;      // 是否为危险对象
-        public Color ButtonColor;     // 按钮颜色
-        public Object SourceObject;   // 源对象引用（用于 Fake Null 检测）
+        public string Name;
+        public string Category;
+        public Vector3 RawPosition;
+        public Vector3 SafePosition;
+        public bool IsDangerous;
+        public Color ButtonColor;
+        public Object SourceObject;
     }
 
-    // ─────────────────────────────────────────────────────────
-    // POI 白名单：仅保留有调试价值的分类
-    // 剔除 Platform 和 Misc — 这些多为纯静态地形，传送过去没有调试意义
-    // ─────────────────────────────────────────────────────────
     private static readonly HashSet<ElementCategory> POI_CATEGORIES = new HashSet<ElementCategory>
     {
         ElementCategory.Trap,
@@ -281,10 +261,7 @@ public partial class TestConsoleWindow
         // ── 源 1: LevelElementRegistry 查询（白名单过滤） ──
         foreach (var rec in LevelElementRegistry.GetAll())
         {
-            // Fake Null 防御：跳过已销毁的对象
             if (rec.Component == null || rec.Transform == null) continue;
-
-            // 白名单过滤：仅保留 POI 分类
             if (!POI_CATEGORIES.Contains(rec.Category)) continue;
 
             bool isDangerous = (rec.Category == ElementCategory.Trap ||
@@ -292,7 +269,6 @@ public partial class TestConsoleWindow
                                 rec.Category == ElementCategory.Hazard);
 
             Vector3 rawPos = rec.Transform.position;
-            // 安全传送偏移：危险对象在目标上方 2 个单位，避免落地瞬间触发受击
             Vector3 safePos = isDangerous ? rawPos + Vector3.up * 2f : rawPos + Vector3.up * 0.5f;
 
             Color btnColor;
@@ -319,14 +295,13 @@ public partial class TestConsoleWindow
             });
         }
 
-        // ── 源 2: SpawnPoint 标记（非 Registry 对象） ──
+        // ── 源 2: SpawnPoint 标记 ──
         GameObject asciiRoot = GameObject.Find("AsciiLevel_Root");
         if (asciiRoot != null)
         {
             foreach (Transform child in asciiRoot.transform)
             {
                 if (child == null) continue;
-                // [BugFix] 兼容 Generator 命名 "MarioSpawn_x_y" 和旧版 "MarioSpawnPoint"
                 if (child.name.StartsWith("MarioSpawn"))
                 {
                     cachedAnchors.Add(new TeleportAnchor
@@ -356,7 +331,7 @@ public partial class TestConsoleWindow
             }
         }
 
-        // ── 源 3: GoalZone（非 Registry 对象） ──
+        // ── 源 3: GoalZone ──
         GoalZone[] goalZones = Object.FindObjectsOfType<GoalZone>();
         foreach (GoalZone gz in goalZones)
         {
@@ -373,7 +348,6 @@ public partial class TestConsoleWindow
             });
         }
 
-        // 按分类名称 + X 坐标排序，保证 UI 稳定
         cachedAnchors.Sort((a, b) =>
         {
             int catCmp = string.Compare(a.Category, b.Category, System.StringComparison.Ordinal);
@@ -383,59 +357,47 @@ public partial class TestConsoleWindow
         Debug.Log($"[TestConsole] Dynamic anchors refreshed: {cachedAnchors.Count} POIs found.");
     }
 
-    /// <summary>绘制动态锚点区域 UI</summary>
+    /// <summary>绘制动态锚点区域 UI（v2 紧凑化）</summary>
     private void DrawDynamicAnchorsSection()
     {
         if (!EditorApplication.isPlaying)
         {
-            EditorGUILayout.HelpBox(
-                "动态锚点仅在 PlayMode 下可用。\n进入 PlayMode 后自动扫描场景中的兴趣点。",
-                MessageType.Info);
+            LevelStudioStyles.CompactTip("进入 PlayMode 后自动扫描场景兴趣点 (POI)");
             return;
         }
 
-        // S33: 懒加载/状态校验拦截（审计意见第 5 点）
-        // Domain Reload 后 [System.NonSerialized] 字段会被清空，
-        // 在绘制入口做懒加载检查，确保从编辑态进入运行态时自动完成首次扫描。
         if (cachedAnchors == null || cachedAnchors.Count == 0)
         {
             RefreshTeleportAnchors();
         }
 
-        // 手动刷新按钮
+        // 刷新按钮 + 计数（紧凑单行）
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("Refresh Anchors", GUILayout.Height(22)))
+        if (GUILayout.Button("Refresh", GUILayout.Height(20), GUILayout.Width(60)))
         {
             RefreshTeleportAnchors();
         }
-        EditorGUILayout.LabelField($"{(cachedAnchors != null ? cachedAnchors.Count : 0)} POIs",
-            EditorStyles.miniLabel, GUILayout.Width(60));
+        GUILayout.Label($"{(cachedAnchors != null ? cachedAnchors.Count : 0)} POIs",
+            EditorStyles.miniLabel, GUILayout.Width(50));
+        GUILayout.FlexibleSpace();
         EditorGUILayout.EndHorizontal();
 
         if (cachedAnchors == null || cachedAnchors.Count == 0)
         {
-            EditorGUILayout.HelpBox("场景中未发现可传送的兴趣点。", MessageType.Info);
+            LevelStudioStyles.CompactTip("场景中未发现可传送的兴趣点");
             return;
         }
 
-        // S33: ScrollView 限制最大高度（审计意见第 2 点）
-        // 防止大量元素撑爆窗口，底部的 Custom Teleport 和 Quick Actions 始终可达。
-        anchorScrollPos = EditorGUILayout.BeginScrollView(anchorScrollPos,
-            GUILayout.MaxHeight(300));
+        // 紧凑锚点列表
+        anchorScrollPos = EditorGUILayout.BeginScrollView(anchorScrollPos, GUILayout.MaxHeight(260));
 
-        // 按分类分组显示（Foldout 折叠）
         string currentCategory = "";
         for (int i = 0; i < cachedAnchors.Count; i++)
         {
             TeleportAnchor anchor = cachedAnchors[i];
-
-            // S33: Fake Null 防御（审计意见第 1 点）
-            // 游玩过程中敌人被踩死、一次性陷阱被 Destroy 后，
-            // 缓存列表中的引用在 Unity 底层会变成 null。
-            // 必须在访问其属性前检查，否则会抛 MissingReferenceException。
             if (anchor.SourceObject == null) continue;
 
-            // 分类标题 + Foldout
+            // 分类标题
             if (anchor.Category != currentCategory)
             {
                 currentCategory = anchor.Category;
@@ -451,25 +413,22 @@ public partial class TestConsoleWindow
                 !anchorCategoryFoldouts[currentCategory])
                 continue;
 
-            // 绘制传送按钮
+            // 紧凑单行锚点卡片
             EditorGUILayout.BeginHorizontal();
             GUI.color = anchor.ButtonColor;
 
-            string dangerTag = anchor.IsDangerous ? " [SAFE+2]" : "";
-            string btnLabel = $"{anchor.Name}{dangerTag}\n({anchor.SafePosition.x:F1}, {anchor.SafePosition.y:F1})";
+            string dangerTag = anchor.IsDangerous ? "↑" : "";
+            string btnLabel = $"{dangerTag}{anchor.Name} ({anchor.SafePosition.x:F0},{anchor.SafePosition.y:F0})";
 
-            if (GUILayout.Button(btnLabel, GUILayout.Height(32)))
+            if (GUILayout.Button(btnLabel, GUILayout.Height(22)))
             {
                 TeleportBothPlayers(anchor.SafePosition);
-                Debug.Log($"[TestConsole] Teleported to dynamic anchor: {anchor.Name} " +
-                          $"at ({anchor.SafePosition.x:F1}, {anchor.SafePosition.y:F1})" +
-                          (anchor.IsDangerous ? " [safe offset applied]" : ""));
+                Debug.Log($"[TestConsole] Teleported to: {anchor.Name} at ({anchor.SafePosition.x:F1}, {anchor.SafePosition.y:F1})");
             }
 
             GUI.color = Color.white;
 
-            // 聚焦按钮：在 Scene View 中定位到该元素
-            if (GUILayout.Button("F", GUILayout.Width(22), GUILayout.Height(32)))
+            if (GUILayout.Button("F", GUILayout.Width(20), GUILayout.Height(22)))
             {
                 if (anchor.SourceObject is Component comp && comp != null)
                 {
@@ -489,7 +448,7 @@ public partial class TestConsoleWindow
         EditorGUILayout.EndScrollView();
     }
 
-    /// <summary>统计指定分类的有效锚点数量（跳过已销毁对象）</summary>
+    /// <summary>统计指定分类的有效锚点数量</summary>
     private int CountAnchorsInCategory(string category)
     {
         if (cachedAnchors == null) return 0;

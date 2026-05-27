@@ -9,46 +9,26 @@ using System.Collections.Generic;
 /// 快捷键: Ctrl+T (Windows) / Cmd+T (Mac)
 /// 菜单:   MarioTrickster → Test Console
 ///
-/// 功能概览 (S57d 升级版 — 四大选项卡，关卡设计与美术分离):
+/// 功能概览 (S57d 升级版 — 五大选项卡):
 ///
 ///   Tab 1 — Level Design (纯关卡设计 — 布局优先)
-///     · Custom Template Editor (自定义模板编辑器 + 片段库 + 字典速查) — 最高频操作置顶
-///     · Element Palette (动态元素调色板：点击生成到 Scene 中心)
-///     · Quick Whitebox Generator (快速白盒模板生成)
-///     · TestSceneBuilder (9-Stage / Validation Scene)
-///     · Elements Hub (Registry Browser)
-///     · Test Reports & Shortcuts
-///
 ///   Tab 2 — Art & Theme (美术与主题 — 视觉层)
-///     · Theme System (主题换肤，拖入 LevelThemeProfile，支持 Undo)
-///     · Art & Effects Hub (素材导入 + SEF Shader 效果 + 合规巡检)
-///
 ///   Tab 3 — Teleport & Reset (传送与状态管理)
-///     · Stage 1~9 + GoalZone 一键传送（Mario + Trickster + Camera 硬切）
-///     · Dynamic Level Anchors (动态关卡锚点)
-///     · 自定义坐标传送
-///     · 复活 Mario / 补满能量 / 重置关卡元素
-///
 ///   Tab 4 — Global Cheats (全局测试外挂)
-///     · God Mode (无敌)：PlayerHealth.DebugGodMode
-///     · No Cooldown：GameManager.NoCooldownMode
-///     · Infinite Energy：EnergySystem.DebugInfiniteEnergy
-///     · Instant Blend (秒速融入)：DisguiseSystem.DebugInstantBlend
-///     · Time Scale 滑动条 (0.1x ~ 3.0x)
-///     · Input Debug 显示开关
-///     · 运行时状态监控面板
+///   Tab 5 — Game Loop Tuning (对抗节奏实时调参)
+///
+/// UI/UX 优化原则 (v2 — 清爽化重构):
+///   1. 渐进式信息披露 — 默认只展示核心操作，细节按需展开
+///   2. 视觉降噪 — 用 Tooltip 替代长文 HelpBox，减少垂直空间占用
+///   3. 统一色彩语义 — 绿=生成/确认，蓝=信息/导入，橙=警告/AI，红=危险/清除
+///   4. 紧凑卡片布局 — 片段库等列表项用单行卡片替代多行展开
+///   5. 分级标题 — SectionHeader / SubHeader / MiniHeader 三级层次
 ///
 /// 设计原则:
 ///   1. 所有调试开关使用 [System.NonSerialized] + #if UNITY_EDITOR || DEVELOPMENT_BUILD 宏隔离
 ///   2. 所有开关默认关闭，每次 Play 自动重置，不影响 114 个自动化测试
 ///   3. 传送时调用 CameraController.SnapToTarget() 实现相机硬切
 ///   4. 不修改任何核心逻辑，仅通过公开 API 进行状态干预
-///
-/// Session 24: 初版创建
-/// Session 25: 升级为 Level Studio（ASCII 关卡生成 + 主题换肤 + 元素调色板）
-/// Session 26b: 精简为纯本地三合一（Custom Template Editor: 字典速查 + 5个经典片段追加 + 文本框编辑/Build）
-/// Session 57d: 重构为 4-Tab 架构（Level Design / Art & Theme / Teleport / Cheats）
-///             关卡设计与美术分离，Custom Template Editor 置顶，参考 LDtk/Mario Maker UX
 /// </summary>
 public partial class TestConsoleWindow : EditorWindow
 {
@@ -108,7 +88,7 @@ public partial class TestConsoleWindow : EditorWindow
     private bool showElementPalette = true;
     private bool showElementsHub = false;
     private bool showTestReports = false;
-    private bool showBuilderTools = true;
+    private bool showBuilderTools = false;
 
     // S26b: Custom Template Editor + Snippet Library 状态
     private bool showCustomTemplateEditor = true;
@@ -124,7 +104,7 @@ public partial class TestConsoleWindow : EditorWindow
     private bool showArtEffectsHub = false;
 
     // Gameplay Mechanics 区块状态（机制驱动关卡设计）
-    private bool showGameplayMechanics = true;
+    private bool showGameplayMechanics = false;
     private bool showAnchorNetwork = true;
     private bool showRouteBudget = false;
     private bool showMechanicsValidation = false;
@@ -192,19 +172,13 @@ public partial class TestConsoleWindow : EditorWindow
     // ═══════════════════════════════════════════════════
     private void OnGUI()
     {
-        // 标题栏
+        // ── 紧凑标题栏（合并标题 + 状态指示 + Cheat 计数到一行） ──
         EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
-        GUILayout.FlexibleSpace();
-        GUILayout.Label("MarioTrickster Level Studio", EditorStyles.boldLabel);
-        GUILayout.FlexibleSpace();
-        EditorGUILayout.EndHorizontal();
-
-        // 运行状态指示
-        EditorGUILayout.BeginHorizontal();
         Color statusColor = EditorApplication.isPlaying ? new Color(0.2f, 0.8f, 0.2f) : new Color(0.8f, 0.8f, 0.2f);
         GUI.color = statusColor;
-        GUILayout.Label(EditorApplication.isPlaying ? "● PLAY MODE" : "○ EDIT MODE", EditorStyles.boldLabel);
+        GUILayout.Label(EditorApplication.isPlaying ? "● PLAY" : "○ EDIT", EditorStyles.boldLabel, GUILayout.Width(52));
         GUI.color = Color.white;
+        GUILayout.Label("MarioTrickster Level Studio", EditorStyles.boldLabel);
         GUILayout.FlexibleSpace();
 
         if (EditorApplication.isPlaying)
@@ -212,51 +186,46 @@ public partial class TestConsoleWindow : EditorWindow
             int activeCount = CountActiveDebugFlags();
             if (activeCount > 0)
             {
-                GUI.color = new Color(1f, 0.6f, 0.2f);
-                GUILayout.Label($"[{activeCount} CHEATS ON]", EditorStyles.boldLabel);
+                GUI.color = LevelStudioStyles.AccentOrange;
+                GUILayout.Label($"[{activeCount} CHEATS]", EditorStyles.miniLabel);
                 GUI.color = Color.white;
             }
         }
         EditorGUILayout.EndHorizontal();
 
-        EditorGUILayout.Space(4);
-
-        // ── S41/S57c: Picking + Size Sync Toolbar ──
-        // Root 模式(默认): 点击/框选最终只选 Root，适合移动/旋转/批量摆放
-        // Visual 模式: 点击/框选最终只选 Visual，适合单独调视觉大小
-        // Size Sync: 在视碰分离结构下同步 Visual.localScale ↔ Root.BoxCollider2D.size
+        // ── Picking + Size Sync 工具栏（紧凑化，Tooltip 替代长文） ──
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
         EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
         bool isRootMode = LevelEditorPickingManager.IsRootMode;
         bool isSizeSyncEnabled = LevelEditorPickingManager.IsSizeSyncEnabled;
-        GUILayout.Label("Picking:", GUILayout.Width(50));
-        GUI.color = isRootMode ? new Color(0.4f, 0.9f, 0.4f) : Color.white;
-        if (GUILayout.Toggle(isRootMode, "Root (移动/旋转)", EditorStyles.toolbarButton) && !isRootMode)
+        GUILayout.Label("Picking:", GUILayout.Width(48));
+        GUI.color = isRootMode ? LevelStudioStyles.AccentGreen : Color.white;
+        if (GUILayout.Toggle(isRootMode, new GUIContent("Root", "选中 Root 物体，适合移动/旋转/批量摆放"), EditorStyles.toolbarButton, GUILayout.Width(42)) && !isRootMode)
         {
             LevelEditorPickingManager.SetMode(true);
         }
-        GUI.color = !isRootMode ? new Color(0.5f, 0.8f, 1f) : Color.white;
-        if (GUILayout.Toggle(!isRootMode, "Visual (调大小)", EditorStyles.toolbarButton) && isRootMode)
+        GUI.color = !isRootMode ? LevelStudioStyles.AccentBlue : Color.white;
+        if (GUILayout.Toggle(!isRootMode, new GUIContent("Visual", "选中 Visual 子物体，适合单独调外观大小"), EditorStyles.toolbarButton, GUILayout.Width(48)) && isRootMode)
         {
             LevelEditorPickingManager.SetMode(false);
         }
 
-        GUI.color = isSizeSyncEnabled ? new Color(1f, 0.85f, 0.35f) : Color.white;
-        if (GUILayout.Toggle(isSizeSyncEnabled, "Size Sync (视碰同步)", EditorStyles.toolbarButton) != isSizeSyncEnabled)
+        GUILayout.Space(4);
+        GUI.color = isSizeSyncEnabled ? LevelStudioStyles.AccentYellow : Color.white;
+        if (GUILayout.Toggle(isSizeSyncEnabled, new GUIContent("Size Sync", "调 Visual 大小时自动同步碰撞体，反之亦然"), EditorStyles.toolbarButton, GUILayout.Width(64)) != isSizeSyncEnabled)
         {
             LevelEditorPickingManager.SetSizeSyncEnabled(!isSizeSyncEnabled);
         }
 
         GUI.color = Color.white;
+        GUILayout.FlexibleSpace();
         EditorGUILayout.EndHorizontal();
         EditorGUI.EndDisabledGroup();
 
-        EditorGUILayout.Space(4);
-
-        // Tab 选择
-        selectedTab = GUILayout.Toolbar(selectedTab, tabNames, GUILayout.Height(28));
-
-        EditorGUILayout.Space(4);
+        // ── Tab 选择 ──
+        EditorGUILayout.Space(2);
+        selectedTab = GUILayout.Toolbar(selectedTab, tabNames, GUILayout.Height(26));
+        EditorGUILayout.Space(2);
 
         scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
 

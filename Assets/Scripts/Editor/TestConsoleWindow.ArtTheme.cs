@@ -7,15 +7,20 @@ public partial class TestConsoleWindow
 {
     // ═══════════════════════════════════════════════════
     // Tab 2: Art & Theme (美术与主题 — 视觉层)
+    //
+    // v2 清爽化重构要点：
+    //   - Theme System 区块精简：去掉 HelpBox，Tooltip 替代
+    //   - Art & Effects Hub 改为紧凑卡片式步骤引导
+    //   - 每步说明用 CompactTip 替代 HelpBox（节省 60%+ 垂直空间）
+    //   - Picking 提示已移入顶部工具栏 Tooltip，此处不再重复
+    //   - 所有功能 100% 保留
     // ═══════════════════════════════════════════════════
     private void DrawArtThemeTab()
     {
-        // ── 区块 1: 主题换肤 ──
+        // ── 区块 1: 主题换肤（最高频操作，始终展开） ──
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("Theme System", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "拖入 LevelThemeProfile 一键替换所有白盒元素的 Sprite。\n支持 Ctrl+Z 撤销。",
-            MessageType.Info);
+        LevelStudioStyles.CompactTip("拖入 LevelThemeProfile 一键替换白盒 Sprite，支持 Ctrl+Z 撤销");
 
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
 
@@ -23,16 +28,14 @@ public partial class TestConsoleWindow
             "Theme Profile:", themeProfile, typeof(LevelThemeProfile), false);
 
         EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.5f, 0.8f, 1f);
         EditorGUI.BeginDisabledGroup(themeProfile == null);
-        if (GUILayout.Button("Apply Theme (with Undo)", GUILayout.Height(28)))
+        if (LevelStudioStyles.ColorButton("Apply Theme", LevelStudioStyles.AccentBlue, 26f))
         {
             ApplyThemeWithUndo();
         }
         EditorGUI.EndDisabledGroup();
-        GUI.color = Color.white;
 
-        if (GUILayout.Button("Create New Theme", GUILayout.Height(28)))
+        if (GUILayout.Button("+ New Theme", GUILayout.Height(26), GUILayout.Width(95)))
         {
             CreateNewThemeProfile();
         }
@@ -41,143 +44,94 @@ public partial class TestConsoleWindow
         EditorGUI.EndDisabledGroup();
         EditorGUILayout.EndVertical();
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(4);
 
-        // ── 区块 2: Art & Effects Hub ──
-        showArtEffectsHub = EditorGUILayout.Foldout(showArtEffectsHub, "★ Art & Effects Hub (素材导入 + Shader效果)", true, EditorStyles.foldoutHeader);
-        if (showArtEffectsHub)
+        // ── 区块 2: Art & Effects Hub（紧凑卡片式） ──
+        if (LevelStudioStyles.SectionHeader("★ Art & Effects Hub", ref showArtEffectsHub,
+            "素材导入 → 应用到场景 → Shader效果 全流程"))
         {
             DrawArtEffectsHub();
         }
     }
 
-    /// <summary>绘制 Art & Effects Hub —— 素材导入与 Shader 效果的统一入口</summary>
+    /// <summary>绘制 Art & Effects Hub —— 紧凑卡片式步骤引导</summary>
     private void DrawArtEffectsHub()
     {
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.HelpBox(
-            "统一入口：按顺序操作即可完成「导入素材 → 应用到场景 → 挑选效果」全流程。\n" +
-            "① 新素材从零开始：用『素材导入管线』或『AI 智能裁切』\n" +
-            "② 素材包命名混乱 / 主题槽批量绑定：用『策划生产助手』\n" +
-            "③ 素材穿到已有白盒物体：用『Apply Art to Selected』\n" +
-            "④ 给物体加视觉效果（闪白/描边/溶解等）：用『SEF Quick Apply』\n" +
-            "⑤ 精细调参（颜色替换/HSV/投影等）：用『效果工厂』",
-            MessageType.Info);
 
-        EditorGUILayout.Space(4);
-
-        // 第一步：素材导入管线
-        EditorGUILayout.LabelField("① 导入新素材", EditorStyles.boldLabel);
+        // ── Step 1: 素材导入 ──
+        LevelStudioStyles.SubHeader("① Import");
+        LevelStudioStyles.CompactTip("新素材导入/AI裁切/批量命名绑定");
         EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.5f, 0.85f, 1f);
-        if (GUILayout.Button("打开素材导入管线 (Ctrl+Shift+I)", GUILayout.Height(26)))
+        if (LevelStudioStyles.ColorButton("Import Pipeline", LevelStudioStyles.AccentBlue, 24f))
         {
             AssetImportPipeline.ShowWindow();
         }
-        GUI.color = new Color(0.7f, 0.9f, 1f);
-        if (GUILayout.Button("AI 智能裁切", GUILayout.Height(26)))
+        if (LevelStudioStyles.ColorButton("AI Slicer", LevelStudioStyles.AccentBlue, 24f, 80f))
         {
             AI_SmartSlicerWindow.ShowWindow();
         }
-        GUI.color = new Color(0.8f, 1f, 0.75f);
-        if (GUILayout.Button("策划生产助手", GUILayout.Height(26)))
+        if (LevelStudioStyles.ColorButton("Planner", LevelStudioStyles.AccentBlue, 24f, 70f))
         {
             PlannerProductionAssistant.ShowWindow();
         }
-        GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();
 
-        EditorGUILayout.Space(4);
+        LevelStudioStyles.Separator();
 
-        // 第二步：应用素材到已有物体
-        EditorGUILayout.LabelField("② 应用素材到已有物体", EditorStyles.boldLabel);
-        GUI.color = new Color(0.5f, 1f, 0.6f);
-        if (GUILayout.Button("打开 Apply Art to Selected (Ctrl+Shift+A)", GUILayout.Height(26)))
+        // ── Step 2: 应用素材 ──
+        LevelStudioStyles.SubHeader("② Apply");
+        LevelStudioStyles.CompactTip("选中白盒物体 → 替换贴图/动画/Material，保留行为组件");
+        if (LevelStudioStyles.ColorButton("Apply Art to Selected", LevelStudioStyles.AccentGreen, 24f))
         {
             AssetApplyToSelected.ShowWindow();
         }
-        GUI.color = Color.white;
-        EditorGUILayout.HelpBox(
-            "先在 Scene 中选中白盒物体；点到 Root 或 Visual 都可以，工具会自动找到真正承接行为的 Root。\n" +
-            "系统会保留已有的行为组件（碎裂/爆炸/伤害等），只替换贴图、动画和 Material。",
-            MessageType.None);
 
-        EditorGUILayout.Space(4);
+        LevelStudioStyles.Separator();
 
-        // 第三步：SEF 效果
-        EditorGUILayout.LabelField("③ 视觉效果（Shader）", EditorStyles.boldLabel);
+        // ── Step 3: Shader 效果 ──
+        LevelStudioStyles.SubHeader("③ Effects");
+        LevelStudioStyles.CompactTip("Quick Apply=10个预设一键应用 | 效果工厂=逐项精细调参");
         EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(1f, 0.85f, 0.4f);
-        if (GUILayout.Button("SEF Quick Apply (Ctrl+Shift+Q)", GUILayout.Height(26)))
+        if (LevelStudioStyles.ColorButton("SEF Quick Apply", LevelStudioStyles.AccentYellow, 24f))
         {
             SEF_QuickApply.ShowWindow();
         }
-        GUI.color = new Color(0.9f, 0.7f, 1f);
-        if (GUILayout.Button("效果工厂精细调参 (Ctrl+Shift+E)", GUILayout.Height(26)))
+        if (LevelStudioStyles.ColorButton("Effect Factory", LevelStudioStyles.AccentPurple, 24f))
         {
             SpriteEffectFactoryWindow.ShowWindow();
         }
-        GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();
-        EditorGUILayout.HelpBox(
-            "Quick Apply: 10个预设一键应用（闪白、描边、溶解、冒险描边、冰冻、像素化…）\n" +
-            "效果工厂: 拖入素材 → 颜色拆解 → 逐项调参 → 实时预览",
-            MessageType.None);
 
-        EditorGUILayout.Space(4);
+        LevelStudioStyles.Separator();
 
-        // 第四步：快速修复工具
-        EditorGUILayout.LabelField("⚙ 快速修复", EditorStyles.boldLabel);
+        // ── Step 4: 快速修复（折叠，低频操作） ──
+        LevelStudioStyles.SubHeader("④ Fix & Validate");
         EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(1f, 0.6f, 0.3f);
-        if (GUILayout.Button("选中物体补 SEF Material", GUILayout.Height(24)))
+        if (LevelStudioStyles.ColorButton("补 SEF Material", LevelStudioStyles.AccentOrange, 22f))
         {
             FixSEFMaterialForSelection();
         }
-        GUI.color = new Color(0.8f, 0.8f, 0.8f);
-        if (GUILayout.Button("全工程合规巡检", GUILayout.Height(24)))
+        if (GUILayout.Button(new GUIContent("合规巡检", "扫描 Assets/Art/ 确保 PPU=32 / Point / Uncompressed"), GUILayout.Height(22)))
         {
             EditorApplication.ExecuteMenuItem("MarioTrickster/Art Pipeline/一键合规巡检 (校验全工程 PPU-Filter-Pivot)");
         }
-        GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();
-
         EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.6f, 0.9f, 0.6f);
-        if (GUILayout.Button("Pivot 修正工具", GUILayout.Height(24)))
+        if (GUILayout.Button(new GUIContent("Pivot 修正工具", "单个/批量修正 Pivot，支持 Ctrl+Z"), GUILayout.Height(22)))
         {
             PivotRepairTool.ShowWindow();
         }
-        GUI.color = new Color(0.9f, 0.9f, 0.5f);
-        if (GUILayout.Button("一键修复全工程 Pivot", GUILayout.Height(24)))
+        if (GUILayout.Button(new GUIContent("一键修复 Pivot", "根据目录自动修正全工程 Pivot"), GUILayout.Height(22)))
         {
             EditorApplication.ExecuteMenuItem("MarioTrickster/Art Pipeline/一键修复 Pivot (根据目录自动修正)");
         }
-        GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.HelpBox(
-            "补 SEF Material: 选中物体后点击，自动把 Sprites/Default 换成 SEF UberSprite，让效果能生效\n" +
-            "合规巡检: 扫描 Assets/Art/ 下所有贴图，确保 PPU=32 / Point / Uncompressed\n" +
-            "Pivot 修正: 单个物体/单张贴图/批量文件夹修正 Pivot，支持 Ctrl+Z 撤销\n" +
-            "一键修复: 根据目录自动修正全工程 Pivot（角色→BottomCenter，地形→Center），跳过用户自定义的 Custom Pivot",
-            MessageType.None);
-
-        EditorGUILayout.Space(6);
-
-        // Picking 模式提示
-        EditorGUILayout.LabelField("ℹ Picking 模式提示", EditorStyles.miniLabel);
-        EditorGUILayout.HelpBox(
-            "Root 模式（默认）: 点击/框选始终选中 Root，适合摆放关卡和整体移动\n" +
-            "Visual 模式: 点击/框选始终选中 Visual 子物体，适合只调外观大小\n" +
-            "Size Sync: 调 Visual 大小时自动同步碰撞体，反之亦然\n\n" +
-            "★ 给已有白盒换皮时点 Root 或 Visual 都可以；Apply Art 会自动回到 Root，避免把行为写错层。",
-            MessageType.None);
 
         EditorGUILayout.EndVertical();
     }
 
-    /// <summary>为当前选中物体补上 SEF Material（解决“效果不生效”的常见问题）</summary>
+    /// <summary>为当前选中物体补上 SEF Material（解决"效果不生效"的常见问题）</summary>
     private void FixSEFMaterialForSelection()
     {
         var selected = Selection.gameObjects;
@@ -242,14 +196,11 @@ public partial class TestConsoleWindow
         int count = 0;
         foreach (var sr in renderers)
         {
-            // 跳过已经使用 SEF Material 的
             if (sr.sharedMaterial != null && sr.sharedMaterial.shader != null
                 && sr.sharedMaterial.shader.name == "MarioTrickster/SEF/UberSprite")
                 continue;
 
-            // 跳过没有贴图的（白盒状态）
             if (sr.sprite == null) continue;
-            // 跳过还是白盒 Sprite 的（未被换肤）
             if (sr.sprite.texture != null && sr.sprite.texture.width == 4 && sr.sprite.texture.height == 4)
                 continue;
 
@@ -258,7 +209,6 @@ public partial class TestConsoleWindow
             mat.mainTexture = sr.sprite.texture;
             sr.sharedMaterial = mat;
 
-            // 确保有 SpriteEffectController
             if (sr.gameObject.GetComponent<SpriteEffectController>() == null)
             {
                 sr.gameObject.AddComponent<SpriteEffectController>();
@@ -268,6 +218,4 @@ public partial class TestConsoleWindow
         if (count > 0)
             Debug.Log($"[TestConsole] 换肤后自动为 {count} 个物体补上 SEF Material");
     }
-
-    /// <summary>生成白盒关卡</summary>
 }

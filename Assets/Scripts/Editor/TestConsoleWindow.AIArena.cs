@@ -6,18 +6,12 @@ using System.Collections;
 // ═══════════════════════════════════════════════════════════════════
 // TestConsoleWindow.AIArena — AI 自动挂机角斗场 (S60 升级版)
 //
-// 在 Cheats Tab 末尾绘制折叠栏，提供：
-//   1. [Mario 托管 (F1)] Toggle — 切换 Mario 人机控制
-//   2. [Trickster 托管 (F2)] Toggle — 切换 Trickster 人机控制
-//   3. [Time Scale] 滑动条 — 1x~5x 快进对局
-//   4. [Auto Restart] Toggle — 回合结束后自动延迟 1s 重开
-//   5. [Print Match Report] 按钮 — 输出汇总战报，并导出 JSON/Markdown 结构化报告
-//
-// S60 改动：
-//   - 移除原来的单体 [Enable AI Bots]，改为两个独立 Toggle
-//   - 通过 HybridInputProvider（默认 Provider）的 MarioIsAI / TricksterIsAI 控制
-//   - F1/F2 热键在 HybridInputProvider.Tick() 中检测，Editor UI 仅做同步显示
-//   - 关闭时 Time.timeScale 恢复 1.0f，MarioIsAI/TricksterIsAI 恢复 false
+// v2 清爽化重构要点：
+//   - HelpBox → CompactTip（节省垂直空间）
+//   - Toggle 和状态指示合并为紧凑行
+//   - TAS 区域紧凑化
+//   - Live Stats 改为紧凑单行
+//   - 所有功能 100% 保留
 // ═══════════════════════════════════════════════════════════════════
 
 public partial class TestConsoleWindow
@@ -40,13 +34,9 @@ public partial class TestConsoleWindow
     private int _tasFrameCount = 0;
 
     // ═══════════════════════════════════════════════════
-    // 获取当前 HybridInputProvider（从 InputManager）
+    // 获取当前 HybridInputProvider
     // ═══════════════════════════════════════════════════
 
-    /// <summary>
-    /// 从 InputManager 获取当前的 HybridInputProvider。
-    /// 如果当前 Provider 不是 Hybrid（如被测试注入了 AutomatedInputProvider），返回 null。
-    /// </summary>
     private HybridInputProvider GetHybridProvider()
     {
         EnsureCache();
@@ -55,12 +45,12 @@ public partial class TestConsoleWindow
     }
 
     // ═══════════════════════════════════════════════════
-    // 绘制 AI Arena 折叠栏（由 DrawCheatsTab 末尾调用）
+    // 绘制 AI Arena 折叠栏
     // ═══════════════════════════════════════════════════
 
     private void DrawAIArenaSection()
     {
-        EditorGUILayout.Space(8);
+        EditorGUILayout.Space(4);
 
         var hybrid = GetHybridProvider();
         bool anyAI = hybrid != null && (hybrid.MarioIsAI || hybrid.TricksterIsAI);
@@ -68,7 +58,7 @@ public partial class TestConsoleWindow
         // 折叠栏标题
         GUI.color = anyAI ? new Color(0.3f, 1f, 0.5f) : Color.white;
         showAIArena = EditorGUILayout.Foldout(showAIArena,
-            "\U0001f916 AI Auto-Arena (\u81ea\u52a8\u6302\u673a\u89d2\u6597\u573a)" + (anyAI ? " [ACTIVE]" : ""),
+            "AI Auto-Arena" + (anyAI ? " [ACTIVE]" : ""),
             true, EditorStyles.foldoutHeader);
         GUI.color = Color.white;
 
@@ -76,76 +66,58 @@ public partial class TestConsoleWindow
 
         EditorGUILayout.BeginVertical("box");
 
-        EditorGUILayout.HelpBox(
-            "\u72ec\u7acb\u63a7\u5236 Mario \u548c Trickster \u7684\u4eba\u673a\u5207\u6362\u3002\n" +
-            "\u6e38\u73a9\u4e2d\u6309 F1/F2 \u4e00\u952e\u593a\u820d\uff0c\u6216\u5728\u6b64\u52fe\u9009\u3002\n" +
-            "\u5173\u95ed\u65f6\u81ea\u52a8\u6062\u590d Time.timeScale = 1.0\u3002",
-            MessageType.Info);
+        LevelStudioStyles.CompactTip("F1/F2 切换人机 | 关闭时自动恢复 TimeScale=1");
 
         if (hybrid == null)
         {
-            EditorGUILayout.HelpBox(
-                "\u5f53\u524d InputProvider \u4e0d\u662f HybridInputProvider\uff0c\u65e0\u6cd5\u63a7\u5236\u4eba\u673a\u5207\u6362\u3002\n" +
-                "\u53ef\u80fd\u662f\u81ea\u52a8\u5316\u6d4b\u8bd5\u6b63\u5728\u8fd0\u884c\u3002",
-                MessageType.Warning);
+            LevelStudioStyles.CompactTip("当前 InputProvider 非 Hybrid，无法控制人机切换");
             EditorGUILayout.EndVertical();
             return;
         }
 
-        // ── Mario 托管 (F1) Toggle ──
-        EditorGUILayout.Space(4);
+        // ── Mario/Trickster 托管 Toggle（紧凑双列） ──
+        EditorGUILayout.BeginHorizontal();
+
         GUI.color = hybrid.MarioIsAI ? new Color(0.4f, 0.9f, 1f) : Color.white;
         bool newMarioAI = EditorGUILayout.Toggle(
-            new GUIContent("Mario \u6258\u7ba1 (F1)", "\u5207\u6362 Mario \u4e3a AI \u63a7\u5236\uff0c\u6216\u6309 F1 \u70ed\u952e"),
+            new GUIContent("Mario (F1)", "切换 Mario AI 控制"),
             hybrid.MarioIsAI);
         GUI.color = Color.white;
 
         if (newMarioAI != hybrid.MarioIsAI)
         {
             hybrid.MarioIsAI = newMarioAI;
-            string who = newMarioAI ? "\U0001f916 AI" : "\U0001f464 \u4eba\u7c7b";
-            Debug.Log($"<color=#00FF88><b>[\u8f93\u5165\u6d41] Mario \u5df2\u5207\u6362\u4e3a{who}\u63a7\u5236\uff01(Editor Toggle)</b></color>");
+            Debug.Log($"<color=#00FF88><b>[输入流] Mario → {(newMarioAI ? "AI" : "Human")} (Editor)</b></color>");
         }
 
-        // ── Trickster 托管 (F2) Toggle ──
         GUI.color = hybrid.TricksterIsAI ? new Color(1f, 0.6f, 0.2f) : Color.white;
         bool newTricksterAI = EditorGUILayout.Toggle(
-            new GUIContent("Trickster \u6258\u7ba1 (F2)", "\u5207\u6362 Trickster \u4e3a AI \u63a7\u5236\uff0c\u6216\u6309 F2 \u70ed\u952e"),
+            new GUIContent("Trickster (F2)", "切换 Trickster AI 控制"),
             hybrid.TricksterIsAI);
         GUI.color = Color.white;
 
         if (newTricksterAI != hybrid.TricksterIsAI)
         {
             hybrid.TricksterIsAI = newTricksterAI;
-            string who = newTricksterAI ? "\U0001f916 AI" : "\U0001f464 \u4eba\u7c7b";
-            Debug.Log($"<color=#FF8800><b>[\u8f93\u5165\u6d41] Trickster \u5df2\u5207\u6362\u4e3a{who}\u63a7\u5236\uff01(Editor Toggle)</b></color>");
+            Debug.Log($"<color=#FF8800><b>[输入流] Trickster → {(newTricksterAI ? "AI" : "Human")} (Editor)</b></color>");
         }
 
-        // ── 当前状态指示 ──
-        EditorGUILayout.BeginHorizontal();
-        string marioLabel = hybrid.MarioIsAI ? "\U0001f916 AI" : "\U0001f464 Human";
-        string trickLabel = hybrid.TricksterIsAI ? "\U0001f916 AI" : "\U0001f464 Human";
-        EditorGUILayout.LabelField($"Mario: {marioLabel}  |  Trickster: {trickLabel}", EditorStyles.miniLabel);
         EditorGUILayout.EndHorizontal();
 
-        // ── Time Scale 滑动条 ──
-        EditorGUILayout.Space(4);
-        EditorGUILayout.LabelField("Time Scale", EditorStyles.boldLabel);
+        // ── Time Scale + Auto Restart（紧凑单行） ──
         EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Speed", GUILayout.Width(38));
         float newArenaTimeScale = EditorGUILayout.Slider(arenaTimeScale, 1.0f, 5.0f);
         if (!Mathf.Approximately(newArenaTimeScale, arenaTimeScale))
         {
             arenaTimeScale = newArenaTimeScale;
             Time.timeScale = arenaTimeScale;
         }
-        // 快捷按钮
-        if (GUILayout.Button("1x", GUILayout.Width(30))) { arenaTimeScale = 1f; Time.timeScale = 1f; }
-        if (GUILayout.Button("3x", GUILayout.Width(30))) { arenaTimeScale = 3f; Time.timeScale = 3f; }
-        if (GUILayout.Button("5x", GUILayout.Width(30))) { arenaTimeScale = 5f; Time.timeScale = 5f; }
+        if (GUILayout.Button("1x", GUILayout.Width(25))) { arenaTimeScale = 1f; Time.timeScale = 1f; }
+        if (GUILayout.Button("3x", GUILayout.Width(25))) { arenaTimeScale = 3f; Time.timeScale = 3f; }
+        if (GUILayout.Button("5x", GUILayout.Width(25))) { arenaTimeScale = 5f; Time.timeScale = 5f; }
         EditorGUILayout.EndHorizontal();
 
-        // ── Auto Restart Toggle ──
-        EditorGUILayout.Space(4);
         bool newAutoRestart = EditorGUILayout.Toggle(
             new GUIContent("Auto Restart", "回合结束后延迟 1 秒自动重开"),
             autoRestartEnabled);
@@ -159,32 +131,28 @@ public partial class TestConsoleWindow
                 DisableAutoRestart();
         }
 
-        // ═════════════════════════════════════════════════
-        // S149: TAS Data-Driven Testing 区域
-        // ═════════════════════════════════════════════════
+        // ── TAS Section（紧凑化） ──
         DrawTasSection(hybrid);
 
-        // ── Analytics 控制 ──
-        EditorGUILayout.Space(4);
-        EditorGUILayout.LabelField("Data Collection", EditorStyles.boldLabel);
-
+        // ── Analytics 控制（紧凑化） ──
+        LevelStudioStyles.Separator();
         EditorGUILayout.BeginHorizontal();
+        LevelStudioStyles.SubHeader("Data");
+        GUILayout.FlexibleSpace();
+
         bool analyticsActive = _analytics != null;
         if (!analyticsActive)
         {
-            if (GUILayout.Button("Start Collecting"))
+            if (GUILayout.Button("Start Collecting", GUILayout.Height(20)))
             {
-                // S149: Start Collecting 时，如果 TAS 模式开启，自动重置并开始播放
                 if (_tasEnabled && hybrid.TasProvider != null)
                 {
                     hybrid.ResetTasPlayback();
-                    Debug.Log("[AI Arena] TAS replay reset for data collection.");
                 }
                 _analytics = new AutoTestAnalytics();
                 EnsureCache();
                 if (cachedGameManager != null)
                     _analytics.StartCollecting(cachedGameManager);
-                // 同步当前人格名到 Analytics
                 var hybrid2 = GetHybridProvider();
                 if (hybrid2 != null)
                 {
@@ -197,21 +165,19 @@ public partial class TestConsoleWindow
         }
         else
         {
-            if (GUILayout.Button("Stop Collecting"))
+            if (GUILayout.Button("Stop", GUILayout.Height(20), GUILayout.Width(45)))
             {
                 _analytics.StopCollecting();
-                Debug.Log("[AI Arena] Analytics stopped (data preserved).");
+                Debug.Log("[AI Arena] Analytics stopped.");
             }
         }
         EditorGUILayout.EndHorizontal();
 
-        // ── Show Test Heatmap Toggle ──
-        EditorGUILayout.Space(4);
+        // ── Heatmap Toggle ──
         bool currentHeatmap = AnalyticsGizmoRenderer.ShowTestHeatmap;
         GUI.color = currentHeatmap ? new Color(1f, 0.5f, 0.3f) : Color.white;
         bool newHeatmap = EditorGUILayout.Toggle(
-            new GUIContent("Show Test Heatmap (\u663e\u793a\u6d4b\u8bd5\u70ed\u529b\u56fe)",
-                "\u5728 Scene \u89c6\u56fe\u4e2d\u663e\u793a\u6b7b\u4ea1\u70ed\u529b\u56fe\uff08\u7ea2\u7403\uff09\u548c\u5361\u6b7b\u8b66\u544a\uff08\u9ec4\u5757\uff09"),
+            new GUIContent("Test Heatmap", "Scene 视图中显示死亡热力图和卡死警告"),
             currentHeatmap);
         GUI.color = Color.white;
 
@@ -219,29 +185,22 @@ public partial class TestConsoleWindow
         {
             AnalyticsGizmoRenderer.ShowTestHeatmap = newHeatmap;
             SceneView.RepaintAll();
-            Debug.Log($"[AI Arena] Show Test Heatmap: {(newHeatmap ? "ON" : "OFF")}");
         }
 
-        // ── 实时统计显示 ──
+        // ── Live Stats（紧凑化） ──
         if (_analytics != null && _analytics.TotalMatches > 0)
         {
-            EditorGUILayout.Space(4);
-            EditorGUILayout.LabelField("Live Stats", EditorStyles.boldLabel);
-            EditorGUILayout.BeginVertical("box");
-            EditorGUILayout.LabelField($"\u5bf9\u6218\u5c40\u6570: {_analytics.TotalMatches}");
-            EditorGUILayout.LabelField($"Mario \u80dc: {_analytics.MarioWins} ({_analytics.MarioWinRate:F0}%) | Trickster \u80dc: {_analytics.TricksterWins} ({_analytics.TricksterWinRate:F0}%)");
-            EditorGUILayout.LabelField($"\u5e73\u5747\u5355\u5c40\u8017\u65f6: {_analytics.AverageMatchTime:F1}s");
-            EditorGUILayout.EndVertical();
+            EditorGUILayout.LabelField(
+                $"Matches: {_analytics.TotalMatches} | M:{_analytics.MarioWins}({_analytics.MarioWinRate:F0}%) T:{_analytics.TricksterWins}({_analytics.TricksterWinRate:F0}%) | Avg: {_analytics.AverageMatchTime:F1}s",
+                EditorStyles.miniLabel);
         }
 
-        // ── Print Match Report 按钮 ──
-        EditorGUILayout.Space(4);
-        GUI.color = new Color(1f, 0.85f, 0.2f);
-        if (GUILayout.Button("Print Match Report", GUILayout.Height(28)))
+        // ── Report + Reset（紧凑化） ──
+        EditorGUILayout.BeginHorizontal();
+        if (LevelStudioStyles.ColorButton("Export Report", LevelStudioStyles.AccentYellow, 22f))
         {
             if (_analytics != null)
             {
-                // 导出前同步最新人格名（支持运行中热切换人格）
                 var hp = GetHybridProvider();
                 if (hp != null)
                 {
@@ -254,7 +213,7 @@ public partial class TestConsoleWindow
                 if (!string.IsNullOrEmpty(mdPath))
                 {
                     string mdUrl = new Uri(mdPath).AbsoluteUri;
-                    Debug.Log($"<color=#88FF88><b>[AI Arena] 结构化战报已导出。</b></color> <a href=\"{mdUrl}\">点击打开 auto_test_summary.md</a>\n{mdPath}");
+                    Debug.Log($"<color=#88FF88><b>[AI Arena] 战报已导出。</b></color> <a href=\"{mdUrl}\">打开</a>\n{mdPath}");
                 }
             }
             else
@@ -262,14 +221,12 @@ public partial class TestConsoleWindow
                 Debug.LogWarning("[AI Arena] No analytics data. Click 'Start Collecting' first.");
             }
         }
-        GUI.color = Color.white;
-
-        // ── Reset Stats 按钮 ──
-        if (GUILayout.Button("Reset Stats"))
+        if (GUILayout.Button("Reset", GUILayout.Height(22), GUILayout.Width(50)))
         {
             _analytics?.Reset();
             Debug.Log("[AI Arena] Stats reset.");
         }
+        EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.EndVertical();
     }
@@ -282,20 +239,17 @@ public partial class TestConsoleWindow
     {
         if (_autoRestartHelper != null) return;
 
-        // 创建隐形 GameObject 挂载协程
         var go = new GameObject("[AI Arena] AutoRestart Helper");
         go.hideFlags = HideFlags.HideInHierarchy | HideFlags.DontSave;
         _autoRestartHelper = go.AddComponent<AutoRestartHelper>();
         _autoRestartHelper.Initialize();
 
-        // S149: 挂载 TAS 循环播放回调
         _autoRestartHelper.OnBeforeRestart = () =>
         {
             var h = GetHybridProvider();
             if (h != null && h.MarioIsTAS && h.TasProvider != null)
             {
                 h.ResetTasPlayback();
-                Debug.Log("[AutoRestartHelper] TAS replay reset for next round.");
             }
         };
 
@@ -317,13 +271,8 @@ public partial class TestConsoleWindow
     // PlayMode 退出时自动清理
     // ═══════════════════════════════════════════════════
 
-    /// <summary>
-    /// PlayMode 退出时自动清理（由 OnPlayModeChanged 回调触发）。
-    /// 恢复 MarioIsAI/TricksterIsAI/MarioIsTAS = false，Time.timeScale = 1.0f。
-    /// </summary>
     private void CleanupAIArena()
     {
-        // 恢复 HybridInputProvider 状态
         var hybrid = GetHybridProvider();
         if (hybrid != null)
         {
@@ -333,49 +282,29 @@ public partial class TestConsoleWindow
             hybrid.TasProvider = null;
         }
 
-        // S149: 清理 TAS 状态
         _tasEnabled = false;
-
-        // 停止数据收集
         _analytics?.StopCollecting();
         _analytics = null;
-
-        // 停止自动重启
         DisableAutoRestart();
         autoRestartEnabled = false;
-
-        // 强制恢复 Time.timeScale
         Time.timeScale = 1.0f;
         arenaTimeScale = 1.0f;
         timeScaleValue = 1.0f;
     }
 
     // ═════════════════════════════════════════════════
-    // S149: TAS Data-Driven Testing UI
+    // S149: TAS Data-Driven Testing UI（紧凑化）
     // ═════════════════════════════════════════════════
 
-    /// <summary>
-    /// 绘制 TAS Data-Driven Testing 区域。
-    /// 提供加载录像 JSON、开关 TAS 模式、状态显示。
-    /// </summary>
     private void DrawTasSection(HybridInputProvider hybrid)
     {
-        EditorGUILayout.Space(8);
-        GUI.color = _tasEnabled ? new Color(0.2f, 0.9f, 1f) : new Color(0.7f, 0.7f, 0.7f);
-        EditorGUILayout.LabelField("🎬 TAS Data-Driven Testing", EditorStyles.boldLabel);
-        GUI.color = Color.white;
+        LevelStudioStyles.Separator();
+        LevelStudioStyles.SubHeader("TAS Replay");
+        LevelStudioStyles.CompactTip("加载录像 JSON → Mario 用预录制输入 | 优先级: TAS > Bot > Keyboard");
 
-        EditorGUILayout.BeginVertical("box");
-
-        EditorGUILayout.HelpBox(
-            "加载录像 JSON 后，Mario 将用预录制输入替代 AI/人类操作。\n" +
-            "配合 Auto Restart 可循环回放收集数据。\n" +
-            "优先级：TAS > Bot > Keyboard",
-            MessageType.Info);
-
-        // ── Load Replay JSON 按钮 ──
+        // ── Load + 文件名（紧凑单行） ──
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("📁 Load Replay JSON", GUILayout.Height(24)))
+        if (GUILayout.Button("Load JSON", GUILayout.Height(20), GUILayout.Width(80)))
         {
             string defaultDir = System.IO.Path.Combine(Application.dataPath, "Tests", "LevelReplays");
             if (!System.IO.Directory.Exists(defaultDir))
@@ -393,18 +322,15 @@ public partial class TestConsoleWindow
                     {
                         _tasFrameCount = _tasReplayData.frames.Count;
                         _tasLoadedFileName = System.IO.Path.GetFileName(path);
-
-                        // 创建 AutomatedInputProvider 并注入到 HybridInputProvider
                         hybrid.TasProvider = new AutomatedInputProvider(_tasReplayData.frames);
-
-                        Debug.Log($"<color=#00FFFF><b>[TAS] 录像已加载: {_tasLoadedFileName} ({_tasFrameCount} segments)</b></color>");
+                        Debug.Log($"<color=#00FFFF><b>[TAS] 已加载: {_tasLoadedFileName} ({_tasFrameCount} seg)</b></color>");
 
                         if (!string.IsNullOrEmpty(_tasReplayData.description))
                             Debug.Log($"[TAS] 备注: {_tasReplayData.description}");
                     }
                     else
                     {
-                        Debug.LogWarning("[TAS] JSON 解析成功但 frames 为空。确认是 TasReplayData Wrapper 格式而非裸数组。");
+                        Debug.LogWarning("[TAS] frames 为空，确认格式为 TasReplayData Wrapper。");
                     }
                 }
                 catch (System.Exception ex)
@@ -414,27 +340,35 @@ public partial class TestConsoleWindow
             }
         }
 
-        // 显示已加载文件名
         if (!string.IsNullOrEmpty(_tasLoadedFileName))
-        {
-            EditorGUILayout.LabelField($"✔ {_tasLoadedFileName} ({_tasFrameCount} seg)", EditorStyles.miniLabel);
-        }
+            EditorGUILayout.LabelField($"{_tasLoadedFileName} ({_tasFrameCount})", EditorStyles.miniLabel);
         else
-        {
-            EditorGUILayout.LabelField("未加载录像", EditorStyles.miniLabel);
-        }
+            EditorGUILayout.LabelField("未加载", EditorStyles.miniLabel);
         EditorGUILayout.EndHorizontal();
 
-        // ── TAS 模式 Toggle ──
-        EditorGUILayout.Space(2);
+        // ── TAS Toggle + 状态（紧凑单行） ──
         bool canEnableTas = hybrid.TasProvider != null;
         EditorGUI.BeginDisabledGroup(!canEnableTas);
+        EditorGUILayout.BeginHorizontal();
         GUI.color = _tasEnabled ? new Color(0.2f, 1f, 0.8f) : Color.white;
         bool newTasEnabled = EditorGUILayout.Toggle(
-            new GUIContent("Mario 使用录像回放 (TAS)",
-                canEnableTas ? "开启后 Mario 优先使用 TAS 录像数据" : "请先加载录像 JSON"),
+            new GUIContent("Mario TAS", canEnableTas ? "开启 TAS 录像回放" : "请先加载录像"),
             _tasEnabled);
         GUI.color = Color.white;
+
+        if (_tasEnabled && hybrid.TasProvider != null)
+        {
+            if (hybrid.IsTasPlaying)
+            {
+                int seg = hybrid.TasProvider.CurrentSegmentIndex;
+                EditorGUILayout.LabelField($"seg {seg}/{_tasFrameCount}", EditorStyles.miniLabel, GUILayout.Width(80));
+            }
+            else
+            {
+                EditorGUILayout.LabelField("Done", EditorStyles.miniLabel, GUILayout.Width(35));
+            }
+        }
+        EditorGUILayout.EndHorizontal();
         EditorGUI.EndDisabledGroup();
 
         if (newTasEnabled != _tasEnabled)
@@ -444,44 +378,19 @@ public partial class TestConsoleWindow
 
             if (_tasEnabled)
             {
-                // 开启时重置播放头
                 hybrid.ResetTasPlayback();
                 Debug.Log("<color=#00FFFF><b>[TAS] Mario TAS 模式已开启。</b></color>");
             }
             else
             {
-                Debug.Log("[TAS] Mario TAS 模式已关闭，回退到 Bot/Keyboard。");
+                Debug.Log("[TAS] Mario TAS 模式已关闭。");
             }
         }
-
-        // ── TAS 播放状态指示 ──
-        if (_tasEnabled && hybrid.TasProvider != null)
-        {
-            string status;
-            if (hybrid.IsTasPlaying)
-            {
-                int seg = hybrid.TasProvider.CurrentSegmentIndex;
-                status = $"▶ 播放中: segment {seg}/{_tasFrameCount}";
-                GUI.color = new Color(0.2f, 1f, 0.8f);
-            }
-            else
-            {
-                status = "■ 播放完毕（等待重开或手动重置）";
-                GUI.color = Color.yellow;
-            }
-            EditorGUILayout.LabelField(status, EditorStyles.miniLabel);
-            GUI.color = Color.white;
-        }
-
-        EditorGUILayout.EndVertical();
     }
 }
 
 // ═══════════════════════════════════════════════════════════════════
 // AutoRestartHelper — 隐形协程脚本
-//
-// 挂载到隐形 GameObject 上，监听 GameManager.OnGameOver，
-// 延迟 1 秒（UnscaledTime）后自动调用 ResetRound()。
 // ═══════════════════════════════════════════════════════════════════
 
 public class AutoRestartHelper : MonoBehaviour
@@ -489,10 +398,6 @@ public class AutoRestartHelper : MonoBehaviour
     private GameManager _gm;
     private bool _initialized;
 
-    /// <summary>
-    /// S149: 自动重开时的 TAS 重置回调。
-    /// 由 EnableAutoRestart 设置，在 DelayedRestart 中调用。
-    /// </summary>
     public System.Action OnBeforeRestart;
 
     public void Initialize()
@@ -529,14 +434,11 @@ public class AutoRestartHelper : MonoBehaviour
 
     private IEnumerator DelayedRestart()
     {
-        // 使用 WaitForSecondsRealtime 确保不受 Time.timeScale 影响
         yield return new WaitForSecondsRealtime(1.0f);
 
         if (_gm != null)
         {
-            // S149: 重开前触发回调（用于 TAS 重置播放头）
             OnBeforeRestart?.Invoke();
-
             _gm.ResetRound();
             Debug.Log("[AutoRestartHelper] Auto restart triggered.");
         }

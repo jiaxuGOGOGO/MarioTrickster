@@ -1,0 +1,21 @@
+﻿{
+    "TotalMatches": 1,
+    "MarioWinRate": 0.0,
+    "TricksterWinRate": 100.0,
+    "AverageMatchTime": 3.0,
+    "DeadliestTrap": "N/A",
+    "DeadliestTrapTriggerCount": 0,
+    "DeathPoints": [],
+    "StuckPoints": [
+        {
+            "position": {
+                "x": 2,
+                "y": 5
+            },
+            "cause": "Stuck",
+            "matchIndex": 1,
+            "count": 1,
+            "stuckDuration": 3.0
+        }
+    ]
+}

@@ -6,229 +6,144 @@ using System.Collections.Generic;
 public partial class TestConsoleWindow
 {
     // ═══════════════════════════════════════════════════
-    // Tab 3: 全局测试外挂
+    // Tab 4: Global Test Cheats
+    //
+    // v2 清爽化重构要点：
+    //   - 顶部 HelpBox → 标题栏已有 Cheat 计数，此处用 CompactTip
+    //   - Toggle 分组更紧凑（去掉组间 Space）
+    //   - Time Scale 快捷按钮精简为常用 4 档
+    //   - Runtime Status 改为紧凑单行格式
+    //   - 所有功能 100% 保留
     // ═══════════════════════════════════════════════════
     private void DrawCheatsTab()
     {
-        EditorGUILayout.LabelField("Global Test Cheats", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "所有开关默认关闭，每次 Play 自动重置。\n不影响自动化测试。仅在 PlayMode 下可用。\n" +
-            "所有作弊代码被 #if UNITY_EDITOR || DEVELOPMENT_BUILD 宏包裹，Release 包零残留。",
-            MessageType.Info);
+        LevelStudioStyles.CompactTip("所有开关每次 Play 自动重置 | 不影响自动化测试 | Release 包零残留");
 
         EditorGUI.BeginDisabledGroup(!EditorApplication.isPlaying);
 
         EnsureCache();
 
-        // S33: 缺失组件检测 — 当 Cheats 依赖的核心组件不存在时，
-        // 显示警告 + 置灰无效开关 + 提供一键修复按钮。
-        // 参考审计意见第 4 点：“消极警告”升级为“一键修复”与视觉阻断。
+        // S33: 缺失组件检测 + 一键修复
         bool cheatsAvailable = (cachedMarioHealth != null && cachedGameManager != null &&
                                 cachedEnergy != null && cachedDisguise != null);
 
         if (EditorApplication.isPlaying && !cheatsAvailable)
         {
             EditorGUILayout.HelpBox(
-                "⚠️ 场景中缺少 Cheats 依赖的核心组件：\n" +
-                (cachedMarioHealth == null ? "  · MarioController / PlayerHealth\n" : "") +
-                (cachedGameManager == null ? "  · GameManager\n" : "") +
-                (cachedEnergy == null ? "  · EnergySystem (Trickster)\n" : "") +
-                (cachedDisguise == null ? "  · DisguiseSystem (Trickster)\n" : "") +
-                "\n请先通过 Level Builder 生成关卡，或点击下方按钮自动补全环境。",
+                "缺少核心组件：" +
+                (cachedMarioHealth == null ? "PlayerHealth " : "") +
+                (cachedGameManager == null ? "GameManager " : "") +
+                (cachedEnergy == null ? "EnergySystem " : "") +
+                (cachedDisguise == null ? "DisguiseSystem " : "") +
+                "— 请先生成关卡或点击 Auto-Fix",
                 MessageType.Warning);
 
-            // 一键修复按钮 — EnsurePlayableEnvironment 是幂等的，绝对安全
             GameObject asciiRoot = GameObject.Find("AsciiLevel_Root");
             if (asciiRoot != null)
             {
-                GUI.color = new Color(0.3f, 0.9f, 0.5f);
-                if (GUILayout.Button("Auto-Fix: Inject Playable Environment", GUILayout.Height(28)))
+                if (LevelStudioStyles.ColorButton("Auto-Fix: Inject Playable Environment", LevelStudioStyles.AccentGreen, 26f))
                 {
                     PlayableEnvironmentBuilder.EnsurePlayableEnvironment(asciiRoot);
                     ClearCache();
-                    EnsureCache(); // 重新获取缓存，激活置灰的 Toggle
-                    cachedAnchors = null; // 刷新动态锚点
+                    EnsureCache();
+                    cachedAnchors = null;
                     Debug.Log("[TestConsole] Auto-Fix: Playable environment injected for Cheats.");
                 }
-                GUI.color = Color.white;
             }
             else
             {
-                EditorGUILayout.HelpBox(
-                    "未找到 AsciiLevel_Root，请先在 Level Builder Tab 生成关卡。",
-                    MessageType.Error);
+                LevelStudioStyles.CompactTip("未找到 AsciiLevel_Root，请先在 Level Design Tab 生成关卡");
             }
         }
 
-        // S33: 视觉阻断 — 缺少组件时置灰所有 Cheat Toggle，杜绝无效点击
+        // S33: 视觉阻断
         EditorGUI.BeginDisabledGroup(!cheatsAvailable && EditorApplication.isPlaying);
 
         EditorGUILayout.BeginVertical("box");
 
-        // ── Mario 调试 ──
-        EditorGUILayout.LabelField("Mario", EditorStyles.boldLabel);
+        // ── Mario ──
+        LevelStudioStyles.SubHeader("Mario");
+        DrawDebugToggle("God Mode", "不扣血、不触发死亡", GetGodMode(), (val) => SetGodMode(val), new Color(1f, 0.3f, 0.3f));
 
-        DrawDebugToggle(
-            "God Mode (无敌)",
-            "不扣血、不触发死亡",
-            GetGodMode(),
-            (val) => SetGodMode(val),
-            new Color(1f, 0.3f, 0.3f));
+        // ── Trickster ──
+        LevelStudioStyles.SubHeader("Trickster");
+        DrawDebugToggle("No Cooldown", "伪装/扫描/道具冷却清零", GetNoCooldown(), (val) => SetNoCooldown(val), new Color(0.3f, 0.7f, 1f));
+        DrawDebugToggle("Infinite Energy", "能量不消耗", GetInfiniteEnergy(), (val) => SetInfiniteEnergy(val), new Color(0.3f, 0.7f, 1f));
+        DrawDebugToggle("Instant Blend", "伪装后立即融入", GetInstantBlend(), (val) => SetInstantBlend(val), new Color(0.3f, 0.7f, 1f));
 
-        EditorGUILayout.Space(4);
+        // ── Global ──
+        LevelStudioStyles.SubHeader("Global");
 
-        // ── Trickster 调试 ──
-        EditorGUILayout.LabelField("Trickster", EditorStyles.boldLabel);
-
-        DrawDebugToggle(
-            "No Cooldown (无冷却)",
-            "伪装/扫描/道具冷却立即清零",
-            GetNoCooldown(),
-            (val) => SetNoCooldown(val),
-            new Color(0.3f, 0.7f, 1f));
-
-        DrawDebugToggle(
-            "Infinite Energy (无限能量)",
-            "能量不消耗，始终满值",
-            GetInfiniteEnergy(),
-            (val) => SetInfiniteEnergy(val),
-            new Color(0.3f, 0.7f, 1f));
-
-        DrawDebugToggle(
-            "Instant Blend (秒速融入)",
-            "伪装后立即进入完全融入状态",
-            GetInstantBlend(),
-            (val) => SetInstantBlend(val),
-            new Color(0.3f, 0.7f, 1f));
-
-        EditorGUILayout.Space(4);
-
-        // ── 全局设置 ──
-        EditorGUILayout.LabelField("Global", EditorStyles.boldLabel);
-
-        // Time Scale
+        // Time Scale（紧凑化：滑块 + 常用 4 档）
         EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("Time Scale", GUILayout.Width(80));
+        EditorGUILayout.LabelField("Speed", GUILayout.Width(38));
         float newTimeScale = EditorGUILayout.Slider(timeScaleValue, 0.1f, 3.0f);
         if (!Mathf.Approximately(newTimeScale, timeScaleValue))
         {
             timeScaleValue = newTimeScale;
             Time.timeScale = timeScaleValue;
         }
-        if (GUILayout.Button("1x", GUILayout.Width(30)))
-        {
-            timeScaleValue = 1f;
-            Time.timeScale = 1f;
-        }
         EditorGUILayout.EndHorizontal();
 
-        // 快捷 Time Scale 按钮
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("0.1x")) { timeScaleValue = 0.1f; Time.timeScale = 0.1f; }
-        if (GUILayout.Button("0.25x")) { timeScaleValue = 0.25f; Time.timeScale = 0.25f; }
-        if (GUILayout.Button("0.5x")) { timeScaleValue = 0.5f; Time.timeScale = 0.5f; }
-        if (GUILayout.Button("1x")) { timeScaleValue = 1f; Time.timeScale = 1f; }
-        if (GUILayout.Button("2x")) { timeScaleValue = 2f; Time.timeScale = 2f; }
-        if (GUILayout.Button("3x")) { timeScaleValue = 3f; Time.timeScale = 3f; }
+        if (GUILayout.Button("0.25x", GUILayout.Height(18))) { timeScaleValue = 0.25f; Time.timeScale = 0.25f; }
+        if (GUILayout.Button("0.5x", GUILayout.Height(18))) { timeScaleValue = 0.5f; Time.timeScale = 0.5f; }
+        if (GUILayout.Button("1x", GUILayout.Height(18))) { timeScaleValue = 1f; Time.timeScale = 1f; }
+        if (GUILayout.Button("2x", GUILayout.Height(18))) { timeScaleValue = 2f; Time.timeScale = 2f; }
+        if (GUILayout.Button("3x", GUILayout.Height(18))) { timeScaleValue = 3f; Time.timeScale = 3f; }
         EditorGUILayout.EndHorizontal();
 
-        EditorGUILayout.Space(4);
+        DrawDebugToggle("Input Debug", "屏幕左上角显示按键状态", GetInputDebug(), (val) => SetInputDebug(val), new Color(0.8f, 0.8f, 0.3f));
 
-        // Input Debug
-        DrawDebugToggle(
-            "Input Debug (输入调试)",
-            "在屏幕左上角显示按键状态",
-            GetInputDebug(),
-            (val) => SetInputDebug(val),
-            new Color(0.8f, 0.8f, 0.3f));
-
-        EditorGUILayout.Space(4);
-
-        // ── Gameplay Box 可视化 ──
-        EditorGUILayout.LabelField("Gameplay Visualization", EditorStyles.boldLabel);
-
-        DrawDebugToggle(
-            "Show Gameplay Boxes (语义盒可视化)",
-            "Scene 视图中绘制 Solid/HurtBox/HitBox/ScanRange 语义线框",
-            GameplayBoxVisualizer.ShowGameplayBoxes,
-            (val) => {
-                GameplayBoxVisualizer.ShowGameplayBoxes = val;
-                SceneView.RepaintAll();
-                Debug.Log($"[TestConsole] Show Gameplay Boxes: {(val ? "ON" : "OFF")}");
-            },
-            new Color(0.4f, 0.9f, 0.8f));
-
-        DrawDebugToggle(
-            "Show Trap Phase (机关阶段标签)",
-            "在 ControllableProp 上方显示当前阶段 (Idle/Telegraph/Active/Recovery...)",
-            GameplayBoxVisualizer.ShowTrapPhase,
-            (val) => {
-                GameplayBoxVisualizer.ShowTrapPhase = val;
-                SceneView.RepaintAll();
-                Debug.Log($"[TestConsole] Show Trap Phase: {(val ? "ON" : "OFF")}");
-            },
-            new Color(0.4f, 0.9f, 0.8f));
+        // ── Visualization ──
+        LevelStudioStyles.SubHeader("Visualization");
+        DrawDebugToggle("Gameplay Boxes", "Scene 视图绘制语义线框", GameplayBoxVisualizer.ShowGameplayBoxes,
+            (val) => { GameplayBoxVisualizer.ShowGameplayBoxes = val; SceneView.RepaintAll(); }, new Color(0.4f, 0.9f, 0.8f));
+        DrawDebugToggle("Trap Phase", "ControllableProp 上方显示阶段标签", GameplayBoxVisualizer.ShowTrapPhase,
+            (val) => { GameplayBoxVisualizer.ShowTrapPhase = val; SceneView.RepaintAll(); }, new Color(0.4f, 0.9f, 0.8f));
 
         EditorGUILayout.EndVertical();
 
-        // ── 一键全开 / 全关 ──
-        EditorGUILayout.Space(4);
+        // ── 一键全开/全关（紧凑化） ──
+        EditorGUILayout.Space(2);
         EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(1f, 0.6f, 0.2f);
-        if (GUILayout.Button("Enable All Cheats", GUILayout.Height(28)))
+        if (LevelStudioStyles.ColorButton("Enable All", LevelStudioStyles.AccentOrange, 24f))
         {
-            SetGodMode(true);
-            SetNoCooldown(true);
-            SetInfiniteEnergy(true);
-            SetInstantBlend(true);
-            GameplayBoxVisualizer.ShowGameplayBoxes = true;
-            GameplayBoxVisualizer.ShowTrapPhase = true;
+            SetGodMode(true); SetNoCooldown(true); SetInfiniteEnergy(true); SetInstantBlend(true);
+            GameplayBoxVisualizer.ShowGameplayBoxes = true; GameplayBoxVisualizer.ShowTrapPhase = true;
             SceneView.RepaintAll();
         }
-        GUI.color = Color.white;
-        if (GUILayout.Button("Disable All Cheats", GUILayout.Height(28)))
+        if (GUILayout.Button("Disable All", GUILayout.Height(24)))
         {
-            SetGodMode(false);
-            SetNoCooldown(false);
-            SetInfiniteEnergy(false);
-            SetInstantBlend(false);
-            timeScaleValue = 1f;
-            Time.timeScale = 1f;
-            GameplayBoxVisualizer.ShowGameplayBoxes = false;
-            GameplayBoxVisualizer.ShowTrapPhase = false;
+            SetGodMode(false); SetNoCooldown(false); SetInfiniteEnergy(false); SetInstantBlend(false);
+            timeScaleValue = 1f; Time.timeScale = 1f;
+            GameplayBoxVisualizer.ShowGameplayBoxes = false; GameplayBoxVisualizer.ShowTrapPhase = false;
             SceneView.RepaintAll();
         }
         EditorGUILayout.EndHorizontal();
 
-        EditorGUI.EndDisabledGroup(); // S33: cheatsAvailable 置灰组结束
+        EditorGUI.EndDisabledGroup(); // cheatsAvailable
+        EditorGUI.EndDisabledGroup(); // !isPlaying
 
-        EditorGUI.EndDisabledGroup(); // 原有的 !isPlaying 置灰组结束
-
-        // ── 运行时状态监控 ──
+        // ── Runtime Status（紧凑化） ──
         if (EditorApplication.isPlaying)
         {
-            EditorGUILayout.Space(8);
-            EditorGUILayout.LabelField("Runtime Status", EditorStyles.boldLabel);
+            EditorGUILayout.Space(4);
             EditorGUILayout.BeginVertical("box");
+            EditorGUILayout.LabelField("Runtime Status", EditorStyles.boldLabel);
 
             EnsureCache();
 
             if (cachedMarioHealth != null)
-            {
-                EditorGUILayout.LabelField($"Mario HP: {cachedMarioHealth.CurrentHealth}/{cachedMarioHealth.MaxHealth}");
-            }
+                EditorGUILayout.LabelField($"Mario HP: {cachedMarioHealth.CurrentHealth}/{cachedMarioHealth.MaxHealth}", EditorStyles.miniLabel);
             if (cachedEnergy != null)
-            {
-                EditorGUILayout.LabelField($"Trickster Energy: {cachedEnergy.CurrentEnergy:F0}/{cachedEnergy.MaxEnergy:F0} ({cachedEnergy.EnergyPercent * 100:F0}%)");
-            }
+                EditorGUILayout.LabelField($"Energy: {cachedEnergy.CurrentEnergy:F0}/{cachedEnergy.MaxEnergy:F0} ({cachedEnergy.EnergyPercent * 100:F0}%)", EditorStyles.miniLabel);
             if (cachedDisguise != null)
-            {
-                EditorGUILayout.LabelField($"Disguise: {(cachedDisguise.IsDisguised ? "YES" : "No")} | Blended: {(cachedDisguise.IsFullyBlended ? "YES" : "No")}");
-            }
+                EditorGUILayout.LabelField($"Disguise: {(cachedDisguise.IsDisguised ? "YES" : "No")} | Blend: {(cachedDisguise.IsFullyBlended ? "YES" : "No")}", EditorStyles.miniLabel);
             if (cachedGameManager != null)
             {
-                EditorGUILayout.LabelField($"Game State: {cachedGameManager.CurrentState} | Timer: {cachedGameManager.GameTimer:F1}s");
-                EditorGUILayout.LabelField($"Score: Mario {cachedGameManager.MarioWins} - Trickster {cachedGameManager.TricksterWins} | Round {cachedGameManager.CurrentRound}");
+                EditorGUILayout.LabelField($"State: {cachedGameManager.CurrentState} | T: {cachedGameManager.GameTimer:F1}s | R{cachedGameManager.CurrentRound}", EditorStyles.miniLabel);
+                EditorGUILayout.LabelField($"Score: M{cachedGameManager.MarioWins} - T{cachedGameManager.TricksterWins}", EditorStyles.miniLabel);
             }
 
             EditorGUILayout.EndVertical();

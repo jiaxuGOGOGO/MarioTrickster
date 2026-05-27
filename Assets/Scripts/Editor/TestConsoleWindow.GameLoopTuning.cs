@@ -11,13 +11,21 @@ public partial class TestConsoleWindow
 {
     // ═══════════════════════════════════════════════════
     // Tab 5: Game Loop Tuning (对抗节奏实时调参)
+    //
+    // v2 清爽化重构要点：
+    //   - 顶部 HelpBox → CompactTip（一行说明）
+    //   - Source Asset 区块紧凑化（去掉多余 HelpBox）
+    //   - 参数分组改为可折叠（默认折叠，按需展开）
+    //   - AI 诊断区紧凑化
+    //   - 所有功能 100% 保留
     // ═══════════════════════════════════════════════════
+
+    // 参数分组折叠状态
+    private Dictionary<string, bool> _loopSectionFoldouts = new Dictionary<string, bool>();
+
     private void DrawGameLoopTuningTab()
     {
-        EditorGUILayout.LabelField("Game Loop Tuning", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "所有对抗节奏参数统一写入 Assets/Resources/GameplayLoopConfig.asset。PlayMode 下拖动滑块会通过 GameplayMetrics Facade 实时生效；资源缺失时运行时代码仍回退到各组件默认值。",
-            MessageType.Info);
+        LevelStudioStyles.CompactTip("所有参数写入 GameplayLoopConfig.asset | PlayMode 下滑块实时生效 | 缺失时回退默认值");
 
         GameplayLoopConfigSO loadedConfig = EnsureGameplayLoopConfigAsset();
         if (loadedConfig != gameplayLoopConfig || gameplayLoopConfigSerialized == null)
@@ -27,25 +35,25 @@ public partial class TestConsoleWindow
             GameplayMetrics.SetActiveConfig(gameplayLoopConfig);
         }
 
+        // ── Source Asset（紧凑化） ──
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("Source Asset", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("Config:", GUILayout.Width(45));
         EditorGUI.BeginChangeCheck();
         GameplayLoopConfigSO selectedConfig = (GameplayLoopConfigSO)EditorGUILayout.ObjectField(
-            "Gameplay Loop Config", gameplayLoopConfig, typeof(GameplayLoopConfigSO), false);
+            gameplayLoopConfig, typeof(GameplayLoopConfigSO), false);
         if (EditorGUI.EndChangeCheck())
         {
             gameplayLoopConfig = selectedConfig;
             gameplayLoopConfigSerialized = gameplayLoopConfig != null ? new SerializedObject(gameplayLoopConfig) : null;
             GameplayMetrics.SetActiveConfig(gameplayLoopConfig);
         }
-
-        EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("Ping Asset", GUILayout.Height(24)) && gameplayLoopConfig != null)
+        if (GUILayout.Button("Ping", GUILayout.Width(38), GUILayout.Height(18)) && gameplayLoopConfig != null)
         {
             EditorGUIUtility.PingObject(gameplayLoopConfig);
             Selection.activeObject = gameplayLoopConfig;
         }
-        if (GUILayout.Button("Refresh Facade", GUILayout.Height(24)))
+        if (GUILayout.Button("Refresh", GUILayout.Width(55), GUILayout.Height(18)))
         {
             GameplayMetrics.RefreshConfig();
             gameplayLoopConfig = GameplayMetrics.ActiveConfig;
@@ -55,21 +63,27 @@ public partial class TestConsoleWindow
         }
         EditorGUILayout.EndHorizontal();
 
-        string status = GameplayMetrics.ActiveConfig != null
-            ? $"Facade bound: {GameplayMetrics.ActiveConfig.name}"
-            : "Facade not bound; runtime will use local fallback defaults.";
-        EditorGUILayout.HelpBox(status, GameplayMetrics.ActiveConfig != null ? MessageType.None : MessageType.Warning);
+        // Facade 状态（紧凑单行）
+        if (GameplayMetrics.ActiveConfig != null)
+        {
+            EditorGUILayout.LabelField($"Facade: {GameplayMetrics.ActiveConfig.name}", EditorStyles.miniLabel);
+        }
+        else
+        {
+            EditorGUILayout.LabelField("Facade not bound (runtime uses fallback defaults)", EditorStyles.miniLabel);
+        }
         EditorGUILayout.EndVertical();
 
         if (gameplayLoopConfigSerialized == null)
         {
-            EditorGUILayout.HelpBox("GameplayLoopConfigSO 不存在或未绑定，无法显示滑块。", MessageType.Warning);
+            LevelStudioStyles.CompactTip("GameplayLoopConfigSO 不存在或未绑定，无法显示滑块");
             return;
         }
 
         EditorGUI.BeginChangeCheck();
         gameplayLoopConfigSerialized.Update();
 
+        // ── 参数分组（可折叠，默认折叠以减少信息过载） ──
         DrawGameplayLoopConfigSection("Energy System", new[]
         {
             "energyMaxEnergy", "energyStartEnergy", "energyDisguiseCost", "energyDisguiseDrainPerSecond",
@@ -130,14 +144,12 @@ public partial class TestConsoleWindow
             }
         }
 
-        // ═══════════════════════════════════════════════
-        // AI 数值诊断顾问
-        // ═══════════════════════════════════════════════
+        // ── AI 数值诊断顾问 ──
         DrawAIDiagnosticSection();
     }
 
     // ═══════════════════════════════════════════════
-    // AI 数值诊断顾问 —— 实现
+    // AI 数值诊断顾问
     // ═══════════════════════════════════════════════
 
     private string _aiDiagnosticResult;
@@ -145,27 +157,23 @@ public partial class TestConsoleWindow
 
     private void DrawAIDiagnosticSection()
     {
-        EditorGUILayout.Space(10);
+        EditorGUILayout.Space(6);
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("🤖 AI 数值诊断顾问", EditorStyles.boldLabel);
-        EditorGUILayout.HelpBox(
-            "基于 AutoTestAnalytics 对局数据 + GameplayLoopConfigSO 当前数值\n" +
-            "调用 LLM 分析胜率偏差并给出 3 个具体字段的修改建议。",
-            MessageType.Info);
+        LevelStudioStyles.SubHeader("AI Balance Advisor");
+        LevelStudioStyles.CompactTip("基于 AutoTestAnalytics 对局数据 + Config 当前值，调用 LLM 分析胜率偏差");
 
         EditorGUI.BeginDisabledGroup(_aiDiagnosticLoading);
-        GUI.color = new Color(0.4f, 0.85f, 1f);
-        if (GUILayout.Button(_aiDiagnosticLoading ? "⚙️ 正在分析中..." : "🤖 呼叫 AI 数值诊断", GUILayout.Height(32)))
+        if (LevelStudioStyles.ColorButton(
+            _aiDiagnosticLoading ? "Analyzing..." : "Run AI Diagnostic",
+            LevelStudioStyles.AccentBlue, 26f))
         {
             RunAIDiagnosticAsync();
         }
-        GUI.color = Color.white;
         EditorGUI.EndDisabledGroup();
 
-        // 显示诊断结果
         if (!string.IsNullOrEmpty(_aiDiagnosticResult))
         {
-            EditorGUILayout.Space(4);
+            EditorGUILayout.Space(2);
             EditorGUILayout.HelpBox(_aiDiagnosticResult, MessageType.Warning);
         }
 
@@ -180,13 +188,9 @@ public partial class TestConsoleWindow
 
         try
         {
-            // ── 1. 提取对局数据 ──
             string matchReport = BuildMatchReportSummary();
-
-            // ── 2. 提取当前 Config 数值 ──
             string configJson = BuildConfigJson();
 
-            // ── 3. 构建 Prompt ──
             string userMessage =
                 "【当前对局统计】\n" + matchReport + "\n\n" +
                 "【当前 GameplayLoopConfigSO 数值】\n" + configJson + "\n\n" +
@@ -196,16 +200,15 @@ public partial class TestConsoleWindow
                 "直接给出 3 个具体字段的修改建议数值（格式：字段名: 当前值 → 建议值）。\n" +
                 "用中文回答，简洁明了，不超过 300 字。";
 
-            // ── 4. 调用 LLM ──
             string result = await CallLLMAsync(userMessage);
 
             _aiDiagnosticResult = string.IsNullOrEmpty(result)
-                ? "⚠️ LLM 返回为空，请检查 API Key 配置。"
+                ? "LLM 返回为空，请检查 API Key 配置。"
                 : result;
         }
         catch (Exception ex)
         {
-            _aiDiagnosticResult = $"❌ 诊断失败: {ex.Message}";
+            _aiDiagnosticResult = $"诊断失败: {ex.Message}";
             Debug.LogError($"[AI Diagnostic] {ex}");
         }
         finally
@@ -215,9 +218,6 @@ public partial class TestConsoleWindow
         }
     }
 
-    /// <summary>
-    /// 从 AutoTestAnalytics 提取最新对局报告摘要。
-    /// </summary>
     private string BuildMatchReportSummary()
     {
         if (_analytics == null || _analytics.TotalMatches == 0)
@@ -231,7 +231,6 @@ public partial class TestConsoleWindow
         sb.AppendLine($"Trickster 胜率: {_analytics.TricksterWinRate:F1}% ({_analytics.TricksterWins}局)");
         sb.AppendLine($"平均单局耗时: {_analytics.AverageMatchTime:F1}s");
 
-        // 死亡点统计
         if (_analytics.DeathPoints != null && _analytics.DeathPoints.Count > 0)
         {
             var causeCounts = new Dictionary<DeathCause, int>();
@@ -248,16 +247,12 @@ public partial class TestConsoleWindow
             }
         }
 
-        // 卡死点统计
         if (_analytics.StuckPoints != null && _analytics.StuckPoints.Count > 0)
             sb.AppendLine($"卡死次数: {_analytics.StuckPoints.Count}");
 
         return sb.ToString();
     }
 
-    /// <summary>
-    /// 将 GameplayLoopConfigSO 核心字段序列化为 JSON 格式字符串。
-    /// </summary>
     private string BuildConfigJson()
     {
         if (gameplayLoopConfig == null)
@@ -266,7 +261,6 @@ public partial class TestConsoleWindow
         var c = gameplayLoopConfig;
         var sb = new StringBuilder();
         sb.AppendLine("{");
-        // Energy
         sb.AppendLine($"  \"energyMaxEnergy\": {c.energyMaxEnergy},");
         sb.AppendLine($"  \"energyDisguiseCost\": {c.energyDisguiseCost},");
         sb.AppendLine($"  \"energyDisguiseDrainPerSecond\": {c.energyDisguiseDrainPerSecond},");
@@ -275,32 +269,23 @@ public partial class TestConsoleWindow
         sb.AppendLine($"  \"energyRegenPerSecond\": {c.energyRegenPerSecond},");
         sb.AppendLine($"  \"energyDisguisedRegenMultiplier\": {c.energyDisguisedRegenMultiplier},");
         sb.AppendLine($"  \"energyRegenDelayAfterControl\": {c.energyRegenDelayAfterControl},");
-        // Scan
         sb.AppendLine($"  \"scanRadius\": {c.scanRadius},");
         sb.AppendLine($"  \"scanCooldown\": {c.scanCooldown},");
         sb.AppendLine($"  \"scanRevealDuration\": {c.scanRevealDuration},");
-        // Heat
         sb.AppendLine($"  \"heatPerActivation\": {c.heatPerActivation},");
         sb.AppendLine($"  \"heatDecayPerSecond\": {c.heatDecayPerSecond},");
         sb.AppendLine($"  \"heatLockdownThreshold\": {c.heatLockdownThreshold},");
         sb.AppendLine($"  \"heatLockdownCooldown\": {c.heatLockdownCooldown},");
-        // Possession
         sb.AppendLine($"  \"possessionRevealDuration\": {c.possessionRevealDuration},");
         sb.AppendLine($"  \"possessionEscapeDuration\": {c.possessionEscapeDuration},");
-        // Combo
         sb.AppendLine($"  \"comboWindow\": {c.comboWindow},");
-        // Compensation
         sb.AppendLine($"  \"compensationPropActivateSuspicionBonus\": {c.compensationPropActivateSuspicionBonus}");
         sb.AppendLine("}");
         return sb.ToString();
     }
 
-    /// <summary>
-    /// 复用 LevelAutoHealer 的 API 配置解析逻辑，调用 OpenAI ChatCompletion。
-    /// </summary>
     private static async Task<string> CallLLMAsync(string userMessage)
     {
-        // ── 解析 API 配置（复用 LevelAutoHealer 的 EditorPrefs + 环境变量）──
         string apiKey = EditorPrefs.GetString("AI_SmartSlicer_APIKey", "");
         if (string.IsNullOrEmpty(apiKey))
             apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "";
@@ -317,7 +302,6 @@ public partial class TestConsoleWindow
         if (string.IsNullOrEmpty(model))
             model = "gpt-4o-mini";
 
-        // ── 构建请求体 ──
         string systemPrompt =
             "你是一个 2D 非对称对抗游戏的数值平衡顾问。" +
             "游戏中 Mario(进攻方)需要完成关卡目标，Trickster(干扰方)通过伪装成场景元素并操控机关来击杀 Mario。" +
@@ -336,7 +320,6 @@ public partial class TestConsoleWindow
   ""max_tokens"": 600
 }}";
 
-        // ── 发送请求 ──
         using (var client = new HttpClient())
         {
             client.Timeout = TimeSpan.FromSeconds(30);
@@ -356,9 +339,6 @@ public partial class TestConsoleWindow
         }
     }
 
-    /// <summary>
-    /// 从 ChatCompletion JSON 响应中提取 message.content。
-    /// </summary>
     private static string ExtractLLMContent(string responseJson)
     {
         int msgIdx = responseJson.IndexOf("\"message\"");
@@ -405,9 +385,6 @@ public partial class TestConsoleWindow
         return sb.ToString();
     }
 
-    /// <summary>
-    /// 简单 JSON 字符串转义。
-    /// </summary>
     private static string EscapeJsonStr(string s)
     {
         if (string.IsNullOrEmpty(s)) return "";
@@ -450,12 +427,21 @@ public partial class TestConsoleWindow
         return config;
     }
 
+    /// <summary>绘制参数分组（v2: 可折叠，减少信息过载）</summary>
     private void DrawGameplayLoopConfigSection(string title, string[] propertyNames)
     {
-        EditorGUILayout.Space(6);
-        EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+        EditorGUILayout.Space(2);
 
+        if (!_loopSectionFoldouts.ContainsKey(title))
+            _loopSectionFoldouts[title] = false;
+
+        _loopSectionFoldouts[title] = EditorGUILayout.Foldout(
+            _loopSectionFoldouts[title],
+            $"{title} ({propertyNames.Length})", true, EditorStyles.foldoutHeader);
+
+        if (!_loopSectionFoldouts[title]) return;
+
+        EditorGUILayout.BeginVertical("box");
         for (int i = 0; i < propertyNames.Length; i++)
         {
             SerializedProperty property = gameplayLoopConfigSerialized.FindProperty(propertyNames[i]);
@@ -468,7 +454,6 @@ public partial class TestConsoleWindow
                 EditorGUILayout.HelpBox($"Missing property: {propertyNames[i]}", MessageType.Warning);
             }
         }
-
         EditorGUILayout.EndVertical();
     }
 }

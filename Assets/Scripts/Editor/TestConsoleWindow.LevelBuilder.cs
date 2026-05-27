@@ -7,106 +7,69 @@ public partial class TestConsoleWindow
 {
     // ═══════════════════════════════════════════════════
     // Tab 1: Level Design (纯关卡设计 — 布局优先)
+    //
+    // v2 清爽化重构要点：
+    //   - Custom Template Editor 内部精简：字典速查默认折叠、片段库用紧凑卡片
+    //   - Quick Whitebox Generator 合并进 Template Editor 区块（减少顶层区块数）
+    //   - Gameplay Mechanics 默认折叠（进阶功能，按需展开）
+    //   - HelpBox 大幅缩短，详细说明移入 Tooltip
+    //   - 所有功能 100% 保留，仅优化呈现层次
     // ═══════════════════════════════════════════════════
     private void DrawLevelDesignTab()
     {
-        // ── 区块 1 (最高频): 自定义模板编辑器 + 字典速查 + 片段库 ──
-        // 设计理念参考 LDtk / Mario Maker：文本/片段优先的快速迭代工作流
-        showCustomTemplateEditor = EditorGUILayout.Foldout(showCustomTemplateEditor, "★ Custom Template Editor (自定义模板编辑器)", true, EditorStyles.foldoutHeader);
-        if (showCustomTemplateEditor)
+        // ── 区块 1 (最高频): 自定义模板编辑器 ──
+        if (LevelStudioStyles.SectionHeader("★ Template Editor", ref showCustomTemplateEditor,
+            "ASCII 模板编辑器 + 片段库 + 字典速查 + Quick Whitebox"))
         {
             DrawCustomTemplateSection();
         }
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(4);
 
-        // ── 区块 2: 动态元素调色板 (点击生成到 Scene 中心) ──
-        showElementPalette = EditorGUILayout.Foldout(showElementPalette, "Element Palette (点击生成到 Scene 中心)", true, EditorStyles.foldoutHeader);
-        if (showElementPalette)
+        // ── 区块 2: 动态元素调色板 ──
+        if (LevelStudioStyles.SectionHeader("Element Palette", ref showElementPalette,
+            "点击=单个放置到 Scene 中心 | 右键=笔刷模式拖拽绘制"))
         {
             DrawElementPalette();
         }
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(4);
 
         // ── 区块 2.3: 行为配方面板 (GBG-style Fancy Objects) ──
         DrawRecipePanel();
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(4);
 
-        // ── 区块 2.5: Gameplay Mechanics (机制驱动关卡设计) ──
-        showGameplayMechanics = EditorGUILayout.Foldout(showGameplayMechanics, "\u2605 Gameplay Mechanics (\u673a\u5236\u9a71\u52a8\u5173\u5361\u8bbe\u8ba1)", true, EditorStyles.foldoutHeader);
-        if (showGameplayMechanics)
+        // ── 区块 3: Gameplay Mechanics (进阶，默认折叠) ──
+        if (LevelStudioStyles.SectionHeader("★ Gameplay Mechanics", ref showGameplayMechanics,
+            "附身点网络 / 路线预算 / 机制验证 — 机制驱动的关卡设计"))
         {
             DrawGameplayMechanicsSection();
         }
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(4);
 
-        // ── 区块 3: ASCII 快速模板生成 ──
-        EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("Quick Whitebox Generator", EditorStyles.boldLabel);
-
-        EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
-
-        // 模板选择
-        string[] templateNames = AsciiLevelGenerator.GetBuiltInTemplateNames();
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("Template:", GUILayout.Width(65));
-        selectedTemplateIndex = EditorGUILayout.Popup(selectedTemplateIndex, templateNames);
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.4f, 0.9f, 0.4f);
-        if (GUILayout.Button("Generate Whitebox Level", GUILayout.Height(28)))
-        {
-            GenerateWhiteboxLevel();
-        }
-        GUI.color = new Color(1f, 0.5f, 0.5f);
-        if (GUILayout.Button("Clear ASCII Level", GUILayout.Height(28)))
-        {
-            AsciiLevelGenerator.ClearGeneratedLevel();
-            Debug.Log("[TestConsole] ASCII level cleared.");
-        }
-        GUI.color = Color.white;
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUI.EndDisabledGroup();
-
-        // 字符映射参考
-        showCharMapRef = EditorGUILayout.Foldout(showCharMapRef, "Character Map Reference", true);
-        if (showCharMapRef)
-        {
-            EditorGUI.indentLevel++;
-            EditorGUILayout.HelpBox(AsciiLevelGenerator.GetCharMapReference(), MessageType.None);
-            EditorGUI.indentLevel--;
-        }
-
-        EditorGUILayout.EndVertical();
-
-        EditorGUILayout.Space(6);
-
-        // ── 区块 4: TestSceneBuilder 快捷工具 ──
-        showBuilderTools = EditorGUILayout.Foldout(showBuilderTools, "TestSceneBuilder (9-Stage Test Scene)", true, EditorStyles.foldoutHeader);
-        if (showBuilderTools)
+        // ── 区块 4: TestSceneBuilder (默认折叠) ──
+        if (LevelStudioStyles.SectionHeader("Test Scene Builder", ref showBuilderTools,
+            "9-Stage 测试场景 / Validation Scene 一键生成"))
         {
             DrawBuilderToolsSection();
         }
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(4);
 
         // ── 区块 5: 关卡元素集控 (PlayMode) ──
-        showElementsHub = EditorGUILayout.Foldout(showElementsHub, "Elements Hub (Registry Browser)", true, EditorStyles.foldoutHeader);
-        if (showElementsHub)
+        if (LevelStudioStyles.SectionHeader("Elements Hub", ref showElementsHub,
+            "Registry Browser — PlayMode 下查看/操作已注册的关卡元素"))
         {
             DrawElementsHubSection();
         }
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(4);
 
         // ── 区块 6: 测试报告 ──
-        showTestReports = EditorGUILayout.Foldout(showTestReports, "Test Reports & Shortcuts", true, EditorStyles.foldoutHeader);
-        if (showTestReports)
+        if (LevelStudioStyles.SectionHeader("Test Reports", ref showTestReports,
+            "运行测试 + 快捷键速查"))
         {
             DrawTestReportsSection();
         }
@@ -116,42 +79,33 @@ public partial class TestConsoleWindow
     // Gameplay Mechanics Section (机制驱动关卡设计)
     // ═══════════════════════════════════════════════════
 
-    /// <summary>
-    /// 绘制 Gameplay Mechanics 区块 —— 机制驱动的关卡设计工具。
-    /// 包含：附身点网络可视化、路线预算配置、机制验证检查。
-    /// </summary>
     private void DrawGameplayMechanicsSection()
     {
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.HelpBox(
-            "基于游戏循环的关卡设计工具。\n" +
-            "• 附身点网络：可视化和管理 Trickster 可附身的机关/道具\n" +
-            "• 路线预算：配置 Mario 的上/下路线和护栏规则\n" +
-            "• 机制验证：一键检查关卡是否满足核心循环要求",
-            MessageType.Info);
+        LevelStudioStyles.CompactTip("附身点网络 · 路线预算 · 机制验证 — 基于游戏循环的关卡设计工具");
 
-        EditorGUILayout.Space(4);
+        EditorGUILayout.Space(2);
 
-        // ── 子区块 A: 附身点网络 (Possession Anchor Network) ──
-        showAnchorNetwork = EditorGUILayout.Foldout(showAnchorNetwork, "◆ Possession Anchor Network (附身点网络)", true);
+        // ── 子区块 A: 附身点网络 ──
+        showAnchorNetwork = EditorGUILayout.Foldout(showAnchorNetwork, "◆ Possession Anchor Network", true);
         if (showAnchorNetwork)
         {
             DrawAnchorNetworkSubsection();
         }
 
-        EditorGUILayout.Space(4);
+        EditorGUILayout.Space(2);
 
-        // ── 子区块 B: 路线预算 (Route Budget) ──
-        showRouteBudget = EditorGUILayout.Foldout(showRouteBudget, "◆ Route Budget (路线预算配置)", true);
+        // ── 子区块 B: 路线预算 ──
+        showRouteBudget = EditorGUILayout.Foldout(showRouteBudget, "◆ Route Budget", true);
         if (showRouteBudget)
         {
             DrawRouteBudgetSubsection();
         }
 
-        EditorGUILayout.Space(4);
+        EditorGUILayout.Space(2);
 
-        // ── 子区块 C: 机制验证 (Mechanics Validation) ──
-        showMechanicsValidation = EditorGUILayout.Foldout(showMechanicsValidation, "◆ Mechanics Validation (关卡机制验证)", true);
+        // ── 子区块 C: 机制验证 ──
+        showMechanicsValidation = EditorGUILayout.Foldout(showMechanicsValidation, "◆ Mechanics Validation", true);
         if (showMechanicsValidation)
         {
             DrawMechanicsValidationSubsection();
@@ -175,14 +129,15 @@ public partial class TestConsoleWindow
             else disabledCount++;
         }
 
-        // 状态概览
+        // 状态概览（紧凑单行）
         EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField($"场景附身点: {anchors.Length} 个", EditorStyles.boldLabel);
-        GUI.color = new Color(0.4f, 0.9f, 0.4f);
-        GUILayout.Label($"✔ 启用 {enabledCount}", GUILayout.Width(80));
-        GUI.color = new Color(0.9f, 0.5f, 0.5f);
-        GUILayout.Label($"✖ 禁用 {disabledCount}", GUILayout.Width(80));
+        EditorGUILayout.LabelField($"场景附身点: {anchors.Length}", EditorStyles.boldLabel, GUILayout.Width(120));
+        GUI.color = LevelStudioStyles.AccentGreen;
+        GUILayout.Label($"✔{enabledCount}", GUILayout.Width(40));
+        GUI.color = LevelStudioStyles.AccentRed;
+        GUILayout.Label($"✖{disabledCount}", GUILayout.Width(40));
         GUI.color = Color.white;
+        GUILayout.FlexibleSpace();
         EditorGUILayout.EndHorizontal();
 
         // 附身点列表
@@ -192,14 +147,14 @@ public partial class TestConsoleWindow
             foreach (var anchor in anchors)
             {
                 EditorGUILayout.BeginHorizontal();
-                GUI.color = anchor.PossessionEnabled ? Color.white : new Color(0.7f, 0.7f, 0.7f);
+                GUI.color = anchor.PossessionEnabled ? Color.white : LevelStudioStyles.Muted;
                 if (GUILayout.Button(anchor.AnchorId, EditorStyles.miniButtonLeft, GUILayout.Width(140)))
                 {
                     Selection.activeGameObject = anchor.gameObject;
                     SceneView.lastActiveSceneView?.FrameSelected();
                 }
-                GUILayout.Label($"Pos: ({anchor.transform.position.x:F1}, {anchor.transform.position.y:F1})", GUILayout.Width(140));
-                GUILayout.Label($"Residue: {anchor.DefaultResidueSeconds:F1}s", GUILayout.Width(100));
+                GUILayout.Label($"({anchor.transform.position.x:F1}, {anchor.transform.position.y:F1})", GUILayout.Width(100));
+                GUILayout.Label($"{anchor.DefaultResidueSeconds:F1}s", GUILayout.Width(40));
                 GUI.color = Color.white;
                 EditorGUILayout.EndHorizontal();
             }
@@ -207,41 +162,30 @@ public partial class TestConsoleWindow
         }
         else
         {
-            EditorGUILayout.HelpBox(
-                "场景中没有 PossessionAnchor。\n" +
-                "在任何带有 IControllableProp 的物体上添加 PossessionAnchor 组件，\n" +
-                "或使用下方按钮快速为选中物体添加。",
-                MessageType.Warning);
+            LevelStudioStyles.CompactTip("场景中没有 PossessionAnchor。在带有 IControllableProp 的物体上添加，或用下方按钮快速添加。");
         }
 
-        EditorGUILayout.Space(4);
+        EditorGUILayout.Space(2);
 
         // 快捷操作按钮
         EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.4f, 0.85f, 0.95f);
-        if (GUILayout.Button("+ 为选中物体添加 PossessionAnchor", GUILayout.Height(24)))
+        if (LevelStudioStyles.ColorButton("+ 添加附身点", LevelStudioStyles.AccentBlue, 22f))
         {
             AddPossessionAnchorToSelection();
         }
-        GUI.color = new Color(0.95f, 0.85f, 0.4f);
-        if (GUILayout.Button("◎ 在 Scene 视图高亮所有附身点", GUILayout.Height(24)))
+        if (LevelStudioStyles.ColorButton("◎ 高亮全部", LevelStudioStyles.AccentYellow, 22f, 80f))
         {
             HighlightAllAnchorsInScene();
         }
-        GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();
 
-        // 设计建议
+        // 分布质量提示（紧凑化）
         if (anchors.Length > 0 && anchors.Length < 3)
         {
-            EditorGUILayout.HelpBox(
-                "⚠️ 建议至少 3 个附身点才能支撑有意义的连锁和路线预算。\n" +
-                "当前核心循环：附身 → 操控 → 连锁 → 热度上升 → 扫描危机",
-                MessageType.Warning);
+            LevelStudioStyles.CompactTip("建议 ≥3 个附身点才能支撑连锁和路线预算");
         }
         else if (anchors.Length >= 3)
         {
-            // 计算附身点分布质量
             float minX = float.MaxValue, maxX = float.MinValue;
             float minY = float.MaxValue, maxY = float.MinValue;
             foreach (var a in anchors)
@@ -255,15 +199,12 @@ public partial class TestConsoleWindow
             float spreadX = maxX - minX;
             float spreadY = maxY - minY;
 
-            string quality = "";
             if (spreadX < 5f)
-                quality = "⚠️ 附身点水平分布过密（仅 " + spreadX.ToString("F1") + " 格），建议分散到不同路线段";
+                LevelStudioStyles.CompactTip($"水平分布过密（{spreadX:F1}格），建议分散到不同路线段");
             else if (spreadY < 2f && anchors.Length > 4)
-                quality = "⚠️ 附身点全部在同一高度，缺少垂直层次感";
+                LevelStudioStyles.CompactTip("附身点全在同一高度，缺少垂直层次");
             else
-                quality = "✅ 附身点分布合理（水平 " + spreadX.ToString("F1") + " 格，垂直 " + spreadY.ToString("F1") + " 格）";
-
-            EditorGUILayout.LabelField(quality);
+                LevelStudioStyles.CompactTip($"✅ 分布合理（水平 {spreadX:F1}格，垂直 {spreadY:F1}格）");
         }
 
         EditorGUI.indentLevel--;
@@ -278,15 +219,10 @@ public partial class TestConsoleWindow
 
         if (routeBudget == null)
         {
-            EditorGUILayout.HelpBox(
-                "场景中没有 RouteBudgetService。\n" +
-                "该组件通常挂在 GameManager 上，负责维护 Mario 的路线护栏。\n" +
-                "如果还在白盒阶段，可以先跳过。",
-                MessageType.Info);
+            LevelStudioStyles.CompactTip("场景中没有 RouteBudgetService（通常挂在 GameManager 上，白盒阶段可跳过）");
         }
         else
         {
-            // 显示 RouteBudgetService 的配置
             EditorGUILayout.LabelField("路线预算服务已激活", EditorStyles.boldLabel);
 
             SerializedObject so = new SerializedObject(routeBudget);
@@ -302,13 +238,7 @@ public partial class TestConsoleWindow
 
             so.ApplyModifiedProperties();
 
-            EditorGUILayout.Space(2);
-            EditorGUILayout.HelpBox(
-                "路线预算规则：\n" +
-                "• 当总路线 ≤ 2 时，同时最多 1 条被降级\n" +
-                "• 降级路线会自动恢复（上方设置的时间）\n" +
-                "• 每次降级会通过 InterferenceCompensation 给 Mario 补偿",
-                MessageType.None);
+            LevelStudioStyles.CompactTip("路线≤2时最多1条降级 | 降级自动恢复 | 降级触发 InterferenceCompensation 补偿");
         }
 
         EditorGUI.indentLevel--;
@@ -319,35 +249,24 @@ public partial class TestConsoleWindow
     {
         EditorGUI.indentLevel++;
 
-        EditorGUILayout.HelpBox(
-            "核心循环检查清单：\n" +
-            "① 附身点 ≥ 3 个（支撑连锁）\n" +
-            "② 路线 ≥ 2 条（保证 Mario 永远有路走）\n" +
-            "③ 有 LootObjective + EscapeGate（拢宝撤离目标）\n" +
-            "④ 有 AlarmCrisisDirector（扫描波危机）\n" +
-            "⑤ 附身点分布覆盖多条路线（避免单点刷刷）",
-            MessageType.None);
+        LevelStudioStyles.CompactTip("检查: ①附身点≥3 ②路线≥2 ③LootObjective+EscapeGate ④AlarmCrisisDirector ⑤分布覆盖");
 
-        EditorGUILayout.Space(4);
+        EditorGUILayout.Space(2);
 
-        GUI.color = new Color(0.4f, 0.9f, 0.7f);
-        if (GUILayout.Button("▶ 运行机制验证", GUILayout.Height(28)))
+        if (LevelStudioStyles.ColorButton("▶ 运行机制验证", LevelStudioStyles.AccentGreen, 26f))
         {
             RunMechanicsValidation();
         }
-        GUI.color = Color.white;
 
         GameObject autoFixRoot = GameplayLoopSceneBootstrapper.ResolveActiveLevelRoot();
         if (GameplayLoopSceneBootstrapper.NeedsGameplayLoopAutoFix(autoFixRoot))
         {
-            EditorGUILayout.Space(4);
-            EditorGUILayout.HelpBox(
-                "检测到当前场景仍缺少 Gameplay Loop 服务，或实战房仍保留 Collectible/GoalZone 的旧语义。可使用 Auto-Fix 旁路补齐，不改 ASCII 字典与核心底层。",
-                MessageType.Warning);
+            EditorGUILayout.Space(2);
+            LevelStudioStyles.CompactTip("检测到缺少 Gameplay Loop 服务，可一键补齐");
 
             Color previousColor = GUI.backgroundColor;
             GUI.backgroundColor = new Color(0.25f, 0.85f, 0.35f);
-            if (GUILayout.Button("🛠️ Auto-Fix: 一键补齐 Gameplay Loop 服务与实战语义", GUILayout.Height(34)))
+            if (GUILayout.Button("Auto-Fix: 补齐 Gameplay Loop 服务", GUILayout.Height(28)))
             {
                 int undoGroup = Undo.GetCurrentGroup();
                 Undo.SetCurrentGroupName("Auto-Fix Gameplay Loop Services And Combat Semantics");
@@ -406,7 +325,6 @@ public partial class TestConsoleWindow
             return;
         }
 
-        // 选中所有附身点并聚焦
         GameObject[] anchorObjects = new GameObject[anchors.Length];
         for (int i = 0; i < anchors.Length; i++)
         {
@@ -529,25 +447,16 @@ public partial class TestConsoleWindow
         string[] names = AsciiLevelGenerator.GetBuiltInTemplateNames();
         string templateName = selectedTemplateIndex < names.Length ? names[selectedTemplateIndex] : "Unknown";
 
-        // 注册 Undo
         Undo.SetCurrentGroupName($"Generate Whitebox Level: {templateName}");
 
         GameObject root = AsciiLevelGenerator.GenerateFromTemplate(template, true);
         if (root != null)
         {
             Undo.RegisterCreatedObjectUndo(root, $"Generate {templateName}");
-
-            // S33: 统一调用链 — 与 GenerateFromCustomTemplate 保持一致，
-            // 自动补全 Mario/Trickster/Managers/Camera/KillZone，让生成的关卡直接可 Play。
-            // 此方法是幂等的：如果场景中已有这些对象则跳过创建。
             PlayableEnvironmentBuilder.EnsurePlayableEnvironment(root);
-
-            // 聚焦到生成的关卡
             Selection.activeGameObject = root;
             SceneView.lastActiveSceneView?.FrameSelected();
-
             EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-
             Debug.Log($"[TestConsole] Whitebox level '{templateName}' generated with playable environment.");
         }
     }
@@ -566,7 +475,6 @@ public partial class TestConsoleWindow
             return;
         }
 
-        // 注册 Undo（记录所有子物体的 SpriteRenderer 状态）
         Undo.SetCurrentGroupName($"Apply Theme: {themeProfile.themeName}");
 
         SpriteRenderer[] renderers = root.GetComponentsInChildren<SpriteRenderer>();
@@ -575,7 +483,6 @@ public partial class TestConsoleWindow
             Undo.RecordObject(sr, "Apply Theme Sprite");
         }
 
-        // 记录相机背景色
         Camera mainCam = Camera.main;
         if (mainCam != null)
         {
@@ -583,13 +490,8 @@ public partial class TestConsoleWindow
         }
 
         AsciiLevelGenerator.ApplyTheme(themeProfile);
-
-        // 换肤后自动为所有替换了 Sprite 的物体补上 SEF Material，
-        // 确保后续 SEF Quick Apply 效果能直接生效，用户无需手动补 Material。
         EnsureSEFMaterialForLevel(root);
-
         EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
-
         Debug.Log($"[TestConsole] Theme '{themeProfile.themeName}' applied with Undo support + SEF Material.");
     }
 
@@ -616,47 +518,42 @@ public partial class TestConsoleWindow
         Debug.Log($"[TestConsole] New theme profile created at: {path}");
     }
 
-    /// <summary>绘制动态元素调色板</summary>
+    /// <summary>绘制动态元素调色板（v2 紧凑化）</summary>
     private void DrawElementPalette()
     {
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
 
         EditorGUILayout.BeginVertical("box");
 
-        // ── Brush Mode 控制栏 ──
-        EditorGUILayout.BeginHorizontal();
+        // ── Brush Mode 状态栏（紧凑化） ──
         if (LevelBrushTool.IsActive)
         {
-            GUI.color = new Color(1f, 0.6f, 0.2f);
-            EditorGUILayout.LabelField($"🖌️ 笔刷激活: {LevelBrushTool.CurrentBrushName} ({LevelBrushTool.BrushSize}x{LevelBrushTool.BrushSize})", EditorStyles.boldLabel);
+            EditorGUILayout.BeginHorizontal();
+            GUI.color = LevelStudioStyles.AccentOrange;
+            EditorGUILayout.LabelField($"🖌️ {LevelBrushTool.CurrentBrushName} ({LevelBrushTool.BrushSize}x{LevelBrushTool.BrushSize})", EditorStyles.boldLabel);
             GUI.color = Color.white;
-            if (GUILayout.Button("✖ 退出笔刷", GUILayout.Width(80), GUILayout.Height(20)))
+            if (GUILayout.Button("✖", GUILayout.Width(24), GUILayout.Height(18)))
             {
                 LevelBrushTool.Deactivate();
             }
+            EditorGUILayout.EndHorizontal();
         }
         else
         {
-            EditorGUILayout.LabelField("点击 = 单个放置 | 右键按钮 = 笔刷模式", EditorStyles.miniLabel);
+            LevelStudioStyles.CompactTip("左键=放置 | 右键=笔刷 | 笔刷中: Shift=橡皮擦, [/]=调大小");
         }
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.HelpBox(
-            "左键点击: 在 Scene 视图中心生成 | 右键点击: 激活笔刷模式（在 Scene 中拖拽绘制）\n" +
-            "笔刷模式: 左键拖动=绘制 | Shift=橡皮擦 | [/]=调大小 | 右键/Esc=退出",
-            MessageType.Info);
 
         // 陷阱类
-        EditorGUILayout.LabelField("Traps", EditorStyles.boldLabel);
+        LevelStudioStyles.SubHeader("Traps");
         EditorGUILayout.BeginHorizontal();
-        DrawPaletteButton("Spike Trap", '^', new Color(0.85f, 0.25f, 0.25f));
-        DrawPaletteButton("Fire Trap", '~', new Color(1f, 0.5f, 0.1f));
+        DrawPaletteButton("Spike", '^', new Color(0.85f, 0.25f, 0.25f));
+        DrawPaletteButton("Fire", '~', new Color(1f, 0.5f, 0.1f));
         DrawPaletteButton("Pendulum", 'P', new Color(0.7f, 0.45f, 0.2f));
         DrawPaletteButton("SawBlade", '@', new Color(0.7f, 0.7f, 0.7f));
         EditorGUILayout.EndHorizontal();
 
         // 平台类
-        EditorGUILayout.LabelField("Platforms", EditorStyles.boldLabel);
+        LevelStudioStyles.SubHeader("Platforms");
         EditorGUILayout.BeginHorizontal();
         DrawPaletteButton("Bouncy", 'B', new Color(0.3f, 0.85f, 0.3f));
         DrawPaletteButton("Collapse", 'C', new Color(0.8f, 0.65f, 0.3f));
@@ -666,34 +563,26 @@ public partial class TestConsoleWindow
         EditorGUILayout.EndHorizontal();
 
         // 敌人类
-        EditorGUILayout.LabelField("Enemies", EditorStyles.boldLabel);
+        LevelStudioStyles.SubHeader("Enemies");
         EditorGUILayout.BeginHorizontal();
-        DrawPaletteButton("Bounce Enemy", 'E', new Color(0.9f, 0.2f, 0.6f));
-        DrawPaletteButton("Simple Enemy", 'e', new Color(0.9f, 0.2f, 0.6f));
-        DrawPaletteButton("Flying Enemy", 'f', new Color(0.85f, 0.4f, 0.85f));
+        DrawPaletteButton("Bounce", 'E', new Color(0.9f, 0.2f, 0.6f));
+        DrawPaletteButton("Patrol", 'e', new Color(0.9f, 0.2f, 0.6f));
+        DrawPaletteButton("Flying", 'f', new Color(0.85f, 0.4f, 0.85f));
         EditorGUILayout.EndHorizontal();
 
-        // 通道/墙壁类
-        EditorGUILayout.LabelField("Passages & Walls", EditorStyles.boldLabel);
-        EditorGUILayout.BeginHorizontal();
-        DrawPaletteButton("Fake Wall", 'F', new Color(0.55f, 0.55f, 0.65f));
-        DrawPaletteButton("Hidden Passage", 'H', new Color(0.4f, 0.7f, 0.55f));
-        EditorGUILayout.EndHorizontal();
-
-        // 基础方块
-        EditorGUILayout.LabelField("Blocks", EditorStyles.boldLabel);
+        // 通道/墙壁 + 基础方块（合并为一行组）
+        LevelStudioStyles.SubHeader("Blocks & Passages");
         EditorGUILayout.BeginHorizontal();
         DrawPaletteButton("Ground", '#', new Color(0.55f, 0.55f, 0.55f));
         DrawPaletteButton("Platform", '=', new Color(0.7f, 0.7f, 0.7f));
         DrawPaletteButton("Wall", 'W', new Color(0.4f, 0.4f, 0.4f));
         DrawPaletteButton("Breakable", 'X', new Color(0.75f, 0.55f, 0.3f));
         EditorGUILayout.EndHorizontal();
-
-        // 其他
-        EditorGUILayout.LabelField("Other", EditorStyles.boldLabel);
         EditorGUILayout.BeginHorizontal();
-        DrawPaletteButton("Collectible", 'o', new Color(1f, 0.85f, 0.2f));
-        DrawPaletteButton("Goal Zone", 'G', new Color(0.2f, 1f, 0.4f));
+        DrawPaletteButton("FakeWall", 'F', new Color(0.55f, 0.55f, 0.65f));
+        DrawPaletteButton("Hidden", 'H', new Color(0.4f, 0.7f, 0.55f));
+        DrawPaletteButton("Coin", 'o', new Color(1f, 0.85f, 0.2f));
+        DrawPaletteButton("Goal", 'G', new Color(0.2f, 1f, 0.4f));
         DrawPaletteButton("Checkpoint", 'S', new Color(0.2f, 0.8f, 0.9f));
         EditorGUILayout.EndHorizontal();
 
@@ -707,30 +596,25 @@ public partial class TestConsoleWindow
     {
         GUI.color = color;
 
-        // 如果该元素当前是笔刷选中状态，显示高亮边框
         bool isActiveBrush = LevelBrushTool.IsActive && LevelBrushTool.CurrentBrushChar == charKey;
         GUIStyle style = isActiveBrush ? new GUIStyle(GUI.skin.button) { fontStyle = FontStyle.Bold } : GUI.skin.button;
         if (isActiveBrush)
         {
             GUI.color = Color.white;
-            // 用更亮的背景表示当前笔刷选中
             GUI.backgroundColor = color;
         }
 
-        Rect btnRect = GUILayoutUtility.GetRect(new GUIContent(label), style, GUILayout.Height(25));
+        Rect btnRect = GUILayoutUtility.GetRect(new GUIContent(label), style, GUILayout.Height(22));
 
-        // 检测右键点击
         Event e = Event.current;
         if (e.type == EventType.MouseDown && e.button == 1 && btnRect.Contains(e.mousePosition))
         {
-            // 右键：激活笔刷模式
             LevelBrushTool.Activate(label, charKey, color);
             e.Use();
             Repaint();
         }
         else if (GUI.Button(btnRect, label, style))
         {
-            // 左键：单个放置（原有行为）
             SpawnElementAtSceneCenter(charKey, label);
         }
 
@@ -748,20 +632,13 @@ public partial class TestConsoleWindow
             return;
         }
 
-        // 获取 Scene 视图焦点中心的世界坐标
         // [AI防坑警告] 必须使用 sceneView.pivot 而非 camera.transform.position
-        // camera.transform.position 是 Scene 摄像机的 3D 位置（含透视偏移），
-        // 在 2D 模式下与画面可视中心存在较大偏差。
-        // pivot 才是用户在 Scene 视图中看到的真正焦点中心。
         Vector3 camCenter = sceneView.pivot;
         camCenter.z = 0;
 
-        // 对齐到网格（四舍五入到整数）
         int gridX = Mathf.RoundToInt(camCenter.x);
         int gridY = Mathf.RoundToInt(camCenter.y);
 
-        // 使用 ASCII 生成器的单字符模板来生成
-        // 确保有 Root 节点
         GameObject root = GameObject.Find("AsciiLevel_Root");
         if (root == null)
         {
@@ -769,14 +646,11 @@ public partial class TestConsoleWindow
             Undo.RegisterCreatedObjectUndo(root, "Create ASCII Root");
         }
 
-        // 生成单个元素（通过临时模板）
         string miniTemplate = charKey.ToString();
-        // isSnippet = true: 单元素放置不需要完整关卡验证（M/G）
         GameObject tempRoot = AsciiLevelGenerator.GenerateFromTemplate(miniTemplate, false, true);
 
         if (tempRoot != null && tempRoot.transform.childCount > 0)
         {
-            // 将生成的子物体移到正确位置并挂到主 Root 下
             List<Transform> children = new List<Transform>();
             foreach (Transform child in tempRoot.transform)
             {
@@ -785,14 +659,12 @@ public partial class TestConsoleWindow
 
             foreach (Transform child in children)
             {
-                // 调整位置到 Scene 摄像机中心
                 child.position = new Vector3(gridX, gridY, 0);
                 child.name = child.name.Replace("_0_0", $"_{gridX}_{gridY}");
                 child.parent = root.transform;
                 Undo.RegisterCreatedObjectUndo(child.gameObject, $"Spawn {label}");
             }
 
-            // 删除临时 Root
             Object.DestroyImmediate(tempRoot);
 
             EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
@@ -800,36 +672,29 @@ public partial class TestConsoleWindow
         }
     }
 
-    /// <summary>绘制 TestSceneBuilder 工具区块</summary>
+    /// <summary>绘制 TestSceneBuilder 工具区块（紧凑化）</summary>
     private void DrawBuilderToolsSection()
     {
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
 
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("9-Stage Test Scene", EditorStyles.boldLabel);
 
         EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.5f, 1f, 0.5f);
-        if (GUILayout.Button("Build Test Scene", GUILayout.Height(32)))
+        if (LevelStudioStyles.ColorButton("Build 9-Stage", LevelStudioStyles.AccentGreen, 28f))
         {
             TestSceneBuilder.BuildTestScene();
         }
-        GUI.color = new Color(0.45f, 0.75f, 1f);
-        if (GUILayout.Button("Build Validation Scene", GUILayout.Height(32)))
+        if (LevelStudioStyles.ColorButton("Build Validation", LevelStudioStyles.AccentBlue, 28f))
         {
             TestSceneBuilder.BuildValidationScene();
         }
-        GUI.color = new Color(1f, 0.5f, 0.5f);
-        if (GUILayout.Button("Clear Test Scene", GUILayout.Height(32)))
+        if (LevelStudioStyles.ColorButton("Clear", LevelStudioStyles.AccentRed, 28f, 55f))
         {
             TestSceneBuilder.ClearTestScene();
         }
-        GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();
 
-        EditorGUILayout.HelpBox(
-            "Validation Scene 是整合后的统一验证关卡：覆盖基础操作、附身门禁、路线预算、Combo/Heat、Loot-Escape、Scan Wave 与 Q 揭穿，不替代原 9-Stage。",
-            MessageType.None);
+        LevelStudioStyles.CompactTip("Validation Scene 覆盖基础操作/附身/路线/Combo/Heat/Loot-Escape/Scan Wave");
 
         EditorGUILayout.EndVertical();
 
@@ -844,23 +709,23 @@ public partial class TestConsoleWindow
         EditorGUILayout.BeginVertical("box");
 
         int totalCount = LevelElementRegistry.TotalCount;
-        EditorGUILayout.LabelField($"Registered Elements: {totalCount}");
 
         EditorGUILayout.BeginHorizontal();
-        if (GUILayout.Button("Reset All Elements", GUILayout.Height(25)))
+        EditorGUILayout.LabelField($"Registered: {totalCount}", EditorStyles.boldLabel, GUILayout.Width(120));
+        if (GUILayout.Button("Reset All", GUILayout.Height(20)))
         {
             LevelElementRegistry.ResetAll();
             Debug.Log("[TestConsole] All elements reset.");
         }
-        if (GUILayout.Button("Print Summary", GUILayout.Height(25)))
+        if (GUILayout.Button("Print", GUILayout.Height(20), GUILayout.Width(50)))
         {
             LevelElementRegistry.DebugPrintSummary();
         }
         EditorGUILayout.EndHorizontal();
 
-        EditorGUILayout.Space(4);
+        EditorGUILayout.Space(2);
 
-        elementsScrollPos = EditorGUILayout.BeginScrollView(elementsScrollPos, GUILayout.MinHeight(150));
+        elementsScrollPos = EditorGUILayout.BeginScrollView(elementsScrollPos, GUILayout.MinHeight(120));
 
         var stats = LevelElementRegistry.GetCategoryStats();
         foreach (var kvp in stats)
@@ -899,9 +764,7 @@ public partial class TestConsoleWindow
 
         if (totalCount == 0)
         {
-            EditorGUILayout.HelpBox(
-                "当前没有已注册的关卡元素。\n请先生成测试场景并进入 PlayMode。",
-                MessageType.Warning);
+            LevelStudioStyles.CompactTip("无已注册元素。请先生成场景并进入 PlayMode。");
         }
 
         EditorGUILayout.EndScrollView();
@@ -910,127 +773,86 @@ public partial class TestConsoleWindow
         EditorGUI.EndDisabledGroup();
     }
 
-    /// <summary>绘制测试报告和快捷键区块</summary>
+    /// <summary>绘制测试报告和快捷键区块（紧凑化）</summary>
     private void DrawTestReportsSection()
     {
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("Test Reports", EditorStyles.boldLabel);
 
-        if (GUILayout.Button("Run EditMode Tests", GUILayout.Height(25)))
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("EditMode Tests", GUILayout.Height(22)))
         {
             EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (EditMode)");
         }
-        if (GUILayout.Button("Run PlayMode Tests", GUILayout.Height(25)))
+        if (GUILayout.Button("PlayMode Tests", GUILayout.Height(22)))
         {
             EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (PlayMode)");
         }
-        if (GUILayout.Button("Run All Tests + Report", GUILayout.Height(25)))
+        if (GUILayout.Button("All + Report", GUILayout.Height(22)))
         {
             EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (All)");
         }
+        EditorGUILayout.EndHorizontal();
 
-        EditorGUILayout.Space(4);
+        LevelStudioStyles.Separator();
 
-        EditorGUILayout.LabelField("Keyboard Shortcuts", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("Ctrl+T       Open Test Console");
-        EditorGUILayout.LabelField("F5           Quick Restart Level");
-        EditorGUILayout.LabelField("F9           Toggle No Cooldown");
-        EditorGUILayout.LabelField("ESC          Pause/Resume");
-        EditorGUILayout.LabelField("R            Restart (Round Over)");
-        EditorGUILayout.LabelField("N            Next Round (Round Over)");
+        LevelStudioStyles.CompactTip(
+            "<b>Ctrl+T</b> Open Studio | <b>F5</b> Restart | <b>F9</b> NoCooldown | <b>ESC</b> Pause | <b>R</b> Restart | <b>N</b> Next Round");
 
         EditorGUILayout.EndVertical();
     }
 
 
     // ═════════════════════════════════════════════════
-    // S26b: Custom Template Editor (三合一: 字典速查 + 片段库追加 + 文本框编辑)
+    // S26b: Custom Template Editor (三合一 + Quick Whitebox)
+    //
+    // v2 重构：
+    //   - 字典速查默认折叠，用 RichText miniLabel 替代 HelpBox
+    //   - 片段库改为紧凑卡片（名称+尺寸+按钮一行搞定）
+    //   - Quick Whitebox Generator 合并进此区块底部
+    //   - 片段元数据预览保留但更紧凑
     // ═════════════════════════════════════════════════
 
-    /// <summary>绘制自定义模板编辑器（三合一：字典速查 + 片段库追加 + 文本框 + Build）</summary>
+    /// <summary>绘制自定义模板编辑器（v2 清爽版）</summary>
     private void DrawCustomTemplateSection()
     {
         EditorGUI.BeginDisabledGroup(EditorApplication.isPlaying);
         EditorGUILayout.BeginVertical("box");
 
-        EditorGUILayout.HelpBox(
-            "粘贴或编写 ASCII 模板，一键生成关卡。\n" +
-            "可从外部 AI 聊天框复制模板粘贴进来，也可点击下方片段按钮追加拼装。",
-            MessageType.Info);
+        LevelStudioStyles.CompactTip("粘贴/编写 ASCII 模板一键生成关卡，或从片段库拼装。支持外部 AI 聊天框复制粘贴。");
 
-        // ── 字典速查表 ──
-        EditorGUILayout.BeginVertical("box");
-        GUIStyle refStyle = new GUIStyle(EditorStyles.miniLabel) { wordWrap = true, richText = true };
-        EditorGUILayout.LabelField("字符映射速查表:", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField(
-            "<b>#</b>=地面  <b>=</b>=平台  <b>W</b>=墙壁  <b>.</b>=空气  <b>M</b>=Mario  <b>T</b>=Trickster  <b>G</b>=终点\n" +
-            "<b>^</b>=地刺  <b>~</b>=火焰  <b>P</b>=摆锤  <b>B</b>=弹跳平台  <b>C</b>=崩塔平台  <b>-</b>=单向平台\n" +
-            "<b>E</b>=弹跳怪  <b>e</b>=巡逻怪  <b>></b>=移动平台  <b>F</b>=伪装墙  <b>H</b>=隐藏通道  <b>o</b>=金币\n" +
-            "<b>@</b>=锯片  <b>f</b>=飞行敌人  <b><</b>=传送带  <b>S</b>=检查点  <b>X</b>=可破坏方块",
-            refStyle);
-        EditorGUILayout.EndVertical();
-
-        EditorGUILayout.Space(4);
-
-        // ── 片段拼接模式选择 ──
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("拼接模式:", GUILayout.Width(60));
-        string[] stitchOptions = { "垂直拼接 (上下堆叠)", "水平拼接 (左右连接)" };
-        snippetStitchMode = EditorGUILayout.Popup(snippetStitchMode, stitchOptions);
-        EditorGUILayout.EndHorizontal();
-
-        EditorGUILayout.Space(4);
-
-        // ── 片段库 (Snippet Library) ──
-        showSnippetLibrary = EditorGUILayout.Foldout(showSnippetLibrary, "经典片段库 (点击追加到下方文本框)", true);
-        if (showSnippetLibrary)
+        // ── 字典速查表（默认折叠，减少视觉噪音） ──
+        showCharMapRef = EditorGUILayout.Foldout(showCharMapRef, "字符映射速查", true);
+        if (showCharMapRef)
         {
-            EditorGUILayout.BeginVertical("box");
-            var allSnippets = LevelSnippetLibrary.GetAllSnippets();
-            foreach (var snippet in allSnippets)
-            {
-                EditorGUILayout.BeginVertical("box");
-                // 标题 + 尺寸
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.LabelField(snippet.name, EditorStyles.boldLabel, GUILayout.ExpandWidth(true));
-                GUILayout.Label($"{snippet.width}×{snippet.height}", EditorStyles.miniLabel, GUILayout.Width(50));
-                EditorGUILayout.EndHorizontal();
-
-                // 说明
-                EditorGUILayout.LabelField(snippet.description, EditorStyles.wordWrappedMiniLabel);
-
-                // 操作按钮
-                EditorGUILayout.BeginHorizontal();
-                GUI.color = new Color(1f, 0.85f, 0.3f);
-                if (GUILayout.Button("追加到文本框", GUILayout.Height(22)))
-                {
-                    customAsciiTemplate = StitchSnippet(customAsciiTemplate, snippet.ascii, snippetStitchMode);
-                    Debug.Log($"[TestConsole] Snippet '{snippet.name}' appended to template editor (mode={(snippetStitchMode == 0 ? "vertical" : "horizontal")}).");
-                }
-                GUI.color = new Color(0.4f, 0.9f, 0.4f);
-                if (GUILayout.Button("直接生成", GUILayout.Height(22)))
-                {
-                    // S43: 片段直接生成时传递 isSnippet=true，避免验证器误报缺少 M/G
-                    GenerateFromCustomTemplate(snippet.ascii, snippet.name, true);
-                }
-                GUI.color = new Color(0.5f, 0.8f, 1f);
-                if (GUILayout.Button("复制", GUILayout.Height(22), GUILayout.Width(45)))
-                {
-                    EditorGUIUtility.systemCopyBuffer = snippet.ascii;
-                    Debug.Log($"[TestConsole] Snippet '{snippet.name}' copied to clipboard.");
-                }
-                GUI.color = Color.white;
-                EditorGUILayout.EndHorizontal();
-                EditorGUILayout.EndVertical();
-
-                EditorGUILayout.Space(2);
-            }
-            EditorGUILayout.EndVertical();
+            GUIStyle refStyle = LevelStudioStyles.RichMiniLabel();
+            EditorGUILayout.LabelField(
+                "<b>#</b>=地面 <b>=</b>=平台 <b>W</b>=墙 <b>.</b>=空气 <b>M</b>=Mario <b>T</b>=Trickster <b>G</b>=终点\n" +
+                "<b>^</b>=地刺 <b>~</b>=火焰 <b>P</b>=摆锤 <b>B</b>=弹跳 <b>C</b>=崩塔 <b>-</b>=单向 <b>></b>=移动\n" +
+                "<b>E</b>=弹跳怪 <b>e</b>=巡逻怪 <b>f</b>=飞行敌 <b>@</b>=锯片 <b>F</b>=伪装墙 <b>H</b>=隐藏通道\n" +
+                "<b>o</b>=金币 <b><</b>=传送带 <b>S</b>=检查点 <b>X</b>=可破坏",
+                refStyle);
         }
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(2);
 
-        // ── 当前片段结构化元数据预览 ──
+        // ── 拼接模式（紧凑化） ──
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("拼接:", GUILayout.Width(32));
+        string[] stitchOptions = { "垂直", "水平" };
+        snippetStitchMode = EditorGUILayout.Popup(snippetStitchMode, stitchOptions, GUILayout.Width(60));
+        GUILayout.FlexibleSpace();
+        EditorGUILayout.EndHorizontal();
+
+        // ── 片段库（紧凑卡片模式） ──
+        showSnippetLibrary = EditorGUILayout.Foldout(showSnippetLibrary, "经典片段库", true);
+        if (showSnippetLibrary)
+        {
+            DrawCompactSnippetLibrary();
+        }
+
+        EditorGUILayout.Space(2);
+
+        // ── 片段元数据预览（紧凑化） ──
         var snippetsForSelection = LevelSnippetLibrary.GetAllSnippets();
         if (snippetsForSelection != null && snippetsForSelection.Count > 0)
         {
@@ -1038,74 +860,62 @@ public partial class TestConsoleWindow
             if (selectedSnippetIndex >= snippetsForSelection.Count) selectedSnippetIndex = snippetsForSelection.Count - 1;
 
             string[] snippetNames = snippetsForSelection.Select(s => s.name).ToArray();
-            EditorGUILayout.BeginVertical("box");
-            EditorGUILayout.LabelField("选中片段设计意图", EditorStyles.boldLabel);
-            selectedSnippetIndex = EditorGUILayout.Popup("Snippet", selectedSnippetIndex, snippetNames);
+            EditorGUILayout.BeginVertical("helpbox");
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("设计意图:", GUILayout.Width(52));
+            selectedSnippetIndex = EditorGUILayout.Popup(selectedSnippetIndex, snippetNames);
+            EditorGUILayout.EndHorizontal();
 
             LevelSnippetLibrary.Snippet selectedSnippet = snippetsForSelection[selectedSnippetIndex];
             if (HasSnippetMetadata(selectedSnippet))
             {
-                EditorGUILayout.HelpBox(BuildSnippetMetadataHelp(selectedSnippet), MessageType.Warning);
+                LevelStudioStyles.CompactTip(BuildSnippetMetadataCompact(selectedSnippet));
             }
 
             EditorGUILayout.BeginHorizontal();
-            GUI.color = new Color(1f, 0.85f, 0.3f);
-            if (GUILayout.Button("追加选中片段到文本框", GUILayout.Height(24)))
+            if (LevelStudioStyles.ColorButton("追加", LevelStudioStyles.AccentYellow, 20f))
             {
                 customAsciiTemplate = StitchSnippet(customAsciiTemplate, selectedSnippet.ascii, snippetStitchMode);
-                Debug.Log($"[TestConsole] Snippet '{selectedSnippet.name}' appended to template editor from metadata selector (mode={(snippetStitchMode == 0 ? "vertical" : "horizontal")}).");
             }
-            GUI.color = new Color(0.4f, 0.9f, 0.4f);
-            if (GUILayout.Button("直接生成选中片段", GUILayout.Height(24)))
+            if (LevelStudioStyles.ColorButton("直接生成", LevelStudioStyles.AccentGreen, 20f))
             {
                 GenerateFromCustomTemplate(selectedSnippet.ascii, selectedSnippet.name, true);
             }
-            GUI.color = Color.white;
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.EndVertical();
         }
 
-        EditorGUILayout.Space(6);
+        EditorGUILayout.Space(4);
 
         // ── 模板编辑文本框 ──
         EditorGUILayout.LabelField("模板内容 (每行一层，第一行=最高层):", EditorStyles.boldLabel);
-        GUIStyle textAreaStyle = new GUIStyle(EditorStyles.textArea)
-        {
-            font = Font.CreateDynamicFontFromOSFont("Courier New", 12),
-            fontSize = 12,
-            wordWrap = false
-        };
-        customAsciiTemplate = EditorGUILayout.TextArea(customAsciiTemplate, textAreaStyle,
-            GUILayout.MinHeight(150), GUILayout.MaxHeight(400));
+        customAsciiTemplate = EditorGUILayout.TextArea(customAsciiTemplate, LevelStudioStyles.MonoTextArea(),
+            GUILayout.MinHeight(120), GUILayout.MaxHeight(350));
 
-        // 统计信息
+        // 统计信息（紧凑单行）
         if (!string.IsNullOrEmpty(customAsciiTemplate))
         {
             string[] lines = customAsciiTemplate.Split('\n');
             int maxWidth = 0;
             foreach (string line in lines)
                 if (line.Length > maxWidth) maxWidth = line.Length;
-            EditorGUILayout.LabelField($"尺寸: {maxWidth} × {lines.Length} 格", EditorStyles.miniLabel);
+            LevelStudioStyles.MiniHeader($"尺寸: {maxWidth} × {lines.Length} 格");
         }
 
         // ── 操作按钮行 ──
         EditorGUILayout.BeginHorizontal();
-        GUI.color = new Color(0.4f, 0.9f, 0.4f);
         EditorGUI.BeginDisabledGroup(string.IsNullOrEmpty(customAsciiTemplate));
-        if (GUILayout.Button("Build From Text (生成关卡)", GUILayout.Height(30)))
+        if (LevelStudioStyles.ColorButton("Build (生成关卡)", LevelStudioStyles.AccentGreen, 28f))
         {
             GenerateFromCustomTemplate(customAsciiTemplate, "CustomTemplate");
         }
         EditorGUI.EndDisabledGroup();
-        GUI.color = Color.white;
 
-        if (GUILayout.Button("从剪贴板粘贴", GUILayout.Height(30)))
+        if (GUILayout.Button("粘贴", GUILayout.Height(28), GUILayout.Width(48)))
         {
             customAsciiTemplate = EditorGUIUtility.systemCopyBuffer;
-            Debug.Log("[TestConsole] Template pasted from clipboard.");
         }
-
-        if (GUILayout.Button("清空", GUILayout.Height(30), GUILayout.Width(50)))
+        if (GUILayout.Button("清空", GUILayout.Height(28), GUILayout.Width(42)))
         {
             customAsciiTemplate = "";
         }
@@ -1114,115 +924,147 @@ public partial class TestConsoleWindow
         // ═══ AI Auto-Healer 按钮行 ═══
         DrawAIHealerButtons();
 
+        LevelStudioStyles.Separator();
+
+        // ── Quick Whitebox Generator（合并进此区块） ──
+        LevelStudioStyles.SubHeader("Quick Whitebox");
+        EditorGUILayout.BeginHorizontal();
+        string[] templateNames = AsciiLevelGenerator.GetBuiltInTemplateNames();
+        selectedTemplateIndex = EditorGUILayout.Popup(selectedTemplateIndex, templateNames);
+        if (LevelStudioStyles.ColorButton("Generate", LevelStudioStyles.AccentGreen, 22f, 70f))
+        {
+            GenerateWhiteboxLevel();
+        }
+        if (LevelStudioStyles.ColorButton("Clear", LevelStudioStyles.AccentRed, 22f, 45f))
+        {
+            AsciiLevelGenerator.ClearGeneratedLevel();
+            Debug.Log("[TestConsole] ASCII level cleared.");
+        }
+        EditorGUILayout.EndHorizontal();
+
         EditorGUILayout.EndVertical();
         EditorGUI.EndDisabledGroup();
+    }
+
+    /// <summary>紧凑片段库 — 每个片段一行卡片</summary>
+    private void DrawCompactSnippetLibrary()
+    {
+        EditorGUILayout.BeginVertical("helpbox");
+        var allSnippets = LevelSnippetLibrary.GetAllSnippets();
+        foreach (var snippet in allSnippets)
+        {
+            EditorGUILayout.BeginHorizontal();
+
+            // 名称 + 尺寸
+            EditorGUILayout.LabelField($"{snippet.name}", EditorStyles.boldLabel, GUILayout.Width(110));
+            GUILayout.Label($"{snippet.width}×{snippet.height}", EditorStyles.miniLabel, GUILayout.Width(40));
+
+            // 操作按钮（紧凑）
+            if (LevelStudioStyles.ColorButton("+", LevelStudioStyles.AccentYellow, 18f, 22f))
+            {
+                customAsciiTemplate = StitchSnippet(customAsciiTemplate, snippet.ascii, snippetStitchMode);
+                Debug.Log($"[TestConsole] Snippet '{snippet.name}' appended.");
+            }
+            if (LevelStudioStyles.ColorButton("▶", LevelStudioStyles.AccentGreen, 18f, 22f))
+            {
+                GenerateFromCustomTemplate(snippet.ascii, snippet.name, true);
+            }
+            if (GUILayout.Button("⎘", GUILayout.Width(22), GUILayout.Height(18)))
+            {
+                EditorGUIUtility.systemCopyBuffer = snippet.ascii;
+                Debug.Log($"[TestConsole] Snippet '{snippet.name}' copied.");
+            }
+
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.EndVertical();
     }
 
     // ═════════════════════════════════════════════════
     // AI Auto-Healer —— 魔法治愈 + 撤销
     // ═════════════════════════════════════════════════
 
-    /// <summary>
-    /// 绘制 AI 自动修复按钮行（魔法治愈 + 撤销）。
-    /// </summary>
     private void DrawAIHealerButtons()
     {
-        EditorGUILayout.Space(4);
+        EditorGUILayout.Space(2);
         EditorGUILayout.BeginHorizontal();
 
-        // ── 魔法治愈按钮 ──
-        GUI.color = new Color(0.6f, 0.8f, 1.0f);
         EditorGUI.BeginDisabledGroup(string.IsNullOrEmpty(customAsciiTemplate));
-        if (GUILayout.Button("\u2728 \u5582\u7ed9 AI \u6839\u636e\u6218\u62a5\u81ea\u52a8\u4fee\u590d\u5173\u5361", GUILayout.Height(28)))
+        if (LevelStudioStyles.ColorButton("✨ AI 自动修复关卡", LevelStudioStyles.AccentBlue, 24f))
         {
             RunAIHealerAsync();
         }
         EditorGUI.EndDisabledGroup();
-        GUI.color = Color.white;
 
-        // ── 撤销按钮 ──
         EditorGUI.BeginDisabledGroup(string.IsNullOrEmpty(_backupAsciiTemplate));
-        if (GUILayout.Button("\u21a9 \u64a4\u9500 AI \u4fee\u6539", GUILayout.Height(28), GUILayout.Width(120)))
+        if (GUILayout.Button("↩ 撤销 AI", GUILayout.Height(24), GUILayout.Width(75)))
         {
             customAsciiTemplate = _backupAsciiTemplate;
             _backupAsciiTemplate = "";
             GenerateFromCustomTemplate(customAsciiTemplate, "AI_Healer_Undo");
-            Debug.Log("<color=#FFAA00>[AI Auto-Healer] \u2586 \u5df2\u64a4\u9500 AI \u4fee\u6539\uff0c\u6062\u590d\u539f\u59cb\u5173\u5361\u3002</color>");
+            Debug.Log("<color=#FFAA00>[AI Auto-Healer] 已撤销 AI 修改，恢复原始关卡。</color>");
         }
         EditorGUI.EndDisabledGroup();
 
         EditorGUILayout.EndHorizontal();
     }
 
-    /// <summary>
-    /// 异步调用 LevelAutoHealer 修复关卡。
-    /// </summary>
+    /// <summary>异步调用 LevelAutoHealer 修复关卡</summary>
     private async void RunAIHealerAsync()
     {
-        // 1) 获取病灶报告
         string diagnosticReport = BuildDiagnosticReportText();
         if (string.IsNullOrEmpty(diagnosticReport))
         {
-            Debug.LogWarning("[AI Auto-Healer] \u6682\u65e0\u75c5\u7076\u6570\u636e\uff01\u8bf7\u5148\u5728 AI Arena \u8dd1\u51e0\u5c40\u81ea\u52a8\u5bf9\u6218\u6536\u96c6\u6570\u636e\u3002");
+            Debug.LogWarning("[AI Auto-Healer] 暂无病灶数据！请先在 AI Arena 跑几局自动对战收集数据。");
             return;
         }
 
-        // 2) 备份当前模板
         _backupAsciiTemplate = customAsciiTemplate;
 
-        // 3) 显示进度条
-        EditorUtility.DisplayProgressBar("AI Auto-Healer", "\u5927\u6a21\u578b\u6b63\u5728\u601d\u8003\u5982\u4f55\u4fee\u590d\u5173\u5361...", 0.5f);
+        EditorUtility.DisplayProgressBar("AI Auto-Healer", "大模型正在思考如何修复关卡...", 0.5f);
 
         try
         {
-            // 4) 异步调用 LLM
             string newAscii = await LevelAutoHealer.HealAsciiLevelAsync(customAsciiTemplate, diagnosticReport);
 
-            // 5) 应用修复结果
             if (!string.IsNullOrEmpty(newAscii))
             {
                 customAsciiTemplate = newAscii;
                 GenerateFromCustomTemplate(customAsciiTemplate, "AI_Healed_Level", false);
-                Debug.Log("<color=#88FF88>[AI Auto-Healer] \u2705 \u5173\u5361\u5df2\u81ea\u52a8\u4fee\u590d\u5e76\u91cd\u65b0\u751f\u6210\uff01\u70b9\u51fb [\u21a9 \u64a4\u9500 AI \u4fee\u6539] \u53ef\u6062\u590d\u539f\u59cb\u7248\u672c\u3002</color>");
+                Debug.Log("<color=#88FF88>[AI Auto-Healer] ✅ 关卡已自动修复并重新生成！点击 [↩ 撤销 AI] 可恢复原始版本。</color>");
                 Repaint();
             }
             else
             {
-                Debug.LogError("[AI Auto-Healer] AI \u8fd4\u56de\u4e3a\u7a7a\uff0c\u4fee\u590d\u5931\u8d25\u3002\u539f\u59cb\u5173\u5361\u672a\u53d8\u3002");
-                _backupAsciiTemplate = ""; // 回\u6eda\u5907\u4efd
+                Debug.LogError("[AI Auto-Healer] AI 返回为空，修复失败。原始关卡未变。");
+                _backupAsciiTemplate = "";
             }
         }
         catch (System.Exception ex)
         {
-            Debug.LogError($"[AI Auto-Healer] \u4fee\u590d\u5931\u8d25: {ex.Message}");
-            _backupAsciiTemplate = ""; // 回\u6eda\u5907\u4efd
+            Debug.LogError($"[AI Auto-Healer] 修复失败: {ex.Message}");
+            _backupAsciiTemplate = "";
         }
         finally
         {
-            // 6) 强\u5236\u6e05\u9664\u8fdb\u5ea6\u6761\uff0c\u9632\u6b62\u7f51\u7edc\u8d85\u65f6\u5bfc\u81f4\u7f16\u8f91\u5668\u6c38\u4e45\u6b7b\u9501
             EditorUtility.ClearProgressBar();
         }
     }
 
-    /// <summary>
-    /// 从 AI Arena 的 AutoTestAnalytics 构建\u75c5\u7076\u62a5\u544a\u6587\u672c\u3002
-    /// \u5982\u679c\u6ca1\u6709\u6570\u636e\u8fd4\u56de null\u3002
-    /// </summary>
+    /// <summary>从 AI Arena 的 AutoTestAnalytics 构建病灶报告文本</summary>
     private string BuildDiagnosticReportText()
     {
-        // _analytics 是 AI Arena partial 中的字段
         if (_analytics == null || (_analytics.TotalDeaths == 0 && _analytics.TotalStucks == 0))
             return null;
 
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"\u5bf9\u6218\u603b\u5c40\u6570: {_analytics.TotalMatches}");
-        sb.AppendLine($"Mario \u80dc\u7387: {_analytics.MarioWinRate:F0}% | Trickster \u80dc\u7387: {_analytics.TricksterWinRate:F0}%");
+        sb.AppendLine($"对战总局数: {_analytics.TotalMatches}");
+        sb.AppendLine($"Mario 胜率: {_analytics.MarioWinRate:F0}% | Trickster 胜率: {_analytics.TricksterWinRate:F0}%");
         sb.AppendLine();
 
-        // \u6b7b\u4ea1\u70b9\u7edf\u8ba1
         if (_analytics.TotalDeaths > 0)
         {
-            sb.AppendLine($"--- \u6b7b\u4ea1\u70b9 ({_analytics.TotalDeaths} \u6b21) ---");
+            sb.AppendLine($"--- 死亡点 ({_analytics.TotalDeaths} 次) ---");
             var deathGroups = _analytics.DeathPoints
                 .GroupBy(d => d.position)
                 .OrderByDescending(g => g.Count());
@@ -1230,20 +1072,19 @@ public partial class TestConsoleWindow
             {
                 int cliff = g.Count(d => d.cause == DeathCause.FallOffCliff);
                 int trap = g.Count(d => d.cause == DeathCause.TrapKill);
-                sb.AppendLine($"  \u7f51\u683c ({g.Key.x}, {g.Key.y}): \u6b7b\u4ea1 {g.Count()} \u6b21 (\u5760\u5d16 {cliff} / \u673a\u5173 {trap})");
+                sb.AppendLine($"  网格 ({g.Key.x}, {g.Key.y}): 死亡 {g.Count()} 次 (坠崖 {cliff} / 机关 {trap})");
             }
         }
 
-        // \u5361\u6b7b\u70b9\u7edf\u8ba1
         if (_analytics.TotalStucks > 0)
         {
-            sb.AppendLine($"--- \u5361\u6b7b\u70b9 ({_analytics.TotalStucks} \u6b21) ---");
+            sb.AppendLine($"--- 卡死点 ({_analytics.TotalStucks} 次) ---");
             var stuckGroups = _analytics.StuckPoints
                 .GroupBy(s => s.position)
                 .OrderByDescending(g => g.Count());
             foreach (var g in stuckGroups)
             {
-                sb.AppendLine($"  \u7f51\u683c ({g.Key.x}, {g.Key.y}): \u5361\u6b7b {g.Count()} \u6b21");
+                sb.AppendLine($"  网格 ({g.Key.x}, {g.Key.y}): 卡死 {g.Count()} 次");
             }
         }
 
@@ -1251,7 +1092,7 @@ public partial class TestConsoleWindow
     }
 
     // ═════════════════════════════════════════════════
-    // S26b: 通用模板生成方法
+    // Snippet Metadata Helpers
     // ═════════════════════════════════════════════════
 
     private bool HasSnippetMetadata(LevelSnippetLibrary.Snippet snippet)
@@ -1262,6 +1103,18 @@ public partial class TestConsoleWindow
              !string.IsNullOrEmpty(snippet.TrapRoles) ||
              !string.IsNullOrEmpty(snippet.Budget) ||
              !string.IsNullOrEmpty(snippet.TestGoal));
+    }
+
+    /// <summary>紧凑版片段元数据（单行 RichText）</summary>
+    private string BuildSnippetMetadataCompact(LevelSnippetLibrary.Snippet snippet)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(snippet.MainRoute)) parts.Add($"<b>主线:</b>{snippet.MainRoute}");
+        if (!string.IsNullOrEmpty(snippet.ShadowRoute)) parts.Add($"<b>影子:</b>{snippet.ShadowRoute}");
+        if (!string.IsNullOrEmpty(snippet.TrapRoles)) parts.Add($"<b>机关:</b>{snippet.TrapRoles}");
+        if (!string.IsNullOrEmpty(snippet.Budget)) parts.Add($"<b>预算:</b>{snippet.Budget}");
+        if (!string.IsNullOrEmpty(snippet.TestGoal)) parts.Add($"<b>目标:</b>{snippet.TestGoal}");
+        return string.Join(" | ", parts);
     }
 
     private string BuildSnippetMetadataHelp(LevelSnippetLibrary.Snippet snippet)
@@ -1283,9 +1136,6 @@ public partial class TestConsoleWindow
     }
 
     /// <summary>从自定义 ASCII 模板生成关卡</summary>
-    /// <param name="template">ASCII 模板字符串</param>
-    /// <param name="sourceName">模板来源名称（用于日志）</param>
-    /// <param name="isSnippet">是否为片段模式（片段不要求 M/G）</param>
     private void GenerateFromCustomTemplate(string template, string sourceName, bool isSnippet = false)
     {
         if (string.IsNullOrEmpty(template))
@@ -1296,15 +1146,11 @@ public partial class TestConsoleWindow
 
         Undo.SetCurrentGroupName($"Generate Level: {sourceName}");
 
-        // S43: 传递 isSnippet 参数给生成器，片段模式下验证器不要求 M/G
         GameObject root = AsciiLevelGenerator.GenerateFromTemplate(template, true, isSnippet);
         if (root != null)
         {
             Undo.RegisterCreatedObjectUndo(root, $"Generate {sourceName}");
-
-            // S31: 自动创建可玩环境 — 让 ASCII 关卡生成后直接可 Play
             PlayableEnvironmentBuilder.EnsurePlayableEnvironment(root);
-
             Selection.activeGameObject = root;
             SceneView.lastActiveSceneView?.FrameSelected();
             EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
@@ -1328,11 +1174,9 @@ public partial class TestConsoleWindow
 
         if (mode == 1)
         {
-            // 水平拼接：将片段 B 接在片段 A 的右边（逐行拼接）
             string[] linesA = existing.Split('\n');
             string[] linesB = newSnippet.Split('\n');
 
-            // 找到 A 的最大行宽，用于对齐
             int maxWidthA = 0;
             for (int i = 0; i < linesA.Length; i++)
             {
@@ -1348,7 +1192,6 @@ public partial class TestConsoleWindow
                 string lineA = i < linesA.Length ? linesA[i] : "";
                 string lineB = i < linesB.Length ? linesB[i] : "";
 
-                // 将 A 行填充到最大宽度，然后拼接 B 行
                 sb.Append(lineA);
                 if (lineA.Length < maxWidthA)
                     sb.Append('.', maxWidthA - lineA.Length);
@@ -1362,7 +1205,6 @@ public partial class TestConsoleWindow
         }
         else
         {
-            // 垂直拼接（默认）：用空行分隔
             return existing + "\n\n" + newSnippet;
         }
     }

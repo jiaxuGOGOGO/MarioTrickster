@@ -82,9 +82,25 @@ public static class StudioExplorationRunner
     public static string[] ExperienceIssues(Report data, MechanismExplorationPlan.Trial trial) =>
         MechanismExplorationPlan.ExperienceIssues(trial, data.scenarios.FirstOrDefault(s => s.id == trial.scenarioId));
 
+    public static string CompleteRegressionStage(Report data, int passed, int failed, bool cancelled)
+    {
+        data.regressionPassed = passed;
+        data.regressionFailed = failed;
+        data.regressions = failed > 0 ? "Failures" : passed > 0 ? "Passed" : "No tests reported";
+        if (cancelled) return "Restoring";
+        if (failed > 0 || passed <= 0)
+        {
+            data.blockedReason = failed > 0
+                ? $"全量回归失败 {failed} 项，已停止后续 AI 跑图。请打开本批报告目录查看 TestReport.txt，修复后重新开始。"
+                : "全量回归没有返回通过记录，已停止后续 AI 跑图。请检查 Test Runner 和本批报告，不把未执行算通过。";
+            return "Restoring";
+        }
+        return "Preparing";
+    }
+
     public static string EvidenceVerdict(Report data)
     {
-        if (!string.IsNullOrEmpty(data.blockedReason)) return "基础故障阻塞，未执行部分不算通过";
+        if (!string.IsNullOrEmpty(data.blockedReason)) return "回归或基础故障阻塞，未执行部分不算通过";
         int played = data.trials.Count(t => t.HasGameplayEvidence);
         if (played == 0) return "尚无有效试玩证据（不是玩法通过）";
         if (data.regressionFailed > 0 || data.trials.Any(t => t.errors.Count > 0)) return "有回归或运行错误，先修复再评估玩法";
@@ -132,7 +148,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions && replay == null ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S158", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
+        report = new Report { toolRevision = "S159", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, scenarios = scenarios,
             physicsConfigJson = ConfigJson("PhysicsConfig"), gameplayConfigJson = ConfigJson("GameplayLoopConfig"),
             unsupportedRegistry = MechanismExplorationPlan.MissingFromCatalog(AsciiElementRegistry.GetDefault().GetAllRegisteredChars()) };
@@ -197,11 +213,10 @@ public static class StudioExplorationRunner
             {
                 if (!TestReportRunner.IsRunning && !EditorApplication.isPlayingOrWillChangePlaymode)
                 {
-                    report.regressionPassed = TestReportRunner.LastPassed;
-                    report.regressionFailed = TestReportRunner.LastFailed;
-                    report.regressions = report.regressionFailed > 0 ? "Failures" : report.regressionPassed > 0 ? "Passed" : "No tests reported";
+                    string nextPhase = CompleteRegressionStage(report, TestReportRunner.LastPassed, TestReportRunner.LastFailed, state.cancel);
+                    if (!string.IsNullOrEmpty(report.blockedReason)) state.error = report.blockedReason;
                     if (File.Exists(TestReportRunner.LastReportFile)) File.Copy(TestReportRunner.LastReportFile, Path.Combine(state.directory, "TestReport.txt"), true);
-                    SetPhase(state.cancel ? "Restoring" : "Preparing"); Persist();
+                    SetPhase(nextPhase); Persist();
                 }
                 else if (now - phaseStarted > 1200) state.error = "Unity 回归超过 20 分钟，请查看 Test Runner；可请求停止后等待套件退出。";
             }

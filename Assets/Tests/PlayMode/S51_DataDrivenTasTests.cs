@@ -352,6 +352,38 @@ public class S51_DataDrivenTasTests
     /// 复用 S50 的环境搭建逻辑：
     ///   Mario（视碰分离） + InputManager + GameManager + LevelManager + KillZone
     /// </summary>
+    [UnityTest]
+    public IEnumerator EnvironmentUsesGroundSpawnAndWiresRoundReset() => VerifyAuthoredSpawn(2, 1);
+    [UnityTest]
+    public IEnumerator EnvironmentUsesElevatedSpawnAndWiresRoundReset() => VerifyAuthoredSpawn(8, 3);
+
+    private IEnumerator VerifyAuthoredSpawn(int x, int y)
+    {
+        // Let deferred destruction from the preceding PlayMode fixture finish first.
+        yield return null;
+        const int width = 15, height = 5;
+        var rows = new string[height];
+        for (int row = 0; row < height; row++) rows[row] = new string('.', width);
+        rows[height - 1] = new string('#', width);
+        rows[height - 2] = new string('.', width - 1) + "G";
+        var spawnRow = rows[height - 1 - y].ToCharArray(); spawnRow[x] = 'M';
+        rows[height - 1 - y] = new string(spawnRow);
+        var root = AsciiLevelGenerator.GenerateFromTemplate(string.Join("\n", rows), true);
+        _testObjects.Add(root); SetupPlayableEnvironment(root);
+        var actor = Object.FindObjectOfType<MarioController>();
+        Assert.AreEqual(new Vector3(x, y + 0.5f, 0), actor.transform.position);
+        var field = typeof(GameManager).GetField("marioSpawnPoint", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.AreEqual(new Vector3(x, y, 0), ((Transform)field.GetValue(GameManager.Instance)).position);
+    }
+
+    [Test]
+    public void EnvironmentRejectsMissingSpawnInsteadOfTestingAtFallbackCoordinates()
+    {
+        var root = new GameObject("MissingSpawnFixture"); _testObjects.Add(root);
+        Assert.Throws<AssertionException>(() => SetupPlayableEnvironment(root));
+        Assert.IsNull(root.transform.Find("MarioSpawnPoint"), "Do not fabricate a replacement marker");
+    }
+
     private void SetupPlayableEnvironment(GameObject levelRoot)
     {
         // ── 查找 SpawnPoint ──
@@ -361,8 +393,13 @@ public class S51_DataDrivenTasTests
 
         foreach (Transform child in levelRoot.transform)
         {
-            if (child.name.StartsWith("MarioSpawnPoint"))
+            // Generator emits MarioSpawn_x_y, not MarioSpawnPoint. Never silently
+            // substitute a different position: that can put the runner ON a test ceiling.
+            if (child.name.StartsWith("MarioSpawn_", System.StringComparison.Ordinal) || child.name == "MarioSpawnPoint")
+            {
+                Assert.IsNull(marioSpawnT, "Fixture requires exactly one authored Mario spawn");
                 marioSpawnT = child;
+            }
 
             float x = child.position.x;
             float y = child.position.y;
@@ -370,9 +407,8 @@ public class S51_DataDrivenTasTests
             if (y > levelHeight) levelHeight = y;
         }
 
-        Vector3 marioSpawnPos = marioSpawnT != null
-            ? marioSpawnT.position
-            : new Vector3(1f, 2f, 0f);
+        Assert.IsNotNull(marioSpawnT, "Missing authored MarioSpawn_x_y marker; refusing fallback spawn");
+        Vector3 marioSpawnPos = marioSpawnT.position;
 
         // ── Ground Layer ──
         int groundLayerIndex = LayerMask.NameToLayer(GROUND_LAYER);
@@ -431,14 +467,7 @@ public class S51_DataDrivenTasTests
         SetPrivateField(gameManager, "inputManager", inputManager);
 
         // SpawnPoint
-        GameObject marioSP = marioSpawnT != null
-            ? marioSpawnT.gameObject
-            : new GameObject("MarioSpawnPoint");
-        if (marioSpawnT == null)
-        {
-            marioSP.transform.position = marioSpawnPos;
-            _testObjects.Add(marioSP);
-        }
+        GameObject marioSP = marioSpawnT.gameObject;
         SetPrivateField(gameManager, "marioSpawnPoint", marioSP.transform);
         SetPrivateField(levelManager, "marioSpawnPoint", marioSP.transform);
 

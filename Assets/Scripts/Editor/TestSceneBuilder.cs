@@ -401,7 +401,7 @@ public class TestSceneBuilder : Editor
         GameObject stage7 = new GameObject("--- Stage 7: Win/Lose & UI ---");
 
         CreateStageSign(s7 + STAGE_WIDTH / 2f, "STAGE 7: WIN/LOSE & UI",
-            "Mario reach GoalZone -> Mario Wins\nMario fall to death -> Trickster Wins\nR/F5 = Fresh Retry | N = Next Round\nCheck: UGUI text/font, elapsed time, outcome reason\nAbility feedback: text + backdrop fade together, including pause\nAI: mechanism probes OR 3 decision rooms / 9 matchups\nCheck actual routes, telegraph retreat, recovery crossing, loot return\nB: land on top to launch; side contact must not launch\nCheck report track: Smoke is NOT Experience; requests are not launch events\nS158: jump THROUGH one-way decks, land on each step\nUpper completion and anchor changes must be actual, not requests",
+            "Mario reach GoalZone -> Mario Wins\nMario fall to death -> Trickster Wins\nR/F5 = Fresh Retry | N = Next Round\nCheck: UGUI text/font, elapsed time, outcome reason\nAbility feedback: text + backdrop fade together, including pause\nAI: mechanism probes OR 3 decision rooms / 9 matchups\nCheck actual routes, telegraph retreat, recovery crossing, loot return\nB: land on top to launch; side contact must not launch\nCheck report track: Smoke is NOT Experience; requests are not launch events\nS158: jump THROUGH one-way decks, land on each step\nUpper completion and anchor changes must be actual, not requests\nS159: regression failure stops the batch; inspect TestReport.txt",
             stage7.transform);
 
         // S44: 简单敌人（用于测试 Mario 死亡）— 视碰分离 + groundLayer 设置

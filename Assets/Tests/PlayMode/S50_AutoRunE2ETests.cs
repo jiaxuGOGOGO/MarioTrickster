@@ -214,7 +214,9 @@ public class S50_AutoRunE2ETests
         Time.timeScale = 1f;
         string shelf = oneWay ? ".------........" : ".######........";
         var root = AsciiLevelGenerator.GenerateFromTemplate("...............\n...............\n" + shelf + "\n..M...........G\n###############", true);
-        _testObjects.Add(root); SetupPlayableEnvironment(root);
+        // The low-ceiling fixture has only 0.025 units of standing headroom.
+        // Its initial placement must not use the normal +0.5 airborne spawn lift.
+        _testObjects.Add(root); SetupPlayableEnvironment(root, 0f);
         var mario = Object.FindObjectOfType<MarioController>();
         var input = Object.FindObjectOfType<InputManager>();
         GameObject actor = mario.gameObject;
@@ -222,7 +224,7 @@ public class S50_AutoRunE2ETests
         if (opponent)
         {
             actor = new GameObject("TestTrickster"); _testObjects.Add(actor);
-            actor.transform.position = new Vector3(5, 1.5f, 0);
+            actor.transform.position = new Vector3(5, 1f, 0);
             var visual = new GameObject("Visual"); visual.transform.SetParent(actor.transform, false);
             visual.AddComponent<SpriteRenderer>();
             var col = actor.AddComponent<BoxCollider2D>();
@@ -234,9 +236,18 @@ public class S50_AutoRunE2ETests
             SetPrivateField(trickster, "groundLayer", (LayerMask)(1 << (layer < 0 ? 0 : layer)));
             input.SetTricksterController(trickster);
         }
-        yield return new WaitForSeconds(0.3f);
-        Assert.IsTrue(opponent ? trickster.IsGrounded : mario.IsGrounded);
+        Physics2D.SyncTransforms();
         var body = actor.GetComponent<Collider2D>();
+        var ceiling = System.Array.Find(root.GetComponentsInChildren<BoxCollider2D>(), c =>
+            Mathf.Abs(c.bounds.center.y - 2f) < 0.01f && c.bounds.min.x <= body.bounds.min.x && c.bounds.max.x >= body.bounds.max.x);
+        Assert.IsNotNull(ceiling, "Generated ceiling must cover the whole actor");
+        Assert.Less(body.bounds.max.y, ceiling.bounds.min.y, "Fixture must START below the ceiling, not overlap or stand on it");
+        float settleDeadline = Time.realtimeSinceStartup + 3f;
+        do { yield return new WaitForFixedUpdate(); }
+        while (!(opponent ? trickster.IsGrounded : mario.IsGrounded) && Time.realtimeSinceStartup < settleDeadline);
+        Assert.IsTrue(opponent ? trickster.IsGrounded : mario.IsGrounded);
+        Assert.That(body.bounds.min.y, Is.EqualTo(0.5f).Within(0.04f), "Neutral settle must land on the floor, not the ceiling");
+        Assert.Less(body.bounds.max.y, ceiling.bounds.min.y, "Actor must still be below the ceiling before jump input");
         var frames = new List<InputFrame> {
             new InputFrame { duration = 25, p1JumpHeld = !opponent, p2JumpHeld = opponent },
             new InputFrame { duration = 150 }
@@ -244,35 +255,43 @@ public class S50_AutoRunE2ETests
         input.SetInputProvider(new AutomatedInputProvider(frames));
         float maxFeet = body.bounds.min.y, maxHead = body.bounds.max.y;
         bool landedOnTop = false;
-        float end = Time.realtimeSinceStartup + 3.5f;
-        while (Time.realtimeSinceStartup < end)
+        int jumps = 0;
+        System.Action onJump = () => jumps++;
+        if (!opponent) mario.OnJump += onJump;
+        try
         {
-            maxFeet = Mathf.Max(maxFeet, body.bounds.min.y);
-            maxHead = Mathf.Max(maxHead, body.bounds.max.y);
-            if ((opponent ? trickster.IsGrounded : mario.IsGrounded) && body.bounds.min.y > 2.08f)
-                landedOnTop = true;
-            yield return null;
-        }
-        if (oneWay)
-        {
-            Assert.Greater(maxFeet, 2.2f, "A jump must actually cross the platform top");
-            Assert.IsTrue(landedOnTop, "Passing upward is not sufficient: land on the deck");
-            if (!opponent)
+            float end = Time.realtimeSinceStartup + 3.5f;
+            while (Time.realtimeSinceStartup < end)
             {
-                input.SetInputProvider(new AutomatedInputProvider(new List<InputFrame> {
-                    new InputFrame { duration = 1, p1SHeld = true, p1JumpHeld = true },
-                    new InputFrame { duration = 100 }
-                }));
-                yield return new WaitForSeconds(1f);
-                Assert.IsTrue(mario.IsGrounded);
-                Assert.Less(body.bounds.min.y, 0.6f, "S+Jump must fall through without phantom re-grounding");
+                maxFeet = Mathf.Max(maxFeet, body.bounds.min.y);
+                maxHead = Mathf.Max(maxHead, body.bounds.max.y);
+                if ((opponent ? trickster.IsGrounded : mario.IsGrounded) && body.bounds.min.y > 2.08f)
+                    landedOnTop = true;
+                yield return new WaitForFixedUpdate();
+            }
+            if (!opponent) Assert.AreEqual(1, jumps, "A real jump press must be delivered and consumed exactly once");
+            if (oneWay)
+            {
+                Assert.Greater(maxFeet, 2.2f, "A jump must actually cross the platform top");
+                Assert.IsTrue(landedOnTop, "Passing upward is not sufficient: land on the deck");
+                if (!opponent)
+                {
+                    input.SetInputProvider(new AutomatedInputProvider(new List<InputFrame> {
+                        new InputFrame { duration = 1, p1SHeld = true, p1JumpHeld = true },
+                        new InputFrame { duration = 100 }
+                    }));
+                    yield return new WaitForSeconds(1f);
+                    Assert.IsTrue(mario.IsGrounded);
+                    Assert.Less(body.bounds.min.y, 0.6f, "S+Jump must fall through without phantom re-grounding");
+                }
+            }
+            else
+            {
+                Assert.LessOrEqual(maxHead, 1.58f, "Solid cell at y=2 must still block the jump from below");
+                Assert.IsFalse(landedOnTop);
             }
         }
-        else
-        {
-            Assert.LessOrEqual(maxHead, 1.58f, "Solid cell at y=2 must still block the jump from below");
-            Assert.IsFalse(landedOnTop);
-        }
+        finally { if (!opponent && mario != null) mario.OnJump -= onJump; }
     }
 
 #if UNITY_EDITOR
@@ -686,7 +705,39 @@ public class S50_AutoRunE2ETests
     /// 与 TestConsoleWindow.EnsurePlayableEnvironment 类似，
     /// 但适配 PlayMode 测试环境（不使用 Undo、不依赖 Editor API）。
     /// </summary>
-    private void SetupPlayableEnvironment(GameObject levelRoot)
+    [UnityTest]
+    public IEnumerator EnvironmentUsesGroundSpawnAndWiresRoundReset() => VerifyAuthoredSpawn(2, 1);
+    [UnityTest]
+    public IEnumerator EnvironmentUsesElevatedSpawnAndWiresRoundReset() => VerifyAuthoredSpawn(8, 3);
+
+    private IEnumerator VerifyAuthoredSpawn(int x, int y)
+    {
+        // Let deferred destruction from the preceding PlayMode fixture finish first.
+        yield return null;
+        const int width = 15, height = 5;
+        var rows = new string[height];
+        for (int row = 0; row < height; row++) rows[row] = new string('.', width);
+        rows[height - 1] = new string('#', width);
+        rows[height - 2] = new string('.', width - 1) + "G";
+        var spawnRow = rows[height - 1 - y].ToCharArray(); spawnRow[x] = 'M';
+        rows[height - 1 - y] = new string(spawnRow);
+        var root = AsciiLevelGenerator.GenerateFromTemplate(string.Join("\n", rows), true);
+        _testObjects.Add(root); SetupPlayableEnvironment(root);
+        var actor = Object.FindObjectOfType<MarioController>();
+        Assert.AreEqual(new Vector3(x, y + 0.5f, 0), actor.transform.position);
+        var field = typeof(GameManager).GetField("marioSpawnPoint", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.AreEqual(new Vector3(x, y, 0), ((Transform)field.GetValue(GameManager.Instance)).position);
+    }
+
+    [Test]
+    public void EnvironmentRejectsMissingSpawnInsteadOfTestingAtFallbackCoordinates()
+    {
+        var root = new GameObject("MissingSpawnFixture"); _testObjects.Add(root);
+        Assert.Throws<AssertionException>(() => SetupPlayableEnvironment(root));
+        Assert.IsNull(root.transform.Find("MarioSpawnPoint"), "Do not fabricate a replacement marker");
+    }
+
+    private void SetupPlayableEnvironment(GameObject levelRoot, float spawnLift = 0.5f)
     {
         // ── 查找 SpawnPoint ──
         Transform marioSpawnT = null;
@@ -695,8 +746,13 @@ public class S50_AutoRunE2ETests
 
         foreach (Transform child in levelRoot.transform)
         {
-            if (child.name.StartsWith("MarioSpawnPoint"))
+            // Generator emits MarioSpawn_x_y, not MarioSpawnPoint. Never silently
+            // substitute a different position: that can put the runner ON a test ceiling.
+            if (child.name.StartsWith("MarioSpawn_", System.StringComparison.Ordinal) || child.name == "MarioSpawnPoint")
+            {
+                Assert.IsNull(marioSpawnT, "Fixture requires exactly one authored Mario spawn");
                 marioSpawnT = child;
+            }
 
             float x = child.position.x;
             float y = child.position.y;
@@ -704,9 +760,8 @@ public class S50_AutoRunE2ETests
             if (y > levelHeight) levelHeight = y;
         }
 
-        Vector3 marioSpawnPos = marioSpawnT != null
-            ? marioSpawnT.position
-            : new Vector3(1f, 2f, 0f);
+        Assert.IsNotNull(marioSpawnT, "Missing authored MarioSpawn_x_y marker; refusing fallback spawn");
+        Vector3 marioSpawnPos = marioSpawnT.position;
 
         // ── Ground Layer ──
         int groundLayerIndex = LayerMask.NameToLayer(GROUND_LAYER);
@@ -716,7 +771,7 @@ public class S50_AutoRunE2ETests
         // ── 创建 Mario ──
         GameObject mario = new GameObject("Mario");
         mario.tag = "Player";
-        mario.transform.position = marioSpawnPos + Vector3.up * 0.5f;
+        mario.transform.position = marioSpawnPos + Vector3.up * spawnLift;
         _testObjects.Add(mario);
 
         // S37: 视碰分离
@@ -767,14 +822,7 @@ public class S50_AutoRunE2ETests
         SetPrivateField(gameManager, "inputManager", inputManager);
 
         // SpawnPoint
-        GameObject marioSP = marioSpawnT != null
-            ? marioSpawnT.gameObject
-            : new GameObject("MarioSpawnPoint");
-        if (marioSpawnT == null)
-        {
-            marioSP.transform.position = marioSpawnPos;
-            _testObjects.Add(marioSP);
-        }
+        GameObject marioSP = marioSpawnT.gameObject;
         SetPrivateField(gameManager, "marioSpawnPoint", marioSP.transform);
         SetPrivateField(levelManager, "marioSpawnPoint", marioSP.transform);
 

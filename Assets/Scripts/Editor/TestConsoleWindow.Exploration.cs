@@ -41,6 +41,7 @@ public partial class TestConsoleWindow
                 EditorGUILayout.LabelField(experience ? "当前将运行：体验探索 / Experience / 首轮27局" : $"当前将运行：机制回归 / {explorationScope}", EditorStyles.boldLabel);
                 explorationLimit = EditorGUILayout.Slider("单局预算（秒）", explorationLimit, 10, 120);
                 explorationRegressions = EditorGUILayout.ToggleLeft("先自动运行全部 EditMode / PlayMode 回归（无中途弹窗）", explorationRegressions);
+                if (explorationRegressions) EditorGUILayout.LabelField("回归失败或没有通过记录时，将保存报告、停止跑图并恢复原场景。", EditorStyles.wordWrappedMiniLabel);
                 int rooms = experience ? 3 : explorationScope == MechanismExplorationPlan.Scope.Smoke ? 6 : explorationScope == MechanismExplorationPlan.Scope.Mechanisms ? 38 : 190;
                 int matchups = experience ? 9 : 3;
                 int confirmations = Math.Min(rooms, MechanismExplorationPlan.MaxConfirmationScenes) * matchups;

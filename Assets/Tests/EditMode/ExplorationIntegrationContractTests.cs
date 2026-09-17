@@ -272,4 +272,31 @@ public class ExplorationIntegrationContractTests
         Assert.IsNull(report.trials[0].experience, "Reading must not rewrite historical data");
     }
 
+    [TestCase(256, 1)]
+    [TestCase(0, 1)]
+    [TestCase(0, 0)]
+    public void FailedOrEmptyRegressionStageRestoresWithoutInventingTrials(int passed, int failed)
+    {
+        var report = new StudioExplorationRunner.Report {
+            scenarios = MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Smoke)
+        };
+        Assert.AreEqual("Restoring", StudioExplorationRunner.CompleteRegressionStage(report, passed, failed, false));
+        Assert.AreEqual(passed, report.regressionPassed); Assert.AreEqual(failed, report.regressionFailed);
+        Assert.IsNotEmpty(report.blockedReason);
+        Assert.IsEmpty(report.trials, "No AI gameplay happened after a blocked regression gate");
+        Assert.IsEmpty(report.confirmationScenarioIds);
+        StringAssert.Contains("不算通过", StudioExplorationRunner.EvidenceVerdict(report));
+        StringAssert.Contains("0 / 18", StudioExplorationRunner.BuildSummary(report));
+    }
+
+    [Test]
+    public void PassedRegressionContinuesButUserCancellationStillRestores()
+    {
+        var report = new StudioExplorationRunner.Report();
+        Assert.AreEqual("Preparing", StudioExplorationRunner.CompleteRegressionStage(report, 257, 0, false));
+        Assert.AreEqual("Passed", report.regressions); Assert.IsEmpty(report.blockedReason);
+        Assert.AreEqual("Restoring", StudioExplorationRunner.CompleteRegressionStage(report, 257, 0, true));
+        Assert.IsEmpty(report.blockedReason, "Cancellation is not a fabricated regression failure");
+    }
+
 }

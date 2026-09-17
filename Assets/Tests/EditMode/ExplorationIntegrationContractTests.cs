@@ -48,7 +48,10 @@ public class ExplorationIntegrationContractTests
             var probe = source.AddComponent<ExplorationContactProbe>();
             probe.mechanism = "B";
             ExplorationContactProbe.Contact += handler;
-            probe.SendMessage("OnTriggerEnter2D", other.AddComponent<BoxCollider2D>());
+            // SendMessage on non-ExecuteAlways behaviours in EditMode asserts in Unity.
+            var callback = typeof(ExplorationContactProbe).GetMethod("OnTriggerEnter2D", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(callback);
+            callback.Invoke(probe, new object[] { other.AddComponent<BoxCollider2D>() });
             Assert.AreEqual(0, contacts);
             Assert.IsNull(source.GetComponent<Collider2D>());
             Assert.IsNull(source.GetComponent<Rigidbody2D>());
@@ -58,6 +61,25 @@ public class ExplorationIntegrationContractTests
             ExplorationContactProbe.Contact -= handler;
             Object.DestroyImmediate(source); Object.DestroyImmediate(other);
         }
+    }
+
+    [Test]
+    public void StartupFailuresRemainUnplayedAndConfirmationBudgetIsVisible()
+    {
+        var report = new StudioExplorationRunner.Report {
+            scenarios = MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Smoke),
+            status = "Blocked", blockedReason = "Repeated font error"
+        };
+        report.trials.Add(new MechanismExplorationPlan.Trial {
+            scenarioId = report.scenarios[0].id, outcome = "StartupFailed"
+        });
+        StringAssert.Contains("不算通过", StudioExplorationRunner.EvidenceVerdict(report));
+        string summary = StudioExplorationRunner.BuildSummary(report);
+        StringAssert.Contains("有效试玩记录: 0", summary);
+        StringAssert.Contains("没有有效试玩证据的场景: " + report.scenarios[0].id, summary);
+        Assert.AreEqual(18, StudioExplorationRunner.PlannedTrials(report));
+        report.confirmationScenarioIds.Add(report.scenarios[0].id);
+        Assert.AreEqual(21, StudioExplorationRunner.PlannedTrials(report));
     }
 
     [Test]

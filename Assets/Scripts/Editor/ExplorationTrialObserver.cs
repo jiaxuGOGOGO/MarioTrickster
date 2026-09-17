@@ -96,7 +96,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (distance < bestDistance - 0.5f) { bestDistance = distance; noProgressTimer = 0; }
         else noProgressTimer += dt;
         if (result.seconds >= limit) { Finish("TimedOut", "超出本次时间预算；不等于物理无解。检查 AI 寻路和关卡节奏。"); return; }
-        if (noProgressTimer > 12f) { Finish("NoProgress", "12 秒未向终点取得净进展；可能是 AI 局限、机制等待或布局问题，需复测。"); return; }
+        if (noProgressTimer > 12f) { Finish("NoProgress", "12 秒未向终点取得净进展，也未获得新接近/接触/激活证据；可能是 AI 局限、机制等待或布局问题，需复测。"); return; }
         sampleTimer += dt;
         if (sampleTimer < 0.1f) return;
         sampleTimer = 0f;
@@ -104,7 +104,8 @@ public sealed class ExplorationTrialObserver : IDisposable
             foreach (var target in targets[evidence.mechanism])
             {
                 if (target == null) continue;
-                if (Vector2.Distance(mario.transform.position, target.position) < 2f) evidence.approached = true;
+                if (!evidence.approached && Vector2.Distance(mario.transform.position, target.position) < 2f)
+                { evidence.approached = true; noProgressTimer = 0; Event("first approach " + evidence.mechanism); }
                 var prop = target.GetComponent<ControllablePropBase>();
                 if (prop != null)
                 {
@@ -119,7 +120,11 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (Finished) return;
         result.outcome = outcome;
         result.nextAction = nextAction;
-        if (manager != null) result.seconds = manager.RoundElapsed;
+        if (manager != null)
+        {
+            result.seconds = manager.RoundElapsed;
+            result.endReason = manager.LastRoundReason;
+        }
         if (mario != null) { result.endX = mario.transform.position.x; result.endY = mario.transform.position.y; }
     }
 
@@ -139,6 +144,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         var e = result.coverage.Find(v => v.mechanism == id);
         if (e != null)
         {
+            if (e.contacts == 0) noProgressTimer = 0;
             e.contacts++;
             bool runnerContact = actor != null && actor.GetComponent<MarioController>() != null;
             if (runnerContact) e.runnerContacts++; else e.tricksterContacts++;
@@ -151,7 +157,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         var probe = source.GetComponentInParent<ExplorationContactProbe>();
         if (probe == null) return;
         var e = result.coverage.Find(v => v.mechanism == probe.mechanism);
-        if (e != null) { e.activations++; Event(label + " " + e.mechanism); }
+        if (e != null) { if (e.activations == 0) noProgressTimer = 0; e.activations++; Event(label + " " + e.mechanism); }
     }
     private void OnActivated(IControllableProp prop) => MarkActivation(prop.GetTransform().gameObject, "control accepted");
     private void OnLaunch(GameplayEventBus.BouncyPlatformLaunchedPayload p) => MarkActivation(p.platform, "bounce launch");

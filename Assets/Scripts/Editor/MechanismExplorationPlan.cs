@@ -10,6 +10,32 @@ public static class MechanismExplorationPlan
     public const string Catalog = "BC-F<XoH>^~P[]Ee@fS";
     public static readonly string[] Profiles = { "Cautious", "Runner", "Explorer" };
     public enum Scope { Smoke, Mechanisms, Pairwise }
+    public const int MaxConfirmationScenes = 6;
+
+    // One bounded same-seed confirmation pass, not automatic balancing or a claim of learning.
+    public static string[] SelectConfirmationScenes(IEnumerable<Trial> trials)
+    {
+        return trials.Where(t => t.attempt <= 1 && t.NeedsConfirmation)
+            .OrderBy(t => t.outcome == "NoProgress" ? 0 : t.outcome == "RunnerStopped" ? 1 : 2)
+            .Select(t => t.scenarioId).Distinct().Take(MaxConfirmationScenes).ToArray();
+    }
+
+    public static bool RepeatedInfrastructureFailure(IList<Trial> trials)
+    {
+        if (trials.Count < 2) return false;
+        string key = trials[trials.Count - 1].InfrastructureKey;
+        return key.Length > 0 && key == trials[trials.Count - 2].InfrastructureKey;
+    }
+
+    public static string CompareConfirmation(Trial baseline, Trial confirmation)
+    {
+        if (baseline == null) return "缺少首轮基线，不能判定改善。";
+        Func<Trial, string> signature = t => t.outcome + ":" + string.Join("|", t.coverage
+            .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}"));
+        return signature(baseline) == signature(confirmation)
+            ? "同条件复现：结果与覆盖层级一致；仍需检查 AI 局限与真人反制体验。"
+            : "同条件结果不稳定：不是已修复；对照事件时间线再定位物理时序或 AI 决策。";
+    }
 
     [Serializable]
     public sealed class Scenario
@@ -128,6 +154,9 @@ public static class MechanismExplorationPlan
     {
         public string scenarioId;
         public string profile;
+        public int attempt = 1;
+        public string comparison = "";
+        public string endReason = "";
         public string outcome = "Pending";
         public float seconds;
         public float farthestX;
@@ -139,6 +168,13 @@ public static class MechanismExplorationPlan
         public List<string> timeline = new List<string>();
         public string validation = "";
         public string nextAction = "";
+        public bool HasGameplayEvidence => seconds > 0 &&
+            (outcome == "Cleared" || outcome == "RunnerStopped" || outcome == "NoProgress" || outcome == "TimedOut");
+        public bool NeedsConfirmation => HasGameplayEvidence && errors.Count == 0 &&
+            (!CandidateForHumanPlay || coverage.Any(e => e.activations == 0));
+        public string InfrastructureKey => outcome == "StartupFailed" || outcome == "BuildFailed" || outcome == "RuntimeError"
+            ? outcome + ":" + (errors.Count > 0 ? errors[0].Replace("\r", "").Split('\n')[0] : nextAction)
+            : "";
         public bool PairExercised => coverage.Count == 2 && coverage.All(e => e.built > 0 && (e.contacts > 0 || e.activations > 0));
         public bool CandidateForHumanPlay => outcome == "Cleared" && errors.Count == 0 && coverage.Count > 0 && coverage.All(e => e.built > 0 && (e.contacts > 0 || e.activations > 0));
     }

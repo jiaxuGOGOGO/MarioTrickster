@@ -215,6 +215,13 @@ public class TricksterController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Match Mario: direct fixed-step replay may press jump between rendered Updates.
+        if (jumpPressedThisFrame)
+        {
+            _jumpToConsume = true;
+            _timeJumpWasPressed = _time;
+            jumpPressedThisFrame = false;
+        }
         // 击退 stun 期间：不覆盖 rb.velocity，让物理引擎的 AddForce 击退力自然衰减
         if (_isKnockbackStunned)
         {

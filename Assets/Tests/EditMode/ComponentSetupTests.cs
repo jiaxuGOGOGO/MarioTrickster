@@ -1024,25 +1024,23 @@ public class CameraControllerTests
     }
 
     [Test]
-    public void GameUI_OnGUIFallback_DefaultsToTrue()
+    public void GlobalHUD_BuildsTextWithBuiltinFont_WithoutLegacyOnGUI()
     {
-        // 当没有 Canvas UI 引用时，useOnGUIFallback 应为 true
-        GameObject go = new GameObject("TestGameUI");
-        GameUI gameUI = go.AddComponent<GameUI>();
-
-        // useOnGUIFallback 是 private，但我们可以通过反射验证
-        var field = typeof(GameUI).GetField("useOnGUIFallback",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-        Assert.IsNotNull(field,
-            "GameUI 应该有 useOnGUIFallback 字段");
-
-        // 初始值应为 true（因为没有设置 healthText 和 timerText）
-        bool fallbackValue = (bool)field.GetValue(gameUI);
-        Assert.IsTrue(fallbackValue,
-            "没有 Canvas UI 引用时，useOnGUIFallback 应为 true");
-
-        Object.DestroyImmediate(go);
+        var go = new GameObject("TestGlobalHUD");
+        try
+        {
+            var hud = go.AddComponent<GlobalGameUICanvas>();
+            // Explicit invocation also works in EditMode where Awake need not run.
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(GlobalGameUICanvas).GetMethod("ConfigureCanvas", flags).Invoke(hud, null);
+            typeof(GlobalGameUICanvas).GetMethod("BuildHierarchy", flags).Invoke(hud, null);
+            var texts = go.GetComponentsInChildren<UnityEngine.UI.Text>(true);
+            Assert.Greater(texts.Length, 0, "UGUI HUD must actually be constructed");
+            foreach (var text in texts) Assert.IsNotNull(text.font, text.name);
+            Assert.AreEqual(RenderMode.ScreenSpaceOverlay, go.GetComponent<Canvas>().renderMode);
+            Assert.IsNull(typeof(GameUI).GetMethod("OnGUI", flags), "Do not restore the retired IMGUI HUD");
+        }
+        finally { Object.DestroyImmediate(go); }
     }
 
     [Test]

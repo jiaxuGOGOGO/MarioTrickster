@@ -36,7 +36,7 @@ public partial class TestConsoleWindow
                 explorationLimit = EditorGUILayout.Slider("单局预算（秒）", explorationLimit, 10, 120);
                 explorationRegressions = EditorGUILayout.ToggleLeft("先自动运行全部 EditMode / PlayMode 回归（无中途弹窗）", explorationRegressions);
                 int rooms = explorationScope == MechanismExplorationPlan.Scope.Smoke ? 6 : explorationScope == MechanismExplorationPlan.Scope.Mechanisms ? 38 : 190;
-                EditorGUILayout.LabelField($"最多 {rooms * 3} 局；按预算约 {rooms * 3 * explorationLimit / 60:F0} 分钟 + 编译/重载/回归耗时。可随时请求停止。", EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.LabelField($"首轮 {rooms * 3} 局 + 最多 18 局问题图确认；按预算上限约 {(rooms * 3 + 18) * explorationLimit / 60:F0} 分钟 + 重载/回归。相同基础故障连续两局会停批。可随时停止。", EditorStyles.wordWrappedMiniLabel);
                 if (GUILayout.Button("一键开始：自动回归 → 随机搭建 → 双 AI 试玩 → 报告", GUILayout.Height(34)))
                 {
                     if (rooms < 100 || EditorUtility.DisplayDialog("长时间组合覆盖", "两两共现计划包含 570 局，可能运行数小时。它仍不是所有时序与参数的穷举。是否开始？", "开始", "取消"))
@@ -56,6 +56,8 @@ public partial class TestConsoleWindow
         if (report != null)
         {
             EditorGUILayout.LabelField($"批次：{report.status} · 回归：{report.regressions}（通过 {report.regressionPassed} / 失败 {report.regressionFailed}）", EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.HelpBox(StudioExplorationRunner.EvidenceVerdict(report), MessageType.Info);
+            EditorGUILayout.LabelField($"有效试玩 {report.trials.Count(t => t.HasGameplayEvidence)} / 记录 {report.trials.Count}；复测不覆盖首轮失败。", EditorStyles.wordWrappedMiniLabel);
             if (GUILayout.Button("打开本批报告目录")) EditorUtility.RevealInFinder(StudioExplorationRunner.ReportDirectory);
             if (!StudioExplorationRunner.Active)
             {
@@ -65,9 +67,10 @@ public partial class TestConsoleWindow
                 {
                     explorationSelection = Mathf.Clamp(explorationSelection, 0, trials.Length - 1);
                     explorationSelection = EditorGUILayout.Popup("复测案例", explorationSelection,
-                        trials.Select(t => $"{t.scenarioId} / {t.profile} / {t.outcome}").ToArray());
+                        trials.Select(t => $"{t.scenarioId} / {t.profile} / 第{Math.Max(1, t.attempt)}轮 / {t.outcome}").ToArray());
                     var trial = trials[explorationSelection];
                     EditorGUILayout.LabelField(trial.nextAction, EditorStyles.wordWrappedMiniLabel);
+                    if (!string.IsNullOrEmpty(trial.comparison)) EditorGUILayout.LabelField(trial.comparison, EditorStyles.wordWrappedMiniLabel);
                     foreach (var e in trial.coverage)
                         EditorGUILayout.LabelField($"{e.mechanism}: {e.Status}（接触 {e.contacts} / 激活 {e.activations}）", EditorStyles.wordWrappedMiniLabel);
                     var scenario = report.scenarios.FirstOrDefault(s => s.id == trial.scenarioId);

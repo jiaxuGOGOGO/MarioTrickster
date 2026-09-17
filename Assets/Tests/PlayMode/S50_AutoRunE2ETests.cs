@@ -103,6 +103,35 @@ public class S50_AutoRunE2ETests
     /// 断言：Mario 存活 + GameState == RoundOver（胜利）
     /// </summary>
     [UnityTest]
+    public IEnumerator DirectTas_UsesPhysicsClockAndDeliversOpeningJumpAt10x()
+    {
+        var root = AsciiLevelGenerator.GenerateFromTemplate("...............\n...............\n...............\nM.............G\n###############", true);
+        Assert.IsNotNull(root);
+        _testObjects.Add(root);
+        SetupPlayableEnvironment(root);
+        yield return null;
+        var mario = Object.FindObjectOfType<MarioController>();
+        var input = Object.FindObjectOfType<InputManager>();
+        float deadline = Time.realtimeSinceStartup + 3f;
+        while (!mario.IsGrounded && Time.realtimeSinceStartup < deadline) yield return null;
+        Assert.IsTrue(mario.IsGrounded);
+        int jumps = 0;
+        mario.OnJump += () => jumps++;
+        var frames = new List<InputFrame>();
+        for (int i = 0; i < 1000; i++)
+            frames.Add(new InputFrame { duration = 1, p1JumpDown = i == 0, p1JumpHeld = i < 40 });
+        var replay = new AutomatedInputProvider(frames);
+        input.SetInputProvider(replay);
+        float firstFixedTime = Time.fixedTime;
+        Time.timeScale = TEST_TIMESCALE;
+        yield return new WaitForSecondsRealtime(0.1f);
+        int physicsSteps = Mathf.RoundToInt((Time.fixedTime - firstFixedTime) / Time.fixedDeltaTime);
+        Assert.Greater(physicsSteps, 1);
+        Assert.AreEqual(physicsSteps, replay.CurrentSegmentIndex, "One segment per physics step, not per rendered frame");
+        Assert.AreEqual(1, jumps, "The opening one-step jump must be delivered once before physics");
+    }
+
+    [UnityTest]
     public IEnumerator E2E_FlatRun_MarioReachesGoal()
     {
         // ── Step 1: 生成微型考场 ──
@@ -162,7 +191,7 @@ public class S50_AutoRunE2ETests
             if (winner == "Mario") won = true;
         };
 
-        while (!autoProvider.IsFinished && !won)
+        while (!autoProvider.IsFinished && !won && gm.CurrentState == GameState.Playing)
         {
             // Timeout 防死锁
             if (Time.realtimeSinceStartup - startTime > TEST_TIMEOUT_SECONDS)
@@ -178,14 +207,14 @@ public class S50_AutoRunE2ETests
         // 额外等待几帧让 GoalZone 触发和 GameManager 处理
         for (int i = 0; i < 10; i++)
         {
-            if (won) break;
+            if (won || gm.CurrentState == GameState.RoundOver) break;
             yield return null;
         }
 
         // ── Step 7: 断言 ──
         Assert.IsTrue(health.CurrentHealth > 0,
             $"Mario 应该存活（当前血量: {health.CurrentHealth}）");
-        Assert.IsTrue(won || gm.CurrentState == GameState.RoundOver,
+        Assert.IsTrue(won,
             $"Mario 应该触发胜利判定（GameState: {gm.CurrentState}, won: {won}）");
     }
 
@@ -237,16 +266,17 @@ public class S50_AutoRunE2ETests
         PlayerHealth health = mario.GetComponent<PlayerHealth>();
         Assert.IsNotNull(health, "PlayerHealth 未找到");
 
-        // 等待 Mario 落地稳定
-        yield return null;
-        yield return null;
+        float settleDeadline = Time.realtimeSinceStartup + 3f;
+        while (!mario.IsGrounded && Time.realtimeSinceStartup < settleDeadline) yield return null;
+        Assert.IsTrue(mario.IsGrounded, "TAS fixture must be grounded before playback");
 
         // ── Step 4: 注入 TAS 输入序列（跳跃跨坑）──
         // 策略：向右走 → 接近坑边缘时跳跃 → 空中保持向右 → 落地后继续向右
         var sequence = new List<InputFrame>
         {
-            // 1. 向右走接近坑边缘（约 80 帧 = 1.6 秒游戏时间）
-            new InputFrame { duration = 80, p1Horizontal = 1f },
+            // 27 physics steps at default 9 units/s: x ~= 4.69, before the pit edge x=5.5.
+            // The old 80 steps reached x>14 before the first jump, even at a correct clock.
+            new InputFrame { duration = 27, p1Horizontal = 1f },
             // 2. 起跳（JumpDown + JumpHeld + 继续向右）
             new InputFrame { duration = 1, p1Horizontal = 1f, p1JumpDown = true, p1JumpHeld = true },
             // 3. 空中保持向右 + 按住跳跃（延长跳跃高度）
@@ -272,7 +302,7 @@ public class S50_AutoRunE2ETests
             if (winner == "Mario") won = true;
         };
 
-        while (!autoProvider.IsFinished && !won)
+        while (!autoProvider.IsFinished && !won && gm.CurrentState == GameState.Playing)
         {
             if (Time.realtimeSinceStartup - startTime > TEST_TIMEOUT_SECONDS)
             {
@@ -288,14 +318,14 @@ public class S50_AutoRunE2ETests
         // 额外等待
         for (int i = 0; i < 10; i++)
         {
-            if (won) break;
+            if (won || gm.CurrentState == GameState.RoundOver) break;
             yield return null;
         }
 
         // ── Step 7: 断言 ──
         Assert.IsTrue(health.CurrentHealth > 0,
             $"Mario 应该存活（当前血量: {health.CurrentHealth}）");
-        Assert.IsTrue(won || gm.CurrentState == GameState.RoundOver,
+        Assert.IsTrue(won,
             $"Mario 应该触发胜利判定（GameState: {gm.CurrentState}, won: {won}）");
     }
 
@@ -448,6 +478,8 @@ public class S50_AutoRunE2ETests
 
         // 连线 InputManager
         inputManager.SetMarioController(marioCtrl);
+        // No live keyboard or default bot may move the runner during fixture warmup.
+        inputManager.SetInputProvider(new AutomatedInputProvider(new List<InputFrame>()));
 
         // 连线 GameManager（通过反射设置 SerializeField）
         SetPrivateField(gameManager, "mario", marioCtrl);

@@ -343,6 +343,17 @@ public class MarioController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Direct fixed-step TAS can deliver a jump between rendered Updates.
+        // Consume the same buffered request here, before collision/jump evaluation.
+        if (jumpPressedThisFrame)
+        {
+            if (!_isPreparingBounce)
+            {
+                _jumpToConsume = true;
+                _timeJumpWasPressed = _time;
+            }
+            jumpPressedThisFrame = false;
+        }
         // ── 击退 stun 分支：不覆盖 rb.velocity，让 AddForce 击退力自然衰减 ──
         if (_isKnockbackStunned)
         {

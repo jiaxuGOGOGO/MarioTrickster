@@ -179,7 +179,10 @@ public static class ArtAssetClassifier
         // 否则 idle/run/jump/fall 会同时污染每一帧，所有帧都会被第一个命中状态吃掉。
         result.stateFrames = BuildStateGroups(sprites);
         result.semanticStates = BuildSemanticStates(sprites, joined, result.stateFrames);
-        result.animationMode = DetectAnimationMode(result.role, result.runtimeBehavior, result.stateFrames, sprites, joined);
+        // A sprite name can suggest a role, but cannot supply a player controller.
+        bool playerTarget = target != null &&
+            DetectRuntimeBehavior(result.role, target, Normalize(target.name)) == RuntimeBehavior.PlayerStateDriven;
+        result.animationMode = DetectAnimationMode(result.role, result.runtimeBehavior, result.stateFrames, sprites, joined, playerTarget);
         result.confidence = EstimateConfidence(result, joined, sprites);
         result.notes = BuildNotes(result, joined, sprites.Length);
         return result;
@@ -265,11 +268,11 @@ public static class ArtAssetClassifier
         }
     }
 
-    private static AnimationMode DetectAnimationMode(AssetRole role, RuntimeBehavior behavior, Dictionary<string, Sprite[]> states, Sprite[] sprites, string text)
+    private static AnimationMode DetectAnimationMode(AssetRole role, RuntimeBehavior behavior, Dictionary<string, Sprite[]> states, Sprite[] sprites, string text, bool playerTarget)
     {
         // 主角换皮允许单状态试跑：只有 run/idle/jump/fall 其中一组时，也要挂 SpriteStateAnimator。
         // 否则只导入 RUN 会退化成普通循环动画，无法验证"按左右才播放跑步"。
-        if (HasAnyMotionState(states) && behavior == RuntimeBehavior.PlayerStateDriven) return AnimationMode.StateDriven;
+        if (playerTarget && HasAnyMotionState(states) && behavior == RuntimeBehavior.PlayerStateDriven) return AnimationMode.StateDriven;
 
         // 完整或半完整角色包：只要文件名已经明确分出两个及以上运动状态，就优先走状态机动画。
         // 这样用户把 idle/run/jump/fall 散帧丢进来时，不必再额外选择复杂菜单。

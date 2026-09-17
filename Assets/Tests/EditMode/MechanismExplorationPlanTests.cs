@@ -122,6 +122,79 @@ public class MechanismExplorationPlanTests
     }
 
     [Test]
+    public void ConfirmationIsBoundedDeduplicatedAndNeverRetriesInfrastructure()
+    {
+        var trials = Enumerable.Range(0, 30).Select(i => new MechanismExplorationPlan.Trial {
+            scenarioId = "room" + (i / 3), profile = "Explorer", seconds = 20, outcome = "NoProgress"
+        }).ToList();
+        trials.Insert(0, new MechanismExplorationPlan.Trial { scenarioId = "boot", outcome = "StartupFailed" });
+        var selected = MechanismExplorationPlan.SelectConfirmationScenes(trials);
+        Assert.AreEqual(6, selected.Length);
+        Assert.AreEqual(6, selected.Distinct().Count());
+        Assert.IsFalse(selected.Contains("boot"));
+        foreach (var trial in trials) trial.attempt = 2;
+        Assert.IsEmpty(MechanismExplorationPlan.SelectConfirmationScenes(trials), "Never recursively retry the confirmation pass");
+    }
+
+    [Test]
+    public void SameStartupFaultStopsButGameplayLossesDoNotTripCircuitBreaker()
+    {
+        var a = new MechanismExplorationPlan.Trial { outcome = "StartupFailed" };
+        var b = new MechanismExplorationPlan.Trial { outcome = "StartupFailed" };
+        a.errors.Add("ArgumentException: font\nstack A"); b.errors.Add("ArgumentException: font\nstack B");
+        Assert.IsTrue(MechanismExplorationPlan.RepeatedInfrastructureFailure(new[] { a, b }));
+        b.errors[0] = "Different exception";
+        Assert.IsFalse(MechanismExplorationPlan.RepeatedInfrastructureFailure(new[] { a, b }));
+        a.outcome = b.outcome = "RunnerStopped";
+        Assert.IsFalse(MechanismExplorationPlan.RepeatedInfrastructureFailure(new[] { a, b }));
+    }
+
+    [Test]
+    public void ConfirmationChangesAreLabeledUnstableNotFixed()
+    {
+        var a = new MechanismExplorationPlan.Trial { outcome = "NoProgress", seconds = 12 };
+        var b = new MechanismExplorationPlan.Trial { outcome = "NoProgress", seconds = 13, attempt = 2 };
+        StringAssert.Contains("同条件复现", MechanismExplorationPlan.CompareConfirmation(a, b));
+        b.outcome = "Cleared";
+        StringAssert.Contains("不是已修复", MechanismExplorationPlan.CompareConfirmation(a, b));
+        Assert.IsFalse(new MechanismExplorationPlan.Trial { outcome = "StartupFailed" }.HasGameplayEvidence);
+    }
+
+    [Test]
+    public void UploadedSmokeSeedDoesNotMislabelLowerFloorAsBottomlessGap()
+    {
+        foreach (var scenario in MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Smoke))
+        {
+            LevelStudioDocument.TryParse(scenario.ascii, out var doc, out _);
+            var result = AsciiLevelValidator.ValidateTemplate(doc.Grid);
+            Assert.IsFalse(result.errors.Any(e => e.Contains("IMPASSABLE gap")), scenario.id + " " + result.GetReport());
+        }
+    }
+
+    [Test]
+    public void ActualWideBottomlessPitStillFailsValidation()
+    {
+        var result = AsciiLevelValidator.ValidateTemplate("....................\nM..................G\n####............####");
+        Assert.IsTrue(result.errors.Any(e => e.Contains("IMPASSABLE gap")), "Do not silence genuine unreachable pits");
+    }
+
+    [Test]
+    public void DirectReplayPreservesOpeningEdgeAndEverySegmentDuration()
+    {
+        var replay = new AutomatedInputProvider(new System.Collections.Generic.List<InputFrame> {
+            new InputFrame { duration = 1, p1JumpDown = true, p1JumpHeld = true },
+            new InputFrame { duration = 3, p1Horizontal = 1 },
+            new InputFrame { duration = 1, p1ScanDown = true }
+        });
+        Assert.IsTrue(replay.GetP1JumpDown());
+        replay.Tick();
+        for (int i = 0; i < 3; i++) { Assert.AreEqual(1f, replay.GetP1Horizontal()); Assert.IsFalse(replay.GetP1JumpDown()); replay.Tick(); }
+        Assert.IsTrue(replay.GetP1ScanDown());
+        replay.Tick(); Assert.IsTrue(replay.IsFinished); Assert.IsFalse(replay.GetP1ScanDown());
+        replay.Reset(); Assert.IsTrue(replay.GetP1JumpDown());
+    }
+
+    [Test]
     public void PairCoverageRequiresBothMechanismsToBeContactedOrActivated()
     {
         var trial = new MechanismExplorationPlan.Trial();

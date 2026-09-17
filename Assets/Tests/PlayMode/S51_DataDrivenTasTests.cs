@@ -198,6 +198,10 @@ public class S51_DataDrivenTasTests
             recorder.SetTasReplayState(true);
         }
 
+        float settleDeadline = Time.realtimeSinceStartup + 3f;
+        while (!mario.IsGrounded && Time.realtimeSinceStartup < settleDeadline) yield return null;
+        Assert.IsTrue(mario.IsGrounded, "TAS fixture must be grounded before playback");
+
         // ── Step 6: 注入 TAS 输入序列 ──
         var autoProvider = new AutomatedInputProvider(replayData.frames);
         im.SetInputProvider(autoProvider);
@@ -217,7 +221,7 @@ public class S51_DataDrivenTasTests
             if (winner == "Mario") won = true;
         };
 
-        while (!autoProvider.IsFinished && !won)
+        while (!autoProvider.IsFinished && !won && gm.CurrentState == GameState.Playing)
         {
             if (Time.realtimeSinceStartup - startTime > TEST_TIMEOUT_SECONDS)
             {
@@ -232,7 +236,7 @@ public class S51_DataDrivenTasTests
         // 额外等待几帧让 GoalZone 触发和 GameManager 处理
         for (int i = 0; i < 10; i++)
         {
-            if (won) break;
+            if (won || gm.CurrentState == GameState.RoundOver) break;
             yield return null;
         }
 
@@ -245,7 +249,7 @@ public class S51_DataDrivenTasTests
         // ── Step 10: 断言 1 — 触发胜利 ──
         Assert.IsTrue(health.CurrentHealth > 0,
             $"[{testName}] Mario 应该存活（当前血量: {health.CurrentHealth}）");
-        Assert.IsTrue(won || gm.CurrentState == GameState.RoundOver,
+        Assert.IsTrue(won,
             $"[{testName}] Mario 应该触发胜利判定（GameState: {gm.CurrentState}, won: {won}）");
 
         // ── Step 11: 断言 2 — S52 柔性防脱轨坐标校验 ──
@@ -420,6 +424,8 @@ public class S51_DataDrivenTasTests
 
         // 连线
         inputManager.SetMarioController(marioCtrl);
+        // No live keyboard or default bot may move the runner during fixture warmup.
+        inputManager.SetInputProvider(new AutomatedInputProvider(new List<InputFrame>()));
         SetPrivateField(gameManager, "mario", marioCtrl);
         SetPrivateField(gameManager, "marioHealth", marioHealth);
         SetPrivateField(gameManager, "inputManager", inputManager);

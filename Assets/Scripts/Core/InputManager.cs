@@ -42,6 +42,7 @@ using UnityEngine.InputSystem;
 ///
 /// 使用方式：挂载到 Managers 对象，在 Inspector 中拖入 Mario 和 Trickster 引用
 /// </summary>
+[DefaultExecutionOrder(-200)]
 public class InputManager : MonoBehaviour
 {
     [Header("玩家引用")]
@@ -103,6 +104,7 @@ public class InputManager : MonoBehaviour
     // ─────────────────────────────────────────────────────
     private void Update()
     {
+        if (_inputProvider is AutomatedInputProvider) return;
         // S49→S60: 确保 inputProvider 已初始化（防御 Start 未执行的边界情况）
         if (_inputProvider == null)
         {
@@ -120,6 +122,19 @@ public class InputManager : MonoBehaviour
     }
 
     // ─────────────────────────────────────────────────────
+    // [AI防坑警告] Direct TAS durations are physics steps, not rendered frames.
+    // Read first, advance last: a one-step opening jump must not be skipped.
+    private void FixedUpdate()
+    {
+        if (!(_inputProvider is AutomatedInputProvider replay)) return;
+        ReadP1();
+        ReadP2();
+        DispatchP1();
+        DispatchP2();
+        LateReset();
+        replay.Tick();
+    }
+
     #region S49: 输入源管理
 
     /// <summary>
@@ -138,10 +153,6 @@ public class InputManager : MonoBehaviour
         else if (_inputProvider is KeyboardInputProvider kbProvider)
         {
             kbProvider.UpdateGamepads();
-        }
-        else if (_inputProvider is AutomatedInputProvider autoProvider)
-        {
-            autoProvider.Tick();
         }
         else if (_inputProvider is HeuristicBotInputProvider botProvider)
         {
@@ -378,6 +389,7 @@ public class InputManager : MonoBehaviour
     public void SetInputProvider(IInputProvider provider)
     {
         _inputProvider = provider ?? new HybridInputProvider();
+        p1WasJumpHeld = p2WasJumpHeld = false;
     }
 
     /// <summary>

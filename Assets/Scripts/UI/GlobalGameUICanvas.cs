@@ -192,7 +192,12 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
 
+        // Unity 2022.2+ rejects Arial.ttf before the HUD can finish Awake.
+#if UNITY_2022_2_OR_NEWER
+        defaultFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+#else
         defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+#endif
     }
 
     private void BuildHierarchy()

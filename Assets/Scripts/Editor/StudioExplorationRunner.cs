@@ -45,6 +45,10 @@ public static class StudioExplorationRunner
         public string physicsConfigJson;
         public string gameplayConfigJson;
         public string status = "Running";
+        public string verdict = "尚无有效试玩证据";
+        public string blockedReason = "";
+        public bool confirmationPlanned;
+        public List<string> confirmationScenarioIds = new List<string>();
         public string regressions = "Not requested";
         public int regressionPassed, regressionFailed;
         public string limitation = "布局种子可复现，不保证跨机器逐帧物理相同。两两共现/接触不等于交互正确或好玩。";
@@ -57,12 +61,24 @@ public static class StudioExplorationRunner
     private static ExplorationTrialObserver observer;
     private static double lastTick, phaseStarted, trialStarted;
     private static bool busy, writing;
-    public static bool Active => state != null && state.phase != "Idle" && state.phase != "Complete" && state.phase != "Aborted" && state.phase != "RestoreFailed";
+    public static bool Active => state != null && state.phase != "Idle" && state.phase != "Complete" && state.phase != "Aborted" && state.phase != "RestoreFailed" && state.phase != "Blocked";
     public static string Phase => state?.phase ?? "Idle";
     public static string Error => state?.error ?? "";
     public static Report Latest => report;
     public static int Completed => report?.trials.Count(t => t.outcome != "Running" && t.outcome != "Building") ?? 0;
-    public static int Total => (report?.scenarios.Count ?? 0) * MechanismExplorationPlan.Profiles.Length;
+    public static int Total => PlannedTrials(report);
+    public static int PlannedTrials(Report data) => data == null ? 0 :
+        (data.scenarios.Count + (data.confirmationScenarioIds?.Count ?? 0)) * MechanismExplorationPlan.Profiles.Length;
+
+    public static string EvidenceVerdict(Report data)
+    {
+        if (!string.IsNullOrEmpty(data.blockedReason)) return "基础故障阻塞，未执行部分不算通过";
+        int played = data.trials.Count(t => t.HasGameplayEvidence);
+        if (played == 0) return "尚无有效试玩证据（不是玩法通过）";
+        if (data.regressionFailed > 0 || data.trials.Any(t => t.errors.Count > 0)) return "有回归或运行错误，先修复再评估玩法";
+        if (data.trials.Any(t => t.NeedsConfirmation)) return "有受阻或覆盖缺口，查看首轮与复测对照";
+        return "已有真人试玩候选，不代表正确性或乐趣已验收";
+    }
     public static string ReportDirectory => state?.directory ?? "";
     public static string LiveIntent => observer?.Intent ?? "";
 
@@ -79,7 +95,7 @@ public static class StudioExplorationRunner
                 report = JsonUtility.FromJson<Report>(File.ReadAllText(Path.Combine(state.directory, "report.json")));
             if (historical && report != null)
             {
-                state.phase = report.status == "Complete" ? "Complete" : "Aborted";
+                state.phase = report.status == "Complete" ? "Complete" : report.status == "Blocked" ? "Blocked" : "Aborted";
                 if (report.status == "Running") report.status = "Interrupted (editor closed)";
             }
             if (Active && report == null) { state.error = "批次状态丢失；请检查输出目录。"; state.phase = "RestoreFailed"; }
@@ -177,7 +193,17 @@ public static class StudioExplorationRunner
             }
             else if (state.phase == "Preparing" && !EditorApplication.isPlayingOrWillChangePlaymode)
             {
-                if (state.cancel || state.step >= Total) { SetPhase("Restoring"); return; }
+                if (state.cancel || !string.IsNullOrEmpty(report.blockedReason)) { SetPhase("Restoring"); return; }
+                if (state.step >= Total)
+                {
+                    if (!report.confirmationPlanned)
+                    {
+                        report.confirmationPlanned = true;
+                        report.confirmationScenarioIds = MechanismExplorationPlan.SelectConfirmationScenes(report.trials).ToList();
+                        Persist();
+                    }
+                    if (state.step >= Total) { SetPhase("Restoring"); return; }
+                }
                 PrepareTrial();
             }
             else if (state.phase == "Booting" && EditorApplication.isPlaying)
@@ -213,20 +239,38 @@ public static class StudioExplorationRunner
         catch (Exception ex)
         {
             state.error = ex.ToString(); state.cancel = true;
-            if (state.phase == "Restoring" || state.phase == "Complete" || state.phase == "Aborted" || state.phase == "RestoreFailed")
+            if (state.phase == "Restoring" || state.phase == "Complete" || state.phase == "Aborted" || state.phase == "RestoreFailed" || state.phase == "Blocked")
             { state.phase = "RestoreFailed"; SaveState(); return; } // never loop forever on disk/restore failure
             EndTrial("InfrastructureError", "测试工具错误，停止批次并恢复原场景。" + ex.Message);
         }
         finally { busy = false; }
     }
 
-    private static MechanismExplorationPlan.Scenario CurrentScenario => report.scenarios[state.step / MechanismExplorationPlan.Profiles.Length];
+    private static MechanismExplorationPlan.Scenario CurrentScenario
+    {
+        get
+        {
+            int index = state.step / MechanismExplorationPlan.Profiles.Length;
+            if (index < report.scenarios.Count) return report.scenarios[index];
+            return report.scenarios.First(s => s.id == report.confirmationScenarioIds[index - report.scenarios.Count]);
+        }
+    }
     private static MechanismExplorationPlan.Trial CurrentTrial => report.trials.LastOrDefault();
     private static void PrepareTrial()
     {
+        // Never compare same-seed trials after the user (or a test) changes the baseline.
+        if (!Mathf.Approximately(Time.fixedDeltaTime, report.fixedDeltaTime) ||
+            ConfigJson("PhysicsConfig") != report.physicsConfigJson ||
+            ConfigJson("GameplayLoopConfig") != report.gameplayConfigJson)
+        {
+            report.blockedReason = "批次期间物理或玩法配置已改变，停止以免混合不同基线。保留你的配置；重新开始会记录新基线。";
+            state.error = report.blockedReason;
+            SetPhase("Restoring"); Persist(); return;
+        }
         var scenario = CurrentScenario;
         var trial = new MechanismExplorationPlan.Trial { scenarioId = scenario.id,
-            profile = MechanismExplorationPlan.Profiles[state.step % MechanismExplorationPlan.Profiles.Length], outcome = "Building" };
+            profile = MechanismExplorationPlan.Profiles[state.step % MechanismExplorationPlan.Profiles.Length],
+            attempt = state.step < report.scenarios.Count * MechanismExplorationPlan.Profiles.Length ? 1 : 2, outcome = "Building" };
         report.trials.Add(trial);
         trial.validation = ExplorationSceneBuilder.Validate(scenario, out bool invalid);
         if (invalid)
@@ -238,7 +282,7 @@ public static class StudioExplorationRunner
         catch (Exception ex)
         {
             trial.outcome = "BuildFailed"; trial.errors.Add(ex.ToString());
-            trial.nextAction = "检查生成或机制依赖配置。"; state.step++; Persist(); return;
+            trial.nextAction = "检查生成或机制依赖配置。"; RecordFeedback(); state.step++; Persist(); return;
         }
         SetPhase("Entering"); Persist();
         EditorApplication.isPlaying = true;
@@ -268,9 +312,25 @@ public static class StudioExplorationRunner
         if (CurrentTrial != null && (CurrentTrial.outcome == "Building" || CurrentTrial.outcome == "Running"))
         { CurrentTrial.outcome = state.cancel ? "Cancelled" : "Interrupted"; CurrentTrial.nextAction = "没有完整观察结果，请复测。"; }
         state.step++;
-        SetPhase(state.cancel || state.step >= Total ? "Restoring" : "Preparing");
+        RecordFeedback();
+        SetPhase(state.cancel || !string.IsNullOrEmpty(report.blockedReason) ? "Restoring" : "Preparing");
         Persist();
     }
+    private static void RecordFeedback()
+    {
+        if (CurrentTrial != null && CurrentTrial.attempt == 2)
+        {
+            var baseline = report.trials.FirstOrDefault(t => t.attempt <= 1 &&
+                t.scenarioId == CurrentTrial.scenarioId && t.profile == CurrentTrial.profile);
+            CurrentTrial.comparison = MechanismExplorationPlan.CompareConfirmation(baseline, CurrentTrial);
+        }
+        if (MechanismExplorationPlan.RepeatedInfrastructureFailure(report.trials))
+        {
+            report.blockedReason = "连续两局出现相同基础故障，已停止重复空跑。修复后再开始；剩余计划仍未验证。\n" + CurrentTrial.InfrastructureKey;
+            state.error = report.blockedReason;
+        }
+    }
+
     private static void EndTrial(string outcome, string reason)
     {
         observer?.Finish(outcome, reason);
@@ -289,7 +349,7 @@ public static class StudioExplorationRunner
         try
         {
             if (state.original != null && state.original.Length > 0) EditorSceneManager.RestoreSceneManagerSetup(state.original.Select(s => new SceneSetup { path = s.path, isLoaded = s.loaded, isActive = s.active }).ToArray());
-            SetPhase(state.cancel ? "Aborted" : "Complete");
+            SetPhase(state.cancel ? "Aborted" : !string.IsNullOrEmpty(report.blockedReason) ? "Blocked" : "Complete");
         }
         catch (Exception ex) { state.error = "原场景恢复失败：" + ex.Message; SetPhase("RestoreFailed"); }
         report.status = state.phase;
@@ -334,6 +394,7 @@ public static class StudioExplorationRunner
         writing = true;
         try
         {
+            report.verdict = EvidenceVerdict(report);
             string jsonPath = Path.Combine(state.directory, "report.json");
             string temp = jsonPath + ".tmp";
             File.WriteAllText(temp, JsonUtility.ToJson(report, true));
@@ -349,13 +410,21 @@ public static class StudioExplorationRunner
         var sb = new StringBuilder();
         sb.AppendLine("AI MECHANISM EXPLORATION — evidence, not a fun score");
         sb.AppendLine($"Status: {data.status}; seed: {data.seed}; Unity: {data.unityVersion}; scope: {data.scope}");
-        sb.AppendLine($"Trials recorded: {data.trials.Count} / {data.scenarios.Count * MechanismExplorationPlan.Profiles.Length}");
+        sb.AppendLine($"Trials recorded: {data.trials.Count} / {PlannedTrials(data)}");
+        sb.AppendLine("Evidence verdict: " + EvidenceVerdict(data));
+        sb.AppendLine($"有效试玩记录: {data.trials.Count(t => t.HasGameplayEvidence)}; 首轮={data.trials.Count(t => t.attempt <= 1 && t.HasGameplayEvidence)}; 复测={data.trials.Count(t => t.attempt == 2 && t.HasGameplayEvidence)}");
+        sb.AppendLine("有限反馈：最多追加 6 张问题图 × 3 画像 × 1 轮；同种子同配置，不自动改难度或删除失败记录。");
+        if (!string.IsNullOrEmpty(data.blockedReason)) sb.AppendLine(data.blockedReason);
+        foreach (var group in data.trials.Where(t => t.InfrastructureKey.Length > 0).GroupBy(t => t.InfrastructureKey))
+            sb.AppendLine($"基础故障 ×{group.Count()}: {group.Key}");
         sb.AppendLine(data.limitation);
         sb.AppendLine($"Unity regressions: {data.regressions}; passed={data.regressionPassed}, failed={data.regressionFailed}");
         sb.AppendLine("Complete 表示调度结束，不表示每局通过，更不表示全部机制已验证。");
         sb.AppendLine("未规划的 Registry 机制: " + string.Join(", ", data.unsupportedRegistry ?? Array.Empty<string>()));
         var attempted = new HashSet<string>(data.trials.Where(t => t.outcome != "Building" && t.outcome != "Running").Select(t => t.scenarioId));
         sb.AppendLine("尚无完成记录的场景: " + string.Join(", ", data.scenarios.Where(s => !attempted.Contains(s.id)).Select(s => s.id)));
+        sb.AppendLine("没有有效试玩证据的场景: " + string.Join(", ", data.scenarios
+            .Where(s => !data.trials.Any(t => t.scenarioId == s.id && t.HasGameplayEvidence)).Select(s => s.id)));
         foreach (char mechanism in MechanismExplorationPlan.Catalog)
         {
             var evidence = data.trials.SelectMany(t => t.coverage).Where(e => e.mechanism == mechanism.ToString()).ToArray();
@@ -363,9 +432,12 @@ public static class StudioExplorationRunner
         }
         foreach (var trial in data.trials)
         {
-            sb.AppendLine($"\n{trial.scenarioId} / {trial.profile}: {trial.outcome}, {trial.seconds:F1}s, end=({trial.endX:F1},{trial.endY:F1}), farthestX={trial.farthestX:F1}");
+            sb.AppendLine($"\n{trial.scenarioId} / {trial.profile} / attempt={trial.attempt}: {trial.outcome}, {trial.seconds:F1}s, end=({trial.endX:F1},{trial.endY:F1}), farthestX={trial.farthestX:F1}");
             sb.AppendLine($"pair exercised={trial.PairExercised}; human-play candidate={trial.CandidateForHumanPlay}");
             sb.AppendLine(trial.nextAction);
+            sb.AppendLine("结束原因: " + trial.endReason);
+            if (!string.IsNullOrEmpty(trial.comparison)) sb.AppendLine(trial.comparison);
+            foreach (var item in trial.timeline) sb.AppendLine("  event: " + item);
             sb.AppendLine($"scan={trial.scans}, possession={trial.possessions}, combo={trial.comboEvents}, heat={trial.heatEvents}, loot={trial.lootEvents}, escape={trial.escapeEvents}, crisis={trial.crises}, reveal={trial.reveals}");
             sb.AppendLine($"route degraded={trial.routeDegradations}, recovered={trial.routeRecoveries}, guard={trial.routeBlocks}. Zero means not observed, NOT passed.");
             sb.AppendLine("Static hints: " + trial.validation);

@@ -345,33 +345,30 @@ public class GameplayTests
         BoxCollider2D col = hazardGO.AddComponent<BoxCollider2D>();
         ControllableHazard hazard = hazardGO.AddComponent<ControllableHazard>();
 
-        yield return null; // 等待 Awake
+        try
+        {
+            yield return null;
+            IControllableProp prop = hazard;
+            Assert.AreEqual(PropControlState.Idle, prop.GetControlState());
+            Assert.IsTrue(prop.CanBeControlled());
+            prop.OnTricksterActivate(Vector2.right);
+            Assert.AreEqual(PropControlState.Telegraph, prop.GetControlState());
+            Assert.IsFalse(GetPrivateField<bool>(hazard, "isDamageActive"), "Telegraph must leave a safe reaction window");
 
-        IControllableProp prop = hazard as IControllableProp;
-        Assert.AreEqual(PropControlState.Idle, prop.GetControlState(),
-            "初始状态应该是 Idle");
-
-        // 触发操控
-        Assert.IsTrue(prop.CanBeControlled(), "初始状态应该可以被操控");
-        prop.OnTricksterActivate(Vector2.right);
-
-        yield return null;
-        Assert.AreEqual(PropControlState.Telegraph, prop.GetControlState(),
-            "触发后应该进入 Telegraph 状态");
-
-        // 等待预警结束（默认 0.8 秒）
-        yield return new WaitForSeconds(1.0f);
-        Assert.AreEqual(PropControlState.Active, prop.GetControlState(),
-            "预警结束后应该进入 Active 状态");
-
-        // 等待激活结束（默认 1.5 秒）
-        yield return new WaitForSeconds(2.0f);
-
-        PropControlState finalState = prop.GetControlState();
-        Assert.IsTrue(finalState == PropControlState.Cooldown || finalState == PropControlState.Idle,
-            $"激活结束后应该进入 Cooldown 或 Idle 状态（实际: {finalState}）");
-
-        Object.Destroy(hazardGO);
+            // Observe ordered transitions instead of guessing a fixed sleep from old durations.
+            foreach (var expected in new[] { PropControlState.Active, PropControlState.Recovery, PropControlState.Cooldown, PropControlState.Idle })
+            {
+                var previous = prop.GetControlState();
+                float deadline = Time.realtimeSinceStartup + 8f;
+                while (prop.GetControlState() == previous && Time.realtimeSinceStartup < deadline)
+                    yield return null;
+                Assert.AreEqual(expected, prop.GetControlState(), "Missing or out-of-order hazard phase");
+                Assert.AreEqual(expected == PropControlState.Active, GetPrivateField<bool>(hazard, "isDamageActive"),
+                    "Damage is permitted only during Active, never during Recovery counterplay");
+                Assert.AreEqual(expected == PropControlState.Idle, prop.CanBeControlled());
+            }
+        }
+        finally { Object.Destroy(hazardGO); }
     }
 
     [UnityTest]

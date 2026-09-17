@@ -72,7 +72,7 @@ public partial class TestConsoleWindow
             if (GUILayout.Button("打开本批报告目录")) EditorUtility.RevealInFinder(StudioExplorationRunner.ReportDirectory);
             if (!StudioExplorationRunner.Active)
             {
-                explorationIssuesOnly = EditorGUILayout.ToggleLeft("只看失败或交互覆盖不足的案例", explorationIssuesOnly);
+                explorationIssuesOnly = EditorGUILayout.ToggleLeft("只看失败或最低观察不足的案例（取消可查看全部专项待验项）", explorationIssuesOnly);
                 var trials = report.trials.Where(t => !explorationIssuesOnly || !t.CandidateForHumanPlay || StudioExplorationRunner.ExperienceIssues(report, t).Length > 0).ToArray();
                 if (trials.Length > 0)
                 {
@@ -82,10 +82,13 @@ public partial class TestConsoleWindow
                     var trial = trials[explorationSelection];
                     foreach (var gap in StudioExplorationRunner.ExperienceIssues(report, trial)) EditorGUILayout.HelpBox(gap, MessageType.Warning);
                     EditorGUILayout.LabelField($"完整作者路线：{string.Join(", ", trial.completedRoutes ?? new System.Collections.Generic.List<string>())}；近距附身就绪 {trial.armedNearbySeconds:F2}s；换点请求 {trial.anchorSwitchRequests} / 成功 {trial.possessionTransfers}", EditorStyles.wordWrappedMiniLabel);
+                    EditorGUILayout.LabelField(trial.scanEvidenceVersion >= 1
+                        ? $"扫描施放 {trial.scans} / 命中 {trial.scanHits} / 未命中 {trial.scanMisses}；命中不等于已证明避免伤害。"
+                        : "旧记录未采集扫描结果，不能从施放数补算命中。", EditorStyles.wordWrappedMiniLabel);
                     EditorGUILayout.LabelField(trial.nextAction, EditorStyles.wordWrappedMiniLabel);
                     if (!string.IsNullOrEmpty(trial.comparison)) EditorGUILayout.LabelField(trial.comparison, EditorStyles.wordWrappedMiniLabel);
                     foreach (var e in trial.coverage)
-                        EditorGUILayout.LabelField($"{e.mechanism}: {e.Status}（接触 {e.contacts} / 激活 {e.activations}）", EditorStyles.wordWrappedMiniLabel);
+                        EditorGUILayout.LabelField($"{e.mechanism}: {e.Status}（Mario接触 {e.runnerContacts} / 操控受理 {e.controlsAccepted} / Mario效果事件 {e.runnerEffects} / 旧混合计数 {e.activations}）\n专项验收：{MechanismExplorationPlan.BehaviorRequirement(e.mechanism)}", EditorStyles.wordWrappedMiniLabel);
                     var scenario = report.scenarios.FirstOrDefault(s => s.id == trial.scenarioId);
                     if (scenario != null) EditorGUILayout.LabelField(scenario.intention, EditorStyles.wordWrappedMiniLabel);
                     EditorGUILayout.LabelField($"目标阶段：{trial.objectivePhase}；实际进入路线：{string.Join(", ", trial.routesUsed ?? new System.Collections.Generic.List<string>())}", EditorStyles.wordWrappedMiniLabel);

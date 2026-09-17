@@ -24,6 +24,96 @@ public class GameplayTests
 
     private const string GROUND_LAYER = "Ground";
 
+    [UnityTest]
+    public IEnumerator SpikeCycleKeepsAuthoredHeightAndRetractsRelativeToIt()
+    {
+        foreach (float height in new[] { -3f, 1f, 5f })
+        {
+            var go = new GameObject("AuthoredSpike");
+            try
+            {
+                go.transform.position = new Vector3(25000, height, 0);
+                var spike = go.AddComponent<SpikeTrap>();
+                SetPrivateField(spike, "cycleTimer", 10f);
+                yield return new WaitForSeconds(0.25f);
+                Assert.AreEqual(height, go.transform.localPosition.y, 0.01f, "Extended spike must stay on its authored floor");
+                spike.OnLevelReset(); // Periodic reset retracts; it must not travel toward global -0.8.
+                SetPrivateField(spike, "cycleTimer", 10f);
+                yield return new WaitForSeconds(0.25f);
+                Assert.AreEqual(height - 0.8f, go.transform.localPosition.y, 0.02f);
+                Assert.IsFalse(go.GetComponent<BoxCollider2D>().enabled, "Fully retracted collision must be disabled at any height");
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator OneWay_RepeatedDropRenewsOnlyRequestingPair()
+    {
+        var platform = new GameObject("DropPlatform");
+        var runner = new GameObject("DropRunner");
+        var opponent = new GameObject("OtherRider");
+        try
+        {
+            var oneWay = platform.AddComponent<OneWayPlatform>();
+            var deck = platform.GetComponent<BoxCollider2D>();
+            var a = runner.AddComponent<BoxCollider2D>();
+            var b = opponent.AddComponent<BoxCollider2D>();
+            runner.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            opponent.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            SetPrivateField(oneWay, "dropThroughDuration", 0.8f);
+            oneWay.AllowDropThrough(a);
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(a, deck));
+            Assert.IsFalse(Physics2D.GetIgnoreCollision(b, deck), "Other rider must retain collision");
+            yield return new WaitForSeconds(0.5f);
+            oneWay.AllowDropThrough(a);
+            yield return new WaitForSeconds(0.4f);
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(a, deck), "Earlier request must not expire renewed drop");
+            yield return new WaitForSeconds(0.5f);
+            Assert.IsFalse(Physics2D.GetIgnoreCollision(a, deck), "Renewed request must eventually restore collision");
+        }
+        finally { Object.DestroyImmediate(platform); Object.DestroyImmediate(runner); Object.DestroyImmediate(opponent); }
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void OneWay_ResetOrDisableRestoresOwnedPairsButPreservesExternalIgnore(bool disable)
+    {
+        var platform = new GameObject("DropPlatform");
+        var runner = new GameObject("DropRunner");
+        var opponent = new GameObject("OtherRider");
+        var external = new GameObject("ExternalIgnore");
+        try
+        {
+            var oneWay = platform.AddComponent<OneWayPlatform>();
+            var deck = platform.GetComponent<BoxCollider2D>();
+            var a = runner.AddComponent<BoxCollider2D>();
+            var b = opponent.AddComponent<BoxCollider2D>();
+            var c = external.AddComponent<BoxCollider2D>();
+            runner.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            opponent.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            external.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            Physics2D.IgnoreCollision(c, deck, true);
+            oneWay.AllowDropThrough(a); oneWay.AllowDropThrough(b); oneWay.AllowDropThrough(c);
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(a, deck));
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(b, deck));
+            if (disable) oneWay.enabled = false; else oneWay.OnLevelReset();
+            Assert.IsFalse(Physics2D.GetIgnoreCollision(a, deck));
+            Assert.IsFalse(Physics2D.GetIgnoreCollision(b, deck));
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(c, deck), "Pre-existing external ignore is not ours to release");
+            Assert.IsTrue(deck.enabled, "Cancellation must not remove the shared platform");
+            if (disable)
+            {
+                oneWay.AllowDropThrough(a);
+                Assert.IsFalse(Physics2D.GetIgnoreCollision(a, deck), "Disabled component must reject new requests");
+                oneWay.enabled = true;
+            }
+            oneWay.OnLevelReset(); // Idempotent, including after re-enable.
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(c, deck));
+        }
+        finally { Object.DestroyImmediate(platform); Object.DestroyImmediate(runner); Object.DestroyImmediate(opponent); Object.DestroyImmediate(external); }
+    }
+
     /// <summary>创建测试用 Mario 对象</summary>
     private GameObject CreateTestMario(Vector3 position)
     {

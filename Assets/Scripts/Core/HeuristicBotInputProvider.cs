@@ -994,10 +994,12 @@ public class HeuristicBotInputProvider : IInputProvider
         }
 
         // 热度压制：高热度时不开机关
-        if (heatSuppressed) return;
-
-        // 必须完全融入
-        if (!_trickster.IsFullyBlended) return;
+        if (heatSuppressed || !_trickster.IsFullyBlended)
+        {
+            _executeArmed = false;
+            _executeDelayTimer = 0f;
+            return;
+        }
 
         // ── 提前量预判 (Lead Target) ──
         // 获取当前绑定机关的预警时间
@@ -1030,8 +1032,19 @@ public class HeuristicBotInputProvider : IInputProvider
             && approachSpeed > 0.1f
             && predictedDist <= EXECUTE_KILL_DIST;
 
-        // Baiter holds its shot until actual proximity instead of using predictive pre-fire.
-        bool attackWindow = OpponentStrategy == OpponentPolicy.Baiter ? sameHeight && distToMario < 2f : inKillZone || leadTargetHit;
+        if (OpponentStrategy == OpponentPolicy.Baiter)
+        {
+            // Observe an approaching runner before close range; preparation is not pre-fire.
+            float delay = _executeArmed ? 0f : DecisionRange(
+                Mathf.Lerp(0.5f, 0.05f, ambushAgg), Mathf.Lerp(0.9f, 0.15f, ambushAgg));
+            bool request = StepBaiterWindow(ref _executeArmed, ref _executeDelayTimer,
+                distToMario, sameHeight, approachSpeed, dt, delay);
+            if (request && _ability != null && _ability.IsPossessionActionAllowed) p2AbilityDown = true;
+            TricksterIntent = request ? "[Baiter: close-range action requested]" :
+                _executeArmed ? "[Baiter: prepared, holding for proximity]" : "[Baiter: waiting for approach]";
+            return;
+        }
+        bool attackWindow = inKillZone || leadTargetHit;
         if (attackWindow)
         {
             TricksterIntent = leadTargetHit && !inKillZone
@@ -1078,9 +1091,23 @@ public class HeuristicBotInputProvider : IInputProvider
     }
 
     /// <summary>
-    /// 在所有 PossessionAnchor 中，找一个位于 Mario 前方 3~8 格内的空闲锚点。
-    /// 优先选择最靠近 Mario 前进路线的锚点（距离最近的）。
+    /// Prepare on approach, cancel on departure, and request only after reaction time and real proximity.
+    /// This pure decision step does not activate a prop or bypass ability admission.
     /// </summary>
+    public static bool StepBaiterWindow(ref bool armed, ref float remaining, float distance,
+        bool sameHeight, float approachSpeed, float dt, float reactionDelay)
+    {
+        bool near = sameHeight && distance < 2f;
+        bool prepare = near || (sameHeight && distance <= 6f && approachSpeed > 0.1f);
+        if (!prepare) { armed = false; remaining = 0f; return false; }
+        if (!armed) { armed = true; remaining = Mathf.Max(0f, reactionDelay); return false; }
+        remaining = Mathf.Max(0f, remaining - Mathf.Max(0f, dt));
+        if (remaining > 0f || !near) return false;
+        armed = false;
+        return true; // Only a request: ability still enforces possession, energy and prop cooldown.
+    }
+
+    /// <summary>Find the nearest available anchor 3~8 units ahead of Mario.</summary>
     private PossessionAnchor FindAmbushAnchor(Vector2 marioPos, float marioFacing)
     {
         PossessionAnchor[] anchors = GetSceneCandidates<PossessionAnchor>();

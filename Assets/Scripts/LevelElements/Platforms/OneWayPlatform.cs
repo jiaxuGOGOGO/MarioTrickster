@@ -109,43 +109,54 @@ public class OneWayPlatform : LevelElementBase
     ///       平台对其他所有实体（敌人、Trickster 等）保持坚固
     /// </summary>
     /// <param name="playerCollider">触发下落的玩家碰撞体</param>
+    // Only own pairs that were colliding before our request. Do not clear another system's ignore.
+    private readonly System.Collections.Generic.Dictionary<Collider2D, Coroutine> drops =
+        new System.Collections.Generic.Dictionary<Collider2D, Coroutine>();
+
     public void AllowDropThrough(Collider2D playerCollider)
     {
-        if (playerCollider == null || boxCollider == null) return;
-        StartCoroutine(DropThroughRoutine(playerCollider));
+        if (!isActiveAndEnabled || playerCollider == null || boxCollider == null ||
+            !playerCollider.enabled || !playerCollider.gameObject.activeInHierarchy || !boxCollider.enabled) return;
+        if (drops.TryGetValue(playerCollider, out var previous)) StopCoroutine(previous);
+        else if (Physics2D.GetIgnoreCollision(playerCollider, boxCollider)) return;
+        Physics2D.IgnoreCollision(playerCollider, boxCollider, true);
+        drops[playerCollider] = StartCoroutine(DropThroughRoutine(playerCollider));
     }
 
-    /// <summary>
-    /// 定向忽略碰撞协程：
-    /// 1. 开启 Mario↔平台 的碰撞忽略
-    /// 2. 等待足够时间让玩家穿过碰撞体
-    /// 3. 恢复碰撞（否则 Mario 再也踩不上这块板）
-    /// </summary>
     private IEnumerator DropThroughRoutine(Collider2D playerCollider)
     {
-        // 开启定向穿透：物理引擎只忽略这两个碰撞体之间的碰撞
-        Physics2D.IgnoreCollision(playerCollider, boxCollider, true);
-
-        // 等待足够时间让玩家彻底掉出碰撞体厚度
         yield return new WaitForSeconds(dropThroughDuration);
+        RestorePair(playerCollider);
+        drops.Remove(playerCollider);
+    }
 
-        // 安全验证并恢复碰撞
+    private void RestorePair(Collider2D playerCollider)
+    {
         if (playerCollider != null && boxCollider != null)
-        {
             Physics2D.IgnoreCollision(playerCollider, boxCollider, false);
+    }
+
+    private void CancelDrops()
+    {
+        // [AI防坑警告] 停协程不会恢复 IgnoreCollision；重复请求要续期，重置/禁用要释放本组件拥有的关系。
+        foreach (var drop in drops)
+        {
+            StopCoroutine(drop.Value);
+            RestorePair(drop.Key);
         }
+        drops.Clear();
+    }
+
+    protected override void OnDisable()
+    {
+        CancelDrops();
+        base.OnDisable();
     }
 
     public override void OnLevelReset()
     {
-        // 停止所有协程，确保不会有残留的忽略状态
-        StopAllCoroutines();
-
-        // 恢复碰撞体状态（以防协程被中断时碰撞仍被忽略）
-        if (boxCollider != null)
-        {
-            boxCollider.enabled = true; // 确保碰撞体启用
-        }
+        if (boxCollider != null) boxCollider.enabled = true;
+        CancelDrops();
     }
 
     private void OnDrawGizmos()

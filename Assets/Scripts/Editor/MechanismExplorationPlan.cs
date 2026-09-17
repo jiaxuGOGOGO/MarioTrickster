@@ -32,8 +32,8 @@ public static class MechanismExplorationPlan
         if (baseline == null) return "缺少首轮基线，不能判定改善。";
         Func<Trial, string> signature = t => t.outcome + ":" + t.objectivePhase + ":" +
             string.Join(",", (t.completedRoutes ?? new List<string>()).OrderBy(r => r)) + $":{t.armedNearbySeconds > 0}:{t.possessionTransfers > 0}:" +
-            string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
-            .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}"));
+            $"{t.scanEvidenceVersion}:{t.scanHits > 0}:" + string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
+            .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}:{e.observationVersion}:{e.runnerContacts > 0}:{e.runnerEffects > 0}:" + string.Join(",", e.phases.OrderBy(p => p))));
         return signature(baseline) == signature(confirmation)
             ? "同条件复现：结果与覆盖层级一致；仍需检查 AI 局限与真人反制体验。"
             : "同条件结果不稳定：不是已修复；对照事件时间线再定位物理时序或 AI 决策。";
@@ -328,11 +328,43 @@ public static class MechanismExplorationPlan
             if (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper")) gaps.Add("安全上路去程未完整到达所有落地点");
             if (expectsReturn && (t.completedRoutes == null || !t.completedRoutes.Contains("Return:upper"))) gaps.Add("安全上路返程未完整到达所有落地点");
         }
-        else if (t.armedNearbySeconds <= 0f) gaps.Add("未观察到同高度近距附身就绪窗口；先查出生距离/准备时机");
+        else if (t.armedNearbySeconds <= 0f && !(t.scanEvidenceVersion >= 1 && t.scanHits > 0))
+            gaps.Add(t.scanEvidenceVersion < 1 && t.scans > 0
+                ? "缺少扫描结果证据：可能提前揭穿，不能仅按就绪时间判定没有对抗"
+                : "未观察到近距附身就绪或扫描命中；检查接近路线与准备时机");
         if (expectsReturn && (t.lootEvents == 0 || t.escapeEvents == 0)) gaps.Add("拿宝与撤离事件未成对出现");
         if (t.tricksterStrategy == "Chaser" && expectsReturn && t.possessionTransfers == 0)
             gaps.Add("换点追击尚无不同锚点成功证据（请求不算成功）");
         return gaps.ToArray();
+    }
+
+    // Minimum observation for a useful probe, never a correctness/pass contract.
+    // Autonomous hazards and passive surfaces must not be forced to emit control activations.
+    public static string BehaviorRequirement(string mechanism)
+    {
+        switch (mechanism)
+        {
+            case "B": return "顶部实际发射、侧碰不发射、蓄力与中断恢复";
+            case "C": return "顶部触发崩塌、等待恢复、搭乘者脱离";
+            case "-": return "向上穿过/落顶、定向下穿、重复请求与取消恢复";
+            case "F": return "默认可通行、Active实体、Recovery恢复通行";
+            case "<": return "顶面速度注入、侧碰不搭乘、离开后无残留速度";
+            case "X": return "从下撞破、侧面不破、重建恢复";
+            case "o": return "真实拿宝事件与对应撤离事件；普通收集物另验";
+            case "H": return "普通S键入口/返回、冷却、取消传送恢复移动";
+            case ">": return "真实搭乘位移、端点转向、离开与重建";
+            case "^": return "伸缩周期、伤害窗口、预警/后摇无伤害、作者高度保持";
+            case "~": return "预热/喷火/冷却、伤害节流、后摇安全";
+            case "P": return "真实锤头接触、摆动范围、控制结束恢复速度";
+            case "[": return "预警可通行、扫描缩短、预算拒绝、后摇恢复通行";
+            case "]": return "公开左右/安全队列、强制跳状态代价、Recovery无伤害";
+            case "E": return "顶部踩踏弹跳、侧碰伤害、死亡与重建";
+            case "e": return "踩踏与侧碰分开、非重复伤害、销毁后重建";
+            case "@": return "锯片接触伤害、无敌节流、离开后再入";
+            case "f": return "飞行轨迹、踩踏/侧碰、死亡与重建";
+            case "S": return "实际更新出生引用、重复触碰幂等、跨回合语义";
+            default: return "未知机制：需补行为验收契约";
+        }
     }
 
     [Serializable]
@@ -343,9 +375,19 @@ public static class MechanismExplorationPlan
         public bool approached;
         public int contacts;
         public int runnerContacts, tricksterContacts;
-        public int activations;
+        public int activations; // Legacy mixed count: accepted control, launch, trap or loot event.
+        public int observationVersion, controlsAccepted, runnerEffects;
+        public bool ObservationGap => built <= 0 || (observationVersion < 1 ? activations <= 0 :
+            mechanism == "B" || mechanism == "o" ? runnerEffects <= 0 :
+            mechanism == "F" || mechanism == "[" ? !(phases.Contains("Active") && phases.Contains("Recovery")) :
+            runnerContacts <= 0);
+        public string ObservationTarget => mechanism == "B" ? "Mario真实弹射事件" : mechanism == "o" ? "真实拿宝事件" :
+            mechanism == "F" || mechanism == "[" ? "Active与Recovery阶段采样（不证明碰撞恢复）" :
+            "Mario接触（不证明行为/反制/恢复正确）";
         public List<string> phases = new List<string>();
-        public string Status => built == 0 ? "未生成" : activations > 0 ? "已激活（不等于全部行为通过）" :
+        public string Status => built == 0 ? "未生成" : observationVersion >= 1 ?
+            (ObservationGap ? "探针观察不足：" : "已达到最低观察层级：") + ObservationTarget + "；行为验收仍待专项测试" :
+            activations > 0 ? "已激活（不等于全部行为通过）" :
             contacts > 0 ? "已接触 / 激活未证实" : approached ? "已接近 / 未接触" : "未到达";
     }
 
@@ -374,6 +416,7 @@ public static class MechanismExplorationPlan
         public float seconds;
         public float farthestX;
         public float endX, endY;
+        public int scanEvidenceVersion, scanHits, scanMisses;
         public int scans, possessions, comboEvents, heatEvents, lootEvents, escapeEvents;
         public int routeDegradations, routeRecoveries, routeBlocks, crises, reveals;
         public List<Evidence> coverage = new List<Evidence>();
@@ -384,13 +427,13 @@ public static class MechanismExplorationPlan
         public bool HasGameplayEvidence => seconds > 0 &&
             (outcome == "Cleared" || outcome == "RunnerStopped" || outcome == "NoProgress" || outcome == "TimedOut");
         public bool NeedsConfirmation => HasGameplayEvidence && errors.Count == 0 &&
-            (!CandidateForHumanPlay || (string.IsNullOrEmpty(experience) && coverage.Any(e => e.activations == 0)));
+            (!CandidateForHumanPlay || (string.IsNullOrEmpty(experience) && coverage.Any(e => e.ObservationGap)));
         public string InfrastructureKey => outcome == "StartupFailed" || outcome == "BuildFailed" || outcome == "RuntimeError"
             ? outcome + ":" + (errors.Count > 0 ? errors[0].Replace("\r", "").Split('\n')[0] : nextAction)
             : "";
         public bool PairExercised => coverage.Count == 2 && coverage.All(e => e.built > 0 && (e.contacts > 0 || e.activations > 0));
         public bool CandidateForHumanPlay => ExperienceGaps.Length == 0 && outcome == "Cleared" && errors.Count == 0 &&
             coverage.Count > 0 && coverage.All(e => e.built > 0 &&
-                (!string.IsNullOrEmpty(experience) || e.contacts > 0 || e.activations > 0));
+                (!string.IsNullOrEmpty(experience) || (e.observationVersion >= 1 ? !e.ObservationGap : e.contacts > 0 || e.activations > 0)));
     }
 }

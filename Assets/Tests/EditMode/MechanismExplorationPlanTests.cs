@@ -4,6 +4,53 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [Test]
+    public void ScanRequestAndLegacyRevealCountCannotInventSuccessfulCounterplay()
+    {
+        var t = new MechanismExplorationPlan.Trial { experience = "RiskOrDetour", experienceEvidenceVersion = 1,
+            marioStrategy = "Scout", scans = 1, reveals = 10 };
+        StringAssert.Contains("缺少扫描结果", t.ExperienceGaps.Single());
+        Assert.AreEqual(0, t.scanHits);
+        t.scanEvidenceVersion = 1; t.scanMisses = 1;
+        Assert.AreEqual(1, t.ExperienceGaps.Length, "A miss is not a hit");
+        t.scanHits = 1;
+        Assert.IsEmpty(t.ExperienceGaps, "Observed reveal is interaction even before the opponent is armed");
+        t.marioStrategy = "SafeRoute";
+        Assert.AreEqual(1, t.ExperienceGaps.Length, "Scan cannot replace a missing safe route");
+    }
+
+    [Test]
+    public void EveryMechanismHasExplicitBehaviorChecksAndHonestProbeLayers()
+    {
+        foreach (char c in MechanismExplorationPlan.Catalog)
+        {
+            string symbol = c.ToString();
+            Assert.IsFalse(MechanismExplorationPlan.BehaviorRequirement(symbol).Contains("未知"), symbol);
+            var e = new MechanismExplorationPlan.Evidence { mechanism = symbol, observationVersion = 1, built = 1,
+                activations = 100, controlsAccepted = 100, tricksterContacts = 100, contacts = 100 };
+            Assert.IsTrue(e.ObservationGap, symbol + ": accepted controls and opponent contacts cannot stand in for runner effects");
+            e.runnerContacts = 1;
+            if (symbol == "B" || symbol == "o")
+            { Assert.IsTrue(e.ObservationGap); e.runnerEffects = 1; }
+            if (symbol == "F" || symbol == "[")
+            { Assert.IsTrue(e.ObservationGap); e.phases.Add("Active"); Assert.IsTrue(e.ObservationGap); e.phases.Add("Recovery"); }
+            Assert.IsFalse(e.ObservationGap, symbol);
+            StringAssert.Contains("行为验收仍待专项测试", e.Status);
+            e.built = 0; Assert.IsTrue(e.ObservationGap);
+        }
+    }
+
+    [Test]
+    public void PassiveContactStopsUselessActivationRetryButDoesNotClaimBehaviorPassed()
+    {
+        var t = new MechanismExplorationPlan.Trial { outcome = "Cleared", seconds = 4 };
+        t.coverage.Add(new MechanismExplorationPlan.Evidence { observationVersion = 1, mechanism = "<", built = 1, runnerContacts = 1 });
+        Assert.IsFalse(t.NeedsConfirmation, "A conveyor has no control activation to chase");
+        StringAssert.Contains("不证明行为", t.coverage[0].Status);
+        t.coverage[0].observationVersion = 0;
+        Assert.IsTrue(t.NeedsConfirmation, "Do not silently migrate old mixed evidence into new typed observations");
+    }
+
     [TestCase(MechanismExplorationPlan.Scope.Smoke, 6)]
     [TestCase(MechanismExplorationPlan.Scope.Mechanisms, 38)]
     [TestCase(MechanismExplorationPlan.Scope.Pairwise, 190)]

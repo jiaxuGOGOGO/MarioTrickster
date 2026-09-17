@@ -56,7 +56,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         {
             var probes = Object.FindObjectsOfType<ExplorationContactProbe>().Where(p => p.mechanism == c.ToString()).ToArray();
             targets[c.ToString()] = probes.Select(p => p.transform).ToArray();
-            result.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = c.ToString(), built = probes.Length });
+            result.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = c.ToString(), built = probes.Length, observationVersion = 1 });
         }
         string runnerName = string.IsNullOrEmpty(trial.marioStrategy) ? trial.profile : trial.marioStrategy;
         string opponentName = string.IsNullOrEmpty(trial.tricksterStrategy) ? trial.profile : trial.tricksterStrategy;
@@ -77,7 +77,12 @@ public sealed class ExplorationTrialObserver : IDisposable
         input.SetInputProvider(bot);
         manager.OnGameOver += OnGameOver;
         if (ability != null) ability.OnPropActivated += OnActivated;
-        if (scan != null) scan.OnScanPerformed += OnScan;
+        if (scan != null)
+        {
+            result.scanEvidenceVersion = 1;
+            scan.OnScanPerformed += OnScan;
+            scan.OnScanResult += OnScanResult;
+        }
         if (gate != null) { gate.OnStateChanged += OnPossession; gate.OnAnchorChanged += OnAnchorChanged; }
         if (combo != null) combo.OnComboChanged += OnCombo;
         GameplayEventBus.OnBouncyPlatformLaunched += OnLaunch;
@@ -222,17 +227,33 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         if (Finished || prop == null) return;
         result.controlAccepted++;
-        MarkActivation(prop.GetTransform().gameObject, "control accepted");
+        var source = prop.GetTransform().gameObject;
+        var probe = source.GetComponentInParent<ExplorationContactProbe>();
+        var evidence = probe != null ? result.coverage.Find(e => e.mechanism == probe.mechanism) : null;
+        if (evidence != null) evidence.controlsAccepted++;
+        MarkActivation(source, "control accepted");
     }
     private void OnLaunch(GameplayEventBus.BouncyPlatformLaunchedPayload p)
     {
         if (Finished) return;
         if (mario != null && p.target == mario.gameObject)
-        { result.runnerBounceLaunches++; Event("runner bounce launched velocity=" + p.launchVelocity); }
+        {
+            result.runnerBounceLaunches++;
+            var probe = p.platform != null ? p.platform.GetComponentInParent<ExplorationContactProbe>() : null;
+            var evidence = probe != null ? result.coverage.Find(e => e.mechanism == probe.mechanism) : null;
+            if (evidence != null) evidence.runnerEffects++;
+            Event("runner bounce launched velocity=" + p.launchVelocity);
+        }
         MarkActivation(p.platform, "bounce launch");
     }
     private void OnTrap(GameplayEventBus.TrapTriggeredPayload p) => MarkActivation(p.source, "trap event");
     private void OnScan() { if (!Finished) { result.scans++; Event("scan performed"); } }
+    private void OnScanResult(bool hit)
+    {
+        if (Finished || disposed) return;
+        if (hit) result.scanHits++; else result.scanMisses++;
+        Event(hit ? "scan hit: disguised target detected (not proof of damage prevented)" : "scan miss: no disguised target detected");
+    }
     private void OnPossession(TricksterPossessionState state)
     {
         if (Finished || state != TricksterPossessionState.Possessing) return;
@@ -254,7 +275,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (Finished) return;
         result.lootEvents++;
         var e = result.coverage.Find(v => v.mechanism == "o");
-        if (e != null) e.activations++;
+        if (e != null) { e.activations++; e.runnerEffects++; }
         Event("loot collected");
     }
     private void OnEscape() { if (!Finished) { result.escapeEvents++; Event("escape"); } }
@@ -276,7 +297,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         disposed = true;
         if (manager != null) manager.OnGameOver -= OnGameOver;
         if (ability != null) ability.OnPropActivated -= OnActivated;
-        if (scan != null) scan.OnScanPerformed -= OnScan;
+        if (scan != null) { scan.OnScanPerformed -= OnScan; scan.OnScanResult -= OnScanResult; }
         if (gate != null) { gate.OnStateChanged -= OnPossession; gate.OnAnchorChanged -= OnAnchorChanged; }
         if (combo != null) combo.OnComboChanged -= OnCombo;
         GameplayEventBus.OnBouncyPlatformLaunched -= OnLaunch;

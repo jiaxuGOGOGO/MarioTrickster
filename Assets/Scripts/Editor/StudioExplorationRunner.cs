@@ -148,7 +148,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions && replay == null ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S159", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
+        report = new Report { toolRevision = "S160", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, scenarios = scenarios,
             physicsConfigJson = ConfigJson("PhysicsConfig"), gameplayConfigJson = ConfigJson("GameplayLoopConfig"),
             unsupportedRegistry = MechanismExplorationPlan.MissingFromCatalog(AsciiElementRegistry.GetDefault().GetAllRegisteredChars()) };
@@ -463,10 +463,17 @@ public static class StudioExplorationRunner
         sb.AppendLine("尚无完成记录的场景: " + string.Join(", ", data.scenarios.Where(s => !attempted.Contains(s.id)).Select(s => s.id)));
         sb.AppendLine("没有有效试玩证据的场景: " + string.Join(", ", data.scenarios
             .Where(s => !data.trials.Any(t => t.scenarioId == s.id && t.HasGameplayEvidence)).Select(s => s.id)));
+        sb.AppendLine("本批未规划的19机制目录项: " + string.Join(", ", MechanismExplorationPlan.Catalog.Where(c => !data.scenarios.Any(s => (s.mechanisms ?? "").Contains(c))).Select(c => c.ToString())));
+        sb.AppendLine("最低探针观察不等于行为通过：被动/自主机制不要求操控激活；接触后仍须验证下列行为、反制和恢复。确认局是相关复测，不计独立样本。");
         foreach (char mechanism in MechanismExplorationPlan.Catalog)
         {
-            var evidence = data.trials.SelectMany(t => t.coverage).Where(e => e.mechanism == mechanism.ToString()).ToArray();
-            sb.AppendLine($"{mechanism}: built={evidence.Sum(e => e.built)}, approachedTrials={evidence.Count(e => e.approached)}, contacts={evidence.Sum(e => e.contacts)} (runner={evidence.Sum(e => e.runnerContacts)}, trickster={evidence.Sum(e => e.tricksterContacts)}), activations={evidence.Sum(e => e.activations)}");
+            sb.AppendLine($"{mechanism} 专项验收: {MechanismExplorationPlan.BehaviorRequirement(mechanism.ToString())}");
+            for (int pass = 1; pass <= 2; pass++)
+            {
+                var evidence = data.trials.Where(t => pass == 1 ? t.attempt <= 1 : t.attempt == 2)
+                    .SelectMany(t => t.coverage).Where(e => e.mechanism == mechanism.ToString()).ToArray();
+                sb.AppendLine($"{mechanism} {(pass == 1 ? "first-pass" : "confirmation")}: built={evidence.Sum(e => e.built)}, approachedTrials={evidence.Count(e => e.approached)}, contacts={evidence.Sum(e => e.contacts)} (runner={evidence.Sum(e => e.runnerContacts)}, trickster={evidence.Sum(e => e.tricksterContacts)}), activations={evidence.Sum(e => e.activations)} (legacy mixed events), controlsAccepted={evidence.Sum(e => e.controlsAccepted)}, runnerEffects={evidence.Sum(e => e.runnerEffects)}, observationGaps={evidence.Count(e => e.ObservationGap)}");
+            }
         }
         foreach (var trial in data.trials)
         {
@@ -482,6 +489,9 @@ public static class StudioExplorationRunner
             if (!string.IsNullOrEmpty(trial.comparison)) sb.AppendLine(trial.comparison);
             foreach (var item in trial.timeline) sb.AppendLine("  event: " + item);
             sb.AppendLine($"scan={trial.scans}, possession={trial.possessions}, combo={trial.comboEvents}, heat={trial.heatEvents}, loot={trial.lootEvents}, escape={trial.escapeEvents}, crisis={trial.crises}, reveal={trial.reveals}");
+            sb.AppendLine(trial.scanEvidenceVersion >= 1
+                ? $"scan hits={trial.scanHits}, misses={trial.scanMisses}; result callbacks only. Hit is a detected disguise, not proof of damage prevented."
+                : "扫描结果未记录；不可从施放数或reveals总线补算命中。请在新批次采集。");
             sb.AppendLine($"route degraded={trial.routeDegradations}, recovered={trial.routeRecoveries}, guard={trial.routeBlocks}. Zero means not observed, NOT passed.");
             sb.AppendLine("Static hints: " + trial.validation);
             foreach (var e in trial.coverage) sb.AppendLine($"  {e.mechanism}: {e.Status}; observed phases={string.Join(",", e.phases)}");

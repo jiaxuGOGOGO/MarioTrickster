@@ -52,9 +52,10 @@ public static class ExplorationSceneBuilder
         }
         if (scenario.version >= 3 && !string.IsNullOrEmpty(scenario.experience))
         {
-            AddRouteSign(root, new Vector2(8, 5.5f), "UPPER: jump the steps\nLonger route, avoid the ambush");
-            AddRouteSign(root, new Vector2(23, 7f), "LOWER: watch the yellow warning\nQ scan / wait for recovery / detour");
-            AddRouteSign(root, new Vector2(38, 3f), scenario.lootEscape ? "TAKE LOOT\nReturn LEFT to escape" : "EXIT >");
+            AddRouteSign(root, new Vector2(8, 5.5f), "CHOOSE: UPPER / LOWER\nUpper: more jumps, avoid the lower ambush");
+            AddRouteSign(root, new Vector2(23, 7f), "LOWER: shorter, but exposed\nYellow warning: Q scan / retreat / wait for recovery");
+            AddRouteSign(root, new Vector2(38, 3f), scenario.lootEscape ? "TAKE LOOT\nReturn LEFT: choose your route again" : "EXIT >");
+            AddRouteSign(root, new Vector2(4, 3f), scenario.lootEscape ? "ESCAPE <\nBring the loot back here" : "Q scan uses a cooldown\nSave it or reveal early?");
         }
         if (instrument)
         {

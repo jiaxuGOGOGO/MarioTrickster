@@ -5,6 +5,72 @@ using UnityEngine;
 /// <summary>Editor-side integration contracts; actual scene/playmode cycling still needs Unity execution.</summary>
 public class ExplorationIntegrationContractTests
 {
+    [TestCase("B")]
+    [TestCase("C")]
+    [TestCase("-")]
+    [TestCase("F")]
+    [TestCase("<")]
+    [TestCase("X")]
+    [TestCase("o")]
+    [TestCase("H")]
+    [TestCase(">")]
+    [TestCase("^")]
+    [TestCase("~")]
+    [TestCase("P")]
+    [TestCase("[")]
+    [TestCase("]")]
+    [TestCase("E")]
+    [TestCase("e")]
+    [TestCase("@")]
+    [TestCase("f")]
+    [TestCase("S")]
+    public void EveryMechanismProbeBuildsRealRegisteredComponents(string symbol)
+    {
+        GameObject root = null;
+        try
+        {
+            var scenario = MechanismExplorationPlan.Build(153, symbol);
+            root = AsciiLevelGenerator.GenerateFromTemplate(scenario.ascii, false, false);
+            Assert.IsNotNull(root);
+            var entry = AsciiElementRegistry.GetDefault().GetEntry(symbol[0]);
+            Assert.IsNotNull(entry);
+            Assert.IsNotEmpty(entry.componentTypeNames);
+            // Registry may include native components (FlyingEnemy requires Rigidbody2D).
+            var components = root.GetComponentsInChildren<Component>(true);
+            foreach (string expectedType in entry.componentTypeNames)
+                Assert.IsTrue(System.Array.Exists(components, c => c != null && c.GetType().Name == expectedType),
+                    symbol + " must build actual " + expectedType + "; ASCII alone is not evidence");
+        }
+        finally { if (root != null) Object.DestroyImmediate(root); }
+    }
+
+    [Test]
+    public void BaiterPreparesDuringApproachButOnlyRequestsAtRealProximity()
+    {
+        bool armed = false; float remaining = 0f;
+        Assert.IsFalse(HeuristicBotInputProvider.StepBaiterWindow(ref armed, ref remaining, 5, true, 8, 0.1f, 0.5f));
+        Assert.IsTrue(armed);
+        Assert.IsFalse(HeuristicBotInputProvider.StepBaiterWindow(ref armed, ref remaining, 3, true, 8, 0.6f, 0));
+        Assert.AreEqual(0, remaining, "Preparation may finish without firing early");
+        Assert.IsFalse(HeuristicBotInputProvider.StepBaiterWindow(ref armed, ref remaining, 2, true, 8, 0.1f, 0));
+        Assert.IsTrue(HeuristicBotInputProvider.StepBaiterWindow(ref armed, ref remaining, 1.9f, true, 8, 0.1f, 0));
+        Assert.IsFalse(armed, "New shot requires a fresh reaction");
+    }
+
+    [TestCase(7f, true, 8f)]
+    [TestCase(4f, false, 8f)]
+    [TestCase(4f, true, -8f)]
+    [TestCase(4f, true, 0f)]
+    public void BaiterCancelsPreparationWhenRunnerLeavesOrChangesLane(float distance, bool sameHeight, float speed)
+    {
+        bool armed = true; float remaining = 0f;
+        Assert.IsFalse(HeuristicBotInputProvider.StepBaiterWindow(ref armed, ref remaining, distance, sameHeight, speed, 0.1f, 0.5f));
+        Assert.IsFalse(armed); Assert.AreEqual(0, remaining);
+        Assert.IsFalse(HeuristicBotInputProvider.StepBaiterWindow(ref armed, ref remaining, 1, true, 8, 0.1f, 0.5f));
+        Assert.IsFalse(HeuristicBotInputProvider.StepBaiterWindow(ref armed, ref remaining, 1, true, 8, 0.2f, 0));
+        Assert.IsTrue(HeuristicBotInputProvider.StepBaiterWindow(ref armed, ref remaining, 1, true, 8, 0.4f, 0));
+    }
+
     private static float Decision(HeuristicBotInputProvider bot)
     {
         var method = typeof(HeuristicBotInputProvider).GetMethod("DecisionRange", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -128,6 +194,31 @@ public class ExplorationIntegrationContractTests
             ExplorationContactProbe.Contact -= handler;
             Object.DestroyImmediate(source); Object.DestroyImmediate(other);
         }
+    }
+
+    [Test]
+    public void TypedReportKeepsFirstPassAndConfirmationEffectsSeparate()
+    {
+        var report = new StudioExplorationRunner.Report {
+            scenarios = MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Smoke)
+        };
+        foreach (int attempt in new[] { 1, 2 })
+        {
+            var trial = new MechanismExplorationPlan.Trial { attempt = attempt, scanEvidenceVersion = 1,
+                scans = 1, scanHits = attempt == 1 ? 0 : 1, scanMisses = attempt == 1 ? 1 : 0 };
+            trial.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = "B", observationVersion = 1,
+                built = 1, activations = 1, runnerEffects = attempt == 1 ? 0 : 1 });
+            report.trials.Add(trial);
+        }
+        string summary = StudioExplorationRunner.BuildSummary(report);
+        StringAssert.Contains("B first-pass: built=1", summary);
+        StringAssert.Contains("B confirmation: built=1", summary);
+        StringAssert.Contains("runnerEffects=0, observationGaps=1", summary);
+        StringAssert.Contains("runnerEffects=1, observationGaps=0", summary);
+        StringAssert.Contains("scan hits=0, misses=1", summary);
+        StringAssert.Contains("确认局是相关复测", summary);
+        StringAssert.Contains("本批未规划的19机制目录项:", summary);
+        StringAssert.Contains("不是已修复", MechanismExplorationPlan.CompareConfirmation(report.trials[0], report.trials[1]));
     }
 
     [Test]

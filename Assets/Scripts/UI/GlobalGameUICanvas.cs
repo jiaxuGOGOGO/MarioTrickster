@@ -50,6 +50,7 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
     private Text gameOverTitleText;
     private Text gameOverScoreText;
     private Text gameOverHintText;
+    private Text gameOverLearningText;
 
     private Text heatText;
     private Text heatCooldownText;
@@ -85,7 +86,6 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
 
     private float abilityFailTimer;
     private string abilityFailMessage = string.Empty;
-    private float gameOverBlinkTimer;
     private bool showGameOver;
     private string gameOverWinner = string.Empty;
     private string gameOverMessage = string.Empty;
@@ -217,7 +217,7 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         roundInfoText = CreateText("RoundInfoText", root, "Round --", 24, Color.white, TextAnchor.MiddleRight);
         SetRect(roundInfoText.rectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -34f), new Vector2(620f, 48f), new Vector2(1f, 1f));
 
-        controlsText = CreateText("ControlsText", root, "P1(Mario): WASD + Space | P2(Trickster): Arrows + P/O/I/L\nESC: Pause | F5: Restart", 16, new Color(1f, 1f, 1f, 0.55f), TextAnchor.LowerLeft);
+        controlsText = CreateText("ControlsText", root, "P1: WASD + Space / Q Scan | P2: Arrows + P/O/I/L\nReach the goal / Stop the runner | ESC: Pause | F5: Retry", 16, new Color(1f, 1f, 1f, 0.55f), TextAnchor.LowerLeft);
         SetRect(controlsText.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 24f), new Vector2(660f, 80f), new Vector2(0f, 0f));
 
         abilityFailText = CreateText("AbilityFailText", root, string.Empty, 24, new Color(1f, 0.5f, 0.3f), TextAnchor.MiddleCenter);
@@ -258,8 +258,10 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         SetRect(gameOverTitleText.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, new Vector2(0.5f, 0.5f));
         gameOverScoreText = CreateText("ScoreText", overlay, "", 30, Color.white, TextAnchor.MiddleCenter);
         SetRect(gameOverScoreText.rectTransform, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, -100f), new Vector2(0f, 48f), new Vector2(0.5f, 0.5f));
-        gameOverHintText = CreateText("HintText", overlay, "Press  R  to Restart   |   Press  N  for Next Round", 26, Color.white, TextAnchor.MiddleCenter);
-        SetRect(gameOverHintText.rectTransform, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, -152f), new Vector2(0f, 48f), new Vector2(0.5f, 0.5f));
+        gameOverLearningText = CreateText("LearningText", overlay, "", 24, new Color(0.85f, 0.92f, 1f), TextAnchor.MiddleCenter);
+        SetRect(gameOverLearningText.rectTransform, new Vector2(0.1f, 0.5f), new Vector2(0.9f, 0.5f), new Vector2(0f, -164f), new Vector2(0f, 70f), new Vector2(0.5f, 0.5f));
+        gameOverHintText = CreateText("HintText", overlay, "R / F5: Retry from scratch   |   N: Next round", 26, Color.white, TextAnchor.MiddleCenter);
+        SetRect(gameOverHintText.rectTransform, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, -240f), new Vector2(0f, 48f), new Vector2(0.5f, 0.5f));
         gameOverOverlay.SetActive(false);
     }
 
@@ -484,7 +486,6 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
     private void TickTimers()
     {
         if (abilityFailTimer > 0f) abilityFailTimer -= Time.unscaledDeltaTime;
-        if (showGameOver) gameOverBlinkTimer += Time.unscaledDeltaTime;
         if (lockdownFlashTimer > 0f) lockdownFlashTimer -= Time.deltaTime;
         if (comboBreakTimer > 0f) comboBreakTimer -= Time.deltaTime;
         if (comboHitTimer > 0f) comboHitTimer -= Time.deltaTime;
@@ -544,10 +545,12 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         gameOverBanner.color = gameOverWinner == "Mario" ? new Color(0.8f, 0.2f, 0.2f, 0.6f) : new Color(0.2f, 0.3f, 0.8f, 0.6f);
         if (GameManager.Instance != null)
         {
-            gameOverScoreText.text = $"Score: Mario {GameManager.Instance.MarioWins} - Trickster {GameManager.Instance.TricksterWins}  |  Round {GameManager.Instance.CurrentRound}";
+            var gm = GameManager.Instance;
+            gameOverScoreText.text = $"{gm.RoundElapsed:F1}s  |  Mario {gm.MarioWins} - Trickster {gm.TricksterWins}  |  Round {gm.CurrentRound}";
+            gameOverLearningText.text = gm.LastRoundReason;
         }
-        float blinkAlpha = Mathf.PingPong(gameOverBlinkTimer * 2f, 1f) * 0.6f + 0.4f;
-        gameOverHintText.color = new Color(1f, 1f, 1f, blinkAlpha);
+        // A stable prompt is readable; failure is feedback, not an attention alarm.
+        gameOverHintText.color = Color.white;
     }
 
     private void RefreshHeatFromMeter()
@@ -737,7 +740,6 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         showGameOver = true;
         gameOverWinner = winner;
         gameOverMessage = winner == "Mario" ? "MARIO WINS!" : "TRICKSTER WINS!";
-        gameOverBlinkTimer = 0f;
     }
 
     private void HandleGameStateChanged(GameState newState)

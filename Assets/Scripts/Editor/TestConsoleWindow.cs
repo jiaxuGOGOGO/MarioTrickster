@@ -112,7 +112,7 @@ public partial class TestConsoleWindow : EditorWindow
 
     // S26b: Custom Template Editor + Snippet Library 状态
     private bool showCustomTemplateEditor = true;
-    private string customAsciiTemplate = "";
+    [SerializeField] private string customAsciiTemplate = "";
     private string _backupAsciiTemplate = ""; // AI Auto-Healer 撤销备份
     private bool showSnippetLibrary = false;
     private int selectedSnippetIndex = 0;
@@ -156,11 +156,14 @@ public partial class TestConsoleWindow : EditorWindow
     private void OnEnable()
     {
         EditorApplication.playModeStateChanged += OnPlayModeChanged;
+        RestoreStudioDraft();
     }
 
     private void OnDisable()
     {
         EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+        Undo.undoRedoPerformed -= OnStudioUndo;
+        SaveStudioDraft();
     }
 
     private void OnPlayModeChanged(PlayModeStateChange state)
@@ -220,6 +223,19 @@ public partial class TestConsoleWindow : EditorWindow
         EditorGUILayout.EndHorizontal();
 
         EditorGUILayout.Space(4);
+        bool advanced = GUILayout.Toolbar(studioAdvanced ? 1 : 0,
+            new[] { "创作与试玩", "高级工具（原工作台）" }, GUILayout.Height(28)) == 1;
+        if (advanced != studioAdvanced)
+        {
+            studioAdvanced = advanced;
+            scrollPos = Vector2.zero;
+            SaveStudioDraft();
+        }
+        if (!studioAdvanced)
+        {
+            DrawCreationFlow();
+            return;
+        }
 
         // ── S41/S57c: Picking + Size Sync Toolbar ──
         // Root 模式(默认): 点击/框选最终只选 Root，适合移动/旋转/批量摆放

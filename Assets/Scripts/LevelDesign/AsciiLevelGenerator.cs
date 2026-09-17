@@ -207,6 +207,14 @@ public static class AsciiLevelGenerator
                 continue;
             }
 
+            // Design intent is documentation, never terrain. Preserve Override handling above.
+            if (trimmedStart.StartsWith("# MainRoute:", StringComparison.Ordinal) ||
+                trimmedStart.StartsWith("# ShadowRoute:", StringComparison.Ordinal) ||
+                trimmedStart.StartsWith("# TrapRoles:", StringComparison.Ordinal) ||
+                trimmedStart.StartsWith("# Budget:", StringComparison.Ordinal) ||
+                trimmedStart.StartsWith("# TestGoal:", StringComparison.Ordinal))
+                continue;
+
             if (!string.IsNullOrWhiteSpace(line))
             {
                 gridLines.Add(line);

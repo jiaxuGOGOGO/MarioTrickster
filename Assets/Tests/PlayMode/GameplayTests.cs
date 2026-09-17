@@ -535,6 +535,86 @@ public class GameplayTests
         Object.Destroy(spawnPoint);
     }
 
+    [UnityTest]
+    public IEnumerator GameManager_RoundFeedback_IsStableAndResetsForNextAttempt()
+    {
+        GameObject gmGO = new GameObject("FeedbackGM");
+        GameObject marioGO = CreateTestMario(new Vector3(4, 2, 0));
+        GameManager gm = gmGO.AddComponent<GameManager>();
+        try
+        {
+            yield return null;
+            yield return null;
+            float elapsed = gm.RoundElapsed;
+            Assert.GreaterOrEqual(elapsed, 0f);
+            Vector3 endPosition = marioGO.transform.position;
+            gm.EndRound("Mario", "Test route cleared");
+            Assert.AreEqual("Test route cleared", gm.LastRoundReason);
+            Assert.AreEqual(endPosition, gm.LastRoundPosition);
+            Assert.AreEqual(1, gm.MarioWins);
+            gm.EndRound("Trickster", "Must not overwrite");
+            yield return null;
+            Assert.AreEqual(elapsed, gm.RoundElapsed);
+            Assert.AreEqual("Test route cleared", gm.LastRoundReason);
+            Assert.AreEqual(0, gm.TricksterWins);
+            gm.StartGame();
+            Assert.AreEqual(0f, gm.RoundElapsed);
+            Assert.IsEmpty(gm.LastRoundReason);
+        }
+        finally
+        {
+            Object.Destroy(gmGO);
+            Object.Destroy(marioGO);
+            Time.timeScale = 1f;
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator GameManager_PausedTimeDoesNotCountAsAttemptTime()
+    {
+        GameObject gmGO = new GameObject("PauseFeedbackGM");
+        GameManager gm = gmGO.AddComponent<GameManager>();
+        try
+        {
+            yield return null;
+            gm.TogglePause();
+            float elapsed = gm.RoundElapsed;
+            yield return new WaitForSecondsRealtime(0.05f);
+            Assert.AreEqual(elapsed, gm.RoundElapsed);
+            gm.ResetRound();
+            Assert.AreEqual(1f, Time.timeScale, "Restarting from pause must restore time");
+            Assert.AreEqual(GameState.Playing, gm.CurrentState);
+        }
+        finally { Object.Destroy(gmGO); Time.timeScale = 1f; }
+    }
+
+#if UNITY_EDITOR
+    [UnityTest]
+    public IEnumerator GameManager_EditorRetryUsesBridgeEvenForUnsavedScenes()
+    {
+        GameObject gmGO = new GameObject("RetryGM");
+        GameManager gm = gmGO.AddComponent<GameManager>();
+        var previous = GameManager.EditorRestartHandler;
+        int requests = 0;
+        try
+        {
+            yield return null;
+            GameManager.EditorRestartHandler = () => { requests++; return true; };
+            Time.timeScale = 0f;
+            gm.RestartLevel();
+            Assert.AreEqual(1, requests);
+            Assert.AreEqual(1f, Time.timeScale);
+            Assert.IsNotNull(gm, "Bridge must run before any scene load");
+        }
+        finally
+        {
+            GameManager.EditorRestartHandler = previous;
+            Object.Destroy(gmGO);
+            Time.timeScale = 1f;
+        }
+    }
+#endif
+
     // ═══════════════════════════════════════════════════════
     // 8. 暂停/继续测试
     // ═══════════════════════════════════════════════════════

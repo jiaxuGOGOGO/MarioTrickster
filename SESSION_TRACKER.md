@@ -91,14 +91,35 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 151（AI 博弈机制接入 — 热度/连锁/骗技能/强扫描） |
-| **日期** | 2026-05-17 |
-| **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — AI 大脑接入博弈机制：Trickster 热度 Lockdown 逃跑 + 连锁追击，Mario 骗技能后退 + 强扫描条件判断。 |
-| **编译状态** | 🔄 本次修改 HeuristicBotInputProvider.cs（+168行），需用户本地 Unity 编译验证。 |
-| **阻塞** | 无 |
-| **交接说明** | S151 重塑 AI 大脑接入博弈机制：(1) Trickster 读取 HeatMeter，Lockdown 时强制解除附身反向逃跑；(2) Trickster 读取 PropComboTracker，连锁窗口内寻找不同类型锚点加速攻击；(3) Mario 遇 Telegraph 预警后退骗技能；(4) Mario 强扫描加入"附近有锚点"前置条件。新增 MarioIntent/TricksterIntent 字段实时反映 AI 意图。 |
+| **最新 Session** | Session 152（体验优先：可视化创作 → 安全试玩 → 结果反馈 → 再修改） |
+| **日期** | 2026-09-17 |
+| **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
+| **阶段** | 首轮核心体验重构已编码：默认可视化关卡工作台、三个起步房间、角色选择试玩、草稿保护与反馈闭环。并非全产品优化验收完成。 |
+| **编译状态** | C#9 Roslyn 语法检查通过（157 个 Editor 配置文件 / 103 个运行时配置文件）；25 项文档模型 NUnit 测试在 .NET + Unity 类型适配下通过。非 Unity 语义编译或实机验证。 |
+| **阻塞** | 沙盒没有 Unity 2022.3.61f1；新增 3 项 PlayMode 测试、完整 Test Runner、鼠标交互与玩法手感仍需本地验证。 |
+| **交接说明** | Ctrl+T 默认进入“创作与试玩”；旧 ASCII / 美术 / 调参 / AI Arena 在“高级工具”保留。生成画布先提示保存，再开独立练习场；手工场景请用“试玩当前场景”。F5/R 在编辑器通过完整 Stop/Play 重试，不再使用 buildIndex=-1；该重试仍有 Unity 重入耗时，不能宣称瞬时复活。 |
 
+
+### [S152] 体验优先重构与验证边界
+
+**第一性原则**：乐趣来自“目标清楚、能做选择、反馈可理解、很快有机会改进”。创作者需要安全试错与作品所有权；游玩者需要公平可读的挑战与自主停止。此次优先减少操作阻力，不添加签到、随机奖励或强制自动连局。
+
+1. **可视化成为默认入口**：`TestConsoleWindow.CreationFlow` 使用现有 Registry 的色块画布与元素库；左键拖画、右键/Shift 擦除、Alt 吸取、整笔 Undo。角色与终点标记是移动而非复制。最大 128×48，支持向右/向上扩画布，底部世界坐标不移动。原高级工作台和美术管线保留。
+2. **保护源稿与场景**：`customAsciiTemplate` 加 SerializeField，按项目路径隔离的 EditorPrefs 自动恢复草稿，提供 .txt 导入导出。草稿不是云端存档；想随 Git 保存，须导出到仓库并提交。生成用独立新场景；原场景的保存选择由用户决定，绝不后台覆盖。画布与手工场景是两种明确的来源，不做不可靠的双向自动同步。
+3. **三个短房间**：初次跳跃 / 读懂陷阱 / 双路博弈，均为 32×9，包含 M/T/G、出生缓冲和单一测试目标。布局结构与标记已测；并未经过 Unity 物理可达性或真人乐趣验收。
+4. **试玩闭环**：选择人类闯关 / 人类捣蛋 / 本地双人；复用 HybridInputProvider，F1/F2 仍可接管。SessionState 跨 Domain Reload 保存本版的尝试、通过、受阻、未完成、耗时、结束坐标和最快通过。主动退出不计失败；新画布或不同角色模式单独统计。结束位置不等于精确死因；作弊/中途接管的数据不是认证成绩。
+5. **安全重试而非假复位**：编辑器 F5/R 使用独立的 LevelStudioPlaySession 回调，完整退出再进入 Play，恢复未保存场景和被 Destroy 的金币/敌人。不用不完整的 ResetRound 冒充完整重试。需要启用 Reload Scene；工具只提示，不修改项目设置。N 保留原来的下一回合语义，不保证恢复所有可销毁物。正式构建使用场景路径重载，无法加载时明确告警。
+6. **游玩反馈**：GameManager 提供实际游玩耗时（暂停不计时）、结束原因与坐标；UGUI 结算展示时间与下一次尝试建议，取消持续闪烁的重开提示。Stage 7 路牌已同步。没有改变角色物理参数、碰撞尺寸、附身规则或美术资产。
+7. **兼容修复**：生成器跳过 MainRoute/ShadowRoute/TrapRoles/Budget/TestGoal 元数据行，避免把设计注释生成成地形；Override 行原处理保留，画布编辑保留元数据。
+8. **已执行**：25 项 LevelStudioDocumentTests 在真实 C# 文档代码 + 默认 Registry 代码上通过（.NET/NUnitLite；Unity 类型、Resources 与碰撞尺寸是适配占位，不验证引擎）；`syntax_check.py` 157 文件零错误；Roslyn C#9 按 Editor/Player 编译范围语法检查零错误；`Tools/static_art_pipeline_check.py` 通过；`git diff --check` 通过。
+9. **尚未执行**：Unity 全项目语义编译、真实 EditMode/PlayMode Test Runner、窗口布局/Undo/焦点/未保存场景往返/三种人机模式/域重载开关组合，以及双人可玩性与关卡节奏。下一轮应先测这些，而不是继续堆机制。
+
+**参考与采用的部分**：
+- Nintendo 官方 Mario Maker 2 工具建议（常用元素与机制组合）：https://play.nintendo.com/news-tips/tips-tricks/super-mario-maker-2-tips-tricks/
+- Ultimate Chicken Horse 开发者的建造—游玩循环案例：https://www.cleverendeavourgames.com/blog/2019/8/19/ultimate-mario-maker-chicken-horse
+- Celeste 关卡工具与迭代过程的 GDC 设计分享：https://www.gdcvault.com/play/1024307/Level-Design-Workshop-Designing-Celeste
+
+**本地验收路径**：Unity 2022.3.61f1 → Ctrl+T → 初次跳跃 → 画一段地面并 Undo/Redo → 导出/导入 → 搭建并试玩 → F5（测试未保存的场景）→ 返回修改 → 检查报告和草稿 → 修改一格再试玩，确认新版本单独计数。再测试双路博弈的两种人机角色，最后跑全部 EditMode/PlayMode 测试。
 
 ### [S151] 最新知识沉淀
 1. **Trickster Lockdown 逃跑**：读取 `TricksterHeatMeter.CurrentTier`，当热度达到 `Lockdown` 时强制 `p2DisguiseDown=true` 解除附身，并以 Mario 反方向全速逃跑 + 跳跃，持续到热度降为非 Lockdown。Intent="[Fleeing! High Heat]"。
@@ -433,6 +454,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 ## 2. 回归验证清单
 
+**S152 待本地回归**：新增 LevelStudioDocumentTests（25 个案例）与 GameplayTests 中反馈稳定性、暂停计时、EditorRetryBridge 三项；重点复测测试 7 胜负 UI、测试 8 暂停、Ctrl+T、草稿 Undo/导入导出、独立预览场景、F5/R 和高级工具。沙盒模型测试通过不替代 Unity Test Runner。
+
 > 用户测试时逐项快速验证。AI 修复代码后只需在此标记受影响项。
 >
 > **S74 说明**：本次为美术教程蒸馏落库（テレコム《アニメーション・バイブル》），**未改动运行时代码**；下表状态保持不变。新增30条规则主要影响未来美术资产生产。核心影响：動画16条(振り向き立体意識/各種歩き・走りバリエーション/カメラワーク)はsprite sheetアニメーション生産に直結、透過光法則はTrickster幽霊形態に直結、マルチプレーンカメラはUnity Parallaxに直结、画面動はボス戦VFXに直結。冲突仲裁0条：全規則既有と補完関係。
@@ -499,6 +522,10 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **最高** | **S152 核心创作闭环**：可视化画布、源稿保护、三个起步房间、选择角色试玩、结果位置反馈与安全重试。 | 已编码并推送 PR #2；等待 Unity 实机验收 |
+| **最高** | **S152 真实体验验收**：跑新增测试和全量回归；分别由创作者和两方玩家验证首次开玩时间、修改到试玩耗时、失败解释是否明确、是否愿意主动再试。 | 待本地执行；不以代码数量或游玩时长代替乐趣 |
+| **高** | **下一轮优化由实测驱动**：先测 Unity 重入延迟与关卡公平性，再决定检查点轻量重试、片段拖拼、双向场景编辑、音画反馈、正式作品发布与真人平衡调整。 | 尚未实施；不能将本轮称为全产品完成 |
+
 | **高** | **Context-Aware Visualizer 智能降噪**：Show Gameplay Boxes 开启时未选中对象 Alpha=0.1，真实选中对象才高亮；Jump Arc 仅在选中 Mario/BouncyPlatform 时完整渲染，降低 Scene 视图噪音。 | ✅ 已完成（S146，待用户 Unity Scene 视图验证） |
 | **最高** | **四段白盒验证灰盒**：基于原型 B `[`、原型 C `]` 与既有拿宝撤离/扫描危机服务，新增 `S2_Validation_1_Demo` → `S2_Validation_4_Combat`，用于按“演示→干扰→反制→实战”验证完整游戏循环。 | ✅ 已完成（S145，待用户 Unity 生成体验） |
 | **最高** | **整体玩法循环测试关卡一键生成**：按 Commit 0–6 设计循环新增 `MarioTrickster/Build Gameplay Loop Test Scene`，用于一次性验证路线预算、证据反制、连锁热度、拿宝撤离、扫描危机、Q 揭穿和终点闭环。 | 🔄 待用户生成并整体验证（S141） |

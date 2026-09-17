@@ -401,7 +401,7 @@ public class TestSceneBuilder : Editor
         GameObject stage7 = new GameObject("--- Stage 7: Win/Lose & UI ---");
 
         CreateStageSign(s7 + STAGE_WIDTH / 2f, "STAGE 7: WIN/LOSE & UI",
-            "Mario reach GoalZone -> Mario Wins\nMario fall to death -> Trickster Wins\nR/F5 = Fresh Retry | N = Next Round\nCheck: UGUI text/font, elapsed time, outcome reason\nAI batch: evidence verdict + bounded confirmation (not a fun score)",
+            "Mario reach GoalZone -> Mario Wins\nMario fall to death -> Trickster Wins\nR/F5 = Fresh Retry | N = Next Round\nCheck: UGUI text/font, elapsed time, outcome reason\nAbility feedback: text + backdrop fade together, including pause\nAI batch: evidence verdict + bounded confirmation (not a fun score)",
             stage7.transform);
 
         // S44: 简单敌人（用于测试 Mario 死亡）— 视碰分离 + groundLayer 设置

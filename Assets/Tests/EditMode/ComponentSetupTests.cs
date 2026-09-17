@@ -1039,6 +1039,77 @@ public class CameraControllerTests
             foreach (var text in texts) Assert.IsNotNull(text.font, text.name);
             Assert.AreEqual(RenderMode.ScreenSpaceOverlay, go.GetComponent<Canvas>().renderMode);
             Assert.IsNull(typeof(GameUI).GetMethod("OnGUI", flags), "Do not restore the retired IMGUI HUD");
+            // A font-only check would miss a partially built HUD after a later failure.
+            foreach (string panel in new[] { "AbilityFailPanel", "PauseOverlay", "GameOverOverlay", "HeatPanel",
+                "ScanWarningPanel", "ScanLinePanel", "ScanProgressPanel", "ScanHitPanel", "ComboPanel",
+                "RouteBudgetPanel", "InteractionLogPanel" })
+                Assert.IsNotNull(go.transform.Find("HUDRoot/" + panel), panel);
+            foreach (var graphic in go.GetComponentsInChildren<UnityEngine.UI.Graphic>(true))
+            {
+                Assert.AreEqual(1, graphic.GetComponents<UnityEngine.UI.Graphic>().Length, graphic.name);
+                Assert.IsFalse(graphic.raycastTarget, "HUD must not intercept input: " + graphic.name);
+            }
+            foreach (var field in typeof(GlobalGameUICanvas).GetFields(flags))
+            {
+                if (typeof(UnityEngine.UI.Graphic).IsAssignableFrom(field.FieldType) ||
+                    field.FieldType == typeof(RectTransform) || field.FieldType == typeof(GameObject))
+                    Assert.IsNotNull(field.GetValue(hud), "Unbound HUD field: " + field.Name);
+            }
+            int childCount = go.GetComponentsInChildren<Transform>(true).Length;
+            typeof(GlobalGameUICanvas).GetMethod("BuildHierarchy", flags).Invoke(hud, null);
+            Assert.AreEqual(childCount, go.GetComponentsInChildren<Transform>(true).Length, "Repeated build must not duplicate HUD nodes");
+        }
+        finally { Object.DestroyImmediate(go); }
+    }
+
+    [Test]
+    public void GlobalHUD_AbilityFeedback_ShowsFadesExpiresAndCanBeReused()
+    {
+        var go = new GameObject("TestAbilityFeedbackHUD");
+        try
+        {
+            var hud = go.AddComponent<GlobalGameUICanvas>();
+            const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+            typeof(GlobalGameUICanvas).GetMethod("ConfigureCanvas", flags).Invoke(hud, null);
+            typeof(GlobalGameUICanvas).GetMethod("BuildHierarchy", flags).Invoke(hud, null);
+            var refresh = typeof(GlobalGameUICanvas).GetMethod("RefreshAbilityFail", flags);
+            var timer = typeof(GlobalGameUICanvas).GetField("abilityFailTimer", flags);
+            var panel = go.transform.Find("HUDRoot/AbilityFailPanel");
+            Assert.IsNotNull(panel);
+            var background = panel.GetComponent<UnityEngine.UI.Image>();
+            var text = panel.Find("AbilityFailText").GetComponent<UnityEngine.UI.Text>();
+            Assert.IsFalse(panel.gameObject.activeSelf, "No blank background on startup");
+            Assert.IsNull(text.GetComponent<UnityEngine.UI.Image>());
+            Assert.IsNull(background.GetComponent<UnityEngine.UI.Text>());
+            Assert.IsFalse(text.raycastTarget);
+            Assert.IsFalse(background.raycastTarget);
+
+            hud.ShowAbilityFailFeedback("Not enough energy");
+            refresh.Invoke(hud, null);
+            Assert.IsTrue(text.gameObject.activeInHierarchy);
+            Assert.AreEqual("Not enough energy", text.text);
+            Assert.AreEqual(1f, text.color.a, 0.001f);
+            Assert.AreEqual(0.4f, background.color.a, 0.001f);
+            timer.SetValue(hud, 0.25f);
+            refresh.Invoke(hud, null);
+            Assert.AreEqual(0.5f, text.color.a, 0.001f);
+            Assert.AreEqual(0.2f, background.color.a, 0.001f);
+            timer.SetValue(hud, 0f);
+            refresh.Invoke(hud, null);
+            Assert.IsFalse(background.gameObject.activeInHierarchy);
+            Assert.IsFalse(text.gameObject.activeInHierarchy);
+            hud.ShowAbilityFailFeedback("Wait for cooldown");
+            refresh.Invoke(hud, null);
+            Assert.IsTrue(panel.gameObject.activeSelf);
+            Assert.AreEqual("Wait for cooldown", text.text);
+            Assert.AreEqual(1f, text.color.a, 0.001f);
+            Assert.AreEqual(0.4f, background.color.a, 0.001f);
+            foreach (var empty in new[] { "", null })
+            {
+                hud.ShowAbilityFailFeedback(empty);
+                refresh.Invoke(hud, null);
+                Assert.IsFalse(panel.gameObject.activeSelf, "Empty feedback must not show a floating backdrop");
+            }
         }
         finally { Object.DestroyImmediate(go); }
     }

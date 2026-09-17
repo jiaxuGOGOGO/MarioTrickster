@@ -91,14 +91,26 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 154（真实报告驱动：启动修复、物理回放校正、故障停批与有限反馈确认） |
+| **最新 Session** | Session 155（209/210 回归反馈：修复 UGUI Graphic 冲突，恢复完整 HUD 与失败提示生命周期） |
 | **日期** | 2026-09-17 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
-| **阶段** | 已读取用户 Unity 2022.3.31f1 报告：回归 196/202 通过，18/18 局 StartupFailed，零有效玩法证据。按根因修复代码；新增一轮最多 6 图×3画像的同条件确认，不自动改难度。 |
-| **编译状态** | 69 项 C# 模型 NUnit 测试通过；旧源码对照复现分类、时钟、假深坑 3 项失败，修复版 0 失败。165 Editor / 104 Player 文件通过 Roslyn C#9 语法检查，非 Unity 语义编译。 |
-| **阻塞** | 沙盒无 Unity Editor，修复后的全量 EditMode/PlayMode、10x 物理回放、字体 HUD、跨域确认/取消/原场景恢复与真人沉浸性尚未验收；不得写成 202 项全绿。 |
-| **交接说明** | 拉取同仓库 genspark_ai_developer（不是名为 MarioTrickster-genspark_ai_developer 的分支），仍更新 PR #2，不合并 master。保留 6790c29 及 ef55bc9 为祖先。Ctrl+T → 创作与试玩 → AI 自动搭建与覆盖测试 → 一键开始；快速档首轮18局，问题确认最多另18局。 |
+| **阶段** | 最新用户 Unity 2022.3.31f1 报告209/210通过；剩余1个HUD回归与2局启动失败同因（Text和Image挂在同一对象）。重复故障停批已实测生效，仍无有效试玩。本轮修复层级与提示显隐，保留有限确认流程。 |
+| **编译状态** | 71项C#模型检查通过（原69 + HUD构建/提示2项）；旧HUD代码在相同UGUI约束适配中复现2项空引用错误，修复版通过。Roslyn C#9 Editor165/Player104零语法错误，非Unity语义编译。 |
+| **阻塞** | 沙盒无Unity Editor；S155全量回归、真实HUD渲染/生命周期、暂停中提示消退，以及实际双AI试玩待本地重跑。209通过是用户旧报告，不代表本轮全绿。 |
+| **交接说明** | 用户已将ZIP项目接入Git，当前基线09e2d94；本轮保留该提交为祖先，继续genspark_ai_developer / PR #2，不合并master。关闭Unity并保护本地改动后pull --ff-only，seed153再次一键开始；首轮18局，确认最多另18局。 |
 
+
+### [S155] 最新报告：解决剩余 HUD 启动阻塞
+
+**输入证据**：`20260917_131816_788a7604.zip`，Unity2022.3.31f1，seed153，回归209通过/1失败。唯一失败为 `CameraControllerTests.GlobalHUD_BuildsTextWithBuiltinFont_WithoutLegacyOnGUI`；两局StartupFailed均指向 `GlobalGameUICanvas.BuildHierarchy:230`，日志明确报“同一GameObject只能包含一个Graphic”。批次正确标为Blocked，剩余16局未执行；仍不能判断玩法平衡。
+
+1. **根因修复**：`AbilityFailText` 已有Text时再AddComponent<Image>被UGUI拒绝，返回null后访问color导致异常。改为 `AbilityFailPanel(Image) → AbilityFailText(Text)`，保留原位置、尺寸与文字内边距，背景缓存为字段；不捕获吞错，不停用HUD来绕过。
+2. **反馈完整性**：统一由背景父节点控制显隐，启动无空背景；文字与背景同步淡出，到期一起隐藏；再次失败时显示新原因并恢复透明度，空消息不显示。双方都保持raycastTarget=false，不拦截交互；沿用unscaledDeltaTime，暂停期间也能正常消退。Stage7验收路牌同步。
+3. **回归加强**：原字体测试继续保留并检查所有后续面板、UI字段绑定、每对象一个Graphic、无射线拦截及重复构建不重复节点。新增EditMode提示显示/半透明/到期/复用/空消息契约，新增PlayMode真实Awake/Start/Update与暂停消退测试，测试恢复timeScale并清理自己创建的日志Sink。
+4. **已执行验证**：71项模型通过：原69项复跑通过；原样提取生产HUD构建/反馈方法及两项仓库EditMode测试，用有限UGUI适配强制“每对象一个Graphic”后2项通过。将HUD换回09e2d94，两项均复现BuildHierarchy空引用。模型不验证字体渲染、引擎生命周期、事件总线或Unity真实组件实现；新增PlayMode未执行。Roslyn C#9 Editor165/Player104、syntax_check、static_art_pipeline_check、git diff --check通过。
+5. **范围约束**：不改玩家物理、AI输入、关卡平衡、ProjectSettings、Packages或用户场景。保留S154故障停批与有限同条件复测；先取得有效对局，后续再按预警可读性、路线选择、后摇反制与失败解释优化体验。
+
+**下一步**：用户已完成Git接入，原项目保存并关闭Unity，必要时stash -u保存本地文件，pull --ff-only成功后恢复stash（冲突时停止）。检查最新提交，再以seed153运行一键流程；优先看HUD回归是否通过、有效试玩是否大于0，最后亲自确认提示显隐与暂停表现。不得把本轮模型通过写成Unity全量通过。
 
 ### [S154] 用户报告落地：先获得可信反馈，再优化沉浸体验
 
@@ -485,6 +497,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 ## 2. 回归验证清单
 
+**S155 待Unity重跑**：HUD全层级/引用/Graphic唯一性、失败文字与背景同步显隐/淡出/复用/空消息、真实PlayMode启动与暂停消退；随后seed153双AI首轮/有限确认与取消/原场景恢复。用户新报告已验证209项通过及两次故障停批，不能代替本轮重跑。
+
 **S154 待 Unity 重跑**：受影响项为 HUD 字体与旧 UI 契约、素材单状态预览、接触探针、机关五阶段/伤害窗口、S50/S51 跳坑与10x固定步首帧跳跃、普通键盘/双方AI/弹跳手感、L1深坑误报、18局首轮+最多18局确认、重复启动异常停批、配置变更保护、取消与场景恢复。用户旧报告196/202通过不代表修复后结果；沙盒69模型通过不替代本项。
 
 **S153 待 Unity 回归**：新增 MechanismExplorationPlanTests（24 案例，已在模型适配环境执行）与 ExplorationIntegrationContractTests（4 案例，待 Unity）。验证无人值守回归无中途弹窗、批次18局推进/停止/恢复、代码重编译中断、文件写入失败、双方控制与分层覆盖、报告重开与场景复现；再扩大到114/570局。
@@ -557,6 +571,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **最高** | **S155 HUD阻塞修复**：拆分Image父节点/Text子节点，完整构建与提示生命周期回归。 | 已编码，71项模型检查通过，待Unity全量及真实试玩 |
 | **最高** | **S154 报告根因修复与有限确认**：修复启动、测试契约与TAS时钟；故障停批，最多6张问题图同条件复测一次。 | 已编码；69项模型检查通过，待Unity完整重跑 |
 | **最高** | **S154 下一轮真实玩法证据**：先确认有效试玩数，再查看覆盖/激活/复测不稳定和真人反制体验。 | 旧批次18局均未启动，不能用于平衡；等待修复后报告 |
 

@@ -790,6 +790,48 @@ public class GameplayTests
     }
 
     [UnityTest]
+    public IEnumerator GlobalHUD_RuntimeLifecycle_FeedbackExpiresWhilePaused()
+    {
+        var go = new GameObject("RuntimeHUDTest");
+        var existingSink = Object.FindObjectOfType<InteractionLogSink>();
+        float originalScale = Time.timeScale;
+        try
+        {
+            var hud = go.AddComponent<GlobalGameUICanvas>();
+            yield return null; // Exercise real Awake, OnEnable, Start and Update, not reflection.
+            var panel = go.transform.Find("HUDRoot/AbilityFailPanel");
+            Assert.IsNotNull(panel);
+            Assert.IsNotNull(go.transform.Find("HUDRoot/InteractionLogPanel"), "HUD must finish building");
+            var text = panel.Find("AbilityFailText").GetComponent<UnityEngine.UI.Text>();
+            Assert.IsFalse(panel.gameObject.activeSelf);
+            Time.timeScale = 0f;
+            hud.ShowAbilityFailFeedback("Not enough energy");
+            yield return null;
+            Assert.IsTrue(panel.gameObject.activeSelf);
+            Assert.AreEqual("Not enough energy", text.text);
+            float deadline = Time.realtimeSinceStartup + 4f;
+            while (panel.gameObject.activeSelf && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.IsFalse(panel.gameObject.activeSelf, "Feedback uses unscaled time and must not linger during pause");
+            Assert.IsFalse(text.gameObject.activeInHierarchy);
+            hud.ShowAbilityFailFeedback("Wait for cooldown");
+            yield return null;
+            Assert.IsTrue(panel.gameObject.activeSelf);
+            Assert.AreEqual("Wait for cooldown", text.text);
+            UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
+        }
+        finally
+        {
+            Time.timeScale = originalScale;
+            Object.DestroyImmediate(go);
+            if (existingSink == null)
+            {
+                var createdSink = Object.FindObjectOfType<InteractionLogSink>();
+                if (createdSink != null) Object.DestroyImmediate(createdSink.gameObject);
+            }
+        }
+    }
+
+    [UnityTest]
     public IEnumerator GameManager_MarioReachesGoal_CallsWinAndShowsGameOver()
     {
         GameObject gmGO = new GameObject("TestGM");

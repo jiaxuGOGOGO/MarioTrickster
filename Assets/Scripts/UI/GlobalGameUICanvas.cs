@@ -43,6 +43,7 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
     private Text noCooldownText;
     private Text controlsText;
     private Text abilityFailText;
+    private Image abilityFailBackground;
 
     private GameObject pauseOverlay;
     private GameObject gameOverOverlay;
@@ -225,12 +226,18 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
         controlsText = CreateText("ControlsText", root, "P1: WASD + Space / Q Scan | P2: Arrows + P/O/I/L\nReach the goal / Stop the runner | ESC: Pause | F5: Retry", 16, new Color(1f, 1f, 1f, 0.55f), TextAnchor.LowerLeft);
         SetRect(controlsText.rectTransform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 24f), new Vector2(660f, 80f), new Vector2(0f, 0f));
 
-        abilityFailText = CreateText("AbilityFailText", root, string.Empty, 24, new Color(1f, 0.5f, 0.3f), TextAnchor.MiddleCenter);
-        Image abilityBg = abilityFailText.gameObject.AddComponent<Image>();
-        abilityBg.color = new Color(0f, 0f, 0f, 0.35f);
-        abilityBg.raycastTarget = false;
-        abilityBg.enabled = false;
-        SetRect(abilityFailText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 108f), new Vector2(560f, 54f), new Vector2(0.5f, 0f));
+        // [AI防坑警告] UGUI 每个对象只允许一个 Graphic：Text 与 Image 必须分层。
+        // 背景父节点统一控制显隐，不能在文字对象上 AddComponent<Image>()。
+        RectTransform abilityPanel = CreatePanel("AbilityFailPanel", root,
+            new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 108f),
+            new Vector2(560f, 54f), new Color(0f, 0f, 0f, 0.4f), true);
+        abilityPanel.pivot = new Vector2(0.5f, 0f);
+        abilityFailBackground = abilityPanel.GetComponent<Image>();
+        abilityFailText = CreateText("AbilityFailText", abilityPanel, string.Empty, 24,
+            new Color(1f, 0.5f, 0.3f), TextAnchor.MiddleCenter);
+        SetRect(abilityFailText.rectTransform, Vector2.zero, Vector2.one, Vector2.zero,
+            new Vector2(-24f, 0f), new Vector2(0.5f, 0.5f));
+        abilityPanel.gameObject.SetActive(false);
 
         BuildPauseOverlay(root);
         BuildGameOverOverlay(root);
@@ -526,17 +533,12 @@ public sealed class GlobalGameUICanvas : MonoBehaviour
     private void RefreshAbilityFail()
     {
         bool visible = abilityFailTimer > 0f && !string.IsNullOrEmpty(abilityFailMessage);
-        abilityFailText.gameObject.SetActive(visible);
+        abilityFailBackground.gameObject.SetActive(visible);
         if (!visible) return;
         float alpha = Mathf.Clamp01(abilityFailTimer / 0.5f);
         abilityFailText.text = abilityFailMessage;
         abilityFailText.color = new Color(1f, 0.5f, 0.3f, alpha);
-        Image bg = abilityFailText.GetComponent<Image>();
-        if (bg != null)
-        {
-            bg.enabled = true;
-            bg.color = new Color(0f, 0f, 0f, 0.4f * alpha);
-        }
+        abilityFailBackground.color = new Color(0f, 0f, 0f, 0.4f * alpha);
     }
 
     private void RefreshPauseAndGameOver()

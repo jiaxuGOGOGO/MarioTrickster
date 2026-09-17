@@ -31,7 +31,7 @@ public static class MechanismExplorationPlan
     {
         if (baseline == null) return "缺少首轮基线，不能判定改善。";
         Func<Trial, string> signature = t => t.outcome + ":" + t.objectivePhase + ":" +
-            string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:" + string.Join("|", t.coverage
+            string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
             .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}"));
         return signature(baseline) == signature(confirmation)
             ? "同条件复现：结果与覆盖层级一致；仍需检查 AI 局限与真人反制体验。"
@@ -336,6 +336,7 @@ public static class MechanismExplorationPlan
         public List<string> routesUsed = new List<string>();
         public int routeSwitchRequests, routeTransitions, waypointsReached, recoveryAttempts;
         public int telegraphRetreats, recoveryCrossings, possessionTransfers;
+        public int bounceLandingAttempts, runnerBounceLaunches;
         public int attempt = 1;
         public string comparison = "";
         public string endReason = "";

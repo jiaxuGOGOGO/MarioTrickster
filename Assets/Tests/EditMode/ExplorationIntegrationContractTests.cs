@@ -59,6 +59,50 @@ public class ExplorationIntegrationContractTests
         Assert.IsFalse(bot.p2JumpHeld);
     }
 
+    [TestCase(1f)]
+    [TestCase(-1f)]
+    public void BodySweepFindsThinElevatedColliderButNotFloorTriggersOrOneWaySides(float direction)
+    {
+        var actor = new GameObject("SweepActor");
+        var floor = new GameObject("SweepFloor");
+        var obstacle = new GameObject("ThinObstacle");
+        bool originalQueries = Physics2D.queriesStartInColliders;
+        try
+        {
+            actor.layer = 2; floor.layer = obstacle.layer = 0;
+            actor.transform.position = new Vector3(25000, 1, 0);
+            floor.transform.position = new Vector3(25000, 0, 0);
+            obstacle.transform.position = new Vector3(25000 + direction, 1, 0);
+            var body = actor.AddComponent<BoxCollider2D>();
+            body.size = new Vector2(0.8f, 0.95f);
+            floor.AddComponent<BoxCollider2D>().size = new Vector2(20, 1);
+            var thin = obstacle.AddComponent<BoxCollider2D>();
+            thin.size = PhysicsMetrics.BOUNCY_COLLIDER_SIZE;
+            Physics2D.SyncTransforms();
+            var oldRay = Physics2D.Raycast(new Vector2(body.bounds.center.x, body.bounds.min.y + 0.15f), new Vector2(direction, 0), 1.5f, 1 << 0);
+            Assert.IsNull(oldRay.collider, "The old single-height probe misses this body-level thin platform");
+            Assert.AreEqual(thin, HeuristicBotInputProvider.FindForwardObstacle(body, direction, 1 << 0));
+            thin.isTrigger = true;
+            Assert.IsNull(HeuristicBotInputProvider.FindForwardObstacle(body, direction, 1 << 0));
+            thin.isTrigger = false;
+            var effector = obstacle.AddComponent<PlatformEffector2D>();
+            thin.usedByEffector = true; effector.useOneWay = true;
+            Assert.IsNull(HeuristicBotInputProvider.FindForwardObstacle(body, direction, 1 << 0));
+            Assert.AreEqual(originalQueries, Physics2D.queriesStartInColliders, "Navigation cannot change global query policy");
+        }
+        finally { Object.DestroyImmediate(actor); Object.DestroyImmediate(floor); Object.DestroyImmediate(obstacle); }
+    }
+
+    [TestCase(0f, 0f, 0f)]
+    [TestCase(0.1f, 8f, -1f)]
+    [TestCase(-0.1f, -8f, 1f)]
+    [TestCase(1f, 0f, 1f)]
+    [TestCase(-1f, 0f, -1f)]
+    public void BounceLandingInputBrakesNearCenterAndMirrorsOnReturn(float dx, float speed, float expected)
+    {
+        Assert.AreEqual(expected, HeuristicBotInputProvider.BounceLandingSteering(dx, speed), 0.001f);
+    }
+
     [Test]
     public void ContactProbeDoesNotAddPhysicsOrCountUnrelatedObjects()
     {
@@ -121,6 +165,28 @@ public class ExplorationIntegrationContractTests
         StringAssert.Contains("route switch requests=2, physical transitions=0", summary);
         StringAssert.Contains("不是自主学习", summary);
         Assert.IsFalse(report.trials[0].CandidateForHumanPlay);
+    }
+
+    [Test]
+    public void ReportsIdentifyActualTrackAndSeparateBounceRequestsFromLaunchEvents()
+    {
+        var report = new StudioExplorationRunner.Report {
+            scope = "Replay", scenarios = MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Smoke)
+        };
+        Assert.AreEqual("机制回归", StudioExplorationRunner.TestTrack(report));
+        report.trials.Add(new MechanismExplorationPlan.Trial { bounceLandingAttempts = 3 });
+        string summary = StudioExplorationRunner.BuildSummary(report);
+        StringAssert.Contains("本批没有运行三类体验房", summary);
+        StringAssert.Contains("bounce landing requests=3, runner bounce launches=0", summary);
+        Assert.IsNull(report.toolRevision, "Reading old data must not label it as the current tool revision");
+        report.scenarios = MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Experience);
+        Assert.AreEqual("体验探索", StudioExplorationRunner.TestTrack(report));
+        Assert.IsFalse(StudioExplorationRunner.BuildSummary(report).Contains("本批没有运行三类体验房"));
+        report.scenarios.Add(MechanismExplorationPlan.Build(153, "B"));
+        Assert.AreEqual("混合批次", StudioExplorationRunner.TestTrack(report));
+        var baseline = new MechanismExplorationPlan.Trial { outcome = "Cleared", bounceLandingAttempts = 3 };
+        var replay = new MechanismExplorationPlan.Trial { outcome = "Cleared", bounceLandingAttempts = 3, runnerBounceLaunches = 1 };
+        StringAssert.Contains("不稳定", MechanismExplorationPlan.CompareConfirmation(baseline, replay));
     }
 
     [Test]

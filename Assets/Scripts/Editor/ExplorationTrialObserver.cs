@@ -126,6 +126,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (bot.RouteSwitchRequests > result.routeSwitchRequests) Event("route switch requested: " + bot.RouteId + " (not a completed traversal)");
         result.routeSwitchRequests = bot.RouteSwitchRequests;
         result.recoveryAttempts = bot.RecoveryAttempts;
+        if (bot.BounceLandingAttempts > result.bounceLandingAttempts) Event("bounce top-landing input requested (not a launch)");
+        result.bounceLandingAttempts = bot.BounceLandingAttempts;
         if (distance < bestDistance - 0.5f) { bestDistance = distance; noProgressTimer = 0; }
         else noProgressTimer += dt;
         if (result.seconds >= limit) { Finish("TimedOut", "超出本次时间预算；不等于物理无解。检查 AI 寻路和关卡节奏。"); return; }
@@ -206,7 +208,13 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (e != null) { if (e.activations == 0) noProgressTimer = 0; e.activations++; Event(label + " " + e.mechanism); }
     }
     private void OnActivated(IControllableProp prop) => MarkActivation(prop.GetTransform().gameObject, "control accepted");
-    private void OnLaunch(GameplayEventBus.BouncyPlatformLaunchedPayload p) => MarkActivation(p.platform, "bounce launch");
+    private void OnLaunch(GameplayEventBus.BouncyPlatformLaunchedPayload p)
+    {
+        if (Finished) return;
+        if (mario != null && p.target == mario.gameObject)
+        { result.runnerBounceLaunches++; Event("runner bounce launched velocity=" + p.launchVelocity); }
+        MarkActivation(p.platform, "bounce launch");
+    }
     private void OnTrap(GameplayEventBus.TrapTriggeredPayload p) => MarkActivation(p.source, "trap event");
     private void OnScan() { if (!Finished) { result.scans++; Event("scan performed"); } }
     private void OnPossession(TricksterPossessionState state)

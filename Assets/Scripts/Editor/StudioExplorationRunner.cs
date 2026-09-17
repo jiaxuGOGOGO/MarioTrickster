@@ -38,6 +38,7 @@ public static class StudioExplorationRunner
         public int version = MechanismExplorationPlan.Version;
         public int seed;
         public string scope;
+        public string toolRevision; // Set only when starting; old reports remain unlabelled.
         public string startedUtc;
         public string finishedUtc;
         public string unityVersion;
@@ -70,6 +71,13 @@ public static class StudioExplorationRunner
     public static int PlannedTrials(Report data) => data == null ? 0 :
         MechanismExplorationPlan.TrialCount(data.scenarios) + MechanismExplorationPlan.TrialCount(
             data.scenarios.Where(s => (data.confirmationScenarioIds ?? new List<string>()).Contains(s.id)));
+
+    public static string TestTrack(Report data)
+    {
+        if (data == null || data.scenarios.Count == 0) return "无场景计划";
+        int experience = data.scenarios.Count(s => !string.IsNullOrEmpty(s.experience));
+        return experience == 0 ? "机制回归" : experience == data.scenarios.Count ? "体验探索" : "混合批次";
+    }
 
     public static string EvidenceVerdict(Report data)
     {
@@ -119,7 +127,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions && replay == null ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
+        report = new Report { toolRevision = "S157", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, scenarios = scenarios,
             physicsConfigJson = ConfigJson("PhysicsConfig"), gameplayConfigJson = ConfigJson("GameplayLoopConfig"),
             unsupportedRegistry = MechanismExplorationPlan.MissingFromCatalog(AsciiElementRegistry.GetDefault().GetAllRegisteredChars()) };
@@ -404,6 +412,8 @@ public static class StudioExplorationRunner
     {
         var sb = new StringBuilder();
         sb.AppendLine("AI MECHANISM EXPLORATION — evidence, not a fun score");
+        sb.AppendLine($"测试路径: {TestTrack(data)}; tool revision: {data.toolRevision ?? "未记录"}");
+        if (TestTrack(data) == "机制回归") sb.AppendLine("本批没有运行三类体验房/九种独立策略。路线区域字段为空不代表路线观察失败；请另运行体验探索。");
         sb.AppendLine($"Status: {data.status}; seed: {data.seed}; Unity: {data.unityVersion}; scope: {data.scope}");
         sb.AppendLine($"Trials recorded: {data.trials.Count} / {PlannedTrials(data)}");
         sb.AppendLine("Evidence verdict: " + EvidenceVerdict(data));
@@ -412,7 +422,7 @@ public static class StudioExplorationRunner
         sb.AppendLine("体验房提供作者标注路线供普通按键导航，不是自主学习或未知地图寻路。旧报告按保存的ASCII重建，当前代码复测不是跨版本相同条件。");
         sb.AppendLine("路线进入/后摇穿越是位置采样证据，不等于整条路线走完、反制成功或好玩；换路请求与实际换路分开统计。");
         foreach (var scenario in data.scenarios)
-            sb.AppendLine($"Room {scenario.id}: {scenario.experience ?? "MechanismProbe"} — {scenario.intention}");
+            sb.AppendLine($"Room {scenario.id}: {(string.IsNullOrEmpty(scenario.experience) ? "MechanismProbe" : scenario.experience)} — {scenario.intention}");
         foreach (var strategy in data.trials.Where(t => t.HasGameplayEvidence).GroupBy(t => t.marioStrategy ?? t.profile))
             sb.AppendLine($"Runner {strategy.Key}: trials={strategy.Count()}, observed routes={string.Join(",", strategy.SelectMany(t => t.routesUsed ?? new List<string>()).Distinct())}, retreats={strategy.Sum(t => t.telegraphRetreats)}, recovery crossings={strategy.Sum(t => t.recoveryCrossings)}");
         if (!string.IsNullOrEmpty(data.blockedReason)) sb.AppendLine(data.blockedReason);
@@ -436,6 +446,7 @@ public static class StudioExplorationRunner
             sb.AppendLine($"\n{trial.scenarioId} / {trial.profile} / attempt={trial.attempt}: {trial.outcome}, {trial.seconds:F1}s, end=({trial.endX:F1},{trial.endY:F1}), farthestX={trial.farthestX:F1}");
             sb.AppendLine($"strategies={trial.marioStrategy} / {trial.tricksterStrategy}; objective={trial.objectivePhase}; observed routes={string.Join(",", trial.routesUsed ?? new List<string>())}");
             sb.AppendLine($"route switch requests={trial.routeSwitchRequests}, physical transitions={trial.routeTransitions}, waypoint visits={trial.waypointsReached}, recovery attempts={trial.recoveryAttempts}, telegraph retreats={trial.telegraphRetreats}, recovery crossings={trial.recoveryCrossings}, anchor transfers={trial.possessionTransfers}");
+            sb.AppendLine($"bounce landing requests={trial.bounceLandingAttempts}, runner bounce launches={trial.runnerBounceLaunches} (launch event only; contact/control acceptance is not a launch)");
             sb.AppendLine($"pair exercised={trial.PairExercised}; human-play candidate={trial.CandidateForHumanPlay}");
             sb.AppendLine(trial.nextAction);
             sb.AppendLine("结束原因: " + trial.endReason);

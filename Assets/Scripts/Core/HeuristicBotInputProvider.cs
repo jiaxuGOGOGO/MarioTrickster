@@ -68,6 +68,10 @@ public class HeuristicBotInputProvider : IInputProvider
     public RunnerPolicy RunnerStrategy { get; set; }
     public OpponentPolicy OpponentStrategy { get; set; }
     public int RecoveryAttempts { get; private set; }
+    public int BounceLandingAttempts { get; private set; }
+    private Collider2D _bounceLandingTarget;
+    private Rigidbody2D _marioBody;
+    private float _bounceLandingTimer, _bounceAimCooldown;
     private Collider2D _marioCollider, _tricksterCollider;
     private PossessionAnchor _avoidedAnchor;
     private float _avoidAnchorTimer, _roamingTimer, _scoutScanTimer, _tricksterJumpHold;
@@ -279,7 +283,8 @@ public class HeuristicBotInputProvider : IInputProvider
         if (!_marioCacheReady)
         {
             _mario = Object.FindObjectOfType<MarioController>();
-            if (_mario != null) _marioCollider = _mario.GetComponent<Collider2D>();
+            if (_mario != null)
+            { _marioCollider = _mario.GetComponent<Collider2D>(); _marioBody = _mario.GetComponent<Rigidbody2D>(); }
             _probe = Object.FindObjectOfType<MarioCounterplayProbe>();
             _marioCacheReady = true;
         }
@@ -291,6 +296,16 @@ public class HeuristicBotInputProvider : IInputProvider
             return;
         }
 
+        _bounceAimCooldown = Mathf.Max(0f, _bounceAimCooldown - dt);
+        if (_bounceLandingTarget != null)
+        {
+            _bounceLandingTimer -= dt;
+            // A real landing starts the platform's kinematic freeze. Release steering without
+            // altering that freeze or its launch velocity. Timeout is failure, never activation.
+            if (_bounceLandingTimer <= 0f || !_bounceLandingTarget.enabled ||
+                !_bounceLandingTarget.gameObject.activeInHierarchy || (_marioBody != null && _marioBody.isKinematic))
+            { _bounceLandingTarget = null; _bounceAimCooldown = 1f; }
+        }
         Vector2 marioPos = _mario.transform.position;
         float facingDir = _mario.IsFacingRight ? 1f : -1f;
         // Scouting remains available while waiting/baiting; it is only a normal scan request.
@@ -394,25 +409,15 @@ public class HeuristicBotInputProvider : IInputProvider
         // ── 2b. 射线避障预判（提前计算 shouldJump 以供 Persona 反应延迟使用） ──
         LayerMask solidMask = GetSolidMask();
         bool shouldJump = false;
+        Collider2D forwardObstacle = null;
 
         if (_mario.IsGrounded)
         {
-            // Low steps were below the old chest-height ray. Probe near the actual feet.
-            float feetY = _marioCollider != null ? _marioCollider.bounds.min.y + 0.15f : marioPos.y - 0.4f;
-            // 遇坑跳（从 Mario 脚底前方向下打射线）
             Vector2 pitOrigin = marioPos + new Vector2(facingDir * PIT_CHECK_FORWARD, -0.3f);
             RaycastHit2D pitHit = Physics2D.Raycast(pitOrigin, Vector2.down, PIT_CHECK_DEPTH, solidMask);
-            if (pitHit.collider == null)
-                shouldJump = true;
-
-            // 遇墙跳
-            if (!shouldJump)
-            {
-                Vector2 wallOrigin = new Vector2(marioPos.x, feetY);
-                RaycastHit2D wallHit = Physics2D.Raycast(wallOrigin, new Vector2(facingDir, 0f), WALL_CHECK_DISTANCE, solidMask);
-                if (wallHit.collider != null)
-                    shouldJump = true;
-            }
+            shouldJump = pitHit.collider == null;
+            forwardObstacle = FindForwardObstacle(_marioCollider, facingDir, solidMask);
+            if (forwardObstacle != null) shouldJump = true;
         }
 
         // Authored route steps may be only one cell higher; chest-height/wiggle checks miss them.
@@ -490,6 +495,13 @@ public class HeuristicBotInputProvider : IInputProvider
             p1JumpDown = true;
             p1JumpHeld = true;
             _jumpHoldTimer = JUMP_HOLD_DURATION;
+            if (_bounceAimCooldown <= 0f && forwardObstacle != null &&
+                forwardObstacle.GetComponentInParent<BouncyPlatform>() != null)
+            {
+                _bounceLandingTarget = forwardObstacle;
+                _bounceLandingTimer = 1.5f;
+                BounceLandingAttempts++;
+            }
         }
 
         if (_jumpHoldTimer > 0f)
@@ -503,8 +515,15 @@ public class HeuristicBotInputProvider : IInputProvider
             }
         }
 
+        if (_bounceLandingTarget != null && _marioCollider != null)
+        {
+            p1Horizontal = BounceLandingSteering(_bounceLandingTarget.bounds.center.x - _marioCollider.bounds.center.x, _mario.Velocity.x);
+            MarioIntent = "[Aim above bounce platform: ordinary input]";
+        }
+
+        // Do not treat intentional landing alignment as a stuck jump; its own timeout is bounded.
         // ── 4. 防卡死检测：有水平输入但位移极小 → 反向跳跃脱离 ──
-        if (Mathf.Abs(p1Horizontal) > 0.01f)
+        if (_bounceLandingTarget == null && Mathf.Abs(p1Horizontal) > 0.01f)
         {
             if (!_lastMarioPosValid)
             {
@@ -567,6 +586,36 @@ public class HeuristicBotInputProvider : IInputProvider
         {
             MarioIntent = "[Pathing]";
         }
+    }
+
+    /// <summary>Horizontal body sweep, inset from the floor; never change global query flags.</summary>
+    public static Collider2D FindForwardObstacle(Collider2D body, float direction, LayerMask mask)
+    {
+        if (body == null || !body.enabled || Mathf.Abs(direction) < 0.01f) return null;
+        Bounds bounds = body.bounds;
+        Vector2 size = new Vector2(Mathf.Max(0.05f, bounds.size.x - 0.04f), Mathf.Max(0.05f, bounds.size.y - 0.12f));
+        var hits = Physics2D.BoxCastAll(bounds.center, size, 0f, new Vector2(Mathf.Sign(direction), 0f), 0.9f, mask);
+        Collider2D nearest = null;
+        float distance = float.MaxValue;
+        foreach (var hit in hits)
+        {
+            var candidate = hit.collider;
+            if (candidate == null || candidate == body || candidate.isTrigger ||
+                candidate.transform.IsChildOf(body.transform) ||
+                (body.attachedRigidbody != null && candidate.attachedRigidbody == body.attachedRigidbody)) continue;
+            // One-way platforms admit side/below entry; do not mistake them for solid walls.
+            var effector = candidate.GetComponent<PlatformEffector2D>();
+            if (candidate.usedByEffector && effector != null && effector.enabled && effector.useOneWay) continue;
+            if (hit.distance < distance) { nearest = candidate; distance = hit.distance; }
+        }
+        return nearest;
+    }
+
+    // Braking uses measured velocity, not a teleport or forced launch. Mirrored for return routes.
+    public static float BounceLandingSteering(float centerError, float horizontalVelocity)
+    {
+        if (Mathf.Abs(centerError) < 0.12f && Mathf.Abs(horizontalVelocity) < 0.4f) return 0f;
+        return Mathf.Clamp(centerError * 2f - horizontalVelocity * 0.25f, -1f, 1f);
     }
 
     /// <summary>
@@ -849,11 +898,8 @@ public class HeuristicBotInputProvider : IInputProvider
                 LayerMask solidMask = GetSolidMask();
                 bool needJump = false;
 
-                // 遇墙检测
-                Vector2 wallOrigin = new Vector2(tricksterPos.x, _tricksterCollider != null ? _tricksterCollider.bounds.min.y + 0.15f : tricksterPos.y - 0.4f);
-                RaycastHit2D wallHit = Physics2D.Raycast(
-                    wallOrigin, new Vector2(moveDir, 0f), T_WALL_CHECK_DIST, solidMask);
-                if (wallHit.collider != null)
+                // Same body-height sweep as Mario: a foot ray misses thin elevated colliders.
+                if (FindForwardObstacle(_tricksterCollider, moveDir, solidMask) != null)
                     needJump = true;
 
                 // 遇坑检测
@@ -1139,6 +1185,9 @@ public class HeuristicBotInputProvider : IInputProvider
         _avoidedAnchor = null;
         _avoidAnchorTimer = _roamingTimer = _scoutScanTimer = _tricksterJumpHold = 0f;
         RecoveryAttempts = 0;
+        BounceLandingAttempts = 0;
+        _bounceLandingTarget = null; _marioBody = null;
+        _bounceLandingTimer = _bounceAimCooldown = 0f;
         _marioCacheReady = false;
         _mario = null;
         _probe = null;

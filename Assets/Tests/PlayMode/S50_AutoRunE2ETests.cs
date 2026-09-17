@@ -200,6 +200,85 @@ public class S50_AutoRunE2ETests
         finally { if (manager != null) manager.OnGameOver -= onEnd; }
     }
 
+    private const string BounceApproachRoom =
+        "........................................\n........................................\n" +
+        "........................................\n........................................\n" +
+        "........................................\n...........----------...--..............\n" +
+        "..........-...............-.............\n.........-.................-............\n" +
+        "..M....T-.............B.....-........G..\n########################################";
+
+    [UnityTest]
+    public IEnumerator Bot_BounceApproach_Cautious_ActuallyLaunchesAndClears() => VerifyBounceApproach("Cautious");
+    [UnityTest]
+    public IEnumerator Bot_BounceApproach_Runner_ActuallyLaunchesAndClears() => VerifyBounceApproach("Runner");
+    [UnityTest]
+    public IEnumerator Bot_BounceApproach_Explorer_ActuallyLaunchesAndClears() => VerifyBounceApproach("Explorer");
+
+    private IEnumerator VerifyBounceApproach(string profile)
+    {
+        Time.timeScale = 1f;
+        var root = AsciiLevelGenerator.GenerateFromTemplate(BounceApproachRoom, true);
+        Assert.IsNotNull(root); _testObjects.Add(root); SetupPlayableEnvironment(root);
+        yield return null;
+        var mario = Object.FindObjectOfType<MarioController>();
+        var input = Object.FindObjectOfType<InputManager>();
+        var platform = root.GetComponentInChildren<BouncyPlatform>();
+        var manager = GameManager.Instance;
+        var persona = ScriptableObject.CreateInstance<BotPersonaConfigSO>();
+        persona.reactionDelay = profile == "Cautious" ? 0.4f : 0.1f;
+        persona.riskTolerance = profile == "Runner" ? 0.9f : 0.25f;
+        var bot = new HeuristicBotInputProvider { marioPersona = persona };
+        bot.SetDecisionSeed(153);
+        int launches = 0;
+        bool won = false;
+        System.Action<string> onEnd = winner => won = winner == "Mario";
+        System.Action<GameplayEventBus.BouncyPlatformLaunchedPayload> onLaunch = payload => {
+            if (payload.platform == platform.gameObject && payload.target == mario.gameObject && payload.launchVelocity.y > 0) launches++;
+        };
+        manager.OnGameOver += onEnd; GameplayEventBus.OnBouncyPlatformLaunched += onLaunch;
+        try
+        {
+            input.SetInputProvider(bot);
+            float deadline = Time.realtimeSinceStartup + 15f;
+            while (!won && manager.CurrentState == GameState.Playing && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.Greater(launches, 0, $"{profile}: passing around B is not a bounce test; end={mario.transform.position}, attempts={bot.BounceLandingAttempts}");
+            Assert.IsTrue(won, $"{profile}: a bounce alone is not a clear; end={mario.transform.position}, intent={bot.MarioIntent}");
+        }
+        finally
+        {
+            if (manager != null) manager.OnGameOver -= onEnd;
+            GameplayEventBus.OnBouncyPlatformLaunched -= onLaunch;
+            input.SetInputProvider(new AutomatedInputProvider(new List<InputFrame>()));
+            Object.Destroy(persona);
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator BouncePlatform_SideContactAloneDoesNotLaunch()
+    {
+        Time.timeScale = 1f;
+        var root = AsciiLevelGenerator.GenerateFromTemplate(BounceApproachRoom, true);
+        Assert.IsNotNull(root); _testObjects.Add(root); SetupPlayableEnvironment(root);
+        yield return null;
+        var mario = Object.FindObjectOfType<MarioController>();
+        var input = Object.FindObjectOfType<InputManager>();
+        var platform = root.GetComponentInChildren<BouncyPlatform>();
+        int launches = 0;
+        System.Action<GameplayEventBus.BouncyPlatformLaunchedPayload> onLaunch = payload => {
+            if (payload.target == mario.gameObject && payload.platform == platform.gameObject) launches++;
+        };
+        GameplayEventBus.OnBouncyPlatformLaunched += onLaunch;
+        try
+        {
+            input.SetInputProvider(new AutomatedInputProvider(new List<InputFrame> { new InputFrame { duration = 1000, p1Horizontal = 1f } }));
+            yield return new WaitForSecondsRealtime(3.5f);
+            float gap = platform.GetComponent<Collider2D>().bounds.min.x - mario.GetComponent<Collider2D>().bounds.max.x;
+            Assert.Less(Mathf.Abs(gap), 0.1f, "Fixture must actually reach the side, not stop far away");
+            Assert.AreEqual(0, launches, "Do not weaken the top-landing rule to make AI tests pass");
+        }
+        finally { GameplayEventBus.OnBouncyPlatformLaunched -= onLaunch; }
+    }
+
     [UnityTest]
     public IEnumerator E2E_FlatRun_MarioReachesGoal()
     {

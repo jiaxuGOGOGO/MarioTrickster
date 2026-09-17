@@ -79,12 +79,17 @@ public static class StudioExplorationRunner
         return experience == 0 ? "机制回归" : experience == data.scenarios.Count ? "体验探索" : "混合批次";
     }
 
+    public static string[] ExperienceIssues(Report data, MechanismExplorationPlan.Trial trial) =>
+        MechanismExplorationPlan.ExperienceIssues(trial, data.scenarios.FirstOrDefault(s => s.id == trial.scenarioId));
+
     public static string EvidenceVerdict(Report data)
     {
         if (!string.IsNullOrEmpty(data.blockedReason)) return "基础故障阻塞，未执行部分不算通过";
         int played = data.trials.Count(t => t.HasGameplayEvidence);
         if (played == 0) return "尚无有效试玩证据（不是玩法通过）";
         if (data.regressionFailed > 0 || data.trials.Any(t => t.errors.Count > 0)) return "有回归或运行错误，先修复再评估玩法";
+        if (data.trials.Any(t => t.HasGameplayEvidence && ExperienceIssues(data, t).Length > 0))
+            return "体验证据有缺口：通关不代表上路/交手机会/换点成立";
         if (data.trials.Any(t => t.NeedsConfirmation)) return "有受阻或覆盖缺口，查看首轮与复测对照";
         return "已有真人试玩候选，不代表正确性或乐趣已验收";
     }
@@ -127,7 +132,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions && replay == null ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S157", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
+        report = new Report { toolRevision = "S158", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, scenarios = scenarios,
             physicsConfigJson = ConfigJson("PhysicsConfig"), gameplayConfigJson = ConfigJson("GameplayLoopConfig"),
             unsupportedRegistry = MechanismExplorationPlan.MissingFromCatalog(AsciiElementRegistry.GetDefault().GetAllRegisteredChars()) };
@@ -423,7 +428,14 @@ public static class StudioExplorationRunner
         sb.AppendLine("路线进入/后摇穿越是位置采样证据，不等于整条路线走完、反制成功或好玩；换路请求与实际换路分开统计。");
         foreach (var scenario in data.scenarios)
             sb.AppendLine($"Room {scenario.id}: {(string.IsNullOrEmpty(scenario.experience) ? "MechanismProbe" : scenario.experience)} — {scenario.intention}");
-        foreach (var strategy in data.trials.Where(t => t.HasGameplayEvidence).GroupBy(t => t.marioStrategy ?? t.profile))
+        sb.AppendLine("完整路线 = 按顺序在所有作者路点落地；Out/Return分开记录。仍不证明反制因果或乐趣。安全绕行不强求机关接触。");
+        foreach (var room in data.scenarios.Where(s => !string.IsNullOrEmpty(s.experience)))
+        {
+            var first = data.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1 && t.HasGameplayEvidence).ToArray();
+            sb.AppendLine($"Experience first-pass {room.id}: trials={first.Length}, gaps={first.Count(t => ExperienceIssues(data, t).Length > 0)}, controls accepted={first.Sum(t => t.controlAccepted)}, successful anchor changes={first.Sum(t => t.possessionTransfers)}");
+            if (first.Length > 0 && first.Sum(t => t.controlAccepted) == 0) sb.AppendLine("  尚无操控受理证据（旧报告可能未记录）；不可据通关率判断双方对抗成立。");
+        }
+        foreach (var strategy in data.trials.Where(t => t.HasGameplayEvidence && t.attempt <= 1).GroupBy(t => t.marioStrategy ?? t.profile))
             sb.AppendLine($"Runner {strategy.Key}: trials={strategy.Count()}, observed routes={string.Join(",", strategy.SelectMany(t => t.routesUsed ?? new List<string>()).Distinct())}, retreats={strategy.Sum(t => t.telegraphRetreats)}, recovery crossings={strategy.Sum(t => t.recoveryCrossings)}");
         if (!string.IsNullOrEmpty(data.blockedReason)) sb.AppendLine(data.blockedReason);
         foreach (var group in data.trials.Where(t => t.InfrastructureKey.Length > 0).GroupBy(t => t.InfrastructureKey))
@@ -448,6 +460,8 @@ public static class StudioExplorationRunner
             sb.AppendLine($"route switch requests={trial.routeSwitchRequests}, physical transitions={trial.routeTransitions}, waypoint visits={trial.waypointsReached}, recovery attempts={trial.recoveryAttempts}, telegraph retreats={trial.telegraphRetreats}, recovery crossings={trial.recoveryCrossings}, anchor transfers={trial.possessionTransfers}");
             sb.AppendLine($"bounce landing requests={trial.bounceLandingAttempts}, runner bounce launches={trial.runnerBounceLaunches} (launch event only; contact/control acceptance is not a launch)");
             sb.AppendLine($"pair exercised={trial.PairExercised}; human-play candidate={trial.CandidateForHumanPlay}");
+            sb.AppendLine($"completed authored routes={string.Join(",", trial.completedRoutes ?? new List<string>())}; armed nearby seconds={trial.armedNearbySeconds:F2}; control accepted={trial.controlAccepted}; anchor switch requests={trial.anchorSwitchRequests}");
+            foreach (var gap in ExperienceIssues(data, trial)) sb.AppendLine("体验缺口: " + gap);
             sb.AppendLine(trial.nextAction);
             sb.AppendLine("结束原因: " + trial.endReason);
             if (!string.IsNullOrEmpty(trial.comparison)) sb.AppendLine(trial.comparison);

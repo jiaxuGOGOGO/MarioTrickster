@@ -46,6 +46,46 @@ public class OneWayPlatform : LevelElementBase
     private BoxCollider2D boxCollider;
     private PlatformEffector2D effector;
 
+    private static readonly System.Collections.Generic.List<RaycastHit2D> surfaceHits =
+        new System.Collections.Generic.List<RaycastHit2D>(16);
+
+    // Controller casts do not inherit PlatformEffector2D or per-pair IgnoreCollision rules.
+    // Keep both players consistent: query all hits so a passable hit cannot hide a solid one.
+    public static bool HasBlockingSurface(Collider2D body, Vector2 direction, float distance,
+        LayerMask mask, float verticalVelocity)
+    {
+        bool previous = Physics2D.queriesStartInColliders;
+        try
+        {
+            Physics2D.queriesStartInColliders = false;
+            var bounds = body.bounds;
+            var filter = new ContactFilter2D { useTriggers = false };
+            filter.SetLayerMask(mask);
+            surfaceHits.Clear();
+            Physics2D.BoxCast(bounds.center, new Vector2(bounds.size.x * 0.9f, bounds.size.y),
+                0f, direction, filter, surfaceHits, distance);
+            foreach (var hit in surfaceHits)
+            {
+                var other = hit.collider;
+                if (other == null || other == body || other.isTrigger ||
+                    (body.attachedRigidbody != null && other.attachedRigidbody == body.attachedRigidbody) ||
+                    Physics2D.GetIgnoreCollision(body, other) || Vector2.Dot(hit.normal, direction) > -0.5f)
+                    continue;
+                var platform = other.GetComponent<PlatformEffector2D>();
+                if (other.usedByEffector && platform != null && platform.enabled && platform.useOneWay)
+                {
+                    // Authored one-way platforms are horizontal. Never truncate an upward jump,
+                    // nor re-ground the player while rising through or dropping through the deck.
+                    if (direction.y > 0f || verticalVelocity > 0f || bounds.min.y < other.bounds.max.y - 0.05f)
+                        continue;
+                }
+                return true;
+            }
+            return false;
+        }
+        finally { surfaceHits.Clear(); Physics2D.queriesStartInColliders = previous; }
+    }
+
     private void Awake()
     {
         elementName = "单向平台";

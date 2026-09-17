@@ -200,6 +200,138 @@ public class S50_AutoRunE2ETests
         finally { if (manager != null) manager.OnGameOver -= onEnd; }
     }
 
+    [UnityTest]
+    public IEnumerator Mario_OrdinaryJumpPassesOneWayLandsAndDropsThrough() => VerifyVerticalPlatform(false, true);
+    [UnityTest]
+    public IEnumerator Trickster_OrdinaryJumpPassesOneWayAndLands() => VerifyVerticalPlatform(true, true);
+    [UnityTest]
+    public IEnumerator Mario_SolidCeilingStillBlocksOrdinaryJump() => VerifyVerticalPlatform(false, false);
+    [UnityTest]
+    public IEnumerator Trickster_SolidCeilingStillBlocksOrdinaryJump() => VerifyVerticalPlatform(true, false);
+
+    private IEnumerator VerifyVerticalPlatform(bool opponent, bool oneWay)
+    {
+        Time.timeScale = 1f;
+        string shelf = oneWay ? ".------........" : ".######........";
+        var root = AsciiLevelGenerator.GenerateFromTemplate("...............\n...............\n" + shelf + "\n..M...........G\n###############", true);
+        _testObjects.Add(root); SetupPlayableEnvironment(root);
+        var mario = Object.FindObjectOfType<MarioController>();
+        var input = Object.FindObjectOfType<InputManager>();
+        GameObject actor = mario.gameObject;
+        TricksterController trickster = null;
+        if (opponent)
+        {
+            actor = new GameObject("TestTrickster"); _testObjects.Add(actor);
+            actor.transform.position = new Vector3(5, 1.5f, 0);
+            var visual = new GameObject("Visual"); visual.transform.SetParent(actor.transform, false);
+            visual.AddComponent<SpriteRenderer>();
+            var col = actor.AddComponent<BoxCollider2D>();
+            col.size = new Vector2(PhysicsMetrics.MARIO_COLLIDER_WIDTH, PhysicsMetrics.MARIO_COLLIDER_HEIGHT);
+            col.offset = new Vector2(0, PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y);
+            actor.AddComponent<Rigidbody2D>();
+            trickster = actor.AddComponent<TricksterController>();
+            int layer = LayerMask.NameToLayer(GROUND_LAYER);
+            SetPrivateField(trickster, "groundLayer", (LayerMask)(1 << (layer < 0 ? 0 : layer)));
+            input.SetTricksterController(trickster);
+        }
+        yield return new WaitForSeconds(0.3f);
+        Assert.IsTrue(opponent ? trickster.IsGrounded : mario.IsGrounded);
+        var body = actor.GetComponent<Collider2D>();
+        var frames = new List<InputFrame> {
+            new InputFrame { duration = 25, p1JumpHeld = !opponent, p2JumpHeld = opponent },
+            new InputFrame { duration = 150 }
+        };
+        input.SetInputProvider(new AutomatedInputProvider(frames));
+        float maxFeet = body.bounds.min.y, maxHead = body.bounds.max.y;
+        bool landedOnTop = false;
+        float end = Time.realtimeSinceStartup + 3.5f;
+        while (Time.realtimeSinceStartup < end)
+        {
+            maxFeet = Mathf.Max(maxFeet, body.bounds.min.y);
+            maxHead = Mathf.Max(maxHead, body.bounds.max.y);
+            if ((opponent ? trickster.IsGrounded : mario.IsGrounded) && body.bounds.min.y > 2.08f)
+                landedOnTop = true;
+            yield return null;
+        }
+        if (oneWay)
+        {
+            Assert.Greater(maxFeet, 2.2f, "A jump must actually cross the platform top");
+            Assert.IsTrue(landedOnTop, "Passing upward is not sufficient: land on the deck");
+            if (!opponent)
+            {
+                input.SetInputProvider(new AutomatedInputProvider(new List<InputFrame> {
+                    new InputFrame { duration = 1, p1SHeld = true, p1JumpHeld = true },
+                    new InputFrame { duration = 100 }
+                }));
+                yield return new WaitForSeconds(1f);
+                Assert.IsTrue(mario.IsGrounded);
+                Assert.Less(body.bounds.min.y, 0.6f, "S+Jump must fall through without phantom re-grounding");
+            }
+        }
+        else
+        {
+            Assert.LessOrEqual(maxHead, 1.58f, "Solid cell at y=2 must still block the jump from below");
+            Assert.IsFalse(landedOnTop);
+        }
+    }
+
+#if UNITY_EDITOR
+    [UnityTest]
+    public IEnumerator AuthoredUpperRoute_OrdinaryInputCompletesAllLandings() => VerifyAuthoredUpper(false);
+    [UnityTest]
+    public IEnumerator AuthoredUpperRoute_LootReturnCompletesBothDirections() => VerifyAuthoredUpper(true);
+
+    private IEnumerator VerifyAuthoredUpper(bool lootReturn)
+    {
+        Time.timeScale = 1f;
+        // PlayModeTests must remain player-buildable: resolve the editor-only authoring plan
+        // at runtime in the editor, rather than adding an Editor dependency to its asmdef.
+        var planType = System.Type.GetType("MechanismExplorationPlan, MarioTrickster.Editor", true);
+        var scenario = planType.GetMethod("BuildExperience").Invoke(null, new object[] { 153, lootReturn ? 2 : 0 });
+        var scenarioType = scenario.GetType();
+        string ascii = (string)scenarioType.GetField("ascii").GetValue(scenario);
+        // Navigation isolation: remove opponent props, keep the exact authored platforms/targets.
+        ascii = ascii.Replace('[', '.').Replace('F', '.');
+        var root = AsciiLevelGenerator.GenerateFromTemplate(ascii, true);
+        _testObjects.Add(root); SetupPlayableEnvironment(root);
+        if (lootReturn)
+        {
+            foreach (var old in root.GetComponentsInChildren<Collectible>())
+            { old.enabled = false; old.gameObject.AddComponent<LootObjective>(); Object.Destroy(old); }
+            foreach (var old in root.GetComponentsInChildren<GoalZone>())
+            { old.enabled = false; old.gameObject.AddComponent<EscapeGate>(); Object.Destroy(old); }
+        }
+        yield return null;
+        var mario = Object.FindObjectOfType<MarioController>();
+        var input = Object.FindObjectOfType<InputManager>();
+        var botType = System.Type.GetType("ExplorationTrialObserver+GuidedBot, MarioTrickster.Editor", true);
+        var bot = (HeuristicBotInputProvider)System.Activator.CreateInstance(botType, new object[] {
+            mario, new Dictionary<string, Transform[]>(), false, scenarioType.GetField("routes").GetValue(scenario), true
+        });
+        bot.RunnerStrategy = HeuristicBotInputProvider.RunnerPolicy.SafeRoute;
+        bot.SetDecisionSeed(153); input.SetInputProvider(bot);
+        var manager = GameManager.Instance;
+        bool won = false;
+        System.Action<string> onEnd = winner => won = winner == "Mario";
+        manager.OnGameOver += onEnd;
+        try
+        {
+            float deadline = Time.realtimeSinceStartup + 40f;
+            while (manager.CurrentState == GameState.Playing && Time.realtimeSinceStartup < deadline) yield return null;
+            var completed = (IReadOnlyList<string>)botType.GetProperty("CompletedRoutes").GetValue(bot);
+            CollectionAssert.Contains(completed, "Out:upper", "A fallback lower-lane clear cannot pass upper acceptance");
+            if (lootReturn) CollectionAssert.Contains(completed, "Return:upper");
+            Assert.AreEqual(0, botType.GetProperty("RouteSwitchRequests").GetValue(bot), "The authored route must work without fallback");
+            Assert.IsTrue(won, $"Actual Mario goal/escape required; end={mario.transform.position}, intent={bot.MarioIntent}");
+        }
+        finally
+        {
+            if (manager != null) manager.OnGameOver -= onEnd;
+            input.SetInputProvider(new AutomatedInputProvider(new List<InputFrame>()));
+        }
+    }
+#endif
+
     private const string BounceApproachRoom =
         "........................................\n........................................\n" +
         "........................................\n........................................\n" +

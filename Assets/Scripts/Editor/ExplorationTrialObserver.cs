@@ -33,6 +33,9 @@ public sealed class ExplorationTrialObserver : IDisposable
     public ExplorationTrialObserver(MechanismExplorationPlan.Scenario scenario, MechanismExplorationPlan.Trial trial)
     {
         result = trial;
+        result.experience = scenario.experience;
+        result.expectsReturn = scenario.lootEscape;
+        result.experienceEvidenceVersion = 1;
         manager = GameManager.Instance;
         input = Object.FindObjectOfType<InputManager>();
         mario = Object.FindObjectOfType<MarioController>();
@@ -75,7 +78,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         manager.OnGameOver += OnGameOver;
         if (ability != null) ability.OnPropActivated += OnActivated;
         if (scan != null) scan.OnScanPerformed += OnScan;
-        if (gate != null) gate.OnStateChanged += OnPossession;
+        if (gate != null) { gate.OnStateChanged += OnPossession; gate.OnAnchorChanged += OnAnchorChanged; }
         if (combo != null) combo.OnComboChanged += OnCombo;
         GameplayEventBus.OnBouncyPlatformLaunched += OnLaunch;
         GameplayEventBus.OnHeatTierChanged += OnHeat;
@@ -123,6 +126,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         float distance = objective != null ? Vector2.Distance(mario.transform.position, objective.position) : bestDistance;
         if (bot.WaypointsReached > result.waypointsReached) noProgressTimer = 0;
         result.waypointsReached = bot.WaypointsReached;
+        result.completedRoutes = bot.CompletedRoutes.ToList();
+        result.anchorSwitchRequests = bot.AnchorSwitchRequests;
         if (bot.RouteSwitchRequests > result.routeSwitchRequests) Event("route switch requested: " + bot.RouteId + " (not a completed traversal)");
         result.routeSwitchRequests = bot.RouteSwitchRequests;
         result.recoveryAttempts = bot.RecoveryAttempts;
@@ -134,7 +139,13 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (noProgressTimer > 12f) { Finish("NoProgress", "12 秒未向当前目标取得净进展，也未到达新路点或获得新接近/接触/激活证据；可能是 AI 局限、机制等待或布局问题，需复测。"); return; }
         sampleTimer += dt;
         if (sampleTimer < 0.1f) return;
+        float sampledDuration = Mathf.Min(sampleTimer, 0.25f);
         sampleTimer = 0f;
+        if (gate != null && gate.IsHiddenAndArmed && gate.CurrentAnchor != null)
+        {
+            Vector2 delta = mario.transform.position - gate.CurrentAnchor.AnchorTransform.position;
+            if (Mathf.Abs(delta.y) < 2f && delta.magnitude < 6f) result.armedNearbySeconds += sampledDuration;
+        }
         foreach (var region in routeRegions)
         {
             if (!region.Contains(result.endX, result.endY)) continue;
@@ -207,7 +218,12 @@ public sealed class ExplorationTrialObserver : IDisposable
         var e = result.coverage.Find(v => v.mechanism == probe.mechanism);
         if (e != null) { if (e.activations == 0) noProgressTimer = 0; e.activations++; Event(label + " " + e.mechanism); }
     }
-    private void OnActivated(IControllableProp prop) => MarkActivation(prop.GetTransform().gameObject, "control accepted");
+    private void OnActivated(IControllableProp prop)
+    {
+        if (Finished || prop == null) return;
+        result.controlAccepted++;
+        MarkActivation(prop.GetTransform().gameObject, "control accepted");
+    }
     private void OnLaunch(GameplayEventBus.BouncyPlatformLaunchedPayload p)
     {
         if (Finished) return;
@@ -221,7 +237,12 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         if (Finished || state != TricksterPossessionState.Possessing) return;
         result.possessions++; Event("possessing");
-        var anchor = gate != null ? gate.CurrentAnchor : null;
+        OnAnchorChanged(gate != null ? gate.CurrentAnchor : null);
+    }
+    private void OnAnchorChanged(PossessionAnchor anchor)
+    {
+        // Magnetic switching can change the anchor without a state transition.
+        if (Finished || gate == null || !gate.IsHiddenAndArmed) return;
         if (anchor != null && lastPossessedAnchor != null && anchor != lastPossessedAnchor)
         { result.possessionTransfers++; Event("possession of a different anchor completed"); }
         if (anchor != null) lastPossessedAnchor = anchor;
@@ -256,7 +277,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (manager != null) manager.OnGameOver -= OnGameOver;
         if (ability != null) ability.OnPropActivated -= OnActivated;
         if (scan != null) scan.OnScanPerformed -= OnScan;
-        if (gate != null) gate.OnStateChanged -= OnPossession;
+        if (gate != null) { gate.OnStateChanged -= OnPossession; gate.OnAnchorChanged -= OnAnchorChanged; }
         if (combo != null) combo.OnComboChanged -= OnCombo;
         GameplayEventBus.OnBouncyPlatformLaunched -= OnLaunch;
         GameplayEventBus.OnHeatTierChanged -= OnHeat;
@@ -272,21 +293,23 @@ public sealed class ExplorationTrialObserver : IDisposable
         Object.DestroyImmediate(marioProfile); Object.DestroyImmediate(tricksterProfile);
     }
 
-    private sealed class GuidedBot : HeuristicBotInputProvider
+    public sealed class GuidedBot : HeuristicBotInputProvider
     {
         private readonly MarioController runner;
         private readonly KeyValuePair<string, Transform>[] points;
-        private readonly bool explore;
+        private readonly bool explore, hasLootObjective;
         private int cursor;
         private float targetTime, interactTimer, dropTimer;
         private readonly MechanismExplorationPlan.RouteNavigator navigation;
         public int WaypointsReached => navigation.WaypointsReached;
+        public IReadOnlyList<string> CompletedRoutes => navigation.CompletedRoutes;
         public int RouteSwitchRequests => navigation.SwitchRequests;
         public string RouteId => navigation.RouteId;
         public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore, MechanismExplorationPlan.Route[] routes, bool safe)
         {
             navigation = new MechanismExplorationPlan.RouteNavigator(routes, safe);
             this.runner = runner; this.explore = explore;
+            hasLootObjective = Object.FindObjectOfType<LootObjective>() != null;
             points = targets.SelectMany(p => p.Value.Select(t => new KeyValuePair<string, Transform>(p.Key, t)))
                 .OrderBy(p => p.Value.position.x).ToArray();
         }
@@ -294,22 +317,23 @@ public sealed class ExplorationTrialObserver : IDisposable
         {
             interactTimer -= dt;
             ExplorationTarget = null;
+            AuthoredRouteTarget = false;
             dropTimer -= dt;
             if (runner != null)
             {
-                navigation.Tick(runner.transform.position.x, runner.transform.position.y, LootObjective.IsLootCarried, dt);
+                navigation.Tick(runner.transform.position.x, runner.transform.position.y, hasLootObjective && LootObjective.IsLootCarried, dt, runner.IsGrounded);
                 var waypoint = navigation.Target;
-                if (waypoint != null) ExplorationTarget = new Vector2(waypoint.x, waypoint.y);
+                if (waypoint != null) { ExplorationTarget = new Vector2(waypoint.x, waypoint.y); AuthoredRouteTarget = true; }
             }
             if (explore && cursor < points.Length && runner != null)
             {
                 var point = points[cursor]; targetTime += dt;
                 if (point.Value == null || targetTime > 4f) { cursor++; targetTime = 0f; }
-                else ExplorationTarget = point.Value.position;
+                else { ExplorationTarget = point.Value.position; AuthoredRouteTarget = false; }
             }
             base.UpdateMarioBrain(dt);
             if (runner != null && ExplorationTarget.HasValue && runner.IsGrounded && dropTimer <= 0f &&
-                ExplorationTarget.Value.y < runner.transform.position.y - 1.5f &&
+                ExplorationTarget.Value.y < runner.transform.position.y - 0.4f &&
                 Mathf.Abs(ExplorationTarget.Value.x - runner.transform.position.x) < 0.8f)
             { p1SHeld = true; p1JumpHeld = true; p1JumpDown = true; dropTimer = 0.8f; }
             if (!explore || cursor >= points.Length || runner == null) return;

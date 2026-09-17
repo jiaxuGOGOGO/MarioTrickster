@@ -63,6 +63,9 @@ public class HeuristicBotInputProvider : IInputProvider
 
     // Optional exploration guidance. Null preserves normal gameplay targeting.
     public Vector2? ExplorationTarget { get; set; }
+    public bool AuthoredRouteTarget { get; set; }
+    public int AnchorSwitchRequests { get; private set; }
+    private float _anchorSwitchTimer;
     public enum RunnerPolicy { Legacy, Rush, Scout, SafeRoute }
     public enum OpponentPolicy { Legacy, Ambusher, Baiter, Chaser }
     public RunnerPolicy RunnerStrategy { get; set; }
@@ -349,7 +352,7 @@ public class HeuristicBotInputProvider : IInputProvider
             float dy = targetPos.Value.y - marioPos.y;
 
             // [垂直寻路] 目标在头顶且水平距离很近 → Wiggle 模式
-            if (dy > VERTICAL_TARGET_DY && Mathf.Abs(dx) < VERTICAL_TARGET_DX)
+            if (!AuthoredRouteTarget && dy > VERTICAL_TARGET_DY && Mathf.Abs(dx) < VERTICAL_TARGET_DX)
             {
                 verticalWiggle = true;
                 _wiggleTimer += dt;
@@ -364,6 +367,9 @@ public class HeuristicBotInputProvider : IInputProvider
                 else
                     p1Horizontal = 0f;
             }
+
+            if (AuthoredRouteTarget)
+                p1Horizontal = BounceLandingSteering(dx, _mario.Velocity.x);
 
             if (Mathf.Abs(p1Horizontal) > 0.01f)
                 facingDir = p1Horizontal > 0f ? 1f : -1f;
@@ -523,7 +529,7 @@ public class HeuristicBotInputProvider : IInputProvider
 
         // Do not treat intentional landing alignment as a stuck jump; its own timeout is bounded.
         // ── 4. 防卡死检测：有水平输入但位移极小 → 反向跳跃脱离 ──
-        if (_bounceLandingTarget == null && Mathf.Abs(p1Horizontal) > 0.01f)
+        if (!AuthoredRouteTarget && _bounceLandingTarget == null && Mathf.Abs(p1Horizontal) > 0.01f)
         {
             if (!_lastMarioPosValid)
             {
@@ -959,8 +965,21 @@ public class HeuristicBotInputProvider : IInputProvider
         Vector2 anchorPos = (Vector2)currentAnchor.AnchorTransform.position;
         float distToMario = Vector2.Distance(marioPos, anchorPos);
 
+        _anchorSwitchTimer = Mathf.Max(0f, _anchorSwitchTimer - dt);
+        bool passed = (marioPos.x - anchorPos.x) * (_mario.IsFacingRight ? 1f : -1f) > 1f;
+        if (OpponentStrategy == OpponentPolicy.Chaser && passed && _gate.CanSwitchTarget && _anchorSwitchTimer <= 0f)
+        {
+            // A direction key uses the same range, gate and cooldown as a human. It may fail.
+            p2Horizontal = _mario.IsFacingRight ? 1f : -1f;
+            p2DirectionDown = true;
+            _anchorSwitchTimer = 1f;
+            AnchorSwitchRequests++;
+            TricksterIntent = "[Request directional anchor transfer]";
+            return;
+        }
+
         // [防死锁] 附身超过 POSSESS_TIMEOUT 秒且 Mario 未靠近 → 强制解除附身重新走位
-        bool chasePassedRunner = OpponentStrategy == OpponentPolicy.Chaser && _possessTimer > 1.5f &&
+        bool chasePassedRunner = OpponentStrategy == OpponentPolicy.Chaser && _possessTimer > 3f &&
             (marioPos.x - anchorPos.x) * (_mario.IsFacingRight ? 1f : -1f) > 2f;
         if (chasePassedRunner || (_possessTimer >= POSSESS_TIMEOUT && distToMario > POSSESS_TIMEOUT_DIST))
         {
@@ -1101,6 +1120,9 @@ public class HeuristicBotInputProvider : IInputProvider
                 if (anchor == null || anchor == _avoidedAnchor || !anchor.CanBePossessed()) continue;
 
                 float dist = Vector2.Distance(marioPos, (Vector2)anchor.AnchorTransform.position);
+                if (OpponentStrategy != OpponentPolicy.Legacy && _trickster != null)
+                    dist = Vector2.Distance(_trickster.transform.position, anchor.AnchorTransform.position) * 2f +
+                        Mathf.Abs(anchor.AnchorTransform.position.y - marioPos.y);
                 if (dist < bestDist)
                 {
                     bestDist = dist;
@@ -1181,6 +1203,9 @@ public class HeuristicBotInputProvider : IInputProvider
         sceneCache.Clear();
         sceneCacheAge = 0f;
         ExplorationTarget = null;
+        AuthoredRouteTarget = false;
+        AnchorSwitchRequests = 0;
+        _anchorSwitchTimer = 0f;
         _marioCollider = _tricksterCollider = null;
         _avoidedAnchor = null;
         _avoidAnchorTimer = _roamingTimer = _scoutScanTimer = _tricksterJumpHold = 0f;

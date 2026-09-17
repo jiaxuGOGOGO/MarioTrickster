@@ -202,4 +202,74 @@ public class ExplorationIntegrationContractTests
         StringAssert.Contains("不表示每局通过", summary);
         StringAssert.Contains("activations=0", summary);
     }
+    [TestCase(typeof(MarioController), true)]
+    [TestCase(typeof(MarioController), false)]
+    [TestCase(typeof(TricksterController), true)]
+    [TestCase(typeof(TricksterController), false)]
+    public void BothControllerCeilingProbesRespectOneWayButKeepSolidCeilings(System.Type type, bool oneWay)
+    {
+        var actor = new GameObject("ProbeActor"); var roof = new GameObject("ProbeRoof");
+        bool original = Physics2D.queriesStartInColliders;
+        try
+        {
+            actor.transform.position = new Vector3(25000, 1, 0);
+            var body = actor.AddComponent<BoxCollider2D>(); body.size = new Vector2(0.8f, 0.95f);
+            actor.AddComponent<Rigidbody2D>(); var controller = actor.AddComponent(type);
+            roof.transform.position = new Vector3(25000, 1.62f, 0);
+            var deck = roof.AddComponent<BoxCollider2D>(); deck.size = new Vector2(4, 0.25f);
+            if (oneWay) { deck.usedByEffector = true; roof.AddComponent<PlatformEffector2D>().useOneWay = true; }
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            type.GetField("boxCollider", flags).SetValue(controller, body);
+            type.GetField("groundLayer", flags).SetValue(controller, (LayerMask)(1 << 0));
+            type.GetField("_frameVelocity", flags).SetValue(controller, new Vector2(0, 6));
+            Physics2D.SyncTransforms();
+            type.GetMethod("CheckCollisions", flags).Invoke(controller, null);
+            var velocity = (Vector2)type.GetField("_frameVelocity", flags).GetValue(controller);
+            Assert.AreEqual(oneWay ? 6f : 0f, velocity.y);
+            Assert.AreEqual(original, Physics2D.queriesStartInColliders);
+        }
+        finally { Object.DestroyImmediate(actor); Object.DestroyImmediate(roof); }
+    }
+
+    [Test]
+    public void SurfaceProbeHonorsDropThroughTriggersAndSolidBehindPassableHit()
+    {
+        var actor = new GameObject("SurfaceActor"); var deckObject = new GameObject("SurfaceDeck");
+        var solidObject = new GameObject("SolidBehindDeck");
+        try
+        {
+            actor.transform.position = new Vector3(26000, 1.65f, 0);
+            var body = actor.AddComponent<BoxCollider2D>(); body.size = new Vector2(0.8f, 1);
+            actor.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            deckObject.transform.position = new Vector3(26000, 1, 0);
+            var deck = deckObject.AddComponent<BoxCollider2D>(); deck.size = new Vector2(4, 0.25f);
+            deck.usedByEffector = true; deckObject.AddComponent<PlatformEffector2D>().useOneWay = true;
+            Physics2D.SyncTransforms();
+            Assert.IsTrue(OneWayPlatform.HasBlockingSurface(body, Vector2.down, 0.1f, 1, -1));
+            Assert.IsFalse(OneWayPlatform.HasBlockingSurface(body, Vector2.down, 0.1f, 1, 1));
+            Physics2D.IgnoreCollision(body, deck, true);
+            Assert.IsFalse(OneWayPlatform.HasBlockingSurface(body, Vector2.down, 0.1f, 1, -1));
+            Physics2D.IgnoreCollision(body, deck, false);
+            actor.transform.position = new Vector3(26000, 0.35f, 0);
+            solidObject.transform.position = new Vector3(26000, 1.1f, 0);
+            solidObject.AddComponent<BoxCollider2D>().size = new Vector2(4, 0.25f);
+            Physics2D.SyncTransforms();
+            Assert.IsTrue(OneWayPlatform.HasBlockingSurface(body, Vector2.up, 0.2f, 1, 6));
+            solidObject.GetComponent<BoxCollider2D>().isTrigger = true;
+            Assert.IsFalse(OneWayPlatform.HasBlockingSurface(body, Vector2.up, 0.2f, 1, 6));
+        }
+        finally { Object.DestroyImmediate(actor); Object.DestroyImmediate(deckObject); Object.DestroyImmediate(solidObject); }
+    }
+
+    [Test]
+    public void OldAllClearExperienceReportStillShowsMissingRouteEvidence()
+    {
+        var report = new StudioExplorationRunner.Report { scenarios = MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Experience) };
+        report.trials.Add(new MechanismExplorationPlan.Trial { scenarioId = report.scenarios[0].id,
+            outcome = "Cleared", seconds = 10, marioStrategy = "SafeRoute", waypointsReached = 5 });
+        StringAssert.Contains("体验证据有缺口", StudioExplorationRunner.EvidenceVerdict(report));
+        StringAssert.Contains("旧报告未记录", StudioExplorationRunner.BuildSummary(report));
+        Assert.IsNull(report.trials[0].experience, "Reading must not rewrite historical data");
+    }
+
 }

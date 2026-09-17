@@ -50,6 +50,12 @@ public static class ExplorationSceneBuilder
             so.FindProperty("visibility").enumValueIndex = (int)PassageVisibility.HintWhenNear;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
+        if (scenario.version >= 3 && !string.IsNullOrEmpty(scenario.experience))
+        {
+            AddRouteSign(root, new Vector2(8, 5.5f), "UPPER: jump the steps\nLonger route, avoid the ambush");
+            AddRouteSign(root, new Vector2(23, 7f), "LOWER: watch the yellow warning\nQ scan / wait for recovery / detour");
+            AddRouteSign(root, new Vector2(38, 3f), scenario.lootEscape ? "TAKE LOOT\nReturn LEFT to escape" : "EXIT >");
+        }
         if (instrument)
         {
             var components = root.GetComponentsInChildren<MonoBehaviour>(true);
@@ -68,5 +74,17 @@ public static class ExplorationSceneBuilder
             }
         }
         return root;
+    }
+
+    private static void AddRouteSign(GameObject root, Vector2 position, string text)
+    {
+        // Passive world text only: no collider, no AI evidence and no hidden-state disclosure.
+        var sign = new GameObject("Experience_RouteHint");
+        sign.transform.SetParent(root.transform);
+        sign.transform.position = position;
+        var label = sign.AddComponent<TextMesh>();
+        label.text = text; label.fontSize = 48; label.characterSize = 0.075f;
+        label.anchor = TextAnchor.MiddleCenter; label.alignment = TextAlignment.Center;
+        label.color = Color.white;
     }
 }

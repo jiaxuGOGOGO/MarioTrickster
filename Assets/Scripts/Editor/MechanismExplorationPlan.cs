@@ -6,7 +6,7 @@ using System.Text;
 /// <summary>Versioned, deterministic challenge grammar. Layout coverage is not interaction coverage.</summary>
 public static class MechanismExplorationPlan
 {
-    public const int Version = 2;
+    public const int Version = 3;
     public const string Catalog = "BC-F<XoH>^~P[]Ee@fS";
     public static readonly string[] Profiles = { "Cautious", "Runner", "Explorer" };
     public enum Scope { Smoke, Mechanisms, Pairwise, Experience }
@@ -31,6 +31,7 @@ public static class MechanismExplorationPlan
     {
         if (baseline == null) return "缺少首轮基线，不能判定改善。";
         Func<Trial, string> signature = t => t.outcome + ":" + t.objectivePhase + ":" +
+            string.Join(",", (t.completedRoutes ?? new List<string>()).OrderBy(r => r)) + $":{t.armedNearbySeconds > 0}:{t.possessionTransfers > 0}:" +
             string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
             .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}"));
         return signature(baseline) == signature(confirmation)
@@ -75,7 +76,8 @@ public static class MechanismExplorationPlan
         private readonly Route[] routes;
         private readonly HashSet<string> reached = new HashSet<string>();
         private int routeIndex, cursor;
-        private bool returning;
+        private bool returning, partialRoute;
+        public readonly List<string> CompletedRoutes = new List<string>();
         private float stalled, best = float.MaxValue;
         public int SwitchRequests { get; private set; }
         public int WaypointsReached => reached.Count;
@@ -84,29 +86,31 @@ public static class MechanismExplorationPlan
             routes[routeIndex].points[returning ? routes[routeIndex].points.Length - 1 - cursor : cursor];
         public RouteNavigator(Route[] routes, bool safe)
         { this.routes = routes ?? Array.Empty<Route>(); routeIndex = safe && this.routes.Length > 1 ? 1 : 0; }
-        public void Tick(float x, float y, bool isReturning, float dt)
+        public void Tick(float x, float y, bool isReturning, float dt, bool grounded = true)
         {
             if (returning != isReturning)
-            { returning = isReturning; cursor = 0; stalled = 0; best = float.MaxValue; }
+            { returning = isReturning; partialRoute = false; cursor = 0; stalled = 0; best = float.MaxValue; }
             var target = Target;
             if (target == null) return;
             float dx = target.x - x, dy = target.y - y;
             float distance = (float)Math.Sqrt(dx * dx + dy * dy);
-            if (Math.Abs(dx) < 0.8f && Math.Abs(dy) < 0.8f)
+            if (grounded && Math.Abs(dx) < 0.45f && Math.Abs(dy) < 0.25f)
             {
                 reached.Add(returning + ":" + RouteId + ":" + cursor);
                 cursor++; best = float.MaxValue; stalled = 0;
+                string key = (returning ? "Return:" : "Out:") + RouteId;
+                if (Target == null && !partialRoute && !CompletedRoutes.Contains(key)) CompletedRoutes.Add(key);
                 return;
             }
             if (distance < best - 0.25f) { best = distance; stalled = 0; }
             else stalled += Math.Max(0, dt);
             if (stalled < 4f || SwitchRequests >= 2 || routes.Length < 2) return;
             // Try the other authored route at most twice; do not skip a failed waypoint as success.
-            routeIndex = (routeIndex + 1) % routes.Length; cursor = 0; SwitchRequests++;
+            routeIndex = (routeIndex + 1) % routes.Length; cursor = 0; partialRoute = false; SwitchRequests++;
             best = float.MaxValue; stalled = 0;
             // Lower lane is enterable anywhere. Upper lane must climb via the actual entry stairs.
             if (RouteId == "lower")
-                while (Target != null && (returning ? Target.x > x + 0.8f : Target.x < x - 0.8f)) cursor++;
+                while (Target != null && (returning ? Target.x > x + 0.8f : Target.x < x - 0.8f)) { cursor++; partialRoute = true; }
         }
     }
 
@@ -266,39 +270,39 @@ public static class MechanismExplorationPlan
         Action<int, int, char> put = (x, y, c) => rows[height - 1 - y][x] = c;
         int shift = new Dice(seed).Next(3);
         for (int x = 0; x < width; x++) put(x, 0, '#');
-        put(kind == 2 ? 5 : 2, 1, 'M'); put(12 + shift, 1, 'T');
+        put(kind == 2 ? 5 : 2, 1, 'M'); put(17 + shift, 1, 'T');
         put(kind == 2 ? 3 : 41, 1, 'G');
-        // A climb costs time but bypasses the lower ambush lane. All entries/exits are one-way.
-        put(7, 1, '-'); put(8, 2, '-'); put(9, 3, '-');
-        for (int x = 10; x <= 31; x++)
-            if (kind != 1 || x < 19 || x > 21) put(x, 4, '-');
-        put(32, 3, '-'); put(33, 2, '-'); put(34, 1, '-');
-        if (kind == 0) { put(16 + shift, 1, 'F'); put(26, 2, 'X'); }
-        if (kind == 1)
-        {
-            // Two spaced ambushes and an upper gap: wait for recovery or take a jumping detour.
-            put(15 + shift, 2, 'X'); put(28, 1, 'F');
-            put(23, 5, 'F');
-        }
-        if (kind == 2) { put(16 + shift, 1, 'F'); put(28, 2, 'X'); put(38, 1, 'o'); }
+        // Spaced steps allow a stable landing without the next underside overlapping the body.
+        // The upper lane stays open: avoiding an ambush is a valid choice, not missing contact.
+        put(7, 1, '-'); put(9, 2, '-'); put(11, 3, '-');
+        for (int x = 13; x <= 29; x++) put(x, 4, '-');
+        put(31, 3, '-'); put(33, 2, '-'); put(35, 1, '-');
+        // Start beside the first usable anchor, allowing the real 1.5s blend before a rush.
+        // Nearby second anchors support ordinary directional switching (no forced possession).
+        put(18 + shift, 1, '[');
+        if (kind == 0) put(22 + shift, 1, 'F');
+        if (kind == 1) { put(22 + shift, 1, ']'); put(28, 1, 'F'); }
+        if (kind == 2) { put(22 + shift, 1, 'F'); put(28, 1, '['); put(38, 1, 'o'); }
         // Targets are root positions at rest, not sprite centers or cell-top guesses.
         float standing = PhysicsMetrics.MARIO_COLLIDER_HEIGHT * 0.5f - PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
         float platformStanding = PhysicsMetrics.ONEWAY_COLLIDER_SIZE.y * 0.5f + standing;
         float groundStanding = 0.5f + standing;
         var upper = new System.Collections.Generic.List<Point> {
-            new Point(7, 1 + platformStanding), new Point(8, 2 + platformStanding),
-            new Point(10, 4 + platformStanding), new Point(17, 4 + platformStanding),
-            new Point(23, 4 + platformStanding), new Point(30, 4 + platformStanding),
-            new Point(33, 2 + platformStanding), new Point(35, groundStanding)
+            new Point(7, 1 + platformStanding), new Point(9, 2 + platformStanding),
+            new Point(11, 3 + platformStanding), new Point(13, 4 + platformStanding),
+            new Point(17, 4 + platformStanding), new Point(23, 4 + platformStanding),
+            new Point(29, 4 + platformStanding), new Point(31, 3 + platformStanding),
+            new Point(33, 2 + platformStanding), new Point(35, 1 + platformStanding),
+            new Point(37, groundStanding)
         };
         return new Scenario {
             seed = seed, id = $"v{Version}_experience_{kind}_{unchecked((uint)seed):x8}",
             experience = new[] { "RiskOrDetour", "BaitAndCounter", "LootAndReturn" }[kind],
-            mechanisms = kind == 2 ? "FXo" : "FX", lootEscape = kind == 2,
+            mechanisms = kind == 2 ? "[Fo" : kind == 1 ? "[]F" : "[F", lootEscape = kind == 2,
             ascii = string.Join("\n", rows.Select(row => new string(row))),
             intention = new[] {
                 "短路抢时间或爬高绕行；比较真实路线、预警退让和通关代价。",
-                "两段伏击与带缺口高路：引诱出手，等后摇通过，或跳跃换路。",
+                "封路预警可扫描缩短；公开队列显示当前/下一状态，可等安全窗或走高路。",
                 "深入右端拿宝，再返回左端撤离；对手可换点追击，去程进度不能代替返程。"
             }[kind],
             routes = new[] {
@@ -311,6 +315,25 @@ public static class MechanismExplorationPlan
     public static string PairKey(char a, char b) => a < b ? $"{a}{b}" : $"{b}{a}";
     public static string[] MissingFromCatalog(IEnumerable<char> registryChars) => registryChars
         .Where(c => !" .#=WMTG".Contains(c) && !Catalog.Contains(c)).Select(c => c.ToString()).Distinct().ToArray();
+
+    // Missing evidence is actionable, not a fun score or a requirement that every safe detour fight.
+    public static string[] ExperienceIssues(Trial t, Scenario scenario = null)
+    {
+        if (string.IsNullOrEmpty(scenario != null ? scenario.experience : t.experience)) return Array.Empty<string>();
+        bool expectsReturn = scenario != null ? scenario.lootEscape : t.expectsReturn;
+        var gaps = new List<string>();
+        if (t.experienceEvidenceVersion < 1) gaps.Add("旧报告未记录完整路线/交手机会；不能补算通过");
+        if (t.marioStrategy == "SafeRoute")
+        {
+            if (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper")) gaps.Add("安全上路去程未完整到达所有落地点");
+            if (expectsReturn && (t.completedRoutes == null || !t.completedRoutes.Contains("Return:upper"))) gaps.Add("安全上路返程未完整到达所有落地点");
+        }
+        else if (t.armedNearbySeconds <= 0f) gaps.Add("未观察到同高度近距附身就绪窗口；先查出生距离/准备时机");
+        if (expectsReturn && (t.lootEvents == 0 || t.escapeEvents == 0)) gaps.Add("拿宝与撤离事件未成对出现");
+        if (t.tricksterStrategy == "Chaser" && expectsReturn && t.possessionTransfers == 0)
+            gaps.Add("换点追击尚无不同锚点成功证据（请求不算成功）");
+        return gaps.ToArray();
+    }
 
     [Serializable]
     public sealed class Evidence
@@ -337,6 +360,13 @@ public static class MechanismExplorationPlan
         public int routeSwitchRequests, routeTransitions, waypointsReached, recoveryAttempts;
         public int telegraphRetreats, recoveryCrossings, possessionTransfers;
         public int bounceLandingAttempts, runnerBounceLaunches;
+        public int experienceEvidenceVersion;
+        public string experience;
+        public bool expectsReturn;
+        public List<string> completedRoutes = new List<string>();
+        public int controlAccepted, anchorSwitchRequests;
+        public float armedNearbySeconds;
+        public string[] ExperienceGaps => ExperienceIssues(this);
         public int attempt = 1;
         public string comparison = "";
         public string endReason = "";
@@ -354,11 +384,13 @@ public static class MechanismExplorationPlan
         public bool HasGameplayEvidence => seconds > 0 &&
             (outcome == "Cleared" || outcome == "RunnerStopped" || outcome == "NoProgress" || outcome == "TimedOut");
         public bool NeedsConfirmation => HasGameplayEvidence && errors.Count == 0 &&
-            (!CandidateForHumanPlay || coverage.Any(e => e.activations == 0));
+            (!CandidateForHumanPlay || (string.IsNullOrEmpty(experience) && coverage.Any(e => e.activations == 0)));
         public string InfrastructureKey => outcome == "StartupFailed" || outcome == "BuildFailed" || outcome == "RuntimeError"
             ? outcome + ":" + (errors.Count > 0 ? errors[0].Replace("\r", "").Split('\n')[0] : nextAction)
             : "";
         public bool PairExercised => coverage.Count == 2 && coverage.All(e => e.built > 0 && (e.contacts > 0 || e.activations > 0));
-        public bool CandidateForHumanPlay => outcome == "Cleared" && errors.Count == 0 && coverage.Count > 0 && coverage.All(e => e.built > 0 && (e.contacts > 0 || e.activations > 0));
+        public bool CandidateForHumanPlay => ExperienceGaps.Length == 0 && outcome == "Cleared" && errors.Count == 0 &&
+            coverage.Count > 0 && coverage.All(e => e.built > 0 &&
+                (!string.IsNullOrEmpty(experience) || e.contacts > 0 || e.activations > 0));
     }
 }

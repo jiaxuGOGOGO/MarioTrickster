@@ -215,7 +215,7 @@ public class MechanismExplorationPlanTests
             float standingY = 4 + PhysicsMetrics.ONEWAY_COLLIDER_SIZE.y * 0.5f +
                 PhysicsMetrics.MARIO_COLLIDER_HEIGHT * 0.5f - PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
             Assert.IsTrue(room.routes[1].Contains(20, standingY), "Actual grounded upper-route movement must be recorded");
-            Assert.AreEqual(standingY, room.routes[1].points[2].y, 0.001f);
+            Assert.AreEqual(standingY, room.routes[1].points[3].y, 0.001f);
             Assert.AreEqual(room.ascii, MechanismExplorationPlan.BuildExperience(room.seed, rooms.IndexOf(room)).ascii);
         }
         LevelStudioDocument.TryParse(rooms[2].ascii, out var loot, out _);
@@ -261,12 +261,12 @@ public class MechanismExplorationPlanTests
         var room = MechanismExplorationPlan.BuildExperience(153, 2);
         var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, false);
         Assert.AreEqual(11, nav.Target.x);
-        nav.Tick(11, 1.4f, false, 0.1f);
+        nav.Tick(11, 1.015f, false, 0.1f);
         Assert.AreEqual(1, nav.WaypointsReached);
         Assert.AreEqual(24, nav.Target.x);
-        nav.Tick(38, 1.4f, true, 0.1f);
+        nav.Tick(38, 1.015f, true, 0.1f);
         Assert.AreEqual(35, nav.Target.x);
-        nav.Tick(35, 1.4f, true, 0.1f);
+        nav.Tick(35, 1.015f, true, 0.1f);
         Assert.AreEqual(24, nav.Target.x);
         Assert.AreEqual(2, nav.WaypointsReached);
     }
@@ -319,4 +319,118 @@ public class MechanismExplorationPlanTests
         trial.coverage[1].activations = 1;
         Assert.IsTrue(trial.PairExercised);
     }
+    [Test]
+    public void UpperWaypointsRequireGroundedLandingNotPassingUnderOrFlyingPast()
+    {
+        var nav = new MechanismExplorationPlan.RouteNavigator(MechanismExplorationPlan.BuildExperience(153, 0).routes, true);
+        var target = nav.Target;
+        nav.Tick(target.x, 1.015f, false, 0.1f, true);
+        nav.Tick(target.x, target.y, false, 0.1f, false);
+        Assert.AreEqual(0, nav.WaypointsReached);
+        nav.Tick(target.x, target.y + 0.015f, false, 0.1f, true);
+        Assert.AreEqual(1, nav.WaypointsReached);
+        Assert.IsEmpty(nav.CompletedRoutes);
+    }
+
+    [Test]
+    public void SkippedLowerEntryAfterFallbackCannotClaimCompleteRoute()
+    {
+        var nav = new MechanismExplorationPlan.RouteNavigator(MechanismExplorationPlan.BuildExperience(153, 0).routes, true);
+        for (int i = 0; i < 45; i++) nav.Tick(25, 1.015f, false, 0.1f, true);
+        Assert.AreEqual("lower", nav.RouteId);
+        Assert.AreEqual(0, nav.WaypointsReached);
+        nav.Tick(35, 1.015f, false, 0.1f, true);
+        Assert.IsEmpty(nav.CompletedRoutes, "Fallback skipped the entry: no whole-route claim");
+    }
+
+    [Test]
+    public void ExperienceClearCannotHideFailedSafeRouteButSafeBypassNeedsNoContact()
+    {
+        var t = new MechanismExplorationPlan.Trial { experience = "RiskOrDetour", experienceEvidenceVersion = 1,
+            marioStrategy = "SafeRoute", outcome = "Cleared", seconds = 10 };
+        t.coverage.Add(new MechanismExplorationPlan.Evidence { built = 1 });
+        t.routesUsed.Add("ReachGoal:upper");
+        Assert.IsFalse(t.CandidateForHumanPlay, "Region entry alone is not a complete detour");
+        t.completedRoutes.Add("Out:upper");
+        Assert.IsTrue(t.CandidateForHumanPlay, "Avoiding the trap is a valid choice, not failed contact coverage");
+        Assert.IsFalse(t.NeedsConfirmation);
+        t.expectsReturn = true;
+        Assert.IsFalse(t.CandidateForHumanPlay);
+        t.completedRoutes.Add("Return:upper"); t.lootEvents = t.escapeEvents = 1;
+        Assert.IsTrue(t.CandidateForHumanPlay);
+    }
+
+    [Test]
+    public void ChaserRequestsAndControlsCannotInventReadyWindowOrSuccessfulTransfer()
+    {
+        var t = new MechanismExplorationPlan.Trial { experience = "LootAndReturn", experienceEvidenceVersion = 1,
+            expectsReturn = true, marioStrategy = "Runner", tricksterStrategy = "Chaser", outcome = "Cleared",
+            seconds = 10, controlAccepted = 20, anchorSwitchRequests = 100, lootEvents = 1, escapeEvents = 1 };
+        Assert.AreEqual(2, t.ExperienceGaps.Length);
+        t.armedNearbySeconds = 0.1f; Assert.AreEqual(1, t.ExperienceGaps.Length);
+        t.possessionTransfers = 1; Assert.IsEmpty(t.ExperienceGaps);
+    }
+
+    [Test]
+    public void SavedV2ExperienceIsExplicitlyMissingNewEvidenceWithoutRewritingAscii()
+    {
+        var old = new MechanismExplorationPlan.Scenario { version = 2, experience = "RiskOrDetour", ascii = "saved old geometry" };
+        var t = new MechanismExplorationPlan.Trial { outcome = "Cleared", marioStrategy = "SafeRoute" };
+        StringAssert.Contains("旧报告", MechanismExplorationPlan.ExperienceIssues(t, old)[0]);
+        Assert.AreEqual("saved old geometry", old.ascii);
+        Assert.AreEqual(2, old.version);
+    }
+
+    [Test]
+    public void Stress1000SeedsChecksGeometrySchedulesAndCoordinateOracleNotPhysics()
+    {
+        int rooms = 0, slots = 0, landings = 0;
+        for (int i = 0; i < 1000; i++)
+        {
+            int seed = i == 0 ? int.MinValue : i == 1 ? int.MaxValue : unchecked(i * 104729 - 50000000);
+            var plan = MechanismExplorationPlan.Create(seed, MechanismExplorationPlan.Scope.Experience);
+            var confirmations = plan.Select(r => r.id).ToArray();
+            for (int slot = 0; slot < 54; slot++)
+            {
+                var scheduled = MechanismExplorationPlan.TrialAt(plan, confirmations, slot);
+                Assert.AreEqual(slot < 27 ? 1 : 2, scheduled.attempt); slots++;
+            }
+            foreach (var room in plan)
+            {
+                rooms++;
+                Assert.IsTrue(LevelStudioDocument.TryParse(room.ascii, out var doc, out _));
+                Assert.IsEmpty(doc.PlayReadiness(), room.id);
+                Assert.IsFalse(room.mechanisms.Contains('X'), "Breakable blocks are not attack anchors");
+                var upper = room.routes[1].points;
+                foreach (var point in upper.Take(upper.Length - 1))
+                {
+                    int cellY = (int)Math.Round(point.y - 0.625f);
+                    Assert.AreEqual('-', doc.Cell((int)point.x, cellY), room.id + " unsupported waypoint");
+                }
+                for (int n = 1; n < upper.Length; n++) Assert.LessOrEqual(Math.Abs(upper[n].y - upper[n - 1].y), 1.01f);
+                var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, true);
+                foreach (bool returning in new[] { false, true })
+                {
+                    nav.Tick(returning ? 38 : 2, 1, returning, 0.02f, true);
+                    for (int n = 0; n < upper.Length; n++)
+                    {
+                        var target = nav.Target; Assert.IsNotNull(target);
+                        nav.Tick(target.x, target.y, returning, 0.02f, false);
+                        Assert.AreSame(target, nav.Target, "Airborne coordinate pass cannot consume a landing");
+                        nav.Tick(target.x + 0.1f, target.y + 0.015f, returning, 0.02f, true);
+                        landings++;
+                    }
+                    Assert.IsNull(nav.Target);
+                }
+                CollectionAssert.AreEquivalent(new[] { "Out:upper", "Return:upper" }, nav.CompletedRoutes);
+                Assert.AreEqual(0, nav.SwitchRequests);
+                var stalled = new MechanismExplorationPlan.RouteNavigator(room.routes, true);
+                for (int step = 0; step < 400; step++) stalled.Tick(2, 1, false, 0.1f, true);
+                Assert.AreEqual(2, stalled.SwitchRequests); Assert.AreEqual(0, stalled.WaypointsReached);
+                Assert.IsEmpty(stalled.CompletedRoutes);
+            }
+        }
+        TestContext.WriteLine($"Coordinate oracle only: rooms={rooms}, schedule slots={slots}, grounded visits={landings}; no Unity physics simulated.");
+    }
+
 }

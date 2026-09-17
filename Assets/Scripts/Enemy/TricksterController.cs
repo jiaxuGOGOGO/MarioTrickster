@@ -269,20 +269,10 @@ public class TricksterController : MonoBehaviour
 
     private void CheckCollisions()
     {
-        bool prev = Physics2D.queriesStartInColliders;
-        Physics2D.queriesStartInColliders = false;
-
-        bool groundHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.down, grounderDistance, groundLayer);
-
-        bool ceilingHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.up, grounderDistance, groundLayer);
-
-        Physics2D.queriesStartInColliders = prev;
+        bool groundHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.down,
+            grounderDistance, groundLayer, _frameVelocity.y);
+        bool ceilingHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.up,
+            grounderDistance, groundLayer, _frameVelocity.y);
 
         if (ceilingHit) _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
 

@@ -72,13 +72,15 @@ public partial class TestConsoleWindow
             if (!StudioExplorationRunner.Active)
             {
                 explorationIssuesOnly = EditorGUILayout.ToggleLeft("只看失败或交互覆盖不足的案例", explorationIssuesOnly);
-                var trials = report.trials.Where(t => !explorationIssuesOnly || !t.CandidateForHumanPlay).ToArray();
+                var trials = report.trials.Where(t => !explorationIssuesOnly || !t.CandidateForHumanPlay || StudioExplorationRunner.ExperienceIssues(report, t).Length > 0).ToArray();
                 if (trials.Length > 0)
                 {
                     explorationSelection = Mathf.Clamp(explorationSelection, 0, trials.Length - 1);
                     explorationSelection = EditorGUILayout.Popup("复测案例", explorationSelection,
                         trials.Select(t => $"{t.scenarioId} / {t.profile} / 第{Math.Max(1, t.attempt)}轮 / {t.outcome}").ToArray());
                     var trial = trials[explorationSelection];
+                    foreach (var gap in StudioExplorationRunner.ExperienceIssues(report, trial)) EditorGUILayout.HelpBox(gap, MessageType.Warning);
+                    EditorGUILayout.LabelField($"完整作者路线：{string.Join(", ", trial.completedRoutes ?? new System.Collections.Generic.List<string>())}；近距附身就绪 {trial.armedNearbySeconds:F2}s；换点请求 {trial.anchorSwitchRequests} / 成功 {trial.possessionTransfers}", EditorStyles.wordWrappedMiniLabel);
                     EditorGUILayout.LabelField(trial.nextAction, EditorStyles.wordWrappedMiniLabel);
                     if (!string.IsNullOrEmpty(trial.comparison)) EditorGUILayout.LabelField(trial.comparison, EditorStyles.wordWrappedMiniLabel);
                     foreach (var e in trial.coverage)

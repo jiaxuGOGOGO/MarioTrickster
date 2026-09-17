@@ -194,6 +194,121 @@ public class MechanismExplorationPlanTests
         replay.Reset(); Assert.IsTrue(replay.GetP1JumpDown());
     }
 
+    [TestCase(0)]
+    [TestCase(153)]
+    [TestCase(-1)]
+    public void ExperienceRoomsHaveDistinctDecisionsAndIndependentMatchups(int seed)
+    {
+        var rooms = MechanismExplorationPlan.Create(seed, MechanismExplorationPlan.Scope.Experience);
+        Assert.AreEqual(3, rooms.Count);
+        Assert.AreEqual(3, rooms.Select(r => r.experience).Distinct().Count());
+        Assert.AreEqual(27, MechanismExplorationPlan.TrialCount(rooms));
+        foreach (var room in rooms)
+        {
+            Assert.IsTrue(LevelStudioDocument.TryParse(room.ascii, out var doc, out _));
+            Assert.IsEmpty(doc.PlayReadiness());
+            Assert.IsFalse(AsciiLevelValidator.ValidateTemplate(doc.Grid).errors.Any(e => e.Contains("IMPASSABLE gap")), room.id);
+            Assert.AreEqual(9, MechanismExplorationPlan.Matchups(room).Select(m => m.Id).Distinct().Count());
+            Assert.AreEqual(2, room.routes.Length);
+            Assert.IsFalse(room.routes[0].Contains(20, 5.4f));
+            Assert.IsTrue(room.routes[1].Contains(20, 5.4f));
+            float standingY = 4 + PhysicsMetrics.ONEWAY_COLLIDER_SIZE.y * 0.5f +
+                PhysicsMetrics.MARIO_COLLIDER_HEIGHT * 0.5f - PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
+            Assert.IsTrue(room.routes[1].Contains(20, standingY), "Actual grounded upper-route movement must be recorded");
+            Assert.AreEqual(standingY, room.routes[1].points[2].y, 0.001f);
+            Assert.AreEqual(room.ascii, MechanismExplorationPlan.BuildExperience(room.seed, rooms.IndexOf(room)).ascii);
+        }
+        LevelStudioDocument.TryParse(rooms[2].ascii, out var loot, out _);
+        Assert.AreEqual('G', loot.Cell(3, 1)); Assert.AreEqual('o', loot.Cell(38, 1));
+        var confirmations = rooms.Select(r => r.id).ToArray();
+        for (int i = 0; i < 54; i++)
+        {
+            var slot = MechanismExplorationPlan.TrialAt(rooms, confirmations, i);
+            Assert.AreEqual(i < 27 ? 1 : 2, slot.attempt);
+            Assert.AreEqual(rooms[(i % 27) / 9], slot.scenario);
+        }
+        Assert.Throws<ArgumentOutOfRangeException>(() => MechanismExplorationPlan.TrialAt(rooms, confirmations, 54));
+        Assert.AreEqual(3, MechanismExplorationPlan.Matchups(new MechanismExplorationPlan.Scenario { version = 1 }).Length);
+    }
+
+    [Test]
+    public void CombinationExitKeepsLowerLaneOpenAndBounceHasHeadroom()
+    {
+        foreach (var room in MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Pairwise).Where(r => r.mechanisms.Length == 2))
+        {
+            LevelStudioDocument.TryParse(room.ascii, out var doc, out _);
+            Assert.AreEqual('.', doc.Cell(27, 1), room.id);
+            if (room.mechanisms.Contains('B'))
+                Assert.IsFalse(AsciiLevelValidator.ValidateTemplate(doc.Grid).warnings.Any(w => w.Contains("Bounce trajectory")), room.id);
+        }
+    }
+
+    [Test]
+    public void RouteMemoryNeverCountsFailedWaypointsAndStopsSwitching()
+    {
+        var room = MechanismExplorationPlan.BuildExperience(153, 0);
+        var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, true);
+        Assert.AreEqual("upper", nav.RouteId);
+        for (int i = 0; i < 200; i++) nav.Tick(2, 1.4f, false, 0.1f);
+        Assert.AreEqual(2, nav.SwitchRequests);
+        Assert.AreEqual(0, nav.WaypointsReached, "Retries must not invent physical progress");
+        Assert.IsNotNull(nav.Target, "Failure cannot silently skip the remaining route");
+    }
+
+    [Test]
+    public void LootPhaseReversesWaypointsOnlyAfterActualCollectionFlag()
+    {
+        var room = MechanismExplorationPlan.BuildExperience(153, 2);
+        var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, false);
+        Assert.AreEqual(11, nav.Target.x);
+        nav.Tick(11, 1.4f, false, 0.1f);
+        Assert.AreEqual(1, nav.WaypointsReached);
+        Assert.AreEqual(24, nav.Target.x);
+        nav.Tick(38, 1.4f, true, 0.1f);
+        Assert.AreEqual(35, nav.Target.x);
+        nav.Tick(35, 1.4f, true, 0.1f);
+        Assert.AreEqual(24, nav.Target.x);
+        Assert.AreEqual(2, nav.WaypointsReached);
+    }
+
+    [Test]
+    public void CounterplayEvidenceRequiresObservedMotionWithinTheCorrectPhase()
+    {
+        var motion = new MechanismExplorationPlan.CounterplayMotion();
+        Assert.AreEqual(0, motion.Sample("Telegraph", -2, 0, 2));
+        Assert.AreEqual(0, motion.Sample("Telegraph", -2, 0, 2));
+        Assert.AreEqual(1, motion.Sample("Telegraph", -2.5f, 0, 2.5f));
+        Assert.AreEqual(0, motion.Sample("Telegraph", -3, 0, 3), "One retreat per warning episode");
+        Assert.AreEqual(0, motion.Sample("Active", -1, 0, 1));
+        Assert.AreEqual(0, motion.Sample("Recovery", 1, 0, 1), "Do not infer a recovery crossing at a phase boundary");
+        Assert.AreEqual(2, motion.Sample("Recovery", -1, 0, 1));
+        Assert.AreEqual(0, motion.Sample("Recovery", 1, 0, 1), "One crossing per recovery episode");
+        motion.Sample("Idle", -1, 0, 1);
+        motion.Sample("Recovery", -1, 5, 5);
+        Assert.AreEqual(0, motion.Sample("Recovery", 1, 5, 5), "Upper-route movement is not a lower-trap counter");
+    }
+
+    [Test]
+    public void ConfirmationDetectsChangedRoutesEvenWhenOutcomeMatches()
+    {
+        var baseline = new MechanismExplorationPlan.Trial { outcome = "Cleared" };
+        var confirmation = new MechanismExplorationPlan.Trial { outcome = "Cleared" };
+        baseline.routesUsed.Add("Escape:lower"); confirmation.routesUsed.Add("Escape:upper");
+        StringAssert.Contains("不稳定", MechanismExplorationPlan.CompareConfirmation(baseline, confirmation));
+    }
+
+    [Test]
+    public void MixedOldAndExperienceSchedulesUseEachRoomsOwnMatchups()
+    {
+        var rooms = new[] { MechanismExplorationPlan.Build(153, "F"), MechanismExplorationPlan.BuildExperience(154, 2) };
+        var confirmation = new[] { rooms[1].id };
+        Assert.AreEqual(12, MechanismExplorationPlan.TrialCount(rooms));
+        Assert.AreEqual("Cautious", MechanismExplorationPlan.TrialAt(rooms, confirmation, 0).matchup.Id);
+        Assert.AreEqual("Runner vs Ambusher", MechanismExplorationPlan.TrialAt(rooms, confirmation, 3).matchup.Id);
+        Assert.AreEqual(2, MechanismExplorationPlan.TrialAt(rooms, confirmation, 12).attempt);
+        Assert.Throws<ArgumentOutOfRangeException>(() => MechanismExplorationPlan.TrialAt(rooms, confirmation, 21));
+    }
+
     [Test]
     public void PairCoverageRequiresBothMechanismsToBeContactedOrActivated()
     {

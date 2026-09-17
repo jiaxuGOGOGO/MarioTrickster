@@ -21,7 +21,11 @@ public sealed class ExplorationTrialObserver : IDisposable
     private readonly BotPersonaConfigSO marioProfile, tricksterProfile;
     private readonly GuidedBot bot;
     private float sampleTimer, noProgressTimer, bestDistance = float.MaxValue;
-    private readonly float goalX;
+    private readonly Transform goal, loot;
+    private readonly MechanismExplorationPlan.Route[] routeRegions;
+    private readonly Dictionary<ControllablePropBase, MechanismExplorationPlan.CounterplayMotion> motion = new Dictionary<ControllablePropBase, MechanismExplorationPlan.CounterplayMotion>();
+    private string lastRoute, lastPhase;
+    private PossessionAnchor lastPossessedAnchor;
     private bool disposed;
     public bool Finished => result.outcome != "Running";
     public string Intent => bot.MarioIntent + " / " + bot.TricksterIntent;
@@ -38,17 +42,34 @@ public sealed class ExplorationTrialObserver : IDisposable
         gate = Object.FindObjectOfType<TricksterPossessionGate>();
         combo = Object.FindObjectOfType<PropComboTracker>();
         routes = Object.FindObjectOfType<RouteBudgetService>();
-        goalX = 37f;
+        var escape = Object.FindObjectOfType<EscapeGate>();
+        var finish = Object.FindObjectOfType<GoalZone>();
+        var treasure = Object.FindObjectOfType<LootObjective>();
+        goal = escape != null ? escape.transform : finish != null ? finish.transform : null;
+        loot = treasure != null ? treasure.transform : null;
+        if (goal == null) throw new InvalidOperationException("Missing actual goal/escape target");
+        routeRegions = scenario.routes ?? Array.Empty<MechanismExplorationPlan.Route>();
         foreach (char c in scenario.mechanisms)
         {
             var probes = Object.FindObjectsOfType<ExplorationContactProbe>().Where(p => p.mechanism == c.ToString()).ToArray();
             targets[c.ToString()] = probes.Select(p => p.transform).ToArray();
             result.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = c.ToString(), built = probes.Length });
         }
-        marioProfile = MakeProfile(trial.profile, false);
-        tricksterProfile = MakeProfile(trial.profile, true);
-        bot = new GuidedBot(mario, targets, trial.profile == "Explorer") { marioPersona = marioProfile, tricksterPersona = tricksterProfile };
-        bot.SetDecisionSeed(unchecked(scenario.seed + Array.IndexOf(MechanismExplorationPlan.Profiles, trial.profile) * 65537));
+        string runnerName = string.IsNullOrEmpty(trial.marioStrategy) ? trial.profile : trial.marioStrategy;
+        string opponentName = string.IsNullOrEmpty(trial.tricksterStrategy) ? trial.profile : trial.tricksterStrategy;
+        marioProfile = MakeProfile(runnerName, false);
+        tricksterProfile = MakeProfile(opponentName, true);
+        bot = new GuidedBot(mario, targets, runnerName == "Explorer", routeRegions, runnerName == "SafeRoute") {
+            marioPersona = marioProfile, tricksterPersona = tricksterProfile,
+            RunnerStrategy = runnerName == "Scout" ? HeuristicBotInputProvider.RunnerPolicy.Scout :
+                runnerName == "SafeRoute" ? HeuristicBotInputProvider.RunnerPolicy.SafeRoute :
+                runnerName == "Runner" ? HeuristicBotInputProvider.RunnerPolicy.Rush : HeuristicBotInputProvider.RunnerPolicy.Legacy,
+            OpponentStrategy = opponentName == "Ambusher" ? HeuristicBotInputProvider.OpponentPolicy.Ambusher :
+                opponentName == "Baiter" ? HeuristicBotInputProvider.OpponentPolicy.Baiter :
+                opponentName == "Chaser" ? HeuristicBotInputProvider.OpponentPolicy.Chaser : HeuristicBotInputProvider.OpponentPolicy.Legacy
+        };
+        int matchupIndex = Array.FindIndex(MechanismExplorationPlan.Matchups(scenario), m => m.mario == runnerName && m.trickster == opponentName);
+        bot.SetDecisionSeed(unchecked(scenario.seed + matchupIndex * 65537));
         previousInput = input.GetCurrentProvider();
         input.SetInputProvider(bot);
         manager.OnGameOver += OnGameOver;
@@ -75,10 +96,10 @@ public sealed class ExplorationTrialObserver : IDisposable
         var p = ScriptableObject.CreateInstance<BotPersonaConfigSO>();
         p.hideFlags = HideFlags.HideAndDontSave;
         p.personaName = name;
-        p.reactionDelay = name == "Cautious" ? 0.4f : 0.1f;
+        p.reactionDelay = name == "Cautious" ? 0.4f : name == "SafeRoute" ? 0.2f : 0.1f;
         p.riskTolerance = name == "Runner" ? 0.9f : 0.25f;
-        p.scanAggression = name == "Explorer" ? 0.95f : 0.4f;
-        p.ambushAggression = name == "Cautious" ? 0.35f : 0.9f;
+        p.scanAggression = name == "Explorer" || name == "Scout" ? 0.95f : 0.4f;
+        p.ambushAggression = name == "Cautious" || name == "Baiter" ? 0.35f : 0.9f;
         p.comboPreference = trickster && name != "Cautious" ? 0.9f : 0.3f;
         return p;
     }
@@ -92,14 +113,34 @@ public sealed class ExplorationTrialObserver : IDisposable
         result.seconds = manager.RoundElapsed;
         result.endX = mario.transform.position.x; result.endY = mario.transform.position.y;
         result.farthestX = Mathf.Max(result.farthestX, result.endX);
-        float distance = Mathf.Abs(goalX - result.endX);
+        string phase = loot != null ? (LootObjective.IsLootCarried ? "Escape" : "CollectLoot") : "ReachGoal";
+        if (lastPhase != phase)
+        {
+            lastPhase = phase; result.objectivePhase = phase; lastRoute = null;
+            bestDistance = float.MaxValue; noProgressTimer = 0; Event("objective " + phase);
+        }
+        Transform objective = phase == "CollectLoot" ? loot : goal;
+        float distance = objective != null ? Vector2.Distance(mario.transform.position, objective.position) : bestDistance;
+        if (bot.WaypointsReached > result.waypointsReached) noProgressTimer = 0;
+        result.waypointsReached = bot.WaypointsReached;
+        if (bot.RouteSwitchRequests > result.routeSwitchRequests) Event("route switch requested: " + bot.RouteId + " (not a completed traversal)");
+        result.routeSwitchRequests = bot.RouteSwitchRequests;
+        result.recoveryAttempts = bot.RecoveryAttempts;
         if (distance < bestDistance - 0.5f) { bestDistance = distance; noProgressTimer = 0; }
         else noProgressTimer += dt;
         if (result.seconds >= limit) { Finish("TimedOut", "超出本次时间预算；不等于物理无解。检查 AI 寻路和关卡节奏。"); return; }
-        if (noProgressTimer > 12f) { Finish("NoProgress", "12 秒未向终点取得净进展，也未获得新接近/接触/激活证据；可能是 AI 局限、机制等待或布局问题，需复测。"); return; }
+        if (noProgressTimer > 12f) { Finish("NoProgress", "12 秒未向当前目标取得净进展，也未到达新路点或获得新接近/接触/激活证据；可能是 AI 局限、机制等待或布局问题，需复测。"); return; }
         sampleTimer += dt;
         if (sampleTimer < 0.1f) return;
         sampleTimer = 0f;
+        foreach (var region in routeRegions)
+        {
+            if (!region.Contains(result.endX, result.endY)) continue;
+            string key = phase + ":" + region.id;
+            if (!result.routesUsed.Contains(key)) { result.routesUsed.Add(key); Event("route physically entered " + key); }
+            if (lastRoute != null && lastRoute != region.id) { result.routeTransitions++; Event("observed route transition " + lastRoute + " -> " + region.id); }
+            lastRoute = region.id;
+        }
         foreach (var evidence in result.coverage)
             foreach (var target in targets[evidence.mechanism])
             {
@@ -109,8 +150,13 @@ public sealed class ExplorationTrialObserver : IDisposable
                 var prop = target.GetComponent<ControllablePropBase>();
                 if (prop != null)
                 {
-                    string phase = prop.GetControlState().ToString();
-                    if (!evidence.phases.Contains(phase)) evidence.phases.Add(phase);
+                    string propPhase = prop.GetControlState().ToString();
+                    if (!evidence.phases.Contains(propPhase)) evidence.phases.Add(propPhase);
+                    if (!motion.TryGetValue(prop, out var sample)) { sample = new MechanismExplorationPlan.CounterplayMotion(); motion.Add(prop, sample); }
+                    Vector2 delta = mario.transform.position - target.position;
+                    int flags = sample.Sample(propPhase, delta.x, Mathf.Abs(delta.y), delta.magnitude);
+                    if ((flags & 1) != 0) { result.telegraphRetreats++; Event("measured telegraph retreat " + evidence.mechanism); }
+                    if ((flags & 2) != 0) { result.recoveryCrossings++; Event("measured recovery crossing " + evidence.mechanism); }
                 }
             }
     }
@@ -164,7 +210,14 @@ public sealed class ExplorationTrialObserver : IDisposable
     private void OnTrap(GameplayEventBus.TrapTriggeredPayload p) => MarkActivation(p.source, "trap event");
     private void OnScan() { if (!Finished) { result.scans++; Event("scan performed"); } }
     private void OnPossession(TricksterPossessionState state)
-    { if (!Finished && state == TricksterPossessionState.Possessing) { result.possessions++; Event("possessing"); } }
+    {
+        if (Finished || state != TricksterPossessionState.Possessing) return;
+        result.possessions++; Event("possessing");
+        var anchor = gate != null ? gate.CurrentAnchor : null;
+        if (anchor != null && lastPossessedAnchor != null && anchor != lastPossessedAnchor)
+        { result.possessionTransfers++; Event("possession of a different anchor completed"); }
+        if (anchor != null) lastPossessedAnchor = anchor;
+    }
     private void OnCombo(int count, float multiplier) { if (!Finished && count > 1) { result.comboEvents++; Event("combo " + count); } }
     private void OnHeat(GameplayEventBus.HeatTierChangedPayload p) { if (!Finished) { result.heatEvents++; Event("heat " + p.newTier); } }
     private void OnLoot()
@@ -217,9 +270,14 @@ public sealed class ExplorationTrialObserver : IDisposable
         private readonly KeyValuePair<string, Transform>[] points;
         private readonly bool explore;
         private int cursor;
-        private float targetTime, interactTimer;
-        public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore)
+        private float targetTime, interactTimer, dropTimer;
+        private readonly MechanismExplorationPlan.RouteNavigator navigation;
+        public int WaypointsReached => navigation.WaypointsReached;
+        public int RouteSwitchRequests => navigation.SwitchRequests;
+        public string RouteId => navigation.RouteId;
+        public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore, MechanismExplorationPlan.Route[] routes, bool safe)
         {
+            navigation = new MechanismExplorationPlan.RouteNavigator(routes, safe);
             this.runner = runner; this.explore = explore;
             points = targets.SelectMany(p => p.Value.Select(t => new KeyValuePair<string, Transform>(p.Key, t)))
                 .OrderBy(p => p.Value.position.x).ToArray();
@@ -228,6 +286,13 @@ public sealed class ExplorationTrialObserver : IDisposable
         {
             interactTimer -= dt;
             ExplorationTarget = null;
+            dropTimer -= dt;
+            if (runner != null)
+            {
+                navigation.Tick(runner.transform.position.x, runner.transform.position.y, LootObjective.IsLootCarried, dt);
+                var waypoint = navigation.Target;
+                if (waypoint != null) ExplorationTarget = new Vector2(waypoint.x, waypoint.y);
+            }
             if (explore && cursor < points.Length && runner != null)
             {
                 var point = points[cursor]; targetTime += dt;
@@ -235,6 +300,10 @@ public sealed class ExplorationTrialObserver : IDisposable
                 else ExplorationTarget = point.Value.position;
             }
             base.UpdateMarioBrain(dt);
+            if (runner != null && ExplorationTarget.HasValue && runner.IsGrounded && dropTimer <= 0f &&
+                ExplorationTarget.Value.y < runner.transform.position.y - 1.5f &&
+                Mathf.Abs(ExplorationTarget.Value.x - runner.transform.position.x) < 0.8f)
+            { p1SHeld = true; p1JumpHeld = true; p1JumpDown = true; dropTimer = 0.8f; }
             if (!explore || cursor >= points.Length || runner == null) return;
             var current = points[cursor];
             if (current.Value != null && current.Key == "H" && interactTimer <= 0f && Vector2.Distance(runner.transform.position, current.Value.position) < 1.2f)

@@ -102,6 +102,47 @@ public class S50_AutoRunE2ETests
     /// 输入序列：向右走 ~200 帧（10x 加速下约 0.4 秒真实时间）
     /// 断言：Mario 存活 + GameState == RoundOver（胜利）
     /// </summary>
+    [TestCase(typeof(MarioController))]
+    [TestCase(typeof(TricksterController))]
+    public void JumpBuffer_RequiresRealPressAtStartupAndAfterConsumption(System.Type type)
+    {
+        var go = new GameObject("JumpBufferContract");
+        _testObjects.Add(go);
+        var controller = go.AddComponent(type);
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        System.Action<string, object> set = (name, value) => type.GetField(name, flags).SetValue(controller, value);
+        System.Func<Vector2> velocity = () => (Vector2)type.GetField("_frameVelocity", flags).GetValue(controller);
+        var handle = type.GetMethod("HandleJump", flags);
+        set("_time", 0f); set("_grounded", true); set("_bufferedJumpUsable", true);
+        handle.Invoke(controller, null);
+        Assert.AreEqual(0f, velocity().y, "Landing at startup is not a buffered button press");
+        set("_timeJumpWasPressed", 0f); set("_jumpToConsume", true);
+        handle.Invoke(controller, null);
+        Assert.Greater(velocity().y, 0f, "A real press at time zero must work");
+        set("_frameVelocity", Vector2.zero); set("_bufferedJumpUsable", true);
+        handle.Invoke(controller, null);
+        Assert.AreEqual(0f, velocity().y, "A consumed press cannot reappear on early re-landing");
+        set("_timeJumpWasPressed", 0f); set("_jumpToConsume", true); set("jumpPressedThisFrame", true);
+        type.GetMethod("ResetForNewRound").Invoke(controller, null);
+        set("_grounded", true); set("_bufferedJumpUsable", true);
+        handle.Invoke(controller, null);
+        Assert.AreEqual(0f, velocity().y, "New rounds must clear buffered and unconsumed presses");
+    }
+
+    [UnityTest]
+    public IEnumerator NeutralInput_DoesNotJumpDuringInitialLanding()
+    {
+        var root = AsciiLevelGenerator.GenerateFromTemplate("...............\n...............\n...............\nM.............G\n###############", true);
+        _testObjects.Add(root);
+        SetupPlayableEnvironment(root);
+        var mario = Object.FindObjectOfType<MarioController>();
+        int jumps = 0;
+        mario.OnJump += () => jumps++;
+        yield return new WaitForSecondsRealtime(0.3f);
+        Assert.AreEqual(0, jumps, "Neutral warmup must not consume a phantom startup jump");
+        Assert.IsTrue(mario.IsGrounded);
+    }
+
     [UnityTest]
     public IEnumerator DirectTas_UsesPhysicsClockAndDeliversOpeningJumpAt10x()
     {
@@ -129,6 +170,34 @@ public class S50_AutoRunE2ETests
         Assert.Greater(physicsSteps, 1);
         Assert.AreEqual(physicsSteps, replay.CurrentSegmentIndex, "One segment per physics step, not per rendered frame");
         Assert.AreEqual(1, jumps, "The opening one-step jump must be delivered once before physics");
+    }
+
+    [UnityTest]
+    public IEnumerator Bot_LowStepUnderOneWayRoute_ReachesGoalWithOrdinaryInput()
+    {
+        Time.timeScale = 1f;
+        var root = AsciiLevelGenerator.GenerateFromTemplate(
+            "...............\n....-------....\n...............\nM....=........G\n###############", true);
+        _testObjects.Add(root);
+        SetupPlayableEnvironment(root);
+        yield return null;
+        var mario = Object.FindObjectOfType<MarioController>();
+        var input = Object.FindObjectOfType<InputManager>();
+        var manager = GameManager.Instance;
+        bool won = false;
+        System.Action<string> onEnd = winner => won = winner == "Mario";
+        manager.OnGameOver += onEnd;
+        try
+        {
+            var bot = new HeuristicBotInputProvider();
+            bot.SetDecisionSeed(153);
+            input.SetInputProvider(bot);
+            float deadline = Time.realtimeSinceStartup + 12f;
+            while (!won && manager.CurrentState == GameState.Playing && Time.realtimeSinceStartup < deadline)
+                yield return null;
+            Assert.IsTrue(won, $"Low-step navigation failed at {mario.transform.position}; intent={bot.MarioIntent}; recovery attempts={bot.RecoveryAttempts}");
+        }
+        finally { if (manager != null) manager.OnGameOver -= onEnd; }
     }
 
     [UnityTest]

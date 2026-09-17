@@ -63,6 +63,14 @@ public class HeuristicBotInputProvider : IInputProvider
 
     // Optional exploration guidance. Null preserves normal gameplay targeting.
     public Vector2? ExplorationTarget { get; set; }
+    public enum RunnerPolicy { Legacy, Rush, Scout, SafeRoute }
+    public enum OpponentPolicy { Legacy, Ambusher, Baiter, Chaser }
+    public RunnerPolicy RunnerStrategy { get; set; }
+    public OpponentPolicy OpponentStrategy { get; set; }
+    public int RecoveryAttempts { get; private set; }
+    private Collider2D _marioCollider, _tricksterCollider;
+    private PossessionAnchor _avoidedAnchor;
+    private float _avoidAnchorTimer, _roamingTimer, _scoutScanTimer, _tricksterJumpHold;
     private System.Random decisionRandom;
     private readonly Dictionary<System.Type, Component[]> sceneCache = new Dictionary<System.Type, Component[]>();
     private float sceneCacheAge;
@@ -247,9 +255,17 @@ public class HeuristicBotInputProvider : IInputProvider
         }
         sceneCacheAge += dt;
         if (sceneCacheAge >= 1f) { sceneCache.Clear(); sceneCacheAge = 0f; }
+        _avoidAnchorTimer = Mathf.Max(0f, _avoidAnchorTimer - dt);
+        if (_avoidAnchorTimer <= 0f) _avoidedAnchor = null;
         ResetDownFlags();
+        p1SHeld = false;
+        p2JumpHeld = false;
         UpdateMarioBrain(dt);
         UpdateTricksterBrain(dt);
+        // Preserve a short held jump, then release it so a later jump has a fresh edge.
+        if (_tricksterJumpHold > 0f)
+        { _tricksterJumpHold -= dt; p2JumpHeld = _tricksterJumpHold > 0f; }
+        else if (p2JumpDown) { _tricksterJumpHold = 0.3f; p2JumpHeld = true; }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -263,6 +279,7 @@ public class HeuristicBotInputProvider : IInputProvider
         if (!_marioCacheReady)
         {
             _mario = Object.FindObjectOfType<MarioController>();
+            if (_mario != null) _marioCollider = _mario.GetComponent<Collider2D>();
             _probe = Object.FindObjectOfType<MarioCounterplayProbe>();
             _marioCacheReady = true;
         }
@@ -276,6 +293,10 @@ public class HeuristicBotInputProvider : IInputProvider
 
         Vector2 marioPos = _mario.transform.position;
         float facingDir = _mario.IsFacingRight ? 1f : -1f;
+        // Scouting remains available while waiting/baiting; it is only a normal scan request.
+        _scoutScanTimer -= dt;
+        if (RunnerStrategy == RunnerPolicy.Scout && _scoutScanTimer <= 0f && HasNearbyAnchor(marioPos, 5f))
+        { p1ScanDown = true; _scoutScanTimer = 1.5f; }
 
         // ── 0. 防卡死：反向跳跃逃脱中，优先执行 ──
         if (_stuckEscapeTimer > 0f)
@@ -376,6 +397,8 @@ public class HeuristicBotInputProvider : IInputProvider
 
         if (_mario.IsGrounded)
         {
+            // Low steps were below the old chest-height ray. Probe near the actual feet.
+            float feetY = _marioCollider != null ? _marioCollider.bounds.min.y + 0.15f : marioPos.y - 0.4f;
             // 遇坑跳（从 Mario 脚底前方向下打射线）
             Vector2 pitOrigin = marioPos + new Vector2(facingDir * PIT_CHECK_FORWARD, -0.3f);
             RaycastHit2D pitHit = Physics2D.Raycast(pitOrigin, Vector2.down, PIT_CHECK_DEPTH, solidMask);
@@ -385,12 +408,17 @@ public class HeuristicBotInputProvider : IInputProvider
             // 遇墙跳
             if (!shouldJump)
             {
-                Vector2 wallOrigin = marioPos + new Vector2(0f, WALL_CHECK_HEIGHT);
+                Vector2 wallOrigin = new Vector2(marioPos.x, feetY);
                 RaycastHit2D wallHit = Physics2D.Raycast(wallOrigin, new Vector2(facingDir, 0f), WALL_CHECK_DISTANCE, solidMask);
                 if (wallHit.collider != null)
                     shouldJump = true;
             }
         }
+
+        // Authored route steps may be only one cell higher; chest-height/wiggle checks miss them.
+        if (ExplorationTarget.HasValue && _mario.IsGrounded &&
+            ExplorationTarget.Value.y > marioPos.y + 0.4f && Mathf.Abs(ExplorationTarget.Value.x - marioPos.x) < 2.25f)
+            shouldJump = true;
 
         // [垂直寻路] Wiggle 模式下高频触发跳跃
         if (verticalWiggle && _mario.IsGrounded)
@@ -408,13 +436,13 @@ public class HeuristicBotInputProvider : IInputProvider
         _dangerDetectedLastFrame = currentDanger;
 
         // 反应延迟拦截：计时器未归零时，强制维持原有移动意图，不执行避险动作
-        if (_marioReactionTimer > 0f)
+        if (_marioReactionTimer > 0f && _mario.IsGrounded && _jumpHoldTimer <= 0f)
         {
             _marioReactionTimer -= dt;
             shouldJump = false;
             _waitingForTrap = false;
             _baitingTrap = false;
-            p1Horizontal = facingDir;
+            p1Horizontal = 0f; // Brake rather than walking into the obstacle during deliberation.
             p1JumpDown = false;
             p1JumpHeld = false;
             MarioIntent = "[Persona] Reaction Delay...";
@@ -430,7 +458,7 @@ public class HeuristicBotInputProvider : IInputProvider
 
         // ── 2d. Persona 行为注入：风险容忍度 (riskTolerance) ──
         // 高风险容忍度的人有概率无视预警继续前冲
-        if (_baitingTrap && DecisionValue < riskTol * 0.5f)
+        if (_baitingTrap && RunnerStrategy != RunnerPolicy.Scout && RunnerStrategy != RunnerPolicy.SafeRoute && DecisionValue < riskTol * 0.5f)
         {
             _baitingTrap = false;
             MarioIntent = "[Persona] High Risk Rush!";
@@ -492,6 +520,7 @@ public class HeuristicBotInputProvider : IInputProvider
                     float displacement = Mathf.Abs(marioPos.x - _lastMarioPos.x);
                     if (displacement < STUCK_MIN_DISPLACEMENT)
                     {
+                        RecoveryAttempts++;
                         // 卡住了！强制反向跳跃
                         _stuckEscapeDir = -p1Horizontal;
                         if (Mathf.Abs(_stuckEscapeDir) < 0.01f)
@@ -622,6 +651,7 @@ public class HeuristicBotInputProvider : IInputProvider
             _trickster = Object.FindObjectOfType<TricksterController>();
             if (_trickster != null)
             {
+                _tricksterCollider = _trickster.GetComponent<Collider2D>();
                 _gate = _trickster.GetComponent<TricksterPossessionGate>();
                 _ability = _trickster.AbilitySystem;
             }
@@ -679,7 +709,8 @@ public class HeuristicBotInputProvider : IInputProvider
             Vector2 mPos = _mario.transform.position;
             float fleeDir = (tPos.x >= mPos.x) ? 1f : -1f;
             p2Horizontal = fleeDir;
-            p2JumpDown = true; // 跳跃辅助越障
+            p2JumpDown = _trickster.IsGrounded;
+            p2JumpHeld = p2JumpDown; // Held must accompany the edge at the input bridge.
             TricksterIntent = "[Fleeing! High Heat]";
             return;
         }
@@ -722,6 +753,12 @@ public class HeuristicBotInputProvider : IInputProvider
             // 状态 A: Roaming — 战术走位 + 自动伪装 + 射线避障
             // ────────────────────────────────────────
             case TricksterPossessionState.Roaming:
+                _roamingTimer += dt;
+                if (_roamingTimer > 4f && _targetAnchor != null)
+                {
+                    _avoidedAnchor = _targetAnchor; _avoidAnchorTimer = 6f;
+                    _targetAnchor = null; _roamingTimer = 0f;
+                }
                 HandleRoaming(tricksterPos, marioPos, marioFacing, comboRushing);
                 _possessTimer = 0f; // 重置附身计时器
                 break;
@@ -731,6 +768,7 @@ public class HeuristicBotInputProvider : IInputProvider
             // ────────────────────────────────────────
             case TricksterPossessionState.Blending:
                 p2Horizontal = 0f;
+                _roamingTimer = 0f;
                 // 清除处决状态（新一轮伏击）
                 _executeArmed = false;
                 _executeDelayTimer = 0f;
@@ -812,7 +850,7 @@ public class HeuristicBotInputProvider : IInputProvider
                 bool needJump = false;
 
                 // 遇墙检测
-                Vector2 wallOrigin = tricksterPos + new Vector2(0f, T_WALL_CHECK_HEIGHT);
+                Vector2 wallOrigin = new Vector2(tricksterPos.x, _tricksterCollider != null ? _tricksterCollider.bounds.min.y + 0.15f : tricksterPos.y - 0.4f);
                 RaycastHit2D wallHit = Physics2D.Raycast(
                     wallOrigin, new Vector2(moveDir, 0f), T_WALL_CHECK_DIST, solidMask);
                 if (wallHit.collider != null)
@@ -834,6 +872,13 @@ public class HeuristicBotInputProvider : IInputProvider
                     p2JumpHeld = true;
                 }
             }
+        }
+        else if (Mathf.Abs(anchorPos.y - tricksterPos.y) > 1.2f)
+        {
+            // Matching x is not arrival on an upper balcony. Try a normal jump, then retarget on timeout.
+            p2Horizontal = 0f;
+            p2JumpDown = _trickster.IsGrounded;
+            p2JumpHeld = p2JumpDown;
         }
         else
         {
@@ -869,14 +914,17 @@ public class HeuristicBotInputProvider : IInputProvider
         float distToMario = Vector2.Distance(marioPos, anchorPos);
 
         // [防死锁] 附身超过 POSSESS_TIMEOUT 秒且 Mario 未靠近 → 强制解除附身重新走位
-        if (_possessTimer >= POSSESS_TIMEOUT && distToMario > POSSESS_TIMEOUT_DIST)
+        bool chasePassedRunner = OpponentStrategy == OpponentPolicy.Chaser && _possessTimer > 1.5f &&
+            (marioPos.x - anchorPos.x) * (_mario.IsFacingRight ? 1f : -1f) > 2f;
+        if (chasePassedRunner || (_possessTimer >= POSSESS_TIMEOUT && distToMario > POSSESS_TIMEOUT_DIST))
         {
             p2DisguiseDown = true;
             _executeArmed = false;
             _executeDelayTimer = 0f;
+            _avoidedAnchor = currentAnchor; _avoidAnchorTimer = 6f;
             _targetAnchor = null;
             _possessTimer = 0f;
-            TricksterIntent = "[Anti-Deadlock: Unpossessing]";
+            TricksterIntent = "[Retarget: Unpossessing]";
             return;
         }
 
@@ -917,7 +965,9 @@ public class HeuristicBotInputProvider : IInputProvider
             && approachSpeed > 0.1f
             && predictedDist <= EXECUTE_KILL_DIST;
 
-        if (inKillZone || leadTargetHit)
+        // Baiter holds its shot until actual proximity instead of using predictive pre-fire.
+        bool attackWindow = OpponentStrategy == OpponentPolicy.Baiter ? sameHeight && distToMario < 2f : inKillZone || leadTargetHit;
+        if (attackWindow)
         {
             TricksterIntent = leadTargetHit && !inKillZone
                 ? "[Lead Target: Pre-firing]"
@@ -976,7 +1026,7 @@ public class HeuristicBotInputProvider : IInputProvider
 
         foreach (var anchor in anchors)
         {
-            if (anchor == null || !anchor.CanBePossessed()) continue;
+            if (anchor == null || anchor == _avoidedAnchor || !anchor.CanBePossessed()) continue;
 
             Vector2 anchorPos = (Vector2)anchor.AnchorTransform.position;
             float dx = (anchorPos.x - marioPos.x) * marioFacing;
@@ -986,6 +1036,10 @@ public class HeuristicBotInputProvider : IInputProvider
 
             // 在合格范围内选距离最近的
             float dist = Vector2.Distance(marioPos, anchorPos);
+            if (OpponentStrategy == OpponentPolicy.Ambusher)
+                dist = Mathf.Abs(dx - 6f) + Mathf.Abs(anchorPos.y - marioPos.y);
+            else if (OpponentStrategy == OpponentPolicy.Chaser && _trickster != null)
+                dist += Vector2.Distance(_trickster.transform.position, anchorPos) * 0.5f;
             if (dist < bestDist)
             {
                 bestDist = dist;
@@ -998,7 +1052,7 @@ public class HeuristicBotInputProvider : IInputProvider
         {
             foreach (var anchor in anchors)
             {
-                if (anchor == null || !anchor.CanBePossessed()) continue;
+                if (anchor == null || anchor == _avoidedAnchor || !anchor.CanBePossessed()) continue;
 
                 float dist = Vector2.Distance(marioPos, (Vector2)anchor.AnchorTransform.position);
                 if (dist < bestDist)
@@ -1027,7 +1081,7 @@ public class HeuristicBotInputProvider : IInputProvider
 
         foreach (var anchor in anchors)
         {
-            if (anchor == null || !anchor.CanBePossessed()) continue;
+            if (anchor == null || anchor == _avoidedAnchor || !anchor.CanBePossessed()) continue;
             float dist = Vector2.Distance(marioPos, (Vector2)anchor.AnchorTransform.position);
             if (dist > COMBO_RUSH_RANGE_MAX) continue;
 
@@ -1061,7 +1115,7 @@ public class HeuristicBotInputProvider : IInputProvider
         PossessionAnchor[] anchors = GetSceneCandidates<PossessionAnchor>();
         foreach (var anchor in anchors)
         {
-            if (anchor == null || !anchor.CanBePossessed()) continue;
+            if (anchor == null || anchor == _avoidedAnchor || !anchor.CanBePossessed()) continue;
             if (Vector2.Distance(pos, (Vector2)anchor.AnchorTransform.position) <= range)
                 return true;
         }
@@ -1081,6 +1135,10 @@ public class HeuristicBotInputProvider : IInputProvider
         sceneCache.Clear();
         sceneCacheAge = 0f;
         ExplorationTarget = null;
+        _marioCollider = _tricksterCollider = null;
+        _avoidedAnchor = null;
+        _avoidAnchorTimer = _roamingTimer = _scoutScanTimer = _tricksterJumpHold = 0f;
+        RecoveryAttempts = 0;
         _marioCacheReady = false;
         _mario = null;
         _probe = null;

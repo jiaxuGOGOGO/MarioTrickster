@@ -36,6 +36,29 @@ public class ExplorationIntegrationContractTests
         Assert.IsFalse(bot.ExplorationTarget.HasValue);
     }
 
+    private sealed class JumpPulseBot : HeuristicBotInputProvider
+    {
+        public bool RequestJump;
+        protected override void UpdateMarioBrain(float dt) { }
+        protected override void UpdateTricksterBrain(float dt) { p2JumpDown = RequestJump; }
+    }
+
+    [Test]
+    public void BotJumpHoldReleasesAndDropModifierDoesNotLeakIntoLaterFrames()
+    {
+        var bot = new JumpPulseBot { RequestJump = true, p1SHeld = true };
+        bot.Tick(0.1f);
+        Assert.IsTrue(bot.p2JumpHeld);
+        Assert.IsFalse(bot.p1SHeld);
+        bot.RequestJump = false;
+        for (int i = 0; i < 5; i++) bot.Tick(0.1f);
+        Assert.IsFalse(bot.p2JumpHeld);
+        bot.RequestJump = true; bot.Tick(0.1f);
+        Assert.IsTrue(bot.p2JumpHeld, "A second jump needs a new held edge");
+        bot.InvalidateCache(); bot.RequestJump = false; bot.Tick(0.1f);
+        Assert.IsFalse(bot.p2JumpHeld);
+    }
+
     [Test]
     public void ContactProbeDoesNotAddPhysicsOrCountUnrelatedObjects()
     {
@@ -80,6 +103,24 @@ public class ExplorationIntegrationContractTests
         Assert.AreEqual(18, StudioExplorationRunner.PlannedTrials(report));
         report.confirmationScenarioIds.Add(report.scenarios[0].id);
         Assert.AreEqual(21, StudioExplorationRunner.PlannedTrials(report));
+    }
+
+    [Test]
+    public void ExperienceReportCountsNineMatchupsAndKeepsRequestsSeparateFromEvidence()
+    {
+        var report = new StudioExplorationRunner.Report {
+            scope = "Experience", scenarios = MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Experience)
+        };
+        Assert.AreEqual(27, StudioExplorationRunner.PlannedTrials(report));
+        foreach (var room in report.scenarios) report.confirmationScenarioIds.Add(room.id);
+        Assert.AreEqual(54, StudioExplorationRunner.PlannedTrials(report));
+        report.trials.Add(new MechanismExplorationPlan.Trial { scenarioId = report.scenarios[0].id,
+            marioStrategy = "SafeRoute", tricksterStrategy = "Baiter", seconds = 10, outcome = "NoProgress", routeSwitchRequests = 2 });
+        var summary = StudioExplorationRunner.BuildSummary(report);
+        StringAssert.Contains("1 / 54", summary);
+        StringAssert.Contains("route switch requests=2, physical transitions=0", summary);
+        StringAssert.Contains("不是自主学习", summary);
+        Assert.IsFalse(report.trials[0].CandidateForHumanPlay);
     }
 
     [Test]

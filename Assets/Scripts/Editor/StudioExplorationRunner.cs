@@ -68,7 +68,8 @@ public static class StudioExplorationRunner
     public static int Completed => report?.trials.Count(t => t.outcome != "Running" && t.outcome != "Building") ?? 0;
     public static int Total => PlannedTrials(report);
     public static int PlannedTrials(Report data) => data == null ? 0 :
-        (data.scenarios.Count + (data.confirmationScenarioIds?.Count ?? 0)) * MechanismExplorationPlan.Profiles.Length;
+        MechanismExplorationPlan.TrialCount(data.scenarios) + MechanismExplorationPlan.TrialCount(
+            data.scenarios.Where(s => (data.confirmationScenarioIds ?? new List<string>()).Contains(s.id)));
 
     public static string EvidenceVerdict(Report data)
     {
@@ -246,15 +247,8 @@ public static class StudioExplorationRunner
         finally { busy = false; }
     }
 
-    private static MechanismExplorationPlan.Scenario CurrentScenario
-    {
-        get
-        {
-            int index = state.step / MechanismExplorationPlan.Profiles.Length;
-            if (index < report.scenarios.Count) return report.scenarios[index];
-            return report.scenarios.First(s => s.id == report.confirmationScenarioIds[index - report.scenarios.Count]);
-        }
-    }
+    private static MechanismExplorationPlan.Slot CurrentSlot => MechanismExplorationPlan.TrialAt(report.scenarios, report.confirmationScenarioIds, state.step);
+    private static MechanismExplorationPlan.Scenario CurrentScenario => CurrentSlot.scenario;
     private static MechanismExplorationPlan.Trial CurrentTrial => report.trials.LastOrDefault();
     private static void PrepareTrial()
     {
@@ -267,10 +261,11 @@ public static class StudioExplorationRunner
             state.error = report.blockedReason;
             SetPhase("Restoring"); Persist(); return;
         }
-        var scenario = CurrentScenario;
+        var slot = CurrentSlot;
+        var scenario = slot.scenario;
         var trial = new MechanismExplorationPlan.Trial { scenarioId = scenario.id,
-            profile = MechanismExplorationPlan.Profiles[state.step % MechanismExplorationPlan.Profiles.Length],
-            attempt = state.step < report.scenarios.Count * MechanismExplorationPlan.Profiles.Length ? 1 : 2, outcome = "Building" };
+            profile = slot.matchup.Id, marioStrategy = slot.matchup.mario, tricksterStrategy = slot.matchup.trickster,
+            attempt = slot.attempt, outcome = "Building" };
         report.trials.Add(trial);
         trial.validation = ExplorationSceneBuilder.Validate(scenario, out bool invalid);
         if (invalid)
@@ -413,7 +408,13 @@ public static class StudioExplorationRunner
         sb.AppendLine($"Trials recorded: {data.trials.Count} / {PlannedTrials(data)}");
         sb.AppendLine("Evidence verdict: " + EvidenceVerdict(data));
         sb.AppendLine($"有效试玩记录: {data.trials.Count(t => t.HasGameplayEvidence)}; 首轮={data.trials.Count(t => t.attempt <= 1 && t.HasGameplayEvidence)}; 复测={data.trials.Count(t => t.attempt == 2 && t.HasGameplayEvidence)}");
-        sb.AppendLine("有限反馈：最多追加 6 张问题图 × 3 画像 × 1 轮；同种子同配置，不自动改难度或删除失败记录。");
+        sb.AppendLine("有限反馈：最多追加 6 张问题图 × 原策略搭配 × 1 轮；机制回归每图3局，体验探索每图9局。同种子同配置，不自动改难度或删除失败记录。");
+        sb.AppendLine("体验房提供作者标注路线供普通按键导航，不是自主学习或未知地图寻路。旧报告按保存的ASCII重建，当前代码复测不是跨版本相同条件。");
+        sb.AppendLine("路线进入/后摇穿越是位置采样证据，不等于整条路线走完、反制成功或好玩；换路请求与实际换路分开统计。");
+        foreach (var scenario in data.scenarios)
+            sb.AppendLine($"Room {scenario.id}: {scenario.experience ?? "MechanismProbe"} — {scenario.intention}");
+        foreach (var strategy in data.trials.Where(t => t.HasGameplayEvidence).GroupBy(t => t.marioStrategy ?? t.profile))
+            sb.AppendLine($"Runner {strategy.Key}: trials={strategy.Count()}, observed routes={string.Join(",", strategy.SelectMany(t => t.routesUsed ?? new List<string>()).Distinct())}, retreats={strategy.Sum(t => t.telegraphRetreats)}, recovery crossings={strategy.Sum(t => t.recoveryCrossings)}");
         if (!string.IsNullOrEmpty(data.blockedReason)) sb.AppendLine(data.blockedReason);
         foreach (var group in data.trials.Where(t => t.InfrastructureKey.Length > 0).GroupBy(t => t.InfrastructureKey))
             sb.AppendLine($"基础故障 ×{group.Count()}: {group.Key}");
@@ -433,6 +434,8 @@ public static class StudioExplorationRunner
         foreach (var trial in data.trials)
         {
             sb.AppendLine($"\n{trial.scenarioId} / {trial.profile} / attempt={trial.attempt}: {trial.outcome}, {trial.seconds:F1}s, end=({trial.endX:F1},{trial.endY:F1}), farthestX={trial.farthestX:F1}");
+            sb.AppendLine($"strategies={trial.marioStrategy} / {trial.tricksterStrategy}; objective={trial.objectivePhase}; observed routes={string.Join(",", trial.routesUsed ?? new List<string>())}");
+            sb.AppendLine($"route switch requests={trial.routeSwitchRequests}, physical transitions={trial.routeTransitions}, waypoint visits={trial.waypointsReached}, recovery attempts={trial.recoveryAttempts}, telegraph retreats={trial.telegraphRetreats}, recovery crossings={trial.recoveryCrossings}, anchor transfers={trial.possessionTransfers}");
             sb.AppendLine($"pair exercised={trial.PairExercised}; human-play candidate={trial.CandidateForHumanPlay}");
             sb.AppendLine(trial.nextAction);
             sb.AppendLine("结束原因: " + trial.endReason);

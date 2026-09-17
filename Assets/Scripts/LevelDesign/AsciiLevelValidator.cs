@@ -306,7 +306,7 @@ public static class AsciiLevelValidator
                     // 间隙结束
                     int gapWidth = x - gapStart;
                     // S43: 检查间隙上方是否有替代通路
-                    if (!HasImmediateFloorBelow(grid, gapStart, x - 1, y, width, height, solidChars) &&
+                    if (!HasNearbyFloorBelow(grid, gapStart, x - 1, y, result) &&
                         !HasBridgeAbove(grid, gapStart, x - 1, y, width, height, solidChars))
                     {
                         CheckGap(gapWidth, gapStart, y, result);
@@ -322,15 +322,23 @@ public static class AsciiLevelValidator
     /// 如果在间隙正上方的跳跃高度范围内，存在连续的实体块横跨整个间隙，
     /// 则玩家可以走上面的桥，该间隙不是死路。
     /// </summary>
-    // Only suppress an abyss-width diagnostic when every column has floor directly below.
-    // This does not certify headroom, hazards, or dynamic reachability (L2/Play still required).
-    private static bool HasImmediateFloorBelow(char[,] grid, int startX, int endX, int y,
-        int width, int height, HashSet<char> solidChars)
+    // A continuous permanent lower floor is not an abyss. Deep drops remain explicit warnings.
+    // This does NOT certify returning to the upper route, headroom, or hazard safety.
+    private static bool HasNearbyFloorBelow(char[,] grid, int startX, int endX, int y, ValidationResult result)
     {
-        if (y <= 0) return false;
-        for (int x = startX; x <= endX; x++)
-            if (!IsSolid(grid, x, y - 1, width, height, solidChars)) return false;
-        return true;
+        for (int floorY = y - 1; floorY >= 0; floorY--)
+        {
+            bool continuous = true;
+            for (int x = startX; x <= endX; x++)
+                if (grid[x, floorY] != '#' && grid[x, floorY] != '=') { continuous = false; break; }
+            if (continuous)
+            {
+                if (y - floorY > PhysicsMetrics.ASCII_MAX_HEIGHT)
+                    result.warnings.Add($"Upper gap Y={y}, X=[{startX}..{endX}] has a lower floor at Y={floorY}; verify the drop, hazards and return climb in PlayMode.");
+                return true;
+            }
+        }
+        return false;
     }
 
     private static bool HasBridgeAbove(char[,] grid, int gapStartX, int gapEndX, int gapY,

@@ -80,11 +80,19 @@ public partial class TestConsoleWindow
             studioCellStyle = new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter, fontSize = 12 }; // cached
             studioSourceStyle = new GUIStyle(EditorStyles.textArea) { wordWrap = false }; // cached
         }
+        if (StudioExplorationRunner.Active)
+        {
+            scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
+            DrawExplorationPanel();
+            EditorGUILayout.EndScrollView();
+            return;
+        }
         EditorGUILayout.LabelField("搭一点，玩一下，再改一点。", EditorStyles.boldLabel);
         EditorGUILayout.LabelField("目标：一次只验证一个有趣的选择，而不是填满整张地图。", EditorStyles.wordWrappedMiniLabel);
         DrawStudioPlayBar();
         DrawStudioReport();
         scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
+        DrawExplorationPanel();
         using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode))
         {
             EditorGUILayout.Space(6);

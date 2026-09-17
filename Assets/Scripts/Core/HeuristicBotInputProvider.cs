@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 // ═══════════════════════════════════════════════════════════════════
 // HeuristicBotInputProvider — 启发式 AI 玩家输入桥接层
 //
@@ -59,6 +60,27 @@ public class HeuristicBotInputProvider : IInputProvider
     /// 为 null 时使用硬编码默认值，保持向后兼容。
     /// </summary>
     public BotPersonaConfigSO tricksterPersona;
+
+    // Optional exploration guidance. Null preserves normal gameplay targeting.
+    public Vector2? ExplorationTarget { get; set; }
+    private System.Random decisionRandom;
+    private readonly Dictionary<System.Type, Component[]> sceneCache = new Dictionary<System.Type, Component[]>();
+    private float sceneCacheAge;
+    public void SetDecisionSeed(int seed) { decisionRandom = new System.Random(seed); }
+    private float DecisionValue => decisionRandom != null ? (float)decisionRandom.NextDouble() : Random.value;
+    private float DecisionRange(float min, float max) => min + (max - min) * DecisionValue;
+
+    // Only refresh candidates periodically; filter destroyed/inactive references at use sites.
+    private T[] GetSceneCandidates<T>() where T : Component
+    {
+        if (!sceneCache.TryGetValue(typeof(T), out var objects))
+        {
+            objects = Object.FindObjectsOfType<T>();
+            sceneCache[typeof(T)] = objects;
+        }
+        return (T[])objects;
+    }
+
 
     // ═══════════════════════════════════════════════════════════
     // P1 (Mario) 输入字段
@@ -223,6 +245,8 @@ public class HeuristicBotInputProvider : IInputProvider
             _personaLogPrinted = true;
             Debug.Log("<color=#00FF88><b>[AI Arena] 第二阶段：拟人化灵魂注入完成</b></color>");
         }
+        sceneCacheAge += dt;
+        if (sceneCacheAge >= 1f) { sceneCache.Clear(); sceneCacheAge = 0f; }
         ResetDownFlags();
         UpdateMarioBrain(dt);
         UpdateTricksterBrain(dt);
@@ -406,7 +430,7 @@ public class HeuristicBotInputProvider : IInputProvider
 
         // ── 2d. Persona 行为注入：风险容忍度 (riskTolerance) ──
         // 高风险容忍度的人有概率无视预警继续前冲
-        if (_baitingTrap && Random.value < riskTol * 0.5f)
+        if (_baitingTrap && DecisionValue < riskTol * 0.5f)
         {
             _baitingTrap = false;
             MarioIntent = "[Persona] High Risk Rush!";
@@ -498,8 +522,8 @@ public class HeuristicBotInputProvider : IInputProvider
         bool doBlindScan = false;
         if (_randomScanTimer <= 0f)
         {
-            doBlindScan = Random.value < scanAgg;
-            _randomScanTimer = Random.Range(1f, 3f);
+            doBlindScan = DecisionValue < scanAgg;
+            _randomScanTimer = DecisionRange(1f, 3f);
         }
 
         bool strongScanReady = _probe != null && _probe.IsStrongScanReady;
@@ -526,6 +550,7 @@ public class HeuristicBotInputProvider : IInputProvider
     private Vector2? FindMarioTarget()
     {
         if (_mario == null) return null;
+        if (ExplorationTarget.HasValue) return ExplorationTarget;
         Vector2 marioPos = (Vector2)_mario.transform.position;
 
         // ── 已拿宝：直接去最近的撤离门/终点 ──
@@ -550,9 +575,9 @@ public class HeuristicBotInputProvider : IInputProvider
     }
 
     /// <summary>查找场景中最近的 T 类型组件位置</summary>
-    private static Vector2? FindNearestTarget<T>(Vector2 from) where T : Component
+    private Vector2? FindNearestTarget<T>(Vector2 from) where T : Component
     {
-        T[] all = Object.FindObjectsOfType<T>();
+        T[] all = GetSceneCandidates<T>();
         Vector2? best = null;
         float bestDist = float.MaxValue;
         foreach (var obj in all)
@@ -565,9 +590,9 @@ public class HeuristicBotInputProvider : IInputProvider
     }
 
     /// <summary>尝试用 T 类型的最近实例更新当前最佳目标</summary>
-    private static void TryUpdateNearest<T>(Vector2 from, ref Vector2? best, ref float bestDist) where T : Component
+    private void TryUpdateNearest<T>(Vector2 from, ref Vector2? best, ref float bestDist) where T : Component
     {
-        T[] all = Object.FindObjectsOfType<T>();
+        T[] all = GetSceneCandidates<T>();
         foreach (var obj in all)
         {
             if (obj == null || !obj.gameObject.activeInHierarchy) continue;
@@ -685,7 +710,7 @@ public class HeuristicBotInputProvider : IInputProvider
         }
         // Persona 行为注入：贪婪连击 — 高 comboPref 时即使热度压制也有概率强行追击
         if (!comboRushing && _comboTracker != null && _comboTracker.IsComboActive
-            && heatSuppressed && comboPref > 0.6f && Random.value < comboPref * dt * 2f)
+            && heatSuppressed && comboPref > 0.6f && DecisionValue < comboPref * dt * 2f)
         {
             comboRushing = true;
             TricksterIntent = "[Persona] Greedy Combo Rush!";
@@ -905,7 +930,7 @@ public class HeuristicBotInputProvider : IInputProvider
                 // Persona 行为注入：攻击性越高，处决延迟越低
                 float actualMin = Mathf.Lerp(0.5f, 0.05f, ambushAgg);
                 float actualMax = Mathf.Lerp(0.9f, 0.15f, ambushAgg);
-                _executeDelayTimer = Random.Range(actualMin, actualMax);
+                _executeDelayTimer = DecisionRange(actualMin, actualMax);
             }
             else
             {
@@ -943,7 +968,7 @@ public class HeuristicBotInputProvider : IInputProvider
     /// </summary>
     private PossessionAnchor FindAmbushAnchor(Vector2 marioPos, float marioFacing)
     {
-        PossessionAnchor[] anchors = Object.FindObjectsOfType<PossessionAnchor>();
+        PossessionAnchor[] anchors = GetSceneCandidates<PossessionAnchor>();
         if (anchors == null || anchors.Length == 0) return null;
 
         PossessionAnchor best = null;
@@ -992,7 +1017,7 @@ public class HeuristicBotInputProvider : IInputProvider
     /// </summary>
     private PossessionAnchor FindComboAnchor(Vector2 marioPos, float marioFacing)
     {
-        PossessionAnchor[] anchors = Object.FindObjectsOfType<PossessionAnchor>();
+        PossessionAnchor[] anchors = GetSceneCandidates<PossessionAnchor>();
         if (anchors == null || anchors.Length == 0) return null;
 
         PossessionAnchor bestDiff = null;  // 不同类型优先
@@ -1031,9 +1056,9 @@ public class HeuristicBotInputProvider : IInputProvider
     /// <summary>
     /// 检测指定位置附近是否有可附身锚点（用于 Mario 强扫描前置条件）。
     /// </summary>
-    private static bool HasNearbyAnchor(Vector2 pos, float range)
+    private bool HasNearbyAnchor(Vector2 pos, float range)
     {
-        PossessionAnchor[] anchors = Object.FindObjectsOfType<PossessionAnchor>();
+        PossessionAnchor[] anchors = GetSceneCandidates<PossessionAnchor>();
         foreach (var anchor in anchors)
         {
             if (anchor == null || !anchor.CanBePossessed()) continue;
@@ -1053,6 +1078,9 @@ public class HeuristicBotInputProvider : IInputProvider
     /// </summary>
     public void InvalidateCache()
     {
+        sceneCache.Clear();
+        sceneCacheAge = 0f;
+        ExplorationTarget = null;
         _marioCacheReady = false;
         _mario = null;
         _probe = null;

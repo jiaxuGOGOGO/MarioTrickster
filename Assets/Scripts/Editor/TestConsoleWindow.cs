@@ -184,7 +184,7 @@ public partial class TestConsoleWindow : EditorWindow
 
     private void Update()
     {
-        if (EditorApplication.isPlaying)
+        if (EditorApplication.isPlaying || StudioExplorationRunner.Active || TestReportRunner.IsRunning)
         {
             Repaint();
         }
@@ -231,7 +231,7 @@ public partial class TestConsoleWindow : EditorWindow
             scrollPos = Vector2.zero;
             SaveStudioDraft();
         }
-        if (!studioAdvanced)
+        if (!studioAdvanced || StudioExplorationRunner.Active)
         {
             DrawCreationFlow();
             return;

@@ -30,6 +30,19 @@ using UnityEngine;
 [InitializeOnLoad]
 public class TestReportRunner
 {
+    public static bool IsRunning => SessionState.GetBool(KEY_IS_RUNNING, false);
+    public static int LastPassed => SessionState.GetInt("TestReportRunner_LastPassed", 0);
+    public static int LastFailed => SessionState.GetInt("TestReportRunner_LastFailed", 0);
+    public static string LastReportFile => ReportPath;
+    public static void RunAllTestsUnattended()
+    {
+        if (IsRunning) return;
+        ClearTempResults();
+        SessionState.SetInt("TestReportRunner_LastPassed", 0);
+        SessionState.SetInt("TestReportRunner_LastFailed", 0);
+        SessionState.SetBool("TestReportRunner_Unattended", true);
+        RunTests(TestMode.EditMode, "EditMode+PlayMode (Phase 1: EditMode)", true);
+    }
     private static readonly string ReportPath = Path.Combine(
         Application.dataPath, "..", "TestReport.txt");
 
@@ -60,18 +73,24 @@ public class TestReportRunner
     [MenuItem("MarioTrickster/Run Tests/Export Full Report (EditMode)", false, 100)]
     public static void RunEditModeTests()
     {
+        if (IsRunning) return;
+        SessionState.SetBool("TestReportRunner_Unattended", false);
         RunTests(TestMode.EditMode, "EditMode", false);
     }
 
     [MenuItem("MarioTrickster/Run Tests/Export Full Report (PlayMode)", false, 101)]
     public static void RunPlayModeTests()
     {
+        if (IsRunning) return;
+        SessionState.SetBool("TestReportRunner_Unattended", false);
         RunTests(TestMode.PlayMode, "PlayMode", false);
     }
 
     [MenuItem("MarioTrickster/Run Tests/Export Full Report (All)", false, 102)]
     public static void RunAllTests()
     {
+        if (IsRunning) return;
+        SessionState.SetBool("TestReportRunner_Unattended", false);
         RunTests(TestMode.EditMode, "EditMode+PlayMode (Phase 1: EditMode)", true);
     }
 
@@ -111,7 +130,14 @@ public class TestReportRunner
         {
             testMode = mode
         };
-        api.Execute(new ExecutionSettings(filter));
+        try { api.Execute(new ExecutionSettings(filter)); }
+        catch
+        {
+            SessionState.SetBool(KEY_IS_RUNNING, false);
+            SessionState.SetBool(KEY_PENDING_PLAYMODE, false);
+            SessionState.SetBool("TestReportRunner_Unattended", false);
+            throw;
+        }
     }
 
     // ═══════════════════════════════════════════════════════
@@ -197,6 +223,7 @@ public class TestReportRunner
 
             // 清除运行状态
             SessionState.SetBool(KEY_IS_RUNNING, false);
+            SessionState.SetBool("TestReportRunner_Unattended", false);
         }
     }
 
@@ -546,6 +573,10 @@ public class TestReportRunner
         {
             Debug.Log($"[TestReportRunner] ✅ 全部 {passed.Count} 个测试通过！报告已保存到 TestReport.txt\n\n{report}");
         }
+
+        SessionState.SetInt("TestReportRunner_LastPassed", passed.Count);
+        SessionState.SetInt("TestReportRunner_LastFailed", failed.Count);
+        if (SessionState.GetBool("TestReportRunner_Unattended", false)) return;
 
         // 延迟弹出提示（避免在 PlayMode 退出过程中弹窗被吞）
         EditorApplication.delayCall += () =>

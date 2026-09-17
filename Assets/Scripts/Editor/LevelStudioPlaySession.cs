@@ -44,7 +44,7 @@ public static class LevelStudioPlaySession
 
     public static bool CanStart()
     {
-        if (EditorApplication.isCompiling || EditorApplication.isPlayingOrWillChangePlaymode) return false;
+        if (StudioExplorationRunner.Active || TestReportRunner.IsRunning || EditorApplication.isCompiling || EditorApplication.isPlayingOrWillChangePlaymode) return false;
         if (EditorSettings.enterPlayModeOptionsEnabled &&
             (EditorSettings.enterPlayModeOptions & EnterPlayModeOptions.DisableSceneReload) != 0)
         {
@@ -69,6 +69,7 @@ public static class LevelStudioPlaySession
 
     public static bool Retry()
     {
+        if (StudioExplorationRunner.Active) { StudioExplorationRunner.Cancel(); return true; }
         if (!EditorApplication.isPlaying) return false;
         // [AI防坑警告] 完整 Stop/Play 恢复未保存场景，避免 buildIndex=-1，
         // 也避免不完整的 ResetRound 遗漏被 Destroy 的对象。不要强行自动连局。

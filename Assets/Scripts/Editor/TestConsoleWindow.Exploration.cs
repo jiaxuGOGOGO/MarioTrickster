@@ -85,6 +85,12 @@ public partial class TestConsoleWindow
                     EditorGUILayout.LabelField(trial.scanEvidenceVersion >= 1
                         ? $"扫描施放 {trial.scans} / 命中 {trial.scanHits} / 未命中 {trial.scanMisses}；命中不等于已证明避免伤害。"
                         : "旧记录未采集扫描结果，不能从施放数补算命中。", EditorStyles.wordWrappedMiniLabel);
+                    EditorGUILayout.LabelField(StudioExplorationRunner.ProbeSummary(trial), EditorStyles.wordWrappedMiniLabel);
+                    EditorGUILayout.LabelField(StudioExplorationRunner.HealthSummary(trial), EditorStyles.wordWrappedMiniLabel);
+                    foreach (var hammer in trial.coverage.Where(e => e.mechanism == "P"))
+                        EditorGUILayout.LabelField(hammer.movingPartEvidenceVersion >= 1
+                            ? $"P 根实例 {hammer.built}（锤头转发器不重复计数）；真实锤头接触 {hammer.runnerMovingPartContacts}，不等于扣血或安全通过。"
+                            : "旧记录未采集独立锤头接触，不能从根接触补算。", EditorStyles.wordWrappedMiniLabel);
                     EditorGUILayout.LabelField(trial.nextAction, EditorStyles.wordWrappedMiniLabel);
                     if (!string.IsNullOrEmpty(trial.comparison)) EditorGUILayout.LabelField(trial.comparison, EditorStyles.wordWrappedMiniLabel);
                     foreach (var e in trial.coverage)

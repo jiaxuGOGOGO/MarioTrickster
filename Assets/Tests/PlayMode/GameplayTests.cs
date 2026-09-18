@@ -24,6 +24,83 @@ public class GameplayTests
 
     private const string GROUND_LAYER = "Ground";
 
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [UnityTest]
+    public IEnumerator PendulumProbe_RealTriggerDistinguishesContactDamageAndDisabledRoot()
+    {
+        float originalScale = Time.timeScale;
+        var pivot = new GameObject("ProbePivot");
+        var actor = CreateTestMario(new Vector3(24010, 0, 0));
+        var opponent = CreateTestTrickster(new Vector3(24020, 0, 0));
+        ExplorationContactProbe root = null;
+        int runnerContacts = 0, opponentContacts = 0;
+        GameObject source = null;
+        System.Action<string, GameObject, GameObject> contact = (id, from, who) => {
+            if (id != "P" || from.GetComponent<ExplorationContactProbe>().Root != root) return;
+            source = from;
+            if (who == actor) runnerContacts++;
+            if (who == opponent) opponentContacts++;
+        };
+        ExplorationContactProbe.Contact += contact;
+        try
+        {
+            Time.timeScale = 1f;
+            pivot.transform.position = new Vector3(24000, 3, 0);
+            var trap = pivot.AddComponent<PendulumTrap>();
+            root = pivot.AddComponent<ExplorationContactProbe>(); root.mechanism = "P";
+            root.BindMovingPart(); root.BindMovingPart();
+            var hammer = pivot.GetComponentInChildren<PendulumHammerTrigger>();
+            Assert.AreEqual(1, hammer.GetComponents<ExplorationContactProbe>().Length, "Binding must be idempotent");
+            Assert.AreEqual(2, pivot.GetComponentsInChildren<ExplorationContactProbe>().Length, "One root plus one relay");
+            Assert.IsFalse(root.IsMovingPart);
+            Assert.AreSame(root, hammer.GetComponent<ExplorationContactProbe>().Root);
+            // Fixed fixture only: immobilize actors and the swing, retaining the real trigger and damage path.
+            trap.enabled = false;
+            actor.GetComponent<MarioController>().enabled = false;
+            opponent.GetComponent<TricksterController>().enabled = false;
+            actor.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+            opponent.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+            hammer.transform.position = new Vector3(24000, 0, 0);
+            yield return new WaitForFixedUpdate();
+            var health = actor.GetComponent<PlayerHealth>();
+            int initialHealth = health.CurrentHealth;
+            actor.transform.position = hammer.transform.position;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            Assert.Greater(runnerContacts, 0, "Must receive a real physics callback, not invoke Record directly");
+            Assert.AreSame(hammer.gameObject, source, "Source must remain the actual moving part");
+            Assert.AreEqual(initialHealth - 1, health.CurrentHealth);
+            Assert.IsTrue(health.IsInvincible);
+            int firstContacts = runnerContacts;
+            actor.transform.position += Vector3.right * 10;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            actor.transform.position = hammer.transform.position;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            Assert.Greater(runnerContacts, firstContacts, "Invincible contact still counts as contact");
+            Assert.AreEqual(initialHealth - 1, health.CurrentHealth, "Contact is not a damage event");
+            actor.transform.position += Vector3.right * 10;
+            opponent.transform.position = hammer.transform.position;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            Assert.Greater(opponentContacts, 0);
+            int beforeDisable = runnerContacts;
+            root.enabled = false;
+            actor.transform.position = hammer.transform.position;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            Assert.AreEqual(beforeDisable, runnerContacts, "Disabled root must stop relay recording");
+        }
+        finally
+        {
+            ExplorationContactProbe.Contact -= contact;
+            Object.DestroyImmediate(pivot); Object.DestroyImmediate(actor); Object.DestroyImmediate(opponent);
+            Time.timeScale = originalScale;
+        }
+    }
+#endif
+
     [UnityTest]
     public IEnumerator SpikeCycleKeepsAuthoredHeightAndRetractsRelativeToIt()
     {

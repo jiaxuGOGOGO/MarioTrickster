@@ -14,6 +14,8 @@ public sealed class ExplorationTrialObserver : IDisposable
     private readonly MarioController mario;
     private readonly TricksterAbilitySystem ability;
     private readonly ScanAbility scan;
+    private readonly PlayerHealth health;
+    private int lastHealth;
     private readonly TricksterPossessionGate gate;
     private readonly PropComboTracker combo;
     private readonly RouteBudgetService routes;
@@ -27,10 +29,11 @@ public sealed class ExplorationTrialObserver : IDisposable
     private string lastRoute, lastPhase;
     private PossessionAnchor lastPossessedAnchor;
     private bool disposed;
+    private float finishedFixedTime = -1f;
     public bool Finished => result.outcome != "Running";
     public string Intent => bot.MarioIntent + " / " + bot.TricksterIntent;
 
-    public ExplorationTrialObserver(MechanismExplorationPlan.Scenario scenario, MechanismExplorationPlan.Trial trial)
+    public ExplorationTrialObserver(MechanismExplorationPlan.Scenario scenario, MechanismExplorationPlan.Trial trial, float trialLimit = 30f)
     {
         result = trial;
         result.experience = scenario.experience;
@@ -42,6 +45,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (manager == null || input == null || mario == null) throw new InvalidOperationException("Missing game/input/runner services");
         ability = Object.FindObjectOfType<TricksterAbilitySystem>();
         scan = mario.GetComponent<ScanAbility>();
+        health = mario.GetComponent<PlayerHealth>();
+        if (health != null) { lastHealth = health.CurrentHealth; result.healthEvidenceVersion = 1; }
         gate = Object.FindObjectOfType<TricksterPossessionGate>();
         combo = Object.FindObjectOfType<PropComboTracker>();
         routes = Object.FindObjectOfType<RouteBudgetService>();
@@ -52,17 +57,20 @@ public sealed class ExplorationTrialObserver : IDisposable
         loot = treasure != null ? treasure.transform : null;
         if (goal == null) throw new InvalidOperationException("Missing actual goal/escape target");
         routeRegions = scenario.routes ?? Array.Empty<MechanismExplorationPlan.Route>();
+        var rootProbes = Object.FindObjectsOfType<ExplorationContactProbe>().Where(p => !p.IsMovingPart).ToArray();
+        foreach (var probe in rootProbes) probe.BindMovingPart();
         foreach (char c in scenario.mechanisms)
         {
-            var probes = Object.FindObjectsOfType<ExplorationContactProbe>().Where(p => p.mechanism == c.ToString()).ToArray();
-            targets[c.ToString()] = probes.Select(p => p.transform).ToArray();
-            result.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = c.ToString(), built = probes.Length, observationVersion = 1 });
+            var probes = rootProbes.Where(p => p.mechanism == c.ToString()).ToArray();
+            targets[c.ToString()] = probes.Select(p => p.transform).Distinct().ToArray();
+            result.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = c.ToString(), built = targets[c.ToString()].Length,
+                observationVersion = 1, movingPartEvidenceVersion = c == 'P' ? 1 : 0 });
         }
         string runnerName = string.IsNullOrEmpty(trial.marioStrategy) ? trial.profile : trial.marioStrategy;
         string opponentName = string.IsNullOrEmpty(trial.tricksterStrategy) ? trial.profile : trial.tricksterStrategy;
         marioProfile = MakeProfile(runnerName, false);
         tricksterProfile = MakeProfile(opponentName, true);
-        bot = new GuidedBot(mario, targets, runnerName == "Explorer", routeRegions, runnerName == "SafeRoute") {
+        bot = new GuidedBot(mario, targets, runnerName == "Explorer", routeRegions, runnerName == "SafeRoute", trialLimit) {
             marioPersona = marioProfile, tricksterPersona = tricksterProfile,
             RunnerStrategy = runnerName == "Scout" ? HeuristicBotInputProvider.RunnerPolicy.Scout :
                 runnerName == "SafeRoute" ? HeuristicBotInputProvider.RunnerPolicy.SafeRoute :
@@ -76,6 +84,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         previousInput = input.GetCurrentProvider();
         input.SetInputProvider(bot);
         manager.OnGameOver += OnGameOver;
+        if (health != null) health.OnHealthChanged += OnHealthChanged;
+        if (runnerName == "Explorer") result.probeEvidenceVersion = 1;
         if (ability != null) ability.OnPropActivated += OnActivated;
         if (scan != null)
         {
@@ -132,6 +142,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (bot.WaypointsReached > result.waypointsReached) noProgressTimer = 0;
         result.waypointsReached = bot.WaypointsReached;
         result.completedRoutes = bot.CompletedRoutes.ToList();
+        CaptureProbeProgress();
         result.anchorSwitchRequests = bot.AnchorSwitchRequests;
         if (bot.RouteSwitchRequests > result.routeSwitchRequests) Event("route switch requested: " + bot.RouteId + " (not a completed traversal)");
         result.routeSwitchRequests = bot.RouteSwitchRequests;
@@ -163,13 +174,16 @@ public sealed class ExplorationTrialObserver : IDisposable
             foreach (var target in targets[evidence.mechanism])
             {
                 if (target == null) continue;
-                if (!evidence.approached && Vector2.Distance(mario.transform.position, target.position) < 2f)
+                var pendulum = target.GetComponent<PendulumTrap>();
+                Vector3 contactPosition = pendulum != null ? pendulum.HammerPosition : target.position;
+                if (!evidence.approached && Vector2.Distance(mario.transform.position, contactPosition) < 2f)
                 { evidence.approached = true; noProgressTimer = 0; Event("first approach " + evidence.mechanism); }
                 var prop = target.GetComponent<ControllablePropBase>();
                 if (prop != null)
                 {
                     string propPhase = prop.GetControlState().ToString();
                     if (!evidence.phases.Contains(propPhase)) evidence.phases.Add(propPhase);
+                    bot.ObserveProbe(evidence.mechanism, target, propPhase);
                     if (!motion.TryGetValue(prop, out var sample)) { sample = new MechanismExplorationPlan.CounterplayMotion(); motion.Add(prop, sample); }
                     Vector2 delta = mario.transform.position - target.position;
                     int flags = sample.Sample(propPhase, delta.x, Mathf.Abs(delta.y), delta.magnitude);
@@ -182,7 +196,9 @@ public sealed class ExplorationTrialObserver : IDisposable
     public void Finish(string outcome, string nextAction)
     {
         if (Finished) return;
+        CaptureProbeProgress();
         result.outcome = outcome;
+        finishedFixedTime = Time.fixedTime;
         result.nextAction = nextAction;
         if (manager != null)
         {
@@ -190,6 +206,29 @@ public sealed class ExplorationTrialObserver : IDisposable
             result.endReason = manager.LastRoundReason;
         }
         if (mario != null) { result.endX = mario.transform.position.x; result.endY = mario.transform.position.y; }
+    }
+
+    private void CaptureProbeProgress()
+    {
+        if (result.probeEvidenceVersion < 1) return;
+        var visits = bot.ProbeVisits;
+        if (visits.BudgetExhausted && !result.probeBudgetExhausted)
+            Event("probe budget exhausted; ordinary goal navigation resumes, remaining observations stay missing");
+        result.probeBudgetSeconds = visits.Budget; result.probeElapsedSeconds = visits.Elapsed;
+        result.probeTargets = visits.TargetCount; result.probeSatisfied = visits.SatisfiedCount;
+        result.probeTimedOut = visits.TimedOutTargets; result.probeMissing = visits.MissingTargets;
+        result.probeBudgetExhausted = visits.BudgetExhausted;
+    }
+
+    private void OnHealthChanged(int current, int maximum)
+    {
+        if (Finished || disposed) return;
+        if (current < lastHealth)
+        {
+            result.runnerDamageEvents++; result.runnerHealthLost += lastHealth - current;
+            Event($"runner health lost {lastHealth - current}; remaining={current} (source not attributed)");
+        }
+        lastHealth = current;
     }
 
     private void OnGameOver(string winner)
@@ -204,15 +243,31 @@ public sealed class ExplorationTrialObserver : IDisposable
     }
     private void OnContact(string id, GameObject source, GameObject actor)
     {
-        if (Finished) return;
+        // Unity does not order damage and probe callbacks on the same trigger.
+        // Preserve contacts from the terminal physics step, never later-step gameplay.
+        bool terminalContact = result.outcome == "RunnerStopped" && Time.fixedTime == finishedFixedTime;
+        if ((Finished && !terminalContact) || disposed || source == null) return;
+        var probe = source.GetComponent<ExplorationContactProbe>();
+        if (probe == null || probe.Root == null || !targets.TryGetValue(id, out var roots) ||
+            !roots.Contains(probe.Root.transform)) return;
         var e = result.coverage.Find(v => v.mechanism == id);
         if (e != null)
         {
             if (e.contacts == 0) noProgressTimer = 0;
             e.contacts++;
             bool runnerContact = actor != null && actor.GetComponent<MarioController>() != null;
-            if (runnerContact) e.runnerContacts++; else e.tricksterContacts++;
-            Event((runnerContact ? "runner contact " : "trickster contact ") + id);
+            if (runnerContact)
+            {
+                e.runnerContacts++;
+                if (probe.IsMovingPart) e.runnerMovingPartContacts++;
+                bot.ObserveProbe(id, probe.Root.transform, probe.IsMovingPart ? "MovingPartContact" : "Contact");
+            }
+            else e.tricksterContacts++;
+            string label = (runnerContact ? "runner contact " : "trickster contact ") + id + (probe.IsMovingPart ? " moving part (not damage)" : "");
+            if (terminalContact && result.timeline.Count < 100)
+                result.timeline.Add($"{result.seconds:F2}s terminal-step {label}");
+            else Event(label);
+            if (terminalContact) CaptureProbeProgress();
         }
     }
     private void MarkActivation(GameObject source, string label)
@@ -241,7 +296,11 @@ public sealed class ExplorationTrialObserver : IDisposable
             result.runnerBounceLaunches++;
             var probe = p.platform != null ? p.platform.GetComponentInParent<ExplorationContactProbe>() : null;
             var evidence = probe != null ? result.coverage.Find(e => e.mechanism == probe.mechanism) : null;
-            if (evidence != null) evidence.runnerEffects++;
+            if (evidence != null)
+            {
+                evidence.runnerEffects++;
+                bot.ObserveProbe(evidence.mechanism, probe.Root.transform, "Effect");
+            }
             Event("runner bounce launched velocity=" + p.launchVelocity);
         }
         MarkActivation(p.platform, "bounce launch");
@@ -276,6 +335,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         result.lootEvents++;
         var e = result.coverage.Find(v => v.mechanism == "o");
         if (e != null) { e.activations++; e.runnerEffects++; }
+        if (loot != null) bot.ObserveProbe("o", loot, "Effect");
         Event("loot collected");
     }
     private void OnEscape() { if (!Finished) { result.escapeEvents++; Event("escape"); } }
@@ -296,6 +356,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (disposed) return;
         disposed = true;
         if (manager != null) manager.OnGameOver -= OnGameOver;
+        if (health != null) health.OnHealthChanged -= OnHealthChanged;
         if (ability != null) ability.OnPropActivated -= OnActivated;
         if (scan != null) { scan.OnScanPerformed -= OnScan; scan.OnScanResult -= OnScanResult; }
         if (gate != null) { gate.OnStateChanged -= OnPossession; gate.OnAnchorChanged -= OnAnchorChanged; }
@@ -319,20 +380,27 @@ public sealed class ExplorationTrialObserver : IDisposable
         private readonly MarioController runner;
         private readonly KeyValuePair<string, Transform>[] points;
         private readonly bool explore, hasLootObjective;
-        private int cursor;
-        private float targetTime, interactTimer, dropTimer;
+        private float interactTimer, dropTimer;
+        public MechanismExplorationPlan.ProbeVisitBudget ProbeVisits { get; }
         private readonly MechanismExplorationPlan.RouteNavigator navigation;
         public int WaypointsReached => navigation.WaypointsReached;
         public IReadOnlyList<string> CompletedRoutes => navigation.CompletedRoutes;
         public int RouteSwitchRequests => navigation.SwitchRequests;
         public string RouteId => navigation.RouteId;
         public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore, MechanismExplorationPlan.Route[] routes, bool safe)
+            : this(runner, targets, explore, routes, safe, 30f) { }
+        public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore, MechanismExplorationPlan.Route[] routes, bool safe, float trialLimit)
         {
             navigation = new MechanismExplorationPlan.RouteNavigator(routes, safe);
             this.runner = runner; this.explore = explore;
             hasLootObjective = Object.FindObjectOfType<LootObjective>() != null;
             points = targets.SelectMany(p => p.Value.Select(t => new KeyValuePair<string, Transform>(p.Key, t)))
-                .OrderBy(p => p.Value.position.x).ToArray();
+                .Where(p => p.Value != null).OrderBy(p => p.Value.position.x).GroupBy(p => p.Key).Select(g => g.First()).ToArray();
+            ProbeVisits = new MechanismExplorationPlan.ProbeVisitBudget(points.Select(p => p.Key), trialLimit);
+        }
+        public void ObserveProbe(string mechanism, Transform source, string signal)
+        {
+            if (explore && points.Any(p => p.Key == mechanism && p.Value == source)) ProbeVisits.Observe(mechanism, signal);
         }
         protected override void UpdateMarioBrain(float dt)
         {
@@ -346,19 +414,28 @@ public sealed class ExplorationTrialObserver : IDisposable
                 var waypoint = navigation.Target;
                 if (waypoint != null) { ExplorationTarget = new Vector2(waypoint.x, waypoint.y); AuthoredRouteTarget = true; }
             }
-            if (explore && cursor < points.Length && runner != null)
+            if (explore && runner != null)
             {
-                var point = points[cursor]; targetTime += dt;
-                if (point.Value == null || targetTime > 4f) { cursor++; targetTime = 0f; }
-                else { ExplorationTarget = point.Value.position; AuthoredRouteTarget = false; }
+                ProbeVisits.Tick(dt);
+                if (!ProbeVisits.Finished)
+                {
+                    var point = points[ProbeVisits.Cursor];
+                    if (point.Value == null) ProbeVisits.SkipMissing();
+                    else
+                    {
+                        var pendulum = point.Value.GetComponent<PendulumTrap>();
+                        ExplorationTarget = pendulum != null ? pendulum.HammerPosition : point.Value.position;
+                        AuthoredRouteTarget = false;
+                    }
+                }
             }
             base.UpdateMarioBrain(dt);
             if (runner != null && ExplorationTarget.HasValue && runner.IsGrounded && dropTimer <= 0f &&
                 ExplorationTarget.Value.y < runner.transform.position.y - 0.4f &&
                 Mathf.Abs(ExplorationTarget.Value.x - runner.transform.position.x) < 0.8f)
             { p1SHeld = true; p1JumpHeld = true; p1JumpDown = true; dropTimer = 0.8f; }
-            if (!explore || cursor >= points.Length || runner == null) return;
-            var current = points[cursor];
+            if (!explore || ProbeVisits.Finished || runner == null) return;
+            var current = points[ProbeVisits.Cursor];
             if (current.Value != null && current.Key == "H" && interactTimer <= 0f && Vector2.Distance(runner.transform.position, current.Value.position) < 1.2f)
             { p1SDown = true; interactTimer = 1f; }
         }

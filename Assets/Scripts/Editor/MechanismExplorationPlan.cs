@@ -16,7 +16,7 @@ public static class MechanismExplorationPlan
     public static string[] SelectConfirmationScenes(IEnumerable<Trial> trials)
     {
         return trials.Where(t => t.attempt <= 1 && t.NeedsConfirmation)
-            .OrderBy(t => t.outcome == "NoProgress" ? 0 : t.outcome == "RunnerStopped" ? 1 : 2)
+            .OrderBy(t => t.outcome == "NoProgress" || t.outcome == "TimedOut" ? 0 : t.outcome == "RunnerStopped" ? 1 : 2)
             .Select(t => t.scenarioId).Distinct().Take(MaxConfirmationScenes).ToArray();
     }
 
@@ -32,11 +32,70 @@ public static class MechanismExplorationPlan
         if (baseline == null) return "缺少首轮基线，不能判定改善。";
         Func<Trial, string> signature = t => t.outcome + ":" + t.objectivePhase + ":" +
             string.Join(",", (t.completedRoutes ?? new List<string>()).OrderBy(r => r)) + $":{t.armedNearbySeconds > 0}:{t.possessionTransfers > 0}:" +
-            $"{t.scanEvidenceVersion}:{t.scanHits > 0}:" + string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
-            .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}:{e.observationVersion}:{e.runnerContacts > 0}:{e.runnerEffects > 0}:" + string.Join(",", e.phases.OrderBy(p => p))));
+            $"{t.scanEvidenceVersion}:{t.scanHits > 0}:{t.healthEvidenceVersion}:{t.runnerDamageEvents > 0}:{t.probeEvidenceVersion}:{t.probeBudgetExhausted}:" + string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
+            .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}:{e.observationVersion}:{e.runnerContacts > 0}:{e.runnerEffects > 0}:{e.movingPartEvidenceVersion}:{e.runnerMovingPartContacts > 0}:" + string.Join(",", e.phases.OrderBy(p => p))));
         return signature(baseline) == signature(confirmation)
             ? "同条件复现：结果与覆盖层级一致；仍需检查 AI 局限与真人反制体验。"
             : "同条件结果不稳定：不是已修复；对照事件时间线再定位物理时序或 AI 决策。";
+    }
+
+    // A bounded visit plan, not a mechanism correctness oracle. One representative per type.
+    public sealed class ProbeVisitBudget
+    {
+        private readonly string[] mechanisms;
+        private readonly HashSet<string> satisfied = new HashSet<string>();
+        private readonly HashSet<string> activeSeen = new HashSet<string>();
+        private float targetSeconds;
+        public int Cursor { get; private set; }
+        public int TargetCount => mechanisms.Length;
+        public int SatisfiedCount => satisfied.Count;
+        public int TimedOutTargets { get; private set; }
+        public int MissingTargets { get; private set; }
+        public float Elapsed { get; private set; }
+        public float Budget { get; }
+        public bool BudgetExhausted { get; private set; }
+        public bool Finished => BudgetExhausted || Cursor >= mechanisms.Length;
+        public string Current => Finished ? null : mechanisms[Cursor];
+        public ProbeVisitBudget(IEnumerable<string> types, float trialLimit)
+        {
+            mechanisms = types.Distinct().ToArray();
+            Budget = Math.Min(8f, Math.Max(0f, trialLimit) * 0.5f);
+        }
+        public void Observe(string mechanism, string signal)
+        {
+            if (Finished || !mechanisms.Contains(mechanism)) return;
+            bool success;
+            switch (mechanism)
+            {
+                case "B": case "o": success = signal == "Effect"; break;
+                case "F": case "[":
+                    if (signal == "Active") activeSeen.Add(mechanism);
+                    success = signal == "Recovery" && activeSeen.Contains(mechanism); break;
+                case "H": success = false; break; // Keep ordinary S input opportunity; contact is not teleportation.
+                case "P": success = signal == "MovingPartContact"; break;
+                default: success = signal == "Contact"; break;
+            }
+            if (success) satisfied.Add(mechanism);
+        }
+        public void Tick(float dt)
+        {
+            if (Finished) return;
+            while (Cursor < mechanisms.Length && satisfied.Contains(mechanisms[Cursor]))
+            { Cursor++; targetSeconds = 0f; }
+            if (Finished) return;
+            dt = Math.Max(0f, dt);
+            Elapsed = Math.Min(Budget, Elapsed + dt);
+            if (Elapsed >= Budget) { BudgetExhausted = true; return; }
+            targetSeconds += dt;
+            if (targetSeconds >= 4f) { TimedOutTargets++; Cursor++; targetSeconds = 0f; }
+            while (Cursor < mechanisms.Length && satisfied.Contains(mechanisms[Cursor]))
+            { Cursor++; targetSeconds = 0f; }
+        }
+        public void SkipMissing()
+        {
+            if (Finished) return;
+            MissingTargets++; Cursor++; targetSeconds = 0f;
+        }
     }
 
     [Serializable]
@@ -375,13 +434,15 @@ public static class MechanismExplorationPlan
         public bool approached;
         public int contacts;
         public int runnerContacts, tricksterContacts;
+        public int movingPartEvidenceVersion, runnerMovingPartContacts;
         public int activations; // Legacy mixed count: accepted control, launch, trap or loot event.
         public int observationVersion, controlsAccepted, runnerEffects;
         public bool ObservationGap => built <= 0 || (observationVersion < 1 ? activations <= 0 :
+            mechanism == "P" && movingPartEvidenceVersion >= 1 ? runnerMovingPartContacts <= 0 :
             mechanism == "B" || mechanism == "o" ? runnerEffects <= 0 :
             mechanism == "F" || mechanism == "[" ? !(phases.Contains("Active") && phases.Contains("Recovery")) :
             runnerContacts <= 0);
-        public string ObservationTarget => mechanism == "B" ? "Mario真实弹射事件" : mechanism == "o" ? "真实拿宝事件" :
+        public string ObservationTarget => mechanism == "P" && movingPartEvidenceVersion >= 1 ? "Mario真实锤头接触（不等于扣血或安全通过）" : mechanism == "B" ? "Mario真实弹射事件" : mechanism == "o" ? "真实拿宝事件" :
             mechanism == "F" || mechanism == "[" ? "Active与Recovery阶段采样（不证明碰撞恢复）" :
             "Mario接触（不证明行为/反制/恢复正确）";
         public List<string> phases = new List<string>();
@@ -416,6 +477,10 @@ public static class MechanismExplorationPlan
         public float seconds;
         public float farthestX;
         public float endX, endY;
+        public int probeEvidenceVersion, probeTargets, probeSatisfied, probeTimedOut, probeMissing;
+        public float probeBudgetSeconds, probeElapsedSeconds;
+        public bool probeBudgetExhausted;
+        public int healthEvidenceVersion, runnerDamageEvents, runnerHealthLost;
         public int scanEvidenceVersion, scanHits, scanMisses;
         public int scans, possessions, comboEvents, heatEvents, lootEvents, escapeEvents;
         public int routeDegradations, routeRecoveries, routeBlocks, crises, reveals;

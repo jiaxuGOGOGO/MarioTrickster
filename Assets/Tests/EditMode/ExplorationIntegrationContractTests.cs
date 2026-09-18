@@ -5,6 +5,45 @@ using UnityEngine;
 /// <summary>Editor-side integration contracts; actual scene/playmode cycling still needs Unity execution.</summary>
 public class ExplorationIntegrationContractTests
 {
+    [Test]
+    public void GuidedExplorerUsesOneRepresentativeAndRejectsOtherInstanceEvidence()
+    {
+        var a = new GameObject("FirstDeck"); var b = new GameObject("SecondDeck"); var checkpoint = new GameObject("CheckpointProbe");
+        try
+        {
+            a.transform.position = new Vector3(1, 0, 0); b.transform.position = new Vector3(2, 0, 0);
+            checkpoint.transform.position = new Vector3(3, 0, 0);
+            var targets = new System.Collections.Generic.Dictionary<string, Transform[]> {
+                { "-", new[] { b.transform, a.transform } }, { "S", new[] { checkpoint.transform } }
+            };
+            var bot = new ExplorationTrialObserver.GuidedBot(null, targets, true, null, false, 10);
+            Assert.AreEqual(2, bot.ProbeVisits.TargetCount); Assert.AreEqual(5, bot.ProbeVisits.Budget);
+            bot.ObserveProbe("-", b.transform, "Contact");
+            Assert.AreEqual(0, bot.ProbeVisits.SatisfiedCount);
+            bot.ObserveProbe("-", a.transform, "Contact"); bot.ProbeVisits.Tick(0.1f);
+            Assert.AreEqual("S", bot.ProbeVisits.Current);
+            var normal = new ExplorationTrialObserver.GuidedBot(null, targets, false, null, false);
+            normal.ObserveProbe("-", a.transform, "Contact");
+            Assert.AreEqual(0, normal.ProbeVisits.SatisfiedCount, "Non-exploration strategies must not acquire probe detours");
+        }
+        finally { Object.DestroyImmediate(a); Object.DestroyImmediate(b); Object.DestroyImmediate(checkpoint); }
+    }
+
+    [Test]
+    public void ReportDoesNotInventVisitOrDamageEvidenceForOldTrials()
+    {
+        var trial = new MechanismExplorationPlan.Trial { scans = 1 };
+        StringAssert.Contains("未记录", StudioExplorationRunner.ProbeSummary(trial));
+        StringAssert.Contains("未记录", StudioExplorationRunner.HealthSummary(trial));
+        trial.probeEvidenceVersion = 1; trial.probeTargets = 2; trial.probeTimedOut = 1;
+        trial.probeBudgetExhausted = true; trial.probeElapsedSeconds = trial.probeBudgetSeconds = 8;
+        StringAssert.Contains("满足结束条件=0", StudioExplorationRunner.ProbeSummary(trial));
+        StringAssert.Contains("不算行为通过", StudioExplorationRunner.ProbeSummary(trial));
+        trial.healthEvidenceVersion = 1; trial.runnerDamageEvents = 2; trial.runnerHealthLost = 3;
+        StringAssert.Contains("实际扣血事件=2", StudioExplorationRunner.HealthSummary(trial));
+        StringAssert.Contains("未归因", StudioExplorationRunner.HealthSummary(trial));
+    }
+
     [TestCase("B")]
     [TestCase("C")]
     [TestCase("-")]

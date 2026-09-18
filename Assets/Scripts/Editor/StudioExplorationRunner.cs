@@ -109,6 +109,14 @@ public static class StudioExplorationRunner
         if (data.trials.Any(t => t.NeedsConfirmation)) return "有受阻或覆盖缺口，查看首轮与复测对照";
         return "已有真人试玩候选，不代表正确性或乐趣已验收";
     }
+    public static string ProbeSummary(MechanismExplorationPlan.Trial trial) => trial.probeEvidenceVersion < 1
+        ? "探针访问预算未记录（旧报告或非Explorer）；不补算完成。"
+        : $"探针访问：{trial.probeTargets}个代表目标，满足结束条件={trial.probeSatisfied}，单目标到期={trial.probeTimedOut}，目标丢失={trial.probeMissing}；用时={trial.probeElapsedSeconds:F2}/{trial.probeBudgetSeconds:F2}s，总预算到期={trial.probeBudgetExhausted}。跳过/到期不算行为通过。";
+
+    public static string HealthSummary(MechanismExplorationPlan.Trial trial) => trial.healthEvidenceVersion < 1
+        ? "实际扣血未记录；接触次数不是伤害次数。"
+        : $"Mario实际扣血事件={trial.runnerDamageEvents}，累计损失生命={trial.runnerHealthLost}；来自生命变化，未归因到具体机关。";
+
     public static string ReportDirectory => state?.directory ?? "";
     public static string LiveIntent => observer?.Intent ?? "";
 
@@ -148,7 +156,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions && replay == null ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S161", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
+        report = new Report { toolRevision = "S162", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, scenarios = scenarios,
             physicsConfigJson = ConfigJson("PhysicsConfig"), gameplayConfigJson = ConfigJson("GameplayLoopConfig"),
             unsupportedRegistry = MechanismExplorationPlan.MissingFromCatalog(AsciiElementRegistry.GetDefault().GetAllRegisteredChars()) };
@@ -240,7 +248,7 @@ public static class StudioExplorationRunner
                 if (CurrentTrial != null && CurrentTrial.errors.Count > 0) { EndTrial("StartupFailed", "启动时有错误，见报告堆栈。"); return; }
                 if (GameManager.Instance != null)
                 {
-                    observer = new ExplorationTrialObserver(CurrentScenario, CurrentTrial);
+                    observer = new ExplorationTrialObserver(CurrentScenario, CurrentTrial, state.seconds);
                     Application.runInBackground = true;
                     Time.timeScale = 1f;
                     trialStarted = now;
@@ -439,6 +447,7 @@ public static class StudioExplorationRunner
         sb.AppendLine("Evidence verdict: " + EvidenceVerdict(data));
         sb.AppendLine($"有效试玩记录: {data.trials.Count(t => t.HasGameplayEvidence)}; 首轮={data.trials.Count(t => t.attempt <= 1 && t.HasGameplayEvidence)}; 复测={data.trials.Count(t => t.attempt == 2 && t.HasGameplayEvidence)}");
         sb.AppendLine("有限反馈：最多追加 6 张问题图 × 原策略搭配 × 1 轮；机制回归每图3局，体验探索每图9局。同种子同配置，不自动改难度或删除失败记录。");
+        sb.AppendLine("当前代码复测策略（不回写旧批次调度）：无进展/超时 → 角色死亡 → 仅观察不足；最多6图，不递归。Explorer按机制选一个代表，单目标最多4秒，总预算最多8秒且不超过单局一半；到期返回普通目标导航，不证明剩余机制通过。");
         sb.AppendLine("体验房提供作者标注路线供普通按键导航，不是自主学习或未知地图寻路。旧报告按保存的ASCII重建，当前代码复测不是跨版本相同条件。");
         sb.AppendLine("路线进入/后摇穿越是位置采样证据，不等于整条路线走完、反制成功或好玩；换路请求与实际换路分开统计。");
         foreach (var scenario in data.scenarios)
@@ -484,6 +493,8 @@ public static class StudioExplorationRunner
             sb.AppendLine($"pair exercised={trial.PairExercised}; human-play candidate={trial.CandidateForHumanPlay}");
             sb.AppendLine($"completed authored routes={string.Join(",", trial.completedRoutes ?? new List<string>())}; armed nearby seconds={trial.armedNearbySeconds:F2}; control accepted={trial.controlAccepted}; anchor switch requests={trial.anchorSwitchRequests}");
             foreach (var gap in ExperienceIssues(data, trial)) sb.AppendLine("体验缺口: " + gap);
+            sb.AppendLine(ProbeSummary(trial));
+            sb.AppendLine(HealthSummary(trial));
             sb.AppendLine(trial.nextAction);
             sb.AppendLine("结束原因: " + trial.endReason);
             if (!string.IsNullOrEmpty(trial.comparison)) sb.AppendLine(trial.comparison);
@@ -494,7 +505,8 @@ public static class StudioExplorationRunner
                 : "扫描结果未记录；不可从施放数或reveals总线补算命中。请在新批次采集。");
             sb.AppendLine($"route degraded={trial.routeDegradations}, recovered={trial.routeRecoveries}, guard={trial.routeBlocks}. Zero means not observed, NOT passed.");
             sb.AppendLine("Static hints: " + trial.validation);
-            foreach (var e in trial.coverage) sb.AppendLine($"  {e.mechanism}: {e.Status}; observed phases={string.Join(",", e.phases)}");
+            foreach (var e in trial.coverage) sb.AppendLine($"  {e.mechanism}: {e.Status}; observed phases={string.Join(",", e.phases)}" +
+                (e.mechanism == "P" ? $"; hammer contacts={(e.movingPartEvidenceVersion >= 1 ? e.runnerMovingPartContacts.ToString() : "unrecorded")}; root built={e.built} (relay excluded)" : ""));
             foreach (var error in trial.errors) sb.AppendLine(error);
         }
         return sb.ToString();

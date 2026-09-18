@@ -4,6 +4,117 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [Test]
+    public void ExpiringVisitSkipsAlreadyObservedNextTargetImmediately()
+    {
+        var visits = new MechanismExplorationPlan.ProbeVisitBudget(new[] { "H", "-" }, 30);
+        visits.Observe("-", "Contact"); visits.Tick(4f);
+        Assert.IsTrue(visits.Finished);
+        Assert.AreEqual(1, visits.TimedOutTargets);
+        Assert.AreEqual(1, visits.SatisfiedCount);
+    }
+
+    [Test]
+    public void ConfirmationDistinguishesHammerDamageAndBudgetEvidence()
+    {
+        var a = new MechanismExplorationPlan.Trial { outcome = "Cleared" };
+        var b = new MechanismExplorationPlan.Trial { outcome = "Cleared" };
+        a.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = "P", movingPartEvidenceVersion = 1 });
+        b.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = "P", movingPartEvidenceVersion = 1, runnerMovingPartContacts = 1 });
+        StringAssert.Contains("不稳定", MechanismExplorationPlan.CompareConfirmation(a, b));
+        b.coverage[0].runnerMovingPartContacts = 0;
+        b.healthEvidenceVersion = 1; b.runnerDamageEvents = 1;
+        StringAssert.Contains("不稳定", MechanismExplorationPlan.CompareConfirmation(a, b));
+        a.healthEvidenceVersion = 1; a.runnerDamageEvents = 1;
+        b.probeEvidenceVersion = 1; b.probeBudgetExhausted = true;
+        StringAssert.Contains("不稳定", MechanismExplorationPlan.CompareConfirmation(a, b));
+    }
+
+    [Test]
+    public void TimeoutConfirmationsCannotBeCrowdedOutByEarlyCoverageGaps()
+    {
+        var trials = Enumerable.Range(0, 8).Select(i => new MechanismExplorationPlan.Trial {
+            scenarioId = "coverage" + i, seconds = 4, outcome = "Cleared"
+        }).ToList();
+        for (int i = 0; i < 4; i++) trials.Add(new MechanismExplorationPlan.Trial {
+            scenarioId = "death" + i, seconds = 5, outcome = "RunnerStopped" });
+        trials.Add(new MechanismExplorationPlan.Trial { scenarioId = "S-", seconds = 30, outcome = "TimedOut" });
+        trials.Add(new MechanismExplorationPlan.Trial { scenarioId = "-X", seconds = 30, outcome = "TimedOut" });
+        trials.Add(new MechanismExplorationPlan.Trial { scenarioId = "boot", outcome = "RuntimeError" });
+        CollectionAssert.AreEqual(new[] { "S-", "-X", "death0", "death1", "death2", "death3" },
+            MechanismExplorationPlan.SelectConfirmationScenes(trials));
+        foreach (var t in trials) t.attempt = 2;
+        Assert.IsEmpty(MechanismExplorationPlan.SelectConfirmationScenes(trials));
+    }
+
+    [Test]
+    public void ProbeVisitsDeduplicateTypesAndNeverInventEvidenceAtDeadline()
+    {
+        var visits = new MechanismExplorationPlan.ProbeVisitBudget(new[] { "-", "-", "-", "S", "-" }, 30);
+        Assert.AreEqual(2, visits.TargetCount);
+        visits.Observe("-", "Contact"); visits.Observe("-", "Contact"); visits.Tick(0.1f);
+        Assert.AreEqual("S", visits.Current); Assert.AreEqual(1, visits.SatisfiedCount);
+        visits.Tick(4f);
+        Assert.IsTrue(visits.Finished); Assert.AreEqual(1, visits.TimedOutTargets);
+        Assert.AreEqual(1, visits.SatisfiedCount, "Expiration is not observation");
+    }
+
+    [TestCase("B")]
+    [TestCase("o")]
+    public void ProbeEffectsCannotBeReplacedByContactOrControl(string mechanism)
+    {
+        var visits = new MechanismExplorationPlan.ProbeVisitBudget(new[] { mechanism }, 30);
+        visits.Observe(mechanism, "Contact"); visits.Observe(mechanism, "Active"); visits.Tick(0.1f);
+        Assert.IsFalse(visits.Finished); Assert.AreEqual(0, visits.SatisfiedCount);
+        visits.Observe(mechanism, "Effect"); visits.Tick(0.1f);
+        Assert.IsTrue(visits.Finished); Assert.AreEqual(1, visits.SatisfiedCount);
+    }
+
+    [TestCase("F")]
+    [TestCase("[")]
+    public void ProbeControlCycleRequiresActiveThenRecovery(string mechanism)
+    {
+        var visits = new MechanismExplorationPlan.ProbeVisitBudget(new[] { mechanism }, 30);
+        visits.Observe(mechanism, "Recovery"); visits.Observe(mechanism, "Contact"); visits.Tick(0.1f);
+        Assert.AreEqual(0, visits.SatisfiedCount);
+        visits.Observe(mechanism, "Active"); visits.Tick(0.1f); Assert.IsFalse(visits.Finished);
+        visits.Observe(mechanism, "Recovery"); visits.Tick(0.1f); Assert.IsTrue(visits.Finished);
+    }
+
+    [Test]
+    public void PassageContactKeepsOrdinaryInputOpportunityAndMissingIsNotSuccess()
+    {
+        var visits = new MechanismExplorationPlan.ProbeVisitBudget(new[] { "H", "P" }, 30);
+        visits.Observe("H", "Contact"); visits.Tick(0.1f);
+        Assert.AreEqual("H", visits.Current);
+        visits.SkipMissing(); Assert.AreEqual(1, visits.MissingTargets);
+        visits.Observe("P", "Contact"); visits.Tick(0.1f); Assert.AreEqual(0, visits.SatisfiedCount);
+        visits.Observe("P", "MovingPartContact"); visits.Tick(0.1f);
+        Assert.IsTrue(visits.Finished); Assert.AreEqual(1, visits.SatisfiedCount);
+    }
+
+    [TestCase(10f, 5f)]
+    [TestCase(30f, 8f)]
+    [TestCase(120f, 8f)]
+    public void ProbeTotalBudgetReservesGoalTimeAndStopsEvenWithManyTargets(float limit, float expected)
+    {
+        var visits = new MechanismExplorationPlan.ProbeVisitBudget(MechanismExplorationPlan.Catalog.Select(c => c.ToString()), limit);
+        for (int i = 0; i < 10000; i++) visits.Tick(0.1f);
+        Assert.IsTrue(visits.Finished); Assert.IsTrue(visits.BudgetExhausted);
+        Assert.AreEqual(expected, visits.Budget); Assert.LessOrEqual(visits.Elapsed, expected);
+        Assert.AreEqual(0, visits.SatisfiedCount);
+    }
+
+    [Test]
+    public void NewPendulumEvidenceRequiresHammerNotPivotContact()
+    {
+        var evidence = new MechanismExplorationPlan.Evidence { mechanism = "P", built = 1,
+            observationVersion = 1, movingPartEvidenceVersion = 1, runnerContacts = 5 };
+        Assert.IsTrue(evidence.ObservationGap);
+        evidence.runnerMovingPartContacts = 1; Assert.IsFalse(evidence.ObservationGap);
+        Assert.AreEqual(0, evidence.runnerEffects, "Contact does not claim damage or control effect");
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void PendulumMountIsNotRequiredLandingButOrdinaryHighPlatformStillFails(bool snippet)

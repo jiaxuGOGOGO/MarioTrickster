@@ -296,6 +296,97 @@ public class S50_AutoRunE2ETests
 
 #if UNITY_EDITOR
     [UnityTest]
+    public IEnumerator Observer_RealFatalHammerKeepsContactAndHealthEvidence()
+    {
+        Time.timeScale = 1f;
+        yield return null;
+        var plan = System.Type.GetType("MechanismExplorationPlan, MarioTrickster.Editor", true);
+        var scenario = plan.GetMethod("Build").Invoke(null, new object[] { 153, "P", 0 });
+        var root = AsciiLevelGenerator.GenerateFromTemplate((string)scenario.GetType().GetField("ascii").GetValue(scenario), true);
+        _testObjects.Add(root); SetupPlayableEnvironment(root);
+        var trap = root.GetComponentInChildren<PendulumTrap>();
+        var probe = trap.gameObject.AddComponent<ExplorationContactProbe>(); probe.mechanism = "P";
+        probe.BindMovingPart(); probe.BindMovingPart();
+        var mario = Object.FindObjectOfType<MarioController>();
+        mario.enabled = false; mario.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+        yield return null;
+        var trialType = plan.GetNestedType("Trial");
+        var trial = System.Activator.CreateInstance(trialType);
+        trialType.GetField("profile").SetValue(trial, "Explorer");
+        var observerType = System.Type.GetType("ExplorationTrialObserver, MarioTrickster.Editor", true);
+        var observer = (System.IDisposable)System.Activator.CreateInstance(observerType, new object[] { scenario, trial, 30f });
+        try
+        {
+            var health = mario.GetComponent<PlayerHealth>();
+            health.TakeDamage(1); health.Heal(1); health.ResetHealth();
+            Assert.AreEqual(1, trialType.GetField("runnerDamageEvents").GetValue(trial), "Heal/reset must not count as damage");
+            health.TakeDamage(2);
+            yield return new WaitForSeconds(1.6f); // Natural invulnerability expiry, never force god mode off.
+            Assert.IsFalse(health.IsInvincible);
+            trap.enabled = false;
+            var hammer = trap.GetComponentInChildren<PendulumHammerTrigger>();
+            hammer.transform.position = mario.GetComponent<Collider2D>().bounds.center;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            Assert.AreEqual("RunnerStopped", trialType.GetField("outcome").GetValue(trial));
+            Assert.AreEqual(3, trialType.GetField("runnerDamageEvents").GetValue(trial));
+            Assert.AreEqual(4, trialType.GetField("runnerHealthLost").GetValue(trial), "Cumulative loss includes damage before healing");
+            var coverage = (IList)trialType.GetField("coverage").GetValue(trial);
+            Assert.AreEqual(1, coverage.Count);
+            var evidence = coverage[0];
+            Assert.AreEqual(1, evidence.GetType().GetField("built").GetValue(evidence), "Relay must not double built count");
+            Assert.Greater((int)evidence.GetType().GetField("runnerMovingPartContacts").GetValue(evidence), 0,
+                "Fatal contact must survive either trigger callback order");
+            observer.Dispose();
+            health.ResetHealth(); health.TakeDamage(1);
+            Assert.AreEqual(3, trialType.GetField("runnerDamageEvents").GetValue(trial), "Disposed observer must not collect later events");
+        }
+        finally { observer.Dispose(); }
+    }
+
+    [UnityTest]
+    public IEnumerator Explorer_CheckpointDecks_ReservesTimeForActualGoal() => VerifyBoundedExplorer(0x45a35, "S-", 36);
+    [UnityTest]
+    public IEnumerator Explorer_DecksBreakable_ReservesTimeForActualGoal() => VerifyBoundedExplorer(0x47924, "-X", 37);
+
+    private IEnumerator VerifyBoundedExplorer(int seed, string mechanisms, int index)
+    {
+        Time.timeScale = 1f;
+        yield return null; // Allow prior fixtures' deferred destruction before singleton lookup.
+        var plan = System.Type.GetType("MechanismExplorationPlan, MarioTrickster.Editor", true);
+        var scenario = plan.GetMethod("Build").Invoke(null, new object[] { seed, mechanisms, index });
+        var root = AsciiLevelGenerator.GenerateFromTemplate((string)scenario.GetType().GetField("ascii").GetValue(scenario), true);
+        Assert.IsNotNull(root); _testObjects.Add(root); SetupPlayableEnvironment(root);
+        // Navigation isolation: retain every authored mechanism; no opponent is spawned by this fixture.
+        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>())
+        {
+            string id = component is OneWayPlatform ? "-" : component is Checkpoint ? "S" : component is BreakableBlock ? "X" : null;
+            if (id != null) (component.GetComponent<ExplorationContactProbe>() ?? component.gameObject.AddComponent<ExplorationContactProbe>()).mechanism = id;
+        }
+        yield return null;
+        var trialType = plan.GetNestedType("Trial");
+        var trial = System.Activator.CreateInstance(trialType);
+        trialType.GetField("profile").SetValue(trial, "Explorer");
+        var observerType = System.Type.GetType("ExplorationTrialObserver, MarioTrickster.Editor", true);
+        var observer = (System.IDisposable)System.Activator.CreateInstance(observerType, new object[] { scenario, trial, 30f });
+        try
+        {
+            float deadline = Time.realtimeSinceStartup + 35f;
+            var tick = observerType.GetMethod("Tick");
+            while (!(bool)observerType.GetProperty("Finished").GetValue(observer) && Time.realtimeSinceStartup < deadline)
+            {
+                tick.Invoke(observer, new object[] { Time.deltaTime, 30f });
+                yield return null;
+            }
+            Assert.AreEqual("Cleared", trialType.GetField("outcome").GetValue(trial), "Actual goal event required; a bounded visit is not a clear");
+            Assert.AreEqual(2, trialType.GetField("probeTargets").GetValue(trial), "Eight auxiliary decks must not become eight visits");
+            Assert.LessOrEqual((float)trialType.GetField("probeElapsedSeconds").GetValue(trial), 8f);
+            Assert.Less((float)trialType.GetField("seconds").GetValue(trial), 30f);
+        }
+        finally { observer.Dispose(); }
+    }
+
+    [UnityTest]
     public IEnumerator AuthoredUpperRoute_OrdinaryInputCompletesAllLandings() => VerifyAuthoredUpper(false);
     [UnityTest]
     public IEnumerator AuthoredUpperRoute_LootReturnCompletesBothDirections() => VerifyAuthoredUpper(true);

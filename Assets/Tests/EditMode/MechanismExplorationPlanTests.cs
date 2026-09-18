@@ -4,6 +4,66 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [TestCase(false)]
+    [TestCase(true)]
+    public void PendulumMountIsNotRequiredLandingButOrdinaryHighPlatformStillFails(bool snippet)
+    {
+        var room = MechanismExplorationPlan.Build(153, "P");
+        var result = AsciiLevelValidator.ValidateTemplate(room.ascii, snippet);
+        Assert.IsEmpty(result.errors, result.GetReport());
+        Assert.IsTrue(result.info.Any(s => s.Contains("Hazard mount 'P'")));
+        Assert.IsTrue(AsciiElementRegistry.GetDefault().GetEntry('P').isSolid, "Keep actual pivot collision metadata");
+        Assert.IsTrue(AsciiElementRegistry.GetDefault().GetEntry('P').isHazard, "Keep independent danger checks");
+        var ordinary = AsciiLevelValidator.ValidateTemplate(room.ascii.Replace('P', '='), snippet);
+        Assert.IsTrue(ordinary.errors.Any(s => s.Contains("UNREACHABLE platform")),
+            "An ordinary isolated high landing must still fail at the exact same coordinate");
+    }
+
+    [Test]
+    public void PendulumNearSpawnStillProducesDangerWarning()
+    {
+        var result = AsciiLevelValidator.ValidateTemplate("..........\n.MP....TG.\n##########");
+        Assert.IsTrue(result.warnings.Any(s => s.Contains("Hazard") && s.Contains("spawn")), result.GetReport());
+    }
+
+    [TestCase('.')]
+    [TestCase('C')]
+    [TestCase('X')]
+    [TestCase('-')]
+    [TestCase('>')]
+    public void ConveyorLowerFloorIsNotAnAbyssButTemporarySupportsDoNotCertifyIt(char replacement)
+    {
+        var room = MechanismExplorationPlan.Build(0x2a923, "B<");
+        Assert.IsEmpty(AsciiLevelValidator.ValidateTemplate(room.ascii).errors);
+        var unsupported = AsciiLevelValidator.ValidateTemplate(room.ascii.Replace('<', replacement));
+        Assert.IsTrue(unsupported.errors.Any(e => e.Contains("IMPASSABLE gap")),
+            "Only permanent lower support suppresses abyss diagnostics; dynamic supports need separate validation");
+    }
+
+    [Test]
+    public void UploadedMechanismPlanHasNoL1ErrorsBeforeAnyUnityGeneration()
+    {
+        foreach (var room in MechanismExplorationPlan.Create(153, MechanismExplorationPlan.Scope.Mechanisms))
+        {
+            Assert.IsTrue(LevelStudioDocument.TryParse(room.ascii, out var doc, out var error), error);
+            var result = AsciiLevelValidator.ValidateTemplate(doc.Grid);
+            Assert.IsEmpty(result.errors, room.id + " " + result.GetReport());
+        }
+    }
+
+    [Test]
+    public void AllSingleMechanismProbesPassL1Across100Seeds()
+    {
+        for (int seed = -50; seed < 50; seed++)
+            foreach (char mechanism in MechanismExplorationPlan.Catalog)
+            {
+                var room = MechanismExplorationPlan.Build(seed, mechanism.ToString());
+                var result = AsciiLevelValidator.ValidateTemplate(room.ascii);
+                Assert.IsEmpty(result.errors, $"seed={seed}, mechanism={mechanism}\n{result.GetReport()}");
+            }
+        // Structural checks only: this does not simulate moving hammers or AI encounters.
+    }
+
     [Test]
     public void ScanRequestAndLegacyRevealCountCannotInventSuccessfulCounterplay()
     {

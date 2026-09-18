@@ -110,7 +110,8 @@ public class TricksterController : MonoBehaviour
     private bool _bufferedJumpUsable;
     private bool _endedJumpEarly;
     private bool _coyoteUsable;
-    private float _timeJumpWasPressed;
+    // No press exists at time zero. Zero is a valid press time, not an empty buffer.
+    private float _timeJumpWasPressed = float.NegativeInfinity;
 
     private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + jumpBuffer;
     private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + coyoteTime;
@@ -215,6 +216,13 @@ public class TricksterController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Match Mario: direct fixed-step replay may press jump between rendered Updates.
+        if (jumpPressedThisFrame)
+        {
+            _jumpToConsume = true;
+            _timeJumpWasPressed = _time;
+            jumpPressedThisFrame = false;
+        }
         // 击退 stun 期间：不覆盖 rb.velocity，让物理引擎的 AddForce 击退力自然衰减
         if (_isKnockbackStunned)
         {
@@ -261,20 +269,10 @@ public class TricksterController : MonoBehaviour
 
     private void CheckCollisions()
     {
-        bool prev = Physics2D.queriesStartInColliders;
-        Physics2D.queriesStartInColliders = false;
-
-        bool groundHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.down, grounderDistance, groundLayer);
-
-        bool ceilingHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.up, grounderDistance, groundLayer);
-
-        Physics2D.queriesStartInColliders = prev;
+        bool groundHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.down,
+            grounderDistance, groundLayer, _frameVelocity.y);
+        bool ceilingHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.up,
+            grounderDistance, groundLayer, _frameVelocity.y);
 
         if (ceilingHit) _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
 
@@ -318,7 +316,7 @@ public class TricksterController : MonoBehaviour
     private void ExecuteJump()
     {
         _endedJumpEarly = false;
-        _timeJumpWasPressed = 0;
+        _timeJumpWasPressed = float.NegativeInfinity;
         _bufferedJumpUsable = false;
         _coyoteUsable = false;
         _frameVelocity.y = jumpPower;
@@ -430,6 +428,9 @@ public class TricksterController : MonoBehaviour
         _knockbackStunTimer = 0f;
 
         // 3. 重置跳跃状态
+        _timeJumpWasPressed = float.NegativeInfinity;
+        _timeLeftGrounded = float.NegativeInfinity;
+        _grounded = false;
         _jumpToConsume = false;
         _bufferedJumpUsable = false;
         _endedJumpEarly = false;

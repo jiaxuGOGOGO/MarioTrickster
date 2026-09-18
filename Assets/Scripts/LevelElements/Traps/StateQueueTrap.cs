@@ -91,6 +91,42 @@ public class StateQueueTrap : ControllableLevelElement
     private TricksterHeatMeter heatMeter;
     // 使用基类 ControllablePropBase.originalColor (protected)，不再重复声明
 
+    // The bot reads the same state/countdown/reach that the world label displays.
+    // This is not the generic possession lifecycle: Idle can still be an attack.
+    public struct PublicCue
+    {
+        public string current, next;
+        public float remaining, halfWidth, halfHeight;
+        public bool safe;
+    }
+    public PublicCue ReadPublicCue()
+    {
+        bool recovery = currentState == PropControlState.Recovery;
+        bool suspended = recovery || currentState == PropControlState.Cooldown || currentState == PropControlState.Exhausted;
+        return new PublicCue {
+            current = suspended ? currentState.ToString() : GetStateLabel(CurrentQueueState),
+            next = suspended ? GetStateLabel(CurrentQueueState) : GetStateLabel(NextQueueState),
+            remaining = Mathf.Floor(Mathf.Max(0f, suspended ? stateTimer : queueTimer) * 10f) / 10f, // Same tenth-second precision as the label.
+            halfWidth = Mathf.Abs(attackOffset) + attackBoxSize.x * 0.5f,
+            halfHeight = attackBoxSize.y * 0.5f,
+            safe = suspended || CurrentQueueState == QueueTrapState.SafePause
+        };
+    }
+    public bool TryReadPublicCue(Vector2 viewer, out PublicCue cue)
+    {
+        cue = default;
+        if (!isActiveAndEnabled || stateText == null || !stateText.gameObject.activeInHierarchy ||
+            stateText.GetComponent<Renderer>() == null || !stateText.GetComponent<Renderer>().enabled ||
+            Vector2.Distance(viewer, transform.position) > 4.5f || Mathf.Abs(viewer.y - transform.position.y) > 1.5f) return false;
+        foreach (var hit in Physics2D.LinecastAll(viewer, transform.position))
+            if (hit.collider != null && !hit.collider.isTrigger && hit.collider.gameObject != gameObject &&
+                hit.collider.GetComponentInParent<MarioController>() == null &&
+                hit.collider.GetComponentInParent<TricksterController>() == null) return false;
+        cue = ReadPublicCue();
+        return true;
+    }
+    public static event System.Action<StateQueueTrap, MarioController, int, PublicCue> ActualDamage;
+
     private QueueTrapState CurrentQueueState => queue[currentQueueIndex];
     private QueueTrapState NextQueueState => queue[(currentQueueIndex + 1) % queue.Length];
 
@@ -254,7 +290,11 @@ public class StateQueueTrap : ControllableLevelElement
             PlayerHealth health = mario.GetComponent<PlayerHealth>();
             if (health == null || health.IsInvincible) continue;
 
+            int before = health.CurrentHealth;
+            var cue = ReadPublicCue();
             health.TakeDamage(attackDamage);
+            int lost = before - health.CurrentHealth;
+            if (lost > 0) ActualDamage?.Invoke(this, mario, lost, cue);
             ApplyKnockback(mario, hit);
             break;
         }
@@ -340,8 +380,8 @@ public class StateQueueTrap : ControllableLevelElement
     {
         if (stateText == null) return;
 
-        stateText.text = "Current: " + GetStateLabel(CurrentQueueState) + "\n" +
-                         "Next: " + GetStateLabel(NextQueueState);
+        var cue = ReadPublicCue();
+        stateText.text = $"Current: {cue.current} ({cue.remaining:F1}s)\nNext: {cue.next}\nReach: +/-{cue.halfWidth:F2}";
     }
 
     private string GetStateLabel(QueueTrapState state)

@@ -31,29 +31,34 @@ public partial class TestConsoleWindow
             using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || TestReportRunner.IsRunning))
             {
                 explorationSeed = EditorGUILayout.IntField("随机种子", explorationSeed);
-                int path = GUILayout.Toolbar(explorationScope == MechanismExplorationPlan.Scope.Experience ? 1 : 0, new[] { "机制回归", "体验探索" });
-                if (path == 1) explorationScope = MechanismExplorationPlan.Scope.Experience;
-                else explorationScope = (MechanismExplorationPlan.Scope)EditorGUILayout.Popup("回归范围", explorationScope == MechanismExplorationPlan.Scope.Experience ? 0 : (int)explorationScope,
+                int selectedPath = explorationScope == MechanismExplorationPlan.Scope.Counterplay ? 2 : explorationScope == MechanismExplorationPlan.Scope.Experience ? 1 : 0;
+                int path = GUILayout.Toolbar(selectedPath, new[] { "机制回归", "体验探索", "反制专项" });
+                if (path == 2) { explorationScope = MechanismExplorationPlan.Scope.Counterplay; if (selectedPath != 2) { explorationSeed = 154; explorationLimit = 45; } }
+                else if (path == 1) explorationScope = MechanismExplorationPlan.Scope.Experience;
+                else explorationScope = (MechanismExplorationPlan.Scope)EditorGUILayout.Popup("回归范围", (int)explorationScope > 2 ? 0 : (int)explorationScope,
                     new[] { "快速机制验证（6 场景 × 3 画像）", "全部 19 机制 + 邻接组合（38 × 3）", "全部两两共现（190 × 3）" });
+                bool diagnostic = explorationScope == MechanismExplorationPlan.Scope.Counterplay;
                 bool experience = explorationScope == MechanismExplorationPlan.Scope.Experience;
-                if (experience) EditorGUILayout.HelpBox("三类短房：短路/绕行、诱导/后摇、拿宝/返程。Mario 抢进度/侦察/绕路 × Trickster 伏击/诱敌近身/换点追击，共9种搭配。路线有作者引导，不是AI学习；真正的乐趣仍由你试玩确认。", MessageType.Info);
+                if (diagnostic) EditorGUILayout.HelpBox("21局首轮：第二房冲刺/读公开窗口/上路，对照静止对手；拿宝房Adaptive/上路，各对照静止对手与Chaser。每组普通起步等待0/0.6/1.2秒。自动比较穿越、伤害线索和返程耗时，不输出乐趣评分。", MessageType.Info);
+                else if (experience) EditorGUILayout.HelpBox("三类短房：短路/绕行、诱导/后摇、拿宝/返程。Mario 抢进度/侦察/绕路 × Trickster 伏击/诱敌近身/换点追击，共9种搭配。路线有作者引导，不是AI学习；真正的乐趣仍由你试玩确认。", MessageType.Info);
                 else EditorGUILayout.HelpBox("当前是机制回归，不包含三类体验房与九种独立策略。验证修复后，切换上方“体验探索”再运行一批；两份报告分别保留。", MessageType.Info);
-                EditorGUILayout.LabelField(experience ? "当前将运行：体验探索 / Experience / 首轮27局" : $"当前将运行：机制回归 / {explorationScope}", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField(diagnostic ? "当前将运行：反制专项 / Counterplay / 首轮21局" : experience ? "当前将运行：体验探索 / Experience / 首轮27局" : $"当前将运行：机制回归 / {explorationScope}", EditorStyles.boldLabel);
                 explorationLimit = EditorGUILayout.Slider("单局预算（秒）", explorationLimit, 10, 120);
                 explorationRegressions = EditorGUILayout.ToggleLeft("先自动运行全部 EditMode / PlayMode 回归（无中途弹窗）", explorationRegressions);
                 if (explorationRegressions) EditorGUILayout.LabelField("回归失败或没有通过记录时，将保存报告、停止跑图并恢复原场景。", EditorStyles.wordWrappedMiniLabel);
-                int rooms = experience ? 3 : explorationScope == MechanismExplorationPlan.Scope.Smoke ? 6 : explorationScope == MechanismExplorationPlan.Scope.Mechanisms ? 38 : 190;
+                int rooms = diagnostic ? 6 : experience ? 3 : explorationScope == MechanismExplorationPlan.Scope.Smoke ? 6 : explorationScope == MechanismExplorationPlan.Scope.Mechanisms ? 38 : 190;
                 int matchups = experience ? 9 : 3;
-                int confirmations = Math.Min(rooms, MechanismExplorationPlan.MaxConfirmationScenes) * matchups;
-                EditorGUILayout.LabelField($"首轮 {rooms * matchups} 局 + 最多 {confirmations} 局问题图确认；按预算上限约 {(rooms * matchups + confirmations) * explorationLimit / 60:F0} 分钟 + 重载/回归。相同基础故障连续两局会停批。可随时停止。", EditorStyles.wordWrappedMiniLabel);
-                if (GUILayout.Button(experience ? "开始体验探索：3 类房间 × 9 种策略搭配" : "开始机制回归：验证机制与导航修复", GUILayout.Height(34)))
+                int firstPass = diagnostic ? 21 : rooms * matchups;
+                int confirmations = diagnostic ? 21 : Math.Min(rooms, MechanismExplorationPlan.MaxConfirmationScenes) * matchups;
+                EditorGUILayout.LabelField($"首轮 {firstPass} 局 + 最多 {confirmations} 局问题图确认；按预算上限约 {(firstPass + confirmations) * explorationLimit / 60:F0} 分钟 + 重载/回归。相同基础故障连续两局会停批。可随时停止。", EditorStyles.wordWrappedMiniLabel);
+                if (GUILayout.Button(diagnostic ? "开始反制专项：公开窗口 / 上下路 / 返程追击对照" : experience ? "开始体验探索：3 类房间 × 9 种策略搭配" : "开始机制回归：验证机制与导航修复", GUILayout.Height(34)))
                 {
                     if (rooms < 100 || EditorUtility.DisplayDialog("长时间组合覆盖", "两两共现计划包含 570 局，可能运行数小时。它仍不是所有时序与参数的穷举。是否开始？", "开始", "取消"))
                         StudioExplorationRunner.Start(explorationSeed, explorationScope, explorationLimit, null, explorationRegressions);
                 }
                 if (GUILayout.Button("生成当前路径的一张示例到画布（可继续修改）") && ConfirmStudioReplace())
                 {
-                    var scenario = MechanismExplorationPlan.Create(explorationSeed, experience ? MechanismExplorationPlan.Scope.Experience : MechanismExplorationPlan.Scope.Smoke).Last();
+                    var scenario = MechanismExplorationPlan.Create(explorationSeed, diagnostic ? MechanismExplorationPlan.Scope.Counterplay : experience ? MechanismExplorationPlan.Scope.Experience : MechanismExplorationPlan.Scope.Smoke).Last();
                     SetStudioText(scenario.ascii, "Generate mechanism combination");
                     studioNotice = $"种子 {explorationSeed}，机制 {scenario.mechanisms}。{scenario.intention} 画布只保留布局；完整通道/拿宝语义通过报告的“亲自试玩”复现。";
                     explorationSeed = unchecked(explorationSeed + 1);
@@ -66,6 +71,8 @@ public partial class TestConsoleWindow
         {
             EditorGUILayout.LabelField($"报告路径：{StudioExplorationRunner.TestTrack(report)} / {report.scope} · 批次：{report.status} · 回归：{report.regressions}（通过 {report.regressionPassed} / 失败 {report.regressionFailed}）", EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.HelpBox(StudioExplorationRunner.EvidenceVerdict(report), MessageType.Info);
+            if (report.scenarios.Any(s => s.counterplayVersion >= 1))
+                EditorGUILayout.LabelField(StudioExplorationRunner.CounterplayPairs(report), EditorStyles.wordWrappedMiniLabel);
             if (StudioExplorationRunner.TestTrack(report) == "机制回归")
                 EditorGUILayout.LabelField("这份报告不包含体验房。请切换上方“体验探索”并点击“开始体验探索”。", EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.LabelField($"有效试玩 {report.trials.Count(t => t.HasGameplayEvidence)} / 记录 {report.trials.Count}；复测不覆盖首轮失败。", EditorStyles.wordWrappedMiniLabel);
@@ -87,6 +94,7 @@ public partial class TestConsoleWindow
                         : "旧记录未采集扫描结果，不能从施放数补算命中。", EditorStyles.wordWrappedMiniLabel);
                     EditorGUILayout.LabelField(StudioExplorationRunner.ProbeSummary(trial), EditorStyles.wordWrappedMiniLabel);
                     EditorGUILayout.LabelField(StudioExplorationRunner.HealthSummary(trial), EditorStyles.wordWrappedMiniLabel);
+                    EditorGUILayout.LabelField(StudioExplorationRunner.QueueSummary(trial), EditorStyles.wordWrappedMiniLabel);
                     foreach (var hammer in trial.coverage.Where(e => e.mechanism == "P"))
                         EditorGUILayout.LabelField(hammer.movingPartEvidenceVersion >= 1
                             ? $"P 根实例 {hammer.built}（锤头转发器不重复计数）；真实锤头接触 {hammer.runnerMovingPartContacts}，不等于扣血或安全通过。"

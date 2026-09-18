@@ -6,6 +6,46 @@ using UnityEngine;
 public class ExplorationIntegrationContractTests
 {
     [Test]
+    public void CounterplayPassiveAndStartDelayUseOnlyNeutralOrdinaryInputs()
+    {
+        var bot = new ExplorationTrialObserver.GuidedBot(null, new System.Collections.Generic.Dictionary<string, Transform[]>(), false, null, false) {
+            PassiveOpponent = true, StartDelayRemaining = 0.6f,
+            p1Horizontal = 1, p1JumpDown = true, p1ScanDown = true,
+            p2Horizontal = 1, p2Vertical = 1, p2SwitchDir = 1,
+            p2JumpHeld = true, p2JumpDown = true, p2DirectionDown = true, p2DisguiseDown = true, p2AbilityDown = true
+        };
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var opponent = typeof(ExplorationTrialObserver.GuidedBot).GetMethod("UpdateTricksterBrain", flags);
+        opponent.Invoke(bot, new object[] { 0.2f });
+        Assert.AreEqual(0, bot.p2Horizontal); Assert.AreEqual(0, bot.p2Vertical); Assert.AreEqual(0, bot.p2SwitchDir);
+        Assert.IsFalse(bot.p2JumpHeld || bot.p2JumpDown || bot.p2DirectionDown || bot.p2DisguiseDown || bot.p2AbilityDown);
+        var runner = typeof(ExplorationTrialObserver.GuidedBot).GetMethod("UpdateMarioBrain", flags);
+        for (int i = 0; i < 3; i++) runner.Invoke(bot, new object[] { 0.25f });
+        Assert.AreEqual(0, bot.StartDelayRemaining);
+        Assert.That(bot.StartWaitSeconds, Is.EqualTo(0.75f).Within(0.0001f), "Full-frame neutral input overshoot must be reported, not clamped away");
+        Assert.AreEqual(0, bot.p1Horizontal); Assert.IsFalse(bot.p1JumpDown || bot.p1JumpHeld || bot.p1ScanDown);
+    }
+
+    [Test]
+    public void CounterplayReturnPairUsesActualLootToEscapeNotTotalDuration()
+    {
+        var rooms = MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Counterplay);
+        var room = rooms[3];
+        var report = new StudioExplorationRunner.Report(); report.scenarios.Add(room);
+        var a = new MechanismExplorationPlan.Trial { scenarioId = room.id, marioStrategy = "Adaptive", tricksterStrategy = "Passive",
+            counterplayVersion = 1, healthEvidenceVersion = 1, outcome = "Cleared", seconds = 8, lootAtSeconds = 2, escapeAtSeconds = 8,
+            lootEvents = 1, escapeEvents = 1 };
+        var b = new MechanismExplorationPlan.Trial { scenarioId = room.id, marioStrategy = "Adaptive", tricksterStrategy = "Chaser",
+            counterplayVersion = 1, healthEvidenceVersion = 1, outcome = "Cleared", seconds = 12, lootAtSeconds = 3, escapeAtSeconds = 12,
+            postLootTransfers = 2, postLootControls = 1, lootEvents = 1, escapeEvents = 1 };
+        report.trials.Add(a); report.trials.Add(b);
+        StringAssert.Contains("返程耗时差=3.00s", StudioExplorationRunner.CounterplayPairs(report));
+        StringAssert.DoesNotContain("返程耗时差=4.00s", StudioExplorationRunner.CounterplayPairs(report));
+        b.escapeAtSeconds = -1;
+        StringAssert.DoesNotContain("返程耗时差=", StudioExplorationRunner.CounterplayPairs(report));
+    }
+
+    [Test]
     public void GuidedExplorerUsesOneRepresentativeAndRejectsOtherInstanceEvidence()
     {
         var a = new GameObject("FirstDeck"); var b = new GameObject("SecondDeck"); var checkpoint = new GameObject("CheckpointProbe");

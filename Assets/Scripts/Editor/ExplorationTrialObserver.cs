@@ -20,6 +20,15 @@ public sealed class ExplorationTrialObserver : IDisposable
     private readonly PropComboTracker combo;
     private readonly RouteBudgetService routes;
     private readonly Dictionary<string, Transform[]> targets = new Dictionary<string, Transform[]>();
+    private sealed class QueueWatch
+    {
+        public MechanismExplorationPlan.QueueEvidence evidence;
+        public readonly MechanismExplorationPlan.QueueCrossingMemory crossing = new MechanismExplorationPlan.QueueCrossingMemory();
+        public float lastVisibleAt = -100f;
+        public bool waiting;
+    }
+    private readonly Dictionary<StateQueueTrap, QueueWatch> queueWatches = new Dictionary<StateQueueTrap, QueueWatch>();
+    private Collider2D marioBody;
     private readonly BotPersonaConfigSO marioProfile, tricksterProfile;
     private readonly GuidedBot bot;
     private float sampleTimer, noProgressTimer, bestDistance = float.MaxValue;
@@ -38,6 +47,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         result = trial;
         result.experience = scenario.experience;
         result.expectsReturn = scenario.lootEscape;
+        result.counterplayVersion = scenario.counterplayVersion;
+        result.startDelaySeconds = scenario.startDelaySeconds;
         result.experienceEvidenceVersion = 1;
         manager = GameManager.Instance;
         input = Object.FindObjectOfType<InputManager>();
@@ -66,13 +77,25 @@ public sealed class ExplorationTrialObserver : IDisposable
             result.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = c.ToString(), built = targets[c.ToString()].Length,
                 observationVersion = 1, movingPartEvidenceVersion = c == 'P' ? 1 : 0 });
         }
+        marioBody = mario.GetComponent<Collider2D>();
+        result.queueEvidenceVersion = 1;
+        foreach (var target in targets.Values.SelectMany(t => t).Distinct())
+        {
+            var queue = target.GetComponent<StateQueueTrap>();
+            if (queue == null) continue;
+            var evidence = new MechanismExplorationPlan.QueueEvidence { source = queue.name + "@" + queue.transform.position };
+            result.queueEvidence.Add(evidence); queueWatches.Add(queue, new QueueWatch { evidence = evidence });
+        }
         string runnerName = string.IsNullOrEmpty(trial.marioStrategy) ? trial.profile : trial.marioStrategy;
         string opponentName = string.IsNullOrEmpty(trial.tricksterStrategy) ? trial.profile : trial.tricksterStrategy;
         marioProfile = MakeProfile(runnerName, false);
         tricksterProfile = MakeProfile(opponentName, true);
         bot = new GuidedBot(mario, targets, runnerName == "Explorer", routeRegions, runnerName == "SafeRoute", trialLimit) {
             marioPersona = marioProfile, tricksterPersona = tricksterProfile,
-            RunnerStrategy = runnerName == "Scout" ? HeuristicBotInputProvider.RunnerPolicy.Scout :
+            ReadPublicQueues = runnerName == "Adaptive",
+            PassiveOpponent = opponentName == "Passive",
+            StartDelayRemaining = scenario.startDelaySeconds,
+            RunnerStrategy = runnerName == "Scout" || runnerName == "Adaptive" ? HeuristicBotInputProvider.RunnerPolicy.Scout :
                 runnerName == "SafeRoute" ? HeuristicBotInputProvider.RunnerPolicy.SafeRoute :
                 runnerName == "Runner" ? HeuristicBotInputProvider.RunnerPolicy.Rush : HeuristicBotInputProvider.RunnerPolicy.Legacy,
             OpponentStrategy = opponentName == "Ambusher" ? HeuristicBotInputProvider.OpponentPolicy.Ambusher :
@@ -80,7 +103,9 @@ public sealed class ExplorationTrialObserver : IDisposable
                 opponentName == "Chaser" ? HeuristicBotInputProvider.OpponentPolicy.Chaser : HeuristicBotInputProvider.OpponentPolicy.Legacy
         };
         int matchupIndex = Array.FindIndex(MechanismExplorationPlan.Matchups(scenario), m => m.mario == runnerName && m.trickster == opponentName);
-        bot.SetDecisionSeed(unchecked(scenario.seed + matchupIndex * 65537));
+        // Diagnostic comparisons share the seed, not separate random streams per treatment.
+        // Opponent presence can still change subsequent decisions; pairs are not causal proof.
+        bot.SetDecisionSeed(scenario.counterplayVersion >= 1 ? scenario.seed : unchecked(scenario.seed + matchupIndex * 65537));
         previousInput = input.GetCurrentProvider();
         input.SetInputProvider(bot);
         manager.OnGameOver += OnGameOver;
@@ -104,6 +129,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         LootObjective.OnLootCollected += OnLoot;
         EscapeGate.OnEscapeSuccess += OnEscape;
         ExplorationContactProbe.Contact += OnContact;
+        StateQueueTrap.ActualDamage += OnQueueDamage;
         Application.logMessageReceived += OnLog;
         result.outcome = "Running";
         result.farthestX = mario.transform.position.x;
@@ -143,6 +169,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         result.waypointsReached = bot.WaypointsReached;
         result.completedRoutes = bot.CompletedRoutes.ToList();
         CaptureProbeProgress();
+        CaptureQueueEvidence(dt);
+        result.actualStartWaitSeconds = bot.StartWaitSeconds;
         result.anchorSwitchRequests = bot.AnchorSwitchRequests;
         if (bot.RouteSwitchRequests > result.routeSwitchRequests) Event("route switch requested: " + bot.RouteId + " (not a completed traversal)");
         result.routeSwitchRequests = bot.RouteSwitchRequests;
@@ -197,6 +225,7 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         if (Finished) return;
         CaptureProbeProgress();
+        result.actualStartWaitSeconds = bot.StartWaitSeconds;
         result.outcome = outcome;
         finishedFixedTime = Time.fixedTime;
         result.nextAction = nextAction;
@@ -218,6 +247,48 @@ public sealed class ExplorationTrialObserver : IDisposable
         result.probeTargets = visits.TargetCount; result.probeSatisfied = visits.SatisfiedCount;
         result.probeTimedOut = visits.TimedOutTargets; result.probeMissing = visits.MissingTargets;
         result.probeBudgetExhausted = visits.BudgetExhausted;
+    }
+
+    private void CaptureQueueEvidence(float dt)
+    {
+        if (marioBody == null) return;
+        foreach (var item in queueWatches)
+        {
+            var queue = item.Key; var watch = item.Value; var e = watch.evidence;
+            if (queue == null || !queue.isActiveAndEnabled) continue;
+            if (queue.TryReadPublicCue(marioBody.bounds.center, out var visible))
+            {
+                e.cueSamples++; watch.lastVisibleAt = manager.RoundElapsed;
+                string label = visible.current + " -> " + visible.next;
+                if (e.lastCue != label)
+                { e.cueChanges++; e.lastCue = label; Event("public queue visible " + e.source + " " + label); }
+            }
+            bool waiting = bot.WaitingQueue == queue;
+            if (waiting)
+            {
+                e.waitSeconds += Mathf.Max(0f, dt);
+                if (!watch.waiting) { e.waits++; Event("ordinary wait input " + e.source + ": " + bot.QueueDecision); }
+            }
+            watch.waiting = waiting;
+            var actual = queue.ReadPublicCue(); // Observer measurement only; never fed to the bot without visibility.
+            int flags = watch.crossing.Sample(marioBody.bounds.center.x - queue.transform.position.x,
+                marioBody.bounds.center.y - queue.transform.position.y,
+                actual.halfWidth + marioBody.bounds.extents.x, result.runnerHealthLost);
+            if ((flags & 1) != 0) { e.entries++; Event("entered queue reach " + e.source); }
+            if ((flags & 2) != 0) { e.crossings++; Event("full same-lane queue crossing " + e.source); }
+            if ((flags & 4) != 0) e.cleanCrossings++;
+        }
+    }
+    private void OnQueueDamage(StateQueueTrap source, MarioController actor, int lost, StateQueueTrap.PublicCue cue)
+    {
+        if (disposed || actor != mario || source == null || lost <= 0 || !queueWatches.TryGetValue(source, out var watch)) return;
+        if (Finished && !(result.outcome == "RunnerStopped" && Time.fixedTime == finishedFixedTime)) return;
+        var e = watch.evidence; e.damageEvents++; e.healthLost += lost;
+        bool recent = manager.RoundElapsed - watch.lastVisibleAt <= 0.75f;
+        if (recent) e.damageWithRecentCue++;
+        string label = $"queue actual damage {e.source}: lost={lost}, state={cue.current}, remaining={cue.remaining:F1}s, runner={mario.transform.position}, cue age={manager.RoundElapsed - watch.lastVisibleAt:F2}s, recent local cue={recent}, decision={bot.QueueDecision ?? bot.MarioIntent}; visibility proxy, not human comprehension";
+        if (Finished && result.timeline.Count < 100) result.timeline.Add($"{result.seconds:F2}s {label}");
+        else Event(label);
     }
 
     private void OnHealthChanged(int current, int maximum)
@@ -282,6 +353,7 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         if (Finished || prop == null) return;
         result.controlAccepted++;
+        if (result.lootEvents > 0) result.postLootControls++;
         var source = prop.GetTransform().gameObject;
         var probe = source.GetComponentInParent<ExplorationContactProbe>();
         var evidence = probe != null ? result.coverage.Find(e => e.mechanism == probe.mechanism) : null;
@@ -324,7 +396,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         // Magnetic switching can change the anchor without a state transition.
         if (Finished || gate == null || !gate.IsHiddenAndArmed) return;
         if (anchor != null && lastPossessedAnchor != null && anchor != lastPossessedAnchor)
-        { result.possessionTransfers++; Event("possession of a different anchor completed"); }
+        { result.possessionTransfers++; if (result.lootEvents > 0) result.postLootTransfers++; Event("possession of a different anchor completed"); }
         if (anchor != null) lastPossessedAnchor = anchor;
     }
     private void OnCombo(int count, float multiplier) { if (!Finished && count > 1) { result.comboEvents++; Event("combo " + count); } }
@@ -333,12 +405,13 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         if (Finished) return;
         result.lootEvents++;
+        if (result.lootAtSeconds < 0f) result.lootAtSeconds = manager.RoundElapsed;
         var e = result.coverage.Find(v => v.mechanism == "o");
         if (e != null) { e.activations++; e.runnerEffects++; }
         if (loot != null) bot.ObserveProbe("o", loot, "Effect");
         Event("loot collected");
     }
-    private void OnEscape() { if (!Finished) { result.escapeEvents++; Event("escape"); } }
+    private void OnEscape() { if (!Finished) { result.escapeEvents++; result.escapeAtSeconds = manager.RoundElapsed; Event("escape"); } }
     private void OnCrisis(GameplayEventBus.CrisisWarningPayload p) { if (!Finished) { result.crises++; Event("crisis " + p.warningType); } }
     private void OnReveal(GameplayEventBus.TricksterRevealedPayload p) { if (!Finished) { result.reveals++; Event("revealed " + p.reason); } }
     private void OnRouteDegraded(string id, string reason) { if (!Finished) { result.routeDegradations++; Event("route degraded " + id); } }
@@ -370,6 +443,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         LootObjective.OnLootCollected -= OnLoot;
         EscapeGate.OnEscapeSuccess -= OnEscape;
         ExplorationContactProbe.Contact -= OnContact;
+        StateQueueTrap.ActualDamage -= OnQueueDamage;
         Application.logMessageReceived -= OnLog;
         if (input != null && input.GetCurrentProvider() == bot) input.SetInputProvider(previousInput);
         Object.DestroyImmediate(marioProfile); Object.DestroyImmediate(tricksterProfile);
@@ -382,6 +456,15 @@ public sealed class ExplorationTrialObserver : IDisposable
         private readonly bool explore, hasLootObjective;
         private float interactTimer, dropTimer;
         public MechanismExplorationPlan.ProbeVisitBudget ProbeVisits { get; }
+        public bool ReadPublicQueues, PassiveOpponent;
+        public float StartDelayRemaining;
+        public float StartWaitSeconds { get; private set; }
+        public StateQueueTrap WaitingQueue { get; private set; }
+        public string QueueDecision { get; private set; }
+        private readonly StateQueueTrap[] queueTraps;
+        private StateQueueTrap crossingQueue;
+        private float crossingDirection;
+        private Collider2D runnerBody;
         private readonly MechanismExplorationPlan.RouteNavigator navigation;
         public int WaypointsReached => navigation.WaypointsReached;
         public IReadOnlyList<string> CompletedRoutes => navigation.CompletedRoutes;
@@ -397,13 +480,89 @@ public sealed class ExplorationTrialObserver : IDisposable
             points = targets.SelectMany(p => p.Value.Select(t => new KeyValuePair<string, Transform>(p.Key, t)))
                 .Where(p => p.Value != null).OrderBy(p => p.Value.position.x).GroupBy(p => p.Key).Select(g => g.First()).ToArray();
             ProbeVisits = new MechanismExplorationPlan.ProbeVisitBudget(points.Select(p => p.Key), trialLimit);
+            queueTraps = targets.Values.SelectMany(t => t).Where(t => t != null)
+                .Select(t => t.GetComponent<StateQueueTrap>()).Where(t => t != null).Distinct().ToArray();
+            runnerBody = runner != null ? runner.GetComponent<Collider2D>() : null;
         }
         public void ObserveProbe(string mechanism, Transform source, string signal)
         {
             if (explore && points.Any(p => p.Key == mechanism && p.Value == source)) ProbeVisits.Observe(mechanism, signal);
         }
+        private float crossingExtent, observedRunSpeed;
+        private void NeutralMario()
+        {
+            p1Horizontal = p1Vertical = 0f;
+            p1JumpDown = p1JumpHeld = p1SHeld = p1SDown = false;
+        }
+        protected override void UpdateTricksterBrain(float dt)
+        {
+            if (!PassiveOpponent) { base.UpdateTricksterBrain(dt); return; }
+            p2Horizontal = p2Vertical = p2SwitchDir = 0f;
+            p2JumpDown = p2JumpHeld = p2DirectionDown = p2DisguiseDown = p2AbilityDown = false;
+            TricksterIntent = "[Passive control: actor retained, ordinary neutral input]";
+        }
+        private bool ApplyPublicQueueInput()
+        {
+            if (runner == null || runnerBody == null || !runner.enabled) return false;
+            if (runner.IsGrounded) observedRunSpeed = Mathf.Max(observedRunSpeed, Mathf.Abs(runner.Velocity.x));
+            if (crossingQueue != null)
+            {
+                if (!crossingQueue.isActiveAndEnabled || Mathf.Abs(runner.transform.position.y - crossingQueue.transform.position.y) > 1.5f ||
+                    (runnerBody.bounds.center.x - crossingQueue.transform.position.x) * crossingDirection > crossingExtent + 0.2f)
+                    crossingQueue = null;
+                else
+                {
+                    NeutralMario(); p1Horizontal = crossingDirection;
+                    QueueDecision = "committed crossing: outcome still unverified";
+                    MarioIntent = "[Crossing observed public window]";
+                    return true;
+                }
+            }
+            if (!runner.IsGrounded) return false;
+            float direction = ExplorationTarget.HasValue ? Mathf.Sign(ExplorationTarget.Value.x - runnerBody.bounds.center.x) : Mathf.Sign(p1Horizontal);
+            if (direction == 0f) return false;
+            StateQueueTrap nearest = null;
+            StateQueueTrap.PublicCue visible = default;
+            float closest = float.MaxValue;
+            foreach (var trap in queueTraps)
+            {
+                if (trap == null) continue;
+                float ahead = (trap.transform.position.x - runnerBody.bounds.center.x) * direction;
+                if (ahead < 0f || ahead > 3.2f || ahead >= closest || !trap.TryReadPublicCue(runnerBody.bounds.center, out var cue)) continue;
+                nearest = trap; visible = cue; closest = ahead;
+            }
+            if (nearest == null) return false;
+            float extent = visible.halfWidth + runnerBody.bounds.extents.x;
+            float distance = closest + extent + 0.2f;
+            if (MechanismExplorationPlan.QueueWindowAllowsEntry(true, visible.safe, visible.remaining, distance, observedRunSpeed))
+            {
+                crossingQueue = nearest; crossingDirection = direction; crossingExtent = extent;
+                NeutralMario(); p1Horizontal = direction;
+                QueueDecision = "enter request: " + visible.current;
+                MarioIntent = "[Public window has estimated traversal time]";
+            }
+            else
+            {
+                NeutralMario();
+                // If already too close, back away with normal input rather than freeze inside the attack reach.
+                if (closest < extent + 0.4f) p1Horizontal = -direction;
+                WaitingQueue = nearest; QueueDecision = "wait: " + visible.current;
+                MarioIntent = "[Waiting outside public queue reach]";
+            }
+            return true;
+        }
         protected override void UpdateMarioBrain(float dt)
         {
+            WaitingQueue = null; QueueDecision = null;
+            if (StartDelayRemaining > 0f)
+            {
+                float step = Mathf.Min(Mathf.Max(0f, dt), StartDelayRemaining);
+                StartDelayRemaining -= step;
+                StartWaitSeconds += Mathf.Max(0f, dt); // Neutral input lasts the whole sampled frame; do not hide overshoot.
+                NeutralMario(); p1ScanDown = false;
+                MarioIntent = "[Matched timing: ordinary neutral input]";
+                return;
+            }
             interactTimer -= dt;
             ExplorationTarget = null;
             AuthoredRouteTarget = false;
@@ -430,6 +589,7 @@ public sealed class ExplorationTrialObserver : IDisposable
                 }
             }
             base.UpdateMarioBrain(dt);
+            if (ReadPublicQueues && ApplyPublicQueueInput()) return;
             if (runner != null && ExplorationTarget.HasValue && runner.IsGrounded && dropTimer <= 0f &&
                 ExplorationTarget.Value.y < runner.transform.position.y - 0.4f &&
                 Mathf.Abs(ExplorationTarget.Value.x - runner.transform.position.x) < 0.8f)

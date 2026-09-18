@@ -9,7 +9,7 @@ public static class MechanismExplorationPlan
     public const int Version = 3;
     public const string Catalog = "BC-F<XoH>^~P[]Ee@fS";
     public static readonly string[] Profiles = { "Cautious", "Runner", "Explorer" };
-    public enum Scope { Smoke, Mechanisms, Pairwise, Experience }
+    public enum Scope { Smoke, Mechanisms, Pairwise, Experience, Counterplay }
     public const int MaxConfirmationScenes = 6;
 
     // One bounded same-seed confirmation pass, not automatic balancing or a claim of learning.
@@ -32,7 +32,7 @@ public static class MechanismExplorationPlan
         if (baseline == null) return "缺少首轮基线，不能判定改善。";
         Func<Trial, string> signature = t => t.outcome + ":" + t.objectivePhase + ":" +
             string.Join(",", (t.completedRoutes ?? new List<string>()).OrderBy(r => r)) + $":{t.armedNearbySeconds > 0}:{t.possessionTransfers > 0}:" +
-            $"{t.scanEvidenceVersion}:{t.scanHits > 0}:{t.healthEvidenceVersion}:{t.runnerDamageEvents > 0}:{t.probeEvidenceVersion}:{t.probeBudgetExhausted}:" + string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
+            $"{t.scanEvidenceVersion}:{t.scanHits > 0}:{t.healthEvidenceVersion}:{t.runnerDamageEvents > 0}:{t.probeEvidenceVersion}:{t.probeBudgetExhausted}:{t.queueEvidenceVersion}:{t.queueEvidence.Sum(q => q.cleanCrossings)}:{t.queueEvidence.Sum(q => q.healthLost)}:" + string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
             .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}:{e.observationVersion}:{e.runnerContacts > 0}:{e.runnerEffects > 0}:{e.movingPartEvidenceVersion}:{e.runnerMovingPartContacts > 0}:" + string.Join(",", e.phases.OrderBy(p => p))));
         return signature(baseline) == signature(confirmation)
             ? "同条件复现：结果与覆盖层级一致；仍需检查 AI 局限与真人反制体验。"
@@ -110,6 +110,8 @@ public static class MechanismExplorationPlan
         public string intention;
         // Empty on v1 reports: replay their saved ASCII, never regenerate with the new grammar.
         public string experience;
+        public int counterplayVersion;
+        public float startDelaySeconds; // Ordinary neutral Mario input; the world and opponent keep running.
         public Route[] routes = Array.Empty<Route>();
     }
 
@@ -210,7 +212,15 @@ public static class MechanismExplorationPlan
     private static readonly Matchup[] legacyMatchups = Profiles.Select(p => new Matchup { mario = p, trickster = p }).ToArray();
     private static readonly Matchup[] experienceMatchups = RunnerStrategies.SelectMany(m =>
         TricksterStrategies.Select(t => new Matchup { mario = m, trickster = t })).ToArray();
-    public static Matchup[] Matchups(Scenario scenario) => string.IsNullOrEmpty(scenario.experience) ? legacyMatchups : experienceMatchups;
+    public static Matchup[] Matchups(Scenario scenario)
+    {
+        if (scenario.counterplayVersion >= 1)
+            return scenario.lootEscape
+                ? new[] { "Adaptive", "SafeRoute" }.SelectMany(m => new[] { "Passive", "Chaser" }
+                    .Select(t => new Matchup { mario = m, trickster = t })).ToArray()
+                : new[] { "Runner", "Adaptive", "SafeRoute" }.Select(m => new Matchup { mario = m, trickster = "Passive" }).ToArray();
+        return string.IsNullOrEmpty(scenario.experience) ? legacyMatchups : experienceMatchups;
+    }
     public static int TrialCount(IEnumerable<Scenario> scenarios) => scenarios.Sum(s => Matchups(s).Length);
 
     public sealed class Slot
@@ -251,6 +261,21 @@ public static class MechanismExplorationPlan
     {
         if (!Enum.IsDefined(typeof(Scope), scope)) throw new ArgumentOutOfRangeException(nameof(scope));
         if (scope == Scope.Experience) return Enumerable.Range(0, 3).Select(i => BuildExperience(unchecked(seed + i * 7919), i)).ToList();
+        if (scope == Scope.Counterplay)
+        {
+            var rooms = new List<Scenario>();
+            for (int kind = 1; kind <= 2; kind++)
+                for (int timing = 0; timing < 3; timing++)
+                {
+                    var room = BuildExperience(unchecked(seed + kind * 7919), kind);
+                    room.counterplayVersion = 1; room.startDelaySeconds = timing * 0.6f;
+                    room.id += "_timing" + timing;
+                    room.intention += " 专项对照：Mario普通中立输入等待" + room.startDelaySeconds.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) +
+                        "秒后出发；相同布局/参数，不是独立新地图。Passive保留对手实体但不发送行动输入。";
+                    rooms.Add(room);
+                }
+            return rooms;
+        }
         var dice = new Dice(seed);
         var order = Catalog.ToCharArray();
         for (int i = order.Length - 1; i > 0; i--)
@@ -387,13 +412,24 @@ public static class MechanismExplorationPlan
             if (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper")) gaps.Add("安全上路去程未完整到达所有落地点");
             if (expectsReturn && (t.completedRoutes == null || !t.completedRoutes.Contains("Return:upper"))) gaps.Add("安全上路返程未完整到达所有落地点");
         }
-        else if (t.armedNearbySeconds <= 0f && !(t.scanEvidenceVersion >= 1 && t.scanHits > 0))
+        else if (t.tricksterStrategy != "Passive" && t.armedNearbySeconds <= 0f && !(t.scanEvidenceVersion >= 1 && t.scanHits > 0))
             gaps.Add(t.scanEvidenceVersion < 1 && t.scans > 0
                 ? "缺少扫描结果证据：可能提前揭穿，不能仅按就绪时间判定没有对抗"
                 : "未观察到近距附身就绪或扫描命中；检查接近路线与准备时机");
         if (expectsReturn && (t.lootEvents == 0 || t.escapeEvents == 0)) gaps.Add("拿宝与撤离事件未成对出现");
         if (t.tricksterStrategy == "Chaser" && expectsReturn && t.possessionTransfers == 0)
             gaps.Add("换点追击尚无不同锚点成功证据（请求不算成功）");
+        int diagnosticVersion = scenario != null ? scenario.counterplayVersion : t.counterplayVersion;
+        if (diagnosticVersion >= 1 && expectsReturn && t.tricksterStrategy == "Chaser" && t.postLootTransfers == 0)
+            gaps.Add("拿宝后的实际换点尚未出现；去程换点不证明返程追击");
+        if (diagnosticVersion >= 1 && t.tricksterStrategy == "Passive" && (t.controlAccepted > 0 || t.possessions > 0))
+            gaps.Add("静止对手对照出现附身/操控，不能作为干净基线");
+        if (diagnosticVersion >= 1 && !expectsReturn && t.marioStrategy == "Adaptive")
+        {
+            if (t.queueEvidenceVersion < 1 || t.queueEvidence.Count == 0) gaps.Add("公开队列专项缺少观察器证据");
+            else if (t.queueEvidence.Sum(e => e.cleanCrossings) == 0) gaps.Add("尚无完整无伤队列穿越；等待或通关不能替代穿越证据");
+            if (t.queueEvidence.Sum(e => e.cueSamples) == 0) gaps.Add("未读取到局部可见公开状态；不能宣称读懂窗口");
+        }
         return gaps.ToArray();
     }
 
@@ -453,6 +489,47 @@ public static class MechanismExplorationPlan
     }
 
     [Serializable]
+    public sealed class QueueEvidence
+    {
+        public string source;
+        public int cueSamples, cueChanges, waits, entries, crossings, cleanCrossings;
+        public int damageEvents, healthLost, damageWithRecentCue;
+        public float waitSeconds;
+        public string lastCue;
+    }
+
+    // A conservative estimate from publicly displayed time/reach and ordinary movement speed.
+    // Not a collision oracle: the physical crossing and health deltas are measured separately.
+    public static bool QueueWindowAllowsEntry(bool readable, bool safe, float remaining, float distance, float speed)
+    {
+        return readable && safe && speed > 0.1f && remaining >= Math.Max(0f, distance) / speed + 0.2f;
+    }
+
+    public sealed class QueueCrossingMemory
+    {
+        private int approachSide, entrySide, healthAtEntry, previousHealthLost;
+        private bool inside;
+        // Flags: 1 entry, 2 full same-lane crossing, 4 no health loss during that crossing.
+        public int Sample(float side, float height, float extent, int cumulativeHealthLost)
+        {
+            int lossBeforeSample = previousHealthLost;
+            previousHealthLost = cumulativeHealthLost;
+            if (Math.Abs(height) > 1.5f) { inside = false; approachSide = entrySide = 0; return 0; }
+            if (Math.Abs(side) > extent)
+            {
+                int now = side < 0 ? -1 : 1;
+                int flags = inside && entrySide != 0 && now == -entrySide ? 2 : 0;
+                if (flags == 2 && cumulativeHealthLost == healthAtEntry) flags |= 4;
+                inside = false; approachSide = now;
+                return flags;
+            }
+            if (inside) return 0;
+            inside = true; entrySide = approachSide; healthAtEntry = lossBeforeSample;
+            return 1;
+        }
+    }
+
+    [Serializable]
     public sealed class Trial
     {
         public string scenarioId;
@@ -481,6 +558,11 @@ public static class MechanismExplorationPlan
         public float probeBudgetSeconds, probeElapsedSeconds;
         public bool probeBudgetExhausted;
         public int healthEvidenceVersion, runnerDamageEvents, runnerHealthLost;
+        public int counterplayVersion, queueEvidenceVersion;
+        public float startDelaySeconds, actualStartWaitSeconds;
+        public float lootAtSeconds = -1f, escapeAtSeconds = -1f;
+        public int postLootControls, postLootTransfers;
+        public List<QueueEvidence> queueEvidence = new List<QueueEvidence>();
         public int scanEvidenceVersion, scanHits, scanMisses;
         public int scans, possessions, comboEvents, heatEvents, lootEvents, escapeEvents;
         public int routeDegradations, routeRecoveries, routeBlocks, crises, reveals;

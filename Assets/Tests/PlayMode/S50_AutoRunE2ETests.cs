@@ -296,6 +296,70 @@ public class S50_AutoRunE2ETests
 
 #if UNITY_EDITOR
     [UnityTest]
+    public IEnumerator AdaptiveQueue_Seed154_Immediate_UsesActualCleanCrossing() => VerifyPublicQueueRoute(0f, false);
+    [UnityTest]
+    public IEnumerator AdaptiveQueue_Seed154_Delayed06_UsesActualCleanCrossing() => VerifyPublicQueueRoute(0.6f, false);
+    [UnityTest]
+    public IEnumerator AdaptiveQueue_Seed154_Delayed12_UsesActualCleanCrossing() => VerifyPublicQueueRoute(1.2f, false);
+    [UnityTest]
+    public IEnumerator PublicQueue_UpperBypassMustCompleteAllAuthoredLandings() => VerifyPublicQueueRoute(0f, true);
+
+    private IEnumerator VerifyPublicQueueRoute(float delay, bool upper)
+    {
+        Time.timeScale = 1f;
+        yield return null;
+        var plan = System.Type.GetType("MechanismExplorationPlan, MarioTrickster.Editor", true);
+        var scenario = plan.GetMethod("BuildExperience").Invoke(null, new object[] { 154 + 7919, 1 });
+        var scenarioType = scenario.GetType();
+        scenarioType.GetField("counterplayVersion").SetValue(scenario, 1);
+        scenarioType.GetField("startDelaySeconds").SetValue(scenario, delay);
+        var root = AsciiLevelGenerator.GenerateFromTemplate((string)scenarioType.GetField("ascii").GetValue(scenario), true);
+        Assert.IsNotNull(root); _testObjects.Add(root); SetupPlayableEnvironment(root);
+        // Isolate the autonomous queue; keep the complete authored geometry and every mechanism.
+        foreach (var component in root.GetComponentsInChildren<MonoBehaviour>())
+        {
+            string id = component is StateQueueTrap ? "]" : component is ControllableBlocker ? "[" : component is FakeWall ? "F" : null;
+            if (id != null) (component.GetComponent<ExplorationContactProbe>() ?? component.gameObject.AddComponent<ExplorationContactProbe>()).mechanism = id;
+        }
+        yield return null;
+        var trialType = plan.GetNestedType("Trial");
+        var trial = System.Activator.CreateInstance(trialType);
+        trialType.GetField("marioStrategy").SetValue(trial, upper ? "SafeRoute" : "Adaptive");
+        trialType.GetField("tricksterStrategy").SetValue(trial, "Passive");
+        var observerType = System.Type.GetType("ExplorationTrialObserver, MarioTrickster.Editor", true);
+        var observer = (System.IDisposable)System.Activator.CreateInstance(observerType, new object[] { scenario, trial, 30f });
+        try
+        {
+            float deadline = Time.realtimeSinceStartup + 35f;
+            var tick = observerType.GetMethod("Tick");
+            while (!(bool)observerType.GetProperty("Finished").GetValue(observer) && Time.realtimeSinceStartup < deadline)
+            {
+                tick.Invoke(observer, new object[] { Time.deltaTime, 30f });
+                yield return null;
+            }
+            Assert.AreEqual("Cleared", trialType.GetField("outcome").GetValue(trial), "Waiting or teleport-free input alone is not a clear");
+            Assert.AreEqual(0, trialType.GetField("runnerHealthLost").GetValue(trial), "Must not pass by absorbing damage");
+            float waited = (float)trialType.GetField("actualStartWaitSeconds").GetValue(trial);
+            Assert.GreaterOrEqual(waited + 0.0001f, delay);
+            Assert.LessOrEqual(waited, delay + Time.maximumDeltaTime + 0.001f, "At most one input-frame overshoot; report pairing independently rejects mistimed samples");
+            Assert.AreEqual(0, trialType.GetField("controlAccepted").GetValue(trial));
+            if (upper)
+                CollectionAssert.Contains((IEnumerable)trialType.GetField("completedRoutes").GetValue(trial), "Out:upper");
+            else
+            {
+                var cues = (IList)trialType.GetField("queueEvidence").GetValue(trial);
+                Assert.AreEqual(1, cues.Count);
+                var evidence = cues[0]; var type = evidence.GetType();
+                Assert.Greater((int)type.GetField("cueSamples").GetValue(evidence), 0);
+                Assert.Greater((int)type.GetField("cleanCrossings").GetValue(evidence), 0,
+                    "Fallback upper clear cannot substitute for lower-lane window acceptance");
+                Assert.AreEqual(0, trialType.GetField("routeSwitchRequests").GetValue(trial));
+            }
+        }
+        finally { observer.Dispose(); }
+    }
+
+    [UnityTest]
     public IEnumerator Observer_RealFatalHammerKeepsContactAndHealthEvidence()
     {
         Time.timeScale = 1f;

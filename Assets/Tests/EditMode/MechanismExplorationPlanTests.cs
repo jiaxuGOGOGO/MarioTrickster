@@ -5,6 +5,137 @@ using NUnit.Framework;
 public class MechanismExplorationPlanTests
 {
     [Test]
+    public void CounterplayScheduleUsesMatchedLayoutsAndBoundedThreeOrFourWayPairs()
+    {
+        var rooms = MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Counterplay);
+        Assert.AreEqual(6, rooms.Count); Assert.AreEqual(21, MechanismExplorationPlan.TrialCount(rooms));
+        Assert.AreEqual(6, rooms.Select(r => r.id).Distinct().Count());
+        foreach (var group in rooms.GroupBy(r => r.experience))
+        {
+            Assert.AreEqual(1, group.Select(r => r.ascii).Distinct().Count(), "Timing variants must not also change geometry");
+            CollectionAssert.AreEqual(new[] { 0f, 0.6f, 1.2f }, group.Select(r => r.startDelaySeconds));
+        }
+        var confirmations = rooms.Select(r => r.id).ToList();
+        for (int i = 0; i < 42; i++)
+        {
+            var slot = MechanismExplorationPlan.TrialAt(rooms, confirmations, i);
+            Assert.AreEqual(i < 21 ? 1 : 2, slot.attempt);
+            Assert.IsTrue(slot.matchup.trickster == "Passive" || slot.matchup.trickster == "Chaser");
+        }
+        Assert.Throws<ArgumentOutOfRangeException>(() => MechanismExplorationPlan.TrialAt(rooms, confirmations, 42));
+        Assert.AreEqual(27, MechanismExplorationPlan.TrialCount(MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Experience)));
+        Assert.AreEqual(18, MechanismExplorationPlan.TrialCount(MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Smoke)));
+    }
+
+    [Test]
+    public void CounterplayHundredSeedsKeepAuthoredRoutesAndStaticValidity()
+    {
+        for (int seed = 100; seed < 200; seed++)
+        {
+            var rooms = MechanismExplorationPlan.Create(seed, MechanismExplorationPlan.Scope.Counterplay);
+            foreach (var room in rooms)
+            {
+                int kind = room.lootEscape ? 2 : 1;
+                var original = MechanismExplorationPlan.BuildExperience(unchecked(seed + kind * 7919), kind);
+                Assert.AreEqual(original.ascii, room.ascii);
+                Assert.IsEmpty(AsciiLevelValidator.ValidateTemplate(room.ascii).errors);
+                CollectionAssert.AreEqual(original.routes.SelectMany(r => r.points).Select(p => p.x + ":" + p.y),
+                    room.routes.SelectMany(r => r.points).Select(p => p.x + ":" + p.y));
+            }
+        }
+    }
+
+    [TestCase(true, true, 0.9f, 5f, 9f, true)]
+    [TestCase(false, true, 0.9f, 5f, 9f, false)]
+    [TestCase(true, false, 5f, 5f, 9f, false)]
+    [TestCase(true, true, 0.2f, 5f, 9f, false)]
+    [TestCase(true, true, 0.9f, 5f, 0f, false)]
+    [TestCase(true, true, float.NaN, 5f, 9f, false)]
+    public void QueueDecisionRequiresReadableSafeAndLongEnoughWindow(bool visible, bool safe, float remaining, float distance, float speed, bool expected)
+    {
+        Assert.AreEqual(expected, MechanismExplorationPlan.QueueWindowAllowsEntry(visible, safe, remaining, distance, speed));
+    }
+
+    [TestCase(-1f)]
+    [TestCase(1f)]
+    public void QueueCrossingRequiresWholeBodyExitAndIncludesEntryFrameDamage(float direction)
+    {
+        var memory = new MechanismExplorationPlan.QueueCrossingMemory();
+        Assert.AreEqual(0, memory.Sample(-3 * direction, 0, 2, 0));
+        Assert.AreEqual(1, memory.Sample(-1 * direction, 0, 2, 1));
+        Assert.AreEqual(0, memory.Sample(1 * direction, 0, 2, 1));
+        Assert.AreEqual(2, memory.Sample(3 * direction, 0, 2, 1), "Entry-frame damage cannot be a clean crossing");
+        memory.Sample(direction, 0, 2, 1);
+        Assert.AreEqual(6, memory.Sample(-3 * direction, 0, 2, 1), "Real clean return crossing is a separate event");
+    }
+
+    [Test]
+    public void QueueMemoryRejectsRetreatUpperBypassAndSpawnInsideAsFullCrossing()
+    {
+        var memory = new MechanismExplorationPlan.QueueCrossingMemory();
+        memory.Sample(-3, 0, 2, 0); memory.Sample(-1, 0, 2, 0);
+        Assert.AreEqual(0, memory.Sample(-3, 0, 2, 0), "Same-side retreat is not crossing");
+        memory.Sample(-1, 0, 2, 0); memory.Sample(0, 4, 2, 0);
+        Assert.AreEqual(0, memory.Sample(3, 0, 2, 0), "Upper bypass is not queue traversal");
+        var spawnedInside = new MechanismExplorationPlan.QueueCrossingMemory();
+        spawnedInside.Sample(0, 0, 2, 0);
+        Assert.AreEqual(0, spawnedInside.Sample(3, 0, 2, 0));
+    }
+
+    [Test]
+    public void CounterplayAdaptiveClearNeedsCueAndCleanCrossingButSafeRouteMayBypass()
+    {
+        var t = new MechanismExplorationPlan.Trial { counterplayVersion = 1, experienceEvidenceVersion = 1,
+            experience = "BaitAndCounter", marioStrategy = "Adaptive", tricksterStrategy = "Passive", outcome = "Cleared", seconds = 5 };
+        Assert.IsNotEmpty(MechanismExplorationPlan.ExperienceIssues(t));
+        t.queueEvidenceVersion = 1;
+        t.queueEvidence.Add(new MechanismExplorationPlan.QueueEvidence { cueSamples = 1, crossings = 1 });
+        Assert.IsNotEmpty(MechanismExplorationPlan.ExperienceIssues(t), "A damaged crossing is not accepted for Adaptive");
+        t.queueEvidence[0].cleanCrossings = 1;
+        Assert.IsEmpty(MechanismExplorationPlan.ExperienceIssues(t));
+        t.controlAccepted = 1; Assert.IsNotEmpty(MechanismExplorationPlan.ExperienceIssues(t), "Passive contamination must be exposed");
+        t.controlAccepted = 0; t.marioStrategy = "SafeRoute"; t.queueEvidence.Clear();
+        t.completedRoutes.Add("Out:upper"); Assert.IsEmpty(MechanismExplorationPlan.ExperienceIssues(t));
+    }
+
+    [Test]
+    public void CounterplayReturnNeedsPostLootTransferRatherThanOnlyOutboundSwitch()
+    {
+        var t = new MechanismExplorationPlan.Trial { counterplayVersion = 1, experienceEvidenceVersion = 1,
+            experience = "LootAndReturn", expectsReturn = true, marioStrategy = "SafeRoute", tricksterStrategy = "Chaser",
+            lootEvents = 1, escapeEvents = 1, possessionTransfers = 2 };
+        t.completedRoutes.Add("Out:upper"); t.completedRoutes.Add("Return:upper");
+        Assert.IsNotEmpty(MechanismExplorationPlan.ExperienceIssues(t));
+        t.postLootTransfers = 1;
+        Assert.IsEmpty(MechanismExplorationPlan.ExperienceIssues(t));
+        t.counterplayVersion = 0; t.postLootTransfers = 0;
+        Assert.IsEmpty(MechanismExplorationPlan.ExperienceIssues(t), "Legacy reports must not acquire new unsupported requirements");
+    }
+
+    [Test]
+    public void CounterplayPairsNeverBorrowConfirmationOrClaimUnfinishedRunsImproved()
+    {
+        var room = MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Counterplay)[0];
+        var report = new StudioExplorationRunner.Report(); report.scenarios.Add(room);
+        var rush = new MechanismExplorationPlan.Trial { scenarioId = room.id, marioStrategy = "Runner", tricksterStrategy = "Passive",
+            counterplayVersion = 1, healthEvidenceVersion = 1, outcome = "Cleared", seconds = 5, runnerHealthLost = 1 };
+        var reader = new MechanismExplorationPlan.Trial { scenarioId = room.id, marioStrategy = "Adaptive", tricksterStrategy = "Passive",
+            counterplayVersion = 1, healthEvidenceVersion = 1, outcome = "Cleared", seconds = 7, attempt = 2 };
+        report.trials.Add(rush); report.trials.Add(reader);
+        StringAssert.DoesNotContain("实际损血差=", StudioExplorationRunner.CounterplayPairs(report));
+        reader.attempt = 1;
+        StringAssert.Contains("实际损血差=-1", StudioExplorationRunner.CounterplayPairs(report));
+        reader.outcome = "TimedOut";
+        StringAssert.DoesNotContain("实际损血差=", StudioExplorationRunner.CounterplayPairs(report));
+        reader.outcome = "Cleared"; reader.startDelaySeconds = 0.6f;
+        StringAssert.DoesNotContain("实际损血差=", StudioExplorationRunner.CounterplayPairs(report), "Unexecuted timing perturbation cannot be a matched pair");
+        reader.actualStartWaitSeconds = 0.6f; reader.seconds = 0;
+        StringAssert.DoesNotContain("实际损血差=", StudioExplorationRunner.CounterplayPairs(report), "Zero-duration clear is not played evidence");
+        Assert.AreEqual(2, report.trials.Count);
+        StringAssert.Contains("未记录", StudioExplorationRunner.QueueSummary(new MechanismExplorationPlan.Trial()));
+    }
+
+    [Test]
     public void ExpiringVisitSkipsAlreadyObservedNextTargetImmediately()
     {
         var visits = new MechanismExplorationPlan.ProbeVisitBudget(new[] { "H", "-" }, 30);

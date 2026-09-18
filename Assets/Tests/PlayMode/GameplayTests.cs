@@ -102,6 +102,78 @@ public class GameplayTests
 #endif
 
     [UnityTest]
+    public IEnumerator PublicQueueCueMatchesWorldLabelAndHonorsVisibility()
+    {
+        var go = new GameObject("QueueCueFixture");
+        var wall = new GameObject("OpaqueFixture");
+        try
+        {
+            go.transform.position = new Vector3(23000, 1, 0);
+            var queue = go.AddComponent<StateQueueTrap>();
+            var label = go.GetComponentInChildren<TextMesh>();
+            var cue = queue.ReadPublicCue();
+            Assert.IsFalse(cue.safe, "Generic Idle must not be interpreted as a safe queue");
+            StringAssert.Contains(cue.current, label.text);
+            StringAssert.Contains(cue.next, label.text);
+            StringAssert.Contains("Reach:", label.text);
+            var viewer = (Vector2)go.transform.position + Vector2.left * 3;
+            Physics2D.SyncTransforms();
+            Assert.IsTrue(queue.TryReadPublicCue(viewer, out var visible));
+            Assert.AreEqual(cue.current, visible.current);
+            Assert.IsFalse(queue.TryReadPublicCue(viewer + Vector2.left * 10, out _));
+            Assert.IsFalse(queue.TryReadPublicCue(viewer + Vector2.up * 4, out _));
+            label.GetComponent<Renderer>().enabled = false;
+            Assert.IsFalse(queue.TryReadPublicCue(viewer, out _), "Hidden label cannot feed the AI");
+            label.GetComponent<Renderer>().enabled = true;
+            wall.transform.position = go.transform.position + Vector3.left * 1.5f;
+            wall.AddComponent<BoxCollider2D>().size = new Vector2(0.3f, 3f);
+            Physics2D.SyncTransforms();
+            Assert.IsFalse(queue.TryReadPublicCue(viewer, out _), "Opaque solid must occlude cue sampling");
+            queue.enabled = false;
+            Assert.IsFalse(queue.TryReadPublicCue(go.transform.position, out _));
+            yield return null;
+        }
+        finally { Object.DestroyImmediate(go); Object.DestroyImmediate(wall); }
+    }
+
+    [UnityTest]
+    public IEnumerator QueueDamageEventReportsRealSourceAndNoInvincibleDamage()
+    {
+        var go = new GameObject("QueueDamageFixture");
+        go.transform.position = new Vector3(23500, 1, 0);
+        var actor = CreateTestMario(go.transform.position + Vector3.left * 0.85f);
+        int events = 0, lost = 0;
+        StateQueueTrap receivedSource = null;
+        System.Action<StateQueueTrap, MarioController, int, StateQueueTrap.PublicCue> handler = (source, mario, amount, cue) => {
+            if (mario.gameObject != actor) return;
+            events++; lost += amount; receivedSource = source;
+            Assert.AreEqual("Left Attack", cue.current);
+        };
+        StateQueueTrap.ActualDamage += handler;
+        float scale = Time.timeScale;
+        try
+        {
+            Time.timeScale = 1f;
+            actor.GetComponent<MarioController>().enabled = false;
+            actor.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+            var health = actor.GetComponent<PlayerHealth>();
+            var queue = go.AddComponent<StateQueueTrap>();
+            Physics2D.SyncTransforms();
+            yield return new WaitForSeconds(0.15f);
+            Assert.AreSame(queue, receivedSource); Assert.AreEqual(1, events);
+            Assert.AreEqual(1, lost); Assert.AreEqual(health.MaxHealth - 1, health.CurrentHealth);
+            yield return new WaitForSeconds(0.65f);
+            Assert.IsTrue(health.IsInvincible);
+            Assert.AreEqual(1, events, "Later attack tick during normal invulnerability must not emit damage");
+        }
+        finally
+        {
+            StateQueueTrap.ActualDamage -= handler;
+            Object.DestroyImmediate(go); Object.DestroyImmediate(actor); Time.timeScale = scale;
+        }
+    }
+
+    [UnityTest]
     public IEnumerator SpikeCycleKeepsAuthoredHeightAndRetractsRelativeToIt()
     {
         foreach (float height in new[] { -3f, 1f, 5f })

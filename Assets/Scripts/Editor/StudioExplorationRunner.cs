@@ -118,12 +118,20 @@ public static class StudioExplorationRunner
         ? "实际扣血未记录；接触次数不是伤害次数。"
         : $"Mario实际扣血事件={trial.runnerDamageEvents}，累计损失生命={trial.runnerHealthLost}；来自生命变化，未归因到具体机关。";
 
+    public static string StartTimingSummary(MechanismExplorationPlan.Trial trial) => trial.startTimingEvidenceVersion < 1
+        ? "独立启动证据未记录；旧S163延迟Chaser对照存在共享缓存耦合，不能按仅Mario延迟解释。"
+        : $"起步等待输入帧={trial.startWaitFrames}，期间对手有效决策帧={trial.opponentWaitDecisionFrames}，非中立输入帧={trial.opponentWaitInputFrames}，正常融入开始={trial.opponentWaitPreparations}次。决策/输入不等于附身完成；Passive应保持中立。";
+
+    public static string EncounterSummary(MechanismExplorationPlan.Trial trial) => trial.queueEvidenceVersion < 2
+        ? "整次遭遇无伤未记录；旧报告不从无伤片段或总损血反推。"
+        : $"遭遇开始={trial.queueEvidence.Sum(q => q.encounters)}，完整结束={trial.queueEvidence.Sum(q => q.completedEncounters)}，整次遭遇无伤={trial.queueEvidence.Sum(q => q.cleanEncounters)}，绕行未完成={trial.queueEvidence.Sum(q => q.bypassedEncounters)}。同层接近范围为身体扩展攻击边界外2单位；等待/同侧退回不重置全来源损血基线，完整穿越结束，返程另计。";
+
     public static string QueueSummary(MechanismExplorationPlan.Trial trial)
     {
         if (trial.queueEvidenceVersion < 1) return "公开队列状态/伤害来源未记录；旧报告不补算。";
         if (trial.queueEvidence.Count == 0) return "本局没有公开队列机关，不适用队列穿越验收。";
         return string.Join("\n", trial.queueEvidence.Select(q =>
-            $"{q.source}: 局部可见提示采样={q.cueSamples}，状态变化={q.cueChanges}；等待输入={q.waits}次/{q.waitSeconds:F2}s；进入={q.entries}，完整同层穿越={q.crossings}，期间无扣血={q.cleanCrossings}；队列直接扣血={q.damageEvents}次/{q.healthLost}点，其中近期有可见提示={q.damageWithRecentCue}次。可见性是距离/遮挡代理，不证明人类读懂。"));
+            $"{q.source}: 局部可见提示采样={q.cueSamples}，状态变化={q.cueChanges}；等待输入={q.waits}次/{q.waitSeconds:F2}s；进入={q.entries}，完整同层穿越={q.crossings}，无新增损血穿越片段={q.cleanCrossings}（不等于整次遭遇无伤）；队列直接扣血={q.damageEvents}次/{q.healthLost}点，其中近期有可见提示={q.damageWithRecentCue}次。可见性是距离/遮挡代理，不证明人类读懂。")) + "\n" + EncounterSummary(trial);
     }
 
     public static string CounterplayPairs(Report data)
@@ -140,13 +148,15 @@ public static class StudioExplorationRunner
                 {
                     var other = trials.FirstOrDefault(t => t.marioStrategy == strategy && t.tricksterStrategy == "Passive");
                     if (!ComparablePair(rush, other)) { sb.AppendLine(strategy + ": 配对未完成/有错误/基线污染，不计算改善。保留失败记录。"); continue; }
-                    sb.AppendLine($"{strategy} - Runner: 总耗时差={other.seconds - rush.seconds:F2}s，实际损血差={other.runnerHealthLost - rush.runnerHealthLost}；{strategy}完整无伤穿越={other.queueEvidence.Sum(q => q.cleanCrossings)}（SafeRoute绕行不要求穿越）。");
+                    sb.AppendLine($"{strategy} - Runner: 总耗时差={other.seconds - rush.seconds:F2}s，实际损血差={other.runnerHealthLost - rush.runnerHealthLost}；{strategy}无新增损血穿越片段={other.queueEvidence.Sum(q => q.cleanCrossings)}（SafeRoute绕行不要求穿越）。{EncounterSummary(other)}");
                 }
             }
             else foreach (string strategy in new[] { "Adaptive", "SafeRoute" })
             {
                 var passive = trials.FirstOrDefault(t => t.marioStrategy == strategy && t.tricksterStrategy == "Passive");
                 var chaser = trials.FirstOrDefault(t => t.marioStrategy == strategy && t.tricksterStrategy == "Chaser");
+                if (chaser != null && !MechanismExplorationPlan.IndependentStartObserved(chaser))
+                { sb.AppendLine(strategy + ": 独立启动证据不足；旧S163延迟Chaser存在共享缓存耦合，不计算纯单边延迟返程差。保留原始结果。"); continue; }
                 if (!ComparablePair(passive, chaser) || passive.lootEvents == 0 || passive.escapeEvents == 0 ||
                     chaser.lootEvents == 0 || chaser.escapeEvents == 0 || passive.lootAtSeconds < 0 || chaser.lootAtSeconds < 0 ||
                     passive.escapeAtSeconds < passive.lootAtSeconds || chaser.escapeAtSeconds < chaser.lootAtSeconds)
@@ -206,7 +216,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions && replay == null ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S163", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
+        report = new Report { toolRevision = "S164", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, scenarios = scenarios,
             physicsConfigJson = ConfigJson("PhysicsConfig"), gameplayConfigJson = ConfigJson("GameplayLoopConfig"),
             unsupportedRegistry = MechanismExplorationPlan.MissingFromCatalog(AsciiElementRegistry.GetDefault().GetAllRegisteredChars()) };
@@ -546,6 +556,7 @@ public static class StudioExplorationRunner
             foreach (var gap in ExperienceIssues(data, trial)) sb.AppendLine("体验缺口: " + gap);
             sb.AppendLine(ProbeSummary(trial));
             sb.AppendLine(HealthSummary(trial));
+            sb.AppendLine(StartTimingSummary(trial));
             sb.AppendLine(QueueSummary(trial));
             if (trial.counterplayVersion >= 1)
                 sb.AppendLine($"反制专项版本={trial.counterplayVersion}；计划/实际起步等待={trial.startDelaySeconds:F2}/{trial.actualStartWaitSeconds:F2}s；拿宝/撤离时间={trial.lootAtSeconds:F2}/{trial.escapeAtSeconds:F2}s，拿宝后换点={trial.postLootTransfers}，操控受理={trial.postLootControls}。起步等待不是反应耗时。");

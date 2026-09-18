@@ -25,6 +25,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         public MechanismExplorationPlan.QueueEvidence evidence;
         public readonly MechanismExplorationPlan.QueueCrossingMemory crossing = new MechanismExplorationPlan.QueueCrossingMemory();
         public float lastVisibleAt = -100f;
+        public readonly MechanismExplorationPlan.QueueEncounterMemory encounter = new MechanismExplorationPlan.QueueEncounterMemory();
         public bool waiting;
     }
     private readonly Dictionary<StateQueueTrap, QueueWatch> queueWatches = new Dictionary<StateQueueTrap, QueueWatch>();
@@ -78,7 +79,8 @@ public sealed class ExplorationTrialObserver : IDisposable
                 observationVersion = 1, movingPartEvidenceVersion = c == 'P' ? 1 : 0 });
         }
         marioBody = mario.GetComponent<Collider2D>();
-        result.queueEvidenceVersion = 1;
+        result.queueEvidenceVersion = 2;
+        result.startTimingEvidenceVersion = 1;
         foreach (var target in targets.Values.SelectMany(t => t).Distinct())
         {
             var queue = target.GetComponent<StateQueueTrap>();
@@ -170,7 +172,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         result.completedRoutes = bot.CompletedRoutes.ToList();
         CaptureProbeProgress();
         CaptureQueueEvidence(dt);
-        result.actualStartWaitSeconds = bot.StartWaitSeconds;
+        CaptureStartTiming();
         result.anchorSwitchRequests = bot.AnchorSwitchRequests;
         if (bot.RouteSwitchRequests > result.routeSwitchRequests) Event("route switch requested: " + bot.RouteId + " (not a completed traversal)");
         result.routeSwitchRequests = bot.RouteSwitchRequests;
@@ -225,7 +227,7 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         if (Finished) return;
         CaptureProbeProgress();
-        result.actualStartWaitSeconds = bot.StartWaitSeconds;
+        CaptureStartTiming();
         result.outcome = outcome;
         finishedFixedTime = Time.fixedTime;
         result.nextAction = nextAction;
@@ -235,6 +237,14 @@ public sealed class ExplorationTrialObserver : IDisposable
             result.endReason = manager.LastRoundReason;
         }
         if (mario != null) { result.endX = mario.transform.position.x; result.endY = mario.transform.position.y; }
+    }
+
+    private void CaptureStartTiming()
+    {
+        result.actualStartWaitSeconds = bot.StartWaitSeconds;
+        result.startWaitFrames = bot.StartWaitFrames;
+        result.opponentWaitDecisionFrames = bot.OpponentWaitDecisionFrames;
+        result.opponentWaitInputFrames = bot.OpponentWaitInputFrames;
     }
 
     private void CaptureProbeProgress()
@@ -277,6 +287,13 @@ public sealed class ExplorationTrialObserver : IDisposable
             if ((flags & 1) != 0) { e.entries++; Event("entered queue reach " + e.source); }
             if ((flags & 2) != 0) { e.crossings++; Event("full same-lane queue crossing " + e.source); }
             if ((flags & 4) != 0) e.cleanCrossings++;
+            watch.encounter.Sample(marioBody.bounds.center.x - queue.transform.position.x,
+                marioBody.bounds.center.y - queue.transform.position.y,
+                actual.halfWidth + marioBody.bounds.extents.x, result.runnerHealthLost, flags);
+            if (watch.encounter.Completed > e.completedEncounters)
+                Event("whole queue encounter completed " + e.source + "; clean=" + (watch.encounter.CleanCompleted > e.cleanEncounters));
+            e.encounters = watch.encounter.Started; e.completedEncounters = watch.encounter.Completed;
+            e.cleanEncounters = watch.encounter.CleanCompleted; e.bypassedEncounters = watch.encounter.Bypassed;
         }
     }
     private void OnQueueDamage(StateQueueTrap source, MarioController actor, int lost, StateQueueTrap.PublicCue cue)
@@ -387,7 +404,10 @@ public sealed class ExplorationTrialObserver : IDisposable
     }
     private void OnPossession(TricksterPossessionState state)
     {
-        if (Finished || state != TricksterPossessionState.Possessing) return;
+        if (Finished) return;
+        if (state == TricksterPossessionState.Blending && bot.StartWaitingThisTick)
+        { result.opponentWaitPreparations++; Event("opponent began normal blending during runner start wait"); }
+        if (state != TricksterPossessionState.Possessing) return;
         result.possessions++; Event("possessing");
         OnAnchorChanged(gate != null ? gate.CurrentAnchor : null);
     }
@@ -459,6 +479,10 @@ public sealed class ExplorationTrialObserver : IDisposable
         public bool ReadPublicQueues, PassiveOpponent;
         public float StartDelayRemaining;
         public float StartWaitSeconds { get; private set; }
+        public bool StartWaitingThisTick { get; private set; }
+        public int StartWaitFrames { get; private set; }
+        public int OpponentWaitDecisionFrames { get; private set; }
+        public int OpponentWaitInputFrames { get; private set; }
         public StateQueueTrap WaitingQueue { get; private set; }
         public string QueueDecision { get; private set; }
         private readonly StateQueueTrap[] queueTraps;
@@ -496,7 +520,18 @@ public sealed class ExplorationTrialObserver : IDisposable
         }
         protected override void UpdateTricksterBrain(float dt)
         {
-            if (!PassiveOpponent) { base.UpdateTricksterBrain(dt); return; }
+            if (!PassiveOpponent)
+            {
+                int before = OpponentDecisionTicks;
+                base.UpdateTricksterBrain(dt);
+                if (StartWaitingThisTick)
+                {
+                    if (OpponentDecisionTicks > before) OpponentWaitDecisionFrames++;
+                    if (p2Horizontal != 0 || p2Vertical != 0 || p2SwitchDir != 0 || p2JumpDown ||
+                        p2JumpHeld || p2DisguiseDown || p2DirectionDown || p2AbilityDown) OpponentWaitInputFrames++;
+                }
+                return;
+            }
             p2Horizontal = p2Vertical = p2SwitchDir = 0f;
             p2JumpDown = p2JumpHeld = p2DirectionDown = p2DisguiseDown = p2AbilityDown = false;
             TricksterIntent = "[Passive control: actor retained, ordinary neutral input]";
@@ -554,8 +589,10 @@ public sealed class ExplorationTrialObserver : IDisposable
         protected override void UpdateMarioBrain(float dt)
         {
             WaitingQueue = null; QueueDecision = null;
+            StartWaitingThisTick = StartDelayRemaining > 0f;
             if (StartDelayRemaining > 0f)
             {
+                StartWaitFrames++;
                 float step = Mathf.Min(Mathf.Max(0f, dt), StartDelayRemaining);
                 StartDelayRemaining -= step;
                 StartWaitSeconds += Mathf.Max(0f, dt); // Neutral input lasts the whole sampled frame; do not hide overshoot.

@@ -32,7 +32,7 @@ public static class MechanismExplorationPlan
         if (baseline == null) return "缺少首轮基线，不能判定改善。";
         Func<Trial, string> signature = t => t.outcome + ":" + t.objectivePhase + ":" +
             string.Join(",", (t.completedRoutes ?? new List<string>()).OrderBy(r => r)) + $":{t.armedNearbySeconds > 0}:{t.possessionTransfers > 0}:" +
-            $"{t.scanEvidenceVersion}:{t.scanHits > 0}:{t.healthEvidenceVersion}:{t.runnerDamageEvents > 0}:{t.probeEvidenceVersion}:{t.probeBudgetExhausted}:{t.queueEvidenceVersion}:{t.queueEvidence.Sum(q => q.cleanCrossings)}:{t.queueEvidence.Sum(q => q.healthLost)}:" + string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
+            $"{t.scanEvidenceVersion}:{t.scanHits > 0}:{t.healthEvidenceVersion}:{t.runnerDamageEvents > 0}:{t.probeEvidenceVersion}:{t.probeBudgetExhausted}:{t.queueEvidenceVersion}:{t.queueEvidence.Sum(q => q.cleanCrossings)}:{t.queueEvidence.Sum(q => q.healthLost)}:{t.queueEvidence.Sum(q => q.cleanEncounters)}:{t.startTimingEvidenceVersion}:{IndependentStartObserved(t)}:" + string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
             .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}:{e.observationVersion}:{e.runnerContacts > 0}:{e.runnerEffects > 0}:{e.movingPartEvidenceVersion}:{e.runnerMovingPartContacts > 0}:" + string.Join(",", e.phases.OrderBy(p => p))));
         return signature(baseline) == signature(confirmation)
             ? "同条件复现：结果与覆盖层级一致；仍需检查 AI 局限与真人反制体验。"
@@ -420,6 +420,8 @@ public static class MechanismExplorationPlan
         if (t.tricksterStrategy == "Chaser" && expectsReturn && t.possessionTransfers == 0)
             gaps.Add("换点追击尚无不同锚点成功证据（请求不算成功）");
         int diagnosticVersion = scenario != null ? scenario.counterplayVersion : t.counterplayVersion;
+        if (diagnosticVersion >= 1 && t.startTimingEvidenceVersion >= 1 && !IndependentStartObserved(t))
+            gaps.Add("Mario起步等待期间对手有效决策帧不足；不能视为独立启动对照");
         if (diagnosticVersion >= 1 && expectsReturn && t.tricksterStrategy == "Chaser" && t.postLootTransfers == 0)
             gaps.Add("拿宝后的实际换点尚未出现；去程换点不证明返程追击");
         if (diagnosticVersion >= 1 && t.tricksterStrategy == "Passive" && (t.controlAccepted > 0 || t.possessions > 0))
@@ -427,7 +429,8 @@ public static class MechanismExplorationPlan
         if (diagnosticVersion >= 1 && !expectsReturn && t.marioStrategy == "Adaptive")
         {
             if (t.queueEvidenceVersion < 1 || t.queueEvidence.Count == 0) gaps.Add("公开队列专项缺少观察器证据");
-            else if (t.queueEvidence.Sum(e => e.cleanCrossings) == 0) gaps.Add("尚无完整无伤队列穿越；等待或通关不能替代穿越证据");
+            else if (t.queueEvidenceVersion >= 2 ? t.queueEvidence.Sum(e => e.cleanEncounters) == 0 : t.queueEvidence.Sum(e => e.cleanCrossings) == 0)
+                gaps.Add(t.queueEvidenceVersion >= 2 ? "尚无整次遭遇无伤完成；重入后的无伤片段不能替代" : "尚无完整无伤队列穿越；等待或通关不能替代穿越证据");
             if (t.queueEvidence.Sum(e => e.cueSamples) == 0) gaps.Add("未读取到局部可见公开状态；不能宣称读懂窗口");
         }
         return gaps.ToArray();
@@ -494,6 +497,7 @@ public static class MechanismExplorationPlan
         public string source;
         public int cueSamples, cueChanges, waits, entries, crossings, cleanCrossings;
         public int damageEvents, healthLost, damageWithRecentCue;
+        public int encounters, completedEncounters, cleanEncounters, bypassedEncounters;
         public float waitSeconds;
         public string lastCue;
     }
@@ -529,6 +533,53 @@ public static class MechanismExplorationPlan
         }
     }
 
+    // [AI防坑警告] Encounter is a measurement interval, NOT another AI sensor.
+    // Start at an observed same-lane approach within 2 units of body-expanded reach,
+    // or at entry after an observed exterior sample. Retaining the baseline through
+    // waiting / same-side retreat (however long) prevents damage being washed away.
+    // Only a full opposite-side crossing completes it. A bypass is explicitly unfinished.
+    public sealed class QueueEncounterMemory
+    {
+        private int originSide, healthAtApproach, previousHealthLost;
+        private float previousSide, previousHeight;
+        private bool sampled, active;
+        public int Started { get; private set; }
+        public int Completed { get; private set; }
+        public int CleanCompleted { get; private set; }
+        public int Bypassed { get; private set; }
+        public void Sample(float side, float height, float extent, int cumulativeHealthLost, int crossingFlags)
+        {
+            int lossBeforeSample = previousHealthLost;
+            previousHealthLost = cumulativeHealthLost;
+            bool sameLane = Math.Abs(height) <= 1.5f;
+            bool outside = Math.Abs(side) > extent;
+            bool approaching = !sampled || Math.Abs(side) < Math.Abs(previousSide);
+            bool entryFromOutside = (crossingFlags & 1) != 0 && sampled &&
+                Math.Abs(previousSide) > extent && Math.Abs(previousHeight) <= 1.5f;
+            if (!active && sameLane && ((outside && Math.Abs(side) <= extent + 2f && approaching) || entryFromOutside))
+            {
+                active = true; Started++;
+                originSide = (entryFromOutside ? previousSide : side) < 0 ? -1 : 1;
+                healthAtApproach = lossBeforeSample;
+            }
+            if (active && sameLane && outside && side * originSide < 0)
+            {
+                if ((crossingFlags & 2) != 0)
+                {
+                    Completed++;
+                    if (cumulativeHealthLost == healthAtApproach) CleanCompleted++;
+                }
+                else Bypassed++;
+                active = false;
+            }
+            previousSide = side; previousHeight = height; sampled = true;
+        }
+    }
+
+    public static bool IndependentStartObserved(Trial t) => t.startDelaySeconds <= 0f ||
+        t.tricksterStrategy == "Passive" || (t.startTimingEvidenceVersion >= 1 && t.startWaitFrames > 0 &&
+        t.opponentWaitDecisionFrames == t.startWaitFrames);
+
     [Serializable]
     public sealed class Trial
     {
@@ -559,6 +610,7 @@ public static class MechanismExplorationPlan
         public bool probeBudgetExhausted;
         public int healthEvidenceVersion, runnerDamageEvents, runnerHealthLost;
         public int counterplayVersion, queueEvidenceVersion;
+        public int startTimingEvidenceVersion, startWaitFrames, opponentWaitDecisionFrames, opponentWaitInputFrames, opponentWaitPreparations;
         public float startDelaySeconds, actualStartWaitSeconds;
         public float lootAtSeconds = -1f, escapeAtSeconds = -1f;
         public int postLootControls, postLootTransfers;

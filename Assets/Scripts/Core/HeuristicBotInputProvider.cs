@@ -202,6 +202,7 @@ public class HeuristicBotInputProvider : IInputProvider
     private TricksterHeatMeter _heatMeter;
     private PropComboTracker _comboTracker;
     private bool _tricksterCacheReady;
+    public int OpponentDecisionTicks { get; private set; }
 
     // ── Trickster 连锁追击参数 ──
     private const float COMBO_RUSH_RANGE_MAX = 12.0f;   // 连锁中扩大搜索范围
@@ -267,6 +268,7 @@ public class HeuristicBotInputProvider : IInputProvider
         ResetDownFlags();
         p1SHeld = false;
         p2JumpHeld = false;
+        PrepareRunnerReferences();
         UpdateMarioBrain(dt);
         UpdateTricksterBrain(dt);
         // Preserve a short held jump, then release it so a later jump has a fresh edge.
@@ -279,10 +281,10 @@ public class HeuristicBotInputProvider : IInputProvider
     // Mario Brain — 基础探路与生存逻辑
     // ═══════════════════════════════════════════════════════════
 
-    protected virtual void UpdateMarioBrain(float dt)
+    // [AI防坑警告] Shared references must be ready before either strategy, even when Mario
+    // returns early to wait. Never warm this cache by executing Mario decisions/timers/RNG.
+    private void PrepareRunnerReferences()
     {
-        MarioIntent = "";
-
         if (!_marioCacheReady)
         {
             _mario = Object.FindObjectOfType<MarioController>();
@@ -291,6 +293,12 @@ public class HeuristicBotInputProvider : IInputProvider
             _probe = Object.FindObjectOfType<MarioCounterplayProbe>();
             _marioCacheReady = true;
         }
+    }
+
+    protected virtual void UpdateMarioBrain(float dt)
+    {
+        MarioIntent = "";
+
         if (_mario == null || !_mario.enabled)
         {
             p1Horizontal = 0f;
@@ -720,8 +728,9 @@ public class HeuristicBotInputProvider : IInputProvider
             return;
         }
 
-        // Mario 引用（共享 Mario Brain 的缓存）
+        // Shared reference prepared by Tick, independent of Mario strategy.
         if (_mario == null) return;
+        OpponentDecisionTicks++;
 
         TricksterIntent = "";
 
@@ -1257,6 +1266,7 @@ public class HeuristicBotInputProvider : IInputProvider
         _dangerDetectedLastFrame = false;
         _randomScanTimer = 0f;
 
+        OpponentDecisionTicks = 0;
         _tricksterCacheReady = false;
         _trickster = null;
         _gate = null;

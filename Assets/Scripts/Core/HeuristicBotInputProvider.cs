@@ -70,6 +70,12 @@ public class HeuristicBotInputProvider : IInputProvider
     public enum OpponentPolicy { Legacy, Ambusher, Baiter, Chaser }
     public RunnerPolicy RunnerStrategy { get; set; }
     public OpponentPolicy OpponentStrategy { get; set; }
+    // Opt-in: Adaptive/SafeRoute conserve scans; legacy/persona exploration keeps blind scouting.
+    public bool EvidenceDrivenScanning { get; set; }
+    private ScanAbility _scanAbility;
+    private MarioSuspicionTracker _suspicionTracker;
+    private readonly List<PossessionAnchor> _scanEvidenceAnchors = new List<PossessionAnchor>();
+    private float _evidenceScanTimer;
     public int RecoveryAttempts { get; private set; }
     public int BounceLandingAttempts { get; private set; }
     private Collider2D _bounceLandingTarget;
@@ -291,6 +297,8 @@ public class HeuristicBotInputProvider : IInputProvider
             if (_mario != null)
             { _marioCollider = _mario.GetComponent<Collider2D>(); _marioBody = _mario.GetComponent<Rigidbody2D>(); }
             _probe = Object.FindObjectOfType<MarioCounterplayProbe>();
+            _scanAbility = _mario != null ? _mario.GetComponent<ScanAbility>() : null;
+            _suspicionTracker = Object.FindObjectOfType<MarioSuspicionTracker>();
             _marioCacheReady = true;
         }
     }
@@ -320,8 +328,14 @@ public class HeuristicBotInputProvider : IInputProvider
         Vector2 marioPos = _mario.transform.position;
         float facingDir = _mario.IsFacingRight ? 1f : -1f;
         // Scouting remains available while waiting/baiting; it is only a normal scan request.
+        _evidenceScanTimer -= dt;
+        if (EvidenceDrivenScanning && _evidenceScanTimer <= 0f)
+        {
+            _evidenceScanTimer = 0.1f;
+            p1ScanDown = HasActionableScanCue(marioPos);
+        }
         _scoutScanTimer -= dt;
-        if (RunnerStrategy == RunnerPolicy.Scout && _scoutScanTimer <= 0f && HasNearbyAnchor(marioPos, 5f))
+        if (!EvidenceDrivenScanning && RunnerStrategy == RunnerPolicy.Scout && _scoutScanTimer <= 0f && HasNearbyAnchor(marioPos, 5f))
         { p1ScanDown = true; _scoutScanTimer = 1.5f; }
 
         // ── 0. 防卡死：反向跳跃逃脱中，优先执行 ──
@@ -577,6 +591,11 @@ public class HeuristicBotInputProvider : IInputProvider
         }
 
         // ── 5. 自动反制（强扫描 + Persona 神经质盲扫） ──
+        if (EvidenceDrivenScanning)
+        {
+            if (string.IsNullOrEmpty(MarioIntent)) MarioIntent = p1ScanDown ? "[Scan: local evidence or blocker windup]" : "[Pathing: scan conserved]";
+            return;
+        }
         float scanAgg = marioPersona != null ? marioPersona.scanAggression : 0.5f;
 
         // 盲扫计时器递减，归零时重置并判定是否触发盲扫
@@ -1226,6 +1245,36 @@ public class HeuristicBotInputProvider : IInputProvider
         return false;
     }
 
+    // [AI防坑警告] 只读玩家证据和公开封路预警，不读对手位置/附身/能量来预知扫描命中。
+    // A nearby empty anchor is not evidence. Cooldown and same-lane line of sight still apply.
+    private bool HasActionableScanCue(Vector2 position)
+    {
+        if (_scanAbility == null || !_scanAbility.isActiveAndEnabled || !_scanAbility.IsReady) return false;
+        if (_suspicionTracker != null)
+        {
+            _suspicionTracker.GetRevealReadyAnchors(_scanEvidenceAnchors);
+            foreach (var anchor in _scanEvidenceAnchors)
+                if (anchor != null && anchor.isActiveAndEnabled && ScanCueInReach(position, anchor.transform)) return true;
+        }
+        foreach (var blocker in GetSceneCandidates<ControllableBlocker>())
+            if (blocker != null && blocker.isActiveAndEnabled && blocker.GetControlState() == PropControlState.Telegraph &&
+                ScanCueInReach(position, blocker.transform)) return true;
+        return false;
+    }
+
+    private bool ScanCueInReach(Vector2 position, Transform source)
+    {
+        Vector2 target = source.position;
+        if (Vector2.Distance(position, target) > _scanAbility.ScanRadius || Mathf.Abs(target.y - position.y) > 1.5f) return false;
+        foreach (var hit in Physics2D.LinecastAll(position, target, GetSolidMask()))
+        {
+            if (hit.collider == null || hit.collider.isTrigger || hit.collider == _marioCollider ||
+                hit.collider.transform.IsChildOf(source) || hit.collider.GetComponentInParent<TricksterController>() != null) continue;
+            return false;
+        }
+        return true;
+    }
+
     // ═══════════════════════════════════════════════════════════
     // 引用缓存管理
     // ═══════════════════════════════════════════════════════════
@@ -1252,6 +1301,8 @@ public class HeuristicBotInputProvider : IInputProvider
         _marioCacheReady = false;
         _mario = null;
         _probe = null;
+        _scanAbility = null; _suspicionTracker = null;
+        _scanEvidenceAnchors.Clear(); _evidenceScanTimer = 0f;
         _jumpHoldTimer = 0f;
         _solidMaskReady = false;
 

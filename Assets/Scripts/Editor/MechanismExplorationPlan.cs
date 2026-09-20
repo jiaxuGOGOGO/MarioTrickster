@@ -420,11 +420,11 @@ public static class MechanismExplorationPlan
         if (t.tricksterStrategy == "Chaser" && expectsReturn && t.possessionTransfers == 0)
             gaps.Add("换点追击尚无不同锚点成功证据（请求不算成功）");
         int diagnosticVersion = scenario != null ? scenario.counterplayVersion : t.counterplayVersion;
-        if (diagnosticVersion >= 1 && t.startTimingEvidenceVersion >= 1 && !IndependentStartObserved(t))
+        if (diagnosticVersion >= 1 && !IndependentStartObserved(t))
             gaps.Add("Mario起步等待期间对手有效决策帧不足；不能视为独立启动对照");
         if (diagnosticVersion >= 1 && expectsReturn && t.tricksterStrategy == "Chaser" && t.postLootTransfers == 0)
             gaps.Add("拿宝后的实际换点尚未出现；去程换点不证明返程追击");
-        if (diagnosticVersion >= 1 && t.tricksterStrategy == "Passive" && (t.controlAccepted > 0 || t.possessions > 0))
+        if (diagnosticVersion >= 1 && !PassiveControlClean(t))
             gaps.Add("静止对手对照出现附身/操控，不能作为干净基线");
         if (diagnosticVersion >= 1 && !expectsReturn && t.marioStrategy == "Adaptive")
         {
@@ -432,6 +432,9 @@ public static class MechanismExplorationPlan
             else if (t.queueEvidenceVersion >= 2 ? t.queueEvidence.Sum(e => e.cleanEncounters) == 0 : t.queueEvidence.Sum(e => e.cleanCrossings) == 0)
                 gaps.Add(t.queueEvidenceVersion >= 2 ? "尚无整次遭遇无伤完成；重入后的无伤片段不能替代" : "尚无完整无伤队列穿越；等待或通关不能替代穿越证据");
             if (t.queueEvidence.Sum(e => e.cueSamples) == 0) gaps.Add("未读取到局部可见公开状态；不能宣称读懂窗口");
+            else if (!t.queueEvidence.Any(e => e.cueSamples > 0 &&
+                (t.queueEvidenceVersion >= 2 ? e.cleanEncounters > 0 : e.cleanCrossings > 0)))
+                gaps.Add("可见线索与无伤结果不是同一机关；不能跨实例拼接反制证据");
         }
         return gaps.ToArray();
     }
@@ -506,7 +509,8 @@ public static class MechanismExplorationPlan
     // Not a collision oracle: the physical crossing and health deltas are measured separately.
     public static bool QueueWindowAllowsEntry(bool readable, bool safe, float remaining, float distance, float speed)
     {
-        return readable && safe && speed > 0.1f && remaining >= Math.Max(0f, distance) / speed + 0.2f;
+        return readable && safe && IsFinite(remaining) && IsFinite(distance) && IsFinite(speed) &&
+            distance >= 0f && speed > 0.1f && remaining >= distance / speed + 0.2f;
     }
 
     public sealed class QueueCrossingMemory
@@ -576,9 +580,15 @@ public static class MechanismExplorationPlan
         }
     }
 
-    public static bool IndependentStartObserved(Trial t) => t.startDelaySeconds <= 0f ||
-        t.tricksterStrategy == "Passive" || (t.startTimingEvidenceVersion >= 1 && t.startWaitFrames > 0 &&
-        t.opponentWaitDecisionFrames == t.startWaitFrames);
+    public static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+
+    public static bool IndependentStartObserved(Trial t) => IsFinite(t.startDelaySeconds) && t.startDelaySeconds >= 0f &&
+        (t.startDelaySeconds == 0f || t.tricksterStrategy == "Passive" ||
+        (t.startTimingEvidenceVersion >= 1 && t.startWaitFrames > 0 && t.opponentWaitDecisionFrames == t.startWaitFrames));
+
+    public static bool PassiveControlClean(Trial t) => t.tricksterStrategy != "Passive" ||
+        (t.controlAccepted == 0 && t.possessions == 0 && (t.startTimingEvidenceVersion < 1 ||
+        (t.opponentWaitInputFrames == 0 && t.opponentWaitPreparations == 0)));
 
     [Serializable]
     public sealed class Trial
@@ -615,6 +625,7 @@ public static class MechanismExplorationPlan
         public float lootAtSeconds = -1f, escapeAtSeconds = -1f;
         public int postLootControls, postLootTransfers;
         public List<QueueEvidence> queueEvidence = new List<QueueEvidence>();
+        public string scanPolicy; // Null in historical reports; never infer a new strategy for old results.
         public int scanEvidenceVersion, scanHits, scanMisses;
         public int scans, possessions, comboEvents, heatEvents, lootEvents, escapeEvents;
         public int routeDegradations, routeRecoveries, routeBlocks, crises, reveals;
@@ -623,7 +634,7 @@ public static class MechanismExplorationPlan
         public List<string> timeline = new List<string>();
         public string validation = "";
         public string nextAction = "";
-        public bool HasGameplayEvidence => seconds > 0 &&
+        public bool HasGameplayEvidence => IsFinite(seconds) && seconds > 0 &&
             (outcome == "Cleared" || outcome == "RunnerStopped" || outcome == "NoProgress" || outcome == "TimedOut");
         public bool NeedsConfirmation => HasGameplayEvidence && errors.Count == 0 &&
             (!CandidateForHumanPlay || (string.IsNullOrEmpty(experience) && coverage.Any(e => e.ObservationGap)));
@@ -631,7 +642,7 @@ public static class MechanismExplorationPlan
             ? outcome + ":" + (errors.Count > 0 ? errors[0].Replace("\r", "").Split('\n')[0] : nextAction)
             : "";
         public bool PairExercised => coverage.Count == 2 && coverage.All(e => e.built > 0 && (e.contacts > 0 || e.activations > 0));
-        public bool CandidateForHumanPlay => ExperienceGaps.Length == 0 && outcome == "Cleared" && errors.Count == 0 &&
+        public bool CandidateForHumanPlay => HasGameplayEvidence && ExperienceGaps.Length == 0 && outcome == "Cleared" && errors.Count == 0 &&
             coverage.Count > 0 && coverage.All(e => e.built > 0 &&
                 (!string.IsNullOrEmpty(experience) || (e.observationVersion >= 1 ? !e.ObservationGap : e.contacts > 0 || e.activations > 0)));
     }

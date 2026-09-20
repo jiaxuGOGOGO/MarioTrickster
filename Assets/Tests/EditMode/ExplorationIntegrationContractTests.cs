@@ -6,6 +6,143 @@ using UnityEngine;
 public class ExplorationIntegrationContractTests
 {
     [Test]
+    public void PartialOrDuplicatedSchedulesCannotReceiveWholeBatchCandidateVerdict()
+    {
+        var report = new StudioExplorationRunner.Report {
+            status = "Complete", scenarios = MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Counterplay)
+        };
+        foreach (var room in report.scenarios)
+        foreach (var matchup in MechanismExplorationPlan.Matchups(room))
+            report.trials.Add(new MechanismExplorationPlan.Trial { scenarioId = room.id, marioStrategy = matchup.mario,
+                tricksterStrategy = matchup.trickster, outcome = "Cleared", seconds = 10 });
+        Assert.AreEqual(0, StudioExplorationRunner.UnverifiedSlots(report));
+        report.trials.RemoveAt(0);
+        Assert.AreEqual(1, StudioExplorationRunner.UnverifiedSlots(report));
+        report.trials.Add(report.trials[0]);
+        Assert.AreEqual(2, StudioExplorationRunner.UnverifiedSlots(report), "Equal row count does not mean equal matchup coverage");
+        report.confirmationScenarioIds.Add(report.scenarios[0].id);
+        Assert.AreEqual(5, StudioExplorationRunner.UnverifiedSlots(report));
+        var smoke = new StudioExplorationRunner.Report { scenarios = MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Smoke) };
+        smoke.trials.Add(new MechanismExplorationPlan.Trial { scenarioId = smoke.scenarios[0].id,
+            profile = "Cautious", outcome = "Cleared", seconds = 3 });
+        Assert.AreEqual(17, StudioExplorationRunner.UnverifiedSlots(smoke));
+        StringAssert.Contains("调度证据不完整", StudioExplorationRunner.EvidenceVerdict(smoke));
+    }
+
+    [Test]
+    public void CounterplayPairsRejectWrongPlanDuplicatesMissingStartsAndNonFiniteReturnTimes()
+    {
+        var room = MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Counterplay)[4];
+        var report = new StudioExplorationRunner.Report(); report.scenarios.Add(room);
+        var a = new MechanismExplorationPlan.Trial { scenarioId = room.id, marioStrategy = "Adaptive", tricksterStrategy = "Passive",
+            counterplayVersion = 1, healthEvidenceVersion = 1, outcome = "Cleared", seconds = 8,
+            lootAtSeconds = 2, escapeAtSeconds = 8, lootEvents = 1, escapeEvents = 1,
+            startDelaySeconds = 0.6f, actualStartWaitSeconds = 0.6f };
+        var b = new MechanismExplorationPlan.Trial { scenarioId = room.id, marioStrategy = "Adaptive", tricksterStrategy = "Chaser",
+            counterplayVersion = 1, healthEvidenceVersion = 1, outcome = "Cleared", seconds = 12,
+            lootAtSeconds = 3, escapeAtSeconds = 12, lootEvents = 1, escapeEvents = 1,
+            startDelaySeconds = 0.6f, actualStartWaitSeconds = 0.6f };
+        report.trials.Add(a); report.trials.Add(b);
+        StringAssert.DoesNotContain("返程耗时差=", StudioExplorationRunner.CounterplayPairs(report));
+        b.startTimingEvidenceVersion = 1; b.startWaitFrames = b.opponentWaitDecisionFrames = 30;
+        StringAssert.Contains("返程耗时差=3.00s", StudioExplorationRunner.CounterplayPairs(report));
+        report.trials.Add(b);
+        StringAssert.DoesNotContain("返程耗时差=", StudioExplorationRunner.CounterplayPairs(report));
+        report.trials.RemoveAt(2);
+        a.startDelaySeconds = a.actualStartWaitSeconds = 0;
+        StringAssert.DoesNotContain("返程耗时差=", StudioExplorationRunner.CounterplayPairs(report));
+        a.startDelaySeconds = a.actualStartWaitSeconds = 0.6f;
+        foreach (float invalid in new[] { float.NaN, float.PositiveInfinity, 13f, -1f })
+        {
+            b.escapeAtSeconds = invalid;
+            StringAssert.DoesNotContain("返程耗时差=", StudioExplorationRunner.CounterplayPairs(report));
+        }
+        b.escapeAtSeconds = 12;
+        a.startTimingEvidenceVersion = 1; a.opponentWaitInputFrames = 1;
+        StringAssert.DoesNotContain("返程耗时差=", StudioExplorationRunner.CounterplayPairs(report));
+    }
+
+    [Test]
+    public void PassiveOnlyRoomDoesNotDemandActiveOpponentAndOldScanPolicyRemainsUnknown()
+    {
+        var room = MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Counterplay)[0];
+        var report = new StudioExplorationRunner.Report(); report.scenarios.Add(room);
+        report.trials.Add(new MechanismExplorationPlan.Trial { scenarioId = room.id, marioStrategy = "Runner",
+            tricksterStrategy = "Passive", outcome = "Cleared", seconds = 5 });
+        string summary = StudioExplorationRunner.BuildSummary(report);
+        StringAssert.Contains("零操控符合计划", summary);
+        StringAssert.DoesNotContain("尚无操控受理证据", summary);
+        Assert.IsNull(report.trials[0].scanPolicy);
+    }
+
+    [TestCase(0.6f)]
+    [TestCase(1.2f)]
+    public void StartWaitTicksPrepareOpponentWithoutRunningMarioDecisions(float wait)
+    {
+        var runnerObject = new GameObject("IndependentRunner"); var opponentObject = new GameObject("IndependentOpponent");
+        try
+        {
+            runnerObject.transform.position = new Vector3(30000, 1, 0);
+            opponentObject.transform.position = new Vector3(30010, 1, 0);
+            var runner = runnerObject.AddComponent<MarioController>();
+            opponentObject.AddComponent<TricksterController>();
+            var bot = new ExplorationTrialObserver.GuidedBot(runner, new System.Collections.Generic.Dictionary<string, Transform[]>(), false, null, false) {
+                StartDelayRemaining = wait, ReadPublicQueues = true
+            };
+            bot.SetDecisionSeed(154);
+            for (int i = 0; i < 2; i++) bot.Tick(0.2f);
+            Assert.AreEqual(2, bot.StartWaitFrames); Assert.AreEqual(2, bot.OpponentWaitDecisionFrames);
+            Assert.AreEqual(0, bot.p1Horizontal); Assert.IsFalse(bot.p1JumpDown || bot.p1ScanDown);
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            Assert.AreEqual(0f, typeof(HeuristicBotInputProvider).GetField("_randomScanTimer", flags).GetValue(bot));
+            Assert.AreEqual(0f, typeof(HeuristicBotInputProvider).GetField("_marioReactionTimer", flags).GetValue(bot));
+            Assert.AreEqual(0, bot.WaypointsReached);
+            bot.InvalidateCache(); bot.Tick(0.1f);
+            Assert.AreEqual(1, bot.OpponentDecisionTicks, "Invalidation must reacquire shared references during the wait");
+        }
+        finally { Object.DestroyImmediate(runnerObject); Object.DestroyImmediate(opponentObject); }
+    }
+
+    [Test]
+    public void EvidenceScanRequiresLocalCueReadyCooldownAndClearLaneWithoutTargetOmniscience()
+    {
+        var actor = new GameObject("EvidenceRunner"); var target = new GameObject("EvidenceAnchor");
+        var wall = new GameObject("EvidenceOccluder"); var service = new GameObject("EvidenceTracker");
+        try
+        {
+            actor.transform.position = new Vector3(31000, 1, 0); target.transform.position = new Vector3(31003, 1, 0);
+            wall.transform.position = new Vector3(31001.5f, 1, 0);
+            var body = actor.AddComponent<BoxCollider2D>(); var scan = actor.AddComponent<ScanAbility>();
+            var anchor = target.AddComponent<PossessionAnchor>();
+            var tracker = service.AddComponent<MarioSuspicionTracker>();
+            var bot = new HeuristicBotInputProvider { EvidenceDrivenScanning = true };
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var type = typeof(HeuristicBotInputProvider);
+            type.GetField("_scanAbility", flags).SetValue(bot, scan);
+            type.GetField("_suspicionTracker", flags).SetValue(bot, tracker);
+            type.GetField("_marioCollider", flags).SetValue(bot, body);
+            type.GetField("_solidMaskReady", flags).SetValue(bot, true);
+            type.GetField("_solidMask", flags).SetValue(bot, (LayerMask)1);
+            var method = type.GetMethod("HasActionableScanCue", flags);
+            System.Func<bool> cue = () => (bool)method.Invoke(bot, new object[] { (Vector2)actor.transform.position });
+            Physics2D.SyncTransforms();
+            Assert.IsFalse(cue(), "An empty anchor must not consume a scan");
+            tracker.GetOrCreateData(anchor).AddEvidence(2);
+            Assert.IsTrue(cue(), "Known evidence is useful without reading whether the opponent is actually hidden there");
+            typeof(ScanAbility).GetField("cooldownTimer", flags).SetValue(scan, 1f);
+            Assert.IsFalse(cue()); scan.ResetCooldown();
+            var occluder = wall.AddComponent<BoxCollider2D>(); occluder.size = new Vector2(0.2f, 3f);
+            Physics2D.SyncTransforms(); Assert.IsFalse(cue());
+            occluder.isTrigger = true; Physics2D.SyncTransforms(); Assert.IsTrue(cue());
+            target.transform.position += Vector3.up * 4; Physics2D.SyncTransforms(); Assert.IsFalse(cue());
+            target.transform.position = actor.transform.position + Vector3.right * (scan.ScanRadius + 1);
+            Physics2D.SyncTransforms(); Assert.IsFalse(cue());
+            bot.InvalidateCache(); Assert.IsFalse(cue());
+        }
+        finally { Object.DestroyImmediate(actor); Object.DestroyImmediate(target); Object.DestroyImmediate(wall); Object.DestroyImmediate(service); }
+    }
+
+    [Test]
     public void CounterplayPassiveAndStartDelayUseOnlyNeutralOrdinaryInputs()
     {
         var bot = new ExplorationTrialObserver.GuidedBot(null, new System.Collections.Generic.Dictionary<string, Transform[]>(), false, null, false) {

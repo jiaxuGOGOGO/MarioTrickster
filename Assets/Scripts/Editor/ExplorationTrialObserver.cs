@@ -51,6 +51,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         result.counterplayVersion = scenario.counterplayVersion;
         result.startDelaySeconds = scenario.startDelaySeconds;
         result.experienceEvidenceVersion = 1;
+        result.scanPolicy = trial.marioStrategy == "Adaptive" || trial.marioStrategy == "SafeRoute"
+            ? "LocalEvidenceOrBlockerWindup" : "LegacyPersona";
         manager = GameManager.Instance;
         input = Object.FindObjectOfType<InputManager>();
         mario = Object.FindObjectOfType<MarioController>();
@@ -589,6 +591,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         protected override void UpdateMarioBrain(float dt)
         {
             WaitingQueue = null; QueueDecision = null;
+            EvidenceDrivenScanning = ReadPublicQueues || RunnerStrategy == RunnerPolicy.SafeRoute;
             StartWaitingThisTick = StartDelayRemaining > 0f;
             if (StartDelayRemaining > 0f)
             {

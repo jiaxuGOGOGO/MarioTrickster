@@ -4,6 +4,96 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [TestCase(-1f)]
+    [TestCase(1f)]
+    public void EncounterRetainsDamageAcrossRetreatAndSeparatesReturn(float direction)
+    {
+        var crossing = new MechanismExplorationPlan.QueueCrossingMemory();
+        var encounter = new MechanismExplorationPlan.QueueEncounterMemory();
+        Action<float, int> sample = (x, loss) => {
+            int flags = crossing.Sample(x * direction, 0, 2, loss);
+            encounter.Sample(x * direction, 0, 2, loss, flags);
+        };
+        sample(-4, 0); sample(-1, 1); sample(-5, 1);
+        for (int i = 0; i < 100; i++) sample(-5, 1);
+        sample(-1, 1); sample(3, 1);
+        Assert.AreEqual(1, encounter.Started); Assert.AreEqual(1, encounter.Completed);
+        Assert.AreEqual(0, encounter.CleanCompleted, "S163 timing2 Runner: re-entry must not erase the first injury");
+        sample(2.5f, 1); sample(1, 1); sample(-3, 1);
+        Assert.AreEqual(2, encounter.Completed); Assert.AreEqual(1, encounter.CleanCompleted);
+    }
+
+    [Test]
+    public void EncounterBypassAndSpawnInsideDoNotInventCleanCompletion()
+    {
+        var crossing = new MechanismExplorationPlan.QueueCrossingMemory();
+        var encounter = new MechanismExplorationPlan.QueueEncounterMemory();
+        Action<float, float> sample = (x, y) => encounter.Sample(x, y, 2, 0, crossing.Sample(x, y, 2, 0));
+        sample(-3, 0); sample(-1, 0); sample(0, 4); sample(3, 0);
+        Assert.AreEqual(1, encounter.Bypassed); Assert.AreEqual(0, encounter.Completed);
+        crossing = new MechanismExplorationPlan.QueueCrossingMemory();
+        encounter = new MechanismExplorationPlan.QueueEncounterMemory();
+        sample(0, 0); sample(3, 0);
+        Assert.AreEqual(0, encounter.Started); Assert.AreEqual(0, encounter.CleanCompleted);
+    }
+
+    [Test]
+    public void AdaptiveCannotBorrowCueFromAnotherQueueOrCleanFragmentFromDamagedEncounter()
+    {
+        var t = new MechanismExplorationPlan.Trial { experience = "BaitAndCounter", counterplayVersion = 1,
+            experienceEvidenceVersion = 1, queueEvidenceVersion = 2, marioStrategy = "Adaptive", tricksterStrategy = "Passive" };
+        t.queueEvidence.Add(new MechanismExplorationPlan.QueueEvidence { source = "A", cueSamples = 1, cleanCrossings = 1 });
+        t.queueEvidence.Add(new MechanismExplorationPlan.QueueEvidence { source = "B", cleanEncounters = 1 });
+        Assert.IsNotEmpty(t.ExperienceGaps);
+        t.queueEvidence.RemoveAt(1);
+        Assert.IsNotEmpty(t.ExperienceGaps, "A clean re-entry fragment does not certify the encounter");
+        t.queueEvidence[0].cleanEncounters = 1;
+        Assert.IsEmpty(t.ExperienceGaps);
+    }
+
+    [Test]
+    public void DelayedOpponentRequiresEveryDecisionFrameAndLegacyEvidenceStaysMissing()
+    {
+        var t = new MechanismExplorationPlan.Trial { experience = "LootAndReturn", counterplayVersion = 1,
+            experienceEvidenceVersion = 1, marioStrategy = "Adaptive", tricksterStrategy = "Chaser",
+            armedNearbySeconds = 1, startDelaySeconds = 0.6f, expectsReturn = true,
+            lootEvents = 1, escapeEvents = 1, possessionTransfers = 1, postLootTransfers = 1 };
+        Assert.IsFalse(MechanismExplorationPlan.IndependentStartObserved(t));
+        Assert.IsTrue(t.ExperienceGaps.Any(g => g.Contains("起步等待")));
+        Assert.AreEqual(0, t.startTimingEvidenceVersion, "Reading an old report must not synthesize observations");
+        t.startTimingEvidenceVersion = 1; t.startWaitFrames = 30; t.opponentWaitDecisionFrames = 29;
+        Assert.IsFalse(MechanismExplorationPlan.IndependentStartObserved(t));
+        t.opponentWaitDecisionFrames = 30;
+        Assert.IsTrue(MechanismExplorationPlan.IndependentStartObserved(t));
+        Assert.IsEmpty(t.ExperienceGaps);
+        t.tricksterStrategy = "Passive"; t.opponentWaitInputFrames = 1;
+        Assert.IsFalse(MechanismExplorationPlan.PassiveControlClean(t));
+        t.opponentWaitInputFrames = 0;
+        Assert.IsTrue(MechanismExplorationPlan.PassiveControlClean(t));
+    }
+
+    [TestCase(float.PositiveInfinity, 5f, 9f)]
+    [TestCase(1f, float.NaN, 9f)]
+    [TestCase(1f, -1f, 9f)]
+    [TestCase(1f, 5f, float.PositiveInfinity)]
+    [TestCase(1f, 5f, float.NaN)]
+    public void InvalidQueueEstimatesNeverPermitEntry(float remaining, float distance, float speed)
+    {
+        Assert.IsFalse(MechanismExplorationPlan.QueueWindowAllowsEntry(true, true, remaining, distance, speed));
+    }
+
+    [TestCase(float.NaN)]
+    [TestCase(float.PositiveInfinity)]
+    [TestCase(-1f)]
+    public void InvalidTrialClocksAreNotGameplayEvidence(float seconds)
+    {
+        var t = new MechanismExplorationPlan.Trial { seconds = seconds, outcome = "Cleared", startDelaySeconds = seconds };
+        t.coverage.Add(new MechanismExplorationPlan.Evidence { built = 1, contacts = 1 });
+        Assert.IsFalse(t.HasGameplayEvidence);
+        Assert.IsFalse(t.CandidateForHumanPlay);
+        Assert.IsFalse(MechanismExplorationPlan.IndependentStartObserved(t));
+    }
+
     [Test]
     public void CounterplayScheduleUsesMatchedLayoutsAndBoundedThreeOrFourWayPairs()
     {
@@ -466,6 +556,8 @@ public class MechanismExplorationPlanTests
         trial.coverage.Add(new MechanismExplorationPlan.Evidence { built = 1, approached = true });
         Assert.IsFalse(trial.CandidateForHumanPlay);
         trial.coverage[0].contacts = 1;
+        Assert.IsFalse(trial.CandidateForHumanPlay, "Zero-duration records are not played candidates");
+        trial.seconds = 5;
         Assert.IsTrue(trial.CandidateForHumanPlay);
         trial.errors.Add("runtime error"); Assert.IsFalse(trial.CandidateForHumanPlay);
     }

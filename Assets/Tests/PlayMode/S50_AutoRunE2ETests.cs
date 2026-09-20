@@ -343,6 +343,9 @@ public class S50_AutoRunE2ETests
             Assert.GreaterOrEqual(waited + 0.0001f, delay);
             Assert.LessOrEqual(waited, delay + Time.maximumDeltaTime + 0.001f, "At most one input-frame overshoot; report pairing independently rejects mistimed samples");
             Assert.AreEqual(0, trialType.GetField("controlAccepted").GetValue(trial));
+            Assert.AreEqual("LocalEvidenceOrBlockerWindup", trialType.GetField("scanPolicy").GetValue(trial));
+            Assert.AreEqual(0, trialType.GetField("scans").GetValue(trial),
+                "A passive opponent and idle blockers provide no evidence-driven scan cue");
             if (upper)
                 CollectionAssert.Contains((IEnumerable)trialType.GetField("completedRoutes").GetValue(trial), "Out:upper");
             else
@@ -353,6 +356,8 @@ public class S50_AutoRunE2ETests
                 Assert.Greater((int)type.GetField("cueSamples").GetValue(evidence), 0);
                 Assert.Greater((int)type.GetField("cleanCrossings").GetValue(evidence), 0,
                     "Fallback upper clear cannot substitute for lower-lane window acceptance");
+                Assert.Greater((int)type.GetField("cleanEncounters").GetValue(evidence), 0,
+                    "A clean re-entry fragment cannot substitute for a clean whole encounter");
                 Assert.AreEqual(0, trialType.GetField("routeSwitchRequests").GetValue(trial));
             }
         }

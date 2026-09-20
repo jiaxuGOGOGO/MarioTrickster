@@ -107,9 +107,28 @@ public static class StudioExplorationRunner
         if (data.regressionFailed > 0 || data.trials.Any(t => t.errors.Count > 0)) return "有回归或运行错误，先修复再评估玩法";
         if (data.trials.Any(t => t.HasGameplayEvidence && ExperienceIssues(data, t).Length > 0))
             return "体验证据有缺口：通关不代表上路/交手机会/换点成立";
+        if (UnverifiedSlots(data) > 0) return "调度证据不完整：存在缺失、未试玩或重复槽位，不能整批验收";
         if (data.trials.Any(t => t.NeedsConfirmation)) return "有受阻或覆盖缺口，查看首轮与复测对照";
         return "已有真人试玩候选，不代表正确性或乐趣已验收";
     }
+    public static int UnverifiedSlots(Report data)
+    {
+        int missing = 0;
+        for (int attempt = 1; attempt <= 2; attempt++)
+        foreach (var room in data.scenarios)
+        {
+            if (attempt == 2 && !(data.confirmationScenarioIds ?? new List<string>()).Contains(room.id)) continue;
+            foreach (var matchup in MechanismExplorationPlan.Matchups(room))
+            {
+                var records = data.trials.Where(t => t.scenarioId == room.id &&
+                    (attempt == 1 ? t.attempt <= 1 : t.attempt == 2) &&
+                    (t.marioStrategy ?? t.profile) == matchup.mario && (t.tricksterStrategy ?? t.profile) == matchup.trickster).ToArray();
+                if (records.Length != 1 || !records[0].HasGameplayEvidence) missing++;
+            }
+        }
+        return missing;
+    }
+
     public static string ProbeSummary(MechanismExplorationPlan.Trial trial) => trial.probeEvidenceVersion < 1
         ? "探针访问预算未记录（旧报告或非Explorer）；不补算完成。"
         : $"探针访问：{trial.probeTargets}个代表目标，满足结束条件={trial.probeSatisfied}，单目标到期={trial.probeTimedOut}，目标丢失={trial.probeMissing}；用时={trial.probeElapsedSeconds:F2}/{trial.probeBudgetSeconds:F2}s，总预算到期={trial.probeBudgetExhausted}。跳过/到期不算行为通过。";
@@ -143,23 +162,23 @@ public static class StudioExplorationRunner
             var trials = data.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1).ToArray();
             if (!room.lootEscape)
             {
-                var rush = trials.FirstOrDefault(t => t.marioStrategy == "Runner" && t.tricksterStrategy == "Passive");
+                var rush = UniqueTrial(trials, "Runner", "Passive");
                 foreach (string strategy in new[] { "Adaptive", "SafeRoute" })
                 {
-                    var other = trials.FirstOrDefault(t => t.marioStrategy == strategy && t.tricksterStrategy == "Passive");
-                    if (!ComparablePair(rush, other)) { sb.AppendLine(strategy + ": 配对未完成/有错误/基线污染，不计算改善。保留失败记录。"); continue; }
+                    var other = UniqueTrial(trials, strategy, "Passive");
+                    if (!ComparablePair(rush, other, room)) { sb.AppendLine(strategy + ": 配对未完成/有错误/基线污染，不计算改善。保留失败记录。"); continue; }
                     sb.AppendLine($"{strategy} - Runner: 总耗时差={other.seconds - rush.seconds:F2}s，实际损血差={other.runnerHealthLost - rush.runnerHealthLost}；{strategy}无新增损血穿越片段={other.queueEvidence.Sum(q => q.cleanCrossings)}（SafeRoute绕行不要求穿越）。{EncounterSummary(other)}");
                 }
             }
             else foreach (string strategy in new[] { "Adaptive", "SafeRoute" })
             {
-                var passive = trials.FirstOrDefault(t => t.marioStrategy == strategy && t.tricksterStrategy == "Passive");
-                var chaser = trials.FirstOrDefault(t => t.marioStrategy == strategy && t.tricksterStrategy == "Chaser");
+                var passive = UniqueTrial(trials, strategy, "Passive");
+                var chaser = UniqueTrial(trials, strategy, "Chaser");
                 if (chaser != null && !MechanismExplorationPlan.IndependentStartObserved(chaser))
                 { sb.AppendLine(strategy + ": 独立启动证据不足；旧S163延迟Chaser存在共享缓存耦合，不计算纯单边延迟返程差。保留原始结果。"); continue; }
-                if (!ComparablePair(passive, chaser) || passive.lootEvents == 0 || passive.escapeEvents == 0 ||
+                if (!ComparablePair(passive, chaser, room) || passive.lootEvents == 0 || passive.escapeEvents == 0 ||
                     chaser.lootEvents == 0 || chaser.escapeEvents == 0 || passive.lootAtSeconds < 0 || chaser.lootAtSeconds < 0 ||
-                    passive.escapeAtSeconds < passive.lootAtSeconds || chaser.escapeAtSeconds < chaser.lootAtSeconds)
+                    !ValidReturnTimes(passive) || !ValidReturnTimes(chaser))
                 { sb.AppendLine(strategy + ": 返程配对证据不全，不从去程/未撤离推断追击有效。" ); continue; }
                 float delta = chaser.escapeAtSeconds - chaser.lootAtSeconds - (passive.escapeAtSeconds - passive.lootAtSeconds);
                 sb.AppendLine($"{strategy} Chaser - Passive: 返程耗时差={delta:F2}s；拿宝后换点={chaser.postLootTransfers}，操控受理={chaser.postLootControls}。时间差是相关对照，不把换点次数当作压迫成功。" );
@@ -168,14 +187,25 @@ public static class StudioExplorationRunner
         if (sb.Length > 0) sb.AppendLine("时序只覆盖0/0.6/1.2秒普通起步等待，同一房间模板，不是自主学习或独立地图穷举；紧张感/自然度/重玩意愿仍未自动验证。");
         return sb.ToString();
     }
-    private static bool ComparablePair(MechanismExplorationPlan.Trial a, MechanismExplorationPlan.Trial b) =>
+    private static MechanismExplorationPlan.Trial UniqueTrial(MechanismExplorationPlan.Trial[] trials, string mario, string trickster)
+    {
+        var matches = trials.Where(t => t.marioStrategy == mario && t.tricksterStrategy == trickster).ToArray();
+        return matches.Length == 1 ? matches[0] : null;
+    }
+    private static bool ValidReturnTimes(MechanismExplorationPlan.Trial t) =>
+        MechanismExplorationPlan.IsFinite(t.lootAtSeconds) && MechanismExplorationPlan.IsFinite(t.escapeAtSeconds) &&
+        t.lootAtSeconds >= 0f && t.escapeAtSeconds >= t.lootAtSeconds && t.escapeAtSeconds <= t.seconds;
+
+    private static bool ComparablePair(MechanismExplorationPlan.Trial a, MechanismExplorationPlan.Trial b, MechanismExplorationPlan.Scenario room) =>
         a != null && b != null && a.counterplayVersion >= 1 && b.counterplayVersion >= 1 &&
+        a.scenarioId == room.id && b.scenarioId == room.id && a.counterplayVersion == b.counterplayVersion &&
+        (a.marioStrategy != b.marioStrategy || a.scanPolicy == b.scanPolicy) &&
+        Math.Abs(a.startDelaySeconds - room.startDelaySeconds) < 0.001f && Math.Abs(b.startDelaySeconds - room.startDelaySeconds) < 0.001f &&
         a.healthEvidenceVersion >= 1 && b.healthEvidenceVersion >= 1 && a.HasGameplayEvidence && b.HasGameplayEvidence &&
         Math.Abs(a.actualStartWaitSeconds - a.startDelaySeconds) < 0.05f && Math.Abs(b.actualStartWaitSeconds - b.startDelaySeconds) < 0.05f &&
         a.outcome == "Cleared" && b.outcome == "Cleared" &&
         a.errors.Count == 0 && b.errors.Count == 0 &&
-        (a.tricksterStrategy != "Passive" || (a.controlAccepted == 0 && a.possessions == 0)) &&
-        (b.tricksterStrategy != "Passive" || (b.controlAccepted == 0 && b.possessions == 0));
+        MechanismExplorationPlan.PassiveControlClean(a) && MechanismExplorationPlan.PassiveControlClean(b);
 
     public static string ReportDirectory => state?.directory ?? "";
     public static string LiveIntent => observer?.Intent ?? "";
@@ -216,7 +246,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions && replay == null ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S164", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
+        report = new Report { toolRevision = "S165", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, scenarios = scenarios,
             physicsConfigJson = ConfigJson("PhysicsConfig"), gameplayConfigJson = ConfigJson("GameplayLoopConfig"),
             unsupportedRegistry = MechanismExplorationPlan.MissingFromCatalog(AsciiElementRegistry.GetDefault().GetAllRegisteredChars()) };
@@ -505,6 +535,7 @@ public static class StudioExplorationRunner
         sb.AppendLine($"Status: {data.status}; seed: {data.seed}; Unity: {data.unityVersion}; scope: {data.scope}");
         sb.AppendLine($"Trials recorded: {data.trials.Count} / {PlannedTrials(data)}");
         sb.AppendLine("Evidence verdict: " + EvidenceVerdict(data));
+        sb.AppendLine($"缺失/未试玩/重复的计划槽位: {UnverifiedSlots(data)}（按场景、双方策略及首轮/确认逐项核对）");
         sb.AppendLine($"有效试玩记录: {data.trials.Count(t => t.HasGameplayEvidence)}; 首轮={data.trials.Count(t => t.attempt <= 1 && t.HasGameplayEvidence)}; 复测={data.trials.Count(t => t.attempt == 2 && t.HasGameplayEvidence)}");
         sb.AppendLine("有限反馈：最多追加 6 张问题图 × 原策略搭配 × 1 轮；机制回归每图3局，体验探索每图9局，反制专项每图3或4局。同种子同配置，不自动改难度或删除失败记录。");
         sb.AppendLine("当前代码复测策略（不回写旧批次调度）：无进展/超时 → 角色死亡 → 仅观察不足；最多6图，不递归。Explorer按机制选一个代表，单目标最多4秒，总预算最多8秒且不超过单局一半；到期返回普通目标导航，不证明剩余机制通过。");
@@ -517,7 +548,10 @@ public static class StudioExplorationRunner
         {
             var first = data.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1 && t.HasGameplayEvidence).ToArray();
             sb.AppendLine($"Experience first-pass {room.id}: trials={first.Length}, gaps={first.Count(t => ExperienceIssues(data, t).Length > 0)}, controls accepted={first.Sum(t => t.controlAccepted)}, successful anchor changes={first.Sum(t => t.possessionTransfers)}");
-            if (first.Length > 0 && first.Sum(t => t.controlAccepted) == 0) sb.AppendLine("  尚无操控受理证据（旧报告可能未记录）；不可据通关率判断双方对抗成立。");
+            if (first.Length > 0 && MechanismExplorationPlan.Matchups(room).All(m => m.trickster == "Passive"))
+                sb.AppendLine("  静止对手基线：零操控符合计划；只检验公开队列和路线选择，不检验主动对抗。");
+            else if (first.Length > 0 && first.Sum(t => t.controlAccepted) == 0)
+                sb.AppendLine("  尚无操控受理证据（旧报告可能未记录）；安全绕行允许零操控，不可据此宣称追击压迫成立。");
         }
         foreach (var strategy in data.trials.Where(t => t.HasGameplayEvidence && t.attempt <= 1).GroupBy(t => t.marioStrategy ?? t.profile))
             sb.AppendLine($"Runner {strategy.Key}: trials={strategy.Count()}, observed routes={string.Join(",", strategy.SelectMany(t => t.routesUsed ?? new List<string>()).Distinct())}, retreats={strategy.Sum(t => t.telegraphRetreats)}, recovery crossings={strategy.Sum(t => t.recoveryCrossings)}");
@@ -565,6 +599,8 @@ public static class StudioExplorationRunner
             if (!string.IsNullOrEmpty(trial.comparison)) sb.AppendLine(trial.comparison);
             foreach (var item in trial.timeline) sb.AppendLine("  event: " + item);
             sb.AppendLine($"scan={trial.scans}, possession={trial.possessions}, combo={trial.comboEvents}, heat={trial.heatEvents}, loot={trial.lootEvents}, escape={trial.escapeEvents}, crisis={trial.crises}, reveal={trial.reveals}");
+            sb.AppendLine("扫描策略: " + (trial.scanPolicy ?? "旧报告未记录，不按当前策略重标") +
+                "；miss仅表示未发现伪装，不排除封路预警缩短，效果须另验。");
             sb.AppendLine(trial.scanEvidenceVersion >= 1
                 ? $"scan hits={trial.scanHits}, misses={trial.scanMisses}; result callbacks only. Hit is a detected disguise, not proof of damage prevented."
                 : "扫描结果未记录；不可从施放数或reveals总线补算命中。请在新批次采集。");

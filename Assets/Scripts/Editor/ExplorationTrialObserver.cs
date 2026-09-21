@@ -56,7 +56,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         result.experience = scenario.experience;
         result.tunnelVersion = scenario.tunnelVersion;
         if (scenario.tunnelVersion >= 1) { result.tunnelEvidenceVersion = 1; result.tunnelVisitEvidenceVersion = 1; }
-        result.tunnelPlanningPolicy = scenario.duelVersion >= 1 ? "SpeedEnvelopeV2" : "LegacyLocalPrediction";
+        result.tunnelPlanningPolicy = scenario.duelVersion >= 1 ? "SpeedEnvelopeV2+GroundedLayerPreparationV1" : "LegacyLocalPrediction";
+        if (scenario.duelVersion >= 1) result.tunnelDecisionEvidenceVersion = result.stairRecoveryEvidenceVersion = 1;
         result.expectsReturn = scenario.lootEscape;
         result.counterplayVersion = scenario.counterplayVersion;
         result.startDelaySeconds = scenario.startDelaySeconds;
@@ -112,6 +113,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             TunnelOpponent = opponentName == "TunnelChaser",
             GroundOnlyOpponent = opponentName == "GroundChaser",
             PlannedTunnelOpponent = scenario.duelVersion >= 1,
+            RecoverRouteFalls = scenario.duelVersion >= 1,
             ControlMode = trial.controlMode,
             StartDelayRemaining = scenario.startDelaySeconds,
             RunnerStrategy = runnerName == "Scout" || runnerName == "Adaptive" ? HeuristicBotInputProvider.RunnerPolicy.Scout :
@@ -204,6 +206,9 @@ public sealed class ExplorationTrialObserver : IDisposable
         result.anchorSwitchRequests = bot.AnchorSwitchRequests;
         if (bot.RouteSwitchRequests > result.routeSwitchRequests) Event("route switch requested: " + bot.RouteId + " (not a completed traversal)");
         result.routeSwitchRequests = bot.RouteSwitchRequests;
+        if (bot.StairRecoveryRequests > result.stairRecoveryRequests)
+            Event("stair recovery requested: rewind to lower authored landing (not a completed traversal)");
+        result.stairRecoveryRequests = bot.StairRecoveryRequests;
         result.recoveryAttempts = bot.RecoveryAttempts;
         if (bot.BounceLandingAttempts > result.bounceLandingAttempts) Event("bounce top-landing input requested (not a launch)");
         result.bounceLandingAttempts = bot.BounceLandingAttempts;
@@ -274,6 +279,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (bot.TunnelRequests > result.tunnelRequests && !string.IsNullOrEmpty(bot.LastTunnelPlan))
             Event(bot.LastTunnelPlan); // Input-edge evidence must not disappear between 0.5s intention samples.
         result.tunnelRequests = bot.TunnelRequests;
+        result.tunnelPreparationRequests = bot.TunnelPreparationRequests;
         result.actualStartWaitSeconds = bot.StartWaitSeconds;
         result.startWaitFrames = bot.StartWaitFrames;
         result.opponentWaitDecisionFrames = bot.OpponentWaitDecisionFrames;
@@ -590,6 +596,9 @@ public sealed class ExplorationTrialObserver : IDisposable
         public string ControlMode;
         public int TunnelRequests { get; private set; }
         public string LastTunnelPlan { get; private set; }
+        private readonly MechanismExplorationPlan.TunnelPreparationBudget preparation = new MechanismExplorationPlan.TunnelPreparationBudget();
+        public int TunnelPreparationRequests => preparation.Requests;
+        public bool RecoverRouteFalls;
         private float observedTunnelSpeed;
         private float tunnelInputCooldown;
         private readonly KeyboardInputProvider keyboard = new KeyboardInputProvider();
@@ -615,6 +624,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         public int WaypointsReached => navigation.WaypointsReached;
         public IReadOnlyList<string> CompletedRoutes => navigation.CompletedRoutes;
         public int RouteSwitchRequests => navigation.SwitchRequests;
+        public int StairRecoveryRequests => navigation.StairRecoveryRequests;
         public string RouteId => navigation.RouteId;
         public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore, MechanismExplorationPlan.Route[] routes, bool safe)
             : this(runner, targets, explore, routes, safe, 30f) { }
@@ -655,6 +665,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             }
             if (!PassiveOpponent)
             {
+                preparation.Tick(dt);
                 if (runner != null) observedTunnelSpeed = Mathf.Max(observedTunnelSpeed, Mathf.Abs(runner.Velocity.x));
                 int before = OpponentDecisionTicks;
                 base.UpdateTricksterBrain(dt);
@@ -673,15 +684,23 @@ public sealed class ExplorationTrialObserver : IDisposable
                             ? FindPreparedTunnelIntercept(from, runner.transform.position, runner.Velocity, opponentDisguise != null ? opponentDisguise.BlendInSeconds : float.NaN,
                                 runner.HorizontalSpeedLimit, observedTunnelSpeed)
                             : FindTunnelIntercept(from, runner.transform.position, runner.Velocity);
+                        bool preparing = false;
+                        if (next == null && PlannedTunnelOpponent && preparation.Available)
+                        {
+                            next = FindTunnelLayerPreparation(from, runner.transform.position, runner.Velocity, runner.IsGrounded,
+                                opponentDisguise != null ? opponentDisguise.BlendInSeconds : float.NaN);
+                            preparing = next != null && preparation.TryReserve();
+                            if (!preparing) next = null;
+                        }
                         if (next != null)
                         {
                             Vector2 direction = ((Vector2)(next.transform.position - from.transform.position)).normalized;
                             p2Horizontal = direction.x; p2Vertical = direction.y;
                             p2DirectionDown = true; p2DisguiseDown = false;
                             float planningVelocity = MechanismExplorationPlan.TunnelPlanningVelocity(runner.Velocity.x, runner.HorizontalSpeedLimit, observedTunnelSpeed);
-                            LastTunnelPlan = $"tunnel input {from.AnchorId} -> {next.AnchorId}; runner=({runner.transform.position.x:F2},{runner.transform.position.y:F2}), actualVx={runner.Velocity.x:F2}, planningVx={planningVelocity:F2}; transfer={next.underlineTransitTime:F2}, blend={(opponentDisguise != null ? opponentDisguise.BlendInSeconds : -1f):F2}, telegraph={next.ControllableProp.GetTelegraphDuration():F2}; request only";
+                            LastTunnelPlan = $"{(preparing ? "layer preparation; intercept NOT guaranteed" : PlannedTunnelOpponent ? "strict intercept forecast" : "legacy local heuristic")} tunnel input {from.AnchorId} -> {next.AnchorId}; runner=({runner.transform.position.x:F2},{runner.transform.position.y:F2}), actualVx={runner.Velocity.x:F2}, planningVx={planningVelocity:F2}; transfer={next.underlineTransitTime:F2}, blend={(opponentDisguise != null ? opponentDisguise.BlendInSeconds : -1f):F2}, telegraph={next.ControllableProp.GetTelegraphDuration():F2}; request only";
                             TunnelRequests++; tunnelInputCooldown = 1.2f;
-                            TricksterIntent = "[Tunnel intercept input -> " + next.AnchorId + "; arrival not yet verified]";
+                            TricksterIntent = (preparing ? "[Layer preparation input -> " : "[Tunnel intercept input -> ") + next.AnchorId + "; arrival and effect not yet verified]";
                         }
                     }
                 }
@@ -721,6 +740,25 @@ public sealed class ExplorationTrialObserver : IDisposable
                 float window = MechanismExplorationPlan.TunnelAmbushWindow(runnerPosition.x, runnerPosition.y, planningVelocity,
                     next.transform.position.x, next.transform.position.y, next.underlineTransitTime, blendSeconds, next.ControllableProp.GetTelegraphDuration());
                 if (window >= 0f && window < bestWindow) { best = next; bestWindow = window; }
+            }
+            return best;
+        }
+
+        public static PossessionAnchor FindTunnelLayerPreparation(PossessionAnchor from, Vector2 runnerPosition, Vector2 velocity,
+            bool grounded, float blendSeconds)
+        {
+            if (from == null || !from.isActiveAndEnabled || from.connectedUnderlineNodes == null ||
+                !MechanismExplorationPlan.IsFinite(blendSeconds) || blendSeconds < 0f) return null;
+            PossessionAnchor best = null;
+            float bestScore = float.MaxValue;
+            foreach (var next in from.connectedUnderlineNodes)
+            {
+                if (next == null || next == from || !next.isActiveAndEnabled || !next.CanBePossessed() ||
+                    !MechanismExplorationPlan.IsFinite(next.underlineTransitTime) || next.underlineTransitTime < 0f ||
+                    next.underlineTransitTime + blendSeconds > 6f) continue;
+                float score = MechanismExplorationPlan.TunnelLayerPreparationScore(runnerPosition.x, runnerPosition.y, velocity.x, grounded,
+                    from.transform.position.x, from.transform.position.y, next.transform.position.x, next.transform.position.y);
+                if (score >= 0f && score < bestScore) { best = next; bestScore = score; }
             }
             return best;
         }
@@ -829,7 +867,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             dropTimer -= dt;
             if (runner != null)
             {
-                navigation.Tick(runner.transform.position.x, runner.transform.position.y, hasLootObjective && LootObjective.IsLootCarried, dt, runner.IsGrounded);
+                navigation.Tick(runner.transform.position.x, runner.transform.position.y, hasLootObjective && LootObjective.IsLootCarried, dt, runner.IsGrounded, RecoverRouteFalls);
                 var waypoint = navigation.Target;
                 if (waypoint != null) { ExplorationTarget = new Vector2(waypoint.x, waypoint.y); AuthoredRouteTarget = true; }
             }

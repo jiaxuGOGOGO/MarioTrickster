@@ -4,6 +4,90 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [TestCase(9f, 2.625f, 4f, true, 24f, 5f, true)]
+    [TestCase(9f, 2.625f, 4f, true, 24f, 8f, false)]
+    [TestCase(9f, 2.625f, 4f, true, 24f, -1f, false)]
+    [TestCase(11f, 3.625f, 4f, true, 24f, 5f, true)]
+    [TestCase(11f, 3.625f, 4f, false, 24f, 5f, false)]
+    [TestCase(11f, 1f, 4f, true, 24f, 5f, false)]
+    [TestCase(11f, 3.625f, 0f, true, 24f, 5f, false)]
+    [TestCase(11f, 3.625f, -4f, true, 24f, 5f, false)]
+    [TestCase(11f, 3.625f, 4f, true, 24f, 1f, false)]
+    [TestCase(11f, 3.625f, 4f, true, 12f, 5f, false)]
+    [TestCase(11f, 3.625f, 4f, true, 32f, 5f, false)]
+    [TestCase(2f, 3.625f, 4f, true, 24f, 5f, false)]
+    [TestCase(11f, float.NaN, 4f, true, 24f, 5f, false)]
+    public void PreparationRequiresObservedGroundedLayerAndForwardLinkedCandidate(float x, float y, float vx,
+        bool grounded, float exitX, float exitY, bool expected)
+    {
+        Assert.AreEqual(expected, MechanismExplorationPlan.TunnelLayerPreparationScore(x, y, vx, grounded, 16, 1, exitX, exitY) >= 0);
+    }
+
+    [Test]
+    public void PreparationDoesNotRelaxTheStrictInterceptOrKnowTheFutureRoute()
+    {
+        Assert.GreaterOrEqual(MechanismExplorationPlan.TunnelLayerPreparationScore(11, 3.625f, 4, true, 16, 1, 24, 5), 0);
+        float speed = MechanismExplorationPlan.TunnelPlanningVelocity(4, 9, 8);
+        Assert.Less(MechanismExplorationPlan.TunnelAmbushWindow(11, 3.625f, speed, 24, 5, 0.8f, 1.5f, 0.8f), 0);
+        Assert.GreaterOrEqual(MechanismExplorationPlan.TunnelLayerPreparationScore(37, 2.625f, -4, true, 40, 5, 24, 1), 0);
+    }
+
+    [Test]
+    public void PreparationBudgetCountsFailedRequestsAndNeverLoops()
+    {
+        var budget = new MechanismExplorationPlan.TunnelPreparationBudget();
+        Assert.IsTrue(budget.TryReserve());
+        Assert.IsFalse(budget.TryReserve());
+        budget.Tick(float.NaN); budget.Tick(-10); budget.Tick(float.PositiveInfinity);
+        Assert.IsFalse(budget.Available);
+        budget.Tick(7.9f); Assert.IsFalse(budget.Available);
+        budget.Tick(0.2f); Assert.IsTrue(budget.TryReserve());
+        for (int i = 0; i < 100; i++) { budget.Tick(60); Assert.IsFalse(budget.TryReserve()); }
+        Assert.AreEqual(2, budget.Requests);
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void FallenStairRecoveryRewindsWithoutInventingProgress(bool returning)
+    {
+        var room = MechanismExplorationPlan.BuildDuel(168);
+        var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, true);
+        if (returning) nav.Tick(46, 1, true, 0, true, true);
+        int steps = returning ? 3 : 2;
+        for (int i = 0; i < steps; i++) { var p = nav.Target; nav.Tick(p.x, p.y, returning, 0.02f, true, true); }
+        float failedX = nav.Target.x;
+        int reached = nav.WaypointsReached;
+        nav.Tick(failedX - 0.08f, 1.01f, returning, 0.02f, false, true);
+        Assert.AreEqual(0, nav.StairRecoveryRequests, "An airborne jump is not a grounded fall");
+        nav.Tick(failedX - 0.08f, 1.01f, returning, 0.02f, true, true);
+        Assert.AreEqual(1, nav.StairRecoveryRequests);
+        Assert.LessOrEqual(nav.Target.y, 2.06f);
+        Assert.AreEqual(reached, nav.WaypointsReached); Assert.IsEmpty(nav.CompletedRoutes);
+        for (int i = 0; i < 30 && nav.Target != null; i++) { var p = nav.Target; nav.Tick(p.x, p.y, returning, 0.02f, true, true); }
+        CollectionAssert.Contains(nav.CompletedRoutes, returning ? "Return:upper" : "Out:upper");
+        Assert.AreEqual(0, nav.SwitchRequests);
+    }
+
+    [Test]
+    public void StairRecoveryIsOptInBoundedAndStillAllowsRealFallback()
+    {
+        var room = MechanismExplorationPlan.BuildDuel(168);
+        var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, true);
+        for (int i = 0; i < 2; i++) { var p = nav.Target; nav.Tick(p.x, p.y, false, 0.02f); }
+        nav.Tick(10.92f, 1.01f, false, 0.02f);
+        Assert.AreEqual(0, nav.StairRecoveryRequests); Assert.AreEqual(11, nav.Target.x);
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            nav.Tick(10.92f, 1.01f, false, 0.02f, true, true);
+            if (attempt < 2)
+                for (int i = 0; i < 2; i++) { var p = nav.Target; nav.Tick(p.x, p.y, false, 0.02f, true, true); }
+        }
+        Assert.AreEqual(2, nav.StairRecoveryRequests);
+        for (int i = 0; i < 50; i++) nav.Tick(10.92f, 1.01f, false, 0.1f, true, true);
+        Assert.AreEqual(1, nav.SwitchRequests); Assert.AreEqual("lower", nav.RouteId);
+        Assert.IsEmpty(nav.CompletedRoutes, "Falling back is not an upper completion");
+    }
+
     [TestCase(2f, 9f, 6f, 9f)]
     [TestCase(-2f, 9f, 6f, -9f)]
     [TestCase(12f, 9f, 10f, 12f)]

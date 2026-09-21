@@ -183,6 +183,79 @@ public class ExplorationIntegrationContractTests
     }
 
     [Test]
+    public void LayerPreparationUsesOnlyActualUsableExplicitLinks()
+    {
+        var origin = new GameObject("PreparationOrigin"); var exit = new GameObject("PreparationExit");
+        var invalid = new GameObject("NoProp");
+        try
+        {
+            origin.transform.position = new Vector3(36016, 1, 0); exit.transform.position = new Vector3(36024, 5, 0);
+            invalid.transform.position = new Vector3(36020, 5, 0);
+            origin.AddComponent<FakeWall>(); exit.AddComponent<FakeWall>();
+            var from = origin.AddComponent<PossessionAnchor>(); var to = exit.AddComponent<PossessionAnchor>();
+            var cache = typeof(PossessionAnchor).GetMethod("CacheControllableProp", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(cache); cache.Invoke(from, null); cache.Invoke(to, null);
+            to.underlineTransitTime = 0.8f;
+            var pos = new Vector2(36011, 3.625f); var velocity = new Vector2(4, 0);
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelLayerPreparation(from, pos, velocity, true, 1.5f));
+            from.connectedUnderlineNodes.Add(from); from.connectedUnderlineNodes.Add(null);
+            from.connectedUnderlineNodes.Add(invalid.AddComponent<PossessionAnchor>()); from.connectedUnderlineNodes.Add(to);
+            Assert.AreSame(to, ExplorationTrialObserver.GuidedBot.FindTunnelLayerPreparation(from, pos, velocity, true, 1.5f));
+            Assert.AreSame(to, ExplorationTrialObserver.GuidedBot.FindTunnelLayerPreparation(from, new Vector2(36009, 2.625f), velocity, true, 1.5f),
+                "A real landed ascent can prepare before reaching the exit layer; it is not a timely-intercept claim");
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindPreparedTunnelIntercept(from, pos, velocity, 1.5f, 9, 8));
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelLayerPreparation(from, pos, velocity, false, 1.5f));
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelLayerPreparation(from, pos, velocity, true, float.NaN));
+            to.enabled = false;
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelLayerPreparation(from, pos, velocity, true, 1.5f));
+            to.enabled = true; to.underlineTransitTime = 5;
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelLayerPreparation(from, pos, velocity, true, 1.5f));
+            to.underlineTransitTime = 0.8f; exit.SetActive(false);
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelLayerPreparation(from, pos, velocity, true, 1.5f));
+        }
+        finally { Object.DestroyImmediate(origin); Object.DestroyImmediate(exit); Object.DestroyImmediate(invalid); }
+    }
+
+    [Test]
+    public void ConfirmationFallbackIsVisibleAndCannotBeReplacedByFirstPassClears()
+    {
+        var report = DuelReportFixture(); var room = report.scenarios[0];
+        report.confirmationScenarioIds.Add(room.id);
+        foreach (var t in DuelReportFixture(room).trials) { t.attempt = 2; report.trials.Add(t); }
+        var failed = report.trials[11]; failed.completedRoutes.Clear();
+        failed.completedRoutes.Add("Out:lower"); failed.completedRoutes.Add("Return:lower");
+        failed.routeSwitchRequests = 1;
+        string summary = StudioExplorationRunner.DuelRouteSummary(report, room);
+        StringAssert.Contains("首轮 3/3", summary); StringAssert.Contains("确认 2/3", summary);
+        StringAssert.Contains("回退", summary);
+        StringAssert.Contains("确认局地表", StudioExplorationRunner.IterationBlockReason(report, room));
+        StringAssert.Contains("Out:lower", StudioExplorationRunner.DuelTrialRouteSummary(failed));
+        StringAssert.Contains("未记录（旧版）", StudioExplorationRunner.DuelTrialRouteSummary(failed));
+        Assert.AreEqual("Cleared", failed.outcome);
+    }
+
+    [Test]
+    public void RouteSummaryDoesNotCountDuplicateOrHumanRecordsAsAutomatedSurfaceCoverage()
+    {
+        var report = DuelReportFixture(); var room = report.scenarios[0];
+        report.trials.Add(report.trials[5]);
+        StringAssert.Contains("首轮 2/3", StudioExplorationRunner.DuelRouteSummary(report, room));
+        report.trials[3].controlMode = "HumanMario";
+        StringAssert.Contains("首轮 1/3", StudioExplorationRunner.DuelRouteSummary(report, room));
+    }
+
+    [Test]
+    public void PreparationAndRecoveryRequestsDoNotInventArrivalReadinessOrCompletion()
+    {
+        var t = new MechanismExplorationPlan.Trial { tunnelVisitEvidenceVersion = 1, tunnelDecisionEvidenceVersion = 1,
+            tunnelPreparationRequests = 2, tunnelRequests = 2, stairRecoveryEvidenceVersion = 1, stairRecoveryRequests = 1 };
+        StringAssert.Contains("准备换层2", StudioExplorationRunner.TunnelVisitSummary(t));
+        StringAssert.Contains("重新就绪0", StudioExplorationRunner.TunnelVisitSummary(t));
+        StringAssert.Contains("不是恢复成功", StudioExplorationRunner.DuelTrialRouteSummary(t));
+        Assert.AreEqual(0, t.tunnelArrivals); Assert.AreEqual(0, t.controlsAfterTunnel); Assert.IsEmpty(t.completedRoutes);
+    }
+
+    [Test]
     public void PreparedInterceptRejectsBrakingFrameOpportunityWithActualLinkedProps()
     {
         var origin = new GameObject("SpeedEnvelopeOrigin"); var exit = new GameObject("SpeedEnvelopeExit");

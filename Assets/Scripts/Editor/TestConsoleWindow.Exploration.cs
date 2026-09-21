@@ -116,8 +116,9 @@ public partial class TestConsoleWindow
         EditorGUILayout.EndVertical();
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
         EditorGUILayout.LabelField("2  让双方交手", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("以下路线选择只影响单局演示/真人；完整6组自动包含地表和下层。", EditorStyles.wordWrappedMiniLabel);
         duelRoute = GUILayout.Toolbar(duelRoute, new[] { "下层：读线索 / 扫描", "地表：爬高绕行" });
-        EditorGUILayout.LabelField("默认对手会主动换位，不是静止基线。双方仍受真实门禁、能量和机关预警约束。", EditorStyles.wordWrappedMiniLabel);
+        EditorGUILayout.LabelField("默认是主动地道对手，会按观察尝试拦截或准备换层；不保证换位成功。仍受真实门禁、能量和预警约束。", EditorStyles.wordWrappedMiniLabel);
         explorationRegressions = EditorGUILayout.ToggleLeft("运行前先检查全部回归（新版本建议保留）", explorationRegressions);
         using (new EditorGUI.DisabledScope(unavailable || duelDraft == null))
         {
@@ -146,8 +147,11 @@ public partial class TestConsoleWindow
                 EditorGUILayout.HelpBox("这份报告不是上方当前草稿的结果。可加载报告原图；不会把旧结果算给新种子。", MessageType.Info);
             EditorGUILayout.HelpBox(StudioExplorationRunner.DuelFeedbackCompleteness(report), MessageType.Info);
             EditorGUILayout.HelpBox(StudioExplorationRunner.DuelReview(report, room), MessageType.Info);
-            foreach (var t in report.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1))
-                EditorGUILayout.LabelField($"{(t.marioStrategy == "SafeRoute" ? "地表" : "下层")} / {StudioExplorationRunner.DuelOpponentLabel(t.tricksterStrategy)}：{DuelStatusLabel(t.outcome)}，{t.seconds:F1}秒；地道到达{t.tunnelArrivals}，3秒内出手{t.controlsAfterTunnel}", EditorStyles.wordWrappedMiniLabel);
+            foreach (var t in report.trials.Where(t => t.scenarioId == room.id))
+            {
+                EditorGUILayout.LabelField($"{(t.attempt <= 1 ? "首轮" : "确认")} / 计划{(t.marioStrategy == "SafeRoute" ? "地表" : "下层")} / {StudioExplorationRunner.DuelOpponentLabel(t.tricksterStrategy)}：{DuelStatusLabel(t.outcome)}，{t.seconds:F1}秒；地道到达{t.tunnelArrivals}，3秒内出手{t.controlsAfterTunnel}", EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.LabelField(StudioExplorationRunner.DuelTrialRouteSummary(t), EditorStyles.wordWrappedMiniLabel);
+            }
             if (!string.IsNullOrEmpty(report.iterationComparison)) EditorGUILayout.HelpBox(report.iterationComparison, MessageType.Info);
             EditorGUILayout.LabelField("先看报告中的真实路线，再决定是否改图。以下演示直接用报告原图，不会误用上方草稿；按当前代码重跑，不是录像。", EditorStyles.wordWrappedLabel);
             using (new EditorGUI.DisabledScope(unavailable))

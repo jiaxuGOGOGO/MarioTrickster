@@ -281,11 +281,43 @@ public static class StudioExplorationRunner
             " 父报告与原始基线可能是同一批，不重复计样本。";
     }
 
+    public static string DuelRouteSummary(Report data, MechanismExplorationPlan.Scenario room)
+    {
+        if (data == null || room == null) return "尚无实际路线记录。";
+        var sb = new StringBuilder("实际地表完成（不是策略名称）：");
+        for (int attempt = 1; attempt <= 2; attempt++)
+        {
+            var runs = data.trials.Where(t => t.scenarioId == room.id && t.marioStrategy == "SafeRoute" &&
+                (attempt == 1 ? t.attempt <= 1 : t.attempt == 2)).ToArray();
+            int expected = attempt == 1 ? MechanismExplorationPlan.Matchups(room).Count(m => m.mario == "SafeRoute") :
+                (data.confirmationScenarioIds.Contains(room.id) ? MechanismExplorationPlan.Matchups(room).Count(m => m.mario == "SafeRoute") : 0);
+            int complete = new[] { "Passive", "GroundChaser", "TunnelChaser" }.Count(opponent => {
+                var t = UniqueTrial(runs, "SafeRoute", opponent);
+                return t != null && t.IsAutomated && t.HasGameplayEvidence && t.errors.Count == 0 &&
+                    t.completedRoutes != null && t.completedRoutes.Contains("Out:upper") && t.completedRoutes.Contains("Return:upper");
+            });
+            sb.Append($" {(attempt == 1 ? "首轮" : "确认")} {complete}/{expected}；");
+            if (runs.Any(t => t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper") || !t.completedRoutes.Contains("Return:upper")))
+                sb.Append("存在未完成地表/回退，不能用通关或另一轮覆盖。 ");
+        }
+        return sb.ToString();
+    }
+
+    public static string DuelTrialRouteSummary(MechanismExplorationPlan.Trial t)
+    {
+        string actual = t.completedRoutes != null && t.completedRoutes.Count > 0 ? string.Join(", ", t.completedRoutes) : "未记录完整路线";
+        return $"实际完成：{actual}；换路请求{t.routeSwitchRequests}；" +
+            (t.stairRecoveryEvidenceVersion >= 1 ? $"落阶重走请求{t.stairRecoveryRequests}（不是恢复成功）" : "落阶重走未记录（旧版）");
+    }
+
     public static string TunnelVisitSummary(MechanismExplorationPlan.Trial t)
     {
         if (t.tunnelVisitEvidenceVersion < 1) return "持续驻留/重新就绪未记录（旧版）；3秒外出手不能自动补算或判无效。";
         var visits = t.tunnelVisits ?? new List<MechanismExplorationPlan.TunnelVisit>();
-        return $"出口驻留：记录{visits.Count}，重新就绪{visits.Count(v => v.readyAt >= 0)}，就绪时玩家已越过{visits.Count(v => v.runnerPassedWhenReady)}；连续同点出手{visits.Count(v => v.firstControlAt >= 0)}，其中返程出手{visits.Count(v => v.returnControlAt >= 0)}。" +
+        string decisions = t.tunnelDecisionEvidenceVersion >= 1
+            ? $"暗线输入请求{t.tunnelRequests}，其中准备换层{t.tunnelPreparationRequests}（不保证拦截）；"
+            : "换位意图分类未记录（旧版）；";
+        return decisions + $"出口驻留：记录{visits.Count}，重新就绪{visits.Count(v => v.readyAt >= 0)}，就绪时玩家已越过{visits.Count(v => v.runnerPassedWhenReady)}；连续同点出手{visits.Count(v => v.firstControlAt >= 0)}，其中返程出手{visits.Count(v => v.returnControlAt >= 0)}。" +
             (t.tunnelVisitOverflow > 0 ? $"超出上限未详记{t.tunnelVisitOverflow}次。" : "") + "受理/驻留只证明时序与同点关系，不证明因果或好玩。";
     }
 
@@ -304,7 +336,7 @@ public static class StudioExplorationRunner
             duels.Any(t => !t.HasGameplayEvidence || t.errors.Count > 0 || t.tunnelEvidenceVersion < 1))
             return "地道对战证据尚不完整。先处理未执行或运行问题，再调整设计。";
         string facts = $"地道到达 {duels.Sum(t => t.tunnelArrivals)} 次；到达后3秒同出口出手受理 {duels.Sum(t => t.controlsAfterTunnel)} 次；实际换路 {duels.Sum(t => t.routeTransitions)} 次。";
-        return facts + (duels.All(t => t.controlsAfterTunnel == 0)
+        return DuelRouteSummary(data, room) + "\n" + facts + (duels.All(t => t.controlsAfterTunnel == 0)
             ? " 当前仍缺少转移后的出手证据（3秒窗口）；不能据此否定更晚的返程出手，也不要把到达数当伏击成功。"
             : " 已有转移后出手的时序证据；是否读得懂、是否只是在等，仍由试玩判断。") +
             "\n" + string.Join("\n", duels.Select(t => (t.marioStrategy == "SafeRoute" ? "地表：" : "下层：") + TunnelVisitSummary(t)));
@@ -336,6 +368,9 @@ public static class StudioExplorationRunner
                 return "先解决通路/拿宝返程问题，再试连接变体；不把导航失败当作提高难度的理由。";
         }
         if (first.Length != 6) return "首轮存在额外或重复记录，不能作一致对照。";
+        if (data.trials.Any(t => t.scenarioId == room.id && t.attempt == 2 && t.marioStrategy == "SafeRoute" &&
+            (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper") || !t.completedRoutes.Contains("Return:upper"))))
+            return "确认局地表路线未完成或回退；先复验导航，不用首轮成功覆盖不稳定。";
         return "";
     }
 
@@ -504,7 +539,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S169", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S170", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
             planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,
@@ -875,6 +910,7 @@ public static class StudioExplorationRunner
             sb.AppendLine($"pair exercised={trial.PairExercised}; human-play candidate={trial.CandidateForHumanPlay}");
             sb.AppendLine($"completed authored routes={string.Join(",", trial.completedRoutes ?? new List<string>())}; armed nearby seconds={trial.armedNearbySeconds:F2}; control accepted={trial.controlAccepted}; anchor switch requests={trial.anchorSwitchRequests}");
             foreach (var gap in ExperienceIssues(data, trial)) sb.AppendLine("体验缺口: " + gap);
+            if (trial.tunnelVersion >= 1) sb.AppendLine(DuelTrialRouteSummary(trial));
             sb.AppendLine(ProbeSummary(trial));
             sb.AppendLine(HealthSummary(trial));
             sb.AppendLine(StartTimingSummary(trial));

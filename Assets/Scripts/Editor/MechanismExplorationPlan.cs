@@ -149,18 +149,32 @@ public static class MechanismExplorationPlan
         public readonly List<string> CompletedRoutes = new List<string>();
         private float stalled, best = float.MaxValue;
         public int SwitchRequests { get; private set; }
+        public int StairRecoveryRequests { get; private set; }
         public int WaypointsReached => reached.Count;
         public string RouteId => routes.Length == 0 ? "direct" : routes[routeIndex].id;
         public Point Target => routes.Length == 0 || cursor >= routes[routeIndex].points.Length ? null :
             routes[routeIndex].points[returning ? routes[routeIndex].points.Length - 1 - cursor : cursor];
         public RouteNavigator(Route[] routes, bool safe)
         { this.routes = routes ?? Array.Empty<Route>(); routeIndex = safe && this.routes.Length > 1 ? 1 : 0; }
-        public void Tick(float x, float y, bool isReturning, float dt, bool grounded = true)
+        public void Tick(float x, float y, bool isReturning, float dt, bool grounded = true, bool recoverFalls = false)
         {
             if (returning != isReturning)
             { returning = isReturning; partialRoute = false; cursor = 0; stalled = 0; best = float.MaxValue; }
             var target = Target;
             if (target == null) return;
+            // Only new duel navigation opts in. Rewind to a lower authored landing after a real fall;
+            // never skip the failed high target, teleport, or mark the recovery request as progress.
+            if (recoverFalls && grounded && RouteId == "upper" && target.y - y > 1.25f && StairRecoveryRequests < 2)
+            {
+                var points = routes[routeIndex].points;
+                for (int earlier = cursor - 1; earlier >= 0; earlier--)
+                {
+                    var step = points[returning ? points.Length - 1 - earlier : earlier];
+                    if (step.y > y + 1.05f) continue;
+                    cursor = earlier; StairRecoveryRequests++; best = float.MaxValue; stalled = 0;
+                    return;
+                }
+            }
             float dx = target.x - x, dy = target.y - y;
             float distance = (float)Math.Sqrt(dx * dx + dy * dy);
             if (grounded && Math.Abs(dx) < 0.45f && Math.Abs(dy) < 0.25f)
@@ -542,6 +556,37 @@ public static class MechanismExplorationPlan
             room.tunnelLinks.Zip(canonical.tunnelLinks, (a, b) => a != null && samePoint(a.from, b.from) && samePoint(a.to, b.to) && a.seconds == b.seconds).All(same => same);
     }
 
+    // Preparation is a different decision from a timely intercept. Observe a grounded runner on
+    // another layer, not their strategy name, future waypoints or loot phase. A request may be wasted.
+    public static float TunnelLayerPreparationScore(float runnerX, float runnerY, float velocityX, bool grounded,
+        float fromX, float fromY, float exitX, float exitY)
+    {
+        if (!grounded || !IsFinite(runnerX) || !IsFinite(runnerY) || !IsFinite(velocityX) ||
+            !IsFinite(fromX) || !IsFinite(fromY) || !IsFinite(exitX) || !IsFinite(exitY) || Math.Abs(velocityX) < 0.5f)
+            return -1f;
+        double dx = (double)runnerX - fromX, dy = (double)runnerY - fromY;
+        // A landed ascent/descent is enough to prepare along that layer change; waiting until the
+        // runner reaches the exit's layer would again confuse preparation with last-second interception.
+        if (dx * dx + dy * dy > 144 || Math.Abs(runnerY - fromY) <= 1.5f || Math.Abs(exitY - fromY) <= 1.5f ||
+            ((double)runnerY - fromY) * ((double)exitY - fromY) <= 0 || Math.Abs(runnerY - exitY) > 3f) return -1f;
+        float ahead = (exitX - runnerX) * Math.Sign(velocityX);
+        return ahead >= 2f && ahead <= 20f ? ahead : -1f;
+    }
+
+    public sealed class TunnelPreparationBudget
+    {
+        public int Requests { get; private set; }
+        private float cooldown;
+        public bool Available => Requests < 2 && cooldown <= 0f;
+        public void Tick(float dt)
+        { if (IsFinite(dt) && dt > 0f) cooldown = Math.Max(0f, cooldown - dt); }
+        public bool TryReserve()
+        {
+            if (!Available) return false;
+            Requests++; cooldown = 8f; return true;
+        }
+    }
+
     // Conservative same-lane ETA: travel + re-blending + telegraph + reaction must finish before passage.
     // This is a known-position heuristic, not hidden-intent inference or proof of a successful attack.
     public static float TunnelAmbushWindow(float runnerX, float runnerY, float velocityX, float exitX, float exitY,
@@ -843,6 +888,8 @@ public static class MechanismExplorationPlan
         public string objectivePhase;
         public List<string> routesUsed = new List<string>();
         public int routeSwitchRequests, routeTransitions, waypointsReached, recoveryAttempts;
+        public int stairRecoveryEvidenceVersion, stairRecoveryRequests;
+        public int tunnelDecisionEvidenceVersion, tunnelPreparationRequests;
         public int telegraphRetreats, recoveryCrossings, possessionTransfers;
         public int bounceLandingAttempts, runnerBounceLaunches;
         public int experienceEvidenceVersion;

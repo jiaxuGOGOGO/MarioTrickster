@@ -555,6 +555,42 @@ public static class MechanismExplorationPlan
         return spare >= 0f && spare <= 4f ? spare : -1f;
     }
 
+    // A brief brake at an authored waypoint must not create a fictitious long interception window.
+    // Use the public movement limit/observed peak as a conservative speed envelope, never hidden route intent.
+    public static float TunnelPlanningVelocity(float velocityX, float movementLimit, float observedPeak)
+    {
+        if (!IsFinite(velocityX) || !IsFinite(movementLimit) || !IsFinite(observedPeak) ||
+            movementLimit <= 0f || observedPeak < 0f || Math.Abs(velocityX) < 0.5f) return 0f;
+        return Math.Sign(velocityX) * Math.Max(Math.Abs(velocityX), Math.Max(movementLimit, observedPeak));
+    }
+
+    [Serializable]
+    public sealed class TunnelVisit
+    {
+        public string origin, destination;
+        public float x, y, arrivalAt, direction;
+        public float readyAt = -1f, firstControlAt = -1f, returnControlAt = -1f, endedAt = -1f;
+        public bool runnerPassedWhenReady;
+        public bool ObserveReady(float now, float runnerX, float runnerY, bool armed, bool blended)
+        {
+            // Arrival callbacks may still see the old blended flag until the next engine Update.
+            if (endedAt >= 0f || readyAt >= 0f || !armed || !blended || !IsFinite(now) ||
+                !IsFinite(runnerX) || !IsFinite(runnerY) || now < arrivalAt + 0.05f) return false;
+            readyAt = now;
+            runnerPassedWhenReady = Math.Abs(runnerY - y) <= 1.5f && Math.Abs(direction) > 0.5f &&
+                (runnerX - x) * direction > 0.8f;
+            return true;
+        }
+        public bool RecordControl(float now, bool returning)
+        {
+            if (endedAt >= 0f || !IsFinite(now) || now < arrivalAt) return false;
+            bool changed = false;
+            if (firstControlAt < 0f) { firstControlAt = now; changed = true; }
+            if (returning && returnControlAt < 0f) { returnControlAt = now; changed = true; }
+            return changed;
+        }
+    }
+
     public static string[] TunnelPlanIssues(Scenario room)
     {
         if (room.tunnelVersion < 1) return Array.Empty<string>();
@@ -796,7 +832,10 @@ public static class MechanismExplorationPlan
         public string scenarioId;
         public string controlMode; // null on old reports = automated. Human records never certify AI coverage.
         public int tunnelVersion, tunnelEvidenceVersion, tunnelRequests, tunnelStarts, tunnelArrivals, postLootTunnelArrivals;
-        public int controlsAfterTunnel;
+        public int controlsAfterTunnel; // Original <=3s metric retained unchanged.
+        public int tunnelVisitEvidenceVersion, tunnelVisitOverflow;
+        public string tunnelPlanningPolicy;
+        public List<TunnelVisit> tunnelVisits = new List<TunnelVisit>();
         public List<string> feedback = new List<string>();
         public List<string> decisions = new List<string>();
         public string profile;

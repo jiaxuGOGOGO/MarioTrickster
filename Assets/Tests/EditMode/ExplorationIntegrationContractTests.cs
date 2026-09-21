@@ -25,6 +25,88 @@ public class ExplorationIntegrationContractTests
     }
 
     [Test]
+    public void CompleteFeedbackDoesNotRequireHumanNotesOrDuplicateBaselineRuns()
+    {
+        var report = DuelReportFixture(); report.regressionPassed = 429;
+        string summary = StudioExplorationRunner.DuelFeedbackCompleteness(report);
+        StringAssert.Contains("已完整", summary);
+        StringAssert.Contains("首轮 6/6", summary);
+        StringAssert.Contains("尚无真人感受", summary);
+        StringAssert.Contains("不重复计样本", summary);
+        report.confirmationScenarioIds.Add(report.scenarios[0].id);
+        StringAssert.Contains("尚未完整", StudioExplorationRunner.DuelFeedbackCompleteness(report));
+    }
+
+    [TestCase("missing")]
+    [TestCase("duplicate")]
+    [TestCase("error")]
+    [TestCase("human")]
+    [TestCase("regression")]
+    [TestCase("extraAttempt")]
+    public void FeedbackCompletenessDoesNotHideMissingOrContaminatedRecords(string fault)
+    {
+        var report = DuelReportFixture();
+        if (fault == "missing") report.trials.RemoveAt(0);
+        if (fault == "duplicate") report.trials.Add(report.trials[0]);
+        if (fault == "error") report.trials[0].errors.Add("error");
+        if (fault == "human") report.trials[0].controlMode = "HumanMario";
+        if (fault == "regression") report.regressionFailed = 1;
+        if (fault == "extraAttempt") report.trials[0].attempt = 3;
+        StringAssert.Contains("尚未完整", StudioExplorationRunner.DuelFeedbackCompleteness(report));
+    }
+
+    [Test]
+    public void LosingSurfaceInteractionIsNotMaskedByMoreTunnelArrivals()
+    {
+        var parent = DuelReportFixture(); parent.trials[5].controlsAfterTunnel = 1;
+        var child = DuelReportFixture(StudioExplorationRunner.ProposeDuelIteration(parent, parent.scenarios[0]));
+        child.trials[5].tunnelArrivals = 2;
+        string summary = StudioExplorationRunner.DuelIterationComparison(parent, child);
+        StringAssert.Contains("子版失去了", summary);
+        StringAssert.Contains("去程", summary); StringAssert.Contains("返程", summary);
+        StringAssert.Contains("保留父版", summary);
+        var next = StudioExplorationRunner.ProposeDuelIteration(child, child.scenarios[0]);
+        StringAssert.Contains("地表出口", next.mutationReason);
+        Assert.AreEqual(2, next.duelVariant);
+    }
+
+    [Test]
+    public void OldVisitsStayUnknownAndNewLateControlsDoNotRewriteThreeSecondMetric()
+    {
+        var t = new MechanismExplorationPlan.Trial { tunnelArrivals = 1, controlsAfterTunnel = 0 };
+        StringAssert.Contains("未记录", StudioExplorationRunner.TunnelVisitSummary(t));
+        t.tunnelVisitEvidenceVersion = 1;
+        t.tunnelVisits.Add(new MechanismExplorationPlan.TunnelVisit { arrivalAt = 2.67f, readyAt = 4.22f,
+            runnerPassedWhenReady = true, firstControlAt = 8.07f, returnControlAt = 8.07f });
+        string summary = StudioExplorationRunner.TunnelVisitSummary(t);
+        StringAssert.Contains("玩家已越过1", summary);
+        StringAssert.Contains("返程出手1", summary);
+        Assert.AreEqual(0, t.controlsAfterTunnel, "Do not expand the historical 3-second metric to manufacture success");
+    }
+
+    [Test]
+    public void DuelReviewCannotUseDuplicatedLowerTrialsAsBothRouteEvidence()
+    {
+        var report = DuelReportFixture();
+        report.trials[5].marioStrategy = "Adaptive";
+        StringAssert.Contains("尚不完整", StudioExplorationRunner.DuelReview(report, report.scenarios[0]));
+    }
+
+    [Test]
+    public void CompleteDuelsWithoutFollowupDoNotReceiveUnqualifiedCandidateVerdict()
+    {
+        var report = DuelReportFixture();
+        foreach (var t in report.trials)
+        {
+            t.tunnelVersion = 1; t.experienceEvidenceVersion = 1; t.experience = "TunnelDuel"; t.expectsReturn = true;
+            t.armedNearbySeconds = t.tricksterStrategy == "Passive" ? 0 : 1;
+            t.tunnelArrivals = t.tricksterStrategy == "TunnelChaser" ? 1 : 0;
+            t.coverage.Add(new MechanismExplorationPlan.Evidence { mechanism = "F", built = 1 });
+        }
+        StringAssert.Contains("缺少3秒内转移后出手", StudioExplorationRunner.EvidenceVerdict(report));
+    }
+
+    [Test]
     public void DuelIterationRequiresActualFirstPassAndPreservesParent()
     {
         var report = DuelReportFixture(); var parent = report.scenarios[0];
@@ -98,6 +180,26 @@ public class ExplorationIntegrationContractTests
         StringAssert.Contains("无干扰基线", StudioExplorationRunner.DuelReview(report, report.scenarios[0]));
         Assert.IsNotEmpty(StudioExplorationRunner.IterationBlockReason(report, report.scenarios[0]));
         StringAssert.Contains("对手不行动", StudioExplorationRunner.DuelOpponentLabel("Passive"));
+    }
+
+    [Test]
+    public void PreparedInterceptRejectsBrakingFrameOpportunityWithActualLinkedProps()
+    {
+        var origin = new GameObject("SpeedEnvelopeOrigin"); var exit = new GameObject("SpeedEnvelopeExit");
+        try
+        {
+            origin.transform.position = new Vector3(36012, 1, 0); exit.transform.position = new Vector3(36018, 1, 0);
+            origin.AddComponent<FakeWall>(); exit.AddComponent<FakeWall>();
+            var from = origin.AddComponent<PossessionAnchor>(); var to = exit.AddComponent<PossessionAnchor>();
+            var cache = typeof(PossessionAnchor).GetMethod("CacheControllableProp", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(cache); cache.Invoke(from, null); cache.Invoke(to, null);
+            to.underlineTransitTime = 0.8f; from.connectedUnderlineNodes.Add(to);
+            var position = new Vector2(36000, 1); var braking = new Vector2(3, 0);
+            Assert.AreSame(to, ExplorationTrialObserver.GuidedBot.FindPreparedTunnelIntercept(from, position, braking, 1.5f));
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindPreparedTunnelIntercept(from, position, braking, 1.5f, 9f, 8f));
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindPreparedTunnelIntercept(from, position, braking, 1.5f, float.NaN, 8f));
+        }
+        finally { Object.DestroyImmediate(origin); Object.DestroyImmediate(exit); }
     }
 
     [Test]

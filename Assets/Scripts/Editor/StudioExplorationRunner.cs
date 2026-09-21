@@ -119,6 +119,9 @@ public static class StudioExplorationRunner
             return "体验证据有缺口：通关不代表上路/交手机会/换点成立";
         if (UnverifiedSlots(data) > 0) return "调度证据不完整：存在缺失、未试玩或重复槽位，不能整批验收";
         if (data.trials.Any(t => t.NeedsConfirmation)) return "有受阻或覆盖缺口，查看首轮与复测对照";
+        var tunnelDuels = data.trials.Where(t => t.attempt <= 1 && t.IsAutomated && t.tunnelVersion >= 1 && t.tricksterStrategy == "TunnelChaser").ToArray();
+        if (tunnelDuels.Length > 0 && tunnelDuels.All(t => t.controlsAfterTunnel == 0))
+            return "对战数据已完成，但缺少3秒内转移后出手；长驻留返程另看证据，不表示关卡更好玩";
         return "已有真人试玩候选，不代表正确性或乐趣已验收";
     }
     public static int UnverifiedSlots(Report data)
@@ -230,6 +233,7 @@ public static class StudioExplorationRunner
                     t.lootEvents > 0 && t.escapeEvents > 0 && ValidReturnTimes(t)
                     ? (t.escapeAtSeconds - t.lootAtSeconds).ToString("F2") + "s" : "未验证";
                 sb.AppendLine($"  {t.profile}: {t.outcome} / 损血{t.runnerHealthLost} / 返程{returnTime} / 暗线请求{t.tunnelRequests}、开始{t.tunnelStarts}、到达{t.tunnelArrivals}、拿宝后到达{t.postLootTunnelArrivals} / 到达后3秒同点受理{t.controlsAfterTunnel}");
+                if (t.tricksterStrategy == "TunnelChaser") sb.AppendLine("  " + TunnelVisitSummary(t));
             }
             if (!string.IsNullOrEmpty(data.controlMode) && data.controlMode != "Automated")
             { sb.AppendLine("  本次为独立演示/真人试玩，不作自动策略诊断；请结合玩家反馈。"); continue; }
@@ -257,6 +261,34 @@ public static class StudioExplorationRunner
         }
     }
 
+    public static string DuelFeedbackCompleteness(Report data)
+    {
+        if (data == null) return "尚无反馈报告。";
+        if (!string.IsNullOrEmpty(data.controlMode) && data.controlMode != "Automated")
+            return "单局演示/真人记录：不是误操作，但不能代替完整自动对照。";
+        int plannedFirst = MechanismExplorationPlan.TrialCount(data.scenarios);
+        int first = data.trials.Count(t => t.attempt <= 1);
+        int confirmation = data.trials.Count(t => t.attempt == 2);
+        int plannedConfirmation = PlannedTrials(data) - plannedFirst;
+        bool complete = plannedFirst > 0 && data.status == "Complete" && string.IsNullOrEmpty(data.blockedReason) &&
+            data.regressionFailed == 0 && UnverifiedSlots(data) == 0 && first == plannedFirst && confirmation == plannedConfirmation &&
+            data.trials.Count == first + confirmation && data.trials.All(t => t.IsAutomated && t.errors.Count == 0);
+        bool humanNotes = (data.playerNotes != null && data.playerNotes.Count > 0) || data.trials.Any(t => t.feedback != null && t.feedback.Count > 0);
+        return $"反馈完整性：首轮 {first}/{plannedFirst}，确认 {confirmation}/{plannedConfirmation}。" +
+            (complete ? " 已完整，足够分析本批运行与策略，不必重复补跑。" : " 尚未完整或存在故障/重复记录，请保留失败并查看缺口，不补算通过。") +
+            (data.regressionPassed > 0 && data.regressionFailed == 0 ? $" 回归 {data.regressionPassed} 通过。" : " 本批没有完整通过的回归证据。") +
+            (humanNotes ? " 已有用户备注；备注不等于乐趣验收。" : " 尚无真人感受记录；不影响运行诊断，但不能判断更好玩。") +
+            " 父报告与原始基线可能是同一批，不重复计样本。";
+    }
+
+    public static string TunnelVisitSummary(MechanismExplorationPlan.Trial t)
+    {
+        if (t.tunnelVisitEvidenceVersion < 1) return "持续驻留/重新就绪未记录（旧版）；3秒外出手不能自动补算或判无效。";
+        var visits = t.tunnelVisits ?? new List<MechanismExplorationPlan.TunnelVisit>();
+        return $"出口驻留：记录{visits.Count}，重新就绪{visits.Count(v => v.readyAt >= 0)}，就绪时玩家已越过{visits.Count(v => v.runnerPassedWhenReady)}；连续同点出手{visits.Count(v => v.firstControlAt >= 0)}，其中返程出手{visits.Count(v => v.returnControlAt >= 0)}。" +
+            (t.tunnelVisitOverflow > 0 ? $"超出上限未详记{t.tunnelVisitOverflow}次。" : "") + "受理/驻留只证明时序与同点关系，不证明因果或好玩。";
+    }
+
     public static string DuelReview(Report data, MechanismExplorationPlan.Scenario room)
     {
         if (data == null || room == null) return "先生成一张关卡，再让双方对战。";
@@ -267,12 +299,15 @@ public static class StudioExplorationRunner
                 ? "你看的是无干扰基线：对手不行动，只演示拿宝折返。请选地道对手，不把空跑当玩法展示。"
                 : "这是单局演示或真人试玩，不能代替完整对照。你的体验标记会保留，不推断是否好玩。";
         var duels = first.Where(t => t.IsAutomated && t.tricksterStrategy == "TunnelChaser").ToArray();
-        if (duels.Length != 2 || duels.Any(t => !t.HasGameplayEvidence || t.errors.Count > 0 || t.tunnelEvidenceVersion < 1))
+        if (duels.Length != 2 || duels.Select(t => t.marioStrategy).Distinct().Count() != 2 ||
+            !duels.Any(t => t.marioStrategy == "Adaptive") || !duels.Any(t => t.marioStrategy == "SafeRoute") ||
+            duels.Any(t => !t.HasGameplayEvidence || t.errors.Count > 0 || t.tunnelEvidenceVersion < 1))
             return "地道对战证据尚不完整。先处理未执行或运行问题，再调整设计。";
         string facts = $"地道到达 {duels.Sum(t => t.tunnelArrivals)} 次；到达后3秒同出口出手受理 {duels.Sum(t => t.controlsAfterTunnel)} 次；实际换路 {duels.Sum(t => t.routeTransitions)} 次。";
         return facts + (duels.All(t => t.controlsAfterTunnel == 0)
-            ? " 当前仍缺少转移后的出手证据；不要用通关或转移次数宣称伏击成功。"
-            : " 已有转移后出手的时序证据；是否读得懂、是否只是在等，仍由试玩判断。");
+            ? " 当前仍缺少转移后的出手证据（3秒窗口）；不能据此否定更晚的返程出手，也不要把到达数当伏击成功。"
+            : " 已有转移后出手的时序证据；是否读得懂、是否只是在等，仍由试玩判断。") +
+            "\n" + string.Join("\n", duels.Select(t => (t.marioStrategy == "SafeRoute" ? "地表：" : "下层：") + TunnelVisitSummary(t)));
     }
 
     public static string IterationBlockReason(Report data, MechanismExplorationPlan.Scenario room)
@@ -312,6 +347,8 @@ public static class StudioExplorationRunner
         string reason = tunnel.All(t => t.controlsAfterTunnel == 0)
             ? "完整对照后仍无转移后出手：只改变暗线连接，比较是否减少无效换位。"
             : "已有转移后出手记录：只改变暗线连接，检查路线与返程差异；不声称更好玩。";
+        if (room.duelVariant == 1)
+            reason += " 本次只把地表出口的连接入口从中继改回左侧，保留下层串联；检验减少一次中转后能否赶上上路玩家。不是保证改善。";
         return MechanismExplorationPlan.NextDuelVariant(room, reason);
     }
 
@@ -332,6 +369,7 @@ public static class StudioExplorationRunner
             room.iteration != previous.iteration + 1 || room.duelVariant != (previous.duelVariant + 1) % 3 || MechanismExplorationPlan.Matchups(room).Length != 6)
             return "父子对照条件不一致或证据未完成；保留两份结果，不报告改善。";
         var sb = new StringBuilder("父版 → 本版（仅首轮；差异不等于更好玩）\n");
+        bool lostInteraction = false;
         foreach (string mario in new[] { "Adaptive", "SafeRoute" })
         foreach (string opponent in new[] { "Passive", "GroundChaser", "TunnelChaser" })
         {
@@ -343,8 +381,16 @@ public static class StudioExplorationRunner
                 Math.Abs(b.startDelaySeconds - room.startDelaySeconds) > 0.001f || Math.Abs(b.actualStartWaitSeconds - room.startDelaySeconds) >= 0.05f ||
                 (opponent != "TunnelChaser" && b.tunnelStarts != 0))
             { sb.AppendLine("缺少唯一真实首轮记录；不比较。"); continue; }
-            sb.AppendLine($"{(mario == "SafeRoute" ? "地表路线" : "下层路线")} / {DuelOpponentLabel(opponent)}：{a.outcome} → {b.outcome}；转移后出手 {a.controlsAfterTunnel} → {b.controlsAfterTunnel}；换路 {a.routeTransitions} → {b.routeTransitions}；损血 {a.runnerHealthLost} → {b.runnerHealthLost}");
+            sb.AppendLine($"{(mario == "SafeRoute" ? "地表路线" : "下层路线")} / {DuelOpponentLabel(opponent)}：{a.outcome} → {b.outcome}；转移后3秒出手 {a.controlsAfterTunnel} → {b.controlsAfterTunnel}；换路 {a.routeTransitions} → {b.routeTransitions}；损血 {a.runnerHealthLost} → {b.runnerHealthLost}");
+            if (a.outcome == "Cleared" && b.outcome == "Cleared" && ValidReturnTimes(a) && ValidReturnTimes(b) &&
+                a.lootEvents > 0 && b.lootEvents > 0 && a.escapeEvents > 0 && b.escapeEvents > 0)
+                sb.AppendLine($"  去程 {a.lootAtSeconds:F2}s → {b.lootAtSeconds:F2}s；返程 {a.escapeAtSeconds - a.lootAtSeconds:F2}s → {b.escapeAtSeconds - b.lootAtSeconds:F2}s；返程操控 {a.postLootControls} → {b.postLootControls}。耗时变化不是乐趣分。");
+            if (opponent == "TunnelChaser" && a.controlsAfterTunnel > 0 && b.controlsAfterTunnel == 0) lostInteraction = true;
+            if (a.tunnelVisitEvidenceVersion >= 1 && b.tunnelVisitEvidenceVersion >= 1 &&
+                a.tunnelVisitOverflow == 0 && b.tunnelVisitOverflow == 0)
+                sb.AppendLine($"  连续驻留返程出手 {a.tunnelVisits.Count(v => v.returnControlAt >= 0)} → {b.tunnelVisits.Count(v => v.returnControlAt >= 0)}；不同于3秒窗口。");
         }
+        if (lostInteraction) sb.AppendLine("设计警示：子版失去了父版已有的3秒内转移后出手；不要因通关或到达更多就称为升级。保留父版并优先对看该路线；不据此判定总体乐趣优劣。");
         sb.AppendLine("不自动淘汰父版，不用确认局覆盖首轮；请分别试玩后标记喜欢哪版及原因。");
         return sb.ToString();
     }
@@ -458,7 +504,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S168", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S169", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
             planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,
@@ -773,6 +819,7 @@ public static class StudioExplorationRunner
         sb.AppendLine($"Status: {data.status}; seed: {data.seed}; Unity: {data.unityVersion}; scope: {data.scope}");
         sb.AppendLine($"Trials recorded: {data.trials.Count} / {PlannedTrials(data)}");
         sb.AppendLine("Evidence verdict: " + EvidenceVerdict(data));
+        if (data.scenarios.Any(s => s.duelVersion >= 1)) sb.AppendLine(DuelFeedbackCompleteness(data));
         sb.AppendLine($"缺失/未试玩/重复的计划槽位: {UnverifiedSlots(data)}（按场景、双方策略及首轮/确认逐项核对）");
         sb.AppendLine($"有效试玩记录: {data.trials.Count(t => t.HasGameplayEvidence)}; 首轮={data.trials.Count(t => t.attempt <= 1 && t.HasGameplayEvidence)}; 复测={data.trials.Count(t => t.attempt == 2 && t.HasGameplayEvidence)}");
         sb.AppendLine("有限反馈：最多追加 6 张问题图 × 原策略搭配 × 1 轮；机制回归每图3局，体验探索每图9局，反制专项每图3或4局。同种子同配置，不自动改难度或删除失败记录。");

@@ -144,10 +144,19 @@ public partial class TestConsoleWindow
             EditorGUILayout.LabelField($"报告：{report.toolRevision} / {DuelStatusLabel(report.controlMode)} / {DuelStatusLabel(report.status)}；回归 {report.regressionPassed} 通过 / {report.regressionFailed} 失败", EditorStyles.wordWrappedMiniLabel);
             if (duelDraft == null || duelDraft.id != room.id || duelDraft.ascii != room.ascii)
                 EditorGUILayout.HelpBox("这份报告不是上方当前草稿的结果。可加载报告原图；不会把旧结果算给新种子。", MessageType.Info);
+            EditorGUILayout.HelpBox(StudioExplorationRunner.DuelFeedbackCompleteness(report), MessageType.Info);
             EditorGUILayout.HelpBox(StudioExplorationRunner.DuelReview(report, room), MessageType.Info);
             foreach (var t in report.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1))
-                EditorGUILayout.LabelField($"{(t.marioStrategy == "SafeRoute" ? "地表" : "下层")} / {StudioExplorationRunner.DuelOpponentLabel(t.tricksterStrategy)}：{DuelStatusLabel(t.outcome)}，{t.seconds:F1}秒；地道到达{t.tunnelArrivals}，后续出手{t.controlsAfterTunnel}", EditorStyles.wordWrappedMiniLabel);
+                EditorGUILayout.LabelField($"{(t.marioStrategy == "SafeRoute" ? "地表" : "下层")} / {StudioExplorationRunner.DuelOpponentLabel(t.tricksterStrategy)}：{DuelStatusLabel(t.outcome)}，{t.seconds:F1}秒；地道到达{t.tunnelArrivals}，3秒内出手{t.controlsAfterTunnel}", EditorStyles.wordWrappedMiniLabel);
             if (!string.IsNullOrEmpty(report.iterationComparison)) EditorGUILayout.HelpBox(report.iterationComparison, MessageType.Info);
+            EditorGUILayout.LabelField("先看报告中的真实路线，再决定是否改图。以下演示直接用报告原图，不会误用上方草稿；按当前代码重跑，不是录像。", EditorStyles.wordWrappedLabel);
+            using (new EditorGUI.DisabledScope(unavailable))
+            {
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("看报告原图：下层对战")) DuelAction(() => StartReportedDuel(room, "Adaptive"));
+                if (GUILayout.Button("看报告原图：地表对战")) DuelAction(() => StartReportedDuel(room, "SafeRoute"));
+                EditorGUILayout.EndHorizontal();
+            }
             string blocked = StudioExplorationRunner.IterationBlockReason(report, room);
             EditorGUILayout.LabelField(blocked.Length > 0 ? blocked : "下一次只换暗线连接：原图、物理、伤害和AI策略保持不变。不会自动宣称更好玩。", EditorStyles.wordWrappedLabel);
             using (new EditorGUI.DisabledScope(unavailable || blocked.Length > 0))
@@ -179,6 +188,12 @@ public partial class TestConsoleWindow
         if (!string.IsNullOrEmpty(StudioExplorationRunner.Error)) EditorGUILayout.HelpBox(StudioExplorationRunner.Error, MessageType.Warning);
         duelAdvanced = EditorGUILayout.Foldout(duelAdvanced, "高级：旧测试矩阵 / 完整技术报告");
         if (duelAdvanced) DrawExplorationPanel();
+    }
+
+    private void StartReportedDuel(MechanismExplorationPlan.Scenario room, string runner)
+    {
+        StudioExplorationRunner.Start(room.seed, MechanismExplorationPlan.Scope.TunnelDuel, 60,
+            room, explorationRegressions, runner, "TunnelChaser", "Demonstration");
     }
 
     private bool DuelDraftHasParent => duelDraft != null && StudioExplorationRunner.Latest != null &&

@@ -39,7 +39,10 @@ public sealed class ExplorationTrialObserver : IDisposable
     private string lastRoute, lastPhase;
     private PossessionAnchor lastPossessedAnchor;
     private bool disposed;
-    private PossessionAnchor tunnelOrigin, lastTunnelArrival;
+    private PossessionAnchor tunnelOrigin, lastTunnelArrival, visitAnchor;
+    private MechanismExplorationPlan.TunnelVisit currentVisit;
+    private int visitArrivalFrame;
+    private readonly DisguiseSystem visitDisguise;
     private float tunnelArrivalAt = -100f, decisionTimer;
     private string lastDecision;
     private bool HumanTrial => result.controlMode == "HumanMario" || result.controlMode == "HumanTrickster";
@@ -52,7 +55,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         result = trial;
         result.experience = scenario.experience;
         result.tunnelVersion = scenario.tunnelVersion;
-        if (scenario.tunnelVersion >= 1) result.tunnelEvidenceVersion = 1;
+        if (scenario.tunnelVersion >= 1) { result.tunnelEvidenceVersion = 1; result.tunnelVisitEvidenceVersion = 1; }
+        result.tunnelPlanningPolicy = scenario.duelVersion >= 1 ? "SpeedEnvelopeV2" : "LegacyLocalPrediction";
         result.expectsReturn = scenario.lootEscape;
         result.counterplayVersion = scenario.counterplayVersion;
         result.startDelaySeconds = scenario.startDelaySeconds;
@@ -68,6 +72,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         health = mario.GetComponent<PlayerHealth>();
         if (health != null) { lastHealth = health.CurrentHealth; result.healthEvidenceVersion = 1; }
         gate = Object.FindObjectOfType<TricksterPossessionGate>();
+        visitDisguise = gate != null ? gate.GetComponent<DisguiseSystem>() : null;
         combo = Object.FindObjectOfType<PropComboTracker>();
         routes = Object.FindObjectOfType<RouteBudgetService>();
         var escape = Object.FindObjectOfType<EscapeGate>();
@@ -186,6 +191,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         CaptureQueueEvidence(dt);
         CaptureStartTiming();
         CaptureTunnelArrival();
+        CaptureTunnelVisit();
         decisionTimer += dt;
         if (decisionTimer >= 0.5f)
         {
@@ -251,6 +257,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         CaptureProbeProgress();
         CaptureStartTiming();
         CaptureTunnelArrival();
+        CaptureTunnelVisit(); EndTunnelVisit();
         result.outcome = outcome;
         finishedFixedTime = Time.fixedTime;
         result.nextAction = nextAction;
@@ -264,6 +271,8 @@ public sealed class ExplorationTrialObserver : IDisposable
 
     private void CaptureStartTiming()
     {
+        if (bot.TunnelRequests > result.tunnelRequests && !string.IsNullOrEmpty(bot.LastTunnelPlan))
+            Event(bot.LastTunnelPlan); // Input-edge evidence must not disappear between 0.5s intention samples.
         result.tunnelRequests = bot.TunnelRequests;
         result.actualStartWaitSeconds = bot.StartWaitSeconds;
         result.startWaitFrames = bot.StartWaitFrames;
@@ -394,6 +403,10 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         if (Finished || prop == null) return;
         result.controlAccepted++;
+        if (CurrentVisitStillPresent() && prop.GetTransform() == visitAnchor.transform &&
+            currentVisit.RecordControl(manager.RoundElapsed, result.lootEvents > 0))
+            Event("control during continuous tunnel residence at " + currentVisit.destination +
+                (result.lootEvents > 0 ? " on return" : " outbound") + "; acceptance, not causal effect");
         if (lastTunnelArrival != null && gate != null && gate.CurrentAnchor == lastTunnelArrival &&
             prop.GetTransform() == lastTunnelArrival.transform && manager.RoundElapsed - tunnelArrivalAt <= 3f)
         {
@@ -440,11 +453,12 @@ public sealed class ExplorationTrialObserver : IDisposable
         {
             if (state == TricksterPossessionState.Underlining)
             {
+                EndTunnelVisit();
                 result.tunnelStarts++; tunnelOrigin = gate.CurrentAnchor;
                 Event("native tunnel departure " + (tunnelOrigin != null ? tunnelOrigin.AnchorId : "unknown"));
             }
             else if (state == TricksterPossessionState.Revealed || state == TricksterPossessionState.Roaming || state == TricksterPossessionState.Escaping)
-            { tunnelOrigin = null; }
+            { tunnelOrigin = null; if (state == TricksterPossessionState.Roaming) EndTunnelVisit(); }
             else if (state == TricksterPossessionState.Possessing) CaptureTunnelArrival();
         }
         if (state == TricksterPossessionState.Blending && bot.StartWaitingThisTick)
@@ -456,6 +470,7 @@ public sealed class ExplorationTrialObserver : IDisposable
     private void OnAnchorChanged(PossessionAnchor anchor)
     {
         // Magnetic switching can change the anchor without a state transition.
+        if (!Finished && visitAnchor != null && anchor != visitAnchor) EndTunnelVisit();
         if (Finished || gate == null || !gate.IsHiddenAndArmed) return;
         if (anchor != null && lastPossessedAnchor != null && anchor != lastPossessedAnchor)
         { result.possessionTransfers++; if (result.lootEvents > 0) result.postLootTransfers++; Event("possession of a different anchor completed"); }
@@ -472,9 +487,39 @@ public sealed class ExplorationTrialObserver : IDisposable
         result.tunnelArrivals++;
         if (result.lootEvents > 0) result.postLootTunnelArrivals++;
         lastTunnelArrival = destination; tunnelArrivalAt = manager.RoundElapsed;
+        EndTunnelVisit();
+        if (result.tunnelVisits.Count < 32)
+        {
+            visitAnchor = destination; visitArrivalFrame = Time.frameCount;
+            currentVisit = new MechanismExplorationPlan.TunnelVisit { origin = tunnelOrigin.AnchorId, destination = destination.AnchorId,
+                x = destination.transform.position.x, y = destination.transform.position.y, arrivalAt = tunnelArrivalAt,
+                direction = Mathf.Abs(mario.Velocity.x) >= 0.5f ? Mathf.Sign(mario.Velocity.x) : 0f };
+            result.tunnelVisits.Add(currentVisit);
+        }
+        else result.tunnelVisitOverflow++;
         Event("verified tunnel arrival " + tunnelOrigin.AnchorId + " -> " + destination.AnchorId +
             "; physical position + linked anchor + possession, not a direction request");
         tunnelOrigin = null;
+    }
+
+    private bool CurrentVisitStillPresent() => currentVisit != null && currentVisit.endedAt < 0f &&
+        visitAnchor != null && gate != null && gate.CurrentAnchor == visitAnchor && visitDisguise != null && visitDisguise.IsDisguised &&
+        Vector2.Distance(gate.transform.position, visitAnchor.transform.position) < 0.8f;
+
+    private void CaptureTunnelVisit()
+    {
+        if (currentVisit == null) return;
+        if (!CurrentVisitStillPresent()) { EndTunnelVisit(); return; }
+        if (Time.frameCount >= visitArrivalFrame + 2 && currentVisit.ObserveReady(manager.RoundElapsed,
+            mario.transform.position.x, mario.transform.position.y, gate.IsHiddenAndArmed, visitDisguise.IsFullyBlended))
+            Event("tunnel exit ready after re-blend: " + currentVisit.destination +
+                (currentVisit.runnerPassedWhenReady ? "; runner already passed in arrival direction" : "; passage not yet observed"));
+    }
+
+    private void EndTunnelVisit()
+    {
+        if (currentVisit != null && currentVisit.endedAt < 0f && manager != null) currentVisit.endedAt = manager.RoundElapsed;
+        currentVisit = null; visitAnchor = null;
     }
 
     public void MarkFeedback(string tag)
@@ -544,6 +589,8 @@ public sealed class ExplorationTrialObserver : IDisposable
         public bool ReadPublicQueues, PassiveOpponent, TunnelOpponent, GroundOnlyOpponent, PlannedTunnelOpponent;
         public string ControlMode;
         public int TunnelRequests { get; private set; }
+        public string LastTunnelPlan { get; private set; }
+        private float observedTunnelSpeed;
         private float tunnelInputCooldown;
         private readonly KeyboardInputProvider keyboard = new KeyboardInputProvider();
         private readonly TricksterPossessionGate opponentGate;
@@ -608,6 +655,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             }
             if (!PassiveOpponent)
             {
+                if (runner != null) observedTunnelSpeed = Mathf.Max(observedTunnelSpeed, Mathf.Abs(runner.Velocity.x));
                 int before = OpponentDecisionTicks;
                 base.UpdateTricksterBrain(dt);
                 if (TunnelOpponent || GroundOnlyOpponent)
@@ -622,13 +670,16 @@ public sealed class ExplorationTrialObserver : IDisposable
                     {
                         var from = opponentGate.CurrentAnchor;
                         var next = PlannedTunnelOpponent
-                            ? FindPreparedTunnelIntercept(from, runner.transform.position, runner.Velocity, opponentDisguise != null ? opponentDisguise.BlendInSeconds : float.NaN)
+                            ? FindPreparedTunnelIntercept(from, runner.transform.position, runner.Velocity, opponentDisguise != null ? opponentDisguise.BlendInSeconds : float.NaN,
+                                runner.HorizontalSpeedLimit, observedTunnelSpeed)
                             : FindTunnelIntercept(from, runner.transform.position, runner.Velocity);
                         if (next != null)
                         {
                             Vector2 direction = ((Vector2)(next.transform.position - from.transform.position)).normalized;
                             p2Horizontal = direction.x; p2Vertical = direction.y;
                             p2DirectionDown = true; p2DisguiseDown = false;
+                            float planningVelocity = MechanismExplorationPlan.TunnelPlanningVelocity(runner.Velocity.x, runner.HorizontalSpeedLimit, observedTunnelSpeed);
+                            LastTunnelPlan = $"tunnel input {from.AnchorId} -> {next.AnchorId}; runner=({runner.transform.position.x:F2},{runner.transform.position.y:F2}), actualVx={runner.Velocity.x:F2}, planningVx={planningVelocity:F2}; transfer={next.underlineTransitTime:F2}, blend={(opponentDisguise != null ? opponentDisguise.BlendInSeconds : -1f):F2}, telegraph={next.ControllableProp.GetTelegraphDuration():F2}; request only";
                             TunnelRequests++; tunnelInputCooldown = 1.2f;
                             TricksterIntent = "[Tunnel intercept input -> " + next.AnchorId + "; arrival not yet verified]";
                         }
@@ -646,15 +697,20 @@ public sealed class ExplorationTrialObserver : IDisposable
             p2JumpDown = p2JumpHeld = p2DirectionDown = p2DisguiseDown = p2AbilityDown = false;
             TricksterIntent = "[Passive control: actor retained, ordinary neutral input]";
         }
-        public static PossessionAnchor FindPreparedTunnelIntercept(PossessionAnchor from, Vector2 runnerPosition, Vector2 velocity, float blendSeconds)
+        public static PossessionAnchor FindPreparedTunnelIntercept(PossessionAnchor from, Vector2 runnerPosition, Vector2 velocity, float blendSeconds,
+            float movementLimit = 0f, float observedPeak = 0f)
         {
             if (from == null || from.connectedUnderlineNodes == null || Vector2.Distance(from.transform.position, runnerPosition) > 12f) return null;
+            if (!MechanismExplorationPlan.IsFinite(movementLimit) || movementLimit < 0f) return null;
+            float planningVelocity = MechanismExplorationPlan.TunnelPlanningVelocity(velocity.x,
+                movementLimit > 0f ? movementLimit : Mathf.Abs(velocity.x), observedPeak);
+            if (planningVelocity == 0f) return null;
             var current = from.ControllableProp;
             // Keep a usable current ambush instead of abandoning it merely to increase transfer counts.
             if (current != null && from.CanBePossessed() && Mathf.Abs(runnerPosition.y - from.transform.position.y) <= 1.5f &&
                 Mathf.Abs(velocity.x) >= 0.5f)
             {
-                float eta = (from.transform.position.x - runnerPosition.x) / velocity.x;
+                float eta = (from.transform.position.x - runnerPosition.x) / planningVelocity;
                 if (eta >= 0f && eta <= current.GetTelegraphDuration() + 0.7f) return null;
             }
             PossessionAnchor best = null;
@@ -662,7 +718,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             foreach (var next in from.connectedUnderlineNodes)
             {
                 if (next == null || next == from || !next.isActiveAndEnabled || !next.CanBePossessed()) continue;
-                float window = MechanismExplorationPlan.TunnelAmbushWindow(runnerPosition.x, runnerPosition.y, velocity.x,
+                float window = MechanismExplorationPlan.TunnelAmbushWindow(runnerPosition.x, runnerPosition.y, planningVelocity,
                     next.transform.position.x, next.transform.position.y, next.underlineTransitTime, blendSeconds, next.ControllableProp.GetTelegraphDuration());
                 if (window >= 0f && window < bestWindow) { best = next; bestWindow = window; }
             }

@@ -216,6 +216,7 @@ public class MarioController : MonoBehaviour
     public Vector2 Velocity   => _frameVelocity;
     public float Speed        => Mathf.Abs(_frameVelocity.x);
     public float VerticalSpeed => _frameVelocity.y;
+    public float HorizontalSpeedLimit => MaxSpeed; // Read-only, respects the current SO/local movement configuration.
 
     // S39: 暴露跳跃键按住状态，供 BouncyPlatform 在 comedyDelay 结束时查询
     // 用于按键驱动大跳（Super Bounce）：冻结期按住 Space → 1.4x 弹射力

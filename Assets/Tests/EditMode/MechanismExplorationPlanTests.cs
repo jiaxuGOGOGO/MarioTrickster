@@ -4,6 +4,61 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [TestCase(2f, 9f, 6f, 9f)]
+    [TestCase(-2f, 9f, 6f, -9f)]
+    [TestCase(12f, 9f, 10f, 12f)]
+    [TestCase(2f, 9f, 14f, 14f)]
+    [TestCase(0.2f, 9f, 6f, 0f)]
+    [TestCase(2f, 0f, 6f, 0f)]
+    public void TunnelForecastDoesNotTreatWaypointBrakingAsExtraTime(float current, float limit, float peak, float expected)
+    {
+        Assert.AreEqual(expected, MechanismExplorationPlan.TunnelPlanningVelocity(current, limit, peak));
+        Assert.AreEqual(0f, MechanismExplorationPlan.TunnelPlanningVelocity(current, float.NaN, peak));
+        Assert.AreEqual(0f, MechanismExplorationPlan.TunnelPlanningVelocity(current, limit, float.PositiveInfinity));
+    }
+
+    [Test]
+    public void BrakingFrameCannotAuthorizeAnExitThatWillBeReadyAfterPassage()
+    {
+        // S168 child: temporary low speed allowed a transfer, then the runner accelerated past before re-blending.
+        Assert.GreaterOrEqual(MechanismExplorationPlan.TunnelAmbushWindow(8, 1, 4, 24, 1, 0.8f, 1.5f, 0.8f), 0);
+        float planned = MechanismExplorationPlan.TunnelPlanningVelocity(4, 9, 8.5f);
+        Assert.Less(MechanismExplorationPlan.TunnelAmbushWindow(8, 1, planned, 24, 1, 0.8f, 1.5f, 0.8f), 0);
+        Assert.GreaterOrEqual(MechanismExplorationPlan.TunnelAmbushWindow(0, 1, planned, 36, 1, 0.8f, 1.5f, 0.8f), 0);
+    }
+
+    [Test]
+    public void TunnelVisitKeepsLateReturnControlSeparateFromArrivalAndReadiness()
+    {
+        var visit = new MechanismExplorationPlan.TunnelVisit { arrivalAt = 2.67f, x = 24, y = 1, direction = 1 };
+        Assert.IsFalse(visit.ObserveReady(2.68f, 16, 1, true, true), "Do not trust a stale blended flag in the arrival callback");
+        Assert.IsFalse(visit.ObserveReady(3.39f, 24, 1, false, false));
+        Assert.IsTrue(visit.ObserveReady(4.22f, 30, 1, true, true));
+        Assert.IsTrue(visit.runnerPassedWhenReady);
+        Assert.IsFalse(visit.ObserveReady(4.3f, 31, 1, true, true), "One readiness observation per residence");
+        Assert.IsTrue(visit.RecordControl(8.07f, true), "A later same-anchor return control is real but not a <=3s control");
+        Assert.Greater(visit.firstControlAt - visit.arrivalAt, 3f);
+        Assert.AreEqual(8.07f, visit.returnControlAt);
+        Assert.IsFalse(visit.RecordControl(8.2f, true));
+        visit.endedAt = 9f;
+        Assert.IsFalse(visit.RecordControl(10f, true), "Leaving and returning must not reuse the old arrival");
+    }
+
+    [Test]
+    public void TunnelVisitDoesNotInventSameLanePassageOrInvalidTime()
+    {
+        var visit = new MechanismExplorationPlan.TunnelVisit { arrivalAt = 3, x = 24, y = 5, direction = 1 };
+        Assert.IsFalse(visit.RecordControl(2, false));
+        Assert.IsFalse(visit.RecordControl(float.NaN, false));
+        Assert.IsFalse(visit.ObserveReady(float.NaN, 30, 5, true, true));
+        Assert.IsTrue(visit.ObserveReady(5, 30, 1, true, true));
+        Assert.IsFalse(visit.runnerPassedWhenReady, "A lower-lane runner has not crossed the upper exit");
+        Assert.IsTrue(visit.RecordControl(6, false));
+        Assert.AreEqual(-1, visit.returnControlAt);
+        Assert.IsTrue(visit.RecordControl(10, true));
+        Assert.AreEqual(6, visit.firstControlAt);
+    }
+
     [TestCase(0)]
     [TestCase(168)]
     [TestCase(-168)]

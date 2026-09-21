@@ -46,18 +46,65 @@ public class ExplorationIntegrationContractTests
         try
         {
             origin.transform.position = new Vector3(36000, 1, 0); exit.transform.position = new Vector3(36006, 1, 0);
-            origin.AddComponent<FakeWall>(); exit.AddComponent<FakeWall>();
+            var originProp = origin.AddComponent<FakeWall>(); var exitProp = exit.AddComponent<FakeWall>();
             var from = origin.AddComponent<PossessionAnchor>(); var to = exit.AddComponent<PossessionAnchor>();
-            // EditMode does not promise Awake dispatch; explicitly initialize the real cache.
-            from.SendMessage("Awake"); to.SendMessage("Awake");
+            // [AI防坑警告] EditMode下不要用SendMessage派发生命周期，会触发ShouldRunBehaviour断言。
+            // Only initialize the actual component cache; this fixture does not test runtime Awake.
+            var cache = typeof(PossessionAnchor).GetMethod("CacheControllableProp", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(cache);
+            cache.Invoke(from, null); cache.Invoke(to, null);
+            Assert.AreSame(originProp, from.ControllableProp);
+            Assert.AreSame(exitProp, to.ControllableProp);
+            Assert.IsTrue(to.CanBePossessed(), "Use the real prop's availability, not a fabricated cache value");
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(null, new Vector2(36003, 1), new Vector2(8, 0)));
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)));
+            from.connectedUnderlineNodes.Add(null);
+            from.connectedUnderlineNodes.Add(from);
             Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)));
             from.connectedUnderlineNodes.Add(to);
             Assert.AreSame(to, ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)));
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(-8, 0)), "Do not transfer to a worse predicted intercept");
+            Assert.AreSame(to, ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36012, 1), Vector2.zero), "The local radius includes its boundary");
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36012.25f, 1), Vector2.zero));
             Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36100, 1), new Vector2(8, 0)));
+            to.enabled = false;
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)));
+            to.enabled = true;
             exit.SetActive(false);
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)));
+            exit.SetActive(true);
+            Assert.AreSame(to, ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)), "Restored exit must be selectable again");
+            Object.DestroyImmediate(exitProp);
+            cache.Invoke(to, null);
+            Assert.IsNull(to.ControllableProp);
+            Assert.IsFalse(to.CanBePossessed());
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)), "A linked anchor without a prop is not usable");
+            from.connectedUnderlineNodes = null;
             Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)));
         }
         finally { Object.DestroyImmediate(origin); Object.DestroyImmediate(exit); }
+    }
+
+    [Test]
+    public void TunnelRegressionFailureLeavesAllGameplaySlotsUnverified()
+    {
+        var report = new StudioExplorationRunner.Report {
+            toolRevision = "S166", seed = 166, scope = "TunnelDuel", controlMode = "Automated",
+            scenarios = MechanismExplorationPlan.Create(166, MechanismExplorationPlan.Scope.TunnelDuel)
+        };
+        Assert.AreEqual("Restoring", StudioExplorationRunner.CompleteRegressionStage(report, 385, 1, false));
+        report.status = "Blocked";
+        Assert.AreEqual(18, StudioExplorationRunner.PlannedTrials(report));
+        Assert.AreEqual(18, StudioExplorationRunner.UnverifiedSlots(report));
+        StringAssert.Contains("未执行部分不算通过", StudioExplorationRunner.EvidenceVerdict(report));
+        StringAssert.Contains("证据不足", StudioExplorationRunner.TunnelDesignSummary(report));
+        StringAssert.Contains("Trials recorded: 0 / 18", StudioExplorationRunner.BuildSummary(report));
+        Assert.IsEmpty(report.trials);
+        Assert.IsFalse(report.confirmationPlanned);
+        Assert.IsEmpty(report.confirmationScenarioIds);
+        Assert.AreEqual("S166", report.toolRevision, "Reviewing a failed historical report must not relabel its evidence");
+        Assert.AreEqual(385, report.regressionPassed);
+        Assert.AreEqual(1, report.regressionFailed);
     }
 
     [Test]

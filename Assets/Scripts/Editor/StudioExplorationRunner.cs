@@ -38,6 +38,11 @@ public static class StudioExplorationRunner
         public int version = MechanismExplorationPlan.Version;
         public int seed;
         public string scope;
+        public string controlMode; // Automated / Demonstration / HumanMario / HumanTrickster
+        public string parentReport;
+        public string sourceFingerprint;
+        public string planFingerprint;
+        public List<string> playerNotes = new List<string>();
         public string toolRevision; // Set only when starting; old reports remain unlabelled.
         public string startedUtc;
         public string finishedUtc;
@@ -75,6 +80,7 @@ public static class StudioExplorationRunner
     public static string TestTrack(Report data)
     {
         if (data == null || data.scenarios.Count == 0) return "无场景计划";
+        if (data.scenarios.All(s => s.tunnelVersion >= 1)) return "地道博弈";
         if (data.scenarios.All(s => s.counterplayVersion >= 1)) return "反制专项";
         int experience = data.scenarios.Count(s => !string.IsNullOrEmpty(s.experience));
         return experience == 0 ? "机制回归" : experience == data.scenarios.Count ? "体验探索" : "混合批次";
@@ -101,6 +107,8 @@ public static class StudioExplorationRunner
 
     public static string EvidenceVerdict(Report data)
     {
+        if (!string.IsNullOrEmpty(data.controlMode) && data.controlMode != "Automated")
+            return $"{data.controlMode} 独立试玩记录；不计入自动批次覆盖或配对改善。结果与主观反馈分别保存。";
         if (!string.IsNullOrEmpty(data.blockedReason)) return "回归或基础故障阻塞，未执行部分不算通过";
         int played = data.trials.Count(t => t.HasGameplayEvidence);
         if (played == 0) return "尚无有效试玩证据（不是玩法通过）";
@@ -123,7 +131,8 @@ public static class StudioExplorationRunner
                 var records = data.trials.Where(t => t.scenarioId == room.id &&
                     (attempt == 1 ? t.attempt <= 1 : t.attempt == 2) &&
                     (t.marioStrategy ?? t.profile) == matchup.mario && (t.tricksterStrategy ?? t.profile) == matchup.trickster).ToArray();
-                if (records.Length != 1 || !records[0].HasGameplayEvidence) missing++;
+                if (records.Length != 1 || !records[0].HasGameplayEvidence ||
+                    ((string.IsNullOrEmpty(data.controlMode) || data.controlMode == "Automated") && !records[0].IsAutomated)) missing++;
             }
         }
         return missing;
@@ -197,7 +206,7 @@ public static class StudioExplorationRunner
         t.lootAtSeconds >= 0f && t.escapeAtSeconds >= t.lootAtSeconds && t.escapeAtSeconds <= t.seconds;
 
     private static bool ComparablePair(MechanismExplorationPlan.Trial a, MechanismExplorationPlan.Trial b, MechanismExplorationPlan.Scenario room) =>
-        a != null && b != null && a.counterplayVersion >= 1 && b.counterplayVersion >= 1 &&
+        a != null && b != null && a.IsAutomated && b.IsAutomated && a.counterplayVersion >= 1 && b.counterplayVersion >= 1 &&
         a.scenarioId == room.id && b.scenarioId == room.id && a.counterplayVersion == b.counterplayVersion &&
         (a.marioStrategy != b.marioStrategy || a.scanPolicy == b.scanPolicy) &&
         Math.Abs(a.startDelaySeconds - room.startDelaySeconds) < 0.001f && Math.Abs(b.startDelaySeconds - room.startDelaySeconds) < 0.001f &&
@@ -206,6 +215,79 @@ public static class StudioExplorationRunner
         a.outcome == "Cleared" && b.outcome == "Cleared" &&
         a.errors.Count == 0 && b.errors.Count == 0 &&
         MechanismExplorationPlan.PassiveControlClean(a) && MechanismExplorationPlan.PassiveControlClean(b);
+
+    public static string TunnelDesignSummary(Report data)
+    {
+        var sb = new StringBuilder();
+        foreach (var room in data.scenarios.Where(r => r.tunnelVersion >= 1))
+        {
+            sb.AppendLine(room.id + " — " + room.designQuestion);
+            foreach (var t in data.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1))
+            {
+                string returnTime = t.HasGameplayEvidence && t.outcome == "Cleared" && t.errors.Count == 0 &&
+                    t.lootEvents > 0 && t.escapeEvents > 0 && ValidReturnTimes(t)
+                    ? (t.escapeAtSeconds - t.lootAtSeconds).ToString("F2") + "s" : "未验证";
+                sb.AppendLine($"  {t.profile}: {t.outcome} / 损血{t.runnerHealthLost} / 返程{returnTime} / 暗线请求{t.tunnelRequests}、开始{t.tunnelStarts}、到达{t.tunnelArrivals}、拿宝后到达{t.postLootTunnelArrivals} / 到达后3秒同点受理{t.controlsAfterTunnel}");
+            }
+            if (!string.IsNullOrEmpty(data.controlMode) && data.controlMode != "Automated")
+            { sb.AppendLine("  本次为独立演示/真人试玩，不作自动策略诊断；请结合玩家反馈。"); continue; }
+            var first = data.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1 && t.IsAutomated && t.tricksterStrategy == "TunnelChaser").ToArray();
+            if (first.Length == 0 || first.Any(t => !t.HasGameplayEvidence || t.errors.Count > 0 || t.tunnelEvidenceVersion < 1))
+                sb.AppendLine("  结论：证据不足；先检查生成、运行或观察器，不调整难度来制造通过。");
+            else if (first.All(t => t.tunnelArrivals == 0))
+                sb.AppendLine("  下一轮：先查暗线连接、输入门禁和接近时机；普通换点不是暗线到达。");
+            else if (first.All(t => t.controlsAfterTunnel == 0))
+                sb.AppendLine("  下一轮：已发生转移，但尚无到达后的同点出手证据；检查出口位置和玩家经过时机，不直接加伤害。");
+            else sb.AppendLine("  下一轮：已有转移后出手的时序证据；请试玩判断线索是否读得懂、是博弈还是纯等待。不是因果或乐趣通过。");
+        }
+        if (sb.Length > 0) sb.AppendLine("三种作者变体共享基础布局；原始结果逐策略保留，不计算乐趣排名。GroundChaser禁止方向换点，TunnelChaser使用局部距离预测；底层启发式仍读取角色位置，不代表人类有限信息。真人/演示另存，不补自动样本。");
+        return sb.ToString();
+    }
+
+    public static void AddFeedback(string text)
+    {
+        if (report == null || string.IsNullOrWhiteSpace(text)) return;
+        text = text.Trim(); text = text.Substring(0, Math.Min(500, text.Length));
+        if (report.playerNotes == null) report.playerNotes = new List<string>();
+        if (report.playerNotes.Count >= 60) return;
+        report.playerNotes.Add(DateTime.UtcNow.ToString("O") + " [" + (report.controlMode ?? "Automated") + "] " + text);
+        observer?.MarkFeedback(text);
+        Persist();
+    }
+
+    public static void LoadParentReport()
+    {
+        if (Active || EditorApplication.isPlayingOrWillChangePlaymode || report == null || string.IsNullOrEmpty(report.parentReport)) return;
+        string directory = report.parentReport;
+        if (!IsReportPath(directory)) throw new InvalidOperationException("Unsafe parent report path");
+        var parent = JsonUtility.FromJson<Report>(File.ReadAllText(Path.Combine(directory, "report.json")));
+        if (parent == null) throw new InvalidOperationException("Parent report missing");
+        report = parent;
+        state = new State { phase = "Complete", directory = directory }; // Load-only; never resume an old batch.
+        EditorPrefs.SetString(LastDirectoryKey, directory); SaveState();
+    }
+
+    public static string ExportFeedbackZip()
+    {
+        if (report == null || !IsReportPath(ReportDirectory) || !Directory.Exists(ReportDirectory))
+            throw new InvalidOperationException("没有可打包的报告目录");
+        if (Active) throw new InvalidOperationException("请结束本局或批次后打包，避免导出不一致记录");
+        string zip = ReportDirectory + "_feedback_" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".zip";
+        System.IO.Compression.ZipFile.CreateFromDirectory(ReportDirectory, zip);
+        return zip;
+    }
+
+    private static string SourceFingerprint()
+    {
+        var files = Directory.GetFiles(Path.Combine(Application.dataPath, "Scripts"), "*.cs", SearchOption.AllDirectories);
+        Array.Sort(files, StringComparer.Ordinal);
+        using (var sha = System.Security.Cryptography.SHA256.Create())
+        {
+            var text = new StringBuilder();
+            foreach (string file in files) text.Append(file.Substring(Application.dataPath.Length).Replace('\\', '/')).Append('\n').Append(File.ReadAllText(file).Replace("\r\n", "\n"));
+            return BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "").ToLowerInvariant();
+        }
+    }
 
     public static string ReportDirectory => state?.directory ?? "";
     public static string LiveIntent => observer?.Intent ?? "";
@@ -238,21 +320,42 @@ public static class StudioExplorationRunner
     }
 
     public static void Start(int seed, MechanismExplorationPlan.Scope scope, float seconds,
-        MechanismExplorationPlan.Scenario replay = null, bool withRegressions = true)
+        MechanismExplorationPlan.Scenario replay = null, bool withRegressions = true,
+        string selectedMario = null, string selectedTrickster = null, string controlMode = "Automated")
     {
         if (Active || !LevelStudioPlaySession.CanStart() || TestReportRunner.IsRunning) return;
+        if (controlMode != "Automated" && controlMode != "Demonstration" && controlMode != "HumanMario" && controlMode != "HumanTrickster")
+            throw new ArgumentException("Unknown control mode");
+        if (controlMode != "Automated" && (replay == null || string.IsNullOrEmpty(selectedMario) || string.IsNullOrEmpty(selectedTrickster)))
+            throw new ArgumentException("Rehearsal requires an explicit scenario and matchup");
+        string parentDirectory = replay != null ? ReportDirectory : null;
+        if (replay != null)
+        {
+            replay = JsonUtility.FromJson<MechanismExplorationPlan.Scenario>(JsonUtility.ToJson(replay));
+            if (!string.IsNullOrEmpty(selectedMario) && !string.IsNullOrEmpty(selectedTrickster))
+                replay.selectedMatchups = new[] { new MechanismExplorationPlan.Matchup { mario = selectedMario, trickster = selectedTrickster } };
+        }
         if (!SaveSourceScenes()) return;
         var scenarios = replay == null ? MechanismExplorationPlan.Create(seed, scope) : new List<MechanismExplorationPlan.Scenario> { replay };
-        state = new State { phase = withRegressions && replay == null ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
+        string fingerprint = SourceFingerprint(); // Fail before changing the coordinator state.
+        state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S165", seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
+        report = new Report { toolRevision = "S166", controlMode = controlMode, parentReport = parentDirectory,
+            confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
+            planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, scenarios = scenarios,
             physicsConfigJson = ConfigJson("PhysicsConfig"), gameplayConfigJson = ConfigJson("GameplayLoopConfig"),
             unsupportedRegistry = MechanismExplorationPlan.MissingFromCatalog(AsciiElementRegistry.GetDefault().GetAllRegisteredChars()) };
         try
         {
             Directory.CreateDirectory(state.directory);
+            if (!string.IsNullOrEmpty(parentDirectory) && IsReportPath(parentDirectory) && File.Exists(Path.Combine(parentDirectory, "report.json")))
+            {
+                File.Copy(Path.Combine(parentDirectory, "report.json"), Path.Combine(state.directory, "parent_report.json"));
+                string baseline = Path.Combine(parentDirectory, "baseline_report.json");
+                File.Copy(File.Exists(baseline) ? baseline : Path.Combine(parentDirectory, "report.json"), Path.Combine(state.directory, "baseline_report.json"));
+            }
             foreach (var scenario in report.scenarios) File.WriteAllText(Path.Combine(state.directory, scenario.id + ".txt"), scenario.ascii);
             Persist();
             EditorPrefs.SetString(LastDirectoryKey, state.directory);
@@ -343,13 +446,15 @@ public static class StudioExplorationRunner
                     Time.timeScale = 1f;
                     trialStarted = now;
                     SetPhase("Running");
+                    if (report.controlMode != "Automated") EditorApplication.ExecuteMenuItem("Window/General/Game");
                 }
                 else if (now - phaseStarted > 20) EndTrial("StartupFailed", "没有找到运行时 GameManager。");
             }
             else if (state.phase == "Running")
             {
                 if (observer == null) { EndTrial("Interrupted", "代码重载中断了观察器，请复测此案例。"); return; }
-                if (!Mathf.Approximately(Time.timeScale, 1f)) observer.Finish("Interrupted", "时间倍率被改变；本轮基准无效。");
+                if (!Mathf.Approximately(Time.timeScale, 1f) &&
+                    !(report.controlMode != "Automated" && GameManager.Instance != null && GameManager.Instance.CurrentState == GameState.Paused)) observer.Finish("Interrupted", "时间倍率被改变；本轮基准无效。");
                 if (!EditorApplication.isPaused) observer.Tick(dt, state.seconds);
                 if (now - trialStarted > state.seconds * 4 + 30) observer.Finish("WallTimeout", "真实时间预算耗尽（包括编辑器暂停），请检查卡死或性能。");
                 if (observer.Finished) { Persist(); SetPhase("Exiting"); EditorApplication.isPlaying = false; }
@@ -390,7 +495,7 @@ public static class StudioExplorationRunner
         var slot = CurrentSlot;
         var scenario = slot.scenario;
         var trial = new MechanismExplorationPlan.Trial { scenarioId = scenario.id,
-            profile = slot.matchup.Id, marioStrategy = slot.matchup.mario, tricksterStrategy = slot.matchup.trickster,
+            controlMode = report.controlMode, profile = slot.matchup.Id, marioStrategy = slot.matchup.mario, tricksterStrategy = slot.matchup.trickster,
             attempt = slot.attempt, outcome = "Building" };
         report.trials.Add(trial);
         trial.validation = ExplorationSceneBuilder.Validate(scenario, out bool invalid);
@@ -532,13 +637,15 @@ public static class StudioExplorationRunner
         sb.AppendLine("AI MECHANISM EXPLORATION — evidence, not a fun score");
         sb.AppendLine($"测试路径: {TestTrack(data)}; tool revision: {data.toolRevision ?? "未记录"}");
         if (TestTrack(data) == "机制回归") sb.AppendLine("本批没有运行三类体验房/九种独立策略。路线区域字段为空不代表路线观察失败；请另运行体验探索。");
+        sb.AppendLine($"控制方式: {data.controlMode ?? "Automated (legacy)"}; 源码SHA256: {data.sourceFingerprint ?? "未记录"}; 计划指纹: {data.planFingerprint ?? "未记录"}");
+        sb.AppendLine("父报告: " + (data.parentReport ?? "无"));
         sb.AppendLine($"Status: {data.status}; seed: {data.seed}; Unity: {data.unityVersion}; scope: {data.scope}");
         sb.AppendLine($"Trials recorded: {data.trials.Count} / {PlannedTrials(data)}");
         sb.AppendLine("Evidence verdict: " + EvidenceVerdict(data));
         sb.AppendLine($"缺失/未试玩/重复的计划槽位: {UnverifiedSlots(data)}（按场景、双方策略及首轮/确认逐项核对）");
         sb.AppendLine($"有效试玩记录: {data.trials.Count(t => t.HasGameplayEvidence)}; 首轮={data.trials.Count(t => t.attempt <= 1 && t.HasGameplayEvidence)}; 复测={data.trials.Count(t => t.attempt == 2 && t.HasGameplayEvidence)}");
         sb.AppendLine("有限反馈：最多追加 6 张问题图 × 原策略搭配 × 1 轮；机制回归每图3局，体验探索每图9局，反制专项每图3或4局。同种子同配置，不自动改难度或删除失败记录。");
-        sb.AppendLine("当前代码复测策略（不回写旧批次调度）：无进展/超时 → 角色死亡 → 仅观察不足；最多6图，不递归。Explorer按机制选一个代表，单目标最多4秒，总预算最多8秒且不超过单局一半；到期返回普通目标导航，不证明剩余机制通过。");
+        sb.AppendLine("当前代码复测策略（不回写旧批次调度；地道每图6局，真人/演示不追加确认）：无进展/超时 → 角色死亡 → 仅观察不足；最多6图，不递归。Explorer按机制选一个代表，单目标最多4秒，总预算最多8秒且不超过单局一半；到期返回普通目标导航，不证明剩余机制通过。");
         sb.AppendLine("体验房提供作者标注路线供普通按键导航，不是自主学习或未知地图寻路。旧报告按保存的ASCII重建，当前代码复测不是跨版本相同条件。");
         sb.AppendLine("路线进入/后摇穿越是位置采样证据，不等于整条路线走完、反制成功或好玩；换路请求与实际换路分开统计。");
         foreach (var scenario in data.scenarios)
@@ -560,6 +667,8 @@ public static class StudioExplorationRunner
             sb.AppendLine($"基础故障 ×{group.Count()}: {group.Key}");
         sb.AppendLine(data.limitation);
         sb.AppendLine(CounterplayPairs(data));
+        sb.AppendLine(TunnelDesignSummary(data));
+        foreach (string note in data.playerNotes ?? new List<string>()) sb.AppendLine("玩家反馈（非自动结论）: " + note);
         sb.AppendLine($"Unity regressions: {data.regressions}; passed={data.regressionPassed}, failed={data.regressionFailed}");
         sb.AppendLine("Complete 表示调度结束，不表示每局通过，更不表示全部机制已验证。");
         sb.AppendLine("未规划的 Registry 机制: " + string.Join(", ", data.unsupportedRegistry ?? Array.Empty<string>()));
@@ -595,6 +704,9 @@ public static class StudioExplorationRunner
             if (trial.counterplayVersion >= 1)
                 sb.AppendLine($"反制专项版本={trial.counterplayVersion}；计划/实际起步等待={trial.startDelaySeconds:F2}/{trial.actualStartWaitSeconds:F2}s；拿宝/撤离时间={trial.lootAtSeconds:F2}/{trial.escapeAtSeconds:F2}s，拿宝后换点={trial.postLootTransfers}，操控受理={trial.postLootControls}。起步等待不是反应耗时。");
             sb.AppendLine(trial.nextAction);
+            sb.AppendLine("控制方式: " + (trial.controlMode ?? "Automated (legacy)"));
+            foreach (string feedback in trial.feedback ?? new List<string>()) sb.AppendLine("  feedback: " + feedback);
+            foreach (string decision in trial.decisions ?? new List<string>()) sb.AppendLine("  sampled decision: " + decision);
             sb.AppendLine("结束原因: " + trial.endReason);
             if (!string.IsNullOrEmpty(trial.comparison)) sb.AppendLine(trial.comparison);
             foreach (var item in trial.timeline) sb.AppendLine("  event: " + item);

@@ -4,6 +4,106 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [Test]
+    public void TunnelHundredSeedPlansKeepL1AndSavedEndpointValidation()
+    {
+        for (int seed = 0; seed < 100; seed++)
+        foreach (var room in MechanismExplorationPlan.Create(seed, MechanismExplorationPlan.Scope.TunnelDuel))
+            Assert.IsEmpty(AsciiLevelValidator.ValidateTemplate(room.ascii).errors, room.id);
+    }
+
+    [TestCase(166)]
+    [TestCase(-166)]
+    [TestCase(int.MaxValue)]
+    public void TunnelPlansKeepBoundedMatchupsAndNativeDirectionalTopology(int seed)
+    {
+        var rooms = MechanismExplorationPlan.Create(seed, MechanismExplorationPlan.Scope.TunnelDuel);
+        Assert.AreEqual(3, rooms.Count); Assert.AreEqual(18, MechanismExplorationPlan.TrialCount(rooms));
+        CollectionAssert.AreEqual(new[] { 4, 6, 2 }, rooms.Select(r => r.tunnelLinks.Length));
+        Assert.AreEqual(3, rooms.Select(r => r.id).Distinct().Count());
+        Assert.AreEqual(2, rooms.Select(r => r.ascii).Distinct().Count(), "Topology variants are not three independent geometries");
+        foreach (var room in rooms)
+        {
+            Assert.IsEmpty(MechanismExplorationPlan.TunnelPlanIssues(room));
+            Assert.AreEqual(1.2f, room.startDelaySeconds); Assert.IsTrue(room.lootEscape);
+            Assert.AreEqual(6, MechanismExplorationPlan.Matchups(room).Length);
+            Assert.AreEqual(2, room.routes.Length);
+            // Native direction chooses highest dot; two exits on the same ray cannot be selected independently.
+            foreach (var a in room.tunnelLinks)
+            foreach (var b in room.tunnelLinks)
+            {
+                if (ReferenceEquals(a, b) || a.from.x != b.from.x || a.from.y != b.from.y) continue;
+                float ax = a.to.x - a.from.x, ay = a.to.y - a.from.y;
+                float bx = b.to.x - b.from.x, by = b.to.y - b.from.y;
+                Assert.IsFalse(ax * by == ay * bx && ax * bx + ay * by > 0, "Ambiguous native input direction");
+            }
+        }
+        var confirmations = rooms.Select(r => r.id).ToArray();
+        for (int i = 0; i < 36; i++) Assert.AreEqual(i < 18 ? 1 : 2, MechanismExplorationPlan.TrialAt(rooms, confirmations, i).attempt);
+        Assert.Throws<ArgumentOutOfRangeException>(() => MechanismExplorationPlan.TrialAt(rooms, confirmations, 36));
+    }
+
+    [Test]
+    public void TunnelPlanRejectsMissingMovedOrDuplicateEndpointsAndInvalidTransitTime()
+    {
+        var room = MechanismExplorationPlan.BuildTunnel(166, 0);
+        var original = room.tunnelLinks;
+        room.tunnelLinks = Array.Empty<MechanismExplorationPlan.TunnelLink>();
+        Assert.IsNotEmpty(MechanismExplorationPlan.TunnelPlanIssues(room));
+        room.tunnelLinks = original.Concat(new[] { original[0] }).ToArray();
+        Assert.IsNotEmpty(MechanismExplorationPlan.TunnelPlanIssues(room));
+        room.tunnelLinks = original;
+        original[0].seconds = float.NaN;
+        Assert.IsNotEmpty(MechanismExplorationPlan.TunnelPlanIssues(room));
+        original[0].seconds = 0.8f;
+        original[0].from.x = 500;
+        Assert.IsNotEmpty(MechanismExplorationPlan.TunnelPlanIssues(room));
+        Assert.IsEmpty(MechanismExplorationPlan.TunnelPlanIssues(MechanismExplorationPlan.BuildExperience(166, 2)));
+    }
+
+    [Test]
+    public void TunnelRequestsAndOrdinarySwitchesCannotCertifyActualArrival()
+    {
+        var t = new MechanismExplorationPlan.Trial { tunnelVersion = 1, tunnelEvidenceVersion = 1,
+            tricksterStrategy = "TunnelChaser", tunnelRequests = 10, possessionTransfers = 5, tunnelStarts = 1 };
+        Assert.IsNotEmpty(MechanismExplorationPlan.TunnelTrialIssues(t));
+        t.tunnelArrivals = 1;
+        Assert.IsEmpty(MechanismExplorationPlan.TunnelTrialIssues(t));
+        t.tricksterStrategy = "GroundChaser";
+        Assert.IsNotEmpty(MechanismExplorationPlan.TunnelTrialIssues(t));
+        t.tunnelStarts = 0;
+        Assert.IsEmpty(MechanismExplorationPlan.TunnelTrialIssues(t));
+    }
+
+    [Test]
+    public void TunnelConfirmationCannotHideChangedArrivalEvidence()
+    {
+        var a = new MechanismExplorationPlan.Trial { outcome = "Cleared", tunnelEvidenceVersion = 1 };
+        var b = new MechanismExplorationPlan.Trial { outcome = "Cleared", tunnelEvidenceVersion = 1, tunnelArrivals = 1 };
+        StringAssert.Contains("不稳定", MechanismExplorationPlan.CompareConfirmation(a, b));
+        a.tunnelArrivals = 1;
+        StringAssert.Contains("同条件复现", MechanismExplorationPlan.CompareConfirmation(a, b));
+    }
+
+    [Test]
+    public void HumanAndDemoRecordsNeverRequestAutomaticConfirmations()
+    {
+        var t = new MechanismExplorationPlan.Trial { outcome = "TimedOut", seconds = 30 };
+        Assert.IsTrue(t.IsAutomated); Assert.IsTrue(t.NeedsConfirmation);
+        foreach (string mode in new[] { "HumanMario", "HumanTrickster", "Demonstration" })
+        { t.controlMode = mode; Assert.IsFalse(t.IsAutomated); Assert.IsFalse(t.NeedsConfirmation); }
+    }
+
+    [Test]
+    public void ExplicitDemoSchedulesOnlyOneMatchupWithoutChangingOldScopes()
+    {
+        var room = MechanismExplorationPlan.BuildTunnel(166, 0);
+        room.selectedMatchups = new[] { new MechanismExplorationPlan.Matchup { mario = "Adaptive", trickster = "TunnelChaser" } };
+        Assert.AreEqual(1, MechanismExplorationPlan.TrialCount(new[] { room }));
+        Assert.AreEqual(21, MechanismExplorationPlan.TrialCount(MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Counterplay)));
+        Assert.AreEqual(27, MechanismExplorationPlan.TrialCount(MechanismExplorationPlan.Create(154, MechanismExplorationPlan.Scope.Experience)));
+    }
+
     [TestCase(-1f)]
     [TestCase(1f)]
     public void EncounterRetainsDamageAcrossRetreatAndSeparatesReturn(float direction)

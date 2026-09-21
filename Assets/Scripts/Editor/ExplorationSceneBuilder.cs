@@ -12,6 +12,8 @@ public static class ExplorationSceneBuilder
     {
         structuralFailure = !LevelStudioDocument.TryParse(scenario.ascii, out var doc, out string error);
         if (structuralFailure) return error;
+        var tunnelErrors = MechanismExplorationPlan.TunnelPlanIssues(scenario);
+        if (tunnelErrors.Length > 0) { structuralFailure = true; return string.Join("\n", tunnelErrors); }
         error = doc.PlayReadiness();
         if (!string.IsNullOrEmpty(error)) { structuralFailure = true; return error; }
         var l1 = AsciiLevelValidator.ValidateTemplate(doc.Grid);
@@ -31,6 +33,7 @@ public static class ExplorationSceneBuilder
         PlayableEnvironmentBuilder.EnsurePlayableEnvironment(root);
         GameplayLoopSceneBootstrapper.EnsureGameplayLoopServices(root);
         if (scenario.lootEscape) GameplayLoopSceneBootstrapper.EnsureCombatRoomSemantics(root);
+        ConfigureTunnelNetwork(root, scenario);
         var mario = Object.FindObjectOfType<MarioController>();
         if (mario != null && mario.GetComponent<MarioCounterplayProbe>() == null) Undo.AddComponent<MarioCounterplayProbe>(mario.gameObject);
         var gm = Object.FindObjectOfType<GameManager>();
@@ -52,6 +55,8 @@ public static class ExplorationSceneBuilder
         }
         if (scenario.version >= 3 && !string.IsNullOrEmpty(scenario.experience))
         {
+            if (scenario.tunnelVersion >= 1)
+                AddRouteSign(root, new Vector2(22, 9), "TUNNEL DUEL: FEINT / RELOCATE / RETURN\nTrickster: direction input while possessed to transfer\nRunner: Q counter / upper detour / take loot and return");
             AddRouteSign(root, new Vector2(8, 5.5f), "CHOOSE: UPPER / LOWER\nUpper: more jumps, avoid the lower ambush");
             AddRouteSign(root, new Vector2(23, 7f), "LOWER: shorter, but exposed\nYellow warning: Q scan / retreat / wait for recovery");
             AddRouteSign(root, new Vector2(38, 3f), scenario.lootEscape ? "TAKE LOOT\nReturn LEFT: choose your route again" : "EXIT >");
@@ -75,6 +80,26 @@ public static class ExplorationSceneBuilder
             }
         }
         return root;
+    }
+
+    public static void ConfigureTunnelNetwork(GameObject root, MechanismExplorationPlan.Scenario scenario)
+    {
+        if (scenario.tunnelVersion < 1) return;
+        var errors = MechanismExplorationPlan.TunnelPlanIssues(scenario);
+        if (errors.Length > 0) throw new InvalidOperationException(string.Join("; ", errors));
+        var anchors = root.GetComponentsInChildren<PossessionAnchor>(true);
+        Func<MechanismExplorationPlan.Point, PossessionAnchor> resolve = p => {
+            var matches = anchors.Where(a => Vector2.Distance(a.transform.position, new Vector2(p.x, p.y)) < 0.05f).ToArray();
+            if (matches.Length != 1) throw new InvalidOperationException($"Tunnel endpoint ({p.x},{p.y}) needs exactly one generated anchor");
+            return matches[0];
+        };
+        foreach (var anchor in anchors) anchor.connectedUnderlineNodes.Clear();
+        foreach (var link in scenario.tunnelLinks)
+        {
+            var from = resolve(link.from); var to = resolve(link.to);
+            from.connectedUnderlineNodes.Add(to); to.underlineTransitTime = link.seconds;
+            EditorUtility.SetDirty(from); EditorUtility.SetDirty(to);
+        }
     }
 
     private static void AddRouteSign(GameObject root, Vector2 position, string text)

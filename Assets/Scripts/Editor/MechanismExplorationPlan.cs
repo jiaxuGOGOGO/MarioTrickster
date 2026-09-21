@@ -9,7 +9,7 @@ public static class MechanismExplorationPlan
     public const int Version = 3;
     public const string Catalog = "BC-F<XoH>^~P[]Ee@fS";
     public static readonly string[] Profiles = { "Cautious", "Runner", "Explorer" };
-    public enum Scope { Smoke, Mechanisms, Pairwise, Experience, Counterplay }
+    public enum Scope { Smoke, Mechanisms, Pairwise, Experience, Counterplay, TunnelDuel }
     public const int MaxConfirmationScenes = 6;
 
     // One bounded same-seed confirmation pass, not automatic balancing or a claim of learning.
@@ -32,7 +32,7 @@ public static class MechanismExplorationPlan
         if (baseline == null) return "缺少首轮基线，不能判定改善。";
         Func<Trial, string> signature = t => t.outcome + ":" + t.objectivePhase + ":" +
             string.Join(",", (t.completedRoutes ?? new List<string>()).OrderBy(r => r)) + $":{t.armedNearbySeconds > 0}:{t.possessionTransfers > 0}:" +
-            $"{t.scanEvidenceVersion}:{t.scanHits > 0}:{t.healthEvidenceVersion}:{t.runnerDamageEvents > 0}:{t.probeEvidenceVersion}:{t.probeBudgetExhausted}:{t.queueEvidenceVersion}:{t.queueEvidence.Sum(q => q.cleanCrossings)}:{t.queueEvidence.Sum(q => q.healthLost)}:{t.queueEvidence.Sum(q => q.cleanEncounters)}:{t.startTimingEvidenceVersion}:{IndependentStartObserved(t)}:" + string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
+            $"{t.tunnelEvidenceVersion}:{t.tunnelArrivals > 0}:{t.postLootTunnelArrivals > 0}:{t.controlsAfterTunnel > 0}:{t.scanEvidenceVersion}:{t.scanHits > 0}:{t.healthEvidenceVersion}:{t.runnerDamageEvents > 0}:{t.probeEvidenceVersion}:{t.probeBudgetExhausted}:{t.queueEvidenceVersion}:{t.queueEvidence.Sum(q => q.cleanCrossings)}:{t.queueEvidence.Sum(q => q.healthLost)}:{t.queueEvidence.Sum(q => q.cleanEncounters)}:{t.startTimingEvidenceVersion}:{IndependentStartObserved(t)}:" + string.Join(",", (t.routesUsed ?? new List<string>()).OrderBy(r => r)) + $":{t.telegraphRetreats > 0}:{t.recoveryCrossings > 0}:{t.runnerBounceLaunches > 0}:" + string.Join("|", t.coverage
             .OrderBy(e => e.mechanism).Select(e => $"{e.mechanism}:{e.built > 0}:{e.approached}:{e.contacts > 0}:{e.activations > 0}:{e.observationVersion}:{e.runnerContacts > 0}:{e.runnerEffects > 0}:{e.movingPartEvidenceVersion}:{e.runnerMovingPartContacts > 0}:" + string.Join(",", e.phases.OrderBy(p => p))));
         return signature(baseline) == signature(confirmation)
             ? "同条件复现：结果与覆盖层级一致；仍需检查 AI 局限与真人反制体验。"
@@ -113,6 +113,11 @@ public static class MechanismExplorationPlan
         public int counterplayVersion;
         public float startDelaySeconds; // Ordinary neutral Mario input; the world and opponent keep running.
         public Route[] routes = Array.Empty<Route>();
+        public int tunnelVersion;
+        public string designQuestion;
+        public TunnelLink[] tunnelLinks = Array.Empty<TunnelLink>();
+        // Used only by explicit single-match demonstration / human rehearsal. Old plans stay unchanged.
+        public Matchup[] selectedMatchups = Array.Empty<Matchup>();
     }
 
     [Serializable]
@@ -202,6 +207,7 @@ public static class MechanismExplorationPlan
         }
     }
 
+    [Serializable]
     public sealed class Matchup
     {
         public string mario, trickster;
@@ -214,6 +220,10 @@ public static class MechanismExplorationPlan
         TricksterStrategies.Select(t => new Matchup { mario = m, trickster = t })).ToArray();
     public static Matchup[] Matchups(Scenario scenario)
     {
+        if (scenario.selectedMatchups != null && scenario.selectedMatchups.Length > 0) return scenario.selectedMatchups;
+        if (scenario.tunnelVersion >= 1)
+            return new[] { "Adaptive", "SafeRoute" }.SelectMany(m => new[] { "Passive", "GroundChaser", "TunnelChaser" }
+                .Select(t => new Matchup { mario = m, trickster = t })).ToArray();
         if (scenario.counterplayVersion >= 1)
             return scenario.lootEscape
                 ? new[] { "Adaptive", "SafeRoute" }.SelectMany(m => new[] { "Passive", "Chaser" }
@@ -260,6 +270,7 @@ public static class MechanismExplorationPlan
     public static List<Scenario> Create(int seed, Scope scope)
     {
         if (!Enum.IsDefined(typeof(Scope), scope)) throw new ArgumentOutOfRangeException(nameof(scope));
+        if (scope == Scope.TunnelDuel) return Enumerable.Range(0, 3).Select(i => BuildTunnel(seed, i)).ToList();
         if (scope == Scope.Experience) return Enumerable.Range(0, 3).Select(i => BuildExperience(unchecked(seed + i * 7919), i)).ToList();
         if (scope == Scope.Counterplay)
         {
@@ -396,6 +407,98 @@ public static class MechanismExplorationPlan
         };
     }
 
+    [Serializable]
+    public sealed class TunnelLink
+    {
+        public Point from, to;
+        public float seconds = 0.8f;
+    }
+
+    // Three authored hypotheses, not random obstacle soup or an automatic fun optimizer.
+    // Adjacent seeds shift the ambush cluster; each variant keeps the ordinary upper route.
+    public static Scenario BuildTunnel(int seed, int variant)
+    {
+        if (variant < 0 || variant > 2) throw new ArgumentOutOfRangeException(nameof(variant));
+        var room = BuildExperience(seed, 2);
+        var rows = room.ascii.Split('\n').Select(r => r.ToCharArray()).ToArray();
+        for (int y = 0; y < rows.Length; y++)
+            for (int x = 0; x < rows[y].Length; x++)
+                if ("[FT".Contains(rows[y][x])) rows[y][x] = '.';
+        int shift = new Dice(seed).Next(3);
+        int left = 17 + shift, middle = 23 + shift, right = 29 + shift;
+        Action<int, int, char> put = (x, y, c) => rows[rows.Length - 1 - y][x] = c;
+        put(left - 1, 1, 'T'); put(left, 1, '['); put(middle, 1, 'F'); put(right, 1, '[');
+        var links = new List<TunnelLink>();
+        Action<Point, Point, float> connect = (a, b, seconds) => {
+            links.Add(new TunnelLink { from = a, to = b, seconds = seconds });
+            links.Add(new TunnelLink { from = b, to = a, seconds = seconds });
+        };
+        var a0 = new Point(left, 1); var a1 = new Point(middle, 1); var a2 = new Point(right, 1);
+        connect(a0, a1, 0.8f); connect(a1, a2, 0.8f);
+        if (variant == 1)
+        {
+            // A side exit on the existing upper deck, not a mandatory obstacle or new damage source.
+            put(middle, 5, 'F'); connect(a1, new Point(middle, 5), 0.8f);
+        }
+        if (variant == 2)
+        {
+            // No collinear competing edge: native directional selection must reach the requested exit.
+            links.Clear(); connect(a0, a2, 0.8f);
+        }
+        room.id = $"v{Version}_tunnel_{variant}_{unchecked((uint)seed):x8}";
+        room.experience = "TunnelDuel"; room.tunnelVersion = 1; room.counterplayVersion = 0;
+        room.startDelaySeconds = 1.2f; // Same ordinary preparation window for all automated matchups.
+        room.ascii = string.Join("\n", rows.Select(r => new string(r)));
+        room.tunnelLinks = links.ToArray();
+        room.designQuestion = new[] {
+            "串联暗线：转移是否带来新的出手机会，还是只在空跑？",
+            "上层出口：增加一个换层机会后，上路是否仍是有代价且可用的选择？",
+            "回包暗线：首尾直连替代串联后，拿宝返程是否出现真实换位与再交手？"
+        }[variant];
+        room.intention = room.designQuestion + " 两条明路、拿宝返程、原生暗线方向键转移；不改伤害/物理/能量。" +
+            "静止/地面追击/暗线追击各对照下路Adaptive与上路SafeRoute。启发式Bot和作者路点，不是人类隐藏推理或乐趣验收。";
+        return room;
+    }
+
+    public static string[] TunnelPlanIssues(Scenario room)
+    {
+        if (room.tunnelVersion < 1) return Array.Empty<string>();
+        var errors = new List<string>();
+        var rows = (room.ascii ?? "").Split('\n');
+        var links = room.tunnelLinks ?? Array.Empty<TunnelLink>();
+        Func<Point, bool> valid = p => p != null && IsFinite(p.x) && IsFinite(p.y) &&
+            p.x == (int)p.x && p.y == (int)p.y && p.y >= 0 && p.y < rows.Length &&
+            p.x >= 0 && p.x < rows[rows.Length - 1 - (int)p.y].Length &&
+            "[F".Contains(rows[rows.Length - 1 - (int)p.y][(int)p.x]);
+        if (links.Length == 0) errors.Add("暗线计划没有连接");
+        var keys = new HashSet<string>();
+        foreach (var link in links)
+        {
+            if (link == null || !valid(link.from) || !valid(link.to) || !IsFinite(link.seconds) || link.seconds < 0.1f || link.seconds > 5f)
+            { errors.Add("暗线端点/时间非法，必须对应实际锚点"); continue; }
+            string key = $"{link.from.x},{link.from.y}>{link.to.x},{link.to.y}";
+            if (!keys.Add(key) || (link.from.x == link.to.x && link.from.y == link.to.y)) errors.Add("暗线重复或自环");
+            if (!links.Any(l => l != null && l.from != null && l.to != null && l.from.x == link.to.x && l.from.y == link.to.y &&
+                l.to.x == link.from.x && l.to.y == link.from.y)) errors.Add("缺少返程连接");
+            if (links.Any(l => l != null && l.to != null && l.to.x == link.to.x && l.to.y == link.to.y && l.seconds != link.seconds))
+                errors.Add("原生暗线时间按目的锚点配置，不能混用边时间");
+        }
+        return errors.Distinct().ToArray();
+    }
+
+    // Requests, state transitions and verified arrivals are separate evidence layers.
+    public static string[] TunnelTrialIssues(Trial t)
+    {
+        if (t.tunnelVersion < 1) return Array.Empty<string>();
+        var gaps = new List<string>();
+        if (t.tunnelEvidenceVersion < 1) gaps.Add("暗线实际到达证据未记录");
+        if (t.tricksterStrategy == "TunnelChaser" && t.tunnelArrivals == 0) gaps.Add("暗线未观察到真实异点到达；请求和普通换点不充数");
+        if ((t.tricksterStrategy == "GroundChaser" || t.tricksterStrategy == "Passive") && t.tunnelStarts > 0) gaps.Add("地面追击基线发生暗线转移，不能配对");
+        if (!IndependentStartObserved(t)) gaps.Add("起步阶段缺少独立对手决策证据");
+        if (!PassiveControlClean(t)) gaps.Add("静止对手基线受到行动污染");
+        return gaps.ToArray();
+    }
+
     public static string PairKey(char a, char b) => a < b ? $"{a}{b}" : $"{b}{a}";
     public static string[] MissingFromCatalog(IEnumerable<char> registryChars) => registryChars
         .Where(c => !" .#=WMTG".Contains(c) && !Catalog.Contains(c)).Select(c => c.ToString()).Distinct().ToArray();
@@ -403,6 +506,7 @@ public static class MechanismExplorationPlan
     // Missing evidence is actionable, not a fun score or a requirement that every safe detour fight.
     public static string[] ExperienceIssues(Trial t, Scenario scenario = null)
     {
+        if (t.controlMode == "HumanMario" || t.controlMode == "HumanTrickster") return Array.Empty<string>();
         if (string.IsNullOrEmpty(scenario != null ? scenario.experience : t.experience)) return Array.Empty<string>();
         bool expectsReturn = scenario != null ? scenario.lootEscape : t.expectsReturn;
         var gaps = new List<string>();
@@ -436,6 +540,7 @@ public static class MechanismExplorationPlan
                 (t.queueEvidenceVersion >= 2 ? e.cleanEncounters > 0 : e.cleanCrossings > 0)))
                 gaps.Add("可见线索与无伤结果不是同一机关；不能跨实例拼接反制证据");
         }
+        gaps.AddRange(TunnelTrialIssues(t));
         return gaps.ToArray();
     }
 
@@ -594,6 +699,11 @@ public static class MechanismExplorationPlan
     public sealed class Trial
     {
         public string scenarioId;
+        public string controlMode; // null on old reports = automated. Human records never certify AI coverage.
+        public int tunnelVersion, tunnelEvidenceVersion, tunnelRequests, tunnelStarts, tunnelArrivals, postLootTunnelArrivals;
+        public int controlsAfterTunnel;
+        public List<string> feedback = new List<string>();
+        public List<string> decisions = new List<string>();
         public string profile;
         public string marioStrategy, tricksterStrategy;
         public string objectivePhase;
@@ -636,13 +746,14 @@ public static class MechanismExplorationPlan
         public string nextAction = "";
         public bool HasGameplayEvidence => IsFinite(seconds) && seconds > 0 &&
             (outcome == "Cleared" || outcome == "RunnerStopped" || outcome == "NoProgress" || outcome == "TimedOut");
-        public bool NeedsConfirmation => HasGameplayEvidence && errors.Count == 0 &&
+        public bool IsAutomated => string.IsNullOrEmpty(controlMode) || controlMode == "Automated";
+        public bool NeedsConfirmation => IsAutomated && HasGameplayEvidence && errors.Count == 0 &&
             (!CandidateForHumanPlay || (string.IsNullOrEmpty(experience) && coverage.Any(e => e.ObservationGap)));
         public string InfrastructureKey => outcome == "StartupFailed" || outcome == "BuildFailed" || outcome == "RuntimeError"
             ? outcome + ":" + (errors.Count > 0 ? errors[0].Replace("\r", "").Split('\n')[0] : nextAction)
             : "";
         public bool PairExercised => coverage.Count == 2 && coverage.All(e => e.built > 0 && (e.contacts > 0 || e.activations > 0));
-        public bool CandidateForHumanPlay => HasGameplayEvidence && ExperienceGaps.Length == 0 && outcome == "Cleared" && errors.Count == 0 &&
+        public bool CandidateForHumanPlay => (string.IsNullOrEmpty(controlMode) || controlMode == "Automated" || controlMode == "Demonstration") && HasGameplayEvidence && ExperienceGaps.Length == 0 && outcome == "Cleared" && errors.Count == 0 &&
             coverage.Count > 0 && coverage.All(e => e.built > 0 &&
                 (!string.IsNullOrEmpty(experience) || (e.observationVersion >= 1 ? !e.ObservationGap : e.contacts > 0 || e.activations > 0)));
     }

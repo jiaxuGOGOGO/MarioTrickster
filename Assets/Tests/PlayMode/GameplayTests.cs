@@ -18,6 +18,65 @@ using UnityEngine.TestTools;
 /// </summary>
 public class GameplayTests
 {
+    [UnityTest]
+    public IEnumerator NativeTunnelDirectionalInputArrivesAfterDelay() { yield return NativeTunnelLifecycle(false, false); }
+
+    [UnityTest]
+    public IEnumerator NativeTunnelRevealCancelsLateTeleport() { yield return NativeTunnelLifecycle(true, false); }
+
+    [UnityTest]
+    public IEnumerator NativeTunnelDisableCancelsCoroutineAndRestoresVisibility() { yield return NativeTunnelLifecycle(false, true); }
+
+    private IEnumerator NativeTunnelLifecycle(bool reveal, bool disable)
+    {
+        float savedScale = Time.timeScale;
+        var actor = CreateTestTrickster(new Vector3(35000, 1, 0));
+        var origin = new GameObject("NativeTunnelOrigin"); var exit = new GameObject("NativeTunnelExit");
+        try
+        {
+            Time.timeScale = 1;
+            actor.GetComponent<TricksterController>().enabled = false;
+            actor.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+            origin.transform.position = actor.transform.position; exit.transform.position = actor.transform.position + Vector3.right * 6;
+            var sourceProp = origin.AddComponent<FakeWall>(); exit.AddComponent<FakeWall>();
+            var from = origin.AddComponent<PossessionAnchor>(); var to = exit.AddComponent<PossessionAnchor>();
+            from.connectedUnderlineNodes.Add(to); to.connectedUnderlineNodes.Add(from); to.underlineTransitTime = 0.1f;
+            var disguise = actor.GetComponent<DisguiseSystem>();
+            var ability = actor.GetComponent<TricksterAbilitySystem>();
+            var gate = actor.GetComponent<TricksterPossessionGate>();
+            Assert.IsNotNull(gate);
+            // Isolated lifecycle fixture: establish an already-blended actor, not AI/gameplay success evidence.
+            disguise.enabled = false;
+            SetPrivateField(disguise, "isDisguised", true); SetPrivateField(disguise, "isFullyBlended", true);
+            SetPrivateField(ability, "isAbilityActive", true); SetPrivateField(ability, "boundProp", sourceProp);
+            SetPrivateField(ability, "boundPropObject", origin);
+            ability.OnPropBound?.Invoke(sourceProp);
+            Assert.AreEqual(TricksterPossessionState.Possessing, gate.CurrentState);
+            ability.SwitchTarget(Vector2.right); // Real public direction path, real delay coroutine.
+            Assert.AreEqual(TricksterPossessionState.Underlining, gate.CurrentState);
+            Assert.Less(Vector2.Distance(actor.transform.position, origin.transform.position), 0.01f);
+            Assert.IsFalse(actor.GetComponent<SpriteRenderer>().enabled);
+            if (reveal) gate.ForceReveal(1f, "test-cancel");
+            if (disable) ability.enabled = false;
+            yield return new WaitForSeconds(0.2f);
+            if (reveal || disable)
+                Assert.Less(Vector2.Distance(actor.transform.position, origin.transform.position), 0.01f, "Cancelled transit must never teleport later");
+            else
+            {
+                Assert.Less(Vector2.Distance(actor.transform.position, exit.transform.position), 0.01f);
+                Assert.AreSame(to, gate.CurrentAnchor);
+            }
+            Assert.IsTrue(actor.GetComponent<SpriteRenderer>().enabled);
+            Assert.AreNotEqual(TricksterPossessionState.Underlining, gate.CurrentState);
+            if (reveal) Assert.AreEqual(TricksterPossessionState.Revealed, gate.CurrentState);
+        }
+        finally
+        {
+            Time.timeScale = savedScale;
+            Object.Destroy(actor); Object.Destroy(origin); Object.Destroy(exit);
+        }
+    }
+
     // ═══════════════════════════════════════════════════════
     // 测试辅助：创建带完整组件的测试角色
     // ═══════════════════════════════════════════════════════

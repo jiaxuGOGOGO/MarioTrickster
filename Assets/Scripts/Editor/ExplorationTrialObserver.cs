@@ -39,6 +39,10 @@ public sealed class ExplorationTrialObserver : IDisposable
     private string lastRoute, lastPhase;
     private PossessionAnchor lastPossessedAnchor;
     private bool disposed;
+    private PossessionAnchor tunnelOrigin, lastTunnelArrival;
+    private float tunnelArrivalAt = -100f, decisionTimer;
+    private string lastDecision;
+    private bool HumanTrial => result.controlMode == "HumanMario" || result.controlMode == "HumanTrickster";
     private float finishedFixedTime = -1f;
     public bool Finished => result.outcome != "Running";
     public string Intent => bot.MarioIntent + " / " + bot.TricksterIntent;
@@ -47,6 +51,8 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         result = trial;
         result.experience = scenario.experience;
+        result.tunnelVersion = scenario.tunnelVersion;
+        if (scenario.tunnelVersion >= 1) result.tunnelEvidenceVersion = 1;
         result.expectsReturn = scenario.lootEscape;
         result.counterplayVersion = scenario.counterplayVersion;
         result.startDelaySeconds = scenario.startDelaySeconds;
@@ -98,18 +104,21 @@ public sealed class ExplorationTrialObserver : IDisposable
             marioPersona = marioProfile, tricksterPersona = tricksterProfile,
             ReadPublicQueues = runnerName == "Adaptive",
             PassiveOpponent = opponentName == "Passive",
+            TunnelOpponent = opponentName == "TunnelChaser",
+            GroundOnlyOpponent = opponentName == "GroundChaser",
+            ControlMode = trial.controlMode,
             StartDelayRemaining = scenario.startDelaySeconds,
             RunnerStrategy = runnerName == "Scout" || runnerName == "Adaptive" ? HeuristicBotInputProvider.RunnerPolicy.Scout :
                 runnerName == "SafeRoute" ? HeuristicBotInputProvider.RunnerPolicy.SafeRoute :
                 runnerName == "Runner" ? HeuristicBotInputProvider.RunnerPolicy.Rush : HeuristicBotInputProvider.RunnerPolicy.Legacy,
             OpponentStrategy = opponentName == "Ambusher" ? HeuristicBotInputProvider.OpponentPolicy.Ambusher :
                 opponentName == "Baiter" ? HeuristicBotInputProvider.OpponentPolicy.Baiter :
-                opponentName == "Chaser" ? HeuristicBotInputProvider.OpponentPolicy.Chaser : HeuristicBotInputProvider.OpponentPolicy.Legacy
+                opponentName == "Chaser" || opponentName == "TunnelChaser" || opponentName == "GroundChaser" ? HeuristicBotInputProvider.OpponentPolicy.Chaser : HeuristicBotInputProvider.OpponentPolicy.Legacy
         };
         int matchupIndex = Array.FindIndex(MechanismExplorationPlan.Matchups(scenario), m => m.mario == runnerName && m.trickster == opponentName);
         // Diagnostic comparisons share the seed, not separate random streams per treatment.
         // Opponent presence can still change subsequent decisions; pairs are not causal proof.
-        bot.SetDecisionSeed(scenario.counterplayVersion >= 1 ? scenario.seed : unchecked(scenario.seed + matchupIndex * 65537));
+        bot.SetDecisionSeed(scenario.counterplayVersion >= 1 || scenario.tunnelVersion >= 1 ? scenario.seed : unchecked(scenario.seed + matchupIndex * 65537));
         previousInput = input.GetCurrentProvider();
         input.SetInputProvider(bot);
         manager.OnGameOver += OnGameOver;
@@ -175,6 +184,16 @@ public sealed class ExplorationTrialObserver : IDisposable
         CaptureProbeProgress();
         CaptureQueueEvidence(dt);
         CaptureStartTiming();
+        CaptureTunnelArrival();
+        decisionTimer += dt;
+        if (decisionTimer >= 0.5f)
+        {
+            decisionTimer = 0f;
+            string decision = Intent;
+            if (lastDecision != decision && result.decisions.Count < 160)
+                result.decisions.Add($"{result.seconds:F2}s {phase} runner=({result.endX:F2},{result.endY:F2}) {decision}");
+            lastDecision = decision;
+        }
         result.anchorSwitchRequests = bot.AnchorSwitchRequests;
         if (bot.RouteSwitchRequests > result.routeSwitchRequests) Event("route switch requested: " + bot.RouteId + " (not a completed traversal)");
         result.routeSwitchRequests = bot.RouteSwitchRequests;
@@ -184,7 +203,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (distance < bestDistance - 0.5f) { bestDistance = distance; noProgressTimer = 0; }
         else noProgressTimer += dt;
         if (result.seconds >= limit) { Finish("TimedOut", "超出本次时间预算；不等于物理无解。检查 AI 寻路和关卡节奏。"); return; }
-        if (noProgressTimer > 12f) { Finish("NoProgress", "12 秒未向当前目标取得净进展，也未到达新路点或获得新接近/接触/激活证据；可能是 AI 局限、机制等待或布局问题，需复测。"); return; }
+        if (!HumanTrial && noProgressTimer > 12f) { Finish("NoProgress", "12 秒未向当前目标取得净进展，也未到达新路点或获得新接近/接触/激活证据；可能是 AI 局限、机制等待或布局问题，需复测。"); return; }
         sampleTimer += dt;
         if (sampleTimer < 0.1f) return;
         float sampledDuration = Mathf.Min(sampleTimer, 0.25f);
@@ -230,6 +249,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (Finished) return;
         CaptureProbeProgress();
         CaptureStartTiming();
+        CaptureTunnelArrival();
         result.outcome = outcome;
         finishedFixedTime = Time.fixedTime;
         result.nextAction = nextAction;
@@ -243,6 +263,7 @@ public sealed class ExplorationTrialObserver : IDisposable
 
     private void CaptureStartTiming()
     {
+        result.tunnelRequests = bot.TunnelRequests;
         result.actualStartWaitSeconds = bot.StartWaitSeconds;
         result.startWaitFrames = bot.StartWaitFrames;
         result.opponentWaitDecisionFrames = bot.OpponentWaitDecisionFrames;
@@ -324,7 +345,7 @@ public sealed class ExplorationTrialObserver : IDisposable
     private void OnGameOver(string winner)
     {
         Finish(winner == "Mario" ? "Cleared" : "RunnerStopped", winner == "Mario"
-            ? "AI 已通过；仍需检查接触/激活缺口，再交给真人判断乐趣。"
+            ? (HumanTrial ? "真人试玩通关；反馈单独保存，不认证自动策略或乐趣。" : "AI 已通过；仍需检查接触/激活缺口，再交给真人判断乐趣。")
             : "检查结束位置、机关预警和替代路线；也要排除 AI 能力不足。");
     }
     private void Event(string label)
@@ -372,6 +393,13 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         if (Finished || prop == null) return;
         result.controlAccepted++;
+        if (lastTunnelArrival != null && gate != null && gate.CurrentAnchor == lastTunnelArrival &&
+            prop.GetTransform() == lastTunnelArrival.transform && manager.RoundElapsed - tunnelArrivalAt <= 3f)
+        {
+            result.controlsAfterTunnel++;
+            Event("control accepted at verified arrival anchor within 3s; temporal association, not causal success");
+            lastTunnelArrival = null; // One opportunity per arrival, not repeated counting.
+        }
         if (result.lootEvents > 0) result.postLootControls++;
         var source = prop.GetTransform().gameObject;
         var probe = source.GetComponentInParent<ExplorationContactProbe>();
@@ -407,6 +435,17 @@ public sealed class ExplorationTrialObserver : IDisposable
     private void OnPossession(TricksterPossessionState state)
     {
         if (Finished) return;
+        if (result.tunnelEvidenceVersion >= 1)
+        {
+            if (state == TricksterPossessionState.Underlining)
+            {
+                result.tunnelStarts++; tunnelOrigin = gate.CurrentAnchor;
+                Event("native tunnel departure " + (tunnelOrigin != null ? tunnelOrigin.AnchorId : "unknown"));
+            }
+            else if (state == TricksterPossessionState.Revealed || state == TricksterPossessionState.Roaming || state == TricksterPossessionState.Escaping)
+            { tunnelOrigin = null; }
+            else if (state == TricksterPossessionState.Possessing) CaptureTunnelArrival();
+        }
         if (state == TricksterPossessionState.Blending && bot.StartWaitingThisTick)
         { result.opponentWaitPreparations++; Event("opponent began normal blending during runner start wait"); }
         if (state != TricksterPossessionState.Possessing) return;
@@ -421,6 +460,29 @@ public sealed class ExplorationTrialObserver : IDisposable
         { result.possessionTransfers++; if (result.lootEvents > 0) result.postLootTransfers++; Event("possession of a different anchor completed"); }
         if (anchor != null) lastPossessedAnchor = anchor;
     }
+    private void CaptureTunnelArrival()
+    {
+        if (result.tunnelEvidenceVersion < 1 || tunnelOrigin == null || gate == null || !gate.IsHiddenAndArmed) return;
+        var destination = gate.CurrentAnchor;
+        bool arrived = destination != null && destination != tunnelOrigin &&
+            tunnelOrigin.connectedUnderlineNodes.Contains(destination) &&
+            Vector2.Distance(gate.transform.position, destination.transform.position) < 0.8f;
+        if (!arrived) return;
+        result.tunnelArrivals++;
+        if (result.lootEvents > 0) result.postLootTunnelArrivals++;
+        lastTunnelArrival = destination; tunnelArrivalAt = manager.RoundElapsed;
+        Event("verified tunnel arrival " + tunnelOrigin.AnchorId + " -> " + destination.AnchorId +
+            "; physical position + linked anchor + possession, not a direction request");
+        tunnelOrigin = null;
+    }
+
+    public void MarkFeedback(string tag)
+    {
+        if (disposed || Finished || result.feedback.Count >= 60 || string.IsNullOrWhiteSpace(tag)) return;
+        result.feedback.Add($"{manager.RoundElapsed:F2}s [{result.controlMode ?? "Automated"}] " +
+            $"runner=({mario.transform.position.x:F2},{mario.transform.position.y:F2}) {tag.Substring(0, Math.Min(240, tag.Length))}");
+    }
+
     private void OnCombo(int count, float multiplier) { if (!Finished && count > 1) { result.comboEvents++; Event("combo " + count); } }
     private void OnHeat(GameplayEventBus.HeatTierChangedPayload p) { if (!Finished) { result.heatEvents++; Event("heat " + p.newTier); } }
     private void OnLoot()
@@ -478,7 +540,15 @@ public sealed class ExplorationTrialObserver : IDisposable
         private readonly bool explore, hasLootObjective;
         private float interactTimer, dropTimer;
         public MechanismExplorationPlan.ProbeVisitBudget ProbeVisits { get; }
-        public bool ReadPublicQueues, PassiveOpponent;
+        public bool ReadPublicQueues, PassiveOpponent, TunnelOpponent, GroundOnlyOpponent;
+        public string ControlMode;
+        public int TunnelRequests { get; private set; }
+        private float tunnelInputCooldown;
+        private readonly KeyboardInputProvider keyboard = new KeyboardInputProvider();
+        private readonly TricksterPossessionGate opponentGate;
+        private bool HumanMario => ControlMode == "HumanMario";
+        private bool HumanTrickster => ControlMode == "HumanTrickster";
+        protected override bool UsesHumanTricksterInput => HumanTrickster;
         public float StartDelayRemaining;
         public float StartWaitSeconds { get; private set; }
         public bool StartWaitingThisTick { get; private set; }
@@ -502,6 +572,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         {
             navigation = new MechanismExplorationPlan.RouteNavigator(routes, safe);
             this.runner = runner; this.explore = explore;
+            opponentGate = Object.FindObjectOfType<TricksterPossessionGate>();
             hasLootObjective = Object.FindObjectOfType<LootObjective>() != null;
             points = targets.SelectMany(p => p.Value.Select(t => new KeyValuePair<string, Transform>(p.Key, t)))
                 .Where(p => p.Value != null).OrderBy(p => p.Value.position.x).GroupBy(p => p.Key).Select(g => g.First()).ToArray();
@@ -522,10 +593,41 @@ public sealed class ExplorationTrialObserver : IDisposable
         }
         protected override void UpdateTricksterBrain(float dt)
         {
+            if (HumanTrickster)
+            {
+                p2Horizontal = keyboard.GetP2Horizontal(); p2Vertical = keyboard.GetP2Vertical();
+                p2JumpDown = keyboard.GetP2JumpDown(); p2JumpHeld = keyboard.GetP2JumpHeld();
+                p2DisguiseDown = keyboard.GetP2DisguiseDown(); p2DirectionDown = keyboard.GetP2DirectionDown();
+                p2SwitchDir = keyboard.GetP2SwitchDirection(); p2AbilityDown = keyboard.GetP2AbilityDown();
+                TricksterIntent = "[Human input; intent not inferred]";
+                return;
+            }
             if (!PassiveOpponent)
             {
                 int before = OpponentDecisionTicks;
                 base.UpdateTricksterBrain(dt);
+                if (TunnelOpponent || GroundOnlyOpponent)
+                {
+                    // Do not let the generic Chaser direction switch silently use the tunnel network.
+                    p2DirectionDown = false;
+                    if (opponentGate != null && opponentGate.CurrentState != TricksterPossessionState.Roaming)
+                        p2Horizontal = p2Vertical = 0f;
+                    tunnelInputCooldown = Mathf.Max(0f, tunnelInputCooldown - dt);
+                    if (TunnelOpponent && opponentGate != null && opponentGate.CanSwitchTarget && runner != null &&
+                        tunnelInputCooldown <= 0f && !p2AbilityDown)
+                    {
+                        var from = opponentGate.CurrentAnchor;
+                        var next = FindTunnelIntercept(from, runner.transform.position, runner.Velocity);
+                        if (next != null)
+                        {
+                            Vector2 direction = ((Vector2)(next.transform.position - from.transform.position)).normalized;
+                            p2Horizontal = direction.x; p2Vertical = direction.y;
+                            p2DirectionDown = true; p2DisguiseDown = false;
+                            TunnelRequests++; tunnelInputCooldown = 1.2f;
+                            TricksterIntent = "[Tunnel intercept input -> " + next.AnchorId + "; arrival not yet verified]";
+                        }
+                    }
+                }
                 if (StartWaitingThisTick)
                 {
                     if (OpponentDecisionTicks > before) OpponentWaitDecisionFrames++;
@@ -538,6 +640,24 @@ public sealed class ExplorationTrialObserver : IDisposable
             p2JumpDown = p2JumpHeld = p2DirectionDown = p2DisguiseDown = p2AbilityDown = false;
             TricksterIntent = "[Passive control: actor retained, ordinary neutral input]";
         }
+        public static PossessionAnchor FindTunnelIntercept(PossessionAnchor from, Vector2 runnerPosition, Vector2 velocity)
+        {
+            if (from == null || from.connectedUnderlineNodes == null || Vector2.Distance(from.transform.position, runnerPosition) > 12f) return null;
+            // Local-distance heuristic, not optical perception or hidden-intent inference.
+            Vector2 predicted = runnerPosition + new Vector2(Mathf.Clamp(velocity.x, -12f, 12f) * 0.6f, 0);
+            Func<PossessionAnchor, float> score = a => Mathf.Abs(a.transform.position.x - predicted.x) +
+                2f * Mathf.Abs(a.transform.position.y - runnerPosition.y);
+            float bestScore = score(from) - 1f;
+            PossessionAnchor best = null;
+            foreach (var next in from.connectedUnderlineNodes)
+            {
+                if (next == null || next == from || !next.isActiveAndEnabled || !next.CanBePossessed()) continue;
+                float value = score(next);
+                if (value < bestScore) { bestScore = value; best = next; }
+            }
+            return best;
+        }
+
         private bool ApplyPublicQueueInput()
         {
             if (runner == null || runnerBody == null || !runner.enabled) return false;
@@ -591,6 +711,21 @@ public sealed class ExplorationTrialObserver : IDisposable
         protected override void UpdateMarioBrain(float dt)
         {
             WaitingQueue = null; QueueDecision = null;
+            if (HumanMario || HumanTrickster || ControlMode == "Demonstration")
+            {
+                keyboard.UpdateGamepads();
+                // Stop via the batch button; restarting would destroy this trial's evidence.
+                pauseDown = keyboard.GetPauseDown();
+            }
+            if (HumanMario)
+            {
+                StartWaitingThisTick = false;
+                p1Horizontal = keyboard.GetP1Horizontal(); p1Vertical = keyboard.GetP1Vertical();
+                p1JumpHeld = keyboard.GetP1JumpHeld(); p1JumpDown = keyboard.GetP1JumpDown();
+                p1SHeld = keyboard.GetP1SHeld(); p1SDown = keyboard.GetP1SDown(); p1ScanDown = keyboard.GetP1ScanDown();
+                MarioIntent = "[Human input; no authored route control]";
+                return;
+            }
             EvidenceDrivenScanning = ReadPublicQueues || RunnerStrategy == RunnerPolicy.SafeRoute;
             StartWaitingThisTick = StartDelayRemaining > 0f;
             if (StartDelayRemaining > 0f)

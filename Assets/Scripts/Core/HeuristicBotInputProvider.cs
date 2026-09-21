@@ -260,6 +260,8 @@ public class HeuristicBotInputProvider : IInputProvider
     /// 每帧由 InputManager.UpdateInputProvider() 调用。
     /// 执行顺序：清零上帧 Down → Brain 决策 → 返回（ReadP1/ReadP2 紧接着读取）。
     /// </summary>
+    protected virtual bool UsesHumanTricksterInput => false;
+
     public void Tick(float dt)
     {
         if (!_personaLogPrinted)
@@ -278,6 +280,7 @@ public class HeuristicBotInputProvider : IInputProvider
         UpdateMarioBrain(dt);
         UpdateTricksterBrain(dt);
         // Preserve a short held jump, then release it so a later jump has a fresh edge.
+        if (UsesHumanTricksterInput) { _tricksterJumpHold = 0f; return; }
         if (_tricksterJumpHold > 0f)
         { _tricksterJumpHold -= dt; p2JumpHeld = _tricksterJumpHold > 0f; }
         else if (p2JumpDown) { _tricksterJumpHold = 0.3f; p2JumpHeld = true; }

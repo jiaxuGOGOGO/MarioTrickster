@@ -5,6 +5,85 @@ using UnityEngine;
 /// <summary>Editor-side integration contracts; actual scene/playmode cycling still needs Unity execution.</summary>
 public class ExplorationIntegrationContractTests
 {
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    public void TunnelNetworkBindsActualGeneratedAnchorsIdempotently(int variant)
+    {
+        GameObject root = null;
+        try
+        {
+            var room = MechanismExplorationPlan.BuildTunnel(166, variant);
+            root = AsciiLevelGenerator.GenerateFromTemplate(room.ascii, false, false);
+            Assert.IsNotNull(root);
+            foreach (var prop in root.GetComponentsInChildren<ControllablePropBase>(true))
+                if (prop.GetComponent<PossessionAnchor>() == null) prop.gameObject.AddComponent<PossessionAnchor>();
+            ExplorationSceneBuilder.ConfigureTunnelNetwork(root, room);
+            ExplorationSceneBuilder.ConfigureTunnelNetwork(root, room);
+            var anchors = root.GetComponentsInChildren<PossessionAnchor>(true);
+            int total = 0;
+            foreach (var anchor in anchors)
+            {
+                total += anchor.connectedUnderlineNodes.Count;
+                foreach (var next in anchor.connectedUnderlineNodes)
+                {
+                    Assert.Contains(anchor, next.connectedUnderlineNodes);
+                    Assert.AreEqual(0.8f, next.underlineTransitTime);
+                }
+            }
+            Assert.AreEqual(room.tunnelLinks.Length, total, "No duplicate edges or runtime-only placeholder links");
+            var broken = room.tunnelLinks[0].from;
+            broken.x += 1000;
+            Assert.Throws<System.InvalidOperationException>(() => ExplorationSceneBuilder.ConfigureTunnelNetwork(root, room));
+        }
+        finally { if (root != null) Object.DestroyImmediate(root); }
+    }
+
+    [Test]
+    public void TunnelInterceptUsesLinkedUsableExitsAndLocalDistanceBound()
+    {
+        var origin = new GameObject("TunnelOrigin"); var exit = new GameObject("TunnelExit");
+        try
+        {
+            origin.transform.position = new Vector3(36000, 1, 0); exit.transform.position = new Vector3(36006, 1, 0);
+            origin.AddComponent<FakeWall>(); exit.AddComponent<FakeWall>();
+            var from = origin.AddComponent<PossessionAnchor>(); var to = exit.AddComponent<PossessionAnchor>();
+            // EditMode does not promise Awake dispatch; explicitly initialize the real cache.
+            from.SendMessage("Awake"); to.SendMessage("Awake");
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)));
+            from.connectedUnderlineNodes.Add(to);
+            Assert.AreSame(to, ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)));
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36100, 1), new Vector2(8, 0)));
+            exit.SetActive(false);
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindTunnelIntercept(from, new Vector2(36003, 1), new Vector2(8, 0)));
+        }
+        finally { Object.DestroyImmediate(origin); Object.DestroyImmediate(exit); }
+    }
+
+    [Test]
+    public void TunnelReportDoesNotRankFunOrBorrowHumanAndPartialRecords()
+    {
+        var room = MechanismExplorationPlan.BuildTunnel(166, 0);
+        var report = new StudioExplorationRunner.Report { controlMode = "Automated" };
+        report.scenarios.Add(room);
+        Assert.AreEqual("地道博弈", StudioExplorationRunner.TestTrack(report));
+        Assert.AreEqual(6, StudioExplorationRunner.UnverifiedSlots(report));
+        var t = new MechanismExplorationPlan.Trial { scenarioId = room.id, profile = "Adaptive vs TunnelChaser",
+            marioStrategy = "Adaptive", tricksterStrategy = "TunnelChaser", controlMode = "HumanMario",
+            tunnelVersion = 1, tunnelEvidenceVersion = 1, seconds = 20, outcome = "Cleared", tunnelArrivals = 3,
+            controlsAfterTunnel = 1, lootEvents = 1, escapeEvents = 1, lootAtSeconds = 10, escapeAtSeconds = 20 };
+        report.trials.Add(t);
+        Assert.AreEqual(6, StudioExplorationRunner.UnverifiedSlots(report));
+        StringAssert.Contains("证据不足", StudioExplorationRunner.TunnelDesignSummary(report));
+        t.controlMode = "Automated";
+        Assert.AreEqual(5, StudioExplorationRunner.UnverifiedSlots(report));
+        t.outcome = "TimedOut";
+        StringAssert.Contains("返程未验证", StudioExplorationRunner.TunnelDesignSummary(report));
+        report.controlMode = "HumanMario";
+        StringAssert.Contains("不计入自动批次", StudioExplorationRunner.EvidenceVerdict(report));
+        StringAssert.Contains("不作自动策略诊断", StudioExplorationRunner.TunnelDesignSummary(report));
+    }
+
     [Test]
     public void PartialOrDuplicatedSchedulesCannotReceiveWholeBatchCandidateVerdict()
     {

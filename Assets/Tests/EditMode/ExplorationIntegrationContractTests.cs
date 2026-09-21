@@ -5,15 +5,139 @@ using UnityEngine;
 /// <summary>Editor-side integration contracts; actual scene/playmode cycling still needs Unity execution.</summary>
 public class ExplorationIntegrationContractTests
 {
+    private static StudioExplorationRunner.Report DuelReportFixture(MechanismExplorationPlan.Scenario room = null)
+    {
+        room = room ?? MechanismExplorationPlan.BuildDuel(168);
+        var report = new StudioExplorationRunner.Report { status = "Complete", controlMode = "Automated", sourceFingerprint = "same-code",
+            unityVersion = "2022.3.31f1", fixedDeltaTime = 0.02f, trialLimitSeconds = 60f, physicsConfigJson = "defaults", gameplayConfigJson = "same-config" };
+        report.scenarios.Add(room);
+        foreach (var m in MechanismExplorationPlan.Matchups(room))
+        {
+            var trial = new MechanismExplorationPlan.Trial { scenarioId = room.id, marioStrategy = m.mario, tricksterStrategy = m.trickster,
+                profile = m.Id, attempt = 1, outcome = "Cleared", seconds = 20, controlMode = "Automated", tunnelEvidenceVersion = 1,
+                healthEvidenceVersion = 1, startTimingEvidenceVersion = 1, startDelaySeconds = room.startDelaySeconds,
+                actualStartWaitSeconds = room.startDelaySeconds, startWaitFrames = 60, opponentWaitDecisionFrames = m.trickster == "Passive" ? 0 : 60,
+                lootEvents = 1, escapeEvents = 1, lootAtSeconds = 10, escapeAtSeconds = 20 };
+            if (m.mario == "SafeRoute") { trial.completedRoutes.Add("Out:upper"); trial.completedRoutes.Add("Return:upper"); }
+            report.trials.Add(trial);
+        }
+        return report;
+    }
+
+    [Test]
+    public void DuelIterationRequiresActualFirstPassAndPreservesParent()
+    {
+        var report = DuelReportFixture(); var parent = report.scenarios[0];
+        Assert.IsEmpty(StudioExplorationRunner.IterationBlockReason(report, parent));
+        var child = StudioExplorationRunner.ProposeDuelIteration(report, parent);
+        Assert.AreEqual(parent.id, child.parentScenarioId);
+        Assert.AreEqual(0, parent.iteration); Assert.AreEqual(6, report.trials.Count);
+        StringAssert.Contains("无转移后出手", child.mutationReason);
+        var nextReport = DuelReportFixture(child);
+        StringAssert.Contains("父版 → 本版", StudioExplorationRunner.DuelIterationComparison(report, nextReport));
+        nextReport.trials[2].outcome = "TimedOut";
+        StringAssert.Contains("Cleared → TimedOut", StudioExplorationRunner.DuelIterationComparison(report, nextReport), "Never hide the child's worse outcome");
+    }
+
+    [TestCase("missing")]
+    [TestCase("duplicate")]
+    [TestCase("confirmationOnly")]
+    [TestCase("human")]
+    [TestCase("demo")]
+    [TestCase("blocked")]
+    [TestCase("runtimeError")]
+    [TestCase("failedRegression")]
+    [TestCase("noEvidence")]
+    [TestCase("contaminatedGround")]
+    [TestCase("nanWait")]
+    [TestCase("changedDelay")]
+    [TestCase("manualRoute")]
+    [TestCase("incompleteReturn")]
+    public void DuelIterationRejectsUntrustworthyOrUnfinishedInputs(string fault)
+    {
+        var report = DuelReportFixture(); var room = report.scenarios[0];
+        if (fault == "missing") report.trials.RemoveAt(0);
+        if (fault == "duplicate") report.trials.Add(report.trials[0]);
+        if (fault == "confirmationOnly") report.trials[0].attempt = 2;
+        if (fault == "human") report.trials[0].controlMode = "HumanMario";
+        if (fault == "demo") report.controlMode = "Demonstration";
+        if (fault == "blocked") report.status = "Blocked";
+        if (fault == "runtimeError") report.trials[0].errors.Add("real error");
+        if (fault == "failedRegression") report.regressionFailed = 1;
+        if (fault == "noEvidence") report.trials[0].tunnelEvidenceVersion = 0;
+        if (fault == "contaminatedGround") report.trials[1].tunnelStarts = 1;
+        if (fault == "nanWait") report.trials[0].actualStartWaitSeconds = float.NaN;
+        if (fault == "changedDelay") report.trials[0].startDelaySeconds = 0;
+        if (fault == "manualRoute") room.routes[0].points[0].x += 1;
+        if (fault == "incompleteReturn") report.trials[0].escapeEvents = 0;
+        Assert.IsNotEmpty(StudioExplorationRunner.IterationBlockReason(report, room));
+        Assert.Throws<System.InvalidOperationException>(() => StudioExplorationRunner.ProposeDuelIteration(report, room));
+    }
+
+    [TestCase("code")]
+    [TestCase("config")]
+    [TestCase("budget")]
+    [TestCase("wrongVariant")]
+    public void DuelComparisonRejectsChangedConditions(string fault)
+    {
+        var parent = DuelReportFixture();
+        var child = DuelReportFixture(StudioExplorationRunner.ProposeDuelIteration(parent, parent.scenarios[0]));
+        if (fault == "code") child.sourceFingerprint = "changed";
+        if (fault == "config") child.gameplayConfigJson = "changed";
+        if (fault == "budget") child.trialLimitSeconds = 30;
+        if (fault == "wrongVariant") child.scenarios[0].duelVariant = 2;
+        StringAssert.Contains("不报告改善", StudioExplorationRunner.DuelIterationComparison(parent, child));
+    }
+
+    [Test]
+    public void PassiveDemoIsClearlyIdentifiedAndCannotAuthorizeIteration()
+    {
+        var report = DuelReportFixture();
+        report.controlMode = "Demonstration";
+        report.trials.RemoveRange(1, report.trials.Count - 1);
+        StringAssert.Contains("无干扰基线", StudioExplorationRunner.DuelReview(report, report.scenarios[0]));
+        Assert.IsNotEmpty(StudioExplorationRunner.IterationBlockReason(report, report.scenarios[0]));
+        StringAssert.Contains("对手不行动", StudioExplorationRunner.DuelOpponentLabel("Passive"));
+    }
+
+    [Test]
+    public void PreparedInterceptUsesRealLinkedPropsAndLeavesAnImminentAmbushInPlace()
+    {
+        var origin = new GameObject("PreparedOrigin"); var exit = new GameObject("PreparedExit");
+        try
+        {
+            origin.transform.position = new Vector3(36012, 1, 0); exit.transform.position = new Vector3(36036, 1, 0);
+            origin.AddComponent<FakeWall>(); exit.AddComponent<FakeWall>();
+            var from = origin.AddComponent<PossessionAnchor>(); var to = exit.AddComponent<PossessionAnchor>();
+            var cache = typeof(PossessionAnchor).GetMethod("CacheControllableProp", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(cache); cache.Invoke(from, null); cache.Invoke(to, null);
+            to.underlineTransitTime = 0.8f;
+            var position = new Vector2(36000, 1); var velocity = new Vector2(7, 0);
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindPreparedTunnelIntercept(from, position, velocity, 1.5f));
+            from.connectedUnderlineNodes.Add(to);
+            Assert.AreSame(to, ExplorationTrialObserver.GuidedBot.FindPreparedTunnelIntercept(from, position, velocity, 1.5f));
+            to.enabled = false;
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindPreparedTunnelIntercept(from, position, velocity, 1.5f));
+            to.enabled = true;
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindPreparedTunnelIntercept(from, new Vector2(36010, 1), velocity, 1.5f));
+            exit.transform.position = new Vector3(36008, 1, 0);
+            Assert.IsNull(ExplorationTrialObserver.GuidedBot.FindPreparedTunnelIntercept(from, position, velocity, 1.5f));
+        }
+        finally { Object.DestroyImmediate(origin); Object.DestroyImmediate(exit); }
+    }
+
     [TestCase(0)]
     [TestCase(1)]
     [TestCase(2)]
+    [TestCase(3)]
+    [TestCase(4)]
+    [TestCase(5)]
     public void TunnelNetworkBindsActualGeneratedAnchorsIdempotently(int variant)
     {
         GameObject root = null;
         try
         {
-            var room = MechanismExplorationPlan.BuildTunnel(166, variant);
+            var room = variant < 3 ? MechanismExplorationPlan.BuildTunnel(166, variant) : MechanismExplorationPlan.BuildDuel(168, variant - 3);
             root = AsciiLevelGenerator.GenerateFromTemplate(room.ascii, false, false);
             Assert.IsNotNull(root);
             foreach (var prop in root.GetComponentsInChildren<ControllablePropBase>(true))

@@ -115,6 +115,9 @@ public static class MechanismExplorationPlan
         public Route[] routes = Array.Empty<Route>();
         public int tunnelVersion;
         public string designQuestion;
+        // Separate creative grammar; legacy TunnelDuel reports keep their saved layouts unchanged.
+        public int duelVersion, duelVariant, iteration;
+        public string parentScenarioId, mutationReason;
         public TunnelLink[] tunnelLinks = Array.Empty<TunnelLink>();
         // Used only by explicit single-match demonstration / human rehearsal. Old plans stay unchanged.
         public Matchup[] selectedMatchups = Array.Empty<Matchup>();
@@ -458,6 +461,98 @@ public static class MechanismExplorationPlan
         room.intention = room.designQuestion + " 两条明路、拿宝返程、原生暗线方向键转移；不改伤害/物理/能量。" +
             "静止/地面追击/暗线追击各对照下路Adaptive与上路SafeRoute。启发式Bot和作者路点，不是人类隐藏推理或乐趣验收。";
         return room;
+    }
+
+    /// <summary>Seeded two-lane duel room. Finite authored grammar, not arbitrary terrain or learned fun.</summary>
+    public static Scenario BuildDuel(int seed, int variant = 0)
+    {
+        if (variant < 0 || variant > 2) throw new ArgumentOutOfRangeException(nameof(variant));
+        var dice = new Dice(seed);
+        int width = 48 + 2 * dice.Next(7), height = 12;
+        int deckStart = 13 + 2 * dice.Next(2), deckEnd = width - 15 - 2 * dice.Next(2);
+        int left = deckStart + 2 + dice.Next(2), middle = (deckStart + deckEnd) / 2 + dice.Next(3) - 1;
+        int right = deckEnd - 1 - dice.Next(2);
+        var rows = Enumerable.Range(0, height).Select(_ => new string('.', width).ToCharArray()).ToArray();
+        Action<int, int, char> put = (x, y, c) => rows[height - 1 - y][x] = c;
+        for (int x = 0; x < width; x++) put(x, 0, '#');
+        for (int x = deckStart; x <= deckEnd; x++) put(x, 4, '-');
+        for (int i = 1; i <= 3; i++) { put(deckStart - 2 * i, 4 - i, '-'); put(deckEnd + 2 * i, 4 - i, '-'); }
+        put(5, 1, 'M'); put(3, 1, 'G'); put(deckEnd + 9, 1, 'o');
+        put(left - 1, 1, 'T'); put(left, 1, '['); put(middle, 1, 'F'); put(right, 1, '[');
+        put(middle, 5, 'F'); // Surface exit exists in every variant; only its link changes.
+        var a = new Point(left, 1); var b = new Point(middle, 1); var c0 = new Point(right, 1); var upperExit = new Point(middle, 5);
+        var links = new List<TunnelLink>();
+        Action<Point, Point> connect = (p, q) => {
+            links.Add(new TunnelLink { from = p, to = q, seconds = 0.8f });
+            links.Add(new TunnelLink { from = q, to = p, seconds = 0.8f });
+        };
+        // Never place two outgoing edges on the same ray: both must be selectable by native input.
+        if (variant == 0) connect(a, c0); // Long flank: leave before the runner passes, rather than chase behind.
+        else { connect(a, b); connect(b, c0); }
+        connect(variant == 1 ? b : a, upperExit);
+        float standing = PhysicsMetrics.MARIO_COLLIDER_HEIGHT * 0.5f - PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
+        float ground = 0.5f + standing, platform = PhysicsMetrics.ONEWAY_COLLIDER_SIZE.y * 0.5f + standing;
+        var upper = new List<Point>();
+        for (int i = 3; i >= 1; i--) upper.Add(new Point(deckStart - 2 * i, 4 - i + platform));
+        foreach (int x in new[] { deckStart, left, middle, right, deckEnd }.Distinct().OrderBy(x => x)) upper.Add(new Point(x, 4 + platform));
+        for (int i = 1; i <= 3; i++) upper.Add(new Point(deckEnd + 2 * i, 4 - i + platform));
+        upper.Add(new Point(deckEnd + 8, ground));
+        string question = new[] { "提前回包：长暗线能否赶在返程前准备，而不是追在身后？", "分段换位：中继和地表出口是否提供有效出手机会？", "侧翼出口：连接地表的入口换到左侧，是否改变双方的选择？" }[variant];
+        return new Scenario {
+            seed = seed, id = $"v{Version}_duel1_{variant}_{unchecked((uint)seed):x8}",
+            duelVersion = 1, duelVariant = variant, tunnelVersion = 1, experience = "TunnelDuel",
+            lootEscape = true, mechanisms = "[Fo", startDelaySeconds = 1.2f,
+            ascii = string.Join("\n", rows.Select(r => new string(r))), tunnelLinks = links.ToArray(),
+            designQuestion = question,
+            intention = question + " 地表绕行/下层短路/原生暗线。种子改变宽度、台阶及机关位置；不是挖土或地形破坏。双方用真实按键，不以损血或通关率评乐趣。",
+            routes = new[] {
+                new Route { id = "lower", points = new[] { new Point(deckStart - 2, ground), new Point(middle + 1, ground), new Point(deckEnd + 6, ground) }, minX = deckStart + 1, maxX = deckEnd, minY = 0.5f, maxY = 2.6f },
+                new Route { id = "upper", points = upper.ToArray(), minX = deckStart + 1, maxX = deckEnd, minY = 4 + platform - 0.3f, maxY = 7.5f }
+            }
+        };
+    }
+
+    // Called only after the runner has checked complete real-match evidence. Do not mutate the parent.
+    public static Scenario NextDuelVariant(Scenario parent, string reason)
+    {
+        if (parent == null || parent.duelVersion != 1 || parent.iteration < 0 || parent.iteration >= 2)
+            throw new InvalidOperationException("本轮最多两次连接变体；先由真人复盘，不无限刷关卡。");
+        if (!IsGeneratedDuelLayout(parent) || string.IsNullOrWhiteSpace(reason))
+            throw new InvalidOperationException("手工改图或缺少对战理由：不能静默覆盖为生成器布局。");
+        var child = BuildDuel(parent.seed, (parent.duelVariant + 1) % 3);
+        child.iteration = parent.iteration + 1;
+        child.parentScenarioId = parent.id;
+        child.id += "_iteration" + child.iteration;
+        child.mutationReason = reason;
+        child.designQuestion = "连接变体 " + child.iteration + "（待验证）：" + child.designQuestion;
+        return child;
+    }
+
+    public static bool IsGeneratedDuelLayout(Scenario room)
+    {
+        if (room == null || room.duelVersion != 1 || room.duelVariant < 0 || room.duelVariant > 2) return false;
+        var canonical = BuildDuel(room.seed, room.duelVariant);
+        Func<Point, Point, bool> samePoint = (a, b) => a != null && b != null && a.x == b.x && a.y == b.y;
+        return room.ascii == canonical.ascii && room.lootEscape && room.startDelaySeconds == canonical.startDelaySeconds &&
+            room.mechanisms == canonical.mechanisms && room.tunnelVersion == canonical.tunnelVersion && room.counterplayVersion == 0 &&
+            room.routes != null && room.routes.Length == canonical.routes.Length &&
+            room.routes.Zip(canonical.routes, (a, b) => a != null && a.id == b.id && a.minX == b.minX && a.maxX == b.maxX && a.minY == b.minY && a.maxY == b.maxY &&
+                a.points != null && a.points.Length == b.points.Length && a.points.Zip(b.points, samePoint).All(same => same)).All(same => same) &&
+            room.tunnelLinks != null && room.tunnelLinks.Length == canonical.tunnelLinks.Length &&
+            room.tunnelLinks.Zip(canonical.tunnelLinks, (a, b) => a != null && samePoint(a.from, b.from) && samePoint(a.to, b.to) && a.seconds == b.seconds).All(same => same);
+    }
+
+    // Conservative same-lane ETA: travel + re-blending + telegraph + reaction must finish before passage.
+    // This is a known-position heuristic, not hidden-intent inference or proof of a successful attack.
+    public static float TunnelAmbushWindow(float runnerX, float runnerY, float velocityX, float exitX, float exitY,
+        float transit, float blend, float telegraph)
+    {
+        if (!IsFinite(runnerX) || !IsFinite(runnerY) || !IsFinite(velocityX) || !IsFinite(exitX) || !IsFinite(exitY) ||
+            !IsFinite(transit) || !IsFinite(blend) || !IsFinite(telegraph) ||
+            Math.Abs(velocityX) < 0.5f || Math.Abs(runnerY - exitY) > 1.5f || transit < 0 || blend < 0 || telegraph < 0) return -1f;
+        float eta = (exitX - runnerX) / velocityX;
+        float spare = eta - (transit + blend + telegraph + 0.35f);
+        return spare >= 0f && spare <= 4f ? spare : -1f;
     }
 
     public static string[] TunnelPlanIssues(Scenario room)

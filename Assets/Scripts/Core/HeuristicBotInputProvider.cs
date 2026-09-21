@@ -261,6 +261,7 @@ public class HeuristicBotInputProvider : IInputProvider
     /// 执行顺序：清零上帧 Down → Brain 决策 → 返回（ReadP1/ReadP2 紧接着读取）。
     /// </summary>
     protected virtual bool UsesHumanTricksterInput => false;
+    protected virtual bool OwnsDirectionalTransferPlanning => false;
 
     public void Tick(float dt)
     {
@@ -998,7 +999,7 @@ public class HeuristicBotInputProvider : IInputProvider
 
         _anchorSwitchTimer = Mathf.Max(0f, _anchorSwitchTimer - dt);
         bool passed = (marioPos.x - anchorPos.x) * (_mario.IsFacingRight ? 1f : -1f) > 1f;
-        if (OpponentStrategy == OpponentPolicy.Chaser && passed && _gate.CanSwitchTarget && _anchorSwitchTimer <= 0f)
+        if (!OwnsDirectionalTransferPlanning && OpponentStrategy == OpponentPolicy.Chaser && passed && _gate.CanSwitchTarget && _anchorSwitchTimer <= 0f)
         {
             // A direction key uses the same range, gate and cooldown as a human. It may fail.
             p2Horizontal = _mario.IsFacingRight ? 1f : -1f;

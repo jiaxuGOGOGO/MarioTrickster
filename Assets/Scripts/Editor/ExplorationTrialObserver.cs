@@ -106,6 +106,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             PassiveOpponent = opponentName == "Passive",
             TunnelOpponent = opponentName == "TunnelChaser",
             GroundOnlyOpponent = opponentName == "GroundChaser",
+            PlannedTunnelOpponent = scenario.duelVersion >= 1,
             ControlMode = trial.controlMode,
             StartDelayRemaining = scenario.startDelaySeconds,
             RunnerStrategy = runnerName == "Scout" || runnerName == "Adaptive" ? HeuristicBotInputProvider.RunnerPolicy.Scout :
@@ -540,15 +541,17 @@ public sealed class ExplorationTrialObserver : IDisposable
         private readonly bool explore, hasLootObjective;
         private float interactTimer, dropTimer;
         public MechanismExplorationPlan.ProbeVisitBudget ProbeVisits { get; }
-        public bool ReadPublicQueues, PassiveOpponent, TunnelOpponent, GroundOnlyOpponent;
+        public bool ReadPublicQueues, PassiveOpponent, TunnelOpponent, GroundOnlyOpponent, PlannedTunnelOpponent;
         public string ControlMode;
         public int TunnelRequests { get; private set; }
         private float tunnelInputCooldown;
         private readonly KeyboardInputProvider keyboard = new KeyboardInputProvider();
         private readonly TricksterPossessionGate opponentGate;
+        private readonly DisguiseSystem opponentDisguise;
         private bool HumanMario => ControlMode == "HumanMario";
         private bool HumanTrickster => ControlMode == "HumanTrickster";
         protected override bool UsesHumanTricksterInput => HumanTrickster;
+        protected override bool OwnsDirectionalTransferPlanning => PlannedTunnelOpponent && (TunnelOpponent || GroundOnlyOpponent);
         public float StartDelayRemaining;
         public float StartWaitSeconds { get; private set; }
         public bool StartWaitingThisTick { get; private set; }
@@ -573,6 +576,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             navigation = new MechanismExplorationPlan.RouteNavigator(routes, safe);
             this.runner = runner; this.explore = explore;
             opponentGate = Object.FindObjectOfType<TricksterPossessionGate>();
+            opponentDisguise = opponentGate != null ? opponentGate.GetComponent<DisguiseSystem>() : null;
             hasLootObjective = Object.FindObjectOfType<LootObjective>() != null;
             points = targets.SelectMany(p => p.Value.Select(t => new KeyValuePair<string, Transform>(p.Key, t)))
                 .Where(p => p.Value != null).OrderBy(p => p.Value.position.x).GroupBy(p => p.Key).Select(g => g.First()).ToArray();
@@ -614,10 +618,12 @@ public sealed class ExplorationTrialObserver : IDisposable
                         p2Horizontal = p2Vertical = 0f;
                     tunnelInputCooldown = Mathf.Max(0f, tunnelInputCooldown - dt);
                     if (TunnelOpponent && opponentGate != null && opponentGate.CanSwitchTarget && runner != null &&
-                        tunnelInputCooldown <= 0f && !p2AbilityDown)
+                        tunnelInputCooldown <= 0f && !p2AbilityDown && (!PlannedTunnelOpponent || !p2DisguiseDown))
                     {
                         var from = opponentGate.CurrentAnchor;
-                        var next = FindTunnelIntercept(from, runner.transform.position, runner.Velocity);
+                        var next = PlannedTunnelOpponent
+                            ? FindPreparedTunnelIntercept(from, runner.transform.position, runner.Velocity, opponentDisguise != null ? opponentDisguise.BlendInSeconds : float.NaN)
+                            : FindTunnelIntercept(from, runner.transform.position, runner.Velocity);
                         if (next != null)
                         {
                             Vector2 direction = ((Vector2)(next.transform.position - from.transform.position)).normalized;
@@ -640,6 +646,29 @@ public sealed class ExplorationTrialObserver : IDisposable
             p2JumpDown = p2JumpHeld = p2DirectionDown = p2DisguiseDown = p2AbilityDown = false;
             TricksterIntent = "[Passive control: actor retained, ordinary neutral input]";
         }
+        public static PossessionAnchor FindPreparedTunnelIntercept(PossessionAnchor from, Vector2 runnerPosition, Vector2 velocity, float blendSeconds)
+        {
+            if (from == null || from.connectedUnderlineNodes == null || Vector2.Distance(from.transform.position, runnerPosition) > 12f) return null;
+            var current = from.ControllableProp;
+            // Keep a usable current ambush instead of abandoning it merely to increase transfer counts.
+            if (current != null && from.CanBePossessed() && Mathf.Abs(runnerPosition.y - from.transform.position.y) <= 1.5f &&
+                Mathf.Abs(velocity.x) >= 0.5f)
+            {
+                float eta = (from.transform.position.x - runnerPosition.x) / velocity.x;
+                if (eta >= 0f && eta <= current.GetTelegraphDuration() + 0.7f) return null;
+            }
+            PossessionAnchor best = null;
+            float bestWindow = float.MaxValue;
+            foreach (var next in from.connectedUnderlineNodes)
+            {
+                if (next == null || next == from || !next.isActiveAndEnabled || !next.CanBePossessed()) continue;
+                float window = MechanismExplorationPlan.TunnelAmbushWindow(runnerPosition.x, runnerPosition.y, velocity.x,
+                    next.transform.position.x, next.transform.position.y, next.underlineTransitTime, blendSeconds, next.ControllableProp.GetTelegraphDuration());
+                if (window >= 0f && window < bestWindow) { best = next; bestWindow = window; }
+            }
+            return best;
+        }
+
         public static PossessionAnchor FindTunnelIntercept(PossessionAnchor from, Vector2 runnerPosition, Vector2 velocity)
         {
             if (from == null || from.connectedUnderlineNodes == null || Vector2.Distance(from.transform.position, runnerPosition) > 12f) return null;

@@ -8,6 +8,7 @@ using UnityEngine.SceneManagement;
 public partial class TestConsoleWindow
 {
     [SerializeField] private bool studioAdvanced;
+    [SerializeField] private int studioCreationMode;
     [SerializeField] private int studioRole;
     [SerializeField] private string studioBrush = "#";
     [SerializeField] private bool studioSourceVisible;
@@ -75,6 +76,14 @@ public partial class TestConsoleWindow
 
     private void DrawCreationFlow()
     {
+        studioCreationMode = GUILayout.Toolbar(studioCreationMode, new[] { "对战创作（推荐）", "手工画布 / 原测试流程" }, GUILayout.Height(28));
+        if (studioCreationMode == 0)
+        {
+            scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
+            DrawDuelWorkshop();
+            EditorGUILayout.EndScrollView();
+            return;
+        }
         if (studioCellStyle == null)
         {
             studioCellStyle = new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter, fontSize = 12 }; // cached

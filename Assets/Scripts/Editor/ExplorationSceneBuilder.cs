@@ -53,7 +53,15 @@ public static class ExplorationSceneBuilder
             so.FindProperty("visibility").enumValueIndex = (int)PassageVisibility.HintWhenNear;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
-        if (scenario.version >= 3 && !string.IsNullOrEmpty(scenario.experience))
+        if (scenario.duelVersion >= 1)
+        {
+            float end = scenario.routes.First(r => r.id == "upper").maxX;
+            AddRouteSign(root, new Vector2((13 + end) * 0.5f, 8), "SURFACE / UNDERPASS DUEL\nDisguise - control props - scan - relocate");
+            AddRouteSign(root, new Vector2(7, 6), "SURFACE: climb / detour\nUNDERPASS: short route / ambush risk");
+            AddRouteSign(root, new Vector2(end + 9, 3), "TAKE LOOT\nReturn LEFT to escape");
+            AddRouteSign(root, new Vector2(3, 3), "ESCAPE\nQ: counter a visible warning");
+        }
+        else if (scenario.version >= 3 && !string.IsNullOrEmpty(scenario.experience))
         {
             if (scenario.tunnelVersion >= 1)
                 AddRouteSign(root, new Vector2(22, 9), "TUNNEL DUEL: FEINT / RELOCATE / RETURN\nTrickster: direction input while possessed to transfer\nRunner: Q counter / upper detour / take loot and return");

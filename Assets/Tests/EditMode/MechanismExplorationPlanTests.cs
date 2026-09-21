@@ -4,6 +4,93 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [TestCase(0)]
+    [TestCase(168)]
+    [TestCase(-168)]
+    [TestCase(int.MinValue)]
+    [TestCase(int.MaxValue)]
+    public void SeededDuelsAreDeterministicAndKeepPhysicalRouteTargets(int seed)
+    {
+        var room = MechanismExplorationPlan.BuildDuel(seed);
+        Assert.AreEqual(room.ascii, MechanismExplorationPlan.BuildDuel(seed).ascii);
+        Assert.IsTrue(MechanismExplorationPlan.IsGeneratedDuelLayout(room));
+        Assert.AreEqual(6, MechanismExplorationPlan.Matchups(room).Length);
+        var rows = room.ascii.Split('\n');
+        Assert.That(rows[0].Length, Is.InRange(48, 60));
+        foreach (var variant in Enumerable.Range(0, 3).Select(v => MechanismExplorationPlan.BuildDuel(seed, v)))
+        {
+            Assert.AreEqual(room.ascii, variant.ascii, "Iteration only changes the tunnel network, not the physical room");
+            Assert.IsEmpty(MechanismExplorationPlan.TunnelPlanIssues(variant));
+            foreach (var route in variant.routes)
+            foreach (var point in route.points)
+            {
+                Assert.AreEqual(point.x, (int)point.x);
+                char support = rows[rows.Length - 1 - (int)Math.Floor(point.y - 0.5f)][(int)point.x];
+                Assert.That(support == '#' || support == '-', "Waypoint requires a real grounded landing");
+            }
+            foreach (var a in variant.tunnelLinks)
+            foreach (var b in variant.tunnelLinks)
+            {
+                if (ReferenceEquals(a, b) || a.from.x != b.from.x || a.from.y != b.from.y) continue;
+                float ax = a.to.x - a.from.x, ay = a.to.y - a.from.y;
+                float bx = b.to.x - b.from.x, by = b.to.y - b.from.y;
+                Assert.IsFalse(ax * by == ay * bx && ax * bx + ay * by > 0, "Native direction must select every authored exit");
+            }
+        }
+    }
+
+    [Test]
+    public void SeedsChangeActualGeometryAndKeepDefaultL1Valid()
+    {
+        var rooms = Enumerable.Range(-100, 200).Select(seed => MechanismExplorationPlan.BuildDuel(seed)).ToArray();
+        Assert.Greater(rooms.Select(r => r.ascii).Distinct().Count(), 70, "Seed must change more than the scenario identifier");
+        foreach (var room in rooms) Assert.IsEmpty(AsciiLevelValidator.ValidateTemplate(room.ascii).errors, room.id);
+    }
+
+    [Test]
+    public void DuelIterationKeepsParentAndStopsAfterTwoChanges()
+    {
+        var parent = MechanismExplorationPlan.BuildDuel(168);
+        string oldLayout = parent.ascii, oldId = parent.id;
+        var child = MechanismExplorationPlan.NextDuelVariant(parent, "真实对战后缺少出手");
+        Assert.AreEqual(0, parent.iteration); Assert.AreEqual(oldId, parent.id); Assert.AreEqual(oldLayout, parent.ascii);
+        Assert.AreEqual(oldId, child.parentScenarioId); Assert.AreEqual(oldLayout, child.ascii);
+        Assert.AreEqual(1, child.iteration); Assert.AreEqual(1, child.duelVariant);
+        Assert.AreEqual(6, MechanismExplorationPlan.Matchups(child).Length);
+        var next = MechanismExplorationPlan.NextDuelVariant(child, "比较不同侧翼入口");
+        Assert.AreEqual(2, next.iteration);
+        Assert.Throws<InvalidOperationException>(() => MechanismExplorationPlan.NextDuelVariant(next, "禁止无限迭代"));
+        Assert.Throws<InvalidOperationException>(() => MechanismExplorationPlan.NextDuelVariant(parent, ""));
+    }
+
+    [TestCase("ascii")]
+    [TestCase("links")]
+    [TestCase("routes")]
+    [TestCase("delay")]
+    public void DuelIterationCannotSilentlyDiscardManualEdits(string edit)
+    {
+        var room = MechanismExplorationPlan.BuildDuel(168);
+        if (edit == "ascii") room.ascii = room.ascii.Replace('F', '[');
+        if (edit == "links") room.tunnelLinks[0].seconds = 1f;
+        if (edit == "routes") room.routes[0].points[0].x += 1f;
+        if (edit == "delay") room.startDelaySeconds += 1f;
+        Assert.IsFalse(MechanismExplorationPlan.IsGeneratedDuelLayout(room));
+        Assert.Throws<InvalidOperationException>(() => MechanismExplorationPlan.NextDuelVariant(room, "不覆盖手工修改"));
+    }
+
+    [TestCase(8f, 32f, 1f, 0.8f, true)]
+    [TestCase(-8f, -32f, 1f, 0.8f, true)]
+    [TestCase(8f, 8f, 1f, 0.8f, false)]
+    [TestCase(8f, -32f, 1f, 0.8f, false)]
+    [TestCase(8f, 32f, 5f, 0.8f, false)]
+    [TestCase(8f, 32f, 1f, 4f, false)]
+    [TestCase(0f, 32f, 1f, 0.8f, false)]
+    public void PreparedTunnelWindowsRejectLateBehindOtherLaneAndStationaryTargets(float speed, float exitX, float exitY, float transit, bool accepted)
+    {
+        Assert.AreEqual(accepted, MechanismExplorationPlan.TunnelAmbushWindow(0, 1, speed, exitX, exitY, transit, 1.5f, 0.8f) >= 0);
+        Assert.Less(MechanismExplorationPlan.TunnelAmbushWindow(0, 1, speed, exitX, exitY, transit, float.NaN, 0.8f), 0);
+    }
+
     [Test]
     public void TunnelHundredSeedPlansKeepL1AndSavedEndpointValidation()
     {

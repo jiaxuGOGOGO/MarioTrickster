@@ -20,6 +20,7 @@ public partial class TestConsoleWindow
     [SerializeField] private string duelDraftJson = "";
     [SerializeField] private int duelReportSelection, duelRoute;
     [SerializeField] private bool duelAdvanced;
+    [SerializeField] private bool duelReportDetails, duelReportTools;
     private string duelParsedJson;
     private MechanismExplorationPlan.Scenario duelDraft;
 
@@ -79,6 +80,10 @@ public partial class TestConsoleWindow
                 EditorGUILayout.LabelField($"{(current.lootEvents > 0 ? "已拿宝，返回左侧撤离" : "向右拿宝")} · 已观察地道到达 {current.tunnelArrivals} · 到达后出手受理 {current.controlsAfterTunnel}", EditorStyles.wordWrappedLabel);
             }
             EditorGUILayout.LabelField("切到 Game 窗口观看/操作。下方只记录你的真实感受；自动6组中会包含明确标注的无干扰基线。", EditorStyles.wordWrappedLabel);
+            if (report?.controlMode == "HumanMario")
+                EditorGUILayout.HelpBox("先点击Game窗口获得焦点。A/D移动，空格跳跃，Q扫描，S互动/配合空格下穿；向右拿宝，再回左侧撤离。你可自由选路，地表标签不限制真人输入。", MessageType.Info);
+            else if (report?.controlMode == "HumanTrickster")
+                EditorGUILayout.HelpBox("先点击Game窗口获得焦点。方向键移动/附身时请求换点，P伪装，L操控；右Ctrl跳跃。仍受能量、热度和预警限制。", MessageType.Info);
             EditorGUILayout.BeginHorizontal();
             foreach (string tag in new[] { "有来有回", "看不懂", "只是空跑", "等待太多" })
                 if (GUILayout.Button(tag)) StudioExplorationRunner.AddFeedback(tag);
@@ -144,39 +149,34 @@ public partial class TestConsoleWindow
             var room = rooms[duelReportSelection];
             EditorGUILayout.LabelField($"报告：{report.toolRevision} / {DuelStatusLabel(report.controlMode)} / {DuelStatusLabel(report.status)}；回归 {report.regressionPassed} 通过 / {report.regressionFailed} 失败", EditorStyles.wordWrappedMiniLabel);
             if (duelDraft == null || duelDraft.id != room.id || duelDraft.ascii != room.ascii)
-                EditorGUILayout.HelpBox("这份报告不是上方当前草稿的结果。可加载报告原图；不会把旧结果算给新种子。", MessageType.Info);
-            EditorGUILayout.HelpBox(StudioExplorationRunner.DuelFeedbackCompleteness(report), MessageType.Info);
-            EditorGUILayout.HelpBox(StudioExplorationRunner.DuelReview(report, room), MessageType.Info);
-            foreach (var t in report.trials.Where(t => t.scenarioId == room.id))
-            {
-                EditorGUILayout.LabelField($"{(t.attempt <= 1 ? "首轮" : "确认")} / 计划{(t.marioStrategy == "SafeRoute" ? "地表" : "下层")} / {StudioExplorationRunner.DuelOpponentLabel(t.tricksterStrategy)}：{DuelStatusLabel(t.outcome)}，{t.seconds:F1}秒；地道到达{t.tunnelArrivals}，3秒内出手{t.controlsAfterTunnel}", EditorStyles.wordWrappedMiniLabel);
-                EditorGUILayout.LabelField(StudioExplorationRunner.DuelTrialRouteSummary(t), EditorStyles.wordWrappedMiniLabel);
-            }
-            if (!string.IsNullOrEmpty(report.iterationComparison)) EditorGUILayout.HelpBox(report.iterationComparison, MessageType.Info);
-            EditorGUILayout.LabelField("先看报告中的真实路线，再决定是否改图。以下演示直接用报告原图，不会误用上方草稿；按当前代码重跑，不是录像。", EditorStyles.wordWrappedLabel);
+                EditorGUILayout.HelpBox("当前草稿与报告不同。下方观战/真人按钮直接用报告原图，不用先载入草稿。", MessageType.Info);
+            EditorGUILayout.HelpBox(StudioExplorationRunner.DuelNextAction(report, room), MessageType.Info);
+            EditorGUILayout.LabelField($"报告原图：种子{room.seed} / 连接方案{room.duelVariant} / 变体进度{room.iteration}/2", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("下列按钮直接用这份报告原图，不用载入草稿，也不重新生成；按当前代码重跑，不是录像。", EditorStyles.wordWrappedMiniLabel);
             using (new EditorGUI.DisabledScope(unavailable))
             {
+                if (GUILayout.Button("下一步：看报告原图地表对战", GUILayout.Height(36)))
+                    DuelAction(() => StartReportedDuel(room, "SafeRoute"));
+                if (GUILayout.Button("亲自玩报告原图（我当闯关者，自由选路）", GUILayout.Height(30)))
+                    DuelAction(() => StartReportedDuel(room, "SafeRoute", "HumanMario"));
                 EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("看报告原图：下层对战")) DuelAction(() => StartReportedDuel(room, "Adaptive"));
-                if (GUILayout.Button("看报告原图：地表对战")) DuelAction(() => StartReportedDuel(room, "SafeRoute"));
+                if (GUILayout.Button("看原图下层对战")) DuelAction(() => StartReportedDuel(room, "Adaptive"));
+                if (GUILayout.Button("我当捣蛋者，对抗地表AI")) DuelAction(() => StartReportedDuel(room, "SafeRoute", "HumanTrickster"));
                 EditorGUILayout.EndHorizontal();
-            }
-            string blocked = StudioExplorationRunner.IterationBlockReason(report, room);
-            EditorGUILayout.LabelField(blocked.Length > 0 ? blocked : "下一次只换暗线连接：原图、物理、伤害和AI策略保持不变。不会自动宣称更好玩。", EditorStyles.wordWrappedLabel);
-            using (new EditorGUI.DisabledScope(unavailable || blocked.Length > 0))
-                if (GUILayout.Button("根据这份对战结果，试一个连接变体并再对战", GUILayout.Height(32)))
-                    DuelAction(() => StudioExplorationRunner.StartDuelIteration(room, 60, explorationRegressions));
-            using (new EditorGUI.DisabledScope(unavailable))
-            {
-                if (GUILayout.Button("把报告原图载入为当前草稿（保留原种子）"))
-                {
-                    var copy = JsonUtility.FromJson<MechanismExplorationPlan.Scenario>(JsonUtility.ToJson(room));
-                    copy.selectedMatchups = Array.Empty<MechanismExplorationPlan.Matchup>();
-                    SaveDuelDraft(copy); duelSeed = room.seed;
-                }
-                if (!string.IsNullOrEmpty(report.parentReport) && GUILayout.Button("查看父版本结果 / 返回上一批"))
+                if (!string.IsNullOrEmpty(report.controlMode) && report.controlMode != "Automated" && !string.IsNullOrEmpty(report.parentReport) &&
+                    GUILayout.Button("返回上一批报告（保留本局）"))
                 { DuelAction(StudioExplorationRunner.LoadParentReport); GUIUtility.ExitGUI(); }
             }
+            string blocked = StudioExplorationRunner.IterationBlockReason(report, room);
+            if (room.iteration < 2)
+            {
+                EditorGUILayout.LabelField(blocked.Length > 0 ? blocked : "可选：只换一个连接方案，自动再跑6组。不会自动宣称更好玩。", EditorStyles.wordWrappedMiniLabel);
+                using (new EditorGUI.DisabledScope(unavailable || blocked.Length > 0))
+                    if (GUILayout.Button("根据这份对战结果，试一个连接变体并再对战", GUILayout.Height(30)))
+                        DuelAction(() => StudioExplorationRunner.StartDuelIteration(room, 60, explorationRegressions));
+            }
+            else EditorGUILayout.LabelField("已到变体2/2：保留这张图试玩复盘，不追加第3次。", EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.LabelField(StudioExplorationRunner.DuelReportHighlights(report, room), EditorStyles.wordWrappedLabel);
             explorationPlayerNote = EditorGUILayout.TextField("我的感受 / 新道具想法", explorationPlayerNote);
             if (GUILayout.Button("保存感受或机制提案") && !string.IsNullOrWhiteSpace(explorationPlayerNote))
             { StudioExplorationRunner.AddFeedback(explorationPlayerNote); explorationPlayerNote = ""; }
@@ -184,8 +184,32 @@ public partial class TestConsoleWindow
                 foreach (string note in report.playerNotes.Skip(Math.Max(0, report.playerNotes.Count - 3)))
                     EditorGUILayout.LabelField(note, EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.LabelField("新道具提案与玩法实现分开：先说明它解决哪种单调局面、对手如何识别和反制，再实现与回归。当前不会自动写新机制代码。", EditorStyles.wordWrappedMiniLabel);
-            if (GUILayout.Button("打包反馈ZIP，发给AI继续设计"))
+            if (GUILayout.Button("打包反馈ZIP，发给AI继续设计", GUILayout.Height(30)))
                 DuelAction(() => EditorUtility.RevealInFinder(StudioExplorationRunner.ExportFeedbackZip()));
+            duelReportDetails = EditorGUILayout.Foldout(duelReportDetails, "展开：完整性、首轮/确认明细与父子比较");
+            if (duelReportDetails)
+            {
+                EditorGUILayout.HelpBox(StudioExplorationRunner.DuelFeedbackCompleteness(report), MessageType.Info);
+                EditorGUILayout.HelpBox(StudioExplorationRunner.DuelReview(report, room), MessageType.Info);
+                foreach (var t in report.trials.Where(t => t.scenarioId == room.id))
+                {
+                    EditorGUILayout.LabelField($"{(t.attempt <= 1 ? "首轮" : "确认")} / 计划{(t.marioStrategy == "SafeRoute" ? "地表" : "下层")} / {StudioExplorationRunner.DuelOpponentLabel(t.tricksterStrategy)}：{DuelStatusLabel(t.outcome)}，{t.seconds:F1}秒；地道到达{t.tunnelArrivals}，3秒内出手{t.controlsAfterTunnel}", EditorStyles.wordWrappedMiniLabel);
+                    EditorGUILayout.LabelField(StudioExplorationRunner.DuelTrialRouteSummary(t), EditorStyles.wordWrappedMiniLabel);
+                }
+                if (!string.IsNullOrEmpty(report.iterationComparison)) EditorGUILayout.HelpBox(report.iterationComparison, MessageType.Info);
+            }
+            duelReportTools = EditorGUILayout.Foldout(duelReportTools, "展开：重测原图、载入草稿、查看父版");
+            if (duelReportTools)
+            using (new EditorGUI.DisabledScope(unavailable))
+            {
+                if (GUILayout.Button("重测报告原图完整6组（不重新生成）"))
+                    DuelAction(() => StudioExplorationRunner.Start(room.seed, MechanismExplorationPlan.Scope.TunnelDuel, 60,
+                        StudioExplorationRunner.CopyDuelForFullReplay(room), explorationRegressions));
+                if (GUILayout.Button("把报告原图载入为当前草稿（保留原种子）"))
+                { SaveDuelDraft(StudioExplorationRunner.CopyDuelForFullReplay(room)); duelSeed = room.seed; }
+                if (!string.IsNullOrEmpty(report.parentReport) && GUILayout.Button("查看父版本结果 / 返回上一批"))
+                { DuelAction(StudioExplorationRunner.LoadParentReport); GUIUtility.ExitGUI(); }
+            }
         }
         EditorGUILayout.EndVertical();
         if (!string.IsNullOrEmpty(studioNotice)) EditorGUILayout.HelpBox(studioNotice, MessageType.Info);
@@ -194,10 +218,10 @@ public partial class TestConsoleWindow
         if (duelAdvanced) DrawExplorationPanel();
     }
 
-    private void StartReportedDuel(MechanismExplorationPlan.Scenario room, string runner)
+    private void StartReportedDuel(MechanismExplorationPlan.Scenario room, string runner, string mode = "Demonstration")
     {
-        StudioExplorationRunner.Start(room.seed, MechanismExplorationPlan.Scope.TunnelDuel, 60,
-            room, explorationRegressions, runner, "TunnelChaser", "Demonstration");
+        StudioExplorationRunner.Start(room.seed, MechanismExplorationPlan.Scope.TunnelDuel, mode == "Demonstration" ? 60 : 120,
+            room, explorationRegressions, runner, "TunnelChaser", mode);
     }
 
     private bool DuelDraftHasParent => duelDraft != null && StudioExplorationRunner.Latest != null &&

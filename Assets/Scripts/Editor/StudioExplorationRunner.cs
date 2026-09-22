@@ -281,6 +281,88 @@ public static class StudioExplorationRunner
             " 父报告与原始基线可能是同一批，不重复计样本。";
     }
 
+    // This is report completeness, not a fun score or permission to exceed the iteration cap.
+    public static bool DuelReportReadyForReview(Report data, MechanismExplorationPlan.Scenario room)
+    {
+        return data != null && room != null && data.scenarios.Contains(room) && room.tunnelVersion >= 1 &&
+            MechanismExplorationPlan.Matchups(room).Length == 6 && data.status == "Complete" &&
+            (string.IsNullOrEmpty(data.controlMode) || data.controlMode == "Automated") &&
+            string.IsNullOrEmpty(data.blockedReason) && data.regressionFailed == 0 &&
+            data.trials.Count == PlannedTrials(data) && UnverifiedSlots(data) == 0 &&
+            data.trials.All(t => t.IsAutomated && t.errors.Count == 0 && t.attempt >= 0 && t.attempt <= 2);
+    }
+
+    public static string DuelNextAction(Report data, MechanismExplorationPlan.Scenario room)
+    {
+        if (data == null || room == null) return "先生成一张图，再运行完整6组对照。";
+        if (!string.IsNullOrEmpty(data.controlMode) && data.controlMode != "Automated")
+            return "这是单局记录，不补算自动覆盖。可保存感受并导出ZIP；继续比较前先返回完整对照报告。";
+        if (!DuelReportReadyForReview(data, room))
+            return "本批尚未完整或有执行故障：先查看明细并导出ZIP，不生成下一变体来绕过缺口。";
+        var runs = data.trials.Where(t => t.scenarioId == room.id).ToArray();
+        if (runs.Any(t => t.outcome != "Cleared" || !ValidReturnTimes(t) || t.lootEvents < 1 || t.escapeEvents < 1 ||
+            (t.marioStrategy == "SafeRoute" && (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper") || !t.completedRoutes.Contains("Return:upper")))))
+            return "记录已收齐，但有通路或路线未完成。先保留问题并导出ZIP，不把通关/首轮成功替代确认局。";
+        if (room.iteration >= 2)
+            return "本图6组与计划确认已齐，本轮两次连接试验已结束。下一步看报告原图地表对战，或亲自玩一局；不要再生成变体，也不必重复补跑同批。";
+        return "本批记录已齐。先看报告原图交手；若继续连接试验，用下方按钮生成下一版，无需重新生成种子或载入草稿。";
+    }
+
+    public static string DuelEncounterLine(MechanismExplorationPlan.Trial t)
+    {
+        if (t == null) return "缺少唯一记录；不借另一轮补算。";
+        if (!t.IsAutomated) return "单局/真人记录，不作自动对照结论。";
+        if (!t.HasGameplayEvidence || t.errors.Count > 0) return "未完成有效观察或有执行错误。";
+        if (t.tunnelEvidenceVersion < 1) return "暗线证据未记录，不能把零值当作没有换位。";
+        string transfer;
+        if (t.tunnelArrivals == 0)
+            transfer = t.tunnelRequests > 0 ? "有换位请求，未观察到真实暗线到达" : "未观察到暗线换位";
+        else if (t.controlsAfterTunnel > 0)
+            transfer = "已有到达后3秒内同出口出手受理";
+        else if (t.tunnelVisitEvidenceVersion >= 1 && (t.tunnelVisits ?? new List<MechanismExplorationPlan.TunnelVisit>()).Any(v => v.firstControlAt >= 0f))
+            transfer = "已有连续驻留出手，不能仅因3秒计数为0判无效";
+        else if (t.tunnelVisitEvidenceVersion >= 1 && (t.tunnelVisits ?? new List<MechanismExplorationPlan.TunnelVisit>()).Any(v => v.readyAt >= 0f && v.runnerPassedWhenReady))
+            transfer = "已到达，但有出口就绪时玩家已越过的记录；未记录驻留出手";
+        else transfer = "已到达，尚无转移后出手证据；不推断有效伏击";
+        string returned = t.startTimingEvidenceVersion >= 1
+            ? $"；返程普通操控受理{t.postLootControls}次" : "；返程操控未记录";
+        string motion = $"；观察到预警退让{t.telegraphRetreats}次、恢复窗口穿越{t.recoveryCrossings}次";
+        return transfer + returned + motion + "。这些是时序/动作记录，不是因果或乐趣评分。";
+    }
+
+    public static string DuelReportHighlights(Report data, MechanismExplorationPlan.Scenario room)
+    {
+        if (data == null || room == null) return "尚无对战报告。";
+        if (!string.IsNullOrEmpty(data.controlMode) && data.controlMode != "Automated")
+            return "单局观战/真人试玩单独保存，不替代自动6组。请记录你实际看见的选择或单调之处。";
+        var sb = new StringBuilder();
+        foreach (string runner in new[] { "SafeRoute", "Adaptive" })
+        {
+            var first = UniqueTrial(data.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1).ToArray(), runner, "TunnelChaser");
+            sb.AppendLine((runner == "SafeRoute" ? "地表首轮：" : "下层首轮：") + DuelEncounterLine(first));
+            if (data.confirmationScenarioIds.Contains(room.id) || data.trials.Any(t => t.scenarioId == room.id && t.attempt == 2))
+            {
+                var confirm = UniqueTrial(data.trials.Where(t => t.scenarioId == room.id && t.attempt == 2).ToArray(), runner, "TunnelChaser");
+                sb.AppendLine("  确认：" + DuelEncounterLine(confirm));
+                if (first != null && confirm != null && !string.IsNullOrEmpty(confirm.comparison) && confirm.comparison.Contains("不稳定"))
+                    sb.AppendLine("  原报告标记同条件不稳定，须保留；相同通关或出手数不能抹去其他覆盖差异。");
+            }
+        }
+        var runs = data.trials.Where(t => t.scenarioId == room.id).ToArray();
+        if (runs.Length == 0 || runs.Any(t => t.stairRecoveryEvidenceVersion < 1)) sb.Append("落阶重走未完整记录。");
+        else if (runs.All(t => t.stairRecoveryRequests == 0)) sb.Append("本批未触发落阶重走，不能认证实战跌落恢复。");
+        else sb.Append("本批出现落阶重走请求；是否恢复须看实际路线，不能用请求数替代成功。");
+        return sb.ToString();
+    }
+
+    public static MechanismExplorationPlan.Scenario CopyDuelForFullReplay(MechanismExplorationPlan.Scenario room)
+    {
+        if (room == null || room.tunnelVersion < 1) throw new ArgumentException("需要报告中的地道关卡");
+        var copy = JsonUtility.FromJson<MechanismExplorationPlan.Scenario>(JsonUtility.ToJson(room));
+        copy.selectedMatchups = Array.Empty<MechanismExplorationPlan.Matchup>();
+        return copy; // Never regenerate seed/variant or mutate the saved parent to restore all six matchups.
+    }
+
     public static string DuelRouteSummary(Report data, MechanismExplorationPlan.Scenario room)
     {
         if (data == null || room == null) return "尚无实际路线记录。";
@@ -539,7 +621,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S170", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S171", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
             planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,
@@ -850,7 +932,11 @@ public static class StudioExplorationRunner
         sb.AppendLine("父报告: " + (data.parentReport ?? "无"));
         if (!string.IsNullOrEmpty(data.iterationComparison)) sb.AppendLine(data.iterationComparison);
         foreach (var room in data.scenarios.Where(s => s.duelVersion >= 1))
+        {
             sb.AppendLine($"创作迭代 {room.iteration}/2；父关卡 {room.parentScenarioId ?? "无"}；理由 {room.mutationReason ?? "初始种子方案"}\n{DuelReview(data, room)}");
+            sb.AppendLine(DuelNextAction(data, room));
+            sb.AppendLine(DuelReportHighlights(data, room));
+        }
         sb.AppendLine($"Status: {data.status}; seed: {data.seed}; Unity: {data.unityVersion}; scope: {data.scope}");
         sb.AppendLine($"Trials recorded: {data.trials.Count} / {PlannedTrials(data)}");
         sb.AppendLine("Evidence verdict: " + EvidenceVerdict(data));

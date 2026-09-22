@@ -25,6 +25,133 @@ public class ExplorationIntegrationContractTests
     }
 
     [Test]
+    public void CompleteFinalVariantDirectsToPlayInsteadOfAnotherBatch()
+    {
+        var room = MechanismExplorationPlan.BuildDuel(168, 2); room.iteration = 2;
+        var report = DuelReportFixture(room);
+        Assert.IsTrue(StudioExplorationRunner.DuelReportReadyForReview(report, room));
+        StringAssert.Contains("不要再生成变体", StudioExplorationRunner.DuelNextAction(report, room));
+        StringAssert.Contains("不必重复补跑", StudioExplorationRunner.DuelNextAction(report, room));
+        Assert.AreEqual(2, room.iteration);
+        StringAssert.Contains("两次变体", StudioExplorationRunner.IterationBlockReason(report, room));
+    }
+
+    [TestCase("missing")]
+    [TestCase("duplicate")]
+    [TestCase("pendingConfirmation")]
+    [TestCase("human")]
+    [TestCase("error")]
+    [TestCase("regression")]
+    [TestCase("extraAttempt")]
+    [TestCase("blocked")]
+    public void FinalVariantNeverHidesIncompleteEvidenceBehindItsCap(string fault)
+    {
+        var room = MechanismExplorationPlan.BuildDuel(168, 2); room.iteration = 2;
+        var report = DuelReportFixture(room);
+        if (fault == "missing") report.trials.RemoveAt(0);
+        if (fault == "duplicate") report.trials.Add(report.trials[0]);
+        if (fault == "pendingConfirmation") report.confirmationScenarioIds.Add(room.id);
+        if (fault == "human") report.trials[0].controlMode = "HumanMario";
+        if (fault == "error") report.trials[0].errors.Add("error");
+        if (fault == "regression") report.regressionFailed = 1;
+        if (fault == "extraAttempt") report.trials[0].attempt = 3;
+        if (fault == "blocked") report.status = "Blocked";
+        Assert.IsFalse(StudioExplorationRunner.DuelReportReadyForReview(report, room));
+        StringAssert.Contains("故障", StudioExplorationRunner.DuelNextAction(report, room));
+        StringAssert.DoesNotContain("不必重复补跑", StudioExplorationRunner.DuelNextAction(report, room));
+    }
+
+    [Test]
+    public void FinalVariantRetainsFailedConfirmationRouteInsteadOfOfferingCleanReview()
+    {
+        var room = MechanismExplorationPlan.BuildDuel(168, 2); room.iteration = 2;
+        var report = DuelReportFixture(room); report.confirmationScenarioIds.Add(room.id);
+        foreach (var run in DuelReportFixture(room).trials) { run.attempt = 2; report.trials.Add(run); }
+        report.trials[11].completedRoutes.Clear();
+        StringAssert.Contains("路线未完成", StudioExplorationRunner.DuelNextAction(report, room));
+        StringAssert.DoesNotContain("不必重复补跑", StudioExplorationRunner.DuelNextAction(report, room));
+    }
+
+    [TestCase("Demonstration")]
+    [TestCase("HumanMario")]
+    [TestCase("HumanTrickster")]
+    public void SinglePlayInstructionsNeverCertifyAutomatedCoverage(string mode)
+    {
+        var report = DuelReportFixture(); report.controlMode = mode;
+        Assert.IsFalse(StudioExplorationRunner.DuelReportReadyForReview(report, report.scenarios[0]));
+        StringAssert.Contains("单局记录", StudioExplorationRunner.DuelNextAction(report, report.scenarios[0]));
+        StringAssert.Contains("不替代自动6组", StudioExplorationRunner.DuelReportHighlights(report, report.scenarios[0]));
+    }
+
+    [Test]
+    public void EncounterHighlightsDistinguishNoTransferLateArrivalAndLateControl()
+    {
+        var t = new MechanismExplorationPlan.Trial { outcome = "Cleared", seconds = 20, tunnelEvidenceVersion = 1,
+            startTimingEvidenceVersion = 1, tunnelVisitEvidenceVersion = 1 };
+        StringAssert.Contains("未观察到暗线换位", StudioExplorationRunner.DuelEncounterLine(t));
+        t.tunnelRequests = 1;
+        StringAssert.Contains("有换位请求", StudioExplorationRunner.DuelEncounterLine(t));
+        t.tunnelArrivals = 1;
+        t.tunnelVisits.Add(new MechanismExplorationPlan.TunnelVisit { arrivalAt = 13.49f, readyAt = 15.09f, runnerPassedWhenReady = true });
+        StringAssert.Contains("就绪时玩家已越过", StudioExplorationRunner.DuelEncounterLine(t));
+        t.tunnelVisits[0].firstControlAt = 18;
+        StringAssert.Contains("已有连续驻留出手", StudioExplorationRunner.DuelEncounterLine(t));
+        Assert.AreEqual(0, t.controlsAfterTunnel);
+        t.controlsAfterTunnel = 1;
+        StringAssert.Contains("3秒内", StudioExplorationRunner.DuelEncounterLine(t));
+    }
+
+    [Test]
+    public void HighlightsKeepFirstFailureAndConfirmationSuccessSeparate()
+    {
+        var report = DuelReportFixture(); var room = report.scenarios[0];
+        report.confirmationScenarioIds.Add(room.id);
+        var confirm = DuelReportFixture(room).trials[5]; confirm.attempt = 2;
+        confirm.tunnelArrivals = 1; confirm.controlsAfterTunnel = 1;
+        confirm.comparison = "同条件结果不稳定"; report.trials.Add(confirm);
+        string text = StudioExplorationRunner.DuelReportHighlights(report, room);
+        StringAssert.Contains("地表首轮：未观察到暗线换位", text);
+        StringAssert.Contains("确认：已有到达后3秒内", text);
+        StringAssert.Contains("不稳定", text);
+        StringAssert.Contains("缺少唯一记录", text);
+        report.trials.Add(report.trials[5]);
+        StringAssert.Contains("地表首轮：缺少唯一记录", StudioExplorationRunner.DuelReportHighlights(report, room));
+    }
+
+    [Test]
+    public void ZeroRecoveryRequestsAndUnknownOldMetricsCannotCertifyPhysicalSuccess()
+    {
+        var report = DuelReportFixture(); var room = report.scenarios[0];
+        StringAssert.Contains("未完整记录", StudioExplorationRunner.DuelReportHighlights(report, room));
+        foreach (var t in report.trials) t.stairRecoveryEvidenceVersion = 1;
+        StringAssert.Contains("未触发落阶重走", StudioExplorationRunner.DuelReportHighlights(report, room));
+        report.trials[5].stairRecoveryRequests = 1;
+        StringAssert.Contains("不能用请求数替代成功", StudioExplorationRunner.DuelReportHighlights(report, room));
+        var old = report.trials[5]; old.tunnelEvidenceVersion = 0; old.tunnelArrivals = 5;
+        StringAssert.Contains("暗线证据未记录", StudioExplorationRunner.DuelEncounterLine(old));
+    }
+
+    [Test]
+    public void FullReplayCopiesReportGeometryWithoutRegeneratingOrMutatingParent()
+    {
+        var parent = MechanismExplorationPlan.BuildDuel(168, 2); parent.iteration = 2;
+        parent.parentScenarioId = "keep-parent"; parent.mutationReason = "keep-reason";
+        parent.ascii += "\n"; // Manual content must be retained, even if later validation rejects it.
+        parent.selectedMatchups = new[] { new MechanismExplorationPlan.Matchup { mario = "SafeRoute", trickster = "TunnelChaser" } };
+        string saved = JsonUtility.ToJson(parent);
+        var copy = StudioExplorationRunner.CopyDuelForFullReplay(parent);
+        Assert.AreEqual(saved, JsonUtility.ToJson(parent));
+        Assert.AreEqual(parent.id, copy.id); Assert.AreEqual(parent.ascii, copy.ascii);
+        Assert.AreEqual(2, copy.duelVariant); Assert.AreEqual(2, copy.iteration);
+        Assert.AreEqual("keep-parent", copy.parentScenarioId); Assert.AreEqual("keep-reason", copy.mutationReason);
+        Assert.AreEqual(6, MechanismExplorationPlan.Matchups(copy).Length);
+        Assert.AreEqual(1, MechanismExplorationPlan.Matchups(parent).Length);
+        copy.tunnelLinks[0].seconds = 4;
+        Assert.AreEqual(0.8f, parent.tunnelLinks[0].seconds);
+        Assert.Throws<System.ArgumentException>(() => StudioExplorationRunner.CopyDuelForFullReplay(null));
+    }
+
+    [Test]
     public void CompleteFeedbackDoesNotRequireHumanNotesOrDuplicateBaselineRuns()
     {
         var report = DuelReportFixture(); report.regressionPassed = 429;

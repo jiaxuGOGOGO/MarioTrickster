@@ -4,6 +4,107 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [TestCase(168)]
+    [TestCase(-1)]
+    [TestCase(int.MinValue)]
+    [TestCase(int.MaxValue)]
+    public void CavernGrammarHasSolidRoofTwoRoomsAndFourNonDamageProps(int seed)
+    {
+        var room = MechanismExplorationPlan.BuildCavernDuel(seed);
+        Assert.AreEqual(2, room.duelVersion); Assert.AreEqual(6, MechanismExplorationPlan.Matchups(room).Length);
+        Assert.AreEqual(room.ascii, MechanismExplorationPlan.BuildCavernDuel(seed).ascii);
+        Assert.AreNotEqual(MechanismExplorationPlan.BuildDuel(seed).ascii, room.ascii);
+        Assert.IsTrue(MechanismExplorationPlan.IsGeneratedDuelLayout(room));
+        Assert.IsEmpty(MechanismExplorationPlan.TunnelPlanIssues(room));
+        Assert.AreEqual(4, room.ascii.Count(c => c == 'F')); Assert.IsFalse(room.ascii.Contains('['));
+        var rows = room.ascii.Split('\n').Reverse().ToArray();
+        Assert.Greater(rows[5].Count(c => c == '#'), 20); Assert.AreEqual(7, rows[6].Count(c => c == '-'));
+        Assert.AreEqual(2, rows[8].Count(c => c == '#'));
+        foreach (var route in room.routes)
+        foreach (var point in route.points)
+        {
+            Assert.IsTrue(MechanismExplorationPlan.IsFinite(point.x) && MechanismExplorationPlan.IsFinite(point.y));
+            Assert.Greater(point.y, 0); Assert.Less(point.y, rows.Length);
+        }
+        foreach (var source in room.tunnelLinks.GroupBy(l => l.from.x + ":" + l.from.y))
+        foreach (var a in source)
+        foreach (var b in source.Where(b => b != a))
+        {
+            double ax = a.to.x - a.from.x, ay = a.to.y - a.from.y, bx = b.to.x - b.from.x, by = b.to.y - b.from.y;
+            Assert.IsFalse(Math.Abs(ax * by - ay * bx) < 0.01 && ax * bx + ay * by > 0, "Native exits must not share a direction ray");
+        }
+    }
+
+    [Test]
+    public void CavernIterationsChangeOnlyLinksAndKeepLegacyGrammarSeparate()
+    {
+        var a = MechanismExplorationPlan.BuildCavernDuel(168);
+        var b = MechanismExplorationPlan.NextDuelVariant(a, "Observed missing return encounter");
+        var c = MechanismExplorationPlan.NextDuelVariant(b, "Compare opposite flank");
+        Assert.AreEqual(2, b.duelVersion); Assert.AreEqual(a.ascii, b.ascii); Assert.AreEqual(a.ascii, c.ascii);
+        Assert.AreEqual(1, b.iteration); Assert.AreEqual(2, c.iteration); Assert.AreEqual(a.id, b.parentScenarioId);
+        Assert.Throws<InvalidOperationException>(() => MechanismExplorationPlan.NextDuelVariant(c, "must stop"));
+        Assert.AreEqual(1, MechanismExplorationPlan.NextDuelVariant(MechanismExplorationPlan.BuildDuel(168), "old experiment").duelVersion);
+        a.ascii += " "; Assert.IsFalse(MechanismExplorationPlan.IsGeneratedDuelLayout(a));
+    }
+
+    [TestCase(true, true, true, true)]
+    [TestCase(false, true, true, false)]
+    [TestCase(true, false, true, false)]
+    [TestCase(true, true, false, false)]
+    public void ReturnChoiceNeedsOptInPublicThreatAndCompleteOutbound(bool enabled, bool threat, bool complete, bool detour)
+    {
+        var room = MechanismExplorationPlan.BuildCavernDuel(168);
+        var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, false) { LearnReturnRoute = enabled };
+        if (threat) nav.ObservePublicThreat();
+        if (complete) foreach (var p in room.routes[0].points) nav.Tick(p.x, p.y, false, 0.01f);
+        var end = room.routes[0].points.Last(); nav.Tick(end.x + 1, end.y, true, 0.01f);
+        Assert.AreEqual(detour ? 1 : 0, nav.ReturnDetourRequests);
+        Assert.AreEqual(detour ? "upper" : "lower", nav.RouteId);
+        Assert.IsFalse(nav.CompletedRoutes.Contains("Return:upper"), "Choice is not physical completion");
+        if (detour) {
+            foreach (var p in room.routes[1].points.Reverse()) nav.Tick(p.x, p.y, true, 0.01f);
+            CollectionAssert.Contains(nav.CompletedRoutes, "Return:upper");
+            Assert.AreEqual(1, nav.ReturnDetourRequests);
+        }
+    }
+
+    [TestCase(false, true)]
+    [TestCase(true, false)]
+    public void ReturnMemoryCannotSwitchMidRouteOrDuringAirborneLoot(bool atExit, bool grounded)
+    {
+        var room = MechanismExplorationPlan.BuildCavernDuel(168);
+        var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, false) { LearnReturnRoute = true };
+        nav.ObservePublicThreat();
+        foreach (var p in room.routes[0].points) nav.Tick(p.x, p.y, false, 0.01f);
+        var end = room.routes[0].points.Last(); nav.Tick(atExit ? end.x : 5, end.y, true, 0.01f, grounded);
+        Assert.AreEqual(0, nav.ReturnDetourRequests);
+    }
+
+    [Test]
+    public void LearnedReturnSharesExistingRouteSwitchCapInsteadOfAddingUnlimitedRetries()
+    {
+        var room = MechanismExplorationPlan.BuildCavernDuel(168);
+        var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, false) { LearnReturnRoute = true };
+        nav.ObservePublicThreat();
+        for (int i = 0; i < 4; i++) nav.Tick(-50, 1, false, 5);
+        Assert.AreEqual(2, nav.SwitchRequests);
+        foreach (var p in room.routes[0].points) nav.Tick(p.x, p.y, false, 0.01f);
+        var end = room.routes[0].points.Last(); nav.Tick(end.x + 1, end.y, true, 0.01f);
+        Assert.AreEqual(0, nav.ReturnDetourRequests); Assert.AreEqual(2, nav.SwitchRequests);
+    }
+
+    [Test]
+    public void SurfaceControlAndHumanRouteMemoryDoNotInventDetours()
+    {
+        var room = MechanismExplorationPlan.BuildCavernDuel(168);
+        var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, true) { LearnReturnRoute = true };
+        nav.ObservePublicThreat(); Assert.IsFalse(nav.SawOutboundThreat);
+        foreach (var p in room.routes[1].points) nav.Tick(p.x, p.y, false, 0.01f);
+        var end = room.routes[1].points.Last(); nav.Tick(end.x + 1, end.y, true, 0.01f);
+        Assert.AreEqual("upper", nav.RouteId); Assert.AreEqual(0, nav.ReturnDetourRequests);
+    }
+
     [TestCase(9f, 2.625f, 4f, true, 24f, 5f, true)]
     [TestCase(9f, 2.625f, 4f, true, 24f, 8f, false)]
     [TestCase(9f, 2.625f, 4f, true, 24f, -1f, false)]

@@ -29,6 +29,82 @@ public class ExplorationIntegrationContractTests
         return report;
     }
 
+    private static StudioExplorationRunner.Report CavernReportFixture()
+    {
+        var r = DuelReportFixture(MechanismExplorationPlan.BuildCavernDuel(168));
+        foreach (var t in r.trials)
+        {
+            t.cavernEvidenceVersion = 1;
+            if (t.marioStrategy == "Adaptive") { t.undergroundSeconds = 5; t.completedRoutes.Add("Out:lower"); t.completedRoutes.Add("Return:lower"); }
+            else t.surfaceSeconds = 5;
+        }
+        return r;
+    }
+
+    [Test]
+    public void CavernCompleteReportCanProposeLinkOnlyChildWithoutRewritingOldMap()
+    {
+        var r = CavernReportFixture(); var room = r.scenarios[0];
+        Assert.IsEmpty(StudioExplorationRunner.IterationBlockReason(r, room));
+        var next = StudioExplorationRunner.ProposeDuelIteration(r, room);
+        Assert.AreEqual(2, next.duelVersion); Assert.AreEqual(room.ascii, next.ascii);
+        Assert.AreEqual(0, room.iteration); StringAssert.Contains("洞室", next.mutationReason);
+        StringAssert.Contains("未形成出手", StudioExplorationRunner.CavernDesignSummary(r, room));
+        r.trials[2].undergroundControls = 1;
+        StringAssert.Contains("返程仍空", StudioExplorationRunner.CavernDesignSummary(r, room));
+    }
+
+    [TestCase("oldEvidence")]
+    [TestCase("missingLower")]
+    [TestCase("falseDetour")]
+    [TestCase("unfinishedDetour")]
+    [TestCase("nanResidence")]
+    public void CavernIterationNeverTreatsRequestsAsCompletedAlternativeReturn(string fault)
+    {
+        var r = CavernReportFixture(); var t = r.trials[2];
+        if (fault == "oldEvidence") t.cavernEvidenceVersion = 0;
+        if (fault == "missingLower") t.completedRoutes.Clear();
+        if (fault == "falseDetour") { t.returnDetourRequests = 1; t.completedRoutes.Add("Return:upper"); }
+        if (fault == "unfinishedDetour") { t.returnDetourRequests = 1; t.outboundThreatRemembered = true; }
+        if (fault == "nanResidence") t.undergroundSeconds = float.NaN;
+        Assert.IsNotEmpty(StudioExplorationRunner.IterationBlockReason(r, r.scenarios[0]));
+        StringAssert.Contains("尚未完整", StudioExplorationRunner.DuelNextAction(r, r.scenarios[0]));
+    }
+
+    [Test]
+    public void CavernDetourNeedsActualReturnAndDoesNotBorrowConfirmation()
+    {
+        var r = CavernReportFixture(); var t = r.trials[2];
+        t.returnDetourRequests = 1; t.outboundThreatRemembered = true; t.surfaceSeconds = 5;
+        t.completedRoutes.Remove("Return:lower"); t.completedRoutes.Add("Return:upper");
+        Assert.IsEmpty(StudioExplorationRunner.IterationBlockReason(r, r.scenarios[0]));
+        var confirmation = CavernReportFixture().trials[2]; confirmation.attempt = 2; confirmation.completedRoutes.Clear();
+        r.trials.Add(confirmation);
+        Assert.IsNotEmpty(StudioExplorationRunner.IterationBlockReason(r, r.scenarios[0]));
+        Assert.AreEqual(1, t.returnDetourRequests);
+    }
+
+    [TestCase("pendingConfirmation")]
+    [TestCase("extraTrial")]
+    [TestCase("humanTrial")]
+    public void CavernIterationRequiresAllScheduledEvidenceNotJustSixFirstRuns(string fault)
+    {
+        var r = CavernReportFixture();
+        if (fault == "pendingConfirmation") r.confirmationScenarioIds.Add(r.scenarios[0].id);
+        if (fault == "extraTrial") { var t = CavernReportFixture().trials[0]; t.attempt = 3; r.trials.Add(t); }
+        if (fault == "humanTrial") r.trials[0].controlMode = "HumanMario";
+        Assert.IsNotEmpty(StudioExplorationRunner.IterationBlockReason(r, r.scenarios[0]));
+        Assert.IsFalse(StudioExplorationRunner.DuelReportReadyForReview(r, r.scenarios[0]));
+    }
+
+    [Test]
+    public void CavernSummaryDoesNotCertifyDemoOrInventOldEvidence()
+    {
+        var r = CavernReportFixture(); r.controlMode = "Demonstration";
+        StringAssert.Contains("不能据此自动改图", StudioExplorationRunner.CavernDesignSummary(r, r.scenarios[0]));
+        Assert.AreEqual("", StudioExplorationRunner.CavernDesignSummary(DuelReportFixture(), MechanismExplorationPlan.BuildDuel(168)));
+    }
+
     private static StudioExplorationRunner.Report ImportReportFixture(string stamp = "2026-09-22T15:39:43Z")
     {
         var r = DuelReportFixture(); r.startedUtc = stamp; r.toolRevision = "S171";
@@ -705,14 +781,30 @@ public class ExplorationIntegrationContractTests
     [TestCase(3)]
     [TestCase(4)]
     [TestCase(5)]
+    [TestCase(6)]
+    [TestCase(7)]
+    [TestCase(8)]
     public void TunnelNetworkBindsActualGeneratedAnchorsIdempotently(int variant)
     {
         GameObject root = null;
         try
         {
-            var room = variant < 3 ? MechanismExplorationPlan.BuildTunnel(166, variant) : MechanismExplorationPlan.BuildDuel(168, variant - 3);
+            var room = variant < 3 ? MechanismExplorationPlan.BuildTunnel(166, variant) : variant < 6 ? MechanismExplorationPlan.BuildDuel(168, variant - 3) : MechanismExplorationPlan.BuildCavernDuel(168, variant - 6);
             root = AsciiLevelGenerator.GenerateFromTemplate(room.ascii, false, false);
             Assert.IsNotNull(root);
+            if (room.duelVersion == 2)
+            {
+                int count = root.GetComponentsInChildren<Collider2D>(true).Length;
+                ExplorationSceneBuilder.AddCavernPresentation(root, room);
+                Assert.AreEqual(count, root.GetComponentsInChildren<Collider2D>(true).Length, "Presentation never adds gameplay colliders");
+                Physics2D.SyncTransforms();
+                var solids = root.GetComponentsInChildren<BoxCollider2D>(true).Where(c => c.enabled && !c.isTrigger).ToArray();
+                foreach (var point in room.routes.SelectMany(r => r.points))
+                {
+                    var foot = new Vector3(point.x, point.y - PhysicsMetrics.MARIO_COLLIDER_HEIGHT * 0.5f + PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y - 0.05f, 0);
+                    Assert.IsTrue(solids.Any(c => c.bounds.Contains(foot)), "Authored landing has no real support: " + point.x + "," + point.y);
+                }
+            }
             foreach (var prop in root.GetComponentsInChildren<ControllablePropBase>(true))
                 if (prop.GetComponent<PossessionAnchor>() == null) prop.gameObject.AddComponent<PossessionAnchor>();
             ExplorationSceneBuilder.ConfigureTunnelNetwork(root, room);

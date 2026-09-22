@@ -305,6 +305,8 @@ public static class StudioExplorationRunner
         if (runs.Any(t => t.outcome != "Cleared" || !ValidReturnTimes(t) || t.lootEvents < 1 || t.escapeEvents < 1 ||
             (t.marioStrategy == "SafeRoute" && (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper") || !t.completedRoutes.Contains("Return:upper")))))
             return "记录已收齐，但有通路或路线未完成。先保留问题并导出ZIP，不把通关/首轮成功替代确认局。";
+        if (room.duelVersion == 2 && runs.Any(t => t.cavernEvidenceVersion < 1 || MechanismExplorationPlan.CavernRouteIssues(t).Length > 0))
+            return "洞室对照已收齐，但地下去返/改道后的地表返程尚未完整；导出ZIP检查通路，不追加变体掩盖。";
         if (room.iteration >= 2)
             return "本图6组与计划确认已齐，本轮两次连接试验已结束。下一步看报告原图地表对战，或亲自玩一局；不要再生成变体，也不必重复补跑同批。";
         return "本批记录已齐。先看报告原图交手；若继续连接试验，用下方按钮生成下一版，无需重新生成种子或载入草稿。";
@@ -354,6 +356,34 @@ public static class StudioExplorationRunner
         if (runs.Length == 0 || runs.Any(t => t.stairRecoveryEvidenceVersion < 1)) sb.Append("落阶重走未完整记录。");
         else if (runs.All(t => t.stairRecoveryRequests == 0)) sb.Append("本批未触发落阶重走，不能认证实战跌落恢复。");
         else sb.Append("本批出现落阶重走请求；是否恢复须看实际路线，不能用请求数替代成功。");
+        if (room.duelVersion == 2) sb.AppendLine("\n" + CavernDesignSummary(data, room));
+        return sb.ToString();
+    }
+
+    public static string CavernDesignSummary(Report data, MechanismExplorationPlan.Scenario room)
+    {
+        if (data == null || room == null || room.duelVersion != 2) return "";
+        var runs = data.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1).ToArray();
+        var sb = new StringBuilder("洞室实验：实体顶棚不是暗线传送；中央井是双方可走的明路。\n");
+        foreach (var t in runs)
+        {
+            if (t.cavernEvidenceVersion < 1) { sb.AppendLine("缺少洞室观察版本；不从零值补造选择。"); continue; }
+            sb.AppendLine($"{t.marioStrategy}/{DuelOpponentLabel(t.tricksterStrategy)}：地下驻留{t.undergroundSeconds:F1}s / 地表{t.surfaceSeconds:F1}s；地下操控{t.undergroundControls} / 地表{t.surfaceControls}；记住公开风险{t.outboundThreatRemembered}，返程改道请求{t.returnDetourRequests}；返程出手{t.postLootControls}。实际路线：{string.Join(", ", t.completedRoutes ?? new List<string>())}");
+        }
+        if (!DuelReportReadyForReview(data, room))
+            return sb + "单局/未齐/有故障：先保留记录，不能据此自动改图或认证乐趣。";
+        var lower = UniqueTrial(runs, "Adaptive", "TunnelChaser");
+        var surface = UniqueTrial(runs, "SafeRoute", "TunnelChaser");
+        if (lower == null || surface == null || lower.cavernEvidenceVersion < 1 || surface.cavernEvidenceVersion < 1)
+            return sb + "证据缺失，先导出ZIP，不自动生成新机制。";
+        if (MechanismExplorationPlan.CavernRouteIssues(lower).Length > 0 || MechanismExplorationPlan.CavernRouteIssues(surface).Length > 0)
+            sb.AppendLine("下一处优先查通路/作者落点；不能把导航失败当作有挑战。");
+        else if (lower.undergroundControls == 0)
+            sb.AppendLine("地下虽可走但未形成出手：优先检查锚点距离/准备与出口，不增加陷阱数量。");
+        else if (lower.postLootControls + surface.postLootControls == 0)
+            sb.AppendLine("去程已有动作、返程仍空：优先对看另一路返程与暗线出口。若真人也觉得只是折返，再讨论可识别、可反制的出口干扰机制；本轮不自动造道具。");
+        else sb.AppendLine("已观察去返动作，下一步真人判断等待是否有选择、线索是否可读；更多动作不等于更好玩。");
+        sb.Append("首轮与确认分开；这些指标不证明因果。提案需写清缺口、代价、公开线索和对手反制，再进入实现。");
         return sb.ToString();
     }
 
@@ -429,13 +459,15 @@ public static class StudioExplorationRunner
     public static string IterationBlockReason(Report data, MechanismExplorationPlan.Scenario room)
     {
         if (data == null || room == null || !data.scenarios.Contains(room)) return "先选择这份报告中的关卡。";
-        if (room.duelVersion != 1) return "旧样板或手工图保留原样；请在第1步生成新的种子关卡。";
+        if (room.duelVersion != 1 && room.duelVersion != 2) return "旧样板或手工图保留原样；请在第1步生成新的种子关卡。";
         if (!MechanismExplorationPlan.IsGeneratedDuelLayout(room)) return "这张图有手工修改，不能自动覆盖连接或作者路点；请保留草稿并回传设计。";
         if (room.iteration < 0 || room.iteration >= 2) return "已完成本轮两次变体。先试玩复盘，保留喜欢的版本；不无限刷局。";
         if (data.status != "Complete" || !string.IsNullOrEmpty(data.blockedReason) || data.regressionFailed > 0)
             return "批次未完整结束或被故障阻塞，不能自动改关卡。";
         if (!string.IsNullOrEmpty(data.controlMode) && data.controlMode != "Automated") return "单局演示/真人不作为自动改图依据；先跑这张图的6组对照。";
         if (MechanismExplorationPlan.Matchups(room).Length != 6) return "需要完整6组对照，而不是挑选一场成功记录。";
+        if (room.duelVersion == 2 && !DuelReportReadyForReview(data, room))
+            return "洞室首轮/计划确认尚未完整，或混入额外/真人记录；不能开始下一连接试验。";
         var first = data.trials.Where(t => t.scenarioId == room.id && t.attempt <= 1).ToArray();
         foreach (string mario in new[] { "Adaptive", "SafeRoute" })
         foreach (string opponent in new[] { "Passive", "GroundChaser", "TunnelChaser" })
@@ -452,6 +484,9 @@ public static class StudioExplorationRunner
                 return "先解决通路/拿宝返程问题，再试连接变体；不把导航失败当作提高难度的理由。";
         }
         if (first.Length != 6) return "首轮存在额外或重复记录，不能作一致对照。";
+        if (room.duelVersion == 2 && data.trials.Where(t => t.scenarioId == room.id).Any(t =>
+            t.cavernEvidenceVersion < 1 || MechanismExplorationPlan.CavernRouteIssues(t).Length > 0))
+            return "洞室首轮/确认缺少完整实际路线，或缺少新观察字段；先导出问题，不用改连接掩盖。";
         if (data.trials.Any(t => t.scenarioId == room.id && t.attempt == 2 && t.marioStrategy == "SafeRoute" &&
             (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper") || !t.completedRoutes.Contains("Return:upper"))))
             return "确认局地表路线未完成或回退；先复验导航，不用首轮成功覆盖不稳定。";
@@ -466,7 +501,9 @@ public static class StudioExplorationRunner
         string reason = tunnel.All(t => t.controlsAfterTunnel == 0)
             ? "完整对照后仍无转移后出手：只改变暗线连接，比较是否减少无效换位。"
             : "已有转移后出手记录：只改变暗线连接，检查路线与返程差异；不声称更好玩。";
-        if (room.duelVariant == 1)
+        if (room.duelVersion == 2)
+            reason += " 本轮保留洞室、井、岗台与四个假墙，只替换一条双向暗线；比较地下接触、公开线索后的返程选择和返程出手。";
+        else if (room.duelVariant == 1)
             reason += " 本次只把地表出口的连接入口从中继改回左侧，保留下层串联；检验减少一次中转后能否赶上上路玩家。不是保证改善。";
         return MechanismExplorationPlan.NextDuelVariant(room, reason);
     }
@@ -474,7 +511,7 @@ public static class StudioExplorationRunner
     public static string DuelIterationComparison(Report parent, Report child)
     {
         if (parent == null || child == null) return "缺少父子报告，不比较改善。";
-        var room = child.scenarios.SingleOrDefault(s => s.duelVersion == 1 && !string.IsNullOrEmpty(s.parentScenarioId));
+        var room = child.scenarios.SingleOrDefault(s => s.duelVersion >= 1 && !string.IsNullOrEmpty(s.parentScenarioId));
         if (room == null) return "";
         var previous = parent.scenarios.SingleOrDefault(s => s.id == room.parentScenarioId);
         if (previous == null || IterationBlockReason(parent, previous).Length > 0 ||
@@ -484,7 +521,7 @@ public static class StudioExplorationRunner
             parent.physicsConfigJson != child.physicsConfigJson || parent.gameplayConfigJson != child.gameplayConfigJson ||
             parent.unityVersion != child.unityVersion || parent.fixedDeltaTime != child.fixedDeltaTime ||
             parent.trialLimitSeconds <= 0 || parent.trialLimitSeconds != child.trialLimitSeconds ||
-            !MechanismExplorationPlan.IsGeneratedDuelLayout(room) || room.ascii != previous.ascii || room.seed != previous.seed ||
+            !MechanismExplorationPlan.IsGeneratedDuelLayout(room) || room.duelVersion != previous.duelVersion || room.ascii != previous.ascii || room.seed != previous.seed ||
             room.iteration != previous.iteration + 1 || room.duelVariant != (previous.duelVariant + 1) % 3 || MechanismExplorationPlan.Matchups(room).Length != 6)
             return "父子对照条件不一致或证据未完成；保留两份结果，不报告改善。";
         var sb = new StringBuilder("父版 → 本版（仅首轮；差异不等于更好玩）\n");
@@ -889,7 +926,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S173", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S174", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
             planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,
@@ -1128,7 +1165,7 @@ public static class StudioExplorationRunner
         catch (Exception ex) { state.error = "原场景恢复失败：" + ex.Message; SetPhase("RestoreFailed"); }
         report.status = state.phase;
         report.finishedUtc = DateTime.UtcNow.ToString("O");
-        if (report.scenarios.Any(s => s.duelVersion == 1 && !string.IsNullOrEmpty(s.parentScenarioId)))
+        if (report.scenarios.Any(s => s.duelVersion >= 1 && !string.IsNullOrEmpty(s.parentScenarioId)))
         {
             try
             {

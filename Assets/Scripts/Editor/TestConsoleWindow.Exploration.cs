@@ -138,16 +138,24 @@ public partial class TestConsoleWindow
         using (new EditorGUI.DisabledScope(unavailable))
         {
             duelSeed = EditorGUILayout.IntField("关卡种子（可复制）", duelSeed);
+            EditorGUILayout.LabelField("新设计：实体洞室 + 中央通风井 + 两座地表岗台。地下有顶棚，四个假墙兼作暗线出口；不是堆伤害陷阱。", EditorStyles.wordWrappedLabel);
+            if (GUILayout.Button("开始新地道实验（生成新图 → 全量回归 → 6组对战）", GUILayout.Height(36)))
+                DuelAction(() => {
+                    SaveDuelDraft(MechanismExplorationPlan.BuildCavernDuel(duelSeed));
+                    explorationRegressions = true;
+                    StudioExplorationRunner.Start(duelSeed, MechanismExplorationPlan.Scope.TunnelDuel, 60, duelDraft, true, linkParent: false);
+                });
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("按这个种子生成")) SaveDuelDraft(MechanismExplorationPlan.BuildDuel(duelSeed));
+            if (GUILayout.Button("只生成新洞室预览")) SaveDuelDraft(MechanismExplorationPlan.BuildCavernDuel(duelSeed));
             if (GUILayout.Button("换个种子生成"))
-            { duelSeed = BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0); SaveDuelDraft(MechanismExplorationPlan.BuildDuel(duelSeed)); }
+            { duelSeed = BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0); SaveDuelDraft(MechanismExplorationPlan.BuildCavernDuel(duelSeed)); }
             EditorGUILayout.EndHorizontal();
         }
-        EditorGUILayout.LabelField("种子改变长度、台阶和机关位置。同种子同版本可复现；有限规则生成，不保证每个种子都不同或好玩。", EditorStyles.wordWrappedMiniLabel);
+        EditorGUILayout.LabelField("新实验单独建立基线，不把S173旧地图当同条件父版。完成后直接导出ZIP；不需要先导入旧包。种子改变洞室跨度与入口位置；有限作者规则，不保证每个种子都不同或好玩。", EditorStyles.wordWrappedMiniLabel);
         if (duelDraft != null)
         {
-            EditorGUILayout.LabelField($"当前草稿 · 种子 {duelDraft.seed} · 变体 {duelDraft.iteration}/2", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField($"当前草稿 · 地图设计V{duelDraft.duelVersion} · 种子 {duelDraft.seed} · 变体 {duelDraft.iteration}/2", EditorStyles.boldLabel);
+            if (duelDraft.duelVersion != 2) EditorGUILayout.HelpBox("这是保留的旧草稿。新洞室实验请点上方大按钮；不会自动覆盖旧报告。", MessageType.Info);
             DrawDuelMap(duelDraft);
             EditorGUILayout.LabelField(duelDraft.designQuestion, EditorStyles.wordWrappedLabel);
             EditorGUILayout.LabelField("地表可绕行，下层可抢近路；紫线是捣蛋者附身后的原生暗线，不是自由挖土。", EditorStyles.wordWrappedMiniLabel);
@@ -191,12 +199,13 @@ public partial class TestConsoleWindow
             EditorGUILayout.LabelField("下列按钮直接用这份报告原图，不用载入草稿，也不重新生成；按当前代码重跑，不是录像。", EditorStyles.wordWrappedMiniLabel);
             using (new EditorGUI.DisabledScope(unavailable))
             {
-                if (GUILayout.Button("下一步：看报告原图地表对战", GUILayout.Height(36)))
-                    DuelAction(() => StartReportedDuel(room, "SafeRoute"));
+                if (GUILayout.Button(room.duelVersion == 2 ? "下一步：看地下去程与返程选择" : "下一步：看报告原图地表对战", GUILayout.Height(36)))
+                    DuelAction(() => StartReportedDuel(room, room.duelVersion == 2 ? "Adaptive" : "SafeRoute"));
                 if (GUILayout.Button("亲自玩报告原图（我当闯关者，自由选路）", GUILayout.Height(30)))
                     DuelAction(() => StartReportedDuel(room, "SafeRoute", "HumanMario"));
                 EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("看原图下层对战")) DuelAction(() => StartReportedDuel(room, "Adaptive"));
+                if (GUILayout.Button(room.duelVersion == 2 ? "看地表固定路线对照" : "看原图下层对战"))
+                    DuelAction(() => StartReportedDuel(room, room.duelVersion == 2 ? "SafeRoute" : "Adaptive"));
                 if (GUILayout.Button("我当捣蛋者，对抗地表AI")) DuelAction(() => StartReportedDuel(room, "SafeRoute", "HumanTrickster"));
                 EditorGUILayout.EndHorizontal();
                 if (!string.IsNullOrEmpty(report.controlMode) && report.controlMode != "Automated" && StudioExplorationRunner.HasParentReport &&
@@ -213,6 +222,8 @@ public partial class TestConsoleWindow
             }
             else EditorGUILayout.LabelField("已到变体2/2：保留这张图试玩复盘，不追加第3次。", EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.LabelField(StudioExplorationRunner.DuelReportHighlights(report, room), EditorStyles.wordWrappedLabel);
+            if (room.duelVersion == 2 && report.controlMode != "Automated")
+                EditorGUILayout.LabelField(StudioExplorationRunner.CavernDesignSummary(report, room), EditorStyles.wordWrappedLabel);
             explorationPlayerNote = EditorGUILayout.TextField("我的感受 / 新道具想法", explorationPlayerNote);
             using (new EditorGUI.DisabledScope(StudioExplorationRunner.ImportedReadOnly))
             if (GUILayout.Button("保存感受或机制提案") && !string.IsNullOrWhiteSpace(explorationPlayerNote))

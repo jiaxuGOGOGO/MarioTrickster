@@ -150,6 +150,11 @@ public static class MechanismExplorationPlan
         private float stalled, best = float.MaxValue;
         public int SwitchRequests { get; private set; }
         public int StairRecoveryRequests { get; private set; }
+        public bool LearnReturnRoute;
+        public bool SawOutboundThreat { get; private set; }
+        public int ReturnDetourRequests { get; private set; }
+        public void ObservePublicThreat()
+        { if (LearnReturnRoute && !returning && RouteId == "lower") SawOutboundThreat = true; }
         public int WaypointsReached => reached.Count;
         public string RouteId => routes.Length == 0 ? "direct" : routes[routeIndex].id;
         public Point Target => routes.Length == 0 || cursor >= routes[routeIndex].points.Length ? null :
@@ -159,7 +164,15 @@ public static class MechanismExplorationPlan
         public void Tick(float x, float y, bool isReturning, float dt, bool grounded = true, bool recoverFalls = false)
         {
             if (returning != isReturning)
-            { returning = isReturning; partialRoute = false; cursor = 0; stalled = 0; best = float.MaxValue; }
+            {
+                // Only choose at the loot-side endpoint after completing the original lower route.
+                // Observed scan/retreat memory is not knowledge of the opponent's future placement.
+                if (isReturning && LearnReturnRoute && SawOutboundThreat && RouteId == "lower" &&
+                    CompletedRoutes.Contains("Out:lower") && routes.Length == 2 && routes[1].id == "upper" &&
+                    routes[0].points.Length > 0 && x >= routes[0].points.Last().x - 0.8f && grounded && ReturnDetourRequests == 0 && SwitchRequests < 2)
+                { routeIndex = 1; ReturnDetourRequests++; SwitchRequests++; }
+                returning = isReturning; partialRoute = false; cursor = 0; stalled = 0; best = float.MaxValue;
+            }
             var target = Target;
             if (target == null) return;
             // Only new duel navigation opts in. Rewind to a lower authored landing after a real fall;
@@ -526,14 +539,85 @@ public static class MechanismExplorationPlan
         };
     }
 
+    // New grammar is explicitly versioned: never regenerate saved duelVersion=1 maps as caves.
+    public static Scenario BuildCavernDuel(int seed, int variant = 0)
+    {
+        if (variant < 0 || variant > 2) throw new ArgumentOutOfRangeException(nameof(variant));
+        var dice = new Dice(seed);
+        int width = 72 + 2 * dice.Next(5), height = 16;
+        int left = 18 + dice.Next(2), right = width - 19 - dice.Next(2), shaft = (left + right) / 2;
+        var rows = Enumerable.Range(0, height).Select(_ => new string('.', width).ToCharArray()).ToArray();
+        Action<int, int, char> put = (x, y, c) => rows[height - 1 - y][x] = c;
+        for (int x = 0; x < width; x++) put(x, 0, '#');
+        // Two solid earth roofs, not another floating one-way platform. Central open shaft is a
+        // physical connection; its one-way bridge can be dropped through using normal S+Jump.
+        for (int x = left; x <= right; x++)
+            if (Math.Abs(x - shaft) > 3) { put(x, 5, '#'); put(x, 6, '#'); }
+        for (int x = shaft - 3; x <= shaft + 3; x++) put(x, 6, '-');
+        for (int i = 1; i <= 5; i++)
+        { put(left - 2 * i, 6 - i, '-'); put(right + 2 * i, 6 - i, '-'); }
+        // Central shaft ladder: genuine grounded landings, shared by players, no teleport.
+        for (int y = 1; y <= 5; y++) put(shaft + (y % 2 == 0 ? 2 : -2), y, '-');
+        // Two lookout rises break up the surface silhouette; each has a one-unit approach.
+        int ridgeA = left + 5, ridgeB = right - 5;
+        foreach (int ridge in new[] { ridgeA, ridgeB })
+        { put(ridge - 1, 7, '#'); put(ridge, 7, '#'); put(ridge, 8, '#'); put(ridge + 1, 7, '#'); }
+        put(5, 1, 'M'); put(3, 1, 'G'); put(right + 12, 1, 'o');
+        var a = new Point(left + 2, 1); var b = new Point(right - 2, 1);
+        var c = new Point(left + 9, 7); var d = new Point(right - 9, 7);
+        put((int)a.x - 1, 1, 'T');
+        foreach (var p in new[] { a, b, c, d }) put((int)p.x, (int)p.y, 'F');
+        var links = new List<TunnelLink>();
+        Action<Point, Point> connect = (p, q) => {
+            links.Add(new TunnelLink { from = p, to = q, seconds = 0.8f });
+            links.Add(new TunnelLink { from = q, to = p, seconds = 0.8f });
+        };
+        connect(a, c); connect(b, d); connect(c, d);
+        if (variant == 0) connect(a, b);
+        else if (variant == 1) connect(a, d);
+        else connect(b, c);
+        float standing = PhysicsMetrics.MARIO_COLLIDER_HEIGHT * 0.5f - PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
+        float ground = 0.5f + standing, platform = PhysicsMetrics.ONEWAY_COLLIDER_SIZE.y * 0.5f + standing;
+        var upper = new List<Point>();
+        for (int i = 5; i >= 1; i--) upper.Add(new Point(left - 2 * i, 6 - i + platform));
+        upper.Add(new Point(left, 6 + ground));
+        foreach (int ridge in new[] { ridgeA, ridgeB })
+        {
+            upper.Add(new Point(ridge - 2, 6 + ground)); upper.Add(new Point(ridge - 1, 7 + ground));
+            upper.Add(new Point(ridge, 8 + ground)); upper.Add(new Point(ridge + 1, 7 + ground));
+            upper.Add(new Point(ridge + 2, 6 + ground));
+            if (ridge == ridgeA) upper.Add(new Point(shaft, 6 + platform));
+        }
+        upper.Add(new Point(right, 6 + ground));
+        for (int i = 1; i <= 5; i++) upper.Add(new Point(right + 2 * i, 6 - i + platform));
+        upper.Add(new Point(right + 11, ground));
+        string question = new[] {
+            "双洞室与通风井：地下近路、地表岗台、扫描后返程改走另一层，能否形成两轮选择？",
+            "只把地下长边改成左下到右上斜线：是否更易反包地表，但丢失地下返程机会？",
+            "只把斜线换到右下到左上：是否改变撤离侧的准备，而不是增加陷阱数量？"
+        }[variant];
+        return new Scenario {
+            seed = seed, id = $"v{Version}_duel2_{variant}_{unchecked((uint)seed):x8}",
+            duelVersion = 2, duelVariant = variant, tunnelVersion = 1, experience = "TunnelDuel",
+            lootEscape = true, mechanisms = "Fo", startDelaySeconds = 1.2f,
+            ascii = string.Join("\n", rows.Select(r => new string(r))), tunnelLinks = links.ToArray(),
+            designQuestion = question,
+            intention = question + " 两段实体土层/洞室、两侧爬坡和中央井；四个可操控假墙，不堆伤害陷阱。下路AI只在实际扫描命中或预警退让后记住风险，并在拿宝端点选择地表返程；地表AI固定两程作对照。对手仍为已知位置启发式，暗线请求不保证出手；不是自由挖土或自主学习。",
+            routes = new[] {
+                new Route { id = "lower", points = new[] { new Point(left - 2, ground), new Point(shaft, ground), new Point(right + 11, ground) }, minX = left, maxX = right, minY = 0.5f, maxY = 3f },
+                new Route { id = "upper", points = upper.ToArray(), minX = left, maxX = right, minY = 6 + platform - 0.3f, maxY = 11f }
+            }
+        };
+    }
+
     // Called only after the runner has checked complete real-match evidence. Do not mutate the parent.
     public static Scenario NextDuelVariant(Scenario parent, string reason)
     {
-        if (parent == null || parent.duelVersion != 1 || parent.iteration < 0 || parent.iteration >= 2)
+        if (parent == null || (parent.duelVersion != 1 && parent.duelVersion != 2) || parent.iteration < 0 || parent.iteration >= 2)
             throw new InvalidOperationException("本轮最多两次连接变体；先由真人复盘，不无限刷关卡。");
         if (!IsGeneratedDuelLayout(parent) || string.IsNullOrWhiteSpace(reason))
             throw new InvalidOperationException("手工改图或缺少对战理由：不能静默覆盖为生成器布局。");
-        var child = BuildDuel(parent.seed, (parent.duelVariant + 1) % 3);
+        var child = parent.duelVersion == 2 ? BuildCavernDuel(parent.seed, (parent.duelVariant + 1) % 3) : BuildDuel(parent.seed, (parent.duelVariant + 1) % 3);
         child.iteration = parent.iteration + 1;
         child.parentScenarioId = parent.id;
         child.id += "_iteration" + child.iteration;
@@ -544,8 +628,8 @@ public static class MechanismExplorationPlan
 
     public static bool IsGeneratedDuelLayout(Scenario room)
     {
-        if (room == null || room.duelVersion != 1 || room.duelVariant < 0 || room.duelVariant > 2) return false;
-        var canonical = BuildDuel(room.seed, room.duelVariant);
+        if (room == null || (room.duelVersion != 1 && room.duelVersion != 2) || room.duelVariant < 0 || room.duelVariant > 2) return false;
+        var canonical = room.duelVersion == 2 ? BuildCavernDuel(room.seed, room.duelVariant) : BuildDuel(room.seed, room.duelVariant);
         Func<Point, Point, bool> samePoint = (a, b) => a != null && b != null && a.x == b.x && a.y == b.y;
         return room.ascii == canonical.ascii && room.lootEscape && room.startDelaySeconds == canonical.startDelaySeconds &&
             room.mechanisms == canonical.mechanisms && room.tunnelVersion == canonical.tunnelVersion && room.counterplayVersion == 0 &&
@@ -662,6 +746,21 @@ public static class MechanismExplorationPlan
         return errors.Distinct().ToArray();
     }
 
+    public static string[] CavernRouteIssues(Trial t)
+    {
+        if (t == null || t.cavernEvidenceVersion < 1) return new[] { "缺少洞室观察字段" };
+        var gaps = new List<string>();
+        string outward = t.marioStrategy == "SafeRoute" ? "upper" : "lower";
+        string home = t.returnDetourRequests > 0 ? "upper" : outward;
+        if (t.completedRoutes == null || !t.completedRoutes.Contains("Out:" + outward)) gaps.Add("去程路线未完整");
+        if (t.completedRoutes == null || !t.completedRoutes.Contains("Return:" + home)) gaps.Add("返程路线未完整；改道请求不算完成");
+        if (!IsFinite(t.undergroundSeconds) || !IsFinite(t.surfaceSeconds) || t.undergroundSeconds < 0 || t.surfaceSeconds < 0 ||
+            (outward == "lower" && t.undergroundSeconds <= 0) || ((outward == "upper" || home == "upper") && t.surfaceSeconds <= 0)) gaps.Add("地下/地表观察时长缺失或非法");
+        if (t.returnDetourRequests < 0 || t.returnDetourRequests > 1 ||
+            (t.returnDetourRequests > 0 && (!t.outboundThreatRemembered || t.marioStrategy != "Adaptive"))) gaps.Add("改道缺少公开风险依据");
+        return gaps.ToArray();
+    }
+
     // Requests, state transitions and verified arrivals are separate evidence layers.
     public static string[] TunnelTrialIssues(Trial t)
     {
@@ -687,6 +786,7 @@ public static class MechanismExplorationPlan
         bool expectsReturn = scenario != null ? scenario.lootEscape : t.expectsReturn;
         var gaps = new List<string>();
         if (t.experienceEvidenceVersion < 1) gaps.Add("旧报告未记录完整路线/交手机会；不能补算通过");
+        if (t.cavernEvidenceVersion >= 1 || (scenario != null && scenario.duelVersion == 2)) gaps.AddRange(CavernRouteIssues(t));
         if (t.marioStrategy == "SafeRoute")
         {
             if (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper")) gaps.Add("安全上路去程未完整到达所有落地点");
@@ -890,6 +990,10 @@ public static class MechanismExplorationPlan
         public int routeSwitchRequests, routeTransitions, waypointsReached, recoveryAttempts;
         public int stairRecoveryEvidenceVersion, stairRecoveryRequests;
         public int tunnelDecisionEvidenceVersion, tunnelPreparationRequests;
+        public int cavernEvidenceVersion, returnDetourRequests;
+        public bool outboundThreatRemembered;
+        public float undergroundSeconds, surfaceSeconds;
+        public int undergroundControls, surfaceControls;
         public int telegraphRetreats, recoveryCrossings, possessionTransfers;
         public int bounceLandingAttempts, runnerBounceLaunches;
         public int experienceEvidenceVersion;

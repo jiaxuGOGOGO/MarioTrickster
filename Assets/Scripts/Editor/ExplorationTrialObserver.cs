@@ -58,6 +58,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (scenario.tunnelVersion >= 1) { result.tunnelEvidenceVersion = 1; result.tunnelVisitEvidenceVersion = 1; }
         result.tunnelPlanningPolicy = scenario.duelVersion >= 1 ? "SpeedEnvelopeV2+GroundedLayerPreparationV1" : "LegacyLocalPrediction";
         if (scenario.duelVersion >= 1) result.tunnelDecisionEvidenceVersion = result.stairRecoveryEvidenceVersion = 1;
+        if (scenario.duelVersion == 2) result.cavernEvidenceVersion = 1;
         result.expectsReturn = scenario.lootEscape;
         result.counterplayVersion = scenario.counterplayVersion;
         result.startDelaySeconds = scenario.startDelaySeconds;
@@ -114,6 +115,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             GroundOnlyOpponent = opponentName == "GroundChaser",
             PlannedTunnelOpponent = scenario.duelVersion >= 1,
             RecoverRouteFalls = scenario.duelVersion >= 1,
+            LearnReturnRoute = scenario.duelVersion == 2 && runnerName == "Adaptive" && trial.controlMode != "HumanMario",
             ControlMode = trial.controlMode,
             StartDelayRemaining = scenario.startDelaySeconds,
             RunnerStrategy = runnerName == "Scout" || runnerName == "Adaptive" ? HeuristicBotInputProvider.RunnerPolicy.Scout :
@@ -189,6 +191,16 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (bot.WaypointsReached > result.waypointsReached) noProgressTimer = 0;
         result.waypointsReached = bot.WaypointsReached;
         result.completedRoutes = bot.CompletedRoutes.ToList();
+        if (result.cavernEvidenceVersion >= 1)
+        {
+            result.outboundThreatRemembered = bot.OutboundThreatRemembered;
+            if (bot.ReturnDetourRequests > result.returnDetourRequests)
+                Event("return detour requested after observed outbound scan/retreat; upper traversal NOT yet complete");
+            result.returnDetourRequests = bot.ReturnDetourRequests;
+            float duration = Mathf.Clamp(dt, 0f, 0.25f);
+            if (routeRegions.Any(r => r.id == "lower" && r.Contains(mario.transform.position.x, mario.transform.position.y))) result.undergroundSeconds += duration;
+            if (routeRegions.Any(r => r.id == "upper" && r.Contains(mario.transform.position.x, mario.transform.position.y))) result.surfaceSeconds += duration;
+        }
         CaptureProbeProgress();
         CaptureQueueEvidence(dt);
         CaptureStartTiming();
@@ -250,7 +262,7 @@ public sealed class ExplorationTrialObserver : IDisposable
                     if (!motion.TryGetValue(prop, out var sample)) { sample = new MechanismExplorationPlan.CounterplayMotion(); motion.Add(prop, sample); }
                     Vector2 delta = mario.transform.position - target.position;
                     int flags = sample.Sample(propPhase, delta.x, Mathf.Abs(delta.y), delta.magnitude);
-                    if ((flags & 1) != 0) { result.telegraphRetreats++; Event("measured telegraph retreat " + evidence.mechanism); }
+                    if ((flags & 1) != 0) { result.telegraphRetreats++; RememberCavernThreat(); Event("measured telegraph retreat " + evidence.mechanism); }
                     if ((flags & 2) != 0) { result.recoveryCrossings++; Event("measured recovery crossing " + evidence.mechanism); }
                 }
             }
@@ -409,6 +421,12 @@ public sealed class ExplorationTrialObserver : IDisposable
     {
         if (Finished || prop == null) return;
         result.controlAccepted++;
+        if (result.cavernEvidenceVersion >= 1)
+        {
+            Vector2 position = prop.GetTransform().position;
+            if (routeRegions.Any(r => r.id == "lower" && r.Contains(position.x, position.y))) result.undergroundControls++;
+            if (routeRegions.Any(r => r.id == "upper" && r.Contains(position.x, position.y))) result.surfaceControls++;
+        }
         if (CurrentVisitStillPresent() && prop.GetTransform() == visitAnchor.transform &&
             currentVisit.RecordControl(manager.RoundElapsed, result.lootEvents > 0))
             Event("control during continuous tunnel residence at " + currentVisit.destination +
@@ -449,8 +467,15 @@ public sealed class ExplorationTrialObserver : IDisposable
     private void OnScanResult(bool hit)
     {
         if (Finished || disposed) return;
-        if (hit) result.scanHits++; else result.scanMisses++;
+        if (hit) { result.scanHits++; RememberCavernThreat(); } else result.scanMisses++;
         Event(hit ? "scan hit: disguised target detected (not proof of damage prevented)" : "scan miss: no disguised target detected");
+    }
+    private void RememberCavernThreat()
+    {
+        // Only public scan results / measured nearby telegraph retreats, never hidden gate state.
+        if (result.cavernEvidenceVersion >= 1 && result.lootEvents == 0 && mario != null &&
+            routeRegions.Any(r => r.id == "lower" && r.Contains(mario.transform.position.x, mario.transform.position.y)))
+            bot.ObservePublicThreat();
     }
     private void OnPossession(TricksterPossessionState state)
     {
@@ -626,6 +651,10 @@ public sealed class ExplorationTrialObserver : IDisposable
         public int RouteSwitchRequests => navigation.SwitchRequests;
         public int StairRecoveryRequests => navigation.StairRecoveryRequests;
         public string RouteId => navigation.RouteId;
+        public bool LearnReturnRoute { get => navigation.LearnReturnRoute; set => navigation.LearnReturnRoute = value; }
+        public bool OutboundThreatRemembered => navigation.SawOutboundThreat;
+        public int ReturnDetourRequests => navigation.ReturnDetourRequests;
+        public void ObservePublicThreat() => navigation.ObservePublicThreat();
         public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore, MechanismExplorationPlan.Route[] routes, bool safe)
             : this(runner, targets, explore, routes, safe, 30f) { }
         public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore, MechanismExplorationPlan.Route[] routes, bool safe, float trialLimit)

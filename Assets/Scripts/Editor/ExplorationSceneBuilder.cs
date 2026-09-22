@@ -53,7 +53,18 @@ public static class ExplorationSceneBuilder
             so.FindProperty("visibility").enumValueIndex = (int)PassageVisibility.HintWhenNear;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
-        if (scenario.duelVersion >= 1)
+        if (scenario.duelVersion == 2)
+        {
+            var lower = scenario.routes.First(r => r.id == "lower");
+            float middle = (lower.minX + lower.maxX) * 0.5f;
+            AddCavernPresentation(root, scenario);
+            AddRouteSign(root, new Vector2(middle, 12), "CAVERN / SURFACE: TWO WAYS HOME\nRead a warning - scan or retreat - choose your return");
+            AddRouteSign(root, new Vector2(lower.minX - 8, 8), "SURFACE: climb the lookouts\nCAVERN: enter below the earth roof");
+            AddRouteSign(root, new Vector2(middle, 3), "VENT SHAFT\nJump up / S + Jump drops through ledges");
+            AddRouteSign(root, new Vector2(lower.maxX + 11, 4), "TAKE LOOT\nReturn by either level");
+            AddRouteSign(root, new Vector2(3, 4), "ESCAPE <\nQ scans; fake walls can be controlled");
+        }
+        else if (scenario.duelVersion >= 1)
         {
             float end = scenario.routes.First(r => r.id == "upper").maxX;
             AddRouteSign(root, new Vector2((13 + end) * 0.5f, 8), "SURFACE / UNDERPASS DUEL\nDisguise - control props - scan - relocate");
@@ -88,6 +99,30 @@ public static class ExplorationSceneBuilder
             }
         }
         return root;
+    }
+
+    public static void AddCavernPresentation(GameObject root, MechanismExplorationPlan.Scenario scenario)
+    {
+        if (scenario.duelVersion != 2) return;
+        var tiles = scenario.ascii.Split('\n').Reverse().ToArray();
+        var renderers = root.GetComponentsInChildren<SpriteRenderer>(true);
+        Sprite soil = null;
+        foreach (var renderer in renderers)
+        {
+            int x = Mathf.RoundToInt(renderer.transform.position.x), y = Mathf.RoundToInt(renderer.transform.position.y);
+            if (y < 0 || y >= tiles.Length || x < 0 || x >= tiles[y].Length || tiles[y][x] != '#') continue;
+            renderer.color = y >= 5 ? new Color(0.43f, 0.30f, 0.19f) : new Color(0.28f, 0.24f, 0.20f);
+            if (renderer.sprite != null) soil = renderer.sprite;
+        }
+        if (soil == null || soil.bounds.size.x <= 0 || soil.bounds.size.y <= 0) return;
+        var lane = scenario.routes.First(r => r.id == "lower");
+        var backdrop = new GameObject("Cavern_Backdrop_VisualOnly");
+        backdrop.transform.SetParent(root.transform);
+        backdrop.transform.position = new Vector3((lane.minX + lane.maxX) * 0.5f, 2.5f, 0);
+        backdrop.transform.localScale = new Vector3((lane.maxX - lane.minX + 1) / soil.bounds.size.x, 5f / soil.bounds.size.y, 1);
+        var sprite = backdrop.AddComponent<SpriteRenderer>(); sprite.sprite = soil;
+        sprite.color = new Color(0.10f, 0.12f, 0.15f); sprite.sortingOrder = -50;
+        // Static location art only: no collider, hidden opponent markers, input or gameplay effects.
     }
 
     public static void ConfigureTunnelNetwork(GameObject root, MechanismExplorationPlan.Scenario scenario)

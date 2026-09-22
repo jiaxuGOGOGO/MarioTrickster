@@ -27,6 +27,7 @@ public static class StudioExplorationRunner
         public int step;
         public float seconds = 30;
         public bool cancel;
+        public bool importedReadOnly;
         public bool runInBackground;
         public string directory;
         public SceneBookmark[] original;
@@ -73,6 +74,7 @@ public static class StudioExplorationRunner
     public static string Phase => state?.phase ?? "Idle";
     public static string Error => state?.error ?? "";
     public static Report Latest => report;
+    public static bool ImportedReadOnly => state != null && state.importedReadOnly;
     public static int Completed => report?.trials.Count(t => t.outcome != "Running" && t.outcome != "Building") ?? 0;
     public static int Total => PlannedTrials(report);
     public static int PlannedTrials(Report data) => data == null ? 0 :
@@ -527,6 +529,7 @@ public static class StudioExplorationRunner
     public static void AddFeedback(string text)
     {
         if (report == null || string.IsNullOrWhiteSpace(text)) return;
+        if (ImportedReadOnly) throw new InvalidOperationException("导入报告只读；请先启动原图试玩，再保存新的感受。");
         text = text.Trim(); text = text.Substring(0, Math.Min(500, text.Length));
         if (report.playerNotes == null) report.playerNotes = new List<string>();
         if (report.playerNotes.Count >= 60) return;
@@ -535,16 +538,254 @@ public static class StudioExplorationRunner
         Persist();
     }
 
+    public sealed class FeedbackDocument
+    {
+        public string key, parentKey, baselineKey, label;
+        public byte[] bytes, summary, tests;
+        public Report data;
+    }
+
+    [Serializable]
+    private sealed class ImportedReportLinks
+    {
+        public string parentKey, baselineKey;
+    }
+
+    public sealed class ImportedReportChoice
+    {
+        public string directory, label;
+    }
+
+    // Never extract archive paths. Only bounded, explicitly supported text payloads are read.
+    public static bool SafeFeedbackEntryName(string name)
+    {
+        if (string.IsNullOrEmpty(name) || name.Length > 512 || name.StartsWith("/") || name.Contains("\\") ||
+            name.Any(c => char.IsControl(c) || ":<>\"|?*".Contains(c))) return false;
+        var parts = name.TrimEnd('/').Split('/');
+        return parts.Length <= 12 && parts.All(part => part.Length > 0 && part != "." && part != ".." &&
+            !part.EndsWith(".") && !part.EndsWith(" "));
+    }
+
+    public static Dictionary<string, byte[]> ReadFeedbackArchive(Stream input)
+    {
+        const long perFile = 8 * 1024 * 1024, totalLimit = 64 * 1024 * 1024;
+        if (!input.CanSeek || input.Length > totalLimit) throw new InvalidDataException("ZIP必须可读取且不超过64MB。");
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        long declared = 0, expanded = 0;
+        using (var zip = new System.IO.Compression.ZipArchive(input, System.IO.Compression.ZipArchiveMode.Read, true))
+        {
+            if (zip.Entries.Count > 1024) throw new InvalidDataException("ZIP条目过多（最多1024）。");
+            foreach (var entry in zip.Entries)
+            {
+                string name = entry.FullName;
+                if (!SafeFeedbackEntryName(name) || !names.Add(name.TrimEnd('/')))
+                    throw new InvalidDataException("ZIP包含不安全或重复路径。");
+                if (entry.Length < 0 || entry.Length > perFile || (declared += entry.Length) > totalLimit)
+                    throw new InvalidDataException("ZIP解压大小超限：单文件8MB、合计64MB。");
+                if (name.EndsWith("/")) continue;
+                string leaf = name.Substring(name.LastIndexOf('/') + 1);
+                if (leaf != "report.json" && leaf != "parent_report.json" && leaf != "baseline_report.json" &&
+                    leaf != "summary.txt" && leaf != "TestReport.txt") continue;
+                using (var source = entry.Open())
+                using (var buffer = new MemoryStream())
+                {
+                    var block = new byte[8192]; int read;
+                    while ((read = source.Read(block, 0, block.Length)) > 0)
+                    {
+                        if (buffer.Length + read > perFile || (expanded += read) > totalLimit)
+                            throw new InvalidDataException("ZIP实际解压大小超限。");
+                        buffer.Write(block, 0, read);
+                    }
+                    if (buffer.Length != entry.Length) throw new InvalidDataException("ZIP条目长度不一致。");
+                    files.Add(name, buffer.ToArray());
+                }
+            }
+        }
+        return files;
+    }
+
+    public static string FeedbackDocumentKey(byte[] bytes)
+    {
+        using (var sha = System.Security.Cryptography.SHA256.Create())
+            return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+    }
+
+    public static bool SafeFeedbackScenarioId(string id)
+    {
+        if (string.IsNullOrEmpty(id) || id.Length > 100 || id.Any(c => !(c >= 'a' && c <= 'z') &&
+            !(c >= 'A' && c <= 'Z') && !(c >= '0' && c <= '9') && c != '_' && c != '-')) return false;
+        string upper = id.ToUpperInvariant();
+        return !new[] { "CON", "PRN", "AUX", "NUL" }.Contains(upper) &&
+            !(upper.Length == 4 && (upper.StartsWith("COM") || upper.StartsWith("LPT")) && upper[3] >= '1' && upper[3] <= '9');
+    }
+
+    // Schema checks protect existing UI and replay file writers; they do NOT certify test success.
+    public static void ValidateFeedbackReport(Report value)
+    {
+        if (value == null || value.version != MechanismExplorationPlan.Version || string.IsNullOrEmpty(value.status) ||
+            !DateTimeOffset.TryParse(value.startedUtc, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal, out _) ||
+            value.scenarios == null || value.scenarios.Count == 0 || value.scenarios.Count > 512 ||
+            value.trials == null || value.trials.Count > 4096 || value.confirmationScenarioIds == null)
+            throw new InvalidDataException("报告格式缺失或版本不支持；未加载，原报告保持不变。");
+        if (!string.IsNullOrEmpty(value.controlMode) && !new[] { "Automated", "Demonstration", "HumanMario", "HumanTrickster" }.Contains(value.controlMode))
+            throw new InvalidDataException("不支持的报告控制方式。");
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var room in value.scenarios)
+        {
+            if (room == null || !SafeFeedbackScenarioId(room.id) ||
+                !ids.Add(room.id) || string.IsNullOrEmpty(room.ascii) || room.ascii.Length > 65536 || room.ascii.Contains('\0') ||
+                (room.routes != null && room.routes.Any(r => r == null || r.points == null || r.points.Length > 2048 || r.points.Any(p => p == null))) ||
+                (room.tunnelLinks != null && room.tunnelLinks.Any(l => l == null || l.from == null || l.to == null)) ||
+                (room.selectedMatchups != null && (room.selectedMatchups.Length > 32 || room.selectedMatchups.Any(m => m == null || string.IsNullOrEmpty(m.mario) || string.IsNullOrEmpty(m.trickster)))))
+                throw new InvalidDataException("报告关卡结构或关卡ID不安全；不自动修正原图。");
+        }
+        foreach (var trial in value.trials)
+            if (trial == null || !ids.Contains(trial.scenarioId) || trial.errors == null || trial.coverage == null ||
+                trial.coverage.Any(e => e == null || e.phases == null) || trial.queueEvidence == null || trial.queueEvidence.Any(q => q == null) ||
+                (trial.tunnelVisits != null && trial.tunnelVisits.Any(v => v == null)))
+                throw new InvalidDataException("报告对局结构损坏；不补造记录。");
+        if (value.confirmationScenarioIds.Any(id => !ids.Contains(id))) throw new InvalidDataException("确认计划引用了未知关卡。");
+    }
+
+    public static FeedbackDocument[] BuildFeedbackImportPlan(Dictionary<string, byte[]> files, Func<string, Report> parse)
+    {
+        var documents = new Dictionary<string, FeedbackDocument>(StringComparer.Ordinal);
+        var paths = new Dictionary<string, FeedbackDocument>(StringComparer.Ordinal);
+        var decoder = new UTF8Encoding(false, true);
+        foreach (var file in files.OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            string leaf = file.Key.Substring(file.Key.LastIndexOf('/') + 1);
+            if (leaf != "report.json" && leaf != "parent_report.json" && leaf != "baseline_report.json") continue;
+            string key = FeedbackDocumentKey(file.Value);
+            if (!documents.TryGetValue(key, out var document))
+            {
+                if (documents.Count >= 128) throw new InvalidDataException("一次最多导入128份不同报告。");
+                string text = decoder.GetString(file.Value).TrimStart('\ufeff');
+                if (!text.TrimStart().StartsWith("{")) throw new InvalidDataException("报告不是JSON对象。");
+                var data = parse(text); ValidateFeedbackReport(data);
+                document = new FeedbackDocument { key = key, bytes = file.Value, data = data };
+                string mode = data.controlMode == "Demonstration" ? "单局观战" : data.controlMode == "HumanMario" ? "真人闯关者" :
+                    data.controlMode == "HumanTrickster" ? "真人捣蛋者" : "AI完整对照";
+                document.label = $"{data.startedUtc} | {data.toolRevision ?? "旧版"} | {mode} ({data.controlMode ?? "Automated"}) | " +
+                    string.Join(", ", data.scenarios.Take(3).Select(r => $"种子{r.seed}/连接{r.duelVariant}/进度{r.iteration}")) + $" | {data.status} | {data.trials.Count}局";
+                documents.Add(key, document);
+            }
+            paths.Add(file.Key, document);
+        }
+        if (!paths.Keys.Any(p => p == "report.json" || p.EndsWith("/report.json", StringComparison.Ordinal)))
+            throw new InvalidDataException("ZIP中没有report.json；支持单批反馈ZIP或多批目录ZIP。");
+        foreach (var pair in paths.Where(p => p.Key == "report.json" || p.Key.EndsWith("/report.json", StringComparison.Ordinal)))
+        {
+            string prefix = pair.Key.Substring(0, pair.Key.Length - "report.json".Length);
+            var doc = pair.Value;
+            if (paths.TryGetValue(prefix + "parent_report.json", out var parent) && parent != doc)
+            {
+                if (!string.IsNullOrEmpty(doc.parentKey) && doc.parentKey != parent.key) throw new InvalidDataException("相同报告携带了冲突父报告。");
+                doc.parentKey = parent.key;
+            }
+            if (paths.TryGetValue(prefix + "baseline_report.json", out var baseline) && baseline != doc)
+            {
+                if (!string.IsNullOrEmpty(doc.baselineKey) && doc.baselineKey != baseline.key) throw new InvalidDataException("相同报告携带了冲突基线。");
+                doc.baselineKey = baseline.key;
+            }
+            if (files.TryGetValue(prefix + "summary.txt", out var summary)) doc.summary = summary;
+            if (files.TryGetValue(prefix + "TestReport.txt", out var tests)) doc.tests = tests;
+        }
+        foreach (var doc in documents.Values)
+        {
+            var seen = new HashSet<string>(); var cursor = doc;
+            while (cursor != null)
+            {
+                if (!seen.Add(cursor.key)) throw new InvalidDataException("报告父链存在循环。");
+                cursor = string.IsNullOrEmpty(cursor.parentKey) ? null : documents[cursor.parentKey];
+            }
+        }
+        return documents.Values.OrderByDescending(d => DateTimeOffset.Parse(d.data.startedUtc,
+            System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal))
+            .ThenBy(d => d.key, StringComparer.Ordinal).ToArray();
+    }
+
+    private static void RequireReportNavigationIdle()
+    {
+        if (Active || EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || TestReportRunner.IsRunning)
+            throw new InvalidOperationException("请先结束正在运行的测试/试玩，再导入或切换历史报告。");
+    }
+
+    public static ImportedReportChoice[] ImportFeedbackZip(string path)
+    {
+        RequireReportNavigationIdle();
+        FeedbackDocument[] docs;
+        using (var input = File.OpenRead(path))
+            docs = BuildFeedbackImportPlan(ReadFeedbackArchive(input), text => JsonUtility.FromJson<Report>(text));
+        return WriteFeedbackImportSnapshots(docs);
+    }
+
+    private static ImportedReportChoice[] WriteFeedbackImportSnapshots(FeedbackDocument[] docs)
+    {
+        // All validation completes BEFORE touching disk or the current report. No archive filename becomes a disk path.
+        string suffix = Guid.NewGuid().ToString("N");
+        Directory.CreateDirectory(OutputRoot);
+        string staging = Path.Combine(OutputRoot, ".import_pending_" + suffix);
+        string destination = Path.Combine(OutputRoot, "import_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + suffix);
+        try
+        {
+            Directory.CreateDirectory(staging);
+            var byKey = docs.ToDictionary(d => d.key);
+            foreach (var doc in docs)
+            {
+                string folder = Path.Combine(staging, doc.key); Directory.CreateDirectory(folder);
+                File.WriteAllBytes(Path.Combine(folder, "report.json"), doc.bytes);
+                if (!string.IsNullOrEmpty(doc.parentKey)) File.WriteAllBytes(Path.Combine(folder, "parent_report.json"), byKey[doc.parentKey].bytes);
+                if (!string.IsNullOrEmpty(doc.baselineKey)) File.WriteAllBytes(Path.Combine(folder, "baseline_report.json"), byKey[doc.baselineKey].bytes);
+                if (doc.summary != null) File.WriteAllBytes(Path.Combine(folder, "summary.txt"), doc.summary);
+                if (doc.tests != null) File.WriteAllBytes(Path.Combine(folder, "TestReport.txt"), doc.tests);
+                File.WriteAllText(Path.Combine(folder, "import_links.json"), JsonUtility.ToJson(new ImportedReportLinks { parentKey = doc.parentKey, baselineKey = doc.baselineKey }));
+            }
+            Directory.Move(staging, destination);
+        }
+        catch { if (Directory.Exists(staging)) Directory.Delete(staging, true); throw; }
+        return docs.Select(d => new ImportedReportChoice { directory = Path.Combine(destination, d.key), label = d.label }).ToArray();
+    }
+
+    public static void LoadHistoricalReport(string directory)
+    {
+        RequireReportNavigationIdle();
+        if (!IsReportPath(directory)) throw new InvalidOperationException("报告路径不属于本项目。");
+        var value = JsonUtility.FromJson<Report>(File.ReadAllText(Path.Combine(directory, "report.json")));
+        ValidateFeedbackReport(value);
+        report = value;
+        state = new State { phase = "Complete", directory = directory, importedReadOnly = File.Exists(Path.Combine(directory, "import_links.json")) };
+        EditorPrefs.SetString(LastDirectoryKey, directory); SaveState(); // Read-only navigation, never EnterPlay or Persist.
+    }
+
+    private static string LocalImportedParent(string directory)
+    {
+        string marker = Path.Combine(directory, "import_links.json");
+        if (!File.Exists(marker)) return null;
+        var links = JsonUtility.FromJson<ImportedReportLinks>(File.ReadAllText(marker));
+        string key = links?.parentKey;
+        if (string.IsNullOrEmpty(key)) return null;
+        if (key.Length != 64 || key.Any(c => !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'f')))
+            throw new InvalidDataException("导入父链标识不安全。");
+        return Path.Combine(Directory.GetParent(directory).FullName, key);
+    }
+
+    // Imported snapshots, not an old computer's absolute path, decide whether navigation is offered.
+    public static bool HasParentReport => report != null && (ImportedReadOnly
+        ? File.Exists(Path.Combine(ReportDirectory, "parent_report.json"))
+        : !string.IsNullOrEmpty(report.parentReport));
+
     public static void LoadParentReport()
     {
-        if (Active || EditorApplication.isPlayingOrWillChangePlaymode || report == null || string.IsNullOrEmpty(report.parentReport)) return;
-        string directory = report.parentReport;
-        if (!IsReportPath(directory)) throw new InvalidOperationException("Unsafe parent report path");
-        var parent = JsonUtility.FromJson<Report>(File.ReadAllText(Path.Combine(directory, "report.json")));
-        if (parent == null) throw new InvalidOperationException("Parent report missing");
-        report = parent;
-        state = new State { phase = "Complete", directory = directory }; // Load-only; never resume an old batch.
-        EditorPrefs.SetString(LastDirectoryKey, directory); SaveState();
+        RequireReportNavigationIdle();
+        if (report == null) return;
+        string marker = Path.Combine(ReportDirectory, "import_links.json");
+        string directory = File.Exists(marker) ? LocalImportedParent(ReportDirectory) : report.parentReport;
+        if (string.IsNullOrEmpty(directory) || !IsReportPath(directory) || !File.Exists(Path.Combine(directory, "report.json")))
+            throw new InvalidOperationException("父报告不在本项目。可导入包含父报告的反馈ZIP；不会访问旧电脑路径或补造父记录。");
+        LoadHistoricalReport(directory);
     }
 
     public static string ExportFeedbackZip()
@@ -582,15 +823,19 @@ public static class StudioExplorationRunner
             bool historical = string.IsNullOrEmpty(saved);
             if (historical) state.directory = EditorPrefs.GetString(LastDirectoryKey, "");
             if (!string.IsNullOrEmpty(state.directory) && IsReportPath(state.directory) && File.Exists(Path.Combine(state.directory, "report.json")))
+            {
                 report = JsonUtility.FromJson<Report>(File.ReadAllText(Path.Combine(state.directory, "report.json")));
+                state.importedReadOnly = File.Exists(Path.Combine(state.directory, "import_links.json"));
+                if (state.importedReadOnly) { ValidateFeedbackReport(report); state.phase = "Complete"; }
+            }
             if (historical && report != null)
             {
                 state.phase = report.status == "Complete" ? "Complete" : report.status == "Blocked" ? "Blocked" : "Aborted";
-                if (report.status == "Running") report.status = "Interrupted (editor closed)";
+                if (report.status == "Running" && !state.importedReadOnly) report.status = "Interrupted (editor closed)";
             }
             if (Active && report == null) { state.error = "批次状态丢失；请检查输出目录。"; state.phase = "RestoreFailed"; }
         }
-        catch (Exception ex) { state = new State { error = ex.Message }; }
+        catch (Exception ex) { report = null; state = new State { error = ex.Message }; }
         EditorApplication.update += Update;
         EditorApplication.playModeStateChanged += OnPlayMode;
         AssemblyReloadEvents.beforeAssemblyReload += BeforeReload;
@@ -621,7 +866,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S171", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S172", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
             planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,
@@ -906,7 +1151,7 @@ public static class StudioExplorationRunner
     private static void Persist()
     {
         SaveState();
-        if (report == null || string.IsNullOrEmpty(state.directory) || writing) return;
+        if (report == null || string.IsNullOrEmpty(state.directory) || writing || ImportedReadOnly) return;
         if (!IsReportPath(state.directory)) throw new InvalidOperationException("Unsafe report path");
         writing = true;
         try

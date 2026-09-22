@@ -1,4 +1,9 @@
 using System.Reflection;
+using System.IO;
+using System.IO.Compression;
+using System.Text;
+using System.Linq;
+using System.Collections.Generic;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -22,6 +27,211 @@ public class ExplorationIntegrationContractTests
             report.trials.Add(trial);
         }
         return report;
+    }
+
+    private static StudioExplorationRunner.Report ImportReportFixture(string stamp = "2026-09-22T15:39:43Z")
+    {
+        var r = DuelReportFixture(); r.startedUtc = stamp; r.toolRevision = "S171";
+        r.parentReport = "Z:/old-computer/not-followed";
+        return r;
+    }
+
+    private static byte[] FeedbackZipFixture(params string[] entries)
+    {
+        using (var stream = new MemoryStream())
+        {
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Create, true))
+                foreach (string entry in entries)
+                    using (var writer = new StreamWriter(zip.CreateEntry(entry).Open())) writer.Write("{}");
+            return stream.ToArray();
+        }
+    }
+
+    [TestCase("../report.json")]
+    [TestCase("a/../../report.json")]
+    [TestCase("/report.json")]
+    [TestCase("C:/report.json")]
+    [TestCase("a\\report.json")]
+    [TestCase("a//report.json")]
+    [TestCase("a./report.json")]
+    [TestCase("a /report.json")]
+    [TestCase("a/./report.json")]
+    [TestCase("a/report.json:stream")]
+    public void FeedbackArchiveRejectsTraversalAndAmbiguousPaths(string entry)
+    {
+        Assert.IsFalse(StudioExplorationRunner.SafeFeedbackEntryName(entry));
+        using (var stream = new MemoryStream(FeedbackZipFixture(entry)))
+            Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.ReadFeedbackArchive(stream));
+    }
+
+    [TestCase("../escaped")]
+    [TestCase("CON")]
+    [TestCase("nul")]
+    [TestCase("COM1")]
+    [TestCase("LPT9")]
+    public void ReportScenarioIdsCannotEscapeReplayOrTargetWindowsDevices(string id)
+    {
+        var r = ImportReportFixture(); r.scenarios[0].id = id;
+        Assert.IsFalse(StudioExplorationRunner.SafeFeedbackScenarioId(id));
+        Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.ValidateFeedbackReport(r));
+    }
+
+    [Test]
+    public void ArchiveAllowlistIgnoresBackupsScriptsAndImporterMetadata()
+    {
+        using (var stream = new MemoryStream(FeedbackZipFixture("batch/report.json", "batch/summary.txt", "batch/TestReport.txt",
+            "batch/report.json.bak", "batch/import_links.json", "Assets/Evil.cs")))
+        {
+            var files = StudioExplorationRunner.ReadFeedbackArchive(stream);
+            CollectionAssert.AreEquivalent(new[] { "batch/report.json", "batch/summary.txt", "batch/TestReport.txt" }, files.Keys);
+        }
+        using (var stream = new MemoryStream(FeedbackZipFixture("report.json", "REPORT.JSON")))
+            Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.ReadFeedbackArchive(stream));
+        using (var stream = new MemoryStream(new byte[] { 1, 2, 3 }))
+            Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.ReadFeedbackArchive(stream));
+    }
+
+    [TestCase("file")]
+    [TestCase("total")]
+    [TestCase("entries")]
+    public void ArchiveBudgetsRejectCompressedBombsBeforeExtraction(string fault)
+    {
+        using (var stream = new MemoryStream())
+        {
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Create, true))
+            {
+                int count = fault == "entries" ? 1025 : fault == "total" ? 9 : 1;
+                var block = new byte[8192];
+                for (int i = 0; i < count; i++)
+                using (var output = zip.CreateEntry(i + "/report.json").Open())
+                {
+                    if (fault == "entries") continue;
+                    for (int b = 0; b < 1024; b++) output.Write(block, 0, block.Length);
+                    if (fault == "file") output.WriteByte(0);
+                }
+            }
+            stream.Position = 0;
+            Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.ReadFeedbackArchive(stream));
+        }
+    }
+
+    [Test]
+    public void MultiBatchImportDeduplicatesExactSnapshotsAndKeepsLocalParentChain()
+    {
+        var a = Encoding.UTF8.GetBytes("{\"a\":1}"); var b = Encoding.UTF8.GetBytes("{\"b\":1}");
+        var files = new Dictionary<string, byte[]> { ["first/report.json"] = a, ["second/report.json"] = b,
+            ["second/parent_report.json"] = a, ["second/baseline_report.json"] = a };
+        int parses = 0;
+        var docs = StudioExplorationRunner.BuildFeedbackImportPlan(files, text => {
+            parses++; var r = ImportReportFixture(text.Contains("b") ? "2026-09-22T15:40:00Z" : "2026-09-22T15:39:00Z");
+            r.controlMode = text.Contains("b") ? "Automated" : "Demonstration"; return r;
+        });
+        Assert.AreEqual(2, docs.Length); Assert.AreEqual(2, parses);
+        Assert.AreEqual(StudioExplorationRunner.FeedbackDocumentKey(b), docs[0].key);
+        Assert.AreEqual(docs[1].key, docs[0].parentKey); Assert.AreEqual(docs[1].key, docs[0].baselineKey);
+        Assert.AreEqual("Z:/old-computer/not-followed", docs[0].data.parentReport);
+        CollectionAssert.AreEqual(b, docs[0].bytes);
+        StringAssert.Contains("Automated", docs[0].label); StringAssert.Contains("Demonstration", docs[1].label);
+        files["first/parent_report.json"] = b;
+        Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.BuildFeedbackImportPlan(files, text => ImportReportFixture()));
+    }
+
+    [Test]
+    public void ImportOrdersRealInstantsAndDoesNotConflateConnectionWithIteration()
+    {
+        var files = new Dictionary<string, byte[]> { ["a/report.json"] = Encoding.UTF8.GetBytes("{\"a\":1}"),
+            ["b/report.json"] = Encoding.UTF8.GetBytes("{\"b\":1}") };
+        var docs = StudioExplorationRunner.BuildFeedbackImportPlan(files, text => {
+            var r = ImportReportFixture(text.Contains("a") ? "2026-09-22T16:00:00+08:00" : "2026-09-22T09:00:00Z");
+            r.scenarios[0].duelVariant = 2; r.scenarios[0].iteration = 0; return r;
+        });
+        Assert.AreEqual("2026-09-22T09:00:00Z", docs[0].data.startedUtc);
+        StringAssert.Contains("连接2/进度0", docs[0].label);
+        StringAssert.Contains("AI完整对照", docs[0].label);
+    }
+
+    [TestCase("parent")]
+    [TestCase("baseline")]
+    public void ConflictingSnapshotsCannotSilentlyRelinkTheSameReport(string relation)
+    {
+        var main = Encoding.UTF8.GetBytes("{}"); var a = Encoding.UTF8.GetBytes("{\"a\":1}"); var b = Encoding.UTF8.GetBytes("{\"b\":1}");
+        var files = new Dictionary<string, byte[]> { ["one/report.json"] = main, ["two/report.json"] = main,
+            ["one/" + relation + "_report.json"] = a, ["two/" + relation + "_report.json"] = b };
+        Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.BuildFeedbackImportPlan(files, text => ImportReportFixture()));
+    }
+
+    [Test]
+    public void ImportRejectsMissingMainMalformedUtf8AndExcessiveReports()
+    {
+        var files = new Dictionary<string, byte[]> { ["parent_report.json"] = Encoding.UTF8.GetBytes("{}") };
+        Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.BuildFeedbackImportPlan(files, text => ImportReportFixture()));
+        files.Clear(); files["report.json"] = new byte[] { 0xc3, 0x28 };
+        Assert.Throws<DecoderFallbackException>(() => StudioExplorationRunner.BuildFeedbackImportPlan(files, text => ImportReportFixture()));
+        files["report.json"] = Encoding.UTF8.GetBytes("[]");
+        Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.BuildFeedbackImportPlan(files, text => ImportReportFixture()));
+        files.Clear();
+        for (int i = 0; i < 129; i++) files[i + "/report.json"] = Encoding.UTF8.GetBytes("{\"id\":" + i + "}");
+        Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.BuildFeedbackImportPlan(files, text => ImportReportFixture()));
+    }
+
+    [TestCase("version")]
+    [TestCase("date")]
+    [TestCase("scenario")]
+    [TestCase("unknownTrial")]
+    [TestCase("mode")]
+    [TestCase("confirmation")]
+    [TestCase("nullEvidence")]
+    public void ImportSchemaValidationRejectsMalformedDataWithoutRepairingIt(string fault)
+    {
+        var r = ImportReportFixture();
+        if (fault == "version") r.version = 999;
+        if (fault == "date") r.startedUtc = "bad";
+        if (fault == "scenario") r.scenarios.Add(r.scenarios[0]);
+        if (fault == "unknownTrial") r.trials[0].scenarioId = "unknown";
+        if (fault == "mode") r.controlMode = "ExecuteCode";
+        if (fault == "confirmation") r.confirmationScenarioIds.Add("unknown");
+        if (fault == "nullEvidence") r.trials[0].coverage.Add(null);
+        Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.ValidateFeedbackReport(r));
+    }
+
+    [TestCase("Blocked")]
+    [TestCase("Running")]
+    [TestCase("Aborted")]
+    public void ImportAcceptsFailureAndUnfinishedEvidenceWithoutRelabellingIt(string status)
+    {
+        var r = ImportReportFixture(); r.status = status; r.regressionFailed = 1; r.trials.Clear();
+        var files = new Dictionary<string, byte[]> { ["report.json"] = Encoding.UTF8.GetBytes("{}") };
+        var docs = StudioExplorationRunner.BuildFeedbackImportPlan(files, text => r);
+        Assert.AreEqual(status, docs[0].data.status); Assert.AreEqual(1, docs[0].data.regressionFailed);
+        Assert.IsEmpty(docs[0].data.trials); Assert.IsNull(docs[0].parentKey, "Never follow the remote original parent path");
+    }
+
+    [Test]
+    public void UnityImportWritesExactSnapshotsAndResolvesOnlyGeneratedLocalLinks()
+    {
+        var parent = ImportReportFixture("2026-09-22T15:39:00Z"); parent.status = "Blocked"; parent.trials.Clear();
+        var child = ImportReportFixture("2026-09-22T15:40:00Z"); child.status = "Running";
+        child.parentReport = ""; // A local snapshot is sufficient even when the original path is absent.
+        byte[] p = Encoding.UTF8.GetBytes(JsonUtility.ToJson(parent)), c = Encoding.UTF8.GetBytes(JsonUtility.ToJson(child));
+        var files = new Dictionary<string, byte[]> { ["report.json"] = c, ["parent_report.json"] = p, ["baseline_report.json"] = p };
+        var docs = StudioExplorationRunner.BuildFeedbackImportPlan(files, text => JsonUtility.FromJson<StudioExplorationRunner.Report>(text));
+        string root = null;
+        try
+        {
+            var writer = typeof(StudioExplorationRunner).GetMethod("WriteFeedbackImportSnapshots", BindingFlags.NonPublic | BindingFlags.Static);
+            var resolver = typeof(StudioExplorationRunner).GetMethod("LocalImportedParent", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.IsNotNull(writer); Assert.IsNotNull(resolver);
+            var choices = (StudioExplorationRunner.ImportedReportChoice[])writer.Invoke(null, new object[] { docs });
+            root = Directory.GetParent(choices[0].directory).FullName;
+            CollectionAssert.AreEqual(c, File.ReadAllBytes(Path.Combine(choices[0].directory, "report.json")));
+            CollectionAssert.AreEqual(p, File.ReadAllBytes(Path.Combine(choices[0].directory, "parent_report.json")));
+            Assert.AreEqual(choices[1].directory, resolver.Invoke(null, new object[] { choices[0].directory }));
+            Assert.AreEqual("Running", docs[0].data.status); Assert.AreEqual("Blocked", docs[1].data.status);
+            Assert.AreEqual("", docs[0].data.parentReport);
+            Assert.AreEqual("Z:/old-computer/not-followed", docs[1].data.parentReport);
+            Assert.IsNull(resolver.Invoke(null, new object[] { choices[1].directory }));
+        }
+        finally { if (root != null && Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
     [Test]

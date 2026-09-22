@@ -21,6 +21,8 @@ public partial class TestConsoleWindow
     [SerializeField] private int duelReportSelection, duelRoute;
     [SerializeField] private bool duelAdvanced;
     [SerializeField] private bool duelReportDetails, duelReportTools;
+    [SerializeField] private string[] importedReportDirectories = Array.Empty<string>(), importedReportLabels = Array.Empty<string>();
+    [SerializeField] private int importedReportSelection;
     private string duelParsedJson;
     private MechanismExplorationPlan.Scenario duelDraft;
 
@@ -63,6 +65,36 @@ public partial class TestConsoleWindow
         }
     }
 
+    private void DrawFeedbackImport(bool unavailable)
+    {
+        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("已有反馈ZIP？恢复报告原图，不用重新测试", EditorStyles.boldLabel);
+        using (new EditorGUI.DisabledScope(unavailable))
+        {
+            if (GUILayout.Button("导入反馈ZIP / 多批报告ZIP", GUILayout.Height(30)))
+            {
+                string file = EditorUtility.OpenFilePanel("选择反馈ZIP（单批或多批目录均可）", "", "zip");
+                if (!string.IsNullOrEmpty(file)) DuelAction(() => {
+                    var choices = StudioExplorationRunner.ImportFeedbackZip(file);
+                    importedReportDirectories = choices.Select(c => c.directory).ToArray();
+                    importedReportLabels = choices.Select(c => c.label).ToArray(); importedReportSelection = 0;
+                    StudioExplorationRunner.LoadHistoricalReport(choices[0].directory);
+                    studioNotice = $"已导入{choices.Length}份不同报告并打开最新一份（不代表最优）。重复父快照不重复列出；没有开始测试。";
+                });
+            }
+            if (importedReportDirectories != null && importedReportLabels != null && importedReportDirectories.Length > 0 && importedReportDirectories.Length == importedReportLabels.Length)
+            {
+                importedReportSelection = Mathf.Clamp(importedReportSelection, 0, importedReportLabels.Length - 1);
+                importedReportSelection = EditorGUILayout.Popup("切换导入批次", importedReportSelection, importedReportLabels);
+                if (GUILayout.Button("打开所选历史报告（不运行测试）"))
+                    DuelAction(() => StudioExplorationRunner.LoadHistoricalReport(importedReportDirectories[importedReportSelection]));
+            }
+        }
+        if (StudioExplorationRunner.ImportedReadOnly)
+            EditorGUILayout.LabelField("当前为只读历史报告，原版本/状态/结果不改写。下方可直接观战或真人重跑原图；新感受保存在新的试玩批次。", EditorStyles.wordWrappedMiniLabel);
+        EditorGUILayout.EndVertical();
+    }
+
     private void DrawDuelWorkshop()
     {
         EditorGUILayout.LabelField("地表与暗线 · 对战创作", EditorStyles.boldLabel);
@@ -94,6 +126,8 @@ public partial class TestConsoleWindow
             return;
         }
         bool unavailable = EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || TestReportRunner.IsRunning;
+        DrawFeedbackImport(unavailable);
+        report = StudioExplorationRunner.Latest;
         if (duelParsedJson != duelDraftJson)
         {
             duelParsedJson = duelDraftJson;
@@ -141,13 +175,15 @@ public partial class TestConsoleWindow
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
         EditorGUILayout.LabelField("3  看结果，只改一处再比较", EditorStyles.boldLabel);
         var rooms = report?.scenarios.Where(s => s.tunnelVersion >= 1).ToArray();
-        if (rooms == null || rooms.Length == 0) EditorGUILayout.LabelField("还没有地道对战报告。先生成，再试玩。", EditorStyles.wordWrappedLabel);
+        if (rooms == null || rooms.Length == 0) EditorGUILayout.LabelField("还没有地道对战报告。有旧反馈ZIP请点上方导入，不要为恢复历史重新生成或测试。没有历史时才生成新关卡。", EditorStyles.wordWrappedLabel);
         else
         {
             duelReportSelection = Mathf.Clamp(duelReportSelection, 0, rooms.Length - 1);
             duelReportSelection = EditorGUILayout.Popup("上次报告的关卡", duelReportSelection, rooms.Select(s => $"种子{s.seed} · {s.designQuestion}").ToArray());
             var room = rooms[duelReportSelection];
             EditorGUILayout.LabelField($"报告：{report.toolRevision} / {DuelStatusLabel(report.controlMode)} / {DuelStatusLabel(report.status)}；回归 {report.regressionPassed} 通过 / {report.regressionFailed} 失败", EditorStyles.wordWrappedMiniLabel);
+            if (StudioExplorationRunner.ImportedReadOnly)
+                EditorGUILayout.LabelField("以上是历史记录状态，不代表当前正在运行；导入不会继续旧测试。", EditorStyles.wordWrappedMiniLabel);
             if (duelDraft == null || duelDraft.id != room.id || duelDraft.ascii != room.ascii)
                 EditorGUILayout.HelpBox("当前草稿与报告不同。下方观战/真人按钮直接用报告原图，不用先载入草稿。", MessageType.Info);
             EditorGUILayout.HelpBox(StudioExplorationRunner.DuelNextAction(report, room), MessageType.Info);
@@ -163,7 +199,7 @@ public partial class TestConsoleWindow
                 if (GUILayout.Button("看原图下层对战")) DuelAction(() => StartReportedDuel(room, "Adaptive"));
                 if (GUILayout.Button("我当捣蛋者，对抗地表AI")) DuelAction(() => StartReportedDuel(room, "SafeRoute", "HumanTrickster"));
                 EditorGUILayout.EndHorizontal();
-                if (!string.IsNullOrEmpty(report.controlMode) && report.controlMode != "Automated" && !string.IsNullOrEmpty(report.parentReport) &&
+                if (!string.IsNullOrEmpty(report.controlMode) && report.controlMode != "Automated" && StudioExplorationRunner.HasParentReport &&
                     GUILayout.Button("返回上一批报告（保留本局）"))
                 { DuelAction(StudioExplorationRunner.LoadParentReport); GUIUtility.ExitGUI(); }
             }
@@ -178,6 +214,7 @@ public partial class TestConsoleWindow
             else EditorGUILayout.LabelField("已到变体2/2：保留这张图试玩复盘，不追加第3次。", EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.LabelField(StudioExplorationRunner.DuelReportHighlights(report, room), EditorStyles.wordWrappedLabel);
             explorationPlayerNote = EditorGUILayout.TextField("我的感受 / 新道具想法", explorationPlayerNote);
+            using (new EditorGUI.DisabledScope(StudioExplorationRunner.ImportedReadOnly))
             if (GUILayout.Button("保存感受或机制提案") && !string.IsNullOrWhiteSpace(explorationPlayerNote))
             { StudioExplorationRunner.AddFeedback(explorationPlayerNote); explorationPlayerNote = ""; }
             if (report.playerNotes != null)
@@ -207,7 +244,7 @@ public partial class TestConsoleWindow
                         StudioExplorationRunner.CopyDuelForFullReplay(room), explorationRegressions));
                 if (GUILayout.Button("把报告原图载入为当前草稿（保留原种子）"))
                 { SaveDuelDraft(StudioExplorationRunner.CopyDuelForFullReplay(room)); duelSeed = room.seed; }
-                if (!string.IsNullOrEmpty(report.parentReport) && GUILayout.Button("查看父版本结果 / 返回上一批"))
+                if (StudioExplorationRunner.HasParentReport && GUILayout.Button("查看父版本结果 / 返回上一批"))
                 { DuelAction(StudioExplorationRunner.LoadParentReport); GUIUtility.ExitGUI(); }
             }
         }
@@ -353,6 +390,7 @@ public partial class TestConsoleWindow
                 EditorGUILayout.LabelField(StudioExplorationRunner.TunnelDesignSummary(report), EditorStyles.wordWrappedMiniLabel);
             if (GUILayout.Button("打开本批报告目录")) EditorUtility.RevealInFinder(StudioExplorationRunner.ReportDirectory);
             explorationPlayerNote = EditorGUILayout.TextField("我的体验 / 机制想法", explorationPlayerNote);
+            using (new EditorGUI.DisabledScope(StudioExplorationRunner.ImportedReadOnly))
             if (GUILayout.Button("保存这条反馈到本批报告") && !string.IsNullOrWhiteSpace(explorationPlayerNote))
             { StudioExplorationRunner.AddFeedback(explorationPlayerNote); explorationPlayerNote = ""; }
             using (new EditorGUI.DisabledScope(StudioExplorationRunner.Active))
@@ -363,7 +401,7 @@ public partial class TestConsoleWindow
                 }
             if (!StudioExplorationRunner.Active)
             {
-                if (!string.IsNullOrEmpty(report.parentReport) && GUILayout.Button("返回上一批报告（保留本次试玩）"))
+                if (StudioExplorationRunner.HasParentReport && GUILayout.Button("返回上一批报告（保留本次试玩）"))
                 {
                     try { StudioExplorationRunner.LoadParentReport(); }
                     catch (Exception ex) { studioNotice = ex.Message; }

@@ -722,13 +722,32 @@ public static class StudioExplorationRunner
         return WriteFeedbackImportSnapshots(docs);
     }
 
+    public static string FeedbackImportCollectionName(Guid token, bool staging)
+        => (staging ? ".i_" : "i_") + token.ToString("N");
+
+    // [AI防坑警告] Windows Unity/Mono can write a short staging path then fail to read
+    // its renamed destination. Budget BOTH paths, metadata and exported ZIP before any write.
+    // Keep the full GUID and SHA256; shortening identifiers would weaken provenance/isolation.
+    public static void ValidateFeedbackStorageDirectory(string directory)
+    {
+        if (string.IsNullOrEmpty(directory)) throw new ArgumentException("报告目录为空。");
+        if (directory.Length + 1 + "baseline_report.json".Length >= 260 ||
+            directory.Length + "_feedback_00000000.zip".Length >= 260)
+            throw new PathTooLongException("报告路径过长，未写入或加载。请重新导入原反馈ZIP以使用短目录；若仍提示过长，请将项目放到较短路径后再导入。不会跳过回归或修改旧报告。");
+    }
+
     private static ImportedReportChoice[] WriteFeedbackImportSnapshots(FeedbackDocument[] docs)
     {
         // All validation completes BEFORE touching disk or the current report. No archive filename becomes a disk path.
-        string suffix = Guid.NewGuid().ToString("N");
+        Guid token = Guid.NewGuid();
+        string staging = Path.Combine(OutputRoot, FeedbackImportCollectionName(token, true));
+        string destination = Path.Combine(OutputRoot, FeedbackImportCollectionName(token, false));
+        foreach (var doc in docs)
+        {
+            ValidateFeedbackStorageDirectory(Path.Combine(staging, doc.key));
+            ValidateFeedbackStorageDirectory(Path.Combine(destination, doc.key));
+        }
         Directory.CreateDirectory(OutputRoot);
-        string staging = Path.Combine(OutputRoot, ".import_pending_" + suffix);
-        string destination = Path.Combine(OutputRoot, "import_" + DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + suffix);
         try
         {
             Directory.CreateDirectory(staging);
@@ -753,6 +772,7 @@ public static class StudioExplorationRunner
     {
         RequireReportNavigationIdle();
         if (!IsReportPath(directory)) throw new InvalidOperationException("报告路径不属于本项目。");
+        ValidateFeedbackStorageDirectory(directory);
         var value = JsonUtility.FromJson<Report>(File.ReadAllText(Path.Combine(directory, "report.json")));
         ValidateFeedbackReport(value);
         report = value;
@@ -762,6 +782,7 @@ public static class StudioExplorationRunner
 
     private static string LocalImportedParent(string directory)
     {
+        ValidateFeedbackStorageDirectory(directory);
         string marker = Path.Combine(directory, "import_links.json");
         if (!File.Exists(marker)) return null;
         var links = JsonUtility.FromJson<ImportedReportLinks>(File.ReadAllText(marker));
@@ -793,6 +814,7 @@ public static class StudioExplorationRunner
         if (report == null || !IsReportPath(ReportDirectory) || !Directory.Exists(ReportDirectory))
             throw new InvalidOperationException("没有可打包的报告目录");
         if (Active) throw new InvalidOperationException("请结束本局或批次后打包，避免导出不一致记录");
+        ValidateFeedbackStorageDirectory(ReportDirectory);
         string zip = ReportDirectory + "_feedback_" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".zip";
         System.IO.Compression.ZipFile.CreateFromDirectory(ReportDirectory, zip);
         return zip;
@@ -824,6 +846,7 @@ public static class StudioExplorationRunner
             if (historical) state.directory = EditorPrefs.GetString(LastDirectoryKey, "");
             if (!string.IsNullOrEmpty(state.directory) && IsReportPath(state.directory) && File.Exists(Path.Combine(state.directory, "report.json")))
             {
+                ValidateFeedbackStorageDirectory(state.directory);
                 report = JsonUtility.FromJson<Report>(File.ReadAllText(Path.Combine(state.directory, "report.json")));
                 state.importedReadOnly = File.Exists(Path.Combine(state.directory, "import_links.json"));
                 if (state.importedReadOnly) { ValidateFeedbackReport(report); state.phase = "Complete"; }
@@ -866,7 +889,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S172", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S173", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
             planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,

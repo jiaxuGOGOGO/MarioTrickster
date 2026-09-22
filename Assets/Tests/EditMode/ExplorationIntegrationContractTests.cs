@@ -207,6 +207,60 @@ public class ExplorationIntegrationContractTests
     }
 
     [Test]
+    public void CompactImportPathsFitUploadedWindowsProjectWithoutTruncatingIdentifiers()
+    {
+        string output = @"E:\BaiduNetdiskDownload\MarioTrickster-genspark_ai_developer (1)\MarioTrickster-genspark_ai_developer\reports\ai_exploration";
+        var token = System.Guid.ParseExact("a3bf96763a394873a53a7ca59fa6c8dd", "N");
+        string key = new string('a', 64);
+        string legacy = Path.Combine(output, "import_20260922_162552_" + token.ToString("N"), key);
+        Assert.AreEqual(257, Path.Combine(legacy, "report.json").Length);
+        Assert.AreEqual(264, Path.Combine(legacy, "parent_report.json").Length);
+        Assert.Throws<PathTooLongException>(() => StudioExplorationRunner.ValidateFeedbackStorageDirectory(legacy));
+        foreach (bool staging in new[] { true, false })
+        {
+            string collection = StudioExplorationRunner.FeedbackImportCollectionName(token, staging);
+            StringAssert.EndsWith(token.ToString("N"), collection);
+            string directory = Path.Combine(output, collection, key);
+            Assert.DoesNotThrow(() => StudioExplorationRunner.ValidateFeedbackStorageDirectory(directory));
+            Assert.Less(Path.Combine(directory, "baseline_report.json").Length, 260);
+            Assert.Less((directory + "_feedback_12345678.zip").Length, 260);
+            Assert.AreEqual(key, Path.GetFileName(directory));
+        }
+        Assert.AreNotEqual(StudioExplorationRunner.FeedbackImportCollectionName(token, true),
+            StudioExplorationRunner.FeedbackImportCollectionName(token, false));
+    }
+
+    [TestCase(237, true)]
+    [TestCase(238, false)]
+    [TestCase(260, false)]
+    public void ImportPathBudgetIncludesMetadataAndLaterExport(int length, bool allowed)
+    {
+        string directory = "C:\\" + new string('x', length - 3);
+        if (allowed) Assert.DoesNotThrow(() => StudioExplorationRunner.ValidateFeedbackStorageDirectory(directory));
+        else Assert.Throws<PathTooLongException>(() => StudioExplorationRunner.ValidateFeedbackStorageDirectory(directory));
+    }
+
+    [Test]
+    public void ShortStagingDoesNotCertifyLongerFinalReportPath()
+    {
+        StudioExplorationRunner.ValidateFeedbackStorageDirectory(new string('x', 237));
+        Assert.Throws<PathTooLongException>(() => StudioExplorationRunner.ValidateFeedbackStorageDirectory(new string('x', 238)));
+    }
+
+    [Test]
+    public void BlockedImportedDemoCannotInventGameplayOrCertifyCompletedReview()
+    {
+        var r = ImportReportFixture(); r.toolRevision = "S172"; r.status = "Blocked"; r.controlMode = "Demonstration";
+        r.regressionPassed = 523; r.regressionFailed = 1; r.trials.Clear();
+        r.scenarios[0].selectedMatchups = new[] { new MechanismExplorationPlan.Matchup { mario = "SafeRoute", trickster = "TunnelChaser" } };
+        StudioExplorationRunner.ValidateFeedbackReport(r);
+        Assert.AreEqual(1, StudioExplorationRunner.UnverifiedSlots(r));
+        Assert.IsFalse(StudioExplorationRunner.DuelReportReadyForReview(r, r.scenarios[0]));
+        Assert.IsNotEmpty(StudioExplorationRunner.IterationBlockReason(r, r.scenarios[0]));
+        Assert.AreEqual("Blocked", r.status); Assert.AreEqual("S172", r.toolRevision); Assert.IsEmpty(r.trials);
+    }
+
+    [Test]
     public void UnityImportWritesExactSnapshotsAndResolvesOnlyGeneratedLocalLinks()
     {
         var parent = ImportReportFixture("2026-09-22T15:39:00Z"); parent.status = "Blocked"; parent.trials.Clear();
@@ -225,6 +279,13 @@ public class ExplorationIntegrationContractTests
             root = Directory.GetParent(choices[0].directory).FullName;
             CollectionAssert.AreEqual(c, File.ReadAllBytes(Path.Combine(choices[0].directory, "report.json")));
             CollectionAssert.AreEqual(p, File.ReadAllBytes(Path.Combine(choices[0].directory, "parent_report.json")));
+            CollectionAssert.AreEqual(p, File.ReadAllBytes(Path.Combine(choices[0].directory, "baseline_report.json")));
+            Assert.IsNotEmpty(File.ReadAllText(Path.Combine(choices[0].directory, "import_links.json")));
+            foreach (var choice in choices)
+            {
+                Assert.DoesNotThrow(() => StudioExplorationRunner.ValidateFeedbackStorageDirectory(choice.directory));
+                Assert.AreEqual(64, Path.GetFileName(choice.directory).Length);
+            }
             Assert.AreEqual(choices[1].directory, resolver.Invoke(null, new object[] { choices[0].directory }));
             Assert.AreEqual("Running", docs[0].data.status); Assert.AreEqual("Blocked", docs[1].data.status);
             Assert.AreEqual("", docs[0].data.parentReport);

@@ -29,6 +29,136 @@ public class ExplorationIntegrationContractTests
         return report;
     }
 
+    [TestCase(false)]
+    [TestCase(true)]
+    public void WallPerceptionRequiresLocalSameLevelUnobstructedPublicCue(bool blocked)
+    {
+        var wallObject = new GameObject("VisibleWall"); var cover = new GameObject("SolidCover");
+        Sprite visualSprite = null;
+        try
+        {
+            wallObject.transform.position = new Vector3(54002, 1, 0);
+            var wall = wallObject.AddComponent<FakeWall>();
+            visualSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
+            var visual = wallObject.AddComponent<SpriteRenderer>(); visual.sprite = visualSprite;
+            Assert.IsFalse(ExplorationTrialObserver.GuidedBot.CanReadWall(wall, new Vector2(54000, 1)), "AI must not read an unadvertised phase");
+            wall.ShowPublicWallCue = true;
+            var box = wallObject.GetComponent<BoxCollider2D>(); box.isTrigger = true;
+            cover.transform.position = new Vector3(54001, 1, 0);
+            var blocker = cover.AddComponent<BoxCollider2D>(); blocker.enabled = blocked;
+            Physics2D.SyncTransforms();
+            Assert.AreEqual(!blocked, ExplorationTrialObserver.GuidedBot.CanReadWall(wall, new Vector2(54000, 1)));
+            Assert.IsFalse(ExplorationTrialObserver.GuidedBot.CanReadWall(wall, new Vector2(53990, 1)));
+            Assert.IsFalse(ExplorationTrialObserver.GuidedBot.CanReadWall(wall, new Vector2(54002, 5)));
+            blocker.isTrigger = true; Physics2D.SyncTransforms();
+            Assert.IsTrue(ExplorationTrialObserver.GuidedBot.CanReadWall(wall, new Vector2(54000, 1)));
+            blocker.isTrigger = false; blocker.enabled = true;
+            cover.AddComponent<TricksterController>(); Physics2D.SyncTransforms();
+            Assert.IsTrue(ExplorationTrialObserver.GuidedBot.CanReadWall(wall, new Vector2(54000, 1)), "Actor bodies are not opaque terrain");
+            visual.enabled = false;
+            Assert.IsFalse(ExplorationTrialObserver.GuidedBot.CanReadWall(wall, new Vector2(54000, 1)));
+            visual.enabled = true; wall.enabled = false;
+            Assert.IsFalse(ExplorationTrialObserver.GuidedBot.CanReadWall(wall, new Vector2(54000, 1)));
+        }
+        finally { Object.DestroyImmediate(wallObject); Object.DestroyImmediate(cover); if (visualSprite != null) Object.DestroyImmediate(visualSprite); }
+    }
+
+    [Test]
+    public void WallPolicyOptInIsExplicitAndSurvivesOnlySupportedCavernIterations()
+    {
+        var old = MechanismExplorationPlan.BuildDuel(168); old.wallTacticsVersion = 1;
+        Assert.IsFalse(MechanismExplorationPlan.IsGeneratedDuelLayout(old));
+        var cave = MechanismExplorationPlan.BuildCavernDuel(168);
+        Assert.AreEqual(0, cave.wallTacticsVersion, "Old cavern builder/replay stays baseline by default");
+        cave.wallTacticsVersion = 1;
+        Assert.IsTrue(MechanismExplorationPlan.IsGeneratedDuelLayout(cave));
+        var child = MechanismExplorationPlan.NextDuelVariant(cave, "real evidence required by caller");
+        Assert.AreEqual(1, child.wallTacticsVersion); Assert.AreEqual(cave.ascii, child.ascii);
+        cave.wallTacticsVersion = 2;
+        Assert.IsFalse(MechanismExplorationPlan.IsGeneratedDuelLayout(cave));
+    }
+
+    [TestCase(168)]
+    [TestCase(int.MinValue)]
+    public void WallComparisonUsesIdenticalIndependentGeometryAndTwelveUniqueFirstSlots(int seed)
+    {
+        var rooms = MechanismExplorationPlan.BuildWallTacticsComparison(seed);
+        Assert.AreEqual(2, rooms.Count); Assert.AreEqual(rooms[0].ascii, rooms[1].ascii);
+        Assert.AreNotEqual(rooms[0].id, rooms[1].id); Assert.AreEqual(0, rooms[0].wallTacticsVersion); Assert.AreEqual(1, rooms[1].wallTacticsVersion);
+        Assert.AreNotSame(rooms[0].routes, rooms[1].routes); Assert.AreNotSame(rooms[0].tunnelLinks, rooms[1].tunnelLinks);
+        Assert.IsTrue(rooms.All(MechanismExplorationPlan.IsGeneratedDuelLayout)); Assert.AreEqual(12, MechanismExplorationPlan.TrialCount(rooms));
+        var keys = new HashSet<string>();
+        for (int i = 0; i < 12; i++) { var slot = MechanismExplorationPlan.TrialAt(rooms, new List<string>(), i); Assert.AreEqual(1, slot.attempt); Assert.IsTrue(keys.Add(slot.scenario.id + slot.matchup.Id)); }
+        rooms[1].routes[0].points[0].x += 1; Assert.AreNotEqual(rooms[0].routes[0].points[0].x, rooms[1].routes[0].points[0].x);
+    }
+
+    private static StudioExplorationRunner.Report WallComparisonFixture()
+    {
+        var r = DuelReportFixture(); r.scope = "WallTacticsComparison"; r.regressionPassed = 1;
+        r.scenarios = MechanismExplorationPlan.BuildWallTacticsComparison(168); r.trials.Clear();
+        foreach (var room in r.scenarios)
+        foreach (var t in DuelReportFixture(room).trials)
+        {
+            t.cavernEvidenceVersion = 1; t.undergroundSeconds = t.surfaceSeconds = 5;
+            if (t.marioStrategy == "Adaptive") { t.completedRoutes.Add("Out:lower"); t.completedRoutes.Add("Return:lower"); }
+            t.wallEvidenceVersion = 1;
+            t.wallPolicy = room.wallTacticsVersion == 1 && t.marioStrategy == "Adaptive" ? "VisibleWallWindowV1" : "ObserveOnly";
+            r.trials.Add(t);
+        }
+        return r;
+    }
+
+    [Test]
+    public void WallDiagnosisDistinguishesNoOpportunityNoOverrideAndActualCrossing()
+    {
+        var r = WallComparisonFixture(); var t = r.trials[8];
+        StringAssert.Contains("未采到局部可见", StudioExplorationRunner.WallTrialDiagnosis(t));
+        t.wallEpisodes.Add(new MechanismExplorationPlan.WallEpisode { source = "F1", leg = "Out", beganAt = 2, endedAt = 5, outcome = "BudgetExpired", sawWarning = true });
+        StringAssert.Contains("未接管输入", StudioExplorationRunner.WallTrialDiagnosis(t));
+        var e = t.wallEpisodes[0]; e.inputAt = 2.5f; e.inputFrames = 1;
+        StringAssert.Contains("已尝试但未记录", StudioExplorationRunner.WallTrialDiagnosis(t));
+        e.sawSolid = e.sawReopen = true; e.crossedAt = 4; e.outcome = "CrossedAfterReopen"; e.damageObserved = true;
+        StringAssert.Contains("不证明骗出了", StudioExplorationRunner.WallTrialDiagnosis(t));
+        StringAssert.Contains("期间损血1", StudioExplorationRunner.WallTrialDiagnosis(t));
+        t.wallEvidenceVersion = 0;
+        StringAssert.Contains("旧记录", StudioExplorationRunner.WallTrialDiagnosis(t));
+    }
+
+    [TestCase("missing")]
+    [TestCase("confirmation")]
+    [TestCase("geometry")]
+    [TestCase("samePolicy")]
+    [TestCase("wrongPolicy")]
+    [TestCase("baselineInput")]
+    [TestCase("falseCross")]
+    [TestCase("nanTime")]
+    public void WallComparisonRefusesIncompleteOrContaminatedEvidence(string fault)
+    {
+        var r = WallComparisonFixture(); var t = r.trials[8];
+        if (fault == "missing") r.trials.RemoveAt(0);
+        if (fault == "confirmation") r.confirmationScenarioIds.Add(r.scenarios[0].id);
+        if (fault == "geometry") r.scenarios[1].ascii += " ";
+        if (fault == "samePolicy") r.scenarios[1].wallTacticsVersion = 0;
+        if (fault == "wrongPolicy") t.wallPolicy = "ObserveOnly";
+        if (fault == "baselineInput") r.trials[0].wallEpisodes.Add(new MechanismExplorationPlan.WallEpisode {
+            source = "F", leg = "Out", beganAt = 1, endedAt = 2, inputAt = 1, inputFrames = 1, outcome = "LostCue" });
+        if (fault == "falseCross") t.wallEpisodes.Add(new MechanismExplorationPlan.WallEpisode {
+            source = "F", leg = "Out", beganAt = 1, endedAt = 2, crossedAt = 2, outcome = "CrossedAfterReopen" });
+        if (fault == "nanTime") t.wallEpisodes.Add(new MechanismExplorationPlan.WallEpisode {
+            source = "F", leg = "Out", beganAt = float.NaN, endedAt = 2, outcome = "LostCue" });
+        StringAssert.DoesNotContain("同图/同代码策略对照", StudioExplorationRunner.WallComparisonSummary(r));
+    }
+
+    [Test]
+    public void WallComparisonPreservesWorseOutcomesAndDoesNotTreatSurfaceAsTreatment()
+    {
+        var r = WallComparisonFixture(); r.trials[8].runnerHealthLost = 1; r.trials[8].outcome = "RunnerStopped";
+        string summary = StudioExplorationRunner.WallComparisonSummary(r);
+        StringAssert.Contains("Cleared→RunnerStopped", summary); StringAssert.Contains("损血0→1", summary);
+        StringAssert.Contains("地表固定路线检查环境波动", summary); StringAssert.Contains("单次差异不是因果证明", summary);
+        Assert.AreEqual("RunnerStopped", r.trials[8].outcome);
+    }
+
     private static StudioExplorationRunner.Report CavernReportFixture()
     {
         var r = DuelReportFixture(MechanismExplorationPlan.BuildCavernDuel(168));
@@ -797,6 +927,7 @@ public class ExplorationIntegrationContractTests
                 int count = root.GetComponentsInChildren<Collider2D>(true).Length;
                 ExplorationSceneBuilder.AddCavernPresentation(root, room);
                 Assert.AreEqual(count, root.GetComponentsInChildren<Collider2D>(true).Length, "Presentation never adds gameplay colliders");
+                Assert.IsTrue(root.GetComponentsInChildren<FakeWall>(true).All(w => w.ShowPublicWallCue), "Baseline and treatment both expose public wall cues");
                 Physics2D.SyncTransforms();
                 var solids = root.GetComponentsInChildren<BoxCollider2D>(true).Where(c => c.enabled && !c.isTrigger).ToArray();
                 foreach (var point in room.routes.SelectMany(r => r.points))

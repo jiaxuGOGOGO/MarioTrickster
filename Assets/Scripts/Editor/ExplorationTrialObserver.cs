@@ -116,6 +116,8 @@ public sealed class ExplorationTrialObserver : IDisposable
             PlannedTunnelOpponent = scenario.duelVersion >= 1,
             RecoverRouteFalls = scenario.duelVersion >= 1,
             LearnReturnRoute = scenario.duelVersion == 2 && runnerName == "Adaptive" && trial.controlMode != "HumanMario",
+            ObserveWalls = scenario.duelVersion == 2 && trial.controlMode != "HumanMario",
+            UseWallTactics = scenario.duelVersion == 2 && scenario.wallTacticsVersion == 1 && runnerName == "Adaptive" && trial.controlMode != "HumanMario",
             ControlMode = trial.controlMode,
             StartDelayRemaining = scenario.startDelaySeconds,
             RunnerStrategy = runnerName == "Scout" || runnerName == "Adaptive" ? HeuristicBotInputProvider.RunnerPolicy.Scout :
@@ -125,6 +127,12 @@ public sealed class ExplorationTrialObserver : IDisposable
                 opponentName == "Baiter" ? HeuristicBotInputProvider.OpponentPolicy.Baiter :
                 opponentName == "Chaser" || opponentName == "TunnelChaser" || opponentName == "GroundChaser" ? HeuristicBotInputProvider.OpponentPolicy.Chaser : HeuristicBotInputProvider.OpponentPolicy.Legacy
         };
+        if (scenario.duelVersion == 2 && trial.controlMode != "HumanMario")
+        {
+            result.wallEvidenceVersion = 1;
+            result.wallPolicy = bot.UseWallTactics ? "VisibleWallWindowV1" : "ObserveOnly";
+            result.wallEpisodes = bot.WallObservations.Episodes;
+        }
         int matchupIndex = Array.FindIndex(MechanismExplorationPlan.Matchups(scenario), m => m.mario == runnerName && m.trickster == opponentName);
         // Diagnostic comparisons share the seed, not separate random streams per treatment.
         // Opponent presence can still change subsequent decisions; pairs are not causal proof.
@@ -275,6 +283,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         CaptureStartTiming();
         CaptureTunnelArrival();
         CaptureTunnelVisit(); EndTunnelVisit();
+        bot.WallObservations.End(manager != null ? manager.RoundElapsed : result.seconds, "TrialEnded");
         result.outcome = outcome;
         finishedFixedTime = Time.fixedTime;
         result.nextAction = nextAction;
@@ -365,6 +374,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (current < lastHealth)
         {
             result.runnerDamageEvents++; result.runnerHealthLost += lastHealth - current;
+            bot.WallObservations.ObserveDamage();
             Event($"runner health lost {lastHealth - current}; remaining={current} (source not attributed)");
         }
         lastHealth = current;
@@ -642,6 +652,10 @@ public sealed class ExplorationTrialObserver : IDisposable
         public StateQueueTrap WaitingQueue { get; private set; }
         public string QueueDecision { get; private set; }
         private readonly StateQueueTrap[] queueTraps;
+        private readonly FakeWall[] visibleWalls;
+        private FakeWall watchedWall;
+        public bool ObserveWalls, UseWallTactics;
+        public readonly MechanismExplorationPlan.WallTactics WallObservations = new MechanismExplorationPlan.WallTactics();
         private StateQueueTrap crossingQueue;
         private float crossingDirection;
         private Collider2D runnerBody;
@@ -670,6 +684,8 @@ public sealed class ExplorationTrialObserver : IDisposable
             queueTraps = targets.Values.SelectMany(t => t).Where(t => t != null)
                 .Select(t => t.GetComponent<StateQueueTrap>()).Where(t => t != null).Distinct().ToArray();
             runnerBody = runner != null ? runner.GetComponent<Collider2D>() : null;
+            visibleWalls = targets.Values.SelectMany(t => t).Where(t => t != null)
+                .Select(t => t.GetComponent<FakeWall>()).Where(w => w != null).Distinct().ToArray();
         }
         public void ObserveProbe(string mechanism, Transform source, string signal)
         {
@@ -860,6 +876,60 @@ public sealed class ExplorationTrialObserver : IDisposable
             }
             return true;
         }
+        public static bool CanReadWall(FakeWall wall, Vector2 viewer)
+        {
+            if (wall == null || !wall.isActiveAndEnabled || !MechanismExplorationPlan.IsFinite(viewer.x) || !MechanismExplorationPlan.IsFinite(viewer.y)) return false;
+            var body = wall.GetComponent<BoxCollider2D>();
+            var visual = wall.GetComponentInChildren<SpriteRenderer>();
+            if (!wall.ShowPublicWallCue || body == null || !body.enabled || visual == null || !visual.enabled || visual.sprite == null) return false;
+            Vector2 target = wall.transform.position;
+            if (Mathf.Abs(target.y - viewer.y) > 1.5f || Vector2.Distance(viewer, target) > 6f) return false;
+            return !Physics2D.LinecastAll(viewer, target).Any(h => h.collider != null && !h.collider.isTrigger &&
+                h.collider.GetComponentInParent<FakeWall>() != wall && h.collider.GetComponentInParent<MarioController>() == null &&
+                h.collider.GetComponentInParent<TricksterController>() == null);
+        }
+        private bool WallFootingSafe(float direction)
+        {
+            if (runnerBody == null || (ExplorationTarget.HasValue && Mathf.Abs(ExplorationTarget.Value.y - runner.transform.position.y) > 0.4f)) return false;
+            // Short forward AND retreat support checks. Do not override jumping/shaft traversal.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Vector2 foot = new Vector2(runnerBody.bounds.center.x + side * 0.75f * direction, runnerBody.bounds.min.y + 0.1f);
+                if (!Physics2D.RaycastAll(foot, Vector2.down, 0.4f).Any(h => h.collider != null && !h.collider.isTrigger &&
+                    h.collider.GetComponentInParent<MarioController>() == null && h.collider.GetComponentInParent<TricksterController>() == null &&
+                    h.collider.GetComponentInParent<FakeWall>() == null && h.normal.y > 0.5f)) return false;
+            }
+            return true;
+        }
+        private bool ApplyWallTactics()
+        {
+            if (!ObserveWalls || runner == null || !runner.isActiveAndEnabled || runnerBody == null || GameManager.Instance == null ||
+                GameManager.Instance.CurrentState != GameState.Playing) return false;
+            float now = GameManager.Instance.RoundElapsed;
+            string leg = hasLootObjective && LootObjective.IsLootCarried ? "Return" : "Out";
+            float dir = ExplorationTarget.HasValue ? Mathf.Sign(ExplorationTarget.Value.x - runner.transform.position.x) : Mathf.Sign(p1Horizontal);
+            if (watchedWall == null || WallObservations.Current == null || !CanReadWall(watchedWall, runnerBody.bounds.center))
+                watchedWall = visibleWalls.Where(w => CanReadWall(w, runnerBody.bounds.center) &&
+                    (w.transform.position.x - runner.transform.position.x) * dir >= 0 &&
+                    (w.GetControlState() == PropControlState.Telegraph || !w.GetComponent<BoxCollider2D>().isTrigger))
+                    .OrderBy(w => Mathf.Abs(w.transform.position.x - runner.transform.position.x)).FirstOrDefault();
+            bool visible = watchedWall != null && CanReadWall(watchedWall, runnerBody.bounds.center);
+            var collider = visible ? watchedWall.GetComponent<BoxCollider2D>() : null;
+            WallObservations.Enabled = UseWallTactics && !HumanMario;
+            var action = WallObservations.Tick(visible ? watchedWall.name + "#" + watchedWall.GetInstanceID() : "", leg, now,
+                runner.transform.position.x, visible ? collider.bounds.center.x : 0f,
+                visible ? collider.bounds.extents.x + runnerBody.bounds.extents.x : 1f, dir, visible, runner.IsGrounded,
+                visible && collider.enabled && !collider.isTrigger,
+                visible && watchedWall.GetControlState() == PropControlState.Telegraph,
+                MarioIntent != "[Persona] Reaction Delay..." && WallFootingSafe(dir));
+            if (action == MechanismExplorationPlan.WallAction.None) return false;
+            NeutralMario(); // Normal input only; scan request and all ability gates remain untouched.
+            p1Horizontal = action == MechanismExplorationPlan.WallAction.Brake ? 0f : action == MechanismExplorationPlan.WallAction.Retreat ? -dir : dir;
+            WallObservations.RecordInput(now);
+            MarioIntent = "[Visible wall: " + action + "; opportunity/request, not success]";
+            return true;
+        }
+
         protected override void UpdateMarioBrain(float dt)
         {
             WaitingQueue = null; QueueDecision = null;
@@ -916,6 +986,7 @@ public sealed class ExplorationTrialObserver : IDisposable
                 }
             }
             base.UpdateMarioBrain(dt);
+            if (ApplyWallTactics()) return;
             if (ReadPublicQueues && ApplyPublicQueueInput()) return;
             if (runner != null && ExplorationTarget.HasValue && runner.IsGrounded && dropTimer <= 0f &&
                 ExplorationTarget.Value.y < runner.transform.position.y - 0.4f &&

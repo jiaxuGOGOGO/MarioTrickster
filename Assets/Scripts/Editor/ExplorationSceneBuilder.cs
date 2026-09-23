@@ -62,7 +62,7 @@ public static class ExplorationSceneBuilder
             AddRouteSign(root, new Vector2(lower.minX - 8, 8), "SURFACE: climb the lookouts\nCAVERN: enter below the earth roof");
             AddRouteSign(root, new Vector2(middle, 3), "VENT SHAFT\nJump up / S + Jump drops through ledges");
             AddRouteSign(root, new Vector2(lower.maxX + 11, 4), "TAKE LOOT\nReturn by either level");
-            AddRouteSign(root, new Vector2(3, 4), "ESCAPE <\nQ scans; fake walls can be controlled");
+            AddRouteSign(root, new Vector2(3, 4), "ESCAPE <\nQ scans; FLASH = warning / ORANGE = solid");
         }
         else if (scenario.duelVersion >= 1)
         {
@@ -104,6 +104,8 @@ public static class ExplorationSceneBuilder
     public static void AddCavernPresentation(GameObject root, MechanismExplorationPlan.Scenario scenario)
     {
         if (scenario.duelVersion != 2) return;
+        foreach (var wall in root.GetComponentsInChildren<FakeWall>(true))
+        { wall.ShowPublicWallCue = true; EditorUtility.SetDirty(wall); }
         var tiles = scenario.ascii.Split('\n').Reverse().ToArray();
         var renderers = root.GetComponentsInChildren<SpriteRenderer>(true);
         Sprite soil = null;

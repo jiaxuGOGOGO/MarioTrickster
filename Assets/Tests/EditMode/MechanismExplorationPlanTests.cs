@@ -4,6 +4,79 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [Test]
+    public void WallEpisodeSeparatesVisibleCueInputReopenAndPhysicalCrossing()
+    {
+        var p = new MechanismExplorationPlan.WallTactics { Enabled = true };
+        Assert.AreEqual(MechanismExplorationPlan.WallAction.Retreat, p.Tick("F1", "Out", 0, 0.5f, 2, 0.8f, 1, true, true, false, true, true));
+        Assert.AreEqual(-1, p.Current.inputAt); p.RecordInput(0);
+        Assert.AreEqual(MechanismExplorationPlan.WallAction.Brake, p.Tick("F1", "Out", 0.5f, 0, 2, 0.8f, 1, true, true, true, false, true));
+        Assert.AreEqual(MechanismExplorationPlan.WallAction.Cross, p.Tick("F1", "Out", 1, 0, 2, 0.8f, 1, true, true, false, false, true));
+        Assert.AreEqual(-1, p.Current.crossedAt, "Cross request is not a crossing");
+        p.ObserveDamage();
+        p.Tick("F1", "Out", 1.4f, 3.1f, 2, 0.8f, 1, true, true, false, false, true);
+        var e = p.Episodes.Single(); Assert.IsNull(p.Current);
+        Assert.AreEqual("CrossedAfterReopen", e.outcome); Assert.IsTrue(e.damageObserved, "Damage remains; no causal safety claim");
+        Assert.AreEqual(1, e.inputFrames); Assert.AreEqual(1.4f, e.crossedAt);
+    }
+
+    [TestCase(false, true, true)]
+    [TestCase(true, false, true)]
+    [TestCase(true, true, false)]
+    public void WallTacticsNeverOverrideBaselineAirborneOrUnsafeFooting(bool enabled, bool grounded, bool safe)
+    {
+        var p = new MechanismExplorationPlan.WallTactics { Enabled = enabled };
+        Assert.AreEqual(MechanismExplorationPlan.WallAction.None, p.Tick("F1", "Out", 1, 0, 2, 1, 1, true, grounded, true, false, safe));
+        Assert.AreEqual(0, p.Current.inputFrames); Assert.AreEqual("Observe", p.Current.decision);
+    }
+
+    [Test]
+    public void WallTacticsDoNotInferAnOpeningWithoutObservedSolidState()
+    {
+        var p = new MechanismExplorationPlan.WallTactics { Enabled = true };
+        p.Tick("F1", "Out", 0, 0, 2, 1, 1, true, true, false, true, true);
+        Assert.AreEqual(MechanismExplorationPlan.WallAction.None, p.Tick("F1", "Out", 1, 0, 2, 1, 1, true, true, false, false, true));
+        p.Tick("F1", "Out", 2, 4, 2, 1, 1, true, true, false, false, true);
+        Assert.AreEqual("PassedWithoutReopen", p.Episodes[0].outcome); Assert.IsFalse(p.Episodes[0].sawReopen);
+    }
+
+    [Test]
+    public void WallEpisodeRequiresSameSourceLegAndVisibilityAndHasFiniteBudget()
+    {
+        var p = new MechanismExplorationPlan.WallTactics { Enabled = true };
+        p.Tick("F1", "Out", 0, 0, 2, 1, 1, true, true, true, false, true);
+        p.Tick("F1", "Out", 0.5f, 0, 2, 1, 1, false, true, true, false, true);
+        Assert.AreEqual("LostCue", p.Episodes[0].outcome);
+        p.Tick("F1", "Out", 1, 0, 2, 1, 1, true, true, true, false, true);
+        Assert.IsNull(p.Current, "Do not endlessly restart the same trap encounter");
+        p.Tick("F1", "Return", 2, 4, 2, 1, -1, true, true, true, false, true);
+        p.Tick("F1", "Return", 6, 4, 2, 1, -1, true, true, true, false, true);
+        Assert.AreEqual("BudgetExpired", p.Episodes[1].outcome); Assert.AreEqual(2, p.Episodes.Count);
+    }
+
+    [TestCase(float.NaN)]
+    [TestCase(float.PositiveInfinity)]
+    [TestCase(-1f)]
+    public void WallEpisodeRejectsInvalidClock(float now)
+    {
+        var p = new MechanismExplorationPlan.WallTactics { Enabled = true };
+        Assert.AreEqual(MechanismExplorationPlan.WallAction.None, p.Tick("F1", "Out", now, 0, 2, 1, 1, true, true, true, false, true));
+        Assert.IsEmpty(p.Episodes);
+    }
+
+    [Test]
+    public void WallEpisodeBoundIsSixteenAndObservationOnlyBaselineStillRecordsCrossings()
+    {
+        var p = new MechanismExplorationPlan.WallTactics();
+        for (int i = 0; i < 20; i++) {
+            Assert.AreEqual(MechanismExplorationPlan.WallAction.None, p.Tick("F" + i, "Out", i * 3, 0, 2, 1, 1, true, true, true, false, true));
+            p.Tick("F" + i, "Out", i * 3 + 1, 0, 2, 1, 1, true, true, false, false, true);
+            p.Tick("F" + i, "Out", i * 3 + 2, 4, 2, 1, 1, true, true, false, false, true);
+        }
+        Assert.AreEqual(16, p.Episodes.Count);
+        Assert.IsTrue(p.Episodes.All(e => e.inputFrames == 0 && e.outcome == "CrossedAfterReopen"));
+    }
+
     [TestCase(168)]
     [TestCase(-1)]
     [TestCase(int.MinValue)]

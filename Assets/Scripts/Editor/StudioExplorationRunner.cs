@@ -360,6 +360,55 @@ public static class StudioExplorationRunner
         return sb.ToString();
     }
 
+    public static string WallTrialDiagnosis(MechanismExplorationPlan.Trial t)
+    {
+        if (t == null || !t.HasGameplayEvidence || t.errors == null || t.errors.Count > 0) return "执行/启动未完成，不能评价战术。";
+        if (t.wallEvidenceVersion < 1) return "旧记录没有墙窗口观察，不从零值推断没有机会。";
+        if (MechanismExplorationPlan.WallEvidenceIssues(t).Length > 0) return "墙窗口证据不完整或有矛盾，先检查记录，不算成功。";
+        var episodes = t.wallEpisodes;
+        if (episodes.Count == 0) return "未采到局部可见墙机会；不等于场内没有机关，不先堆随机动作。";
+        int requested = episodes.Count(e => e.inputFrames > 0), reopened = episodes.Count(e => e.sawReopen);
+        int crossed = episodes.Count(e => e.outcome == "CrossedAfterReopen"), expired = episodes.Count(e => e.outcome == "BudgetExpired");
+        string line = $"{t.wallPolicy}：局部机会{episodes.Count}，有战术输入{requested}，观察实体后重开{reopened}，重开后实际越过{crossed}，预算结束{expired}；遇见期间损血{episodes.Count(e => e.damageObserved)}。";
+        if (episodes.Count == 16) line += " 已达记录上限，可能漏记后续机会。";
+        if (t.wallPolicy == "ObserveOnly") return line + " 这是原策略观察基线，零新增输入正常；越过不归功于新战术。";
+        if (requested == 0) return line + " 有观察但未接管输入：检查落地/台阶/反应等待/方向条件，不改物理强行通过。";
+        if (crossed == 0) return line + " 已尝试但未记录完整重开穿越：区分视线丢失、结束或预算耗尽，不把按键数当利用成功。";
+        return line + " 仅证明同源时序，不证明骗出了对方技能、避免伤害或更好玩。";
+    }
+
+    public static string WallComparisonSummary(Report data)
+    {
+        if (data == null || data.scope != "WallTacticsComparison") return "";
+        if (data.scenarios == null || data.scenarios.Count != 2 || string.IsNullOrEmpty(data.sourceFingerprint) || data.regressionPassed <= 0 ||
+            data.scenarios.Any(s => s == null || s.duelVersion != 2 || s.duelVariant != 0 || s.iteration != 0 ||
+                !MechanismExplorationPlan.IsGeneratedDuelLayout(s) || !DuelReportReadyForReview(data, s)))
+            return "同图战术对照尚未完整或条件/布局不一致。保留失败/缺局，不自动报告策略改善。";
+        if (data.scenarios.Count(s => s.wallTacticsVersion == 0) != 1 || data.scenarios.Count(s => s.wallTacticsVersion == 1) != 1)
+            return "同图战术对照缺少唯一A/B策略，不能比较。";
+        var a = data.scenarios.Single(s => s.wallTacticsVersion == 0);
+        var b = data.scenarios.Single(s => s.wallTacticsVersion == 1);
+        if (a == null || b == null || a.seed != b.seed || a.ascii != b.ascii ||
+            data.trials.Any(t => MechanismExplorationPlan.WallEvidenceIssues(t).Length > 0 ||
+                t.wallPolicy != (t.scenarioId == b.id && t.marioStrategy == "Adaptive" ? "VisibleWallWindowV1" : "ObserveOnly")))
+            return "同图战术对照的策略标记或观察证据不一致；不能借另一轮补算。";
+        var sb = new StringBuilder("同图/同代码策略对照：只改变地下Adaptive的墙窗口输入；地表固定路线检查环境波动。\n");
+        foreach (string mario in new[] { "Adaptive", "SafeRoute" })
+        foreach (string opponent in new[] { "Passive", "GroundChaser", "TunnelChaser" })
+        {
+            var x = UniqueTrial(data.trials.Where(t => t.scenarioId == a.id && t.attempt <= 1).ToArray(), mario, opponent);
+            var y = UniqueTrial(data.trials.Where(t => t.scenarioId == b.id && t.attempt <= 1).ToArray(), mario, opponent);
+            if (x == null || y == null) return "缺少唯一首轮，不能作同图比较。";
+            sb.AppendLine($"{mario}/{DuelOpponentLabel(opponent)}：{x.outcome}→{y.outcome}，损血{x.runnerHealthLost}→{y.runnerHealthLost}，总耗时{x.seconds:F1}→{y.seconds:F1}s，返程操控{x.postLootControls}→{y.postLootControls}。");
+            sb.AppendLine("  A " + WallTrialDiagnosis(x)); sb.AppendLine("  B " + WallTrialDiagnosis(y));
+            if (y.outcome != "Cleared" || MechanismExplorationPlan.CavernRouteIssues(y).Length > 0)
+                sb.AppendLine("  保留死亡/超时/未完成路线；先看失败原因，不把所有失败都当难度或乐趣。");
+        }
+        sb.AppendLine("确认局仅检查重复性，完整明细仍保留；不覆盖首轮、也不算独立布局。固定种子不保证逐帧一致，单次差异不是因果证明。");
+        sb.Append("下一步只改一个变量：无局部机会先查地图接触；有机会无输入先查决策门槛；有输入无真实穿越先查窗口/导航；动作成立仍单调，再结合真人备注提出有代价、有线索、有反制的机制。不要同时加陷阱、改图和改AI。当前不是三轮真实对战或自动乐趣排名。");
+        return sb.ToString();
+    }
+
     public static string CavernDesignSummary(Report data, MechanismExplorationPlan.Scenario room)
     {
         if (data == null || room == null || room.duelVersion != 2) return "";
@@ -484,6 +533,10 @@ public static class StudioExplorationRunner
                 return "先解决通路/拿宝返程问题，再试连接变体；不把导航失败当作提高难度的理由。";
         }
         if (first.Length != 6) return "首轮存在额外或重复记录，不能作一致对照。";
+        if (room.wallTacticsVersion == 1 && data.trials.Where(t => t.scenarioId == room.id).Any(t =>
+            MechanismExplorationPlan.WallEvidenceIssues(t).Length > 0 ||
+            t.wallPolicy != (t.marioStrategy == "Adaptive" ? "VisibleWallWindowV1" : "ObserveOnly")))
+            return "新战术观察或策略标记不完整；先核对本批，不继续改连接。";
         if (room.duelVersion == 2 && data.trials.Where(t => t.scenarioId == room.id).Any(t =>
             t.cavernEvidenceVersion < 1 || MechanismExplorationPlan.CavernRouteIssues(t).Length > 0))
             return "洞室首轮/确认缺少完整实际路线，或缺少新观察字段；先导出问题，不用改连接掩盖。";
@@ -521,7 +574,7 @@ public static class StudioExplorationRunner
             parent.physicsConfigJson != child.physicsConfigJson || parent.gameplayConfigJson != child.gameplayConfigJson ||
             parent.unityVersion != child.unityVersion || parent.fixedDeltaTime != child.fixedDeltaTime ||
             parent.trialLimitSeconds <= 0 || parent.trialLimitSeconds != child.trialLimitSeconds ||
-            !MechanismExplorationPlan.IsGeneratedDuelLayout(room) || room.duelVersion != previous.duelVersion || room.ascii != previous.ascii || room.seed != previous.seed ||
+            !MechanismExplorationPlan.IsGeneratedDuelLayout(room) || room.duelVersion != previous.duelVersion || room.wallTacticsVersion != previous.wallTacticsVersion || room.ascii != previous.ascii || room.seed != previous.seed ||
             room.iteration != previous.iteration + 1 || room.duelVariant != (previous.duelVariant + 1) % 3 || MechanismExplorationPlan.Matchups(room).Length != 6)
             return "父子对照条件不一致或证据未完成；保留两份结果，不报告改善。";
         var sb = new StringBuilder("父版 → 本版（仅首轮；差异不等于更好玩）\n");
@@ -671,7 +724,7 @@ public static class StudioExplorationRunner
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var room in value.scenarios)
         {
-            if (room == null || !SafeFeedbackScenarioId(room.id) ||
+            if (room == null || room.wallTacticsVersion < 0 || room.wallTacticsVersion > 1 || !SafeFeedbackScenarioId(room.id) ||
                 !ids.Add(room.id) || string.IsNullOrEmpty(room.ascii) || room.ascii.Length > 65536 || room.ascii.Contains('\0') ||
                 (room.routes != null && room.routes.Any(r => r == null || r.points == null || r.points.Length > 2048 || r.points.Any(p => p == null))) ||
                 (room.tunnelLinks != null && room.tunnelLinks.Any(l => l == null || l.from == null || l.to == null)) ||
@@ -681,7 +734,8 @@ public static class StudioExplorationRunner
         foreach (var trial in value.trials)
             if (trial == null || !ids.Contains(trial.scenarioId) || trial.errors == null || trial.coverage == null ||
                 trial.coverage.Any(e => e == null || e.phases == null) || trial.queueEvidence == null || trial.queueEvidence.Any(q => q == null) ||
-                (trial.tunnelVisits != null && trial.tunnelVisits.Any(v => v == null)))
+                (trial.tunnelVisits != null && trial.tunnelVisits.Any(v => v == null)) ||
+                (trial.wallEpisodes != null && (trial.wallEpisodes.Count > 16 || trial.wallEpisodes.Any(e => e == null))))
                 throw new InvalidDataException("报告对局结构损坏；不补造记录。");
         if (value.confirmationScenarioIds.Any(id => !ids.Contains(id))) throw new InvalidDataException("确认计划引用了未知关卡。");
     }
@@ -906,13 +960,15 @@ public static class StudioExplorationRunner
 
     public static void Start(int seed, MechanismExplorationPlan.Scope scope, float seconds,
         MechanismExplorationPlan.Scenario replay = null, bool withRegressions = true,
-        string selectedMario = null, string selectedTrickster = null, string controlMode = "Automated", bool linkParent = true)
+        string selectedMario = null, string selectedTrickster = null, string controlMode = "Automated", bool linkParent = true, bool compareWallTactics = false)
     {
         if (Active || !LevelStudioPlaySession.CanStart() || TestReportRunner.IsRunning) return;
         if (controlMode != "Automated" && controlMode != "Demonstration" && controlMode != "HumanMario" && controlMode != "HumanTrickster")
             throw new ArgumentException("Unknown control mode");
         if (controlMode != "Automated" && (replay == null || string.IsNullOrEmpty(selectedMario) || string.IsNullOrEmpty(selectedTrickster)))
             throw new ArgumentException("Rehearsal requires an explicit scenario and matchup");
+        if (compareWallTactics && (replay != null || controlMode != "Automated" || !withRegressions || selectedMario != null || selectedTrickster != null))
+            throw new ArgumentException("同图战术对照必须完整自动执行并保留回归，不能混入单局或旧父报告。");
         string parentDirectory = replay != null && linkParent ? ReportDirectory : null;
         if (replay != null)
         {
@@ -921,14 +977,15 @@ public static class StudioExplorationRunner
                 replay.selectedMatchups = new[] { new MechanismExplorationPlan.Matchup { mario = selectedMario, trickster = selectedTrickster } };
         }
         if (!SaveSourceScenes()) return;
-        var scenarios = replay == null ? MechanismExplorationPlan.Create(seed, scope) : new List<MechanismExplorationPlan.Scenario> { replay };
+        var scenarios = compareWallTactics ? MechanismExplorationPlan.BuildWallTacticsComparison(seed) :
+            replay == null ? MechanismExplorationPlan.Create(seed, scope) : new List<MechanismExplorationPlan.Scenario> { replay };
         string fingerprint = SourceFingerprint(); // Fail before changing the coordinator state.
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S174", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S175", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
-            planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
+            planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = compareWallTactics ? "WallTacticsComparison" : replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,
             physicsConfigJson = ConfigJson("PhysicsConfig"), gameplayConfigJson = ConfigJson("GameplayLoopConfig"),
             unsupportedRegistry = MechanismExplorationPlan.MissingFromCatalog(AsciiElementRegistry.GetDefault().GetAllRegisteredChars()) };
@@ -1240,12 +1297,15 @@ public static class StudioExplorationRunner
         {
             sb.AppendLine($"创作迭代 {room.iteration}/2；父关卡 {room.parentScenarioId ?? "无"}；理由 {room.mutationReason ?? "初始种子方案"}\n{DuelReview(data, room)}");
             sb.AppendLine(DuelNextAction(data, room));
+            foreach (var t in data.trials.Where(t => t.scenarioId == room.id && t.wallEvidenceVersion >= 1))
+                sb.AppendLine($"墙窗口 第{t.attempt}轮 {t.marioStrategy}/{t.tricksterStrategy}：" + WallTrialDiagnosis(t));
             sb.AppendLine(DuelReportHighlights(data, room));
         }
         sb.AppendLine($"Status: {data.status}; seed: {data.seed}; Unity: {data.unityVersion}; scope: {data.scope}");
         sb.AppendLine($"Trials recorded: {data.trials.Count} / {PlannedTrials(data)}");
         sb.AppendLine("Evidence verdict: " + EvidenceVerdict(data));
         if (data.scenarios.Any(s => s.duelVersion >= 1)) sb.AppendLine(DuelFeedbackCompleteness(data));
+        if (data.scope == "WallTacticsComparison") sb.AppendLine(WallComparisonSummary(data));
         sb.AppendLine($"缺失/未试玩/重复的计划槽位: {UnverifiedSlots(data)}（按场景、双方策略及首轮/确认逐项核对）");
         sb.AppendLine($"有效试玩记录: {data.trials.Count(t => t.HasGameplayEvidence)}; 首轮={data.trials.Count(t => t.attempt <= 1 && t.HasGameplayEvidence)}; 复测={data.trials.Count(t => t.attempt == 2 && t.HasGameplayEvidence)}");
         sb.AppendLine("有限反馈：最多追加 6 张问题图 × 原策略搭配 × 1 轮；机制回归每图3局，体验探索每图9局，反制专项每图3或4局。同种子同配置，不自动改难度或删除失败记录。");

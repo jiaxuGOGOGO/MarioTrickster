@@ -117,6 +117,7 @@ public static class MechanismExplorationPlan
         public string designQuestion;
         // Separate creative grammar; legacy TunnelDuel reports keep their saved layouts unchanged.
         public int duelVersion, duelVariant, iteration;
+        public int wallTacticsVersion; // Opt-in policy; zero preserves S174 and older replay behavior.
         public string parentScenarioId, mutationReason;
         public TunnelLink[] tunnelLinks = Array.Empty<TunnelLink>();
         // Used only by explicit single-match demonstration / human rehearsal. Old plans stay unchanged.
@@ -137,6 +138,82 @@ public static class MechanismExplorationPlan
         public Point[] points;
         public float minX, maxX, minY, maxY;
         public bool Contains(float x, float y) => x >= minX && x <= maxX && y >= minY && y <= maxY;
+    }
+
+    public enum WallAction { None, Brake, Retreat, Cross }
+
+    [Serializable]
+    public sealed class WallEpisode
+    {
+        public string source, leg, decision, reason, outcome;
+        public float beganAt, endedAt = -1f, inputAt = -1f, crossedAt = -1f;
+        public bool sawWarning, sawSolid, sawReopen, damageObserved;
+        public int inputFrames;
+    }
+
+    // Public, locally visible wall changes only. A reaction is NOT proof that the AI induced it.
+    // One bounded episode per source/leg; later retries are left to ordinary navigation.
+    public sealed class WallTactics
+    {
+        public readonly List<WallEpisode> Episodes = new List<WallEpisode>();
+        public WallEpisode Current { get; private set; }
+        private float direction, startX, trapX, extent, lastNow = -1f;
+        public bool Enabled;
+        public WallAction Tick(string source, string leg, float now, float runnerX, float wallX, float halfSpan,
+            float travelDirection, bool visible, bool grounded, bool solid, bool warning, bool safeFooting)
+        {
+            if (!IsFinite(now) || now < 0 || now < lastNow || !IsFinite(runnerX) || !IsFinite(wallX) ||
+                !IsFinite(halfSpan) || halfSpan <= 0 || !IsFinite(travelDirection)) return WallAction.None;
+            lastNow = now;
+            if (Current != null && (Current.source != source || Current.leg != leg || !visible)) End(now, "LostCue");
+            if (Current == null && visible && !string.IsNullOrEmpty(source) && (warning || solid) &&
+                Math.Abs(travelDirection) >= 0.5f && (wallX - runnerX) * Math.Sign(travelDirection) >= 0 &&
+                Math.Abs(wallX - runnerX) <= 6f && Episodes.Count < 16 &&
+                !Episodes.Any(e => e.source == source && e.leg == leg))
+            {
+                direction = Math.Sign(travelDirection); startX = runnerX; trapX = wallX; extent = halfSpan;
+                Current = new WallEpisode { source = source, leg = leg, beganAt = now, decision = "Observe", outcome = "Open" };
+                Episodes.Add(Current);
+            }
+            if (Current == null) return WallAction.None;
+            Current.sawWarning |= warning; Current.sawSolid |= solid;
+            Current.sawReopen |= Current.sawSolid && !solid && !warning;
+            if ((runnerX - trapX) * direction > extent + 0.2f)
+            {
+                Current.crossedAt = now;
+                End(now, Current.sawReopen ? "CrossedAfterReopen" : "PassedWithoutReopen");
+                return WallAction.None;
+            }
+            if (now - Current.beganAt >= 4f) { End(now, "BudgetExpired"); return WallAction.None; }
+            // Observe in both treatment and baseline; only treatment owns these ordinary inputs.
+            if (!Enabled || !grounded || !safeFooting || Math.Abs(travelDirection) < 0.5f || Math.Sign(travelDirection) != direction)
+            {
+                Current.decision = "Observe";
+                Current.reason = !Enabled ? "Baseline" : !grounded ? "Airborne" : !safeFooting ? "TerrainOrReaction" : "DirectionChanged";
+                return WallAction.None;
+            }
+            float ahead = (trapX - runnerX) * direction;
+            WallAction action;
+            if (warning && ahead < extent + 1.2f && Math.Abs(runnerX - startX) < 1.5f) action = WallAction.Retreat;
+            else if (warning || solid) action = WallAction.Brake;
+            else if (Current.sawReopen) action = WallAction.Cross;
+            else { Current.decision = "Observe"; return WallAction.None; }
+            Current.decision = action.ToString();
+            Current.reason = warning ? "VisibleWarning" : solid ? "ObservedSolid" : "ObservedReopen";
+            return action;
+        }
+        public void RecordInput(float now)
+        {
+            if (Current == null || !IsFinite(now) || now < Current.beganAt || Current.decision == "Observe") return;
+            if (Current.inputAt < 0) Current.inputAt = now;
+            Current.inputFrames++;
+        }
+        public void ObserveDamage() { if (Current != null) Current.damageObserved = true; }
+        public void End(float now, string outcome)
+        {
+            if (Current == null || !IsFinite(now) || now < Current.beganAt) return;
+            Current.endedAt = now; Current.outcome = outcome; Current = null;
+        }
     }
 
     // Navigation memory records reached coordinates, not claims of successful pathfinding.
@@ -610,6 +687,38 @@ public static class MechanismExplorationPlan
         };
     }
 
+    public static List<Scenario> BuildWallTacticsComparison(int seed)
+    {
+        var baseline = BuildCavernDuel(seed); var treatment = BuildCavernDuel(seed);
+        baseline.id += "_observe"; treatment.id += "_tactics1"; treatment.wallTacticsVersion = 1;
+        baseline.designQuestion = "同图策略对照A：原输入策略，额外只观察墙窗口。";
+        treatment.designQuestion = "同图策略对照B：仅地下Adaptive启用公开墙窗口退让/再穿越；地图、对手与返程记忆保持相同。";
+        return new List<Scenario> { baseline, treatment };
+    }
+
+    public static string[] WallEvidenceIssues(Trial t)
+    {
+        if (t == null || t.wallEvidenceVersion < 1) return new[] { "未记录墙窗口观察" };
+        if (!IsFinite(t.seconds) || t.seconds <= 0 || t.wallEpisodes == null || t.wallEpisodes.Count > 16 || (t.wallPolicy != "ObserveOnly" && t.wallPolicy != "VisibleWallWindowV1"))
+            return new[] { "墙窗口结构或策略标记缺失" };
+        var seen = new HashSet<string>();
+        foreach (var e in t.wallEpisodes)
+        {
+            if (e == null || string.IsNullOrEmpty(e.source) || (e.leg != "Out" && e.leg != "Return") || !seen.Add(e.source + ":" + e.leg) ||
+                !IsFinite(e.beganAt) || e.beganAt < 0 || !IsFinite(e.endedAt) || e.endedAt < e.beganAt || e.endedAt > t.seconds + 0.1f ||
+                !IsFinite(e.inputAt) || !IsFinite(e.crossedAt) || e.inputFrames < 0 ||
+                (e.inputFrames == 0 ? e.inputAt != -1f : e.inputAt < e.beganAt || e.inputAt > e.endedAt) ||
+                (e.crossedAt != -1f && (e.crossedAt < e.beganAt || e.crossedAt > e.endedAt)) ||
+                !new[] { "CrossedAfterReopen", "PassedWithoutReopen", "LostCue", "BudgetExpired", "TrialEnded" }.Contains(e.outcome) ||
+                (e.sawReopen && !e.sawSolid) ||
+                ((e.outcome == "CrossedAfterReopen" || e.outcome == "PassedWithoutReopen") != (e.crossedAt >= 0)) ||
+                (e.outcome == "CrossedAfterReopen" && (!e.sawSolid || !e.sawReopen || e.crossedAt < 0)) ||
+                (t.wallPolicy == "ObserveOnly" && e.inputFrames > 0))
+                return new[] { "墙窗口时序/同源/输入证据不一致，不能算策略成功" };
+        }
+        return Array.Empty<string>();
+    }
+
     // Called only after the runner has checked complete real-match evidence. Do not mutate the parent.
     public static Scenario NextDuelVariant(Scenario parent, string reason)
     {
@@ -618,6 +727,8 @@ public static class MechanismExplorationPlan
         if (!IsGeneratedDuelLayout(parent) || string.IsNullOrWhiteSpace(reason))
             throw new InvalidOperationException("手工改图或缺少对战理由：不能静默覆盖为生成器布局。");
         var child = parent.duelVersion == 2 ? BuildCavernDuel(parent.seed, (parent.duelVariant + 1) % 3) : BuildDuel(parent.seed, (parent.duelVariant + 1) % 3);
+        child.wallTacticsVersion = parent.wallTacticsVersion;
+        if (child.wallTacticsVersion == 1) child.id += "_tactics1";
         child.iteration = parent.iteration + 1;
         child.parentScenarioId = parent.id;
         child.id += "_iteration" + child.iteration;
@@ -631,7 +742,8 @@ public static class MechanismExplorationPlan
         if (room == null || (room.duelVersion != 1 && room.duelVersion != 2) || room.duelVariant < 0 || room.duelVariant > 2) return false;
         var canonical = room.duelVersion == 2 ? BuildCavernDuel(room.seed, room.duelVariant) : BuildDuel(room.seed, room.duelVariant);
         Func<Point, Point, bool> samePoint = (a, b) => a != null && b != null && a.x == b.x && a.y == b.y;
-        return room.ascii == canonical.ascii && room.lootEscape && room.startDelaySeconds == canonical.startDelaySeconds &&
+        return room.wallTacticsVersion >= 0 && room.wallTacticsVersion <= 1 && (room.duelVersion == 2 || room.wallTacticsVersion == 0) &&
+            room.ascii == canonical.ascii && room.lootEscape && room.startDelaySeconds == canonical.startDelaySeconds &&
             room.mechanisms == canonical.mechanisms && room.tunnelVersion == canonical.tunnelVersion && room.counterplayVersion == 0 &&
             room.routes != null && room.routes.Length == canonical.routes.Length &&
             room.routes.Zip(canonical.routes, (a, b) => a != null && a.id == b.id && a.minX == b.minX && a.maxX == b.maxX && a.minY == b.minY && a.maxY == b.maxY &&
@@ -991,6 +1103,9 @@ public static class MechanismExplorationPlan
         public int stairRecoveryEvidenceVersion, stairRecoveryRequests;
         public int tunnelDecisionEvidenceVersion, tunnelPreparationRequests;
         public int cavernEvidenceVersion, returnDetourRequests;
+        public int wallEvidenceVersion;
+        public string wallPolicy;
+        public List<WallEpisode> wallEpisodes = new List<WallEpisode>();
         public bool outboundThreatRemembered;
         public float undergroundSeconds, surfaceSeconds;
         public int undergroundControls, surfaceControls;

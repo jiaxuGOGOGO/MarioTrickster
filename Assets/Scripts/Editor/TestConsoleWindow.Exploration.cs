@@ -108,7 +108,7 @@ public partial class TestConsoleWindow
             var current = report?.trials.LastOrDefault();
             if (current != null)
             {
-                EditorGUILayout.LabelField($"{(current.marioStrategy == "SafeRoute" ? "地表绕行" : "下层读线索")} 对 {StudioExplorationRunner.DuelOpponentLabel(current.tricksterStrategy)}", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"{(current.marioStrategy == "SafeRoute" ? "地表绕行" : "下层读线索")} 对 {StudioExplorationRunner.DuelOpponentLabel(current.tricksterStrategy, report.scenarios.FirstOrDefault(s => s.id == current.scenarioId)?.duelVersion ?? 0)}", EditorStyles.boldLabel);
                 EditorGUILayout.LabelField($"{(current.lootEvents > 0 ? "已拿宝，返回左侧撤离" : "向右拿宝")} · 已观察地道到达 {current.tunnelArrivals} · 到达后出手受理 {current.controlsAfterTunnel}", EditorStyles.wordWrappedLabel);
             }
             EditorGUILayout.LabelField("切到 Game 窗口观看/操作。下方只记录你的真实感受；自动6组中会包含明确标注的无干扰基线。", EditorStyles.wordWrappedLabel);
@@ -138,31 +138,42 @@ public partial class TestConsoleWindow
         using (new EditorGUI.DisabledScope(unavailable))
         {
             duelSeed = EditorGUILayout.IntField("关卡种子（可复制）", duelSeed);
-            EditorGUILayout.LabelField("新设计：实体洞室 + 中央通风井 + 两座地表岗台。地下有顶棚，四个假墙兼作暗线出口；不是堆伤害陷阱。", EditorStyles.wordWrappedLabel);
-            EditorGUILayout.LabelField("优先验证一个策略变量：同一洞室、同一对手，比较原策略与观察墙窗口后的退让/再穿越。不是自动演完三轮后宣布更好玩。", EditorStyles.wordWrappedLabel);
-            if (GUILayout.Button("开始同图战术对照（回归 → A/B各6组 → 一份反馈ZIP）", GUILayout.Height(36)))
+            EditorGUILayout.LabelField("S178新玩法：双口短环。看到入口预警，可退回分岔绕顶；对手守点、忍住或沿暗线换口，返程重估旧线索。", EditorStyles.wordWrappedLabel);
+            EditorGUILayout.LabelField("本次是新地图＋配套策略，不是与旧版同条件A/B。先观察是否出现实际不同选择，不用动作数证明好玩。", EditorStyles.wordWrappedMiniLabel);
+            if (GUILayout.Button("开始双口遭遇（新图 → 全量回归 → 6组对战）", GUILayout.Height(40)))
                 DuelAction(() => {
-                    SaveDuelDraft(MechanismExplorationPlan.BuildWallTacticsComparison(duelSeed)[1]);
-                    duelReportSelection = 1; explorationRegressions = true;
-                    StudioExplorationRunner.Start(duelSeed, MechanismExplorationPlan.Scope.TunnelDuel, 60, withRegressions: true, linkParent: false, compareWallTactics: true);
-                });
-            if (GUILayout.Button("仅运行原洞室6组（不启用新战术）", GUILayout.Height(26)))
-                DuelAction(() => {
-                    SaveDuelDraft(MechanismExplorationPlan.BuildCavernDuel(duelSeed));
-                    explorationRegressions = true;
+                    SaveDuelDraft(MechanismExplorationPlan.BuildJunctionDuel(duelSeed));
+                    duelReportSelection = 0; explorationRegressions = true;
                     StudioExplorationRunner.Start(duelSeed, MechanismExplorationPlan.Scope.TunnelDuel, 60, duelDraft, true, linkParent: false);
                 });
+            EditorGUILayout.LabelField("新图六组：临场选路/固定上路 × 无干扰/提前守点/忍住并换口。两个主动对手的时机与换位权限不同，不作单变量策略优劣结论。", EditorStyles.wordWrappedMiniLabel);
+            duelAdvanced = EditorGUILayout.Foldout(duelAdvanced, "保留旧洞室实验（不是本次新玩法）");
+            if (duelAdvanced)
+            {
+                if (GUILayout.Button("开始同图战术对照（回归 → A/B各6组 → 一份反馈ZIP）", GUILayout.Height(36)))
+                    DuelAction(() => {
+                        SaveDuelDraft(MechanismExplorationPlan.BuildWallTacticsComparison(duelSeed)[1]);
+                        duelReportSelection = 1; explorationRegressions = true;
+                        StudioExplorationRunner.Start(duelSeed, MechanismExplorationPlan.Scope.TunnelDuel, 60, withRegressions: true, linkParent: false, compareWallTactics: true);
+                    });
+                if (GUILayout.Button("仅运行原洞室6组（不启用新战术）", GUILayout.Height(26)))
+                    DuelAction(() => {
+                        SaveDuelDraft(MechanismExplorationPlan.BuildCavernDuel(duelSeed));
+                        explorationRegressions = true;
+                        StudioExplorationRunner.Start(duelSeed, MechanismExplorationPlan.Scope.TunnelDuel, 60, duelDraft, true, linkParent: false);
+                    });
+            }
             EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("只生成新洞室预览")) SaveDuelDraft(MechanismExplorationPlan.BuildCavernDuel(duelSeed));
+            if (GUILayout.Button("只生成双口短环预览")) SaveDuelDraft(MechanismExplorationPlan.BuildJunctionDuel(duelSeed));
             if (GUILayout.Button("换个种子生成"))
-            { duelSeed = BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0); SaveDuelDraft(MechanismExplorationPlan.BuildCavernDuel(duelSeed)); }
+            { duelSeed = BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0); SaveDuelDraft(MechanismExplorationPlan.BuildJunctionDuel(duelSeed)); }
             EditorGUILayout.EndHorizontal();
         }
-        EditorGUILayout.LabelField("新实验单独建立基线，不把S173旧地图当同条件父版。完成后直接导出ZIP；不需要先导入旧包。种子改变洞室跨度与入口位置；有限作者规则，不保证每个种子都不同或好玩。", EditorStyles.wordWrappedMiniLabel);
+        EditorGUILayout.LabelField("新图是一个有限短环原型，种子仅平移入口，不是无限关卡。旧草稿不会自动替换；点上方“开始双口遭遇”才能运行新内容。结束或失败都导出一份ZIP。", EditorStyles.wordWrappedMiniLabel);
         if (duelDraft != null)
         {
             EditorGUILayout.LabelField($"当前草稿 · 地图设计V{duelDraft.duelVersion} · 墙策略{duelDraft.wallTacticsVersion} · 种子 {duelDraft.seed} · 变体 {duelDraft.iteration}/2", EditorStyles.boldLabel);
-            if (duelDraft.duelVersion != 2) EditorGUILayout.HelpBox("这是保留的旧草稿。新洞室实验请点上方大按钮；不会自动覆盖旧报告。", MessageType.Info);
+            if (duelDraft.duelVersion != 3) EditorGUILayout.HelpBox("这是保留的旧草稿。双口遭遇请点上方大按钮；不会自动覆盖旧报告。", MessageType.Info);
             DrawDuelMap(duelDraft);
             EditorGUILayout.LabelField(duelDraft.designQuestion, EditorStyles.wordWrappedLabel);
             EditorGUILayout.LabelField("地表可绕行，下层可抢近路；紫线是捣蛋者附身后的原生暗线，不是自由挖土。", EditorStyles.wordWrappedMiniLabel);
@@ -171,7 +182,7 @@ public partial class TestConsoleWindow
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
         EditorGUILayout.LabelField("2  让双方交手", EditorStyles.boldLabel);
         EditorGUILayout.LabelField("以下路线选择只影响单局演示/真人；完整6组自动包含地表和下层。", EditorStyles.wordWrappedMiniLabel);
-        duelRoute = GUILayout.Toolbar(duelRoute, new[] { "下层：读线索 / 扫描", "地表：爬高绕行" });
+        duelRoute = GUILayout.Toolbar(duelRoute, new[] { "临场读线索 / 选路", "固定上路对照" });
         EditorGUILayout.LabelField("默认是主动地道对手，会按观察尝试拦截或准备换层；不保证换位成功。仍受真实门禁、能量和预警约束。", EditorStyles.wordWrappedMiniLabel);
         explorationRegressions = EditorGUILayout.ToggleLeft("运行前先检查全部回归（新版本建议保留）", explorationRegressions);
         using (new EditorGUI.DisabledScope(unavailable || duelDraft == null))
@@ -215,13 +226,13 @@ public partial class TestConsoleWindow
             EditorGUILayout.LabelField("下列按钮直接用这份报告原图，不用载入草稿，也不重新生成；按当前代码重跑，不是录像。", EditorStyles.wordWrappedMiniLabel);
             using (new EditorGUI.DisabledScope(unavailable))
             {
-                if (GUILayout.Button(room.duelVersion == 2 ? "可选：看地下去程与返程选择（新开演示）" : "可选：看报告原图地表对战（新开演示）", GUILayout.Height(36)))
-                    DuelAction(() => StartReportedDuel(room, room.duelVersion == 2 ? "Adaptive" : "SafeRoute"));
+                if (GUILayout.Button(room.duelVersion >= 2 ? "可选：看地下去程与返程选择（新开演示）" : "可选：看报告原图地表对战（新开演示）", GUILayout.Height(36)))
+                    DuelAction(() => StartReportedDuel(room, room.duelVersion >= 2 ? "Adaptive" : "SafeRoute"));
                 if (GUILayout.Button("亲自玩报告原图（我当闯关者，自由选路）", GUILayout.Height(30)))
                     DuelAction(() => StartReportedDuel(room, "SafeRoute", "HumanMario"));
                 EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button(room.duelVersion == 2 ? "看地表计划路线（可能回退）" : "看原图下层对战"))
-                    DuelAction(() => StartReportedDuel(room, room.duelVersion == 2 ? "SafeRoute" : "Adaptive"));
+                if (GUILayout.Button(room.duelVersion >= 2 ? "看地表计划路线（可能回退）" : "看原图下层对战"))
+                    DuelAction(() => StartReportedDuel(room, room.duelVersion >= 2 ? "SafeRoute" : "Adaptive"));
                 if (GUILayout.Button("我当捣蛋者，对抗地表AI")) DuelAction(() => StartReportedDuel(room, "SafeRoute", "HumanTrickster"));
                 EditorGUILayout.EndHorizontal();
                 if (!string.IsNullOrEmpty(report.controlMode) && report.controlMode != "Automated" && StudioExplorationRunner.HasParentReport &&
@@ -229,7 +240,8 @@ public partial class TestConsoleWindow
                 { DuelAction(StudioExplorationRunner.LoadParentReport); GUIUtility.ExitGUI(); }
             }
             string blocked = StudioExplorationRunner.IterationBlockReason(report, room);
-            if (room.iteration < 2)
+            if (room.duelVersion == 3) EditorGUILayout.LabelField("本次先验这一段双口遭遇，不自动生成连接变体。", EditorStyles.wordWrappedMiniLabel);
+            else if (room.iteration < 2)
             {
                 EditorGUILayout.LabelField(blocked.Length > 0 ? blocked : "可选：只换一个连接方案，自动再跑6组。不会自动宣称更好玩。", EditorStyles.wordWrappedMiniLabel);
                 using (new EditorGUI.DisabledScope(unavailable || blocked.Length > 0))
@@ -260,7 +272,7 @@ public partial class TestConsoleWindow
                 EditorGUILayout.HelpBox(StudioExplorationRunner.DuelReview(report, room), MessageType.Info);
                 foreach (var t in report.trials.Where(t => t.scenarioId == room.id))
                 {
-                    EditorGUILayout.LabelField($"{(t.attempt <= 1 ? "首轮" : "确认")} / 计划{(t.marioStrategy == "SafeRoute" ? "地表" : "下层")} / {StudioExplorationRunner.DuelOpponentLabel(t.tricksterStrategy)}：{DuelStatusLabel(t.outcome)}，{t.seconds:F1}秒；地道到达{t.tunnelArrivals}，3秒内出手{t.controlsAfterTunnel}", EditorStyles.wordWrappedMiniLabel);
+                    EditorGUILayout.LabelField($"{(t.attempt <= 1 ? "首轮" : "确认")} / 计划{(t.marioStrategy == "SafeRoute" ? "地表" : "下层")} / {StudioExplorationRunner.DuelOpponentLabel(t.tricksterStrategy, room.duelVersion)}：{DuelStatusLabel(t.outcome)}，{t.seconds:F1}秒；地道到达{t.tunnelArrivals}，3秒内出手{t.controlsAfterTunnel}", EditorStyles.wordWrappedMiniLabel);
                     EditorGUILayout.LabelField(StudioExplorationRunner.DuelTrialRouteSummary(t), EditorStyles.wordWrappedMiniLabel);
                     if (t.wallEvidenceVersion >= 1) EditorGUILayout.LabelField(StudioExplorationRunner.WallTrialDiagnosis(t), EditorStyles.wordWrappedMiniLabel);
                 }

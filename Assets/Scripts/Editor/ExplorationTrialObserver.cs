@@ -115,9 +115,9 @@ public sealed class ExplorationTrialObserver : IDisposable
             GroundOnlyOpponent = opponentName == "GroundChaser",
             PlannedTunnelOpponent = scenario.duelVersion >= 1,
             RecoverRouteFalls = scenario.duelVersion >= 1,
-            UseSolidStepExit = scenario.duelVersion == 2 && trial.controlMode != "HumanMario",
+            UseSolidStepExit = (scenario.duelVersion == 2 || scenario.duelVersion == 3) && trial.controlMode != "HumanMario",
             LearnReturnRoute = scenario.duelVersion == 2 && runnerName == "Adaptive" && trial.controlMode != "HumanMario",
-            ObserveWalls = scenario.duelVersion == 2 && trial.controlMode != "HumanMario",
+            ObserveWalls = (scenario.duelVersion == 2 || scenario.duelVersion == 3) && trial.controlMode != "HumanMario",
             UseWallTactics = scenario.duelVersion == 2 && scenario.wallTacticsVersion == 1 && runnerName == "Adaptive" && trial.controlMode != "HumanMario",
             ControlMode = trial.controlMode,
             StartDelayRemaining = scenario.startDelaySeconds,
@@ -134,6 +134,17 @@ public sealed class ExplorationTrialObserver : IDisposable
             result.wallEvidenceVersion = 1;
             result.wallPolicy = bot.UseWallTactics ? "VisibleWallWindowV1" : "ObserveOnly";
             result.wallEpisodes = bot.WallObservations.Episodes;
+        }
+        if (scenario.duelVersion == 3)
+        {
+            bot.EnableJunction(routeRegions, runnerName == "SafeRoute");
+            result.junctionEvidenceVersion = 1;
+            result.junctionChoices = bot.Junction.Choices;
+            result.junctionEvents = bot.JunctionEvents;
+            result.navigationPolicy = trial.controlMode == "HumanMario" ? "HumanInput" : "JunctionVisibleRiskV1";
+            result.tunnelPlanningPolicy = "VisibleContact2.5s+HoldOrRelocateV1";
+            if (trial.controlMode != "HumanMario")
+            { result.wallEvidenceVersion = 1; result.wallPolicy = "ObserveOnly"; result.wallEpisodes = bot.WallObservations.Episodes; }
         }
         int matchupIndex = Array.FindIndex(MechanismExplorationPlan.Matchups(scenario), m => m.mario == runnerName && m.trickster == opponentName);
         // Diagnostic comparisons share the seed, not separate random streams per treatment.
@@ -669,15 +680,122 @@ public sealed class ExplorationTrialObserver : IDisposable
         private float crossingDirection;
         private Collider2D runnerBody;
         private readonly MechanismExplorationPlan.RouteNavigator navigation;
-        public int WaypointsReached => navigation.WaypointsReached;
-        public IReadOnlyList<string> CompletedRoutes => navigation.CompletedRoutes;
-        public int RouteSwitchRequests => navigation.SwitchRequests;
+        public int WaypointsReached => Junction != null ? Junction.WaypointsReached : navigation.WaypointsReached;
+        public IReadOnlyList<string> CompletedRoutes => Junction != null ? Junction.CompletedRoutes : navigation.CompletedRoutes;
+        public int RouteSwitchRequests => Junction != null ? Junction.SwitchRequests : navigation.SwitchRequests;
         public int StairRecoveryRequests => navigation.StairRecoveryRequests;
-        public string RouteId => navigation.RouteId;
+        public string RouteId => Junction != null ? Junction.RouteId : navigation.RouteId;
         public bool LearnReturnRoute { get => navigation.LearnReturnRoute; set => navigation.LearnReturnRoute = value; }
         public bool OutboundThreatRemembered => navigation.SawOutboundThreat;
         public int ReturnDetourRequests => navigation.ReturnDetourRequests;
         public void ObservePublicThreat() => navigation.ObservePublicThreat();
+        public MechanismExplorationPlan.JunctionNavigator Junction { get; private set; }
+        public readonly List<string> JunctionEvents = new List<string>();
+        private readonly MechanismExplorationPlan.VisibleContact contact = new MechanismExplorationPlan.VisibleContact();
+        private PossessionAnchor[] junctionAnchors;
+        private TricksterController junctionOpponent;
+        private TricksterAbilitySystem junctionAbility;
+        private float junctionThinkAt, nextJunctionInput, junctionAttackSince = -1f;
+        private int junctionTransfers;
+        private string junctionEventKey;
+        private MechanismExplorationPlan.Point CurrentWaypoint => Junction != null ? Junction.Target : navigation.Target;
+        public void EnableJunction(MechanismExplorationPlan.Route[] routes, bool safe)
+        {
+            Junction = new MechanismExplorationPlan.JunctionNavigator(routes, safe);
+            junctionAnchors = Object.FindObjectsOfType<PossessionAnchor>();
+            junctionOpponent = opponentGate != null ? opponentGate.GetComponent<TricksterController>() : null;
+            junctionAbility = opponentGate != null ? opponentGate.GetComponent<TricksterAbilitySystem>() : null;
+        }
+        private void JunctionEvent(string text, float now)
+        {
+            if (text == junctionEventKey) return;
+            junctionEventKey = text;
+            if (JunctionEvents.Count < 64) JunctionEvents.Add($"{now:F2}s {text}");
+        }
+        public static bool JunctionSight(Vector2 viewer, Vector2 target, PossessionAnchor own)
+        {
+            if (!MechanismExplorationPlan.IsFinite(viewer.x) || !MechanismExplorationPlan.IsFinite(viewer.y) ||
+                !MechanismExplorationPlan.IsFinite(target.x) || !MechanismExplorationPlan.IsFinite(target.y) || Vector2.Distance(viewer, target) > 12f) return false;
+            return !Physics2D.LinecastAll(viewer, target).Any(h => h.collider != null && !h.collider.isTrigger &&
+                h.collider.GetComponentInParent<MarioController>() == null && h.collider.GetComponentInParent<TricksterController>() == null &&
+                (own == null || h.collider.GetComponentInParent<PossessionAnchor>() != own));
+        }
+        private void UpdateJunctionOpponent()
+        {
+            p2SwitchDir = 0f;
+            p2JumpDown = p2JumpHeld = p2DisguiseDown = p2DirectionDown = p2AbilityDown = false;
+            if (PassiveOpponent) { p2Horizontal = p2Vertical = 0; TricksterIntent = "[Passive control: ordinary neutral input]"; return; }
+            if (opponentGate == null || opponentGate.CurrentState != TricksterPossessionState.Roaming) p2Horizontal = p2Vertical = 0;
+            if (junctionOpponent == null || !junctionOpponent.isActiveAndEnabled || opponentGate == null || runner == null ||
+                GameManager.Instance == null || GameManager.Instance.CurrentState != GameState.Playing) return;
+            if (StartWaitingThisTick) OpponentWaitDecisionFrames++;
+            float now = GameManager.Instance.RoundElapsed;
+            if (now < junctionThinkAt) return;
+            junctionThinkAt = now + 0.12f;
+            p2Horizontal = p2Vertical = 0f;
+            var from = opponentGate.CurrentAnchor;
+            var state = opponentGate.CurrentState;
+            Vector2 eye = from != null ? (Vector2)from.transform.position : (Vector2)junctionOpponent.transform.position;
+            bool visible = state != TricksterPossessionState.Underlining && JunctionSight(eye, runner.transform.position, from);
+            // Transform is read only to perform the optical query; hidden positions never enter decisions.
+            if (visible) contact.Observe(runner.transform.position.x, runner.transform.position.y, now, true);
+            TricksterIntent = visible ? "[Watching actual approach; hold or relocate]" : "[Lost sight; stale memory cannot attack]";
+            if (state == TricksterPossessionState.Roaming)
+            {
+                // Recover to a known same-layer anchor using ordinary movement, not hidden player tracking.
+                var refuge = junctionAnchors.Where(a => a != null && a.isActiveAndEnabled && a.CanBePossessed() &&
+                    Mathf.Abs(a.transform.position.y - eye.y) < 1.5f).OrderBy(a => Vector2.Distance(eye, a.transform.position)).FirstOrDefault();
+                if (refuge == null) return;
+                float dx = refuge.transform.position.x - eye.x;
+                if (Mathf.Abs(dx) > 1.2f) p2Horizontal = Mathf.Sign(dx);
+                else if (now >= nextJunctionInput && opponentDisguise != null && !opponentDisguise.IsDisguised)
+                { p2DisguiseDown = true; nextJunctionInput = now + 0.8f; JunctionEvent("Request normal disguise at known refuge", now); }
+            }
+            else if (opponentGate.IsHiddenAndArmed && from != null && opponentDisguise != null && opponentDisguise.IsFullyBlended)
+            {
+                var prop = from.ControllableProp;
+                bool attack = visible && contact.AttackWindow(from.transform.position.x, from.transform.position.y, now, TunnelOpponent);
+                if (attack && prop != null && prop.GetControlState() == PropControlState.Idle)
+                {
+                    if (junctionAttackSince < 0) junctionAttackSince = now;
+                    if (now - junctionAttackSince >= 0.18f && now >= nextJunctionInput && junctionAbility != null && junctionAbility.IsPossessionActionAllowed)
+                    { p2AbilityDown = true; nextJunctionInput = now + 0.6f; junctionAttackSince = -1f; JunctionEvent("Visible approach: ordinary control requested", now); }
+                }
+                else junctionAttackSince = -1f;
+                if (!p2AbilityDown && TunnelOpponent && opponentGate.CanSwitchTarget && contact.Fresh(now) &&
+                    now >= nextJunctionInput && junctionTransfers < 4 && from.connectedUnderlineNodes != null)
+                {
+                    // A used/blocked own prop permits preparing ahead. This is a risky forecast, not a guaranteed intercept.
+                    bool spent = prop != null && prop.GetControlState() != PropControlState.Idle;
+                    var next = from.connectedUnderlineNodes.Where(a => a != null && a != from && a.isActiveAndEnabled && a.CanBePossessed() &&
+                        contact.ShouldRelocate(from.transform.position.x, from.transform.position.y,
+                            a.transform.position.x, a.transform.position.y, now, spent))
+                        .OrderBy(a => contact.ExitScore(a.transform.position.x, a.transform.position.y, now)).FirstOrDefault();
+                    if (next != null)
+                    {
+                        Vector2 dir = ((Vector2)(next.transform.position - from.transform.position)).normalized;
+                        p2Horizontal = dir.x; p2Vertical = dir.y; p2DirectionDown = true;
+                        nextJunctionInput = now + 3f; junctionTransfers++; TunnelRequests++;
+                        LastTunnelPlan = $"visible-contact age={now - contact.At:F2}s {from.AnchorId}->{next.AnchorId}; readiness unverified";
+                        JunctionEvent("Native relocation requested: " + LastTunnelPlan, now);
+                        TricksterIntent = "[Pay travel/blend cost; exit may be wrong]";
+                    }
+                }
+            }
+            if (StartWaitingThisTick && (p2Horizontal != 0 || p2DirectionDown || p2DisguiseDown || p2AbilityDown)) OpponentWaitInputFrames++;
+        }
+        private void UpdateJunctionRunner(float now)
+        {
+            foreach (var wall in visibleWalls)
+            {
+                if (!CanReadWall(wall, runnerBody.bounds.center)) continue;
+                bool danger = wall.GetControlState() == PropControlState.Telegraph || !wall.GetComponent<BoxCollider2D>().isTrigger;
+                Junction.Observe(wall.name + "#" + wall.GetInstanceID(), wall.transform.position.y > 3f ? "upper" : "lower", now, true, danger);
+            }
+            int before = Junction.SwitchRequests;
+            Junction.Tick(runner.transform.position.x, runner.transform.position.y, hasLootObjective && LootObjective.IsLootCarried, runner.IsGrounded, now);
+            if (Junction.SwitchRequests > before) JunctionEvent("Runner requests retreat to fork, then " + Junction.RouteId + "; not yet completed", now);
+        }
         public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore, MechanismExplorationPlan.Route[] routes, bool safe)
             : this(runner, targets, explore, routes, safe, 30f) { }
         public GuidedBot(MarioController runner, Dictionary<string, Transform[]> targets, bool explore, MechanismExplorationPlan.Route[] routes, bool safe, float trialLimit)
@@ -717,6 +835,7 @@ public sealed class ExplorationTrialObserver : IDisposable
                 TricksterIntent = "[Human input; intent not inferred]";
                 return;
             }
+            if (Junction != null) { UpdateJunctionOpponent(); return; }
             if (!PassiveOpponent)
             {
                 preparation.Tick(dt);
@@ -990,14 +1109,14 @@ public sealed class ExplorationTrialObserver : IDisposable
         {
             if (!UseSolidStepExit || HumanMario || runner == null || !runner.isActiveAndEnabled || !runner.IsGrounded ||
                 GameManager.Instance == null || GameManager.Instance.CurrentState != GameState.Playing ||
-                !AuthoredRouteTarget || navigation.Target == null || !ExplorationTarget.HasValue ||
+                !AuthoredRouteTarget || CurrentWaypoint == null || !ExplorationTarget.HasValue ||
                 (MarioIntent != "[Pathing: scan conserved]" && MarioIntent != "[Scan: local evidence or blocker windup]")) return false;
             float aim = FindSolidStepExitAim(runnerBody, runner.transform.position, ExplorationTarget.Value);
             if (!MechanismExplorationPlan.IsFinite(aim) ||
-                !SolidStepBudget.TryUse(navigation.Target, hasLootObjective && LootObjective.IsLootCarried, dt)) return false;
+                !SolidStepBudget.TryUse(CurrentWaypoint, hasLootObjective && LootObjective.IsLootCarried, dt)) return false;
             NeutralMario(); // Do not jump/drop through solid terrain; keep scan requests intact.
             p1Horizontal = Mathf.Sign(aim - runner.transform.position.x);
-            LastSolidStepRequest = $"target=({navigation.Target.x:F2},{navigation.Target.y:F2}), aimX={aim:F2}";
+            LastSolidStepRequest = $"target=({CurrentWaypoint.x:F2},{CurrentWaypoint.y:F2}), aimX={aim:F2}";
             MarioIntent = "[Solid step: walk footprint off edge; landing unverified]";
             return true;
         }
@@ -1038,8 +1157,9 @@ public sealed class ExplorationTrialObserver : IDisposable
             dropTimer -= dt;
             if (runner != null)
             {
-                navigation.Tick(runner.transform.position.x, runner.transform.position.y, hasLootObjective && LootObjective.IsLootCarried, dt, runner.IsGrounded, RecoverRouteFalls);
-                var waypoint = navigation.Target;
+                if (Junction != null && runnerBody != null) UpdateJunctionRunner(GameManager.Instance.RoundElapsed);
+                else navigation.Tick(runner.transform.position.x, runner.transform.position.y, hasLootObjective && LootObjective.IsLootCarried, dt, runner.IsGrounded, RecoverRouteFalls);
+                var waypoint = CurrentWaypoint;
                 if (waypoint != null) { ExplorationTarget = new Vector2(waypoint.x, waypoint.y); AuthoredRouteTarget = true; }
             }
             if (explore && runner != null)

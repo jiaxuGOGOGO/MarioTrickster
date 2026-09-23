@@ -323,6 +323,134 @@ public static class MechanismExplorationPlan
         }
     }
 
+    // S178: a small authored loop, not a general planner. All completion still requires landings.
+    [Serializable]
+    public sealed class JunctionChoice
+    {
+        public string leg, source, from, to, reason;
+        public float at, cueAge, forkReachedAt = -1f;
+    }
+
+    public sealed class JunctionNavigator
+    {
+        private sealed class Cue { public string source, lane; public float at; }
+        private readonly Dictionary<string, Cue> cues = new Dictionary<string, Cue>();
+        private readonly Route[] routes;
+        private readonly bool fixedUpper;
+        private readonly HashSet<string> visited = new HashSet<string>();
+        private int lane, cursor, changesThisLeg;
+        private bool returning, chooseAtFork = true;
+        public readonly List<string> CompletedRoutes = new List<string>();
+        public readonly List<JunctionChoice> Choices = new List<JunctionChoice>();
+        public int WaypointsReached => visited.Count;
+        public int SwitchRequests => Choices.Count(c => c.from != c.to);
+        public string RouteId => routes[lane].id;
+        public Point Target => cursor >= routes[lane].points.Length ? null :
+            routes[lane].points[returning ? routes[lane].points.Length - 1 - cursor : cursor];
+        private Point Fork => routes[0].points[returning ? routes[0].points.Length - 1 : 0];
+        public JunctionNavigator(Route[] routes, bool fixedUpper)
+        {
+            if (routes == null || routes.Length != 2 || routes.Any(r => r == null || r.points == null || r.points.Length < 2 ||
+                r.points.Any(p => p == null || !IsFinite(p.x) || !IsFinite(p.y))) || routes[0].id != "lower" || routes[1].id != "upper" ||
+                routes[0].points.First().x != routes[1].points.First().x || routes[0].points.First().y != routes[1].points.First().y ||
+                routes[0].points.Last().x != routes[1].points.Last().x || routes[0].points.Last().y != routes[1].points.Last().y)
+                throw new ArgumentException("Two authored routes with shared grounded forks required");
+            this.routes = routes; this.fixedUpper = fixedUpper; lane = fixedUpper ? 1 : 0;
+        }
+        // Only a source-specific, currently visible cue may set OR clear memory. Scan bool is not a source.
+        public void Observe(string source, string route, float now, bool visible, bool danger)
+        {
+            if (!visible || string.IsNullOrEmpty(source) || !IsFinite(now) || now < 0 || !routes.Any(r => r.id == route)) return;
+            if (!danger) { cues.Remove(source); return; }
+            if (!cues.ContainsKey(source) && cues.Count >= 8) return;
+            cues[source] = new Cue { source = source, lane = route, at = now };
+        }
+        public float Risk(string route, float now)
+        {
+            if (!IsFinite(now)) return 0;
+            return cues.Values.Where(c => c.lane == route && now >= c.at && now - c.at < 18f)
+                .Select(c => 18f * (1f - (now - c.at) / 18f)).DefaultIfEmpty(0).Max();
+        }
+        private float Cost(int index, float now)
+        {
+            var points = routes[index].points;
+            float cost = 0;
+            for (int i = 1; i < points.Length; i++)
+                cost += Math.Abs(points[i].x - points[i - 1].x) + Math.Abs(points[i].y - points[i - 1].y);
+            return cost + Risk(routes[index].id, now);
+        }
+        public void Tick(float x, float y, bool home, bool grounded, float now)
+        {
+            if (!IsFinite(x) || !IsFinite(y) || !IsFinite(now) || now < 0) return;
+            if (home != returning)
+            { returning = home; cursor = 0; lane = fixedUpper ? 1 : 0; changesThisLeg = 0; chooseAtFork = true; }
+            bool atFork = grounded && Math.Abs(x - Fork.x) < 0.45f && Math.Abs(y - Fork.y) < 0.25f;
+            // Reconsider only on the flat approach, not from the roof/mid-room or in the air.
+            float progress = (x - Fork.x) * (returning ? -1 : 1);
+            bool canRetreat = grounded && lane == 0 && progress >= 0 && progress <= 4f && Math.Abs(y - Fork.y) < 0.25f;
+            if (!fixedUpper && Target != null && changesThisLeg == 0 && (atFork || canRetreat))
+            {
+                int other = 1 - lane;
+                if (Cost(other, now) + 2f * Math.Max(0, progress) + 1f < Cost(lane, now))
+                {
+                    var cue = cues.Values.Where(c => c.lane == RouteId && now >= c.at && now - c.at < 18f).OrderByDescending(c => c.at).First();
+                    Choices.Add(new JunctionChoice { leg = home ? "Return" : "Out", source = cue.source,
+                        from = RouteId, to = routes[other].id, at = now, cueAge = now - cue.at,
+                        reason = "Visible-source risk vs authored distance; retreat to real fork", forkReachedAt = atFork ? now : -1f });
+                    lane = other; cursor = 0; changesThisLeg++; chooseAtFork = false;
+                }
+            }
+            if (atFork && chooseAtFork)
+            {
+                Choices.Add(new JunctionChoice { leg = home ? "Return" : "Out", source = "none", from = RouteId, to = RouteId,
+                    at = now, cueAge = -1f, forkReachedAt = now, reason = fixedUpper ? "Fixed upper control" : "Keep lower: detour cost exceeds observed risk" });
+                chooseAtFork = false;
+            }
+            if (atFork && Choices.Count > 0 && Choices.Last().leg == (home ? "Return" : "Out") && Choices.Last().forkReachedAt < 0)
+                Choices.Last().forkReachedAt = now;
+            var target = Target;
+            if (target == null || !grounded || Math.Abs(x - target.x) >= 0.45f || Math.Abs(y - target.y) >= 0.25f) return;
+            visited.Add(returning + ":" + RouteId + ":" + cursor); cursor++;
+            string key = (home ? "Return:" : "Out:") + RouteId;
+            if (Target == null && !CompletedRoutes.Contains(key)) CompletedRoutes.Add(key);
+        }
+    }
+
+    // Only sampled visible positions enter this memory. No hidden velocity or loot/route intent.
+    public sealed class VisibleContact
+    {
+        public float X { get; private set; }
+        public float Y { get; private set; }
+        public float Vx { get; private set; }
+        public float At { get; private set; } = -1f;
+        public bool Fresh(float now) => IsFinite(now) && At >= 0 && now >= At && now - At <= 2.5f;
+        public void Observe(float x, float y, float now, bool visible)
+        {
+            if (!visible || !IsFinite(x) || !IsFinite(y) || !IsFinite(now) || now < 0 || now <= At) return;
+            Vx = Fresh(now) && now - At >= 0.05f ? Math.Max(-12f, Math.Min(12f, (x - X) / (now - At))) : 0f;
+            X = x; Y = y; At = now;
+        }
+        public float ExitScore(float x, float y, float now)
+        {
+            if (!Fresh(now) || !IsFinite(x) || !IsFinite(y)) return float.PositiveInfinity;
+            float prediction = X + Vx * 0.5f;
+            return Math.Abs(x - prediction) + 4f * Math.Abs(y - Y);
+        }
+        public bool ShouldRelocate(float fromX, float fromY, float exitX, float exitY, float now, bool spent)
+        {
+            if (!Fresh(now) || !IsFinite(fromX) || !IsFinite(fromY) || !IsFinite(exitX) || !IsFinite(exitY) ||
+                (fromX == exitX && fromY == exitY)) return false;
+            return ExitScore(exitX, exitY, now) + 3f < ExitScore(fromX, fromY, now) ||
+                (spent && Math.Abs(Vx) > 0.5f && Math.Abs(exitY - Y) < 1.5f && (exitX - X) * Math.Sign(Vx) > 3f);
+        }
+        public bool AttackWindow(float x, float y, float now, bool patient)
+        {
+            if (!Fresh(now) || now - At > 0.3f || Math.Abs(y - Y) > 1.4f) return false;
+            float distance = Math.Abs(x - X);
+            return distance <= (patient ? 3.5f : 8f) && (distance < 1.3f || (x - X) * Vx > 0.5f);
+        }
+    }
+
     public sealed class CounterplayMotion
     {
         private string previousPhase;
@@ -723,6 +851,42 @@ public static class MechanismExplorationPlan
         };
     }
 
+    // One compact, finite loop. Seed shifts the whole encounter by at most two tiles; not new topology.
+    public static Scenario BuildJunctionDuel(int seed)
+    {
+        int shift = new Dice(seed).Next(3), left = 15 + shift, right = 29 + shift, width = 48;
+        var rows = Enumerable.Range(0, 12).Select(_ => new string('.', width).ToCharArray()).ToArray();
+        Action<int, int, char> put = (x, y, c) => rows[11 - y][x] = c;
+        for (int x = 0; x < width; x++) put(x, 0, '#');
+        for (int x = left; x <= right; x++) put(x, 4, '#');
+        for (int i = 1; i <= 3; i++) { put(left - 2 * i, 4 - i, '-'); put(right + 2 * i, 4 - i, '-'); }
+        put(5, 1, 'M'); put(3, 1, 'G'); put(right + 10, 1, 'o'); put(left - 1, 1, 'T');
+        var a = new Point(left, 1); var b = new Point(right, 1); var c = new Point((left + right) / 2, 5);
+        foreach (var p in new[] { a, b, c }) put((int)p.x, (int)p.y, 'F');
+        var links = new List<TunnelLink>();
+        foreach (var pair in new[] { new[] { a, b }, new[] { a, c }, new[] { b, c } })
+        { links.Add(new TunnelLink { from = pair[0], to = pair[1] }); links.Add(new TunnelLink { from = pair[1], to = pair[0] }); }
+        float standing = PhysicsMetrics.MARIO_COLLIDER_HEIGHT * 0.5f - PhysicsMetrics.MARIO_COLLIDER_OFFSET_Y;
+        float ground = 0.5f + standing, platform = PhysicsMetrics.ONEWAY_COLLIDER_SIZE.y * 0.5f + standing;
+        var entry = new Point(left - 8, ground); var exit = new Point(right + 8, ground);
+        var upper = new List<Point> { entry };
+        for (int i = 3; i >= 1; i--) upper.Add(new Point(left - 2 * i, 4 - i + platform));
+        upper.Add(new Point(left, 4 + ground)); upper.Add(new Point(c.x, 4 + ground)); upper.Add(new Point(right, 4 + ground));
+        for (int i = 1; i <= 3; i++) upper.Add(new Point(right + 2 * i, 4 - i + platform));
+        upper.Add(exit);
+        return new Scenario { seed = seed, id = $"v{Version}_duel3_{unchecked((uint)seed):x8}", duelVersion = 3,
+            tunnelVersion = 1, experience = "TunnelDuel", lootEscape = true, mechanisms = "Fo", startDelaySeconds = 1.2f,
+            ascii = string.Join("\n", rows.Select(r => new string(r))), tunnelLinks = links.ToArray(),
+            designQuestion = "双口短环：读到入口预警后退回分岔绕顶；守点者忍住还是换口？拿宝后旧线索是否仍可信？",
+            intention = "S178可玩遭遇：一个短环、三个原生附身位。Adaptive比较可见同源风险与绕路代价，SafeRoute固定上路；" +
+                "对手仅短距视线/2.5秒记忆，地面守点提前出手，暗线对手近距忍住/有限换口；不是学习或必定骗招。",
+            routes = new[] {
+                new Route { id = "lower", points = new[] { entry, new Point(c.x, ground), exit }, minX = left, maxX = right, minY = 0.5f, maxY = 2.5f },
+                new Route { id = "upper", points = upper.ToArray(), minX = left, maxX = right, minY = 4.5f, maxY = 7f }
+            }
+        };
+    }
+
     public static List<Scenario> BuildWallTacticsComparison(int seed)
     {
         var baseline = BuildCavernDuel(seed); var treatment = BuildCavernDuel(seed);
@@ -775,8 +939,9 @@ public static class MechanismExplorationPlan
 
     public static bool IsGeneratedDuelLayout(Scenario room)
     {
-        if (room == null || (room.duelVersion != 1 && room.duelVersion != 2) || room.duelVariant < 0 || room.duelVariant > 2) return false;
-        var canonical = room.duelVersion == 2 ? BuildCavernDuel(room.seed, room.duelVariant) : BuildDuel(room.seed, room.duelVariant);
+        if (room == null || (room.duelVersion != 1 && room.duelVersion != 2 && room.duelVersion != 3) || room.duelVariant < 0 || room.duelVariant > 2) return false;
+        if (room.duelVersion == 3 && (room.duelVariant != 0 || room.iteration != 0)) return false;
+        var canonical = room.duelVersion == 3 ? BuildJunctionDuel(room.seed) : room.duelVersion == 2 ? BuildCavernDuel(room.seed, room.duelVariant) : BuildDuel(room.seed, room.duelVariant);
         Func<Point, Point, bool> samePoint = (a, b) => a != null && b != null && a.x == b.x && a.y == b.y;
         return room.wallTacticsVersion >= 0 && room.wallTacticsVersion <= 1 && (room.duelVersion == 2 || room.wallTacticsVersion == 0) &&
             room.ascii == canonical.ascii && room.lootEscape && room.startDelaySeconds == canonical.startDelaySeconds &&
@@ -935,6 +1100,12 @@ public static class MechanismExplorationPlan
         var gaps = new List<string>();
         if (t.experienceEvidenceVersion < 1) gaps.Add("旧报告未记录完整路线/交手机会；不能补算通过");
         if (t.cavernEvidenceVersion >= 1 || (scenario != null && scenario.duelVersion == 2)) gaps.AddRange(CavernRouteIssues(t));
+        if ((scenario != null && scenario.duelVersion == 3) || t.junctionEvidenceVersion >= 1)
+        {
+            if (t.junctionEvidenceVersion < 1) gaps.Add("双口决策证据未记录");
+            if (t.completedRoutes == null || !t.completedRoutes.Any(r => r == "Out:lower" || r == "Out:upper") ||
+                !t.completedRoutes.Any(r => r == "Return:lower" || r == "Return:upper")) gaps.Add("双口去返未实际完成，决策/退回请求不能充数");
+        }
         if (t.marioStrategy == "SafeRoute")
         {
             if (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper")) gaps.Add("安全上路去程未完整到达所有落地点");
@@ -1137,6 +1308,9 @@ public static class MechanismExplorationPlan
         public List<string> routesUsed = new List<string>();
         public int routeSwitchRequests, routeTransitions, waypointsReached, recoveryAttempts;
         public int stairRecoveryEvidenceVersion, stairRecoveryRequests;
+        public int junctionEvidenceVersion;
+        public List<JunctionChoice> junctionChoices = new List<JunctionChoice>();
+        public List<string> junctionEvents = new List<string>();
         public string navigationPolicy; // Missing on old reports, never inferred from zero counters.
         public int solidStepInputFrames, solidStepInputTargets;
         public float solidStepInputSeconds; // Requested ordinary-input duration, NOT completed descents.

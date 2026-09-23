@@ -4,6 +4,163 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [TestCase(168)]
+    [TestCase(-1)]
+    [TestCase(int.MinValue)]
+    [TestCase(int.MaxValue)]
+    public void JunctionLayoutIsFiniteCanonicalAndConnected(int seed)
+    {
+        var r = MechanismExplorationPlan.BuildJunctionDuel(seed);
+        Assert.AreEqual(3, r.duelVersion); Assert.IsTrue(MechanismExplorationPlan.IsGeneratedDuelLayout(r));
+        Assert.IsEmpty(MechanismExplorationPlan.TunnelPlanIssues(r));
+        Assert.AreEqual(6, MechanismExplorationPlan.Matchups(r).Length);
+        Assert.AreEqual(r.ascii, MechanismExplorationPlan.BuildJunctionDuel(seed).ascii);
+        Assert.AreEqual(3, r.ascii.Count(c => c == 'F')); Assert.AreEqual(6, r.tunnelLinks.Length);
+        foreach (int end in new[] { 0, 1 })
+        {
+            var a = end == 0 ? r.routes[0].points.First() : r.routes[0].points.Last();
+            var b = end == 0 ? r.routes[1].points.First() : r.routes[1].points.Last();
+            Assert.AreEqual(a.x, b.x); Assert.AreEqual(a.y, b.y);
+        }
+        Assert.Throws<InvalidOperationException>(() => MechanismExplorationPlan.NextDuelVariant(r, "not an automatic variant"));
+        r.routes[1].points[1].x += 1; Assert.IsFalse(MechanismExplorationPlan.IsGeneratedDuelLayout(r));
+    }
+
+    [Test]
+    public void JunctionRetreatRequiresVisibleRiskAndARealForkLanding()
+    {
+        var r = MechanismExplorationPlan.BuildJunctionDuel(168);
+        var n = new MechanismExplorationPlan.JunctionNavigator(r.routes, false);
+        var fork = n.Target;
+        n.Tick(fork.x, fork.y, false, true, 0);
+        n.Observe("left", "lower", 1, false, true);
+        n.Tick(fork.x + 2, fork.y, false, true, 1); Assert.AreEqual("lower", n.RouteId);
+        n.Observe("left", "lower", 2, true, true);
+        n.Tick(fork.x + 2, fork.y, false, true, 2);
+        Assert.AreEqual("upper", n.RouteId); Assert.AreEqual(fork.x, n.Target.x);
+        Assert.AreEqual(-1f, n.Choices.Last().forkReachedAt); Assert.IsEmpty(n.CompletedRoutes);
+        n.Tick(fork.x, fork.y, false, false, 3); Assert.AreEqual(fork.x, n.Target.x);
+        n.Tick(fork.x, fork.y, false, true, 4); Assert.AreEqual(4, n.Choices.Last().forkReachedAt);
+        Assert.Greater(n.Target.x, fork.x); Assert.IsEmpty(n.CompletedRoutes);
+    }
+
+    [TestCase(true, 2f, 0f)]
+    [TestCase(false, 6f, 0f)]
+    [TestCase(false, 2f, 4f)]
+    public void JunctionNeverReplansAirborneMidroomOrFromRoof(bool airborne, float dx, float dy)
+    {
+        var r = MechanismExplorationPlan.BuildJunctionDuel(168);
+        var n = new MechanismExplorationPlan.JunctionNavigator(r.routes, false); var f = n.Target;
+        n.Observe("left", "lower", 1, true, true);
+        n.Tick(f.x + dx, f.y + dy, false, !airborne, 1);
+        Assert.AreEqual("lower", n.RouteId); Assert.AreEqual(0, n.SwitchRequests);
+    }
+
+    [Test]
+    public void JunctionMemoryIsSourcedClearedOnlyBySightAndExpires()
+    {
+        var n = new MechanismExplorationPlan.JunctionNavigator(MechanismExplorationPlan.BuildJunctionDuel(168).routes, false);
+        n.Observe("", "lower", 1, true, true); Assert.AreEqual(0, n.Risk("lower", 1));
+        n.Observe("left", "lower", 1, true, true); Assert.AreEqual(18, n.Risk("lower", 1));
+        n.Observe("left", "lower", 2, false, false); Assert.Greater(n.Risk("lower", 2), 0);
+        n.Observe("other", "lower", 2, true, false); Assert.Greater(n.Risk("lower", 2), 0);
+        Assert.AreEqual(0, n.Risk("lower", 20)); Assert.AreEqual(0, n.Risk("lower", 0));
+        n.Observe("left", "lower", 21, true, true); n.Observe("left", "lower", 22, true, false);
+        Assert.AreEqual(0, n.Risk("lower", 22));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void JunctionCompletesOnlyLandedRoutesAndReconsidersReturn(bool safe)
+    {
+        var room = MechanismExplorationPlan.BuildJunctionDuel(168);
+        var n = new MechanismExplorationPlan.JunctionNavigator(room.routes, safe);
+        n.Observe("left", "lower", 0, true, true);
+        float now = 0;
+        for (int i = 0; i < 30 && n.Target != null; i++) { var p = n.Target; n.Tick(p.x, p.y, false, true, now += 0.1f); }
+        Assert.IsNull(n.Target); CollectionAssert.Contains(n.CompletedRoutes, "Out:upper");
+        var end = room.routes[0].points.Last();
+        n.Tick(end.x, end.y, true, false, 30); Assert.AreEqual(end.x, n.Target.x);
+        for (int i = 0; i < 30 && n.Target != null; i++) { var p = n.Target; n.Tick(p.x, p.y, true, true, 30 + i * 0.1f); }
+        Assert.IsNull(n.Target); CollectionAssert.Contains(n.CompletedRoutes, safe ? "Return:upper" : "Return:lower");
+        Assert.LessOrEqual(n.SwitchRequests, 2);
+    }
+
+    [Test]
+    public void JunctionOneSwitchPerLegAndNoCompulsoryDetourForClearOrBothRiskyRoutes()
+    {
+        var r = MechanismExplorationPlan.BuildJunctionDuel(168); var n = new MechanismExplorationPlan.JunctionNavigator(r.routes, false);
+        var f = n.Target; n.Tick(f.x, f.y, false, true, 0); Assert.AreEqual("lower", n.RouteId);
+        n.Observe("low", "lower", 1, true, true); n.Observe("high", "upper", 1, true, true);
+        n.Tick(f.x + 1, f.y, false, true, 1); Assert.AreEqual("lower", n.RouteId);
+        n.Observe("high", "upper", 2, true, false); n.Tick(f.x + 1, f.y, false, true, 2); Assert.AreEqual("upper", n.RouteId);
+        n.Observe("high", "upper", 3, true, true); n.Observe("low", "lower", 3, true, false);
+        n.Tick(f.x, f.y, false, true, 3); Assert.AreEqual("upper", n.RouteId); Assert.AreEqual(1, n.SwitchRequests);
+    }
+
+    [Test]
+    public void JunctionFreshReturnCueChangesReturnWithoutChangingCompletedOutbound()
+    {
+        var r = MechanismExplorationPlan.BuildJunctionDuel(168); var n = new MechanismExplorationPlan.JunctionNavigator(r.routes, false);
+        for (int i = 0; i < 10 && n.Target != null; i++) { var p = n.Target; n.Tick(p.x, p.y, false, true, i); }
+        n.Observe("right", "lower", 10, true, true);
+        var end = r.routes[0].points.Last(); n.Tick(end.x, end.y, true, true, 10);
+        Assert.AreEqual("upper", n.RouteId); CollectionAssert.AreEqual(new[] { "Out:lower" }, n.CompletedRoutes);
+        Assert.AreEqual("right", n.Choices.Last().source); Assert.AreEqual("Return", n.Choices.Last().leg);
+    }
+
+    [Test]
+    public void VisibleContactRejectsHiddenUpdatesAndStopsPredictionWhenStale()
+    {
+        var c = new MechanismExplorationPlan.VisibleContact();
+        Assert.IsFalse(c.Fresh(0)); c.Observe(10, 1, 0, true); c.Observe(11, 1, 0.2f, true);
+        Assert.AreEqual(5, c.Vx, 0.01f); c.Observe(99, 6, 0.3f, false); Assert.AreEqual(11, c.X);
+        Assert.AreEqual(1, c.Y); Assert.AreEqual(0.2f, c.At); Assert.IsFalse(c.Fresh(3));
+        Assert.IsTrue(float.IsPositiveInfinity(c.ExitScore(15, 1, 3))); Assert.IsFalse(c.AttackWindow(12, 1, 3, false));
+        c.Observe(50, 1, 4, true); Assert.AreEqual(0, c.Vx, "No velocity inferred across lost contact");
+        c.Observe(float.NaN, 1, 5, true); Assert.AreEqual(50, c.X);
+    }
+
+    [Test]
+    public void VisibleGuardHoldsAtProbeDistanceButEarlyGuardCanRevealItsChoice()
+    {
+        var c = new MechanismExplorationPlan.VisibleContact(); c.Observe(5, 1, 0, true); c.Observe(6, 1, 0.2f, true);
+        Assert.IsTrue(c.AttackWindow(13, 1, 0.2f, false)); Assert.IsFalse(c.AttackWindow(13, 1, 0.2f, true));
+        Assert.IsTrue(c.AttackWindow(9, 1, 0.2f, true)); Assert.IsFalse(c.AttackWindow(9, 5, 0.2f, true));
+        Assert.IsFalse(c.AttackWindow(9, 1, 0.6f, true));
+        c.Observe(5, 1, 0.4f, true); Assert.IsFalse(c.AttackWindow(9, 1, 0.4f, true));
+        Assert.Less(c.ExitScore(4, 1, 0.4f), c.ExitScore(9, 1, 0.4f));
+    }
+
+    [TestCase(0)]
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(3)]
+    public void VisibleRelocationRespondsToApproachLayerSpentStateAndExpiry(int mode)
+    {
+        var c = new MechanismExplorationPlan.VisibleContact(); c.Observe(10, 1, 0, true); c.Observe(11, 1, .2f, true);
+        if (mode == 0)
+        {
+            Assert.IsFalse(c.ShouldRelocate(15, 1, 29, 1, .2f, false), "Keep a usable ambush instead of transferring for counts");
+            Assert.IsTrue(c.ShouldRelocate(15, 1, 29, 1, .2f, true), "Spent own prop permits risky advance preparation");
+        }
+        if (mode == 1)
+        {
+            c.Observe(14, 4.8f, .4f, true);
+            Assert.IsTrue(c.ShouldRelocate(15, 1, 22, 5, .4f, false), "Observed ascent makes upper refuge relevant");
+        }
+        if (mode == 2)
+        {
+            c.Observe(25, 5, .4f, false);
+            Assert.IsFalse(c.ShouldRelocate(15, 1, 29, 1, 3, true), "Hidden player cannot refresh the forecast");
+        }
+        if (mode == 3)
+        {
+            Assert.IsFalse(c.ShouldRelocate(15, 1, 15, 1, .2f, true));
+            Assert.IsFalse(c.ShouldRelocate(15, 1, float.NaN, 1, .2f, true));
+        }
+    }
+
     [TestCase(1f)]
     [TestCase(-1f)]
     public void SolidStepExitClearsOverhangingFootprintInBothDirections(float direction)

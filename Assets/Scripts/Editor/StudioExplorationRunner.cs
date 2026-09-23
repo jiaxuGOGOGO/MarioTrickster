@@ -248,12 +248,15 @@ public static class StudioExplorationRunner
                 sb.AppendLine("  下一轮：已发生转移，但尚无到达后的同点出手证据；检查出口位置和玩家经过时机，不直接加伤害。");
             else sb.AppendLine("  下一轮：已有转移后出手的时序证据；请试玩判断线索是否读得懂、是博弈还是纯等待。不是因果或乐趣通过。");
         }
-        if (sb.Length > 0) sb.AppendLine("三种作者变体共享基础布局；原始结果逐策略保留，不计算乐趣排名。GroundChaser禁止方向换点，TunnelChaser使用局部距离预测；底层启发式仍读取角色位置，不代表人类有限信息。真人/演示另存，不补自动样本。");
+        if (sb.Length > 0 && data.scenarios.Any(r => r.tunnelVersion >= 1 && r.duelVersion != 3)) sb.AppendLine("三种作者变体共享基础布局；原始结果逐策略保留，不计算乐趣排名。GroundChaser禁止方向换点，TunnelChaser使用局部距离预测；底层启发式仍读取角色位置，不代表人类有限信息。真人/演示另存，不补自动样本。");
+        if (data.scenarios.Any(r => r.duelVersion == 3)) sb.AppendLine("S178为独立双口图：对手采用可见接近/短时记忆；提前守点与忍住换口同时有时机和权限差别，不作单变量因果比较。不是三个新拓扑或全项目AI已去全知。");
         return sb.ToString();
     }
 
-    public static string DuelOpponentLabel(string strategy)
+    public static string DuelOpponentLabel(string strategy, int duelVersion = 0)
     {
+        if (duelVersion == 3 && strategy == "GroundChaser") return "可见接近·提前守点（无暗线）";
+        if (duelVersion == 3 && strategy == "TunnelChaser") return "可见接近·忍住/换口";
         switch (strategy)
         {
             case "Passive": return "无干扰基线（对手不行动）";
@@ -417,6 +420,8 @@ public static class StudioExplorationRunner
         if (!DuelReportReadyForReview(data, room))
             return "本批尚未完整或有执行故障：先查看明细并导出ZIP，不生成下一变体来绕过缺口。";
         var runs = data.trials.Where(t => t.scenarioId == room.id).ToArray();
+        if (room.duelVersion == 3)
+            return "双口遭遇记录已齐，直接导出ZIP。看实际退回分岔/完整路线/换口到达与返程回应；失败保留，无需跑到全绿。";
         if (runs.Any(t => t.outcome != "Cleared" || !ValidReturnTimes(t) || t.lootEvents < 1 || t.escapeEvents < 1 ||
             (t.marioStrategy == "SafeRoute" && (t.completedRoutes == null || !t.completedRoutes.Contains("Out:upper") || !t.completedRoutes.Contains("Return:upper")))))
             return "记录已收齐，但有通路或路线未完成。先保留问题并导出ZIP，不把通关/首轮成功替代确认局。";
@@ -449,8 +454,26 @@ public static class StudioExplorationRunner
         return transfer + returned + motion + "。这些是时序/动作记录，不是因果或乐趣评分。";
     }
 
+    public static string JunctionSummary(Report data, MechanismExplorationPlan.Scenario room)
+    {
+        if (data == null || room == null || room.duelVersion != 3) return "";
+        var sb = new StringBuilder("S178双口遭遇：新地图＋配套AI；不是旧洞室同条件A/B，不认证骗招或乐趣。\n");
+        foreach (var t in data.trials.Where(t => t.scenarioId == room.id))
+        {
+            sb.AppendLine($"第{t.attempt}轮 {t.marioStrategy}/{t.tricksterStrategy}: {t.outcome}; 完整路线[{string.Join(",", t.completedRoutes ?? new List<string>())}]; 暗线请求/到达 {t.tunnelRequests}/{t.tunnelArrivals}; 返程受理{t.postLootControls}");
+            if (t.junctionEvidenceVersion < 1) { sb.AppendLine("未记录双口决策，不补填。"); continue; }
+            foreach (var c in t.junctionChoices ?? new List<MechanismExplorationPlan.JunctionChoice>())
+                sb.AppendLine($"  {c.leg} {c.from}->{c.to} at {c.at:F2}s; 来源{c.source}, 线索年龄{c.cueAge:F2}s; 实际回到分岔{c.forkReachedAt:F2}s; {c.reason}");
+            foreach (string e in t.junctionEvents ?? new List<string>()) sb.AppendLine("  " + e);
+            if ((t.junctionEvents?.Count ?? 0) >= 64) sb.AppendLine("事件记录达到上限，后续细节可能未采到。");
+        }
+        sb.AppendLine("换路请求不等于走通；没有换位可能是合理守点，也可能仍无交手。真人问题：这次有改变接近方式和对方回应，还是仍只等墙开？");
+        return sb.ToString();
+    }
+
     public static string DuelReportHighlights(Report data, MechanismExplorationPlan.Scenario room)
     {
+        if (room != null && room.duelVersion == 3) return JunctionSummary(data, room);
         if (data == null || room == null) return "尚无对战报告。";
         if (!string.IsNullOrEmpty(data.controlMode) && data.controlMode != "Automated")
             return "单局观战/真人试玩单独保存，不替代自动6组。请记录你实际看见的选择或单调之处。";
@@ -625,6 +648,7 @@ public static class StudioExplorationRunner
     public static string IterationBlockReason(Report data, MechanismExplorationPlan.Scenario room)
     {
         if (data == null || room == null || !data.scenarios.Contains(room)) return "先选择这份报告中的关卡。";
+        if (room.duelVersion == 3) return "双口原型先看实际玩法，不自动衍生连接变体。";
         if (room.duelVersion != 1 && room.duelVersion != 2) return "旧样板或手工图保留原样；请在第1步生成新的种子关卡。";
         if (!MechanismExplorationPlan.IsGeneratedDuelLayout(room)) return "这张图有手工修改，不能自动覆盖连接或作者路点；请保留草稿并回传设计。";
         if (room.iteration < 0 || room.iteration >= 2) return "已完成本轮两次变体。先试玩复盘，保留喜欢的版本；不无限刷局。";
@@ -852,7 +876,9 @@ public static class StudioExplorationRunner
             if (trial == null || !ids.Contains(trial.scenarioId) || trial.errors == null || trial.coverage == null ||
                 trial.coverage.Any(e => e == null || e.phases == null) || trial.queueEvidence == null || trial.queueEvidence.Any(q => q == null) ||
                 (trial.tunnelVisits != null && trial.tunnelVisits.Any(v => v == null)) ||
-                (trial.wallEpisodes != null && (trial.wallEpisodes.Count > 16 || trial.wallEpisodes.Any(e => e == null))))
+                (trial.wallEpisodes != null && (trial.wallEpisodes.Count > 16 || trial.wallEpisodes.Any(e => e == null))) ||
+                (trial.junctionChoices != null && (trial.junctionChoices.Count > 4 || trial.junctionChoices.Any(c => c == null))) ||
+                (trial.junctionEvents != null && (trial.junctionEvents.Count > 64 || trial.junctionEvents.Any(e => e == null))))
                 throw new InvalidDataException("报告对局结构损坏；不补造记录。");
         if (value.confirmationScenarioIds.Any(id => !ids.Contains(id))) throw new InvalidDataException("确认计划引用了未知关卡。");
     }
@@ -1100,7 +1126,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S177", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S178", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
             planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = compareWallTactics ? "WallTacticsComparison" : replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,
@@ -1413,6 +1439,7 @@ public static class StudioExplorationRunner
         if (!string.IsNullOrEmpty(data.iterationComparison)) sb.AppendLine(data.iterationComparison);
         foreach (var room in data.scenarios.Where(s => s.duelVersion >= 1))
         {
+            if (room.duelVersion == 3) { sb.AppendLine(JunctionSummary(data, room)); continue; }
             sb.AppendLine($"创作迭代 {room.iteration}/2；父关卡 {room.parentScenarioId ?? "无"}；理由 {room.mutationReason ?? "初始种子方案"}\n{DuelReview(data, room)}");
             sb.AppendLine(DuelNextAction(data, room));
             foreach (var t in data.trials.Where(t => t.scenarioId == room.id && t.wallEvidenceVersion >= 1))

@@ -1,6 +1,26 @@
 # 地道战：关卡、角色AI与真实反馈共同设计方案
 
-研究日期：2026-09-23；首次落地：S177。当前进度以 `SESSION_TRACKER.md` 为准。
+研究日期：2026-09-23；首次落地：S177；S178实施更新见下节。当前进度以 `SESSION_TRACKER.md` 为准。
+
+## S178实施更新：不再让研究代替可玩变化
+
+用户S177真实反馈639/639、24局，地表落阶已修但“没啥变化，来来回回就是这些”。这是体验目标未满足，不是要求用户再收集一份相同报告。
+
+本轮已实现一个**紧凑双口短环**（duelVersion3），而非下文全部三原型：真实地面分岔/绕顶路线、三个现有附身位、可见同源风险与路程代价选择、入口退回分岔、返程风险过期；对手用12格遮挡视线/2.5秒旧位置记忆守点或普通暗线换口。双方受原物理、能量、门禁和输入约束。不声称生成器自主学习、系统性骗招或已验证好玩。
+
+地图＋AI可以配套交付；**单变量原则约束因果验证，不应把开发无限拆成只加观测字段**。新图不是旧地图同条件提升证明，两个新主动对手还同时区别出手距离和暗线权限，只作行为对照。旧S175/S177洞室A/B保留，不能用它作为新玩法默认入口。
+
+新图仍是一种有限拓扑，种子仅产生三种平移。中途任意图搜索、中央井动态绕行、来源丰富的听觉/诱饵、跨局学习均未实现。下一验收看实际选择与回应；若仍只是等墙开，测试全绿也不宣布体验目标完成。
+
+### 补查来源（S177之后，不追记为S177已读）
+
+- [Reddit：Is a more complex AI actually more fun?](https://www.reddit.com/r/gamedesign/comments/119yejw/is_a_more_complex_ai_actually_more_fun/)：已读正文及返回的评论片段。玩家可理解的选择、复杂但只会拖延的反例；不同意见不能当统一结论，未经核实的游戏开发轶事不作事实引用。
+- [Reddit：Rain World — when unfairness becomes design](https://www.reddit.com/r/patientgamers/comments/1007dee/rain_world_when_unfairness_becomes_design/)：已读正文/评论，兼看地形周旋的赞美与堵口/重复/运动挫败的批评。这是体验样本，不是设计定律。
+- [YouTube：Design Club — Mark of the Ninja](https://www.youtube.com/watch?v=6vJNqseX-rs)：通过视频分析工具核对视觉线索与可读性；单人透明信息不能直接泄露双人伪装身份。
+- [YouTube：Crawl — Gameplay Overview](https://www.youtube.com/watch?v=yw46RL3ElYk)：视频工具分析前六分钟，关注陷阱/怪物操控与走位；不照搬多人争夺英雄和击杀换角色。
+- [AI and Games：Building the AI of F.E.A.R.](https://www.gamedeveloper.com/design/building-the-ai-of-f-e-a-r-with-goal-oriented-action-planning)：对应YouTube视频访问分析失败，只读作者正文；计划与世界执行分离、失效重规划。不能记成已看完视频。
+
+这些是定向补查，不是全网穷尽或实机竞品试玩。参考到实现的对应关系是：可读线索→同源风险，地形周旋→真实分岔，合理持守/转移→有限记忆与普通输入。Unity实战与真人感受尚待。
 
 ## 1. 结论与范围
 

@@ -10,6 +10,94 @@ using UnityEngine;
 /// <summary>Editor-side integration contracts; actual scene/playmode cycling still needs Unity execution.</summary>
 public class ExplorationIntegrationContractTests
 {
+    [TestCase(false)]
+    [TestCase(true)]
+    public void JunctionSightHonorsActualOpaqueTerrainAndDistance(bool trigger)
+    {
+        var cover = new GameObject("JunctionSightCover");
+        try
+        {
+            cover.transform.position = new Vector3(58004, 1, 0);
+            var body = cover.AddComponent<BoxCollider2D>(); body.isTrigger = trigger;
+            Physics2D.SyncTransforms();
+            Assert.AreEqual(trigger, ExplorationTrialObserver.GuidedBot.JunctionSight(new Vector2(58000, 1), new Vector2(58008, 1), null));
+            body.enabled = false; Physics2D.SyncTransforms();
+            Assert.IsTrue(ExplorationTrialObserver.GuidedBot.JunctionSight(new Vector2(58000, 1), new Vector2(58008, 1), null));
+            Assert.IsFalse(ExplorationTrialObserver.GuidedBot.JunctionSight(new Vector2(58000, 1), new Vector2(58013, 1), null));
+            Assert.IsFalse(ExplorationTrialObserver.GuidedBot.JunctionSight(new Vector2(float.NaN, 1), new Vector2(58008, 1), null));
+        }
+        finally { Object.DestroyImmediate(cover); }
+    }
+
+    [Test]
+    public void JunctionRuntimeBypassesLegacyOpponentAndNeverSetsPhysicalState()
+    {
+        Assert.IsNotNull(typeof(ExplorationTrialObserver));
+        string source = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/ExplorationTrialObserver.cs"));
+        string brain = source.Substring(source.IndexOf("private void UpdateJunctionOpponent()"));
+        brain = brain.Substring(0, brain.IndexOf("private void UpdateJunctionRunner"));
+        foreach (string forbidden in new[] { "base.UpdateTricksterBrain", "runner.Velocity", "LootObjective", "navigation.",
+            "transform.position =", ".velocity =", "ForceReveal", "Activate(", "SwitchTarget(", "Time.timeScale" })
+            StringAssert.DoesNotContain(forbidden, brain);
+        StringAssert.Contains("if (visible) contact.Observe", brain);
+        StringAssert.Contains("opponentGate.CanSwitchTarget", brain);
+        StringAssert.Contains("opponentDisguise.IsFullyBlended", brain);
+        StringAssert.Contains("junctionTransfers < 4", brain);
+        StringAssert.Contains("if (Junction != null) { UpdateJunctionOpponent(); return; }", source);
+        int human = source.IndexOf("if (HumanTrickster)\n");
+        Assert.Less(human, source.IndexOf("if (Junction != null) { UpdateJunctionOpponent(); return; }"));
+    }
+
+    [Test]
+    public void JunctionWorkshopUsesNewBuilderAndKeepsOldComparisonExplicit()
+    {
+        Assert.IsNotNull(typeof(TestConsoleWindow));
+        string source = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/TestConsoleWindow.Exploration.cs"));
+        int primary = source.IndexOf("开始双口遭遇（新图");
+        Assert.Greater(primary, 0); Assert.Less(primary, source.IndexOf("开始同图战术对照"));
+        string launch = source.Substring(primary, source.IndexOf("保留旧洞室实验", primary) - primary);
+        StringAssert.Contains("BuildJunctionDuel(duelSeed)", launch);
+        StringAssert.Contains("60, duelDraft, true, linkParent: false", launch);
+        StringAssert.Contains("不是与旧版同条件A/B", source);
+    }
+
+    [Test]
+    public void JunctionSummaryPreservesRequestsFailureAndLegacyUnknowns()
+    {
+        var room = MechanismExplorationPlan.BuildJunctionDuel(168); var r = DuelReportFixture(room);
+        var t = r.trials[0]; t.junctionEvidenceVersion = 1; t.outcome = "NoProgress";
+        t.junctionChoices.Add(new MechanismExplorationPlan.JunctionChoice { leg = "Out", from = "lower", to = "upper", source = "seen-left", at = 2, cueAge = 0 });
+        string text = StudioExplorationRunner.JunctionSummary(r, room);
+        StringAssert.Contains("NoProgress", text); StringAssert.Contains("seen-left", text); StringAssert.Contains("-1.00", text);
+        StringAssert.Contains("未记录双口决策", text); StringAssert.Contains("不是旧洞室同条件A/B", text);
+        Assert.IsEmpty(t.completedRoutes); Assert.AreEqual(-1, t.junctionChoices[0].forkReachedAt);
+        StringAssert.Contains("双口", StudioExplorationRunner.BuildSummary(r));
+        StringAssert.Contains("不自动", StudioExplorationRunner.IterationBlockReason(r, room));
+        Assert.IsEmpty(StudioExplorationRunner.JunctionSummary(r, MechanismExplorationPlan.BuildCavernDuel(168)));
+    }
+
+    [Test]
+    public void JunctionIncompleteChoiceCannotSatisfyPhysicalRouteEvidence()
+    {
+        var room = MechanismExplorationPlan.BuildJunctionDuel(168); var r = DuelReportFixture(room); var t = r.trials[0];
+        t.experience = "TunnelDuel"; t.expectsReturn = true; t.experienceEvidenceVersion = 1; t.junctionEvidenceVersion = 1;
+        t.junctionChoices.Add(new MechanismExplorationPlan.JunctionChoice { from = "lower", to = "upper", forkReachedAt = 3 });
+        Assert.IsTrue(MechanismExplorationPlan.ExperienceIssues(t, room).Any(g => g.Contains("双口去返")));
+        Assert.IsTrue(MechanismExplorationPlan.ExperienceIssues(t).Any(g => g.Contains("双口去返")), "Confirmation must see missing physical paths too");
+        t.completedRoutes.Add("Out:upper"); t.completedRoutes.Add("Return:lower");
+        Assert.IsFalse(MechanismExplorationPlan.ExperienceIssues(t, room).Any(g => g.Contains("双口去返")));
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void JunctionImportRejectsNullOrOversizedDecisionLists(bool overflow)
+    {
+        var r = DuelReportFixture(MechanismExplorationPlan.BuildJunctionDuel(168)); r.startedUtc = "2026-09-23T16:00:00Z";
+        if (overflow) for (int i = 0; i < 65; i++) r.trials[0].junctionEvents.Add("event");
+        else r.trials[0].junctionChoices.Add(null);
+        Assert.Throws<InvalidDataException>(() => StudioExplorationRunner.ValidateFeedbackReport(r));
+    }
+
     private static StudioExplorationRunner.Report DuelReportFixture(MechanismExplorationPlan.Scenario room = null)
     {
         room = room ?? MechanismExplorationPlan.BuildDuel(168);

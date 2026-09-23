@@ -53,7 +53,16 @@ public static class ExplorationSceneBuilder
             so.FindProperty("visibility").enumValueIndex = (int)PassageVisibility.HintWhenNear;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
-        if (scenario.duelVersion == 2)
+        if (scenario.duelVersion == 3)
+        {
+            AddCavernPresentation(root, scenario);
+            var lane = scenario.routes.First(r => r.id == "lower");
+            AddRouteSign(root, new Vector2((lane.minX + lane.maxX) / 2, 8), "TWO MOUTHS / ONE LOOP\nRead the warning - retreat to a fork - change approach");
+            AddRouteSign(root, new Vector2(lane.minX - 8, 6), "FORK A\nClimb: longer / Tunnel: exposed");
+            AddRouteSign(root, new Vector2(lane.maxX + 8, 6), "FORK B / LOOT >\nOld clues can expire on the way home");
+            AddRouteSign(root, new Vector2(3, 3), "< ESCAPE\nQ scan / A,D move / Space jump");
+        }
+        else if (scenario.duelVersion == 2)
         {
             var lower = scenario.routes.First(r => r.id == "lower");
             float middle = (lower.minX + lower.maxX) * 0.5f;
@@ -103,7 +112,7 @@ public static class ExplorationSceneBuilder
 
     public static void AddCavernPresentation(GameObject root, MechanismExplorationPlan.Scenario scenario)
     {
-        if (scenario.duelVersion != 2) return;
+        if (scenario.duelVersion != 2 && scenario.duelVersion != 3) return;
         foreach (var wall in root.GetComponentsInChildren<FakeWall>(true))
         { wall.ShowPublicWallCue = true; EditorUtility.SetDirty(wall); }
         var tiles = scenario.ascii.Split('\n').Reverse().ToArray();
@@ -113,7 +122,7 @@ public static class ExplorationSceneBuilder
         {
             int x = Mathf.RoundToInt(renderer.transform.position.x), y = Mathf.RoundToInt(renderer.transform.position.y);
             if (y < 0 || y >= tiles.Length || x < 0 || x >= tiles[y].Length || tiles[y][x] != '#') continue;
-            renderer.color = y >= 5 ? new Color(0.43f, 0.30f, 0.19f) : new Color(0.28f, 0.24f, 0.20f);
+            renderer.color = y >= (scenario.duelVersion == 3 ? 4 : 5) ? new Color(0.43f, 0.30f, 0.19f) : new Color(0.28f, 0.24f, 0.20f);
             if (renderer.sprite != null) soil = renderer.sprite;
         }
         if (soil == null || soil.bounds.size.x <= 0 || soil.bounds.size.y <= 0) return;
@@ -121,7 +130,7 @@ public static class ExplorationSceneBuilder
         var backdrop = new GameObject("Cavern_Backdrop_VisualOnly");
         backdrop.transform.SetParent(root.transform);
         backdrop.transform.position = new Vector3((lane.minX + lane.maxX) * 0.5f, 2.5f, 0);
-        backdrop.transform.localScale = new Vector3((lane.maxX - lane.minX + 1) / soil.bounds.size.x, 5f / soil.bounds.size.y, 1);
+        backdrop.transform.localScale = new Vector3((lane.maxX - lane.minX + 1) / soil.bounds.size.x, (scenario.duelVersion == 3 ? 3f : 5f) / soil.bounds.size.y, 1);
         var sprite = backdrop.AddComponent<SpriteRenderer>(); sprite.sprite = soil;
         sprite.color = new Color(0.10f, 0.12f, 0.15f); sprite.sortingOrder = -50;
         // Static location art only: no collider, hidden opponent markers, input or gameplay effects.

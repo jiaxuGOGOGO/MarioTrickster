@@ -203,6 +203,8 @@ public partial class TestConsoleWindow
             using (new EditorGUI.DisabledScope(StudioExplorationRunner.Active))
                 if (GUILayout.Button("导出本次完整反馈ZIP（含A/B，发给AI）", GUILayout.Height(36)))
                     DuelAction(() => EditorUtility.RevealInFinder(StudioExplorationRunner.ExportFeedbackZip()));
+            var designCard = room.duelVersion == 2 ? StudioExplorationRunner.ReviewCavernDesign(report) : null;
+            if (designCard != null) EditorGUILayout.HelpBox(designCard.Brief, MessageType.Info);
             EditorGUILayout.LabelField("下面是可选观战/试玩，会新开一局，不是提交本批反馈的必要步骤。", EditorStyles.wordWrappedMiniLabel);
             if (duelDraft == null || duelDraft.id != room.id || duelDraft.ascii != room.ascii)
                 EditorGUILayout.HelpBox("当前草稿与报告不同。下方观战/真人按钮直接用报告原图，不用先载入草稿。", MessageType.Info);
@@ -246,6 +248,12 @@ public partial class TestConsoleWindow
             duelReportDetails = EditorGUILayout.Foldout(duelReportDetails, "展开：完整性、首轮/确认明细与父子比较");
             if (duelReportDetails)
             {
+                if (designCard != null)
+                {
+                    EditorGUILayout.HelpBox(designCard.Detail, MessageType.Info);
+                    if (GUILayout.Button("打开地道战研究与实施方案"))
+                        DuelAction(() => EditorUtility.RevealInFinder(Path.GetFullPath(Path.Combine(Application.dataPath, "../docs/TUNNEL_DUEL_DESIGN_PLAN.md"))));
+                }
                 EditorGUILayout.LabelField(StudioExplorationRunner.DuelReportHighlights(report, room), EditorStyles.wordWrappedLabel);
                 if (report.scope == "WallTacticsComparison") EditorGUILayout.HelpBox(StudioExplorationRunner.WallComparisonSummary(report), MessageType.Info);
                 EditorGUILayout.HelpBox(StudioExplorationRunner.DuelFeedbackCompleteness(report), MessageType.Info);

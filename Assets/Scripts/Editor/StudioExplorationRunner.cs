@@ -303,6 +303,112 @@ public static class StudioExplorationRunner
             "批次运行时等它结束；结束或停止后点下方导出并上传给AI。失败/未完成路线也要保留，不必先重跑、观战或通关。";
     }
 
+    // S177: read-only design triage, not an agent, reward, winner or permission to mutate a map.
+    public sealed class DuelDesignCard
+    {
+        public string stage, title, evidence, oneChange, falsifier;
+        public string frozen = "冻结地图、暗线、双方策略、物理/伤害/冷却和预算；下一实验仅解除明确选定的一项。";
+        public string humanQuestion = "这一段是在做选择，还是只等放行？判断错了，能看懂如何应对吗？";
+        public string Brief => "设计复盘（只读）· " + title + "。下一处：" + oneChange;
+        public string Detail => Brief + "\n证据：" + evidence + "\n保持不变：" + frozen + "\n如何推翻本假设：" + falsifier +
+            "\n真人问题：" + humanQuestion + "\n这是排查顺序，不是因果、乐趣评分或自动机制发布。研究依据：docs/TUNNEL_DUEL_DESIGN_PLAN.md。";
+    }
+
+    private static DuelDesignCard DesignCard(string stage, string title, string evidence, string change, string falsifier) =>
+        new DuelDesignCard { stage = stage, title = title, evidence = evidence, oneChange = change, falsifier = falsifier };
+
+    private static string DesignExamples(IEnumerable<MechanismExplorationPlan.Trial> trials)
+    {
+        var records = trials.ToArray();
+        string counts = $"相关首轮{records.Count(t => t.attempt == 1)}局、确认{records.Count(t => t.attempt == 2)}局；两轮不互相补算。";
+        return counts + string.Join("；", records.Take(4).Select(t =>
+            $"{t.scenarioId}/{t.marioStrategy}/{t.tricksterStrategy}/第{t.attempt}轮：{t.outcome}，终点({t.endX:F2},{t.endY:F2})，完整路线[{string.Join(",", t.completedRoutes)}]")) +
+            (records.Length > 4 ? "；其余记录见完整明细。" : "");
+    }
+
+    public static DuelDesignCard ReviewCavernDesign(Report data)
+    {
+        var unknown = DesignCard("Evidence", "先保留执行/条件/证据缺口", "需要本批完整洞室计划、回归、唯一首轮与计划确认；不混用父版或单局。",
+            "导出已有ZIP并定位缺口，不要求重跑到通关。", "补齐或修正原始记录后重新诊断；不能补造旧字段。");
+        if (data == null || data.scenarios == null || data.trials == null || data.confirmationScenarioIds == null ||
+            data.scenarios.Count < 1 || data.scenarios.Count > 2 || data.scenarios.Any(r => r == null || r.duelVersion != 2 ||
+                string.IsNullOrEmpty(r.id) || !MechanismExplorationPlan.IsGeneratedDuelLayout(r)) ||
+            data.scenarios.Select(r => r.id).Distinct().Count() != data.scenarios.Count ||
+            data.trials.Any(t => t == null || t.errors == null || t.completedRoutes == null) ||
+            data.regressions != "Passed" || data.regressionPassed <= 0 || data.regressionFailed != 0 ||
+            string.IsNullOrEmpty(data.sourceFingerprint) || string.IsNullOrEmpty(data.unityVersion) ||
+            string.IsNullOrEmpty(data.physicsConfigJson) || string.IsNullOrEmpty(data.gameplayConfigJson) ||
+            !MechanismExplorationPlan.IsFinite(data.fixedDeltaTime) || data.fixedDeltaTime <= 0 ||
+            !MechanismExplorationPlan.IsFinite(data.trialLimitSeconds) || data.trialLimitSeconds <= 0 ||
+            data.confirmationScenarioIds.Distinct().Count() != data.confirmationScenarioIds.Count ||
+            data.confirmationScenarioIds.Any(id => !data.scenarios.Any(r => r.id == id)) ||
+            data.scenarios.Any(r => !DuelReportReadyForReview(data, r))) return unknown;
+        if (data.scope == "WallTacticsComparison")
+        {
+            if (data.scenarios.Count != 2 || data.scenarios.Count(r => r.wallTacticsVersion == 0) != 1 ||
+                data.scenarios.Count(r => r.wallTacticsVersion == 1) != 1 || data.scenarios.Any(r => r.duelVariant != 0 || r.iteration != 0) ||
+                data.scenarios[0].seed != data.scenarios[1].seed || data.scenarios[0].ascii != data.scenarios[1].ascii) return unknown;
+        }
+        else if (data.scenarios.Count != 1) return unknown;
+        var runs = data.trials.ToArray();
+        if (runs.Select(t => t.navigationPolicy ?? "").Distinct().Count() != 1 || runs.Any(t =>
+            !t.HasGameplayEvidence || t.attempt < 1 || t.attempt > 2 || t.cavernEvidenceVersion < 1 ||
+            t.healthEvidenceVersion < 1 || t.runnerHealthLost < 0 || t.runnerDamageEvents < 0 ||
+            t.startTimingEvidenceVersion < 1 || !MechanismExplorationPlan.IndependentStartObserved(t) ||
+            !MechanismExplorationPlan.PassiveControlClean(t) || t.controlAccepted < 0 || t.postLootControls < 0 || t.postLootControls > t.controlAccepted ||
+            t.scanEvidenceVersion < 1 || t.scanHits < 0 || t.scanMisses < 0 || t.scans < t.scanHits + t.scanMisses ||
+            t.telegraphRetreats < 0 || t.returnDetourRequests < 0 || t.returnDetourRequests > 1 ||
+            (t.returnDetourRequests > 0 && (!t.outboundThreatRemembered || t.marioStrategy != "Adaptive")) ||
+            !MechanismExplorationPlan.IsFinite(t.endX) || !MechanismExplorationPlan.IsFinite(t.endY) ||
+            !MechanismExplorationPlan.IsFinite(t.undergroundSeconds) || t.undergroundSeconds < 0 ||
+            !MechanismExplorationPlan.IsFinite(t.surfaceSeconds) || t.surfaceSeconds < 0 ||
+            MechanismExplorationPlan.WallEvidenceIssues(t).Length > 0 ||
+            t.wallPolicy != (data.scenarios.Single(r => r.id == t.scenarioId).wallTacticsVersion == 1 && t.marioStrategy == "Adaptive"
+                ? "VisibleWallWindowV1" : "ObserveOnly"))) return unknown;
+        Func<MechanismExplorationPlan.Trial, bool> routeGap = t => t.outcome != "Cleared" ||
+            t.lootEvents < 1 || t.escapeEvents < 1 || !ValidReturnTimes(t) || MechanismExplorationPlan.CavernRouteIssues(t).Length > 0;
+        var passiveFailures = runs.Where(t => t.tricksterStrategy == "Passive" && routeGap(t)).ToArray();
+        if (passiveFailures.Length > 0)
+            return DesignCard("Navigation", "无干扰时计划路线已不完整", DesignExamples(passiveFailures),
+                "先查一个基础通路/普通输入问题，不加陷阱或战略行为。", "若普通输入能稳定完成原路且只在主动对手下失败，应转查受压决策；目前不证明物理无解。");
+        var contestedFailures = runs.Where(t => t.tricksterStrategy != "Passive" && t.outcome != "RunnerStopped" && routeGap(t)).ToArray();
+        if (contestedFailures.Length > 0)
+            return DesignCard("ContestedRoute", "受压时停滞、超时或偏离计划路线", DesignExamples(contestedFailures),
+                "只核对一次受压导航/等待中断，不改伤害和地图。", "若失败来自可读、可反制的合法交手，应按战术代价分析，不能所有失败都叫寻路bug。");
+        var defeats = runs.Where(t => t.outcome == "RunnerStopped").ToArray();
+        if (defeats.Length > 0)
+            return DesignCard("Counterplay", "有真实失败，先看反制是否可执行", DesignExamples(defeats),
+                "对照同局预警、普通输入和损血时序，只核对一个反制窗口。", "死亡本身不是坏图证据；若玩家读懂且有合法回应，不为提高通关率削弱对手。");
+        var activeLower = runs.Where(t => t.marioStrategy == "Adaptive" && t.tricksterStrategy != "Passive").ToArray();
+        var unsampled = activeLower.Where(t => t.wallEpisodes.Count == 0 || t.wallEpisodes.Count == 16).ToArray();
+        if (unsampled.Length > 0)
+            return DesignCard("Observation", "地下局部机会未采到或记录达上限", DesignExamples(unsampled),
+                "先核对一次视线/接近/采样范围，不直接堆机关。", "实际安全绕行可能合理；没采到不等于世界没有机会，16条也不等于完整覆盖。");
+        var noResponse = activeLower.Where(t => t.wallPolicy == "VisibleWallWindowV1" && !t.wallEpisodes.Any(e => e.inputFrames > 0)).ToArray();
+        if (noResponse.Length > 0)
+            return DesignCard("Response", "有局部线索但新策略未接管", DesignExamples(noResponse),
+                "只查落地、支撑、原反应或方向否决原因，不强迫出手。", "保持原策略可能是正确选择；不以新增按键数或等待次数作为成功。");
+        var unfinished = activeLower.Where(t => t.wallEpisodes.Any(e => e.inputFrames > 0 && e.outcome != "CrossedAfterReopen")).ToArray();
+        if (unfinished.Length > 0)
+            return DesignCard("Execution", "有窗口输入但遭遇未完成", DesignExamples(unfinished),
+                "只核对同源重开、失去线索、预算与实际位置，不延长预算制造成功。", "请求后退避可能合理；重开后穿越也不证明诱骗、避免损伤或因果优势。");
+        var memoryGap = activeLower.Where(t => t.postLootControls == 0 && !t.outboundThreatRemembered &&
+            t.wallEpisodes.Any(e => e.leg == "Out" && (e.sawWarning || e.sawSolid)) && (t.scanHits > 0 || t.telegraphRetreats > 0)).ToArray();
+        if (memoryGap.Length > 0)
+            return DesignCard("ReturnMemory", "返程为空且去程线索与记忆需核对", DesignExamples(memoryGap),
+                "只补核对线索来源、时刻和入口位置，再决定是否改记忆。", "扫描bool不证明命中该墙；可能是不同源/不同时间，不读取隐藏位置反推，也不强制返程换路。");
+        var quietReturn = activeLower.Where(t => t.postLootControls == 0).ToArray();
+        if (quietReturn.Length > 0)
+            return DesignCard("ReturnPressure", "地下返程仍未观察到出手", DesignExamples(quietReturn),
+                "先复盘返程接近与准备时序，只提出一个出口或决策变量。", "无交手可能是成功避敌；真人觉得有取舍时不强迫对手增加动作。");
+        bool notes = (data.playerNotes ?? new List<string>()).Any(n => !string.IsNullOrWhiteSpace(n)) ||
+            runs.Any(t => (t.feedback ?? new List<string>()).Any(n => !string.IsNullOrWhiteSpace(n)));
+        return DesignCard(notes ? "HumanFollowup" : "HumanReview", notes ? "已有备注，仍需具体体验反证" : "动作记录具备，尚无真人判断",
+            DesignExamples(activeLower) + "操控受理/实际穿越不是丰富博弈或因果优势。",
+            notes ? "从备注选一个可验证缺口，不自动生成或批准新机制。" : "保持原图，任选一方体验并回答一个取舍问题。",
+            "动作多、双方能通关或一句好评都可能仍然只是等冷却；没有自动乐趣通过或策略赢家。");
+    }
+
     public static string DuelNextAction(Report data, MechanismExplorationPlan.Scenario room)
     {
         if (data == null || room == null) return "先生成一张图，再运行完整6组对照。";
@@ -994,7 +1100,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S176", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S177", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
             planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = compareWallTactics ? "WallTacticsComparison" : replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,
@@ -1303,6 +1409,7 @@ public static class StudioExplorationRunner
         if (TestTrack(data) == "机制回归") sb.AppendLine("本批没有运行三类体验房/九种独立策略。路线区域字段为空不代表路线观察失败；请另运行体验探索。");
         sb.AppendLine($"控制方式: {data.controlMode ?? "Automated (legacy)"}; 源码SHA256: {data.sourceFingerprint ?? "未记录"}; 计划指纹: {data.planFingerprint ?? "未记录"}");
         sb.AppendLine("父报告: " + (data.parentReport ?? "无"));
+        if (data.scenarios.Any(s => s.duelVersion == 2)) sb.AppendLine("S177只读设计复盘（不重标旧报告）：\n" + ReviewCavernDesign(data).Detail);
         if (!string.IsNullOrEmpty(data.iterationComparison)) sb.AppendLine(data.iterationComparison);
         foreach (var room in data.scenarios.Where(s => s.duelVersion >= 1))
         {

@@ -29,6 +29,176 @@ public class ExplorationIntegrationContractTests
         return report;
     }
 
+    private static StudioExplorationRunner.Report DesignReviewFixture()
+    {
+        var r = WallComparisonFixture(); r.regressions = "Passed";
+        foreach (var t in r.trials)
+        {
+            t.scanEvidenceVersion = 1;
+            if (t.tricksterStrategy == "Passive") continue;
+            t.controlAccepted = 2; t.postLootControls = 1;
+            if (t.marioStrategy != "Adaptive") continue;
+            bool treatment = t.wallPolicy == "VisibleWallWindowV1";
+            t.wallEpisodes.Add(new MechanismExplorationPlan.WallEpisode {
+                source = "visible-F", leg = "Out", beganAt = 2, endedAt = 5, crossedAt = 4,
+                sawWarning = true, sawSolid = true, sawReopen = true, outcome = "CrossedAfterReopen",
+                inputAt = treatment ? 2.5f : -1f, inputFrames = treatment ? 20 : 0 });
+        }
+        return r;
+    }
+
+    private static void AddDesignConfirmations(StudioExplorationRunner.Report r)
+    {
+        r.confirmationScenarioIds.AddRange(r.scenarios.Select(s => s.id));
+        foreach (var t in DesignReviewFixture().trials) { t.attempt = 2; r.trials.Add(t); }
+    }
+
+    [TestCase("Navigation")]
+    [TestCase("ContestedRoute")]
+    [TestCase("Counterplay")]
+    [TestCase("Observation")]
+    [TestCase("Response")]
+    [TestCase("Execution")]
+    [TestCase("ReturnMemory")]
+    [TestCase("ReturnPressure")]
+    [TestCase("HumanReview")]
+    [TestCase("HumanFollowup")]
+    public void ResearchReviewChoosesOneFalsifiableExperimentWithoutClaimingFun(string stage)
+    {
+        var r = DesignReviewFixture(); var t = r.trials[8];
+        if (stage == "Navigation") r.trials[3].completedRoutes.Clear();
+        if (stage == "ContestedRoute") { t.outcome = "TimedOut"; t.completedRoutes.Clear(); }
+        if (stage == "Counterplay") { t.outcome = "RunnerStopped"; t.runnerDamageEvents = t.runnerHealthLost = 1; t.completedRoutes.Clear(); }
+        if (stage == "Observation") t.wallEpisodes.Clear();
+        if (stage == "Response") { t.wallEpisodes[0].inputFrames = 0; t.wallEpisodes[0].inputAt = -1; }
+        if (stage == "Execution") { t.wallEpisodes[0].outcome = "LostCue"; t.wallEpisodes[0].crossedAt = -1; }
+        if (stage == "ReturnMemory") { t.postLootControls = 0; t.scanHits = t.scans = 1; }
+        if (stage == "ReturnPressure") t.postLootControls = 0;
+        if (stage == "HumanFollowup") r.playerNotes.Add("好像只是在等墙打开，需要验证");
+        string outcome = t.outcome; int count = r.trials.Count, episodes = t.wallEpisodes.Count;
+        var card = StudioExplorationRunner.ReviewCavernDesign(r);
+        Assert.AreEqual(stage, card.stage); Assert.IsNotEmpty(card.oneChange); Assert.IsNotEmpty(card.falsifier);
+        StringAssert.Contains("只读", card.Brief); StringAssert.Contains("不是因果、乐趣评分", card.Detail);
+        StringAssert.Contains("冻结", card.frozen); StringAssert.Contains("判断错了", card.humanQuestion);
+        Assert.AreEqual(outcome, t.outcome); Assert.AreEqual(count, r.trials.Count); Assert.AreEqual(episodes, t.wallEpisodes.Count);
+    }
+
+    [TestCase("missingFirst")]
+    [TestCase("duplicateFirst")]
+    [TestCase("missingConfirmation")]
+    [TestCase("regressionSkipped")]
+    [TestCase("regressionFailed")]
+    [TestCase("human")]
+    [TestCase("sourceUnknown")]
+    [TestCase("changedMap")]
+    [TestCase("samePolicy")]
+    [TestCase("mixedNavigation")]
+    [TestCase("wrongPolicy")]
+    [TestCase("oldCue")]
+    [TestCase("falseCross")]
+    [TestCase("passiveContaminated")]
+    [TestCase("unequalStart")]
+    [TestCase("negativeCounter")]
+    [TestCase("nanPosition")]
+    [TestCase("nullTrial")]
+    [TestCase("unknownConfirmation")]
+    [TestCase("invalidBudget")]
+    public void ResearchReviewRefusesMissingMixedOrContradictoryEvidence(string fault)
+    {
+        var r = DesignReviewFixture(); var t = r.trials[8];
+        if (fault == "missingFirst") r.trials.RemoveAt(0);
+        if (fault == "duplicateFirst") r.trials[1] = r.trials[0];
+        if (fault == "missingConfirmation") r.confirmationScenarioIds.Add(r.scenarios[0].id);
+        if (fault == "regressionSkipped") r.regressions = "Not requested";
+        if (fault == "regressionFailed") r.regressionFailed = 1;
+        if (fault == "human") r.controlMode = "HumanMario";
+        if (fault == "sourceUnknown") r.sourceFingerprint = "";
+        if (fault == "changedMap") r.scenarios[1].ascii += " ";
+        if (fault == "samePolicy") r.scenarios[1].wallTacticsVersion = 0;
+        if (fault == "mixedNavigation") t.navigationPolicy = "different-policy";
+        if (fault == "wrongPolicy") t.wallPolicy = "ObserveOnly";
+        if (fault == "oldCue") t.wallEvidenceVersion = 0;
+        if (fault == "falseCross") t.wallEpisodes[0].sawSolid = false;
+        if (fault == "passiveContaminated") r.trials[0].controlAccepted = 1;
+        if (fault == "unequalStart") t.opponentWaitDecisionFrames = 0;
+        if (fault == "negativeCounter") t.postLootControls = -1;
+        if (fault == "nanPosition") t.endX = float.NaN;
+        if (fault == "nullTrial") r.trials[0] = null;
+        if (fault == "unknownConfirmation") r.confirmationScenarioIds.Add("foreign-room");
+        if (fault == "invalidBudget") r.trialLimitSeconds = float.PositiveInfinity;
+        Assert.AreEqual("Evidence", StudioExplorationRunner.ReviewCavernDesign(r).stage);
+    }
+
+    [Test]
+    public void ResearchReviewChecksBothPoliciesAndDoesNotHidePassiveConfirmationFailure()
+    {
+        var r = DesignReviewFixture(); AddDesignConfirmations(r);
+        var failed = r.trials.Single(t => t.scenarioId == r.scenarios[1].id && t.marioStrategy == "SafeRoute" && t.tricksterStrategy == "Passive" && t.attempt == 2);
+        failed.completedRoutes.Clear(); failed.completedRoutes.Add("Return:lower"); failed.outcome = "Cleared";
+        r.trials[8].wallEpisodes.Clear(); // A later-stage missing cue must not hide the baseline navigation issue.
+        var card = StudioExplorationRunner.ReviewCavernDesign(r);
+        Assert.AreEqual("Navigation", card.stage);
+        StringAssert.Contains("相关首轮0局、确认1局", card.evidence);
+        StringAssert.Contains(r.scenarios[1].id, card.evidence); StringAssert.Contains("Return:lower", card.evidence);
+        Assert.AreEqual("Cleared", failed.outcome, "Do not rewrite the actual win into a loss");
+    }
+
+    [Test]
+    public void ResearchReviewDoesNotAttributeScanBoolToTheWallOrRequireMoreFights()
+    {
+        var r = DesignReviewFixture(); var t = r.trials[8]; t.postLootControls = 0; t.scanHits = t.scans = 1;
+        var card = StudioExplorationRunner.ReviewCavernDesign(r);
+        Assert.AreEqual("ReturnMemory", card.stage); StringAssert.Contains("扫描bool不证明命中该墙", card.falsifier);
+        t.outboundThreatRemembered = true;
+        card = StudioExplorationRunner.ReviewCavernDesign(r);
+        Assert.AreEqual("ReturnPressure", card.stage); StringAssert.Contains("不强迫", card.falsifier);
+        t.postLootControls = 1; t.controlAccepted = 200;
+        Assert.AreEqual("HumanReview", StudioExplorationRunner.ReviewCavernDesign(r).stage, "More buttons do not certify fun");
+    }
+
+    [Test]
+    public void ResearchReviewTreatsSaturatedObservationAsUnknownNotComplete()
+    {
+        var r = DesignReviewFixture(); var t = r.trials[8]; t.wallEpisodes.Clear();
+        for (int i = 0; i < 16; i++) t.wallEpisodes.Add(new MechanismExplorationPlan.WallEpisode {
+            source = "F" + i, leg = "Out", beganAt = 1, endedAt = 2, outcome = "LostCue" });
+        Assert.AreEqual("Observation", StudioExplorationRunner.ReviewCavernDesign(r).stage);
+        StringAssert.Contains("16条也不等于完整覆盖", StudioExplorationRunner.ReviewCavernDesign(r).falsifier);
+    }
+
+    [Test]
+    public void ResearchReviewReturnsEvidenceForUnsupportedOrNullReports()
+    {
+        Assert.AreEqual("Evidence", StudioExplorationRunner.ReviewCavernDesign(null).stage);
+        Assert.AreEqual("Evidence", StudioExplorationRunner.ReviewCavernDesign(DuelReportFixture()).stage);
+        var r = DesignReviewFixture(); r.scenarios = null;
+        Assert.AreEqual("Evidence", StudioExplorationRunner.ReviewCavernDesign(r).stage);
+    }
+
+    [Test]
+    public void ResearchReviewBoundsExamplesAndKeepsWhitespaceNotesUnknown()
+    {
+        var r = DesignReviewFixture(); AddDesignConfirmations(r); r.playerNotes.Add("  ");
+        var card = StudioExplorationRunner.ReviewCavernDesign(r);
+        Assert.AreEqual("HumanReview", card.stage); StringAssert.Contains("相关首轮4局、确认4局", card.evidence);
+        Assert.AreEqual(4, card.evidence.Split(new[] { "完整路线[" }, System.StringSplitOptions.None).Length - 1);
+        StringAssert.Contains("其余记录见完整明细", card.evidence);
+        r.trials[0].feedback.Add("需要看捣蛋者视角");
+        Assert.AreEqual("HumanFollowup", StudioExplorationRunner.ReviewCavernDesign(r).stage);
+    }
+
+    [Test]
+    public void ResearchReviewIsIncludedInSummaryWithoutMutatingReportFields()
+    {
+        var r = DesignReviewFixture(); r.toolRevision = "S175"; r.verdict = "original-verdict";
+        string plan = r.scenarios[0].ascii;
+        string summary = StudioExplorationRunner.BuildSummary(r);
+        StringAssert.Contains("S177只读设计复盘（不重标旧报告）", summary);
+        StringAssert.Contains("如何推翻本假设", summary);
+        Assert.AreEqual("S175", r.toolRevision); Assert.AreEqual("original-verdict", r.verdict);
+        Assert.AreEqual(plan, r.scenarios[0].ascii); Assert.AreEqual(12, r.trials.Count);
+    }
+
     [TestCase(1f)]
     [TestCase(-1f)]
     public void SolidStepExitRequiresRealStaticSupportLandingAndClearance(float direction)
@@ -76,6 +246,8 @@ public class ExplorationIntegrationContractTests
         Assert.Less(export, source.IndexOf("可选：看地下去程与返程选择"));
         Assert.Less(export, source.IndexOf("StudioExplorationRunner.DuelReportHighlights"));
         Assert.Less(source.IndexOf("if (duelReportDetails)"), source.IndexOf("StudioExplorationRunner.DuelReportHighlights"));
+        Assert.Less(export, source.IndexOf("designCard.Brief"));
+        Assert.Less(source.IndexOf("if (duelReportDetails)"), source.IndexOf("designCard.Detail"));
         StringAssert.DoesNotContain("下一步：看地下去程与返程选择", source);
     }
 

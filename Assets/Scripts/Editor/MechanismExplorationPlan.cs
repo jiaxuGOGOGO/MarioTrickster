@@ -117,6 +117,7 @@ public static class MechanismExplorationPlan
         public string designQuestion;
         // Separate creative grammar; legacy TunnelDuel reports keep their saved layouts unchanged.
         public int duelVersion, duelVariant, iteration;
+        public int junctionProbeVersion; // Zero preserves S178; one opts into visible-mouth probing.
         public int wallTacticsVersion; // Opt-in policy; zero preserves S174 and older replay behavior.
         public string parentScenarioId, mutationReason;
         public TunnelLink[] tunnelLinks = Array.Empty<TunnelLink>();
@@ -413,6 +414,64 @@ public static class MechanismExplorationPlan
             visited.Add(returning + ":" + RouteId + ":" + cursor); cursor++;
             string key = (home ? "Return:" : "Out:") + RouteId;
             if (Target == null && !CompletedRoutes.Contains(key)) CompletedRoutes.Add(key);
+        }
+    }
+
+    public enum MouthProbeAction { None, Approach, Watch, Retreat }
+    [Serializable]
+    public sealed class MouthProbeEpisode
+    {
+        public string source, leg, outcome;
+        public float beganAt, endedAt = -1f, closestDistance, retreatDistance;
+        public bool sawWarning, sawSolid;
+        public int inputFrames;
+    }
+    // A costly information attempt, not a successful feint. At most once per leg, 2.4 seconds each.
+    public sealed class MouthProbe
+    {
+        public readonly List<MouthProbeEpisode> Episodes = new List<MouthProbeEpisode>();
+        public MouthProbeEpisode Current { get; private set; }
+        private readonly HashSet<string> attemptedLegs = new HashSet<string>();
+        private MouthProbeAction phase;
+        private float watchAt;
+        public MouthProbeAction Tick(string source, string leg, float now, float distance,
+            bool eligible, bool visible, bool grounded, bool safe, bool warning, bool solid)
+        {
+            if (!IsFinite(now) || now < 0 || !IsFinite(distance)) { End("InvalidObservation", IsFinite(now) ? now : 0); return MouthProbeAction.None; }
+            if (Current != null)
+            {
+                if (leg != Current.leg) { End("LegChanged", now); return MouthProbeAction.None; }
+                if (!visible || source != Current.source) { End("LostSource", now); return MouthProbeAction.None; }
+                if (!eligible || !grounded || !safe || distance <= 1.2f) { End("YieldToNavigationOrSafety", now); return MouthProbeAction.None; }
+                Current.closestDistance = Math.Min(Current.closestDistance, distance);
+                Current.sawWarning |= warning; Current.sawSolid |= solid;
+                if (now - Current.beganAt >= 2.4f) { End("BudgetExpired", now); return MouthProbeAction.None; }
+            }
+            else
+            {
+                if (!eligible || !visible || !grounded || !safe || warning || solid || distance < 4f || distance > 6f ||
+                    string.IsNullOrEmpty(source) || (leg != "Out" && leg != "Return") || attemptedLegs.Contains(leg)) return MouthProbeAction.None;
+                attemptedLegs.Add(leg);
+                Current = new MouthProbeEpisode { source = source, leg = leg, beganAt = now, closestDistance = distance };
+                Episodes.Add(Current); phase = MouthProbeAction.Approach;
+            }
+            if (warning || solid) phase = MouthProbeAction.Retreat;
+            if (phase == MouthProbeAction.Approach && distance <= 3.2f)
+            { phase = MouthProbeAction.Watch; watchAt = now; }
+            if (phase == MouthProbeAction.Watch && now - watchAt >= 0.35f) phase = MouthProbeAction.Retreat;
+            if (phase == MouthProbeAction.Retreat)
+            {
+                Current.retreatDistance = Math.Max(Current.retreatDistance, distance - Current.closestDistance);
+                if (distance >= 5f)
+                { End(Current.sawWarning || Current.sawSolid ? "ObservedResponseThenBackedOff" : "NoResponseThenBackedOff", now); return MouthProbeAction.None; }
+            }
+            return phase;
+        }
+        public void RecordInput() { if (Current != null) Current.inputFrames++; }
+        public void End(string outcome, float now)
+        {
+            if (Current == null) return;
+            Current.outcome = outcome; Current.endedAt = Math.Max(Current.beganAt, IsFinite(now) ? now : Current.beganAt); Current = null;
         }
     }
 
@@ -887,6 +946,15 @@ public static class MechanismExplorationPlan
         };
     }
 
+    public static List<Scenario> BuildJunctionProbeComparison(int seed)
+    {
+        var baseline = BuildJunctionDuel(seed); var probing = BuildJunctionDuel(seed);
+        baseline.id += "_observe"; probing.id += "_probe1"; probing.junctionProbeVersion = 1;
+        baseline.designQuestion = "同图A：S178选路，不主动试探；双方共享可见入口标记。";
+        probing.designQuestion = "同图B：只让Adaptive主动接近/观察/退让；对手可忍住，未回应不算安全。";
+        return new List<Scenario> { baseline, probing };
+    }
+
     public static List<Scenario> BuildWallTacticsComparison(int seed)
     {
         var baseline = BuildCavernDuel(seed); var treatment = BuildCavernDuel(seed);
@@ -943,7 +1011,8 @@ public static class MechanismExplorationPlan
         if (room.duelVersion == 3 && (room.duelVariant != 0 || room.iteration != 0)) return false;
         var canonical = room.duelVersion == 3 ? BuildJunctionDuel(room.seed) : room.duelVersion == 2 ? BuildCavernDuel(room.seed, room.duelVariant) : BuildDuel(room.seed, room.duelVariant);
         Func<Point, Point, bool> samePoint = (a, b) => a != null && b != null && a.x == b.x && a.y == b.y;
-        return room.wallTacticsVersion >= 0 && room.wallTacticsVersion <= 1 && (room.duelVersion == 2 || room.wallTacticsVersion == 0) &&
+        return room.junctionProbeVersion >= 0 && room.junctionProbeVersion <= 1 && (room.duelVersion == 3 || room.junctionProbeVersion == 0) &&
+            room.wallTacticsVersion >= 0 && room.wallTacticsVersion <= 1 && (room.duelVersion == 2 || room.wallTacticsVersion == 0) &&
             room.ascii == canonical.ascii && room.lootEscape && room.startDelaySeconds == canonical.startDelaySeconds &&
             room.mechanisms == canonical.mechanisms && room.tunnelVersion == canonical.tunnelVersion && room.counterplayVersion == 0 &&
             room.routes != null && room.routes.Length == canonical.routes.Length &&
@@ -1308,6 +1377,9 @@ public static class MechanismExplorationPlan
         public List<string> routesUsed = new List<string>();
         public int routeSwitchRequests, routeTransitions, waypointsReached, recoveryAttempts;
         public int stairRecoveryEvidenceVersion, stairRecoveryRequests;
+        public int mouthProbeEvidenceVersion;
+        public string mouthProbePolicy;
+        public List<MouthProbeEpisode> mouthProbeEpisodes = new List<MouthProbeEpisode>();
         public int junctionEvidenceVersion;
         public List<JunctionChoice> junctionChoices = new List<JunctionChoice>();
         public List<string> junctionEvents = new List<string>();

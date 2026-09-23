@@ -4,6 +4,67 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [Test]
+    public void MouthProbeComparisonOnlyOptsInRunnerPolicyOnSameCanonicalMap()
+    {
+        var pair = MechanismExplorationPlan.BuildJunctionProbeComparison(168);
+        Assert.AreEqual(2, pair.Count); Assert.AreEqual(pair[0].ascii, pair[1].ascii);
+        Assert.AreEqual(0, pair[0].junctionProbeVersion); Assert.AreEqual(1, pair[1].junctionProbeVersion);
+        Assert.AreEqual(0, MechanismExplorationPlan.BuildJunctionDuel(168).junctionProbeVersion);
+        Assert.AreEqual(12, MechanismExplorationPlan.TrialCount(pair));
+        Assert.IsTrue(pair.All(MechanismExplorationPlan.IsGeneratedDuelLayout));
+        var old = MechanismExplorationPlan.BuildCavernDuel(168); old.junctionProbeVersion = 1;
+        Assert.IsFalse(MechanismExplorationPlan.IsGeneratedDuelLayout(old));
+    }
+
+    [Test]
+    public void MouthProbeSeparatesNoResponseFromSafetyAndCannotRepeatSameLeg()
+    {
+        var p = new MechanismExplorationPlan.MouthProbe();
+        Assert.AreEqual(MechanismExplorationPlan.MouthProbeAction.Approach, p.Tick("mouth", "Out", 0, 5, true, true, true, true, false, false));
+        p.RecordInput(); Assert.AreEqual(MechanismExplorationPlan.MouthProbeAction.Watch, p.Tick("mouth", "Out", .7f, 3.1f, true, true, true, true, false, false));
+        Assert.AreEqual(MechanismExplorationPlan.MouthProbeAction.Retreat, p.Tick("mouth", "Out", 1.1f, 3.1f, true, true, true, true, false, false));
+        p.RecordInput(); p.Tick("mouth", "Out", 1.5f, 5.1f, true, true, true, true, false, false);
+        Assert.IsNull(p.Current); Assert.AreEqual("NoResponseThenBackedOff", p.Episodes[0].outcome);
+        Assert.AreEqual(2, p.Episodes[0].inputFrames); Assert.AreEqual(2f, p.Episodes[0].retreatDistance, .01f);
+        Assert.AreEqual(MechanismExplorationPlan.MouthProbeAction.None, p.Tick("another", "Out", 2, 5, true, true, true, true, false, false));
+        Assert.AreEqual(MechanismExplorationPlan.MouthProbeAction.Approach, p.Tick("mouth", "Return", 3, 5, true, true, true, true, false, false));
+        Assert.AreEqual(2, p.Episodes.Count);
+    }
+
+    [TestCase(true, false)]
+    [TestCase(false, true)]
+    public void MouthProbeObservedResponseRequestsRetreatButDoesNotClaimBaitSuccess(bool warning, bool solid)
+    {
+        var p = new MechanismExplorationPlan.MouthProbe();
+        p.Tick("mouth", "Out", 0, 5, true, true, true, true, false, false);
+        Assert.AreEqual(MechanismExplorationPlan.MouthProbeAction.Retreat, p.Tick("mouth", "Out", .4f, 3, true, true, true, true, warning, solid));
+        Assert.IsNull(p.Current.outcome); Assert.AreEqual(0, p.Current.inputFrames);
+        p.Tick("mouth", "Out", .8f, 5, true, true, true, true, false, false);
+        Assert.AreEqual("ObservedResponseThenBackedOff", p.Episodes[0].outcome);
+        Assert.AreEqual(warning, p.Episodes[0].sawWarning); Assert.AreEqual(solid, p.Episodes[0].sawSolid);
+    }
+
+    [TestCase(0)] [TestCase(1)] [TestCase(2)] [TestCase(3)] [TestCase(4)] [TestCase(5)]
+    public void MouthProbeRejectsInvalidUnseenOrUnsafeStarts(int invalid)
+    {
+        var p = new MechanismExplorationPlan.MouthProbe();
+        p.Tick("mouth", "Out", 0, invalid == 4 ? float.NaN : invalid == 5 ? 2 : 5,
+            invalid != 0, invalid != 1, invalid != 2, invalid != 3, false, false);
+        Assert.IsEmpty(p.Episodes); Assert.IsNull(p.Current);
+    }
+
+    [TestCase("LostSource")] [TestCase("LegChanged")] [TestCase("BudgetExpired")] [TestCase("YieldToNavigationOrSafety")]
+    public void MouthProbeYieldsWithoutExtendingBudgetOrInventingRetreat(string why)
+    {
+        var p = new MechanismExplorationPlan.MouthProbe();
+        p.Tick("mouth", "Out", 0, 5, true, true, true, true, false, false);
+        p.Tick(why == "LostSource" ? "other" : "mouth", why == "LegChanged" ? "Return" : "Out",
+            why == "BudgetExpired" ? 2.4f : .2f, 4, true, true, true, why != "YieldToNavigationOrSafety", false, false);
+        Assert.IsNull(p.Current); Assert.AreEqual(why, p.Episodes[0].outcome);
+        Assert.AreEqual(0, p.Episodes[0].retreatDistance); Assert.AreEqual(0, p.Episodes[0].inputFrames);
+    }
+
     [TestCase(168)]
     [TestCase(-1)]
     [TestCase(int.MinValue)]

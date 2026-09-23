@@ -199,6 +199,11 @@ public partial class TestConsoleWindow
             EditorGUILayout.LabelField($"报告：{report.toolRevision} / {DuelStatusLabel(report.controlMode)} / {DuelStatusLabel(report.status)}；回归 {report.regressionPassed} 通过 / {report.regressionFailed} 失败", EditorStyles.wordWrappedMiniLabel);
             if (StudioExplorationRunner.ImportedReadOnly)
                 EditorGUILayout.LabelField("以上是历史记录状态，不代表当前正在运行；导入不会继续旧测试。", EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.HelpBox(StudioExplorationRunner.DuelFeedbackHandoff(report), MessageType.Info);
+            using (new EditorGUI.DisabledScope(StudioExplorationRunner.Active))
+                if (GUILayout.Button("导出本次完整反馈ZIP（含A/B，发给AI）", GUILayout.Height(36)))
+                    DuelAction(() => EditorUtility.RevealInFinder(StudioExplorationRunner.ExportFeedbackZip()));
+            EditorGUILayout.LabelField("下面是可选观战/试玩，会新开一局，不是提交本批反馈的必要步骤。", EditorStyles.wordWrappedMiniLabel);
             if (duelDraft == null || duelDraft.id != room.id || duelDraft.ascii != room.ascii)
                 EditorGUILayout.HelpBox("当前草稿与报告不同。下方观战/真人按钮直接用报告原图，不用先载入草稿。", MessageType.Info);
             if (report.scope == "WallTacticsComparison")
@@ -208,12 +213,12 @@ public partial class TestConsoleWindow
             EditorGUILayout.LabelField("下列按钮直接用这份报告原图，不用载入草稿，也不重新生成；按当前代码重跑，不是录像。", EditorStyles.wordWrappedMiniLabel);
             using (new EditorGUI.DisabledScope(unavailable))
             {
-                if (GUILayout.Button(room.duelVersion == 2 ? "下一步：看地下去程与返程选择" : "下一步：看报告原图地表对战", GUILayout.Height(36)))
+                if (GUILayout.Button(room.duelVersion == 2 ? "可选：看地下去程与返程选择（新开演示）" : "可选：看报告原图地表对战（新开演示）", GUILayout.Height(36)))
                     DuelAction(() => StartReportedDuel(room, room.duelVersion == 2 ? "Adaptive" : "SafeRoute"));
                 if (GUILayout.Button("亲自玩报告原图（我当闯关者，自由选路）", GUILayout.Height(30)))
                     DuelAction(() => StartReportedDuel(room, "SafeRoute", "HumanMario"));
                 EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button(room.duelVersion == 2 ? "看地表固定路线对照" : "看原图下层对战"))
+                if (GUILayout.Button(room.duelVersion == 2 ? "看地表计划路线（可能回退）" : "看原图下层对战"))
                     DuelAction(() => StartReportedDuel(room, room.duelVersion == 2 ? "SafeRoute" : "Adaptive"));
                 if (GUILayout.Button("我当捣蛋者，对抗地表AI")) DuelAction(() => StartReportedDuel(room, "SafeRoute", "HumanTrickster"));
                 EditorGUILayout.EndHorizontal();
@@ -230,9 +235,6 @@ public partial class TestConsoleWindow
                         DuelAction(() => StudioExplorationRunner.StartDuelIteration(room, 60, explorationRegressions));
             }
             else EditorGUILayout.LabelField("已到变体2/2：保留这张图试玩复盘，不追加第3次。", EditorStyles.wordWrappedMiniLabel);
-            EditorGUILayout.LabelField(StudioExplorationRunner.DuelReportHighlights(report, room), EditorStyles.wordWrappedLabel);
-            if (room.duelVersion == 2 && report.controlMode != "Automated")
-                EditorGUILayout.LabelField(StudioExplorationRunner.CavernDesignSummary(report, room), EditorStyles.wordWrappedLabel);
             explorationPlayerNote = EditorGUILayout.TextField("我的感受 / 新道具想法", explorationPlayerNote);
             using (new EditorGUI.DisabledScope(StudioExplorationRunner.ImportedReadOnly))
             if (GUILayout.Button("保存感受或机制提案") && !string.IsNullOrWhiteSpace(explorationPlayerNote))
@@ -241,11 +243,10 @@ public partial class TestConsoleWindow
                 foreach (string note in report.playerNotes.Skip(Math.Max(0, report.playerNotes.Count - 3)))
                     EditorGUILayout.LabelField(note, EditorStyles.wordWrappedMiniLabel);
             EditorGUILayout.LabelField("新道具提案与玩法实现分开：先说明它解决哪种单调局面、对手如何识别和反制，再实现与回归。当前不会自动写新机制代码。", EditorStyles.wordWrappedMiniLabel);
-            if (GUILayout.Button("打包反馈ZIP，发给AI继续设计", GUILayout.Height(30)))
-                DuelAction(() => EditorUtility.RevealInFinder(StudioExplorationRunner.ExportFeedbackZip()));
             duelReportDetails = EditorGUILayout.Foldout(duelReportDetails, "展开：完整性、首轮/确认明细与父子比较");
             if (duelReportDetails)
             {
+                EditorGUILayout.LabelField(StudioExplorationRunner.DuelReportHighlights(report, room), EditorStyles.wordWrappedLabel);
                 if (report.scope == "WallTacticsComparison") EditorGUILayout.HelpBox(StudioExplorationRunner.WallComparisonSummary(report), MessageType.Info);
                 EditorGUILayout.HelpBox(StudioExplorationRunner.DuelFeedbackCompleteness(report), MessageType.Info);
                 EditorGUILayout.HelpBox(StudioExplorationRunner.DuelReview(report, room), MessageType.Info);

@@ -294,6 +294,15 @@ public static class StudioExplorationRunner
             data.trials.All(t => t.IsAutomated && t.errors.Count == 0 && t.attempt >= 0 && t.attempt <= 2);
     }
 
+    public static string DuelFeedbackHandoff(Report data)
+    {
+        if (data == null) return "尚无报告；先运行一次对照。";
+        int first = data.trials.Count(t => t.attempt <= 1), confirm = data.trials.Count(t => t.attempt == 2);
+        string batch = data.scope == "WallTacticsComparison" ? "一份ZIP包含A/B两组，不用切换分别导出。" : "导出当前报告ZIP。";
+        return $"当前记录：首轮{first}局、确认{confirm}局（不是独立地图数）。" + batch +
+            "批次运行时等它结束；结束或停止后点下方导出并上传给AI。失败/未完成路线也要保留，不必先重跑、观战或通关。";
+    }
+
     public static string DuelNextAction(Report data, MechanismExplorationPlan.Scenario room)
     {
         if (data == null || room == null) return "先生成一张图，再运行完整6组对照。";
@@ -392,7 +401,7 @@ public static class StudioExplorationRunner
             data.trials.Any(t => MechanismExplorationPlan.WallEvidenceIssues(t).Length > 0 ||
                 t.wallPolicy != (t.scenarioId == b.id && t.marioStrategy == "Adaptive" ? "VisibleWallWindowV1" : "ObserveOnly")))
             return "同图战术对照的策略标记或观察证据不一致；不能借另一轮补算。";
-        var sb = new StringBuilder("同图/同代码策略对照：只改变地下Adaptive的墙窗口输入；地表固定路线检查环境波动。\n");
+        var sb = new StringBuilder("同图/同代码策略对照：只改变地下Adaptive的墙窗口输入；地表固定路线检查环境波动（是计划路线，回退不算完成地表）。\n");
         foreach (string mario in new[] { "Adaptive", "SafeRoute" })
         foreach (string opponent in new[] { "Passive", "GroundChaser", "TunnelChaser" })
         {
@@ -470,7 +479,9 @@ public static class StudioExplorationRunner
     {
         string actual = t.completedRoutes != null && t.completedRoutes.Count > 0 ? string.Join(", ", t.completedRoutes) : "未记录完整路线";
         return $"实际完成：{actual}；换路请求{t.routeSwitchRequests}；" +
-            (t.stairRecoveryEvidenceVersion >= 1 ? $"落阶重走请求{t.stairRecoveryRequests}（不是恢复成功）" : "落阶重走未记录（旧版）");
+            (t.stairRecoveryEvidenceVersion >= 1 ? $"落阶重走请求{t.stairRecoveryRequests}（不是恢复成功）" : "落阶重走未记录（旧版）") +
+            (string.IsNullOrEmpty(t.navigationPolicy) ? "；实体落阶输入未记录（旧版）" :
+                $"；{t.navigationPolicy}：实体落阶输入{t.solidStepInputTargets}个落点/{t.solidStepInputFrames}帧/{t.solidStepInputSeconds:F2}s（不是落地成功）");
     }
 
     public static string TunnelVisitSummary(MechanismExplorationPlan.Trial t)
@@ -983,7 +994,7 @@ public static class StudioExplorationRunner
         state = new State { phase = withRegressions ? "RegressionQueued" : "Preparing", seconds = Mathf.Clamp(seconds, 10, 120), original = EditorSceneManager.GetSceneManagerSetup().Select(s => new SceneBookmark { path = s.path, loaded = s.isLoaded, active = s.isActive }).ToArray(),
             runInBackground = Application.runInBackground,
             directory = Path.Combine(OutputRoot, DateTime.UtcNow.ToString("yyyyMMdd_HHmmss") + "_" + Guid.NewGuid().ToString("N").Substring(0, 8)) };
-        report = new Report { toolRevision = "S175", controlMode = controlMode, parentReport = parentDirectory,
+        report = new Report { toolRevision = "S176", controlMode = controlMode, parentReport = parentDirectory,
             confirmationPlanned = controlMode != "Automated", sourceFingerprint = fingerprint,
             planFingerprint = Hash128.Compute(string.Join("\n", scenarios.Select(s => JsonUtility.ToJson(s)))).ToString(), seed = seed, scope = compareWallTactics ? "WallTacticsComparison" : replay == null ? scope.ToString() : "Replay", startedUtc = DateTime.UtcNow.ToString("O"),
             unityVersion = Application.unityVersion, fixedDeltaTime = Time.fixedDeltaTime, trialLimitSeconds = state.seconds, scenarios = scenarios,

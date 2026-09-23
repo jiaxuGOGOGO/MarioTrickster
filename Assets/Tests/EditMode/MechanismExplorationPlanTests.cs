@@ -4,6 +4,66 @@ using NUnit.Framework;
 
 public class MechanismExplorationPlanTests
 {
+    [TestCase(1f)]
+    [TestCase(-1f)]
+    public void SolidStepExitClearsOverhangingFootprintInBothDirections(float direction)
+    {
+        float aim = MechanismExplorationPlan.SolidStepExitAim(24.89f * direction, 8.015f, 0.4f,
+            25f * direction, 7f, direction > 0 ? 23.5f : -24.5f, direction > 0 ? 24.5f : -23.5f);
+        Assert.AreEqual(24.98f * direction, aim, 0.001f);
+        Assert.Greater(aim * direction - 0.4f, 24.5f, "The entire body must leave the upper block");
+        Assert.Less(Math.Abs(aim - 25f * direction), 0.4f, "Do not skip the real landing target");
+    }
+
+    [TestCase(24.89f, 7f, 0.4f, 25f, 7f, 23.5f, 24.5f)]
+    [TestCase(24.89f, 6f, 0.4f, 25f, 7f, 23.5f, 24.5f)]
+    [TestCase(24.89f, 10f, 0.4f, 25f, 7f, 23.5f, 24.5f)]
+    [TestCase(23f, 8f, 0.4f, 25f, 7f, 23.5f, 24.5f)]
+    [TestCase(25.1f, 8f, 0.4f, 25f, 7f, 23.5f, 24.5f)]
+    [TestCase(24.89f, 8f, 0.4f, 25f, 7f, 23.5f, 25.5f)]
+    [TestCase(24.89f, 8f, 0.4f, 25f, 7f, 24.5f, 23.5f)]
+    [TestCase(24.89f, 8f, 0f, 25f, 7f, 23.5f, 24.5f)]
+    [TestCase(float.NaN, 8f, 0.4f, 25f, 7f, 23.5f, 24.5f)]
+    [TestCase(24.89f, 8f, 0.4f, float.PositiveInfinity, 7f, 23.5f, 24.5f)]
+    public void SolidStepExitRejectsNonLocalNonDescendingOrInvalidGeometry(float x, float y, float width,
+        float tx, float ty, float min, float max)
+    {
+        Assert.IsTrue(float.IsNaN(MechanismExplorationPlan.SolidStepExitAim(x, y, width, tx, ty, min, max)));
+    }
+
+    [Test]
+    public void SolidStepInputsAreBoundedPerLandingPerLegAndWholeTrial()
+    {
+        var b = new MechanismExplorationPlan.SolidStepExitBudget();
+        var p = new MechanismExplorationPlan.Point(25, 7);
+        Assert.IsFalse(b.TryUse(p, false, float.NaN)); Assert.IsFalse(b.TryUse(p, false, -1));
+        Assert.IsFalse(b.TryUse(p, false, 0)); Assert.IsFalse(b.TryUse(null, false, 0.1f));
+        Assert.IsTrue(b.TryUse(p, false, 0.5f)); Assert.IsTrue(b.TryUse(p, false, 0.5f));
+        Assert.IsFalse(b.TryUse(p, false, 0.01f), "Lost support or reentry must not reset the landing budget");
+        Assert.IsTrue(b.TryUse(p, true, 1));
+        for (int i = 0; i < 6; i++) Assert.IsTrue(b.TryUse(new MechanismExplorationPlan.Point(i, 7), false, 1));
+        Assert.IsFalse(b.TryUse(new MechanismExplorationPlan.Point(99, 7), false, 0.1f));
+        Assert.AreEqual(8, b.Targets); Assert.AreEqual(8f, b.InputSeconds); Assert.AreEqual(9, b.InputFrames);
+    }
+
+    [Test]
+    public void SolidStepAimOrInputNeverCompletesOrSkipsAnAuthoredLanding()
+    {
+        var room = MechanismExplorationPlan.BuildCavernDuel(168);
+        var nav = new MechanismExplorationPlan.RouteNavigator(room.routes, true);
+        while (nav.Target.x < 25) { var p = nav.Target; nav.Tick(p.x, p.y, false, 0.01f); }
+        var landing = nav.Target; int before = nav.WaypointsReached;
+        var budget = new MechanismExplorationPlan.SolidStepExitBudget();
+        float aim = MechanismExplorationPlan.SolidStepExitAim(24.89f, 8.015f, 0.4f, landing.x, landing.y, 23.5f, 24.5f);
+        Assert.IsTrue(budget.TryUse(landing, false, 0.1f));
+        nav.Tick(aim, 8.015f, false, 0.1f);
+        Assert.AreSame(landing, nav.Target); Assert.AreEqual(before, nav.WaypointsReached); Assert.IsEmpty(nav.CompletedRoutes);
+        nav.Tick(landing.x, landing.y, false, 0.1f, false);
+        Assert.AreSame(landing, nav.Target, "Airborne pass is not a landing");
+        nav.Tick(landing.x, landing.y, false, 0.1f, true);
+        Assert.AreEqual(before + 1, nav.WaypointsReached); Assert.IsEmpty(nav.CompletedRoutes);
+    }
+
     [Test]
     public void WallEpisodeSeparatesVisibleCueInputReopenAndPhysicalCrossing()
     {

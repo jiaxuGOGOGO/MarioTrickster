@@ -216,6 +216,42 @@ public static class MechanismExplorationPlan
         }
     }
 
+    // S176: clear the whole footprint from a solid step, not just align its centre.
+    // This is an input aim, never permission to advance a waypoint or ignore collision.
+    public static float SolidStepExitAim(float x, float y, float halfWidth, float targetX, float targetY,
+        float supportMinX, float supportMaxX)
+    {
+        if (!IsFinite(x) || !IsFinite(y) || !IsFinite(halfWidth) || !IsFinite(targetX) || !IsFinite(targetY) ||
+            !IsFinite(supportMinX) || !IsFinite(supportMaxX) || halfWidth <= 0 || halfWidth > 0.6f ||
+            supportMaxX <= supportMinX || y - targetY <= 0.4f || y - targetY > 1.5f || Math.Abs(targetX - x) > 0.8f)
+            return float.NaN;
+        float direction = targetX > supportMaxX ? 1f : targetX < supportMinX ? -1f : 0f;
+        if (direction == 0) return float.NaN;
+        float edge = direction > 0 ? supportMaxX : supportMinX;
+        float aim = edge + direction * (halfWidth + 0.08f);
+        if ((aim - x) * direction <= 0 || Math.Abs(aim - x) > 1f || Math.Abs(aim - targetX) > 0.4f)
+            return float.NaN;
+        return aim;
+    }
+
+    public sealed class SolidStepExitBudget
+    {
+        private readonly Dictionary<Point, float> outbound = new Dictionary<Point, float>();
+        private readonly Dictionary<Point, float> inbound = new Dictionary<Point, float>();
+        public int InputFrames { get; private set; }
+        public float InputSeconds { get; private set; }
+        public int Targets => outbound.Count + inbound.Count;
+        public bool TryUse(Point target, bool returning, float dt)
+        {
+            if (target == null || !IsFinite(dt) || dt <= 0 || !IsFinite(target.x) || !IsFinite(target.y)) return false;
+            var leg = returning ? inbound : outbound;
+            leg.TryGetValue(target, out float spent);
+            if (spent + dt > 1f || InputSeconds + dt > 8f) return false;
+            leg[target] = spent + dt; InputSeconds += dt; InputFrames++;
+            return true;
+        }
+    }
+
     // Navigation memory records reached coordinates, not claims of successful pathfinding.
     public sealed class RouteNavigator
     {
@@ -1101,6 +1137,9 @@ public static class MechanismExplorationPlan
         public List<string> routesUsed = new List<string>();
         public int routeSwitchRequests, routeTransitions, waypointsReached, recoveryAttempts;
         public int stairRecoveryEvidenceVersion, stairRecoveryRequests;
+        public string navigationPolicy; // Missing on old reports, never inferred from zero counters.
+        public int solidStepInputFrames, solidStepInputTargets;
+        public float solidStepInputSeconds; // Requested ordinary-input duration, NOT completed descents.
         public int tunnelDecisionEvidenceVersion, tunnelPreparationRequests;
         public int cavernEvidenceVersion, returnDetourRequests;
         public int wallEvidenceVersion;

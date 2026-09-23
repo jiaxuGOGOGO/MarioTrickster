@@ -115,6 +115,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             GroundOnlyOpponent = opponentName == "GroundChaser",
             PlannedTunnelOpponent = scenario.duelVersion >= 1,
             RecoverRouteFalls = scenario.duelVersion >= 1,
+            UseSolidStepExit = scenario.duelVersion == 2 && trial.controlMode != "HumanMario",
             LearnReturnRoute = scenario.duelVersion == 2 && runnerName == "Adaptive" && trial.controlMode != "HumanMario",
             ObserveWalls = scenario.duelVersion == 2 && trial.controlMode != "HumanMario",
             UseWallTactics = scenario.duelVersion == 2 && scenario.wallTacticsVersion == 1 && runnerName == "Adaptive" && trial.controlMode != "HumanMario",
@@ -129,6 +130,7 @@ public sealed class ExplorationTrialObserver : IDisposable
         };
         if (scenario.duelVersion == 2 && trial.controlMode != "HumanMario")
         {
+            result.navigationPolicy = "AuthoredRoutes+SolidStepExitV1";
             result.wallEvidenceVersion = 1;
             result.wallPolicy = bot.UseWallTactics ? "VisibleWallWindowV1" : "ObserveOnly";
             result.wallEpisodes = bot.WallObservations.Episodes;
@@ -229,6 +231,11 @@ public sealed class ExplorationTrialObserver : IDisposable
         if (bot.StairRecoveryRequests > result.stairRecoveryRequests)
             Event("stair recovery requested: rewind to lower authored landing (not a completed traversal)");
         result.stairRecoveryRequests = bot.StairRecoveryRequests;
+        if (bot.SolidStepBudget.Targets > result.solidStepInputTargets)
+            Event("solid step exit input: " + bot.LastSolidStepRequest + "; request only, landing/route not yet verified");
+        result.solidStepInputTargets = bot.SolidStepBudget.Targets;
+        result.solidStepInputFrames = bot.SolidStepBudget.InputFrames;
+        result.solidStepInputSeconds = bot.SolidStepBudget.InputSeconds;
         result.recoveryAttempts = bot.RecoveryAttempts;
         if (bot.BounceLandingAttempts > result.bounceLandingAttempts) Event("bounce top-landing input requested (not a launch)");
         result.bounceLandingAttempts = bot.BounceLandingAttempts;
@@ -633,7 +640,9 @@ public sealed class ExplorationTrialObserver : IDisposable
         public string LastTunnelPlan { get; private set; }
         private readonly MechanismExplorationPlan.TunnelPreparationBudget preparation = new MechanismExplorationPlan.TunnelPreparationBudget();
         public int TunnelPreparationRequests => preparation.Requests;
-        public bool RecoverRouteFalls;
+        public bool RecoverRouteFalls, UseSolidStepExit;
+        public readonly MechanismExplorationPlan.SolidStepExitBudget SolidStepBudget = new MechanismExplorationPlan.SolidStepExitBudget();
+        public string LastSolidStepRequest { get; private set; }
         private float observedTunnelSpeed;
         private float tunnelInputCooldown;
         private readonly KeyboardInputProvider keyboard = new KeyboardInputProvider();
@@ -930,6 +939,69 @@ public sealed class ExplorationTrialObserver : IDisposable
             return true;
         }
 
+        private static bool SolidStepTerrain(Collider2D body)
+        {
+            return body is BoxCollider2D && body.enabled && !body.isTrigger && !body.usedByEffector && body.attachedRigidbody == null &&
+                Mathf.Abs(Mathf.DeltaAngle(body.transform.eulerAngles.z, 0f)) < 0.01f &&
+                body.GetComponentInParent<ControllablePropBase>() == null && body.GetComponentInParent<OneWayPlatform>() == null &&
+                body.GetComponentInParent<MarioController>() == null && body.GetComponentInParent<TricksterController>() == null;
+        }
+
+        // Reads local real terrain only. One-way drop-through stays on the existing input path.
+        public static float FindSolidStepExitAim(Collider2D body, Vector2 runnerPosition, Vector2 target)
+        {
+            if (body == null || !body.enabled || !body.gameObject.activeInHierarchy ||
+                !MechanismExplorationPlan.IsFinite(runnerPosition.x) || !MechanismExplorationPlan.IsFinite(runnerPosition.y) ||
+                !MechanismExplorationPlan.IsFinite(target.x) || !MechanismExplorationPlan.IsFinite(target.y) ||
+                runnerPosition.y - target.y <= 0.4f || runnerPosition.y - target.y > 1.5f || Mathf.Abs(target.x - runnerPosition.x) > 0.8f)
+                return float.NaN;
+            Bounds bounds = body.bounds;
+            // A centre ray misses the narrow overlap that caused the S175 stall. Probe both feet.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Vector2 foot = new Vector2(bounds.center.x + side * bounds.extents.x * 0.99f, bounds.min.y + 0.06f);
+                var support = Physics2D.RaycastAll(foot, Vector2.down, 0.18f)
+                    .Where(h => h.collider != body && h.collider != null && !h.collider.isTrigger).OrderBy(h => h.distance).FirstOrDefault();
+                if (!SolidStepTerrain(support.collider) || support.normal.y < 0.9f) continue;
+                float aim = MechanismExplorationPlan.SolidStepExitAim(runnerPosition.x, runnerPosition.y, bounds.extents.x,
+                    target.x, target.y, support.collider.bounds.min.x, support.collider.bounds.max.x);
+                if (!MechanismExplorationPlan.IsFinite(aim)) continue;
+                float shift = aim - runnerPosition.x;
+                float expectedTop = target.y + bounds.min.y - runnerPosition.y;
+                bool landing = true;
+                for (int edge = -1; edge <= 1; edge += 2)
+                {
+                    Vector2 probe = new Vector2(bounds.center.x + shift + edge * bounds.extents.x * 0.8f, bounds.min.y + 0.06f);
+                    var below = Physics2D.RaycastAll(probe, Vector2.down, runnerPosition.y - target.y + 0.2f)
+                        .Where(h => h.collider != body && h.collider != null && !h.collider.isTrigger).OrderBy(h => h.distance).FirstOrDefault();
+                    if (!SolidStepTerrain(below.collider) || below.normal.y < 0.9f || Mathf.Abs(below.point.y - expectedTop) > 0.12f)
+                    { landing = false; break; }
+                }
+                if (!landing) continue;
+                if (Physics2D.BoxCastAll(bounds.center, new Vector2(bounds.size.x * 0.95f, bounds.size.y * 0.9f), 0f,
+                    new Vector2(Mathf.Sign(shift), 0), Mathf.Abs(shift)).Any(h => h.collider != null && h.collider != body &&
+                    !h.collider.isTrigger && h.collider != support.collider)) continue;
+                return aim;
+            }
+            return float.NaN;
+        }
+
+        private bool ApplySolidStepExit(float dt)
+        {
+            if (!UseSolidStepExit || HumanMario || runner == null || !runner.isActiveAndEnabled || !runner.IsGrounded ||
+                GameManager.Instance == null || GameManager.Instance.CurrentState != GameState.Playing ||
+                !AuthoredRouteTarget || navigation.Target == null || !ExplorationTarget.HasValue ||
+                (MarioIntent != "[Pathing: scan conserved]" && MarioIntent != "[Scan: local evidence or blocker windup]")) return false;
+            float aim = FindSolidStepExitAim(runnerBody, runner.transform.position, ExplorationTarget.Value);
+            if (!MechanismExplorationPlan.IsFinite(aim) ||
+                !SolidStepBudget.TryUse(navigation.Target, hasLootObjective && LootObjective.IsLootCarried, dt)) return false;
+            NeutralMario(); // Do not jump/drop through solid terrain; keep scan requests intact.
+            p1Horizontal = Mathf.Sign(aim - runner.transform.position.x);
+            LastSolidStepRequest = $"target=({navigation.Target.x:F2},{navigation.Target.y:F2}), aimX={aim:F2}";
+            MarioIntent = "[Solid step: walk footprint off edge; landing unverified]";
+            return true;
+        }
+
         protected override void UpdateMarioBrain(float dt)
         {
             WaitingQueue = null; QueueDecision = null;
@@ -988,6 +1060,7 @@ public sealed class ExplorationTrialObserver : IDisposable
             base.UpdateMarioBrain(dt);
             if (ApplyWallTactics()) return;
             if (ReadPublicQueues && ApplyPublicQueueInput()) return;
+            if (ApplySolidStepExit(dt)) return;
             if (runner != null && ExplorationTarget.HasValue && runner.IsGrounded && dropTimer <= 0f &&
                 ExplorationTarget.Value.y < runner.transform.position.y - 0.4f &&
                 Mathf.Abs(ExplorationTarget.Value.x - runner.transform.position.x) < 0.8f)

@@ -29,6 +29,80 @@ public class ExplorationIntegrationContractTests
         return report;
     }
 
+    [TestCase(1f)]
+    [TestCase(-1f)]
+    public void SolidStepExitRequiresRealStaticSupportLandingAndClearance(float direction)
+    {
+        var runner = new GameObject("StepRunner"); var upper = new GameObject("StepUpper");
+        var lower = new GameObject("StepLower"); var obstacle = new GameObject("StepBlocker");
+        try
+        {
+            const float origin = 52000;
+            Vector2 position = new Vector2(origin + 24.89f * direction, 8.015f);
+            Vector2 target = new Vector2(origin + 25f * direction, 7f);
+            runner.transform.position = position;
+            var body = runner.AddComponent<BoxCollider2D>(); body.size = new Vector2(0.8f, 0.95f); body.offset = new Vector2(0, -0.025f);
+            upper.transform.position = new Vector3(origin + 24f * direction, 7, 0);
+            var support = upper.AddComponent<BoxCollider2D>();
+            lower.transform.position = new Vector3(origin + 25f * direction, 6, 0);
+            var landing = lower.AddComponent<BoxCollider2D>();
+            obstacle.transform.position = new Vector3(origin + 25.45f * direction, 8, 0);
+            var cover = obstacle.AddComponent<BoxCollider2D>(); cover.size = new Vector2(0.2f, 1f); cover.enabled = false;
+            Physics2D.SyncTransforms();
+            float aim = ExplorationTrialObserver.GuidedBot.FindSolidStepExitAim(body, position, target);
+            Assert.AreEqual(origin + 24.98f * direction, aim, 0.01f, "Probe the narrow overlap at the foot edge, not just the centre");
+            Assert.AreEqual(position.x, runner.transform.position.x, "The query never moves the actor");
+            landing.enabled = false; Physics2D.SyncTransforms();
+            Assert.IsTrue(float.IsNaN(ExplorationTrialObserver.GuidedBot.FindSolidStepExitAim(body, position, target)), "No blind descent into a gap");
+            landing.enabled = true; upper.AddComponent<PlatformEffector2D>(); support.usedByEffector = true; Physics2D.SyncTransforms();
+            Assert.IsTrue(float.IsNaN(ExplorationTrialObserver.GuidedBot.FindSolidStepExitAim(body, position, target)), "One-way platforms keep their own drop-through input");
+            support.usedByEffector = false; cover.enabled = true; Physics2D.SyncTransforms();
+            Assert.IsTrue(float.IsNaN(ExplorationTrialObserver.GuidedBot.FindSolidStepExitAim(body, position, target)), "Solid obstacle ahead blocks the walk-off");
+            cover.enabled = false; landing.isTrigger = true; Physics2D.SyncTransforms();
+            Assert.IsTrue(float.IsNaN(ExplorationTrialObserver.GuidedBot.FindSolidStepExitAim(body, position, target)));
+            landing.isTrigger = false; lower.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic; Physics2D.SyncTransforms();
+            Assert.IsTrue(float.IsNaN(ExplorationTrialObserver.GuidedBot.FindSolidStepExitAim(body, position, target)), "No assumption of future moving-platform support");
+        }
+        finally { Object.DestroyImmediate(runner); Object.DestroyImmediate(upper); Object.DestroyImmediate(lower); Object.DestroyImmediate(obstacle); }
+    }
+
+    [Test]
+    public void FeedbackExportPrecedesOptionalDemosAndAllLongHighlights()
+    {
+        Assert.IsNotNull(typeof(TestConsoleWindow));
+        string source = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/TestConsoleWindow.Exploration.cs"));
+        int export = source.IndexOf("导出本次完整反馈ZIP");
+        Assert.Greater(export, 0);
+        Assert.Less(export, source.IndexOf("可选：看地下去程与返程选择"));
+        Assert.Less(export, source.IndexOf("StudioExplorationRunner.DuelReportHighlights"));
+        Assert.Less(source.IndexOf("if (duelReportDetails)"), source.IndexOf("StudioExplorationRunner.DuelReportHighlights"));
+        StringAssert.DoesNotContain("下一步：看地下去程与返程选择", source);
+    }
+
+    [TestCase("Complete")]
+    [TestCase("Blocked")]
+    [TestCase("Interrupted")]
+    public void FeedbackHandoffKeepsFailedAndIncompleteRecordsWithoutDemandingReplay(string status)
+    {
+        var r = WallComparisonFixture(); r.status = status; r.trials[0].outcome = "NoProgress";
+        string text = StudioExplorationRunner.DuelFeedbackHandoff(r);
+        StringAssert.Contains("首轮12局、确认0局", text);
+        StringAssert.Contains("一份ZIP包含A/B两组", text);
+        StringAssert.Contains("不必先重跑、观战或通关", text);
+        Assert.AreEqual("NoProgress", r.trials[0].outcome); Assert.AreEqual(status, r.status);
+    }
+
+    [Test]
+    public void SolidStepReportKeepsOldEvidenceUnknownAndInputsSeparateFromLandings()
+    {
+        var t = new MechanismExplorationPlan.Trial();
+        StringAssert.Contains("实体落阶输入未记录（旧版）", StudioExplorationRunner.DuelTrialRouteSummary(t));
+        t.navigationPolicy = "AuthoredRoutes+SolidStepExitV1"; t.solidStepInputFrames = 20; t.solidStepInputTargets = 1; t.solidStepInputSeconds = 0.4f;
+        string text = StudioExplorationRunner.DuelTrialRouteSummary(t);
+        StringAssert.Contains("未记录完整路线", text); StringAssert.Contains("不是落地成功", text);
+        Assert.IsEmpty(t.completedRoutes);
+    }
+
     [TestCase(false)]
     [TestCase(true)]
     public void WallPerceptionRequiresLocalSameLevelUnobstructedPublicCue(bool blocked)

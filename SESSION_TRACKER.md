@@ -91,13 +91,20 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 178（从复盘转向可玩交付：双口短环、真实分岔退回与有限视线守点/换口） |
-| **日期** | 2026-09-23 |
+| **最新 Session** | Session 179（方向转向：单人捣蛋者 vs AI 马里奥；设计宪法 v1.0 入库；第 0 步：H4 不偷看修复 + 只保留核心循环） |
+| **日期** | 2026-09-25 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
-| **阶段** | 用户看完S177反馈“没啥变化，来来回回这些”，要求按审计建议升级推送。已实现独立duelVersion3地图和配套运行策略，不再只加报告；旧洞室入口明确折叠保留。 |
-| **编译状态** | 358生产提取模型通过、165文件C#9语法0错误、静态管线/历史ZIP/路径/种子检查通过；4类故障注入触发6个预期失败，恢复后全过。不是Unity编译或物理实战。 |
-| **阻塞** | S178新增27 EditMode（19模型、4纯集成、2真实Physics2D查询、2源码契约），预计全量666；新图完整去返、入口线索是否改变选择、守点/换口/返程回应仍需Unity。没有承诺骗招必成、已好玩或自主训练。 |
-| **交接说明** | 本地直接seed168点“开始双口遭遇（新图 → 全量回归 → 6组对战）”；6首轮＋最多6确认，顶部一份ZIP。不要再引导默认跑旧A/B。完整固定安全更新脚本保存在AI_WORKFLOW.md §2；不得给stash pop/reset/clean简写。 |
+| **阶段** | **最高准则改为 `docs/DESIGN_CONSTITUTION_v1.0.md`**：玩家=隐形捣蛋者，AI=马里奥（地狱邻居式），开发顺序 0–6 不得跳步。S179 完成第 0 步：①马里奥可疑度/证据必须目击（距离8+无遮挡）才增加；②`GameplayLoopSceneBootstrapper.CoreLoopOnly=true` 默认只装核心循环，9 个扩展系统代码保留、不进场景。 |
+| **编译状态** | 沙箱 C# 语法检查 0 错误；新测试字符串断言 Python 模拟通过、变异测试可捕获。**未经 Unity 编译/实跑。** |
+| **阻塞** | 需 Unity 跑 EditMode：新增 `H4PerceptionHonestyTests`(6)、`Step0CoreLoopTests`(3)，并跑全量回归（旧测试若依赖热度/警报/连击系统存在于新建场景，会因 CoreLoopOnly 失败——属预期，按宪法处理，不要把系统加回去凑绿）。 |
+| **交接说明** | 新 AI 先读 `docs/DESIGN_CONSTITUTION_v1.0.md`，再读 `docs/step0/STEP0_H4_AUDIT.md`。下一步=第 1 步：一个手工房间 + 冲冲型马里奥，退出条件=用户连玩 20 局仍想玩且 ≥3 种坑法。旧双口/洞室实验保留为测试仪器，不再是主线。 |
+
+### [S179] 方向转向 + 设计宪法 + 第 0 步
+
+- 用户校准：开发期=用户本人 vs AI；单人挑战为主（玩家=捣蛋者，AI=马里奥），1v1 同屏暂缓；被识破→追逐；3 条命；阻止拿宝撤离即过关，恶作剧/连击计分。
+- H4 审计：马里奥决策代码本身不读附身真值；污染来自 `MarioSuspicionTracker`（附身无条件+10、隔墙出手+25/证据）及补偿/重复惩罚。已加目击门禁 `CanWitness`/`IsWitnessedByMario`，`requireMarioWitness=false` 可复原旧行为对照。残留照常生成（世界可见痕迹）。
+- 未做：视野扇形（第 1 步随性格做）；`HasNearbyAnchor` 读 `CanBePossessed`（低危，第 1 步换成视线）。
+- 第 0 步关闭：RouteBudgetService、InterferenceCompensationPolicy、RepeatInterferenceStack、CounterRevealReward、PropComboTracker、TricksterHeatMeter、HeatBreachHint、HeatSuspicionBridge、AlarmCrisisDirector。所有消费者已确认有 null 保护。
 
 ### [S178] 用户体验否定优先：交付一段实际变化，不再用全绿回复单调
 
@@ -941,7 +948,9 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **S178双口可玩遭遇本地验证**：seed168，新大按钮/全回归/6首轮/最多6确认/顶部ZIP。 | 358模型过，27新EditMode预计666；实际退回分岔、换口/忍住与返程回应待Unity，不是原洞室同条件A/B |
+| **最高** | **S179 第 0 步 Unity 验证**：EditMode 跑 `H4PerceptionHonestyTests` + `Step0CoreLoopTests` + 全量；实玩一局确认跑/扫描/附身/触发正常。 | 沙箱语法 0 错误；未经 Unity |
+| **下一步** | **宪法第 1 步**：一个手工房间 + 冲冲型马里奥；退出条件=20 局仍想玩且 ≥3 种坑法。 | 等第 0 步确认后开工 |
+| **降级** | **S178双口可玩遭遇本地验证**：seed168，新大按钮/全回归/6首轮/最多6确认/顶部ZIP。 | 358模型过，27新EditMode预计666；实际退回分岔、换口/忍住与返程回应待Unity，不是原洞室同条件A/B |
 | **已审计、体验未满足** | **S177639/639、24局**：地表12局完整上路去返，S176落阶有效；地下暗线/记忆/返程出手/改道0。 | 用户明确“没啥变化、来来回回这些”，不以全绿反驳；不用重跑S177 |
 | **已完成方案/非玩法验收** | **S177研究与自审**：13来源、3候选遭遇草案、有限信息/行动契约/共同迭代阶段；只读可证伪设计卡已接新ZIP。 | S178只实现其中一个紧凑双口原型及有源风险/可见对手；中央井任意换路、共同RL或自动机制仍未做 |
 | **已审计** | **S175首份洞室A/B**：582/582，24唯一对局、无运行错误；地表9回退通关+3停滞，完整上路0/12；地下12通关但返程空。 | 新策略4次输入+重开穿越，旧策略对应4次也能穿越，未证优越/乐趣；入口外scan未被记忆，不同时修。无真人备注 |

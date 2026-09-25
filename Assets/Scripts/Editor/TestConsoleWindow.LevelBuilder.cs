@@ -436,7 +436,7 @@ public partial class TestConsoleWindow
         if (routeBudget != null)
             passed.Add("② RouteBudgetService ✅");
         else
-            warnings.Add("② RouteBudgetService 未找到（可选，但建议配置）");
+            { if (GameplayLoopSceneBootstrapper.CoreLoopOnly) passed.Add("② RouteBudgetService：第0步已关闭（设计宪法）"); else warnings.Add("② RouteBudgetService 未找到（可选，但建议配置）"); }
 
         // ③ LootObjective + EscapeGate
         var loot = Object.FindObjectOfType<LootObjective>();
@@ -453,7 +453,7 @@ public partial class TestConsoleWindow
         if (crisis != null)
             passed.Add("④ AlarmCrisisDirector ✅");
         else
-            warnings.Add("④ AlarmCrisisDirector 未找到（可选，但建议配置）");
+            { if (GameplayLoopSceneBootstrapper.CoreLoopOnly) passed.Add("④ AlarmCrisisDirector：第0步已关闭（设计宪法）"); else warnings.Add("④ AlarmCrisisDirector 未找到（可选，但建议配置）"); }
 
         // ⑤ 附身点分布质量
         if (enabledAnchors >= 3)
@@ -478,14 +478,14 @@ public partial class TestConsoleWindow
         if (heat != null)
             passed.Add("⑥ TricksterHeatMeter ✅");
         else
-            warnings.Add("⑥ TricksterHeatMeter 未找到");
+            { if (GameplayLoopSceneBootstrapper.CoreLoopOnly) passed.Add("⑥ TricksterHeatMeter：第0步已关闭（设计宪法）"); else warnings.Add("⑥ TricksterHeatMeter 未找到"); }
 
         // ⑦ PropComboTracker
         var combo = Object.FindObjectOfType<PropComboTracker>();
         if (combo != null)
             passed.Add("⑦ PropComboTracker ✅");
         else
-            warnings.Add("⑦ PropComboTracker 未找到");
+            { if (GameplayLoopSceneBootstrapper.CoreLoopOnly) passed.Add("⑦ PropComboTracker：第0步已关闭（设计宪法）"); else warnings.Add("⑦ PropComboTracker 未找到"); }
 
         // 结果汇总
         string report = "=== 机制验证报告 ===\n\n";

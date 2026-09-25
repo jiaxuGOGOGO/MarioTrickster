@@ -177,22 +177,8 @@ public class TestSceneBuilder : Editor
         managers.AddComponent<ResidueVisualHint>();
         managers.AddComponent<SuspicionHUD>();
 
-        // Commit 2: 路线预算 + 干预补偿 + 重复干预惩罚 + Counter-Reveal 奖励 + HUD
-        managers.AddComponent<RouteBudgetService>();
-        managers.AddComponent<InterferenceCompensationPolicy>();
-        managers.AddComponent<RepeatInterferenceStack>();
-        managers.AddComponent<CounterRevealReward>();
-
-        // Commit 3: 连锁追踪（HUD 由 GlobalGameUICanvas 承担）
-        managers.AddComponent<PropComboTracker>();
-
-        // Commit 4: 热度计 + 破绽提示 + 桥接（HUD 由 GlobalGameUICanvas 承担）
-        managers.AddComponent<TricksterHeatMeter>();
-        managers.AddComponent<HeatBreachHint>();
-        managers.AddComponent<HeatSuspicionBridge>();
-
-        // Commit 6: 扫描波危机导演（HUD 由 GlobalGameUICanvas 承担）
-        managers.AddComponent<AlarmCrisisDirector>();
+        // 设计宪法第 0 步：Commit 2/3/4/6 的扩展系统默认关闭（代码保留，见 GameplayLoopSceneBootstrapper.CoreLoopOnly）。
+        AddExtendedSystemsUnlessCoreLoop(managers);
 
         GameManager gameManager = managers.AddComponent<GameManager>();
         InputManager inputManager = managers.AddComponent<InputManager>();
@@ -919,15 +905,7 @@ public class TestSceneBuilder : Editor
         managers.AddComponent<MarioSuspicionTracker>();
         managers.AddComponent<ResidueVisualHint>();
         managers.AddComponent<SuspicionHUD>();
-        managers.AddComponent<RouteBudgetService>();
-        managers.AddComponent<InterferenceCompensationPolicy>();
-        managers.AddComponent<RepeatInterferenceStack>();
-        managers.AddComponent<CounterRevealReward>();
-        managers.AddComponent<PropComboTracker>();
-        managers.AddComponent<TricksterHeatMeter>();
-        managers.AddComponent<HeatBreachHint>();
-        managers.AddComponent<HeatSuspicionBridge>();
-        managers.AddComponent<AlarmCrisisDirector>();
+        AddExtendedSystemsUnlessCoreLoop(managers);
         managers.AddComponent<LootEscapeHUD>();
         GameManager gameManager = managers.AddComponent<GameManager>();
         InputManager inputManager = managers.AddComponent<InputManager>();
@@ -1480,5 +1458,13 @@ public class TestSceneBuilder : Editor
         }
 
         so.ApplyModifiedProperties();
+    }
+
+    /// <summary>设计宪法第 0 步：CoreLoopOnly 时不装扩展系统。</summary>
+    private static void AddExtendedSystemsUnlessCoreLoop(GameObject managers)
+    {
+        if (GameplayLoopSceneBootstrapper.CoreLoopOnly) return;
+        foreach (System.Type type in GameplayLoopSceneBootstrapper.ExtendedSystems)
+            if (managers.GetComponent(type) == null) managers.AddComponent(type);
     }
 }

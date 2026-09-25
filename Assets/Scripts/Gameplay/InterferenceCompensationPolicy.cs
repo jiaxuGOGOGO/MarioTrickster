@@ -170,6 +170,9 @@ public class InterferenceCompensationPolicy : MonoBehaviour
         PossessionAnchor anchor = propTransform.GetComponent<PossessionAnchor>();
         if (anchor == null) return;
 
+        // [H4] 没被 Mario 看见的出手不能指名到具体锚点。
+        if (!suspicionTracker.IsWitnessedByMario(anchor)) return;
+
         // 机关出手 → 给 Mario 少量额外可疑度补偿（叠加到 Tracker 自身的量上）
         AnchorSuspicionData data = suspicionTracker.GetOrCreateData(anchor);
         data.AddSuspicion(PropActivateSuspicionBonusValue);

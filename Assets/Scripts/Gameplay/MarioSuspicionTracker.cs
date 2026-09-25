@@ -10,7 +10,7 @@ using UnityEngine;
 ///   - 监听 TricksterAbilitySystem 的 OnPropActivated 事件，自动给出手锚点叠加
 ///     Suspicion 和 Residue。
 ///   - 监听 TricksterPossessionGate 的 OnStateChanged / OnAnchorChanged，
-///     在附身/复用时叠加可疑度。
+///     在附身/复用时叠加可疑度——[H4] 仅当 Mario 目击（距离+无遮挡）时。
 ///   - 提供 API 供 SilentMarkSensor 和 MarioCounterplayProbe 读写数据。
 ///   - 每帧推进所有锚点的衰减。
 ///
@@ -34,6 +34,13 @@ public class MarioSuspicionTracker : MonoBehaviour
     [Tooltip("附身（Blending→Possessing）时给锚点增加的可疑度")]
     [SerializeField] private float suspicionPerPossession = 10f;
 
+    [Header("=== H4 不偷看：目击门禁 ===")]
+    [Tooltip("H4：附身/出手只有在 Mario 亲眼看见时才加可疑度与证据（残留照常生成，靠走近发现）")]
+    [SerializeField] private bool requireMarioWitness = true;
+
+    [Tooltip("H4：Mario 目击距离上限（世界单位）")]
+    [SerializeField] private float witnessRange = 8f;
+
     [Tooltip("是否输出调试日志")]
     [SerializeField] private bool showDebugInfo = false;
 
@@ -44,6 +51,7 @@ public class MarioSuspicionTracker : MonoBehaviour
     // ── 引用（运行时查找）──
     private TricksterAbilitySystem abilitySystem;
     private TricksterPossessionGate possessionGate;
+    private MarioController mario;
 
     // ── 事件（供 UI / Probe 订阅）──
     /// <summary>某锚点的可疑度发生变化时触发</summary>
@@ -71,6 +79,7 @@ public class MarioSuspicionTracker : MonoBehaviour
             abilitySystem = trickster.GetComponent<TricksterAbilitySystem>();
             possessionGate = trickster.GetComponent<TricksterPossessionGate>();
         }
+        mario = FindObjectOfType<MarioController>();
 
         // 订阅事件
         if (abilitySystem != null)
@@ -153,20 +162,24 @@ public class MarioSuspicionTracker : MonoBehaviour
             suspicionAmount *= reuseSuspicionMultiplier;
         }
 
-        data.AddSuspicion(suspicionAmount);
         data.MarkUsed();
 
-        // 生成残留
+        // 残留是世界里的可见痕迹：照常生成，Mario 只能走近后经 SilentMarkSensor 发现。
         data.SetResidue(residueStrength);
 
-        // 出手也推进证据
-        data.AddEvidence(1);
+        // [H4] 可疑度与证据只在 Mario 亲眼看见出手时增加，否则等于隔墙读心。
+        bool witnessed = MarioWitnesses(anchor);
+        if (witnessed)
+        {
+            data.AddSuspicion(suspicionAmount);
+            data.AddEvidence(1);
+        }
 
         if (showDebugInfo)
         {
             Debug.Log($"[MarioSuspicionTracker] Prop activated at {anchor.AnchorId}: " +
                       $"Suspicion={data.Suspicion:F0}, Residue={data.Residue:F2}, " +
-                      $"Evidence={data.EvidenceLevel}, Reuse={isReuse}");
+                      $"Evidence={data.EvidenceLevel}, Reuse={isReuse}, Witnessed={witnessed}");
         }
 
         OnSuspicionChanged?.Invoke(anchor, data);
@@ -185,7 +198,8 @@ public class MarioSuspicionTracker : MonoBehaviour
         if (newState == TricksterPossessionState.Possessing && possessionGate != null)
         {
             PossessionAnchor anchor = possessionGate.CurrentAnchor;
-            if (anchor != null)
+            // [H4] 附身本身是隐身行为：Mario 没看见就不能知道是哪个锚点。
+            if (anchor != null && MarioWitnesses(anchor))
             {
                 AnchorSuspicionData data = GetOrCreateData(anchor);
                 data.AddSuspicion(suspicionPerPossession);
@@ -216,6 +230,44 @@ public class MarioSuspicionTracker : MonoBehaviour
         {
             kvp.Value.Reset();
         }
+    }
+
+    #endregion
+
+    // ─────────────────────────────────────────────────────
+    #region H4 目击判定
+
+    /// <summary>[H4] 其他系统给锚点加可疑度前必须先问这里。</summary>
+    public bool IsWitnessedByMario(PossessionAnchor anchor) => MarioWitnesses(anchor);
+
+    private bool MarioWitnesses(PossessionAnchor anchor)
+    {
+        if (!requireMarioWitness) return true;
+        if (anchor == null) return false;
+        if (mario == null) mario = FindObjectOfType<MarioController>();
+        if (mario == null || !mario.isActiveAndEnabled) return false;
+        return CanWitness(mario.transform.position, anchor.AnchorTransform.position, witnessRange, anchor.transform);
+    }
+
+    /// <summary>
+    /// H4 纯函数：viewer 能否在 range 内无遮挡地看到 target。
+    /// 忽略触发器、Mario、Trickster 以及目标自身的碰撞体；任何其他实体碰撞体都算遮挡。
+    /// </summary>
+    public static bool CanWitness(Vector2 viewer, Vector2 target, float range, Transform targetRoot)
+    {
+        if (float.IsNaN(viewer.x) || float.IsNaN(viewer.y) || float.IsNaN(target.x) || float.IsNaN(target.y)) return false;
+        if (float.IsInfinity(viewer.x) || float.IsInfinity(viewer.y) || float.IsInfinity(target.x) || float.IsInfinity(target.y)) return false;
+        if (Vector2.Distance(viewer, target) > range) return false;
+        foreach (var hit in Physics2D.LinecastAll(viewer, target))
+        {
+            Collider2D c = hit.collider;
+            if (c == null || c.isTrigger) continue;
+            if (targetRoot != null && c.transform.IsChildOf(targetRoot)) continue;
+            if (c.GetComponentInParent<MarioController>() != null) continue;
+            if (c.GetComponentInParent<TricksterController>() != null) continue;
+            return false;
+        }
+        return true;
     }
 
     #endregion

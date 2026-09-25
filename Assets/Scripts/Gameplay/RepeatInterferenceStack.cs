@@ -227,7 +227,8 @@ public class RepeatInterferenceStack : MonoBehaviour
             float currentDiminish = Mathf.Pow(diminishFactor, repeatN);
 
             // 应用 Suspicion 惩罚
-            if (suspicionTracker != null && anchor != null)
+            // [H4] 重复出手的额外可疑度同样只在 Mario 目击时生效。
+            if (suspicionTracker != null && anchor != null && suspicionTracker.IsWitnessedByMario(anchor))
             {
                 AnchorSuspicionData data = suspicionTracker.GetOrCreateData(anchor);
                 data.AddSuspicion(extraSuspicion);

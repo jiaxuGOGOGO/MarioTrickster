@@ -263,11 +263,20 @@ public class MarioSuspicionTracker : MonoBehaviour
             Collider2D c = hit.collider;
             if (c == null || c.isTrigger) continue;
             if (targetRoot != null && c.transform.IsChildOf(targetRoot)) continue;
+            // 单向平台是薄台面，不挡视线（第 1 步：捣蛋者站在台上仍可被看见）
+            if (IsOneWayPlatform(c)) continue;
             if (c.GetComponentInParent<MarioController>() != null) continue;
             if (c.GetComponentInParent<TricksterController>() != null) continue;
             return false;
         }
         return true;
+    }
+
+    public static bool IsOneWayPlatform(Collider2D c)
+    {
+        if (c == null || !c.usedByEffector) return false;
+        var effector = c.GetComponent<PlatformEffector2D>();
+        return effector != null && effector.enabled && effector.useOneWay;
     }
 
     #endregion

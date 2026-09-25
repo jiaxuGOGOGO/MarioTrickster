@@ -91,13 +91,20 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 179（方向转向：单人捣蛋者 vs AI 马里奥；设计宪法 v1.0 入库；第 0 步：H4 不偷看修复 + 只保留核心循环） |
+| **最新 Session** | Session 180（宪法第 1 步：恶作剧房间 + 冲冲型马里奥 + 整屏镜头） |
 | **日期** | 2026-09-25 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
-| **阶段** | **最高准则改为 `docs/DESIGN_CONSTITUTION_v1.0.md`**：玩家=隐形捣蛋者，AI=马里奥（地狱邻居式），开发顺序 0–6 不得跳步。S179 完成第 0 步：①马里奥可疑度/证据必须目击（距离8+无遮挡）才增加；②`GameplayLoopSceneBootstrapper.CoreLoopOnly=true` 默认只装核心循环，9 个扩展系统代码保留、不进场景。 |
-| **编译状态** | 沙箱 C# 语法检查 0 错误；新测试字符串断言 Python 模拟通过、变异测试可捕获。**未经 Unity 编译/实跑。** |
-| **阻塞** | 需 Unity 跑 EditMode：新增 `H4PerceptionHonestyTests`(6)、`Step0CoreLoopTests`(3)，并跑全量回归（旧测试若依赖热度/警报/连击系统存在于新建场景，会因 CoreLoopOnly 失败——属预期，按宪法处理，不要把系统加回去凑绿）。 |
-| **交接说明** | 新 AI 先读 `docs/DESIGN_CONSTITUTION_v1.0.md`，再读 `docs/step0/STEP0_H4_AUDIT.md`。下一步=第 1 步：一个手工房间 + 冲冲型马里奥，退出条件=用户连玩 20 局仍想玩且 ≥3 种坑法。旧双口/洞室实验保留为测试仪器，不再是主线。 |
+| **阶段** | 第 0 步已由用户在 Unity 确认（Console 无错、EditMode 全绿）。S180 实现第 1 步：菜单 `MarioTrickster → Step 1 → Build Prank Room` 生成 36×10 单屏房间；马里奥由 `RushMarioMind` 驱动（? → ! → !! → ?!），只凭 `MarioEyes` 视锥+距离+遮挡感知；捣蛋者 3 条命；默认整屏镜头（C 键切换）。 |
+| **编译状态** | 沙箱 `syntax_check.py` 0 错误；Step1 运行时代码用 mono mcs + 桩类型编译通过，起疑条/状态机/视锥逻辑模拟 16/16 通过。**未经 Unity 编译/物理/实跑。** |
+| **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
+| **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S180] 第 1 步：恶作剧房间
+
+- 新增 `Assets/Scripts/Gameplay/Step1/`：`MarioMindTuningSO`（全部调参）、`SuspicionMeter`（H2：'?' ≥0.4 秒才可 '!'）、`RushMarioMind`（纯逻辑状态机，只吃 `MarioPercept`）、`MarioVision`/`MarioEyes`（H4：先 CanSee 再看外观，不读附身/伪装内部状态）、`MarioMindDriver`（接 HeuristicBot 移动；关闭 Bot 自带扫描，扫描只在 '!' 后发出）、`TricksterLives`（裁判：3 命/重生无敌）、`Step1RoomCamera`（整屏/同框/跟自己）、`MarioMindLabel`、`MarioVisionConeView`、`Step1PlaytestLog`（归因 + 1–5 评分 → `PlaytestLogs/` CSV，已 gitignore）。
+- `MarioSuspicionTracker.CanWitness`：单向台面不再挡视线（新增 `IsOneWayPlatform`）。
+- 房间：无地刺/摆锤/弹跳；火焰 coolOff=100000（平时安全，只有捣蛋者触发才喷）；崩塌桥旁留单向台面防止坑内封死。
+- 已知限制：马里奥追上台子依赖旧 Bot 跳跃启发式；被抓为直接传送。
 
 ### [S179] 方向转向 + 设计宪法 + 第 0 步
 
@@ -948,8 +955,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **S179 第 0 步 Unity 验证**：EditMode 跑 `H4PerceptionHonestyTests` + `Step0CoreLoopTests` + 全量；实玩一局确认跑/扫描/附身/触发正常。 | 沙箱语法 0 错误；未经 Unity |
-| **下一步** | **宪法第 1 步**：一个手工房间 + 冲冲型马里奥；退出条件=20 局仍想玩且 ≥3 种坑法。 | 等第 0 步确认后开工 |
+| **最高** | **S180 第 1 步 Unity 验证 + 试玩**：Build Prank Room → 跑 `Step1RushMarioTests` → 不碰键盘看 5 局（H10）→ 20 局试玩打分。 | 沙箱语法 0 错误、逻辑模拟通过；未经 Unity |
+| **已完成** | **S179 第 0 步**：用户确认 Console 无错、EditMode 全绿、基础动作正常。 | 镜头跟马里奥问题已在 S180 用整屏镜头处理 |
 | **降级** | **S178双口可玩遭遇本地验证**：seed168，新大按钮/全回归/6首轮/最多6确认/顶部ZIP。 | 358模型过，27新EditMode预计666；实际退回分岔、换口/忍住与返程回应待Unity，不是原洞室同条件A/B |
 | **已审计、体验未满足** | **S177639/639、24局**：地表12局完整上路去返，S176落阶有效；地下暗线/记忆/返程出手/改道0。 | 用户明确“没啥变化、来来回回这些”，不以全绿反驳；不用重跑S177 |
 | **已完成方案/非玩法验收** | **S177研究与自审**：13来源、3候选遭遇草案、有限信息/行动契约/共同迭代阶段；只读可证伪设计卡已接新ZIP。 | S178只实现其中一个紧凑双口原型及有源风险/可见对手；中央井任意换路、共同RL或自动机制仍未做 |

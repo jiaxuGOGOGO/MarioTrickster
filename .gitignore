@@ -141,3 +141,6 @@ desktop.ini
 /TestReport.txt
 /manus_work/
 "*.patch" 
+
+# Step 1 playtest logs (local only)
+/PlaytestLogs/

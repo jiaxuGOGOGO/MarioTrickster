@@ -151,6 +151,13 @@ public sealed class RushMarioMind
 
     public bool IsStunned => stun > 0f;
 
+    /// <summary>S185 连招奖励：在当前眩晕上追加时间（上限 cap 秒）。</summary>
+    public void ExtendStun(float seconds, float cap)
+    {
+        if (seconds <= 0f) return;
+        stun = Mathf.Min(Mathf.Max(0f, stun) + seconds, Mathf.Max(cap, 0f));
+    }
+
     private bool TryScanAt(MarioPercept p, Vector2 point)
     {
         if (scannedHere || !p.scanReady) return false;

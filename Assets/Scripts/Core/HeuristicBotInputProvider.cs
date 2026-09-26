@@ -65,6 +65,19 @@ public class HeuristicBotInputProvider : IInputProvider
     public Vector2? ExplorationTarget { get; set; }
     /// <summary>S183：马里奥行走速度倍率（0..1，只缩放横向输入；默认 1 = 原速）。由人格/调参数据设置。</summary>
     public float MarioSpeedScale { get; set; } = 1f;
+    /// <summary>S185：true = 马里奥原地不动（被坑晕时），不走、不跳、不后退。默认 false。</summary>
+    public bool HoldStill { get; set; }
+    /// <summary>
+    /// S185：机关预警（Telegraph）时的"一次性决策"模式（默认 -1 = 旧行为：每帧随机决定前冲/后退，会来回抖）。
+    /// ≥0：每个机关的每次预警只决定一次——离机关 ≤ 该距离（格）就硬冲过去，否则原地停下等（不后退）。
+    /// </summary>
+    public float TrapCommitDistance { get; set; } = -1f;
+    /// <summary>S185：true = 跳坑/跳障碍不走"反应延迟刹车"（反应延迟只用于机关），跳跃更顺。默认 false。</summary>
+    public bool SkipReactionDelayForTerrain { get; set; }
+    /// <summary>本帧是否因为前方机关正在生效而停步（只读，供 Step1 连招统计）。</summary>
+    public bool IsWaitingForTrap => _waitingForTrap;
+    private ControllablePropBase _trapDecisionProp;
+    private bool _trapDecisionRush;
     public bool AuthoredRouteTarget { get; set; }
     public int AnchorSwitchRequests { get; private set; }
     private float _anchorSwitchTimer;
@@ -333,6 +346,12 @@ public class HeuristicBotInputProvider : IInputProvider
         }
         Vector2 marioPos = _mario.transform.position;
         float facingDir = _mario.IsFacingRight ? 1f : -1f;
+        if (HoldStill)
+        {
+            p1Horizontal = 0f; p1JumpDown = false; p1JumpHeld = false; _jumpHoldTimer = 0f;
+            MarioIntent = "[Stunned]";
+            return;
+        }
         // Scouting remains available while waiting/baiting; it is only a normal scan request.
         _evidenceScanTimer -= dt;
         if (EvidenceDrivenScanning && _evidenceScanTimer <= 0f)
@@ -434,11 +453,24 @@ public class HeuristicBotInputProvider : IInputProvider
             }
             if (trapState == PropControlState.Telegraph)
             {
+                if (TrapCommitDistance >= 0f)
+                {
+                    // S185：每次预警只决定一次（不再每帧重掷骰子导致前后抖动）
+                    if (_trapDecisionProp != prop)
+                    {
+                        _trapDecisionProp = prop;
+                        _trapDecisionRush = hit.distance + 0.5f <= TrapCommitDistance;
+                    }
+                    if (_trapDecisionRush) { MarioIntent = "[Commit: rush through]"; break; }
+                    _waitingForTrap = true; // 停下等，不后退
+                    break;
+                }
                 // 机关处于预警期 → 后退骗技能（Baiting）
                 _baitingTrap = true;
                 break;
             }
         }
+        if (_trapDecisionProp != null && _trapDecisionProp.GetControlState() != PropControlState.Telegraph) _trapDecisionProp = null;
 
         // ── 2b. 射线避障预判（提前计算 shouldJump 以供 Persona 反应延迟使用） ──
         LayerMask solidMask = GetSolidMask();
@@ -467,7 +499,7 @@ public class HeuristicBotInputProvider : IInputProvider
         float reactionDelay = marioPersona != null ? marioPersona.reactionDelay : 0.25f;
         float riskTol = marioPersona != null ? marioPersona.riskTolerance : 0.5f;
 
-        bool currentDanger = shouldJump || _waitingForTrap || _baitingTrap;
+        bool currentDanger = (shouldJump && !SkipReactionDelayForTerrain) || _waitingForTrap || _baitingTrap;
 
         // 刚发现危险 → 启动反应计时器
         if (currentDanger && !_dangerDetectedLastFrame)
@@ -1303,6 +1335,7 @@ public class HeuristicBotInputProvider : IInputProvider
         RecoveryAttempts = 0;
         BounceLandingAttempts = 0;
         _bounceLandingTarget = null; _marioBody = null;
+        _trapDecisionProp = null; _trapDecisionRush = false;
         _bounceLandingTimer = _bounceAimCooldown = 0f;
         _marioCacheReady = false;
         _mario = null;

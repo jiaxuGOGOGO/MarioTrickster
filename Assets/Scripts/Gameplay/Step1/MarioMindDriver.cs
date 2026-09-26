@@ -31,6 +31,8 @@ public class MarioMindDriver : MonoBehaviour
     public MarioMindTuningSO Tuning => tuning;
     public bool IsWaitingToStart => startDelay > 0f;
     public float StartDelayRemaining => Mathf.Max(0f, startDelay);
+    /// <summary>移动执行层（只读，供连招统计读"是否被机关挡停"）。</summary>
+    public HeuristicBotInputProvider Bot => hybrid != null ? hybrid.Bot : null;
     /// <summary>马里奥被机关伤到（供试玩日志做恶作剧归因）。</summary>
     public event Action<MarioMindState> Hurt;
     public event Action Caught;
@@ -100,6 +102,9 @@ public class MarioMindDriver : MonoBehaviour
         var gm = GameManager.Instance;
         bool playing = gm == null || gm.CurrentState == GameState.Playing;
         hybrid.Bot.MarioSpeedScale = tuning.marioSpeedScale; // 每帧读取，Play 中改调参资产立即生效
+        hybrid.Bot.TrapCommitDistance = tuning.trapCommitDistance;
+        hybrid.Bot.SkipReactionDelayForTerrain = tuning.smoothJumps;
+        hybrid.Bot.HoldStill = false;
         if (!playing) { hybrid.Bot.ExplorationTarget = (Vector2)transform.position; return; }
 
         if (startDelay > 0f)
@@ -132,5 +137,6 @@ public class MarioMindDriver : MonoBehaviour
             hybrid.Bot.ExplorationTarget = order.moveTarget;
         }
         LastOrder = order;
+        hybrid.Bot.HoldStill = Mind.IsStunned; // S185：晕的时候真的站住（不抖、不跳）
     }
 }

@@ -30,8 +30,9 @@ public static class Step1PrankRoomBuilder
     /// S182 = 3：干净的中英对照界面（Step1Screen）、双语房间标牌。
     /// S183 = 4：崩塌桥只由玩家触发 + 桥下有人不重生（修"马里奥被关在坑里"）。
     /// S184 = 5：房间扩大为 48×12 三区，加遮挡（高墙 + 箱子）。
+    /// S185 = 6：连招系统（Step1Combo）+ 伪装融入时间来自调参。
     /// </summary>
-    public const int BuilderVersion = 5;
+    public const int BuilderVersion = 6;
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
     // S184（用户反馈"地图太小、博弈空间不够"）：36×10 → 48×12，分三区（放松区 / 中区 / 宝物区，宪法 P3）：
@@ -185,7 +186,7 @@ public static class Step1PrankRoomBuilder
         ConfigureFireTraps(root);
         ConfigureBridge(root, tuning);
         ConfigureBlockers(root, tuning);
-        ConfigureTrickster(trickster);
+        ConfigureTrickster(trickster, tuning);
         ConfigureMario(mario, tuning);
         ConfigureLives(gm.gameObject, tuning, trickster, level != null ? level.TricksterSpawn : null);
         gm.gameObject.AddComponent<Step1PlaytestLog>();
@@ -194,6 +195,10 @@ public static class Step1PrankRoomBuilder
         var handsOffSo = new SerializedObject(handsOff);
         handsOffSo.FindProperty("tuning").objectReferenceValue = tuning;
         handsOffSo.ApplyModifiedPropertiesWithoutUndo();
+        var combo = gm.gameObject.AddComponent<Step1Combo>();
+        var comboSo = new SerializedObject(combo);
+        comboSo.FindProperty("tuning").objectReferenceValue = tuning;
+        comboSo.ApplyModifiedPropertiesWithoutUndo();
         var screen = gm.gameObject.AddComponent<Step1Screen>();
         var screenSo = new SerializedObject(screen);
         screenSo.FindProperty("tuning").objectReferenceValue = tuning;
@@ -262,13 +267,20 @@ public static class Step1PrankRoomBuilder
         return count;
     }
 
-    private static void ConfigureTrickster(TricksterController trickster)
+    private static void ConfigureTrickster(TricksterController trickster, MarioMindTuningSO tuning)
     {
         var ability = trickster.GetComponent<TricksterAbilitySystem>();
         if (ability == null) return;
         var so = new SerializedObject(ability);
         so.FindProperty("controlRange").floatValue = TricksterControlRange;
         so.ApplyModifiedPropertiesWithoutUndo();
+        var disguise = trickster.GetComponent<DisguiseSystem>();
+        if (disguise != null)
+        {
+            var dso = new SerializedObject(disguise);
+            dso.FindProperty("blendInTime").floatValue = tuning.disguiseBlendSeconds;
+            dso.ApplyModifiedPropertiesWithoutUndo();
+        }
     }
 
     private static void ConfigureMario(MarioController mario, MarioMindTuningSO tuning)

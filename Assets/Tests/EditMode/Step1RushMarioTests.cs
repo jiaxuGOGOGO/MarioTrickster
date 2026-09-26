@@ -235,7 +235,7 @@ public class Step1RushMarioTests
         string row = Step1PlaytestLog.CsvRow(new System.DateTime(2026, 1, 1), 3, "Trickster", "a,b", 12.3f, 2, 1, 4, 2, dict, survey);
         StringAssert.Contains("Blocker:1 Fire:2", row);
         StringAssert.Contains("a;b", row);
-        StringAssert.Contains("yes,no,unfair:couldnt_read_him,5,he; jumped late", row);
+        StringAssert.Contains("yes,no,unfair:couldnt_read_him,5,he; jumped late,0", row);
         Assert.AreEqual(Step1PlaytestLog.CsvHeader.Split(',').Length, row.Split(',').Length);
     }
 
@@ -512,5 +512,55 @@ public class Step1RushMarioTests
     {
         Assert.AreEqual(new Vector2(2f, 3f), Step1PrankRoomBuilder.CellOf('G'));
         StringAssert.DoesNotContain("new Vector2(32f, 8.3f)", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"), "标牌位置不能写死");
+    }
+
+    // ── S185：连招 + 反制更顺 ───────────────────────────
+    [Test]
+    public void ComboCounterChainsWithinWindowOnly()
+    {
+        var c = new Step1ComboCounter(4f);
+        Assert.AreEqual(1, c.Register(0f));
+        Assert.AreEqual(2, c.Register(3f));
+        Assert.AreEqual(3, c.Register(6.5f));
+        Assert.AreEqual(1, c.Register(11f), "超过窗口重新计");
+        Assert.AreEqual(3, c.Max);
+        c.Reset();
+        Assert.AreEqual(0, c.Max);
+        Assert.AreEqual(1, c.Register(100f));
+    }
+
+    [Test]
+    public void ComboStunIsCapped()
+    {
+        var t = Tuning();
+        var mind = new RushMarioMind(t);
+        mind.Tick(Dt, new MarioPercept { hurt = true });
+        mind.ExtendStun(10f, t.maxStunSeconds);
+        float stunned = 0f;
+        while (mind.IsStunned && stunned < 20f) { mind.Tick(Dt, new MarioPercept()); stunned += Dt; }
+        Assert.LessOrEqual(stunned, t.maxStunSeconds + Dt * 2f, "不能无限控");
+    }
+
+    [Test]
+    public void TrapTelegraphDecisionIsOneShotAndOptIn()
+    {
+        var bot = new HeuristicBotInputProvider();
+        Assert.Less(bot.TrapCommitDistance, 0f, "其他场景保持旧行为");
+        Assert.IsFalse(bot.HoldStill);
+        Assert.IsFalse(bot.SkipReactionDelayForTerrain);
+        string src = Read("Scripts/Core/HeuristicBotInputProvider.cs");
+        StringAssert.Contains("if (_trapDecisionProp != prop)", src, "每次预警只决定一次，不再每帧重掷导致抖动");
+        string driver = Read("Scripts/Gameplay/Step1/MarioMindDriver.cs");
+        StringAssert.Contains("hybrid.Bot.HoldStill = Mind.IsStunned", driver);
+        StringAssert.Contains("hybrid.Bot.TrapCommitDistance = tuning.trapCommitDistance", driver);
+    }
+
+    [Test]
+    public void ComboLayerDoesNotReadTricksterTruth()
+    {
+        string src = Read("Scripts/Gameplay/Step1/Step1Combo.cs");
+        foreach (string token in new[] { "TricksterController", "IsDisguised", "IsFullyBlended", "TricksterPossessionGate" })
+            StringAssert.DoesNotContain(token, src, "H4：连招只看马里奥自己和机关事件");
+        StringAssert.Contains("AddComponent<Step1Combo>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
     }
 }

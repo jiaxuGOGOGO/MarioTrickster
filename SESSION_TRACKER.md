@@ -91,13 +91,21 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 184（房间 36×10 → 48×12 三区 + 遮挡：两道带门洞高墙、两个箱子；含 S183 校准） |
+| **最新 Session** | Session 185（连招系统 + 反制更顺：预警一次性决策不抖、晕时真站住、跳跃不刹车、融入 0.8 秒） |
 | **日期** | 2026-09-26 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
 | **阶段** | 第 0 步已由用户在 Unity 确认（Console 无错、EditMode 全绿）。S180 实现第 1 步：菜单 `MarioTrickster → Step 1 → Build Prank Room` 生成 36×10 单屏房间；马里奥由 `RushMarioMind` 驱动（? → ! → !! → ?!），只凭 `MarioEyes` 视锥+距离+遮挡感知；捣蛋者 3 条命；默认整屏镜头（C 键切换）。 |
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S185] S183 实测 → 连招 + 反制更顺（S184 大房间尚未实测）
+
+- S183 数据：H10 5/5（15.6 秒/局）；真人 5 局马里奥全胜 15.6–25.9 秒，"算准了" 5/5 有、"差点被发现" 0/5、想再来 2–3、被抓 1 局判"服气"；pranks 列仅 Escape（火/墙从未记为命中）；备注"会跳跃但不太自然"。用户口述：希望陷阱能连招；单个陷阱反制马里奥不丝滑。
+- 根因（代码层）：Bot 在机关预警期每帧重掷 `DecisionValue`（前冲/后退）→ 前后抖；遇坑/障碍也走 `reactionDelay` 刹车 → 跳前顿一下；被烧后眩晕只让心智给"原地"目标，Bot 仍会跳/躲。
+- 改动（全部 opt-in，Bot 默认值保持旧行为）：`TrapCommitDistance`（每次预警只决定一次：近则冲、远则停，不后退）、`SkipReactionDelayForTerrain`、`HoldStill`（眩晕真站住）。
+- `Step1Combo`：坑到 = 被烧 / 被机关挡停 / 掉坑；4 秒内连续 = 连招，被烧时额外晕 0.6×(连招-1)，上限 3 秒；头顶弹"连招 x2!"；CSV 加 `max_combo`。伪装融入 1.5→0.8 秒（调参数据）。H4：连招层不读捣蛋者。
+- 调参 dataVersion 3；构建器版本 6；测试 35→39。
 
 ### [S184] 用户问"地图太小、博弈空间不够？"→ 扩房间 + 遮挡
 

@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 2;
+    public const int CurrentDataVersion = 3;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -86,6 +86,24 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("封路墙升起后挡多久（秒）；原默认 1.5 秒太短，用户反馈拦不住马里奥")]
     public float blockerActiveSeconds = 3.5f;
 
+    [Header("Smoothness & combos (S185)")]
+    [Tooltip("机关预警时：离机关不超过这么多格就硬冲过去，否则原地停下等（每次预警只决定一次，不再前后抖）")]
+    public float trapCommitDistance = 1.5f;
+    [Tooltip("跳坑/跳箱子不再先刹车（反应延迟只用于机关），跳得更顺")]
+    public bool smoothJumps = true;
+    [Tooltip("两次坑到马里奥（烧到 / 挡停 / 掉坑）间隔不超过这么多秒，算连招")]
+    public float comboWindowSeconds = 4f;
+    [Tooltip("连招每多一段，被烧到时额外多晕几秒")]
+    public float comboBonusStunSeconds = 0.6f;
+    [Tooltip("一次最多晕几秒（防止无限控）")]
+    public float maxStunSeconds = 3f;
+    [Tooltip("同一次'被挡停'至少间隔几秒才再计一次")]
+    public float stopDebounceSeconds = 1.5f;
+    [Tooltip("连招提示显示几秒")]
+    public float comboFlashSeconds = 1.5f;
+    [Tooltip("伪装后站着不动多久才能操控机关（原 1.5 秒；缩短让连续触发更顺）")]
+    public float disguiseBlendSeconds = 0.8f;
+
     [Header("Collapse bridge (S183)")]
     [Tooltip("桥重生前检查桥下多深（格）；有人在下面就推迟重生（H9 防止把马里奥封在坑里）")]
     public float bridgeRespawnClearDepth = 2f;
@@ -122,6 +140,12 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 3)
+        {
+            trapCommitDistance = 1.5f; smoothJumps = true; comboWindowSeconds = 4f;
+            comboBonusStunSeconds = 0.6f; maxStunSeconds = 3f; stopDebounceSeconds = 1.5f; comboFlashSeconds = 1.5f;
+            disguiseBlendSeconds = 0.8f;
         }
         if (dataVersion < 2)
         {

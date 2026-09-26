@@ -26,6 +26,7 @@ public class Step1PlaytestLog : MonoBehaviour
     private TricksterLives lives;
     private TricksterAbilitySystem abilities;
     private Step1RoomCamera roomCamera;
+    private Step1Combo combo;
     private GameManager manager;
     private string lastPropKind = "";
     private float lastPropTime = -999f;
@@ -60,6 +61,7 @@ public class Step1PlaytestLog : MonoBehaviour
         driver = FindObjectOfType<MarioMindDriver>();
         lives = FindObjectOfType<TricksterLives>();
         roomCamera = FindObjectOfType<Step1RoomCamera>();
+        combo = FindObjectOfType<Step1Combo>();
         var figure = FindObjectOfType<TricksterController>();
         abilities = figure != null ? figure.AbilitySystem : null;
         if (abilities != null) abilities.OnPropActivated += HandleProp;
@@ -151,10 +153,10 @@ public class Step1PlaytestLog : MonoBehaviour
     }
 
     public static string CsvHeader => "timestamp,round,winner,reason,seconds,trickster_lives_left,times_caught,omens,alerts,pranks,distinct_kinds," +
-        "calculated_moment,near_miss_moment,caught_verdict,want_again_1to5,note";
+        "calculated_moment,near_miss_moment,caught_verdict,want_again_1to5,note,max_combo";
 
     public static string CsvRow(DateTime time, int round, string winner, string reason, float seconds, int livesLeft,
-        int caught, int omens, int alerts, IReadOnlyDictionary<string, int> pranks, Step1RoundSurvey answers)
+        int caught, int omens, int alerts, IReadOnlyDictionary<string, int> pranks, Step1RoundSurvey answers, int maxCombo = 0)
     {
         var parts = new List<string>();
         foreach (var kv in pranks) parts.Add(kv.Key + ":" + kv.Value);
@@ -163,7 +165,7 @@ public class Step1PlaytestLog : MonoBehaviour
             seconds.ToString("F1", System.Globalization.CultureInfo.InvariantCulture), livesLeft, caught, omens, alerts,
             string.Join(" ", parts), pranks.Count,
             Step1RoundSurvey.YesNo(answers?.Calculated), Step1RoundSurvey.YesNo(answers?.NearMiss), Clean(answers?.CaughtVerdict),
-            answers != null ? answers.WantAgain : 0, Clean(answers?.Note));
+            answers != null ? answers.WantAgain : 0, Clean(answers?.Note), maxCombo);
     }
 
     private static string Clean(string s) => (s ?? "").Replace(",", ";").Replace("\n", " ").Replace("\r", " ");
@@ -180,7 +182,7 @@ public class Step1PlaytestLog : MonoBehaviour
             if (fresh) sb.AppendLine(CsvHeader);
             sb.AppendLine(CsvRow(DateTime.Now, manager != null ? manager.CurrentRound : 0, lastWinner,
                 manager != null ? manager.LastRoundReason : "", manager != null ? manager.RoundElapsed : 0f,
-                lives != null ? lives.Lives : 0, CaughtThisRound, roundOmens, roundAlerts, roundPranks, answers));
+                lives != null ? lives.Lives : 0, CaughtThisRound, roundOmens, roundAlerts, roundPranks, answers, combo != null ? combo.MaxThisRound : 0));
             File.AppendAllText(path, sb.ToString());
             roundsLogged++;
             Debug.Log($"[Step1PlaytestLog] Round logged ({roundsLogged}) -> {path}");

@@ -42,7 +42,7 @@ public class Step1RoomCamera : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.C)) Mode = (Step1CameraMode)(((int)Mode + 1) % 3);
+        if (!Step1PlaytestLog.IsTyping && Input.GetKeyDown(KeyCode.C)) Mode = (Step1CameraMode)(((int)Mode + 1) % 3);
     }
 
     private void LateUpdate()

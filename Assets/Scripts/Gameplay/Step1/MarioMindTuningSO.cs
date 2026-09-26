@@ -71,6 +71,14 @@ public class MarioMindTuningSO : ScriptableObject
     public float prankAttributionSeconds = 2.5f;
     public float roundTimeLimit = 150f;
 
+    [Header("Playtest tools (S181)")]
+    [Tooltip("菜单 Hands-off check：连续自动跑几局（宪法 H10：无干预时马里奥应能自己通关）")]
+    public int autoCheckRounds = 5;
+    [Tooltip("自动检查时的时间倍速（只影响检查，不影响正常试玩）。默认 1 = 与真实试玩相同的物理与决策节奏")]
+    public float autoCheckTimeScale = 1f;
+    [Tooltip("自动检查每局结束后停留多久（真实秒）再开下一局")]
+    public float autoCheckRoundGapSeconds = 1.5f;
+
     [Header("Camera")]
     public Step1CameraMode cameraMode = Step1CameraMode.WholeRoom;
     public float cameraPadding = 0.6f;

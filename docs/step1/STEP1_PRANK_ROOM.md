@@ -3,11 +3,12 @@
 > 依据：`docs/DESIGN_CONSTITUTION_v1.0.md` 开发顺序第 1 步。
 > 退出条件：**连玩 20 局仍想玩** 且 **至少 3 种不同的坑法**。AI 不判断"好不好玩"，只记录。
 
-## 1. 怎么打开
+## 1. 怎么打开（S181 起只需要一个菜单）
 
-1. Unity 菜单 `MarioTrickster → Step 1 → Build Prank Room`（第一次会生成场景和调参资产）。
-2. 以后直接 `MarioTrickster → Step 1 → Open Prank Room`。
-3. 按 Play。马里奥开局站 2 秒（给你就位），然后自己去拿右边的宝物、再跑回左边的出口。
+1. Unity 菜单 `MarioTrickster → Step 1 → ▶ Play Prank Room`：没有场景或场景是旧版本会**自动重建**，然后直接开始游戏。
+2. 马里奥开局站 2 秒（给你就位），然后自己去拿右边的宝物、再跑回左边的出口。
+3. 无干预检查：`MarioTrickster → Step 1 → Hands-off Check (H10)`，自动连跑 5 局，你不用碰键盘。
+4. 记录在哪：`MarioTrickster → Step 1 → Open Playtest Logs Folder`。
 
 生成物：
 - 场景 `Assets/Scenes/Step1_PrankRoom.unity`
@@ -22,8 +23,8 @@
 | O / I | 切换伪装外观 |
 | L | 触发身边的机关（需要已伪装、完全融入） |
 | C | 切换镜头：整屏 → 两人同框 → 跟自己 |
-| Esc / R / N | 暂停 / 重开关卡 / 下一回合 |
-| 1–5 | 回合结束时打分："还想再玩一局吗"（1=不想，5=马上再来） |
+| Esc / R / N | 暂停 / 重开关卡 / 下一回合（问卷答完后才生效） |
+| Y / N、1–5、打字 + Enter | 回合结束时的 4 个小问题（见第 7 节） |
 
 ## 3. 规则
 
@@ -82,11 +83,24 @@ W##################################W
 
 ## 7. 必做检查
 
-1. **EditMode 测试**：Test Runner 跑 `Step1RushMarioTests`（16 项），以及 `H4PerceptionHonestyTests` / `Step0CoreLoopTests` 保持全绿。
-2. **H10（无干扰通关）**：Play 后**不碰任何键**，看马里奥能否自己拿宝回家。建议连看 5 局；如果有 1 局卡住，记下卡在哪（位置/头顶标记）。
-3. **20 局试玩**：每局结束按 1–5 打分。记录自动写到项目根目录 `PlaytestLogs/step1_playtest.csv`（不进 git）。也可以用 `STEP1_PLAYTEST_SHEET.md` 手记。
+1. **EditMode 测试**：Test Runner 跑 `Step1RushMarioTests`（22 项），以及 `H4PerceptionHonestyTests` / `Step0CoreLoopTests` 保持全绿。
+2. **H10（无干扰通关）**：菜单 `Hands-off Check (H10)`。捣蛋者自动退场，连跑 5 局，屏幕上显示 `Mario cleared x / 5` 和每局卡在哪（坐标）。结果也写进 `PlaytestLogs/step1_handsoff.csv`。
+3. **20 局试玩**：每局结束屏幕会问（宪法第 3 层，照抄不改）：
+   - 有没有"我算准了他会走那里"的时刻？`Y/N`
+   - 有没有"差点被他发现"的时刻？`Y/N`
+   - （只在本局被抓过时问）被抓服气吗？`1 服气` / `2 没预兆` / `3 看不懂他` / `4 手滑` / `5 我露馅`
+   - 还想再来一局吗？`1–5`
+   - 一句话：马里奥最蠢/最聪明的动作（可直接按 Enter 跳过）
+   
+   答完才会保存这一局，然后按 N 开下一局。记录写到 `PlaytestLogs/step1_rounds.csv`（不进 git）。
 
-## 8. 已知限制（统一后修）
+## 8. S181 修了什么
+
+- 你反馈的测试失败 `WallBlocksSightButOneWayPlatformDoesNot`：根因是 EditMode 测试跑在当前打开的场景里，刚生成的恶作剧房间正好铺在原点（墙在 x=0），测试把视线放在原点所以被房间的墙挡住。视线逻辑本身没问题；测试夹具已挪到远离任何关卡的坐标，并先断言夹具区是空的。
+- 按 N 开下一局时，上一局正在喷的火会一直烧（旧的回合重置不关机关效果）。现在每局开始把火焰/封路墙/崩塌桥全部复位。
+- 回合结束按 N 回答"否"会直接跳到下一局 → 问卷答完前 R/N 被屏蔽。
+
+## 9. 已知限制（统一后修）
 
 - 马里奥移动沿用现有 HeuristicBot（左右 + 跳），追你上台子主要靠它的"目标在头顶就跳"逻辑，可能笨拙。
 - 被抓后你是直接传回出生点（没有动画）。

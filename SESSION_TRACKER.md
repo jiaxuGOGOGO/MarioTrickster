@@ -91,13 +91,21 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 180（宪法第 1 步：恶作剧房间 + 冲冲型马里奥 + 整屏镜头） |
-| **日期** | 2026-09-25 |
+| **最新 Session** | Session 181（第 1 步试玩工具：一键 Play、H10 无干预检查、每局宪法问卷、回合机关复位、修 S180 唯一失败测试） |
+| **日期** | 2026-09-26 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
 | **阶段** | 第 0 步已由用户在 Unity 确认（Console 无错、EditMode 全绿）。S180 实现第 1 步：菜单 `MarioTrickster → Step 1 → Build Prank Room` 生成 36×10 单屏房间；马里奥由 `RushMarioMind` 驱动（? → ! → !! → ?!），只凭 `MarioEyes` 视锥+距离+遮挡感知；捣蛋者 3 条命；默认整屏镜头（C 键切换）。 |
-| **编译状态** | 沙箱 `syntax_check.py` 0 错误；Step1 运行时代码用 mono mcs + 桩类型编译通过，起疑条/状态机/视锥逻辑模拟 16/16 通过。**未经 Unity 编译/物理/实跑。** |
+| **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S181] 第 1 步试玩工具（不改马里奥决策，不改数值）
+
+- 用户 S180 实测：`WallBlocksSightButOneWayPlatformDoesNot` 失败。根因：EditMode 测试跑在已打开的 Step1 场景里，房间墙在 x=0 挡住了原点处的测试视线。修测试夹具（远坐标 + 先断言空区），不改视线逻辑。
+- `Step1RoomReset`：每回合 `LevelElementRegistry.ResetAll()`（修：按 N 后上一局火焰 `tricksterOverride` 残留一直烧）；记录构建器版本，`▶ Play Prank Room` 发现旧场景自动重建。
+- `Step1HandsOffCheck` + 菜单 `Hands-off Check (H10)`：捣蛋者退场，自动连跑 `autoCheckRounds` 局，屏显 + `PlaytestLogs/step1_handsoff.csv`。只观察，源码测试禁止引用马里奥决策。
+- `Step1RoundSurvey`：宪法第 3 层每局问卷（算准了/差点被发现/被抓服气+原因标签/想再来/一句话）→ `PlaytestLogs/step1_rounds.csv`；`GameManager.BlockRoundOverKeys` 答完前屏蔽 R/N。
+- 调参新增 `autoCheckRounds/autoCheckTimeScale/autoCheckRoundGapSeconds`（数据文件，非字面常量）。
 
 ### [S180] 第 1 步：恶作剧房间
 
@@ -955,7 +963,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **S180 第 1 步 Unity 验证 + 试玩**：Build Prank Room → 跑 `Step1RushMarioTests` → 不碰键盘看 5 局（H10）→ 20 局试玩打分。 | 沙箱语法 0 错误、逻辑模拟通过；未经 Unity |
+| **最高** | **S181 第 1 步 Unity 验证 + 试玩**：跑 `Step1RushMarioTests`(22) → `Hands-off Check (H10)` → `▶ Play Prank Room` 20 局答问卷 → 把 `PlaytestLogs` 两个 CSV + 一段话发回。 | 沙箱编译通过；未经 Unity |
 | **已完成** | **S179 第 0 步**：用户确认 Console 无错、EditMode 全绿、基础动作正常。 | 镜头跟马里奥问题已在 S180 用整屏镜头处理 |
 | **降级** | **S178双口可玩遭遇本地验证**：seed168，新大按钮/全回归/6首轮/最多6确认/顶部ZIP。 | 358模型过，27新EditMode预计666；实际退回分岔、换口/忍住与返程回应待Unity，不是原洞室同条件A/B |
 | **已审计、体验未满足** | **S177639/639、24局**：地表12局完整上路去返，S176落阶有效；地下暗线/记忆/返程出手/改道0。 | 用户明确“没啥变化、来来回回这些”，不以全绿反驳；不用重跑S177 |

@@ -23,6 +23,12 @@ public static class Step1PrankRoomBuilder
     /// <summary>火焰陷阱平时的冷却时长（秒）：大到一局内不会自己喷火。</summary>
     public const float IdleSafeFireCoolOff = 100000f;
     public const float TricksterControlRange = 5f;
+    /// <summary>
+    /// 构建器版本：每次改动房间生成逻辑都 +1。"Play Prank Room" 发现场景里记录的版本更旧就自动重建，
+    /// 用户拉取新版本后不需要记得手动 Build。
+    /// S181 = 2：每回合机关复位 + H10 无干预检查组件 + 每局问卷。
+    /// </summary>
+    public const int BuilderVersion = 2;
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，坑在 x12..16。
     // x16 的单向台面 "-"：平时可以走过，掉进坑后也能从下面跳穿出来（桥重生后不会把马里奥封死在坑里）。
@@ -61,6 +67,53 @@ public static class Step1PrankRoomBuilder
     {
         if (!File.Exists(ScenePath)) { BuildMenu(); return; }
         if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) EditorSceneManager.OpenScene(ScenePath);
+    }
+
+    /// <summary>S181 一键试玩：没有场景或场景是旧版本 → 自动重建；然后直接进入 Play。</summary>
+    [MenuItem("MarioTrickster/Step 1/▶ Play Prank Room", false, 0)]
+    public static void PlayMenu()
+    {
+        if (!PrepareScene()) return;
+        PlayerPrefs.DeleteKey(Step1HandsOffCheck.RequestKey);
+        EditorApplication.isPlaying = true;
+    }
+
+    /// <summary>S181 宪法 H10：自动连跑几局、捣蛋者退场，看马里奥能否自己拿宝回家。结果显示在屏幕上并写 CSV。</summary>
+    [MenuItem("MarioTrickster/Step 1/Hands-off Check (H10)", false, 1)]
+    public static void HandsOffMenu()
+    {
+        if (!PrepareScene()) return;
+        PlayerPrefs.SetInt(Step1HandsOffCheck.RequestKey, 1);
+        PlayerPrefs.Save();
+        EditorApplication.isPlaying = true;
+    }
+
+    [MenuItem("MarioTrickster/Step 1/Open Playtest Logs Folder", false, 2)]
+    public static void OpenLogsMenu()
+    {
+        string folder = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder);
+        Directory.CreateDirectory(folder);
+        EditorUtility.RevealInFinder(folder);
+    }
+
+    /// <summary>打开恶作剧房间；缺失或版本旧时静默重建。返回 false = 用户取消或出错。</summary>
+    public static bool PrepareScene()
+    {
+        if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog("Step 1", "Stop Play Mode first.", "OK"); return false; }
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return false;
+        if (File.Exists(ScenePath))
+        {
+            EditorSceneManager.OpenScene(ScenePath);
+            var marker = Object.FindObjectOfType<Step1RoomReset>();
+            if (marker != null && marker.BuiltVersion >= BuilderVersion) return true;
+            Debug.Log("[Step1] Prank room scene is from an older build - rebuilding automatically.");
+        }
+        string report = Validate(out bool ok);
+        if (!ok) { EditorUtility.DisplayDialog("Step 1", "Room template invalid:\n" + report, "OK"); return false; }
+        Build();
+        EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
+        AssetDatabase.SaveAssets();
+        return true;
     }
 
     public static string Validate(out bool ok)
@@ -112,6 +165,11 @@ public static class Step1PrankRoomBuilder
         ConfigureMario(mario, tuning);
         ConfigureLives(gm.gameObject, tuning, trickster, level != null ? level.TricksterSpawn : null);
         gm.gameObject.AddComponent<Step1PlaytestLog>();
+        gm.gameObject.AddComponent<Step1RoomReset>().SetBuiltVersion(BuilderVersion);
+        var handsOff = gm.gameObject.AddComponent<Step1HandsOffCheck>();
+        var handsOffSo = new SerializedObject(handsOff);
+        handsOffSo.FindProperty("tuning").objectReferenceValue = tuning;
+        handsOffSo.ApplyModifiedPropertiesWithoutUndo();
         ConfigureCamera(tuning, mario, trickster);
         AddSigns(root);
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());

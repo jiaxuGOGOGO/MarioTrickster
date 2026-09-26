@@ -133,6 +133,10 @@ public class Step1RushMarioTests
         Assert.IsTrue(MarioVision.InCone(Vector2.zero, false, new Vector2(t.nearSenseRadius * 0.5f, 0f), t.visionRange, t.visionHalfAngle, t.nearSenseRadius), "贴身能察觉");
     }
 
+    // [AI防坑警告] EditMode 测试跑在"当前打开的场景"里。刚生成的恶作剧房间正好铺在原点附近（墙 x=0、地面 y=0..2），
+    // 在原点做视线测试会被房间几何挡住（S180 用户实测失败的根因）。几何夹具必须放到远离任何关卡的坐标。
+    static readonly Vector2 FarAway = new Vector2(48000f, 48000f);
+
     [Test]
     public void WallBlocksSightButOneWayPlatformDoesNot()
     {
@@ -141,19 +145,23 @@ public class Step1RushMarioTests
         var shelf = new GameObject("Step1_Shelf");
         try
         {
-            wall.transform.position = new Vector3(2f, 0f, 0f);
+            Vector2 eye = FarAway;
+            Physics2D.SyncTransforms();
+            Assert.IsTrue(MarioVision.CanSee(eye, true, eye + new Vector2(4f, 0f), null, t), "夹具区必须是空的，否则测试被场景污染");
+
+            wall.transform.position = eye + new Vector2(2f, 0f);
             wall.AddComponent<BoxCollider2D>().size = new Vector2(0.5f, 3f);
             Physics2D.SyncTransforms();
-            Assert.IsFalse(MarioVision.CanSee(Vector2.zero, true, new Vector2(4f, 0f), null, t), "墙后看不见");
+            Assert.IsFalse(MarioVision.CanSee(eye, true, eye + new Vector2(4f, 0f), null, t), "墙后看不见");
             Object.DestroyImmediate(wall); wall = null;
 
-            shelf.transform.position = new Vector3(2f, 1f, 0f);
+            shelf.transform.position = eye + new Vector2(2f, 1f);
             var col = shelf.AddComponent<BoxCollider2D>();
             col.size = new Vector2(3f, 0.25f);
             shelf.AddComponent<PlatformEffector2D>().useOneWay = true;
             col.usedByEffector = true;
             Physics2D.SyncTransforms();
-            Assert.IsTrue(MarioVision.CanSee(Vector2.zero, true, new Vector2(4f, 2f), null, t), "单向台面不挡视线");
+            Assert.IsTrue(MarioVision.CanSee(eye, true, eye + new Vector2(4f, 2f), null, t), "单向台面不挡视线");
         }
         finally { if (wall != null) Object.DestroyImmediate(wall); Object.DestroyImmediate(shelf); }
     }
@@ -222,10 +230,83 @@ public class Step1RushMarioTests
     {
         Assert.AreEqual("", Step1PlaytestLog.PrankKindOf(null));
         var dict = new Dictionary<string, int> { { "Fire", 2 }, { "Blocker", 1 } };
-        string row = Step1PlaytestLog.CsvRow(new System.DateTime(2026, 1, 1), 3, "Trickster", "a,b", 12.3f, 2, 1, 4, 2, dict, 5);
+        var survey = new Step1RoundSurvey(true);
+        survey.AnswerYesNo(true); survey.AnswerYesNo(false); survey.AnswerNumber(3); survey.AnswerNumber(5); survey.SubmitNote("he, jumped\nlate");
+        string row = Step1PlaytestLog.CsvRow(new System.DateTime(2026, 1, 1), 3, "Trickster", "a,b", 12.3f, 2, 1, 4, 2, dict, survey);
         StringAssert.Contains("Blocker:1 Fire:2", row);
         StringAssert.Contains("a;b", row);
+        StringAssert.Contains("yes,no,unfair:couldnt_read_him,5,he; jumped late", row);
         Assert.AreEqual(Step1PlaytestLog.CsvHeader.Split(',').Length, row.Split(',').Length);
+    }
+
+    // ── S181：宪法第 3 层每局问卷 ──────────────────────
+    [Test]
+    public void SurveySkipsCaughtQuestionWhenNeverCaught()
+    {
+        var s = new Step1RoundSurvey(false);
+        Assert.AreEqual(Step1RoundSurvey.Step.Calculated, s.Current);
+        Assert.IsFalse(s.AnswerNumber(4), "是/否题不接受数字");
+        s.AnswerYesNo(true); s.AnswerYesNo(true);
+        Assert.AreEqual(Step1RoundSurvey.Step.WantAgain, s.Current, "没被抓就不问服不服气");
+        Assert.IsFalse(s.AnswerNumber(0)); Assert.IsFalse(s.AnswerNumber(6));
+        s.AnswerNumber(2);
+        Assert.AreEqual(2, s.WantAgain);
+        s.SubmitNote("   ");
+        Assert.IsTrue(s.IsDone);
+        Assert.AreEqual("", s.Note);
+        Assert.AreEqual("", s.CaughtVerdict);
+    }
+
+    [Test]
+    public void SurveyCaughtReasonsMatchConstitutionTags()
+    {
+        // 宪法第 3 层：服气 + 四个不服气原因（没预兆 / 看不懂他 / 手滑 / 我露馅）
+        Assert.AreEqual(5, Step1RoundSurvey.CaughtVerdicts.Length);
+        var s = new Step1RoundSurvey(true);
+        s.AnswerYesNo(false); s.AnswerYesNo(false);
+        Assert.AreEqual(Step1RoundSurvey.Step.CaughtVerdict, s.Current);
+        s.AnswerNumber(2);
+        Assert.AreEqual("unfair:no_warning", s.CaughtVerdict);
+    }
+
+    [Test]
+    public void RoundOverKeysAreBlockedDuringSurveyInSource()
+    {
+        string gm = Read("Scripts/Core/GameManager.cs");
+        StringAssert.Contains("BlockRoundOverKeys == null || !BlockRoundOverKeys()", gm, "问卷未答完时 R/N 不能开下一局");
+        StringAssert.Contains("GameManager.BlockRoundOverKeys = () => awaitingRating", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs"));
+    }
+
+    // ── S181：H10 无干预检查 + 每回合机关复位 ────────────
+    [Test]
+    public void HandsOffClearCountsOnlyLootAndHome()
+    {
+        var rs = new List<Step1HandsOffCheck.RoundResult>
+        {
+            new Step1HandsOffCheck.RoundResult { winner = "Mario", hadLoot = true },
+            new Step1HandsOffCheck.RoundResult { winner = "Trickster", hadLoot = true },
+            new Step1HandsOffCheck.RoundResult { winner = "Mario", hadLoot = false },
+        };
+        Assert.AreEqual(1, Step1HandsOffCheck.MarioClears(rs));
+    }
+
+    [Test]
+    public void BuilderInstallsRoundResetAndHandsOffCheck()
+    {
+        string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
+        StringAssert.Contains("AddComponent<Step1RoomReset>().SetBuiltVersion(BuilderVersion)", builder);
+        StringAssert.Contains("AddComponent<Step1HandsOffCheck>()", builder);
+        Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 2, "改了房间生成逻辑必须升版本，旧场景才会自动重建");
+        StringAssert.Contains("LevelElementRegistry.ResetAll()", Read("Scripts/Gameplay/Step1/Step1RoomReset.cs"),
+            "每回合必须走 OnLevelReset，否则上一局正在喷的火会一直烧");
+    }
+
+    [Test]
+    public void HandsOffCheckNeverTouchesMarioDecisions()
+    {
+        string src = Read("Scripts/Gameplay/Step1/Step1HandsOffCheck.cs");
+        foreach (string token in new[] { "ExplorationTarget", "RushMarioMind", "MarioMindDriver", "SetInputProvider" })
+            StringAssert.DoesNotContain(token, src, "H10 检查只能观察，不能帮马里奥");
     }
 
     [Test]

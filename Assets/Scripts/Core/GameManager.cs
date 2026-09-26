@@ -69,6 +69,8 @@ public class GameManager : MonoBehaviour
     // Editor owns replaying unsaved scenes; runtime never depends on editor APIs.
     public static System.Func<bool> EditorRestartHandler;
 #endif
+    /// <summary>S181：回合结束后若有问卷正在输入，返回 true 屏蔽 R/N（否则按 N 回答"否"会直接开下一局）。</summary>
+    public static System.Func<bool> BlockRoundOverKeys;
     public bool ShowResumedHint => false; // 已移除恢复提示功能
 
     // 事件
@@ -145,7 +147,7 @@ public class GameManager : MonoBehaviour
         }
 
         // 回合结束后的按键检测
-        if (currentState == GameState.RoundOver)
+        if (currentState == GameState.RoundOver && (BlockRoundOverKeys == null || !BlockRoundOverKeys()))
         {
             bool restartRound = gip != null ? gip.GetRestartRoundDown() : Input.GetKeyDown(KeyCode.R);
             bool nextRound = gip != null ? gip.GetNextRoundDown() : Input.GetKeyDown(KeyCode.N);

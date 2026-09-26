@@ -78,6 +78,12 @@ public class MarioMindTuningSO : ScriptableObject
     public float autoCheckTimeScale = 1f;
     [Tooltip("自动检查每局结束后停留多久（真实秒）再开下一局")]
     public float autoCheckRoundGapSeconds = 1.5f;
+    [Tooltip("自动检查每局最多等多少秒；超时 = 马里奥卡住（记下卡住的位置）")]
+    public float autoCheckRoundTimeoutSeconds = 45f;
+
+    [Header("Playtest screen (S182)")]
+    [Tooltip("每次进入 Play 先显示玩法说明并暂停，按任意键开始")]
+    public bool showHelpOnStart = true;
 
     [Header("Camera")]
     public Step1CameraMode cameraMode = Step1CameraMode.WholeRoom;

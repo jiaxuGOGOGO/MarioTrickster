@@ -28,7 +28,8 @@ public class Step1HandsOffCheck : MonoBehaviour
     private float nextRoundAt = -1f;
     private bool finished;
     private bool lootSeenThisRound;
-    private GUIStyle style;
+    private MarioController mario;
+    private float roundStartedAt;
 
     public IReadOnlyList<RoundResult> Results => results;
 
@@ -56,7 +57,9 @@ public class Step1HandsOffCheck : MonoBehaviour
         if (!IsRunning) { enabled = false; return; }
         if (tuning == null) tuning = MarioMindTuningSO.LoadOrDefault();
         manager = GameManager.Instance;
+        mario = FindObjectOfType<MarioController>();
         if (manager != null) manager.OnGameOver += HandleGameOver;
+        roundStartedAt = Time.time;
         LootObjective.OnLootCollected += HandleLoot;
     }
 
@@ -85,11 +88,18 @@ public class Step1HandsOffCheck : MonoBehaviour
     {
         if (finished || manager == null) return;
         // GameManager.StartGame 每局会把 timeScale 设回 1，这里每帧保持检查倍速。
-        if (manager.CurrentState == GameState.Playing) Time.timeScale = Mathf.Max(0.1f, tuning.autoCheckTimeScale);
+        if (manager.CurrentState == GameState.Playing)
+        {
+            Time.timeScale = Mathf.Max(0.1f, tuning.autoCheckTimeScale);
+            // S182：马里奥卡住时不要一直干等到 150 秒倒计时，超时即记为卡住。
+            if (Time.time - roundStartedAt > tuning.autoCheckRoundTimeoutSeconds)
+                manager.EndRound("Trickster", Step1Text.HandsOffTimeoutReason);
+        }
         if (nextRoundAt > 0f && Time.unscaledTime >= nextRoundAt)
         {
             nextRoundAt = -1f;
             lootSeenThisRound = false;
+            roundStartedAt = Time.time;
             manager.ResetRound();
         }
     }
@@ -120,21 +130,45 @@ public class Step1HandsOffCheck : MonoBehaviour
         catch (Exception e) { Debug.LogWarning("[Step1 H10] Could not write log: " + e.Message); }
     }
 
+    /// <summary>一局的中文+英文结论（纯函数，供显示与测试）。</summary>
+    public static string Describe(RoundResult r)
+    {
+        if (r.winner == "Mario" && r.hadLoot) return $"<color=#7CFC7C>\u2713 通关 Cleared</color>   {r.seconds:F0}s";
+        string where = $"(x={r.marioPos.x:F0}, y={r.marioPos.y:F0})";
+        if (r.reason == Step1Text.HandsOffTimeoutReason)
+            return $"<color=#FF7070>\u2717 卡住 Stuck</color>   {(r.hadLoot ? "拿到宝后 after loot" : "没拿到宝 before loot")} {where}";
+        return $"<color=#FF7070>\u2717 失败 Failed</color>   {where}";
+    }
+
     private void OnGUI()
     {
         if (!IsRunning) return;
-        if (style == null) style = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, richText = true, wordWrap = true };
+        float w = Step1Gui.Begin();
         int total = Mathf.Max(1, tuning != null ? tuning.autoCheckRounds : 5);
+        int clears = MarioClears(results);
         var sb = new StringBuilder();
-        sb.AppendLine("<b>HANDS-OFF CHECK (H10)</b> - don't touch anything");
-        sb.AppendLine($"Mario cleared {MarioClears(results)} / {results.Count}   (round {Mathf.Min(results.Count + 1, total)} of {total})");
-        for (int i = 0; i < results.Count; i++)
+        sb.AppendLine("<b>自动检查：马里奥能不能自己通关</b>");
+        sb.AppendLine("<b>Auto check: can Mario finish on his own?</b>");
+        sb.AppendLine("<color=#BBBBBB>你不用操作，看着就行（你的角色已移出房间）  Just watch — you're removed from the room</color>");
+        sb.AppendLine();
+        for (int i = 0; i < total; i++)
         {
-            var r = results[i];
-            bool ok = r.winner == "Mario" && r.hadLoot;
-            sb.AppendLine($"#{i + 1}: {(ok ? "<color=#7CFC00>CLEAR</color>" : "<color=#FF6060>STUCK/FAIL</color>")}  {r.seconds:F0}s  at x={r.marioPos.x:F0} y={r.marioPos.y:F0}");
+            if (i < results.Count) sb.AppendLine($"第 {i + 1} 局 Round {i + 1}:   {Describe(results[i])}");
+            else if (i == results.Count && !finished) sb.AppendLine($"第 {i + 1} 局 Round {i + 1}:   <color=#FFD966>进行中… running…</color>");
+            else sb.AppendLine($"<color=#777777>第 {i + 1} 局 Round {i + 1}:   —</color>");
         }
-        if (finished) sb.Append("<b>Done.</b> Stop Play. Result saved to PlaytestLogs/step1_handsoff.csv");
-        GUI.Box(new Rect(Screen.width * 0.5f - 300, 20, 600, 70 + 26 * (results.Count + (finished ? 1 : 0))), sb.ToString(), style);
+        if (finished)
+        {
+            sb.AppendLine();
+            string verdict = clears == results.Count
+                ? "<color=#7CFC7C><b>\u2713 合格 PASS：马里奥每局都能自己通关</b></color>"
+                : $"<color=#FF7070><b>\u2717 不合格 FAIL：{results.Count - clears} 局没通关</b></color>";
+            sb.AppendLine(verdict);
+            sb.Append("<color=#BBBBBB>完成，可以点 Stop 停止。  Done — press Stop.</color>");
+        }
+        float height = 210f + 36f * total + (finished ? 90f : 0f);
+        var r = new Rect(w * 0.5f - 480f, 20f, 960f, height);
+        Step1Gui.Panel(r, 0.88f);
+        GUI.Label(new Rect(r.x + 30f, r.y + 20f, r.width - 60f, r.height - 30f), sb.ToString(), Step1Gui.Text(24));
     }
 }

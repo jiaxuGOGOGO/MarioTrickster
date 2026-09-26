@@ -91,13 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 181（第 1 步试玩工具：一键 Play、H10 无干预检查、每局宪法问卷、回合机关复位、修 S180 唯一失败测试） |
+| **最新 Session** | Session 182（第 1 步清爽中英界面：只留 3 行状态 + 1 行按键、开局帮助页、结算按钮问卷、H10 检查超时与中文结论） |
 | **日期** | 2026-09-26 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
 | **阶段** | 第 0 步已由用户在 Unity 确认（Console 无错、EditMode 全绿）。S180 实现第 1 步：菜单 `MarioTrickster → Step 1 → Build Prank Room` 生成 36×10 单屏房间；马里奥由 `RushMarioMind` 驱动（? → ! → !! → ?!），只凭 `MarioEyes` 视锥+距离+遮挡感知；捣蛋者 3 条命；默认整屏镜头（C 键切换）。 |
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S182] 用户反馈"信息太多、看不懂结算"→ 清爽中英界面（纯表现，不改玩法/数值）
+
+- 用户 S181 实测：H10 画面叠了 8 块文字（旧 HUD 热度/补偿、旧结算横幅 "Route cleared…"、拿宝提示、伪装调试行等），结算看不懂；只看到"一个人跑去拿金币又折返"。CSV 记录到第 1 局：被抓 2 次、答"看不懂他"。
+- `Step1Screen`：第 1 步房间隐藏 GlobalGameUICanvas / LootEscapeHUD / SuspicionHUD / 伪装调试行 / [Q] Scan 字样（新增 `showDebugStatus`、`showScanHints` 开关，默认 true 不影响其他场景）；捣蛋者头顶"你 YOU"；开局帮助页（中英、暂停、任意键开始，H 随时开），Esc 暂停提示。
+- `Step1Text`：所有可见文字中英对照集中一处；`Classify` 把 GameManager 原因翻成玩家结局（马里奥逃走 / 你被抓满 3 次 / 时间到你赢 / 马里奥被打倒你赢 / 卡住）。
+- `Step1PlaytestLog`：左上 3 行（命、时间、马里奥在干嘛）+ 底部 1 行按键；结算一次一个问题、可点按钮也可按键，答完才显示 N/R。
+- `Step1HandsOffCheck`：每局超时 `autoCheckRoundTimeoutSeconds`=45s 记"卡住"（以前卡住要等 150s），逐局 ✓通关/✗卡住+位置，最后合格/不合格。
+- `Step1Gui`：OS 中文字体（雅黑/黑体/苹方/Noto）+ 1080p 虚拟画布缩放。构建器版本 3（旧场景自动重建）。测试 22→27。
 
 ### [S181] 第 1 步试玩工具（不改马里奥决策，不改数值）
 
@@ -963,7 +972,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **S181 第 1 步 Unity 验证 + 试玩**：跑 `Step1RushMarioTests`(22) → `Hands-off Check (H10)` → `▶ Play Prank Room` 20 局答问卷 → 把 `PlaytestLogs` 两个 CSV + 一段话发回。 | 沙箱编译通过；未经 Unity |
+| **最高** | **S182 界面验收**：用户看新界面是否一眼能懂（H10 结果面板、帮助页、结算问答）；然后才继续 20 局试玩。 | 沙箱编译 + 逻辑实跑 + 排版模拟通过；未经 Unity |
 | **已完成** | **S179 第 0 步**：用户确认 Console 无错、EditMode 全绿、基础动作正常。 | 镜头跟马里奥问题已在 S180 用整屏镜头处理 |
 | **降级** | **S178双口可玩遭遇本地验证**：seed168，新大按钮/全回归/6首轮/最多6确认/顶部ZIP。 | 358模型过，27新EditMode预计666；实际退回分岔、换口/忍住与返程回应待Unity，不是原洞室同条件A/B |
 | **已审计、体验未满足** | **S177639/639、24局**：地表12局完整上路去返，S176落阶有效；地下暗线/记忆/返程出手/改道0。 | 用户明确“没啥变化、来来回回这些”，不以全绿反驳；不用重跑S177 |

@@ -27,8 +27,9 @@ public static class Step1PrankRoomBuilder
     /// 构建器版本：每次改动房间生成逻辑都 +1。"Play Prank Room" 发现场景里记录的版本更旧就自动重建，
     /// 用户拉取新版本后不需要记得手动 Build。
     /// S181 = 2：每回合机关复位 + H10 无干预检查组件 + 每局问卷。
+    /// S182 = 3：干净的中英对照界面（Step1Screen）、双语房间标牌。
     /// </summary>
-    public const int BuilderVersion = 2;
+    public const int BuilderVersion = 3;
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，坑在 x12..16。
     // x16 的单向台面 "-"：平时可以走过，掉进坑后也能从下面跳穿出来（桥重生后不会把马里奥封死在坑里）。
@@ -170,6 +171,10 @@ public static class Step1PrankRoomBuilder
         var handsOffSo = new SerializedObject(handsOff);
         handsOffSo.FindProperty("tuning").objectReferenceValue = tuning;
         handsOffSo.ApplyModifiedPropertiesWithoutUndo();
+        var screen = gm.gameObject.AddComponent<Step1Screen>();
+        var screenSo = new SerializedObject(screen);
+        screenSo.FindProperty("tuning").objectReferenceValue = tuning;
+        screenSo.ApplyModifiedPropertiesWithoutUndo();
         ConfigureCamera(tuning, mario, trickster);
         AddSigns(root);
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
@@ -253,9 +258,9 @@ public static class Step1PrankRoomBuilder
 
     private static void AddSigns(GameObject root)
     {
-        AddSign(root, new Vector2(3f, 8.3f), "< ESCAPE", 0.06f);
-        AddSign(root, new Vector2(32f, 8.3f), "LOOT >", 0.06f);
-        AddSign(root, new Vector2(17.5f, 8.6f), "STEP 1 - PRANK ROOM\nDisguise (P) next to a prop, trigger it (L). Don't get caught: 3 lives.", 0.05f);
+        // S182：只留两块方向牌（中英），玩法说明改为开局帮助页（H 键）
+        AddSign(root, new Vector2(3f, 8.3f), "\u2190 出口 EXIT", 0.06f);
+        AddSign(root, new Vector2(32f, 8.3f), "宝物 LOOT \u2192", 0.06f);
     }
 
     private static void AddSign(GameObject root, Vector2 position, string text, float size)

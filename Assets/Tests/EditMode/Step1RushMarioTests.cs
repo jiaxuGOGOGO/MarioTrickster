@@ -296,7 +296,8 @@ public class Step1RushMarioTests
         string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
         StringAssert.Contains("AddComponent<Step1RoomReset>().SetBuiltVersion(BuilderVersion)", builder);
         StringAssert.Contains("AddComponent<Step1HandsOffCheck>()", builder);
-        Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 2, "改了房间生成逻辑必须升版本，旧场景才会自动重建");
+        Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 3, "改了房间生成逻辑必须升版本，旧场景才会自动重建");
+        StringAssert.Contains("AddComponent<Step1Screen>()", builder, "S182：第 1 步必须装干净界面");
         StringAssert.Contains("LevelElementRegistry.ResetAll()", Read("Scripts/Gameplay/Step1/Step1RoomReset.cs"),
             "每回合必须走 OnLevelReset，否则上一局正在喷的火会一直烧");
     }
@@ -342,5 +343,73 @@ public class Step1RushMarioTests
             Assert.IsFalse(lives.TryCatch(Vector2.zero), "重生无敌期内不能连抓");
         }
         finally { Object.DestroyImmediate(go); Object.DestroyImmediate(mgr); }
+    }
+
+    // ── S182：清爽中英界面 ──────────────────────────────
+    [Test]
+    public void OutcomeClassificationMatchesRealReasonStrings()
+    {
+        // 原因字符串来自 GameManager / TricksterLives 源码，改了那边这里会失败，提醒同步文案。
+        StringAssert.Contains("Time ran out", Read("Scripts/Core/GameManager.cs"));
+        StringAssert.Contains("Health depleted", Read("Scripts/Core/GameManager.cs"));
+        StringAssert.Contains("Trickster caught", Read("Scripts/Gameplay/Step1/TricksterLives.cs"));
+        Assert.AreEqual(Step1Text.Outcome.MarioEscaped, Step1Text.Classify("Mario", "Route cleared. Try a new timing or an alternate route."));
+        Assert.AreEqual(Step1Text.Outcome.TricksterCaughtOut, Step1Text.Classify("Mario", "Trickster caught 3 times."));
+        Assert.AreEqual(Step1Text.Outcome.TimeUp, Step1Text.Classify("Trickster", "Time ran out. Try a shorter route or a longer timer."));
+        Assert.AreEqual(Step1Text.Outcome.MarioKnockedOut, Step1Text.Classify("Trickster", "Health depleted. Observe the hazard before committing."));
+        Assert.AreEqual(Step1Text.Outcome.HandsOffTimeout, Step1Text.Classify("Trickster", Step1Text.HandsOffTimeoutReason));
+        Assert.IsTrue(Step1Text.PlayerWon(Step1Text.Outcome.TimeUp));
+        Assert.IsFalse(Step1Text.PlayerWon(Step1Text.Outcome.MarioEscaped));
+    }
+
+    [Test]
+    public void SurveyButtonsWalkTheSameSteps()
+    {
+        var s = new Step1RoundSurvey(true);
+        Assert.AreEqual(5, s.StepCount); Assert.AreEqual(1, s.StepNumber);
+        Assert.AreEqual(2, s.Options.Length);
+        Assert.IsTrue(s.Choose(0)); Assert.AreEqual(true, s.Calculated);
+        Assert.IsTrue(s.Choose(1)); Assert.AreEqual(false, s.NearMiss);
+        Assert.AreEqual(5, s.Options.Length, "服气 + 4 个宪法原因");
+        Assert.IsTrue(s.Choose(3)); Assert.AreEqual("unfair:slipped", s.CaughtVerdict);
+        Assert.AreEqual(5, s.Options.Length);
+        Assert.IsTrue(s.Choose(4)); Assert.AreEqual(5, s.WantAgain);
+        Assert.AreEqual(0, s.Options.Length, "一句话步骤用输入框");
+        Assert.AreEqual(5, s.StepNumber);
+
+        var n = new Step1RoundSurvey(false);
+        n.Choose(0); n.Choose(0);
+        Assert.AreEqual(Step1RoundSurvey.Step.WantAgain, n.Current);
+        Assert.AreEqual(3, n.StepNumber); Assert.AreEqual(4, n.StepCount);
+        StringAssert.Contains("\n", n.Prompt, "中英两行");
+    }
+
+    [Test]
+    public void EveryMarioStateHasBilingualText()
+    {
+        foreach (MarioMindState st in System.Enum.GetValues(typeof(MarioMindState)))
+        {
+            string line = Step1Text.MarioStateText(st, false, false);
+            Assert.IsNotEmpty(line);
+            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(line, "[\u4e00-\u9fff]") && System.Text.RegularExpressions.Regex.IsMatch(line, "[A-Za-z]"), st + " 需中英对照");
+            StringAssert.Contains("\n", Step1Text.HeadIntent(st, ""));
+        }
+    }
+
+    [Test]
+    public void HandsOffDescribeSaysStuckOrCleared()
+    {
+        StringAssert.Contains("通关", Step1HandsOffCheck.Describe(new Step1HandsOffCheck.RoundResult { winner = "Mario", hadLoot = true, seconds = 9f }));
+        StringAssert.Contains("卡住", Step1HandsOffCheck.Describe(new Step1HandsOffCheck.RoundResult { winner = "Trickster", reason = Step1Text.HandsOffTimeoutReason }));
+    }
+
+    [Test]
+    public void CleanScreenHidesLegacyHudOnlyVisually()
+    {
+        string src = Read("Scripts/Gameplay/Step1/Step1Screen.cs");
+        StringAssert.Contains("GlobalGameUICanvas", src);
+        StringAssert.Contains("LootEscapeHUD", src);
+        foreach (string token in new[] { "ExplorationTarget", "RushMarioMind", "SetInputProvider", "TryCatch" })
+            StringAssert.DoesNotContain(token, src, "界面层不能碰玩法/马里奥决策");
     }
 }

@@ -589,9 +589,12 @@ public class TricksterController : MonoBehaviour
     // Session 11 修复：原来放在右上角(Screen.width-520)，Game视图窄时会被裁剪看不到
     // Session 18 性能优化：缓存 GUIStyle，消除每帧 new 分配
     private GUIStyle cachedDebugStyle;
+    [Tooltip("S182：左上角伪装调试状态行（第 1 步房间关掉）")]
+    [SerializeField] private bool showDebugStatus = true;
+    public void SetShowDebugStatus(bool value) => showDebugStatus = value;
     private void OnGUI()
     {
-        if (disguiseSystem == null) return;
+        if (!showDebugStatus || disguiseSystem == null) return;
         if (cachedDebugStyle == null)
         {
             cachedDebugStyle = new GUIStyle(GUI.skin.label)

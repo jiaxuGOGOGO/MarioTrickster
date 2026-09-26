@@ -10,7 +10,7 @@ using UnityEngine;
 ///   马里奥追丢（Chasing → Searching → Running 且没抓到）→ 记一次 "Escape"。
 /// - 回合结束：屏幕上答宪法第 3 层每局问卷（Step1RoundSurvey：算准了/差点被发现/被抓服气吗/想再来 1–5/一句话），
 ///   写入 PlaytestLogs/step1_rounds.csv（在 Assets 外，不进 git）。问卷答完之前 R/N 被屏蔽，避免误开下一局。
-/// - 左上角 HUD（英文，避开中文字体风险）。
+/// - S182：界面中英对照、只留必要信息（左上角 3 行状态 + 底部 1 行按键），结算用按钮/按键作答，答完才显示 N/R。
 /// 本类只做记录与显示，不影响马里奥决策。
 /// </summary>
 public class Step1PlaytestLog : MonoBehaviour
@@ -38,7 +38,8 @@ public class Step1PlaytestLog : MonoBehaviour
     private Step1RoundSurvey survey;
     private string noteDraft = "";
     private string lastWinner = "";
-    private GUIStyle style;
+    private bool savedThisRound;
+    private string lastReason = "";
 
     public IReadOnlyDictionary<string, int> RoundPranks => roundPranks;
     public int DistinctKindsThisSession => sessionKinds.Count;
@@ -86,7 +87,7 @@ public class Step1PlaytestLog : MonoBehaviour
     private void BeginRound()
     {
         roundPranks.Clear(); roundOmens = roundAlerts = roundCaught = 0;
-        chaseOpen = false; awaitingRating = false; survey = null; IsTyping = false; noteDraft = ""; lastPropKind = ""; lastPropTime = -999f;
+        chaseOpen = false; awaitingRating = false; savedThisRound = false; survey = null; IsTyping = false; noteDraft = ""; lastPropKind = ""; lastPropTime = -999f;
     }
 
     private void HandleProp(IControllableProp prop) { lastPropKind = PrankKindOf(prop); lastPropTime = Time.time; }
@@ -120,6 +121,7 @@ public class Step1PlaytestLog : MonoBehaviour
     private void HandleGameOver(string winner)
     {
         lastWinner = winner;
+        lastReason = manager != null ? manager.LastRoundReason : "";
         // 自动无干预检查（H10）时没人答题，由 Step1HandsOffCheck 记录。
         if (Step1HandsOffCheck.IsRunning) return;
         awaitingRating = true;
@@ -132,6 +134,7 @@ public class Step1PlaytestLog : MonoBehaviour
         if (!awaitingRating || survey == null) return;
         IsTyping = survey.Current == Step1RoundSurvey.Step.Note;
         if (IsTyping) return; // 文本在 OnGUI 里收
+        if (Step1Screen.HelpOpen) return;
         if (Input.GetKeyDown(KeyCode.Y)) survey.AnswerYesNo(true);
         else if (Input.GetKeyDown(KeyCode.N)) survey.AnswerYesNo(false);
         for (int i = 1; i <= 5; i++)
@@ -143,6 +146,7 @@ public class Step1PlaytestLog : MonoBehaviour
         survey.SubmitNote(noteDraft);
         WriteRow(survey);
         awaitingRating = false;
+        savedThisRound = true;
         IsTyping = false;
     }
 
@@ -186,34 +190,82 @@ public class Step1PlaytestLog : MonoBehaviour
 
     private void OnGUI()
     {
-        if (style == null) style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 14, richText = true };
-        var sb = new StringBuilder();
-        sb.AppendLine("<b>STEP 1 - PRANK ROOM</b>");
-        if (lives != null) sb.AppendLine($"Trickster lives: {new string('\u2665', Mathf.Max(0, lives.Lives))}{(lives.IsInvulnerable ? "  (safe)" : "")}");
-        if (driver != null && driver.Mind != null) sb.AppendLine($"Mario: {driver.Mind.State}  suspicion {driver.Mind.Meter.Value:F0}");
-        if (manager != null) sb.AppendLine($"Time: {manager.GameTimer:F0}s   Round {manager.CurrentRound}   Logged {roundsLogged}");
-        sb.AppendLine($"Pranks this round: {Describe()}   Kinds this session: {sessionKinds.Count}/3");
-        if (roomCamera != null) sb.AppendLine($"Camera: {roomCamera.Mode}  [C] cycle");
-        sb.AppendLine("Arrows move / Up jump  P disguise  O/I switch  L trigger");
-        sb.AppendLine("Mario: ? = huh  ! = checking  !! = sees you  ?! = lost you");
-        sb.Append("R restart  N next round  Esc pause");
-        GUI.Box(new Rect(10, 10, 490, 170), sb.ToString(), style);
+        if (Step1HandsOffCheck.IsRunning || Step1Screen.HelpOpen) return;
+        float w = Step1Gui.Begin();
+        float h = Step1Gui.VirtualHeight;
+        var gm = manager;
+        bool roundOver = gm != null && gm.CurrentState == GameState.RoundOver;
 
-        if (awaitingRating && survey != null)
+        // ── 左上角：只放 3 行 ──
+        var sb = new StringBuilder();
+        if (lives != null)
+            sb.AppendLine($"你的命 Lives  <color=#FF7A7A>{new string('\u2665', Mathf.Max(0, lives.Lives))}</color><color=#555555>{new string('\u2665', Mathf.Max(0, lives.MaxLives - lives.Lives))}</color>" +
+                          (lives.IsInvulnerable ? "  <color=#9AD0FF>(无敌 safe)</color>" : ""));
+        if (gm != null) sb.AppendLine($"剩余时间 Time  <b>{Mathf.CeilToInt(Mathf.Max(0f, gm.GameTimer))}s</b>     第 {gm.CurrentRound} 局 Round");
+        if (driver != null && driver.Mind != null)
+            sb.Append("马里奥 Mario  <b>" + Step1Text.MarioStateText(driver.Mind.State, driver.IsWaitingToStart, LootObjective.IsLootCarried) + "</b>");
+        Step1Gui.Panel(new Rect(16f, 16f, 620f, 120f));
+        GUI.Label(new Rect(32f, 24f, 600f, 110f), sb.ToString(), Step1Gui.Text(24));
+
+        // ── 底部：一行按键 ──
+        if (!roundOver)
         {
-            var big = new GUIStyle(style) { fontSize = 20, alignment = TextAnchor.MiddleCenter, wordWrap = true };
-            var rect = new Rect(Screen.width * 0.5f - 330, Screen.height * 0.5f - 90, 660, 180);
-            GUI.Box(rect, $"<b>{lastWinner} wins</b>   (answer to save this round)\n\n{survey.Prompt}", big);
-            if (survey.Current == Step1RoundSurvey.Step.Note)
-            {
-                Event e = Event.current;
-                bool enter = e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter);
-                GUI.SetNextControlName("Step1Note");
-                noteDraft = GUI.TextField(new Rect(rect.x + 30, rect.yMax - 45, rect.width - 60, 30), noteDraft, 200);
-                GUI.FocusControl("Step1Note");
-                if (enter) { FinishSurvey(); e.Use(); }
-            }
+            Step1Gui.Panel(new Rect(0f, h - 54f, w, 54f), 0.6f);
+            GUI.Label(new Rect(0f, h - 54f, w, 54f), Step1Text.ControlsBar, Step1Gui.Text(22, TextAnchor.MiddleCenter, false));
+            return;
         }
+
+        // ── 结算：结果 + 一次一个问题 ──
+        var outcome = Step1Text.Classify(lastWinner, lastReason);
+        var box = new Rect(w * 0.5f - 520f, h * 0.5f - 300f, 1040f, 600f);
+        Step1Gui.Panel(box, 0.93f);
+        string color = Step1Text.PlayerWon(outcome) ? "#7CFC7C" : "#FFB347";
+        GUI.Label(new Rect(box.x, box.y + 24f, box.width, 100f), $"<color={color}><b>{Step1Text.Headline(outcome)}</b></color>",
+            Step1Gui.Text(34, TextAnchor.MiddleCenter));
+        var inner = new Rect(box.x + 40f, box.y + 150f, box.width - 80f, box.height - 180f);
+
+        if (savedThisRound || survey == null)
+        {
+            GUI.Label(inner, Step1Text.AfterSurvey, Step1Gui.Text(30, TextAnchor.MiddleCenter));
+            return;
+        }
+
+        GUI.Label(new Rect(inner.x, inner.y - 10f, inner.width, 30f), $"<color=#AAAAAA>记录这一局 Quick feedback   {survey.StepNumber} / {survey.StepCount}</color>",
+            Step1Gui.Text(20, TextAnchor.MiddleCenter));
+        GUI.Label(new Rect(inner.x, inner.y + 30f, inner.width, 90f), "<b>" + survey.Prompt + "</b>", Step1Gui.Text(28, TextAnchor.MiddleCenter));
+
+        if (survey.Current == Step1RoundSurvey.Step.Note)
+        {
+            Event e = Event.current;
+            bool enter = e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter);
+            var field = new GUIStyle(GUI.skin.textField) { fontSize = 26, alignment = TextAnchor.MiddleLeft };
+            if (Step1Gui.Font != null) field.font = Step1Gui.Font;
+            GUI.SetNextControlName("Step1Note");
+            noteDraft = GUI.TextField(new Rect(inner.x + 40f, inner.y + 150f, inner.width - 80f, 56f), noteDraft, 200, field);
+            GUI.FocusControl("Step1Note");
+            var btn = Button(24);
+            if (GUI.Button(new Rect(inner.center.x - 180f, inner.y + 240f, 360f, 70f), "保存 Save  [Enter]", btn) || enter)
+            { FinishSurvey(); if (enter) e.Use(); }
+            return;
+        }
+
+        string[] options = survey.Options;
+        float gap = 16f;
+        float bw = Mathf.Min(300f, (inner.width - gap * (options.Length - 1)) / options.Length);
+        float total = bw * options.Length + gap * (options.Length - 1);
+        float x0 = inner.center.x - total * 0.5f;
+        var style = Button(options.Length > 2 ? 21 : 26);
+        for (int i = 0; i < options.Length; i++)
+            if (GUI.Button(new Rect(x0 + i * (bw + gap), inner.y + 150f, bw, 110f), options[i], style)) survey.Choose(i);
+        GUI.Label(new Rect(inner.x, inner.y + 290f, inner.width, 40f), "<color=#AAAAAA>点按钮或按括号里的键  Click or press the key</color>",
+            Step1Gui.Text(20, TextAnchor.MiddleCenter));
+    }
+
+    private static GUIStyle Button(int size)
+    {
+        var st = new GUIStyle(GUI.skin.button) { fontSize = size, wordWrap = true, richText = true };
+        if (Step1Gui.Font != null) st.font = Step1Gui.Font;
+        return st;
     }
 
     private string Describe()

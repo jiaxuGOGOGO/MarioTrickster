@@ -22,20 +22,60 @@ public sealed class Step1RoundSurvey
 
     public Step1RoundSurvey(bool wasCaught) { this.wasCaught = wasCaught; }
 
+    /// <summary>当前问题（中英对照，S182）。</summary>
     public string Prompt
     {
         get
         {
             switch (Current)
             {
-                case Step.Calculated: return "Did you have a \"I KNEW he'd go there\" moment?   Y = yes   N = no";
-                case Step.NearMiss: return "Did you have a \"he ALMOST spotted me\" moment?   Y = yes   N = no";
-                case Step.CaughtVerdict: return "You got caught. Was it fair?\n1 fair (my fault)   2 no warning   3 couldn't read him   4 slipped   5 gave myself away";
-                case Step.WantAgain: return "Want to play another round?   1 (no) ... 5 (yes, right now!)";
-                case Step.Note: return "Optional: dumbest / smartest thing Mario did (type, Enter = done)";
-                default: return "Saved. Press N for next round.";
+                case Step.Calculated: return "这局有没有「我算准了他会走那里」的时刻？\nDid you have an \"I knew he'd go there\" moment?";
+                case Step.NearMiss: return "这局有没有「差点被他发现」的时刻？\nDid he ALMOST spot you this round?";
+                case Step.CaughtVerdict: return "你被抓了。服气吗？\nYou got caught. Was it fair?";
+                case Step.WantAgain: return "还想再来一局吗？\nWant to play another round?";
+                case Step.Note: return "一句话（可跳过）：马里奥最蠢或最聪明的一下？\nOptional: dumbest or smartest thing Mario did?";
+                default: return "";
             }
         }
+    }
+
+    public int StepNumber => (int)Current + 1 - (!wasCaught && Current > Step.CaughtVerdict ? 1 : 0);
+    public int StepCount => wasCaught ? 5 : 4;
+
+    private static readonly string[] YesNoOptions = { "是 Yes  [Y]", "否 No  [N]" };
+    private static readonly string[] VerdictOptions =
+    {
+        "服气，是我的错\nFair, my fault  [1]", "没预兆\nNo warning  [2]", "看不懂他\nCouldn't read him  [3]",
+        "手滑\nMy hands slipped  [4]", "我自己露馅\nI gave myself away  [5]"
+    };
+    private static readonly string[] AgainOptions =
+    {
+        "1  不想\nNo", "2", "3  一般\nMaybe", "4", "5  马上再来！\nYes, now!"
+    };
+    private static readonly string[] NoOptions = new string[0];
+
+    /// <summary>当前问题的可点按钮（Note 步没有按钮，用输入框）。</summary>
+    public string[] Options
+    {
+        get
+        {
+            switch (Current)
+            {
+                case Step.Calculated:
+                case Step.NearMiss: return YesNoOptions;
+                case Step.CaughtVerdict: return VerdictOptions;
+                case Step.WantAgain: return AgainOptions;
+                default: return NoOptions;
+            }
+        }
+    }
+
+    /// <summary>点第 index 个按钮（0 起）。</summary>
+    public bool Choose(int index)
+    {
+        if (Current == Step.Calculated || Current == Step.NearMiss)
+            return index >= 0 && index <= 1 && AnswerYesNo(index == 0);
+        return AnswerNumber(index + 1);
     }
 
     public bool AnswerYesNo(bool yes)

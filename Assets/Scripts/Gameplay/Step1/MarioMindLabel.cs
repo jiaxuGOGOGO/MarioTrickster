@@ -14,8 +14,8 @@ public class MarioMindLabel : MonoBehaviour
     private void Start()
     {
         if (driver == null) driver = GetComponentInParent<MarioMindDriver>();
-        mark = MakeText("MindMark", 90, 0.07f, new Vector3(0f, height + 0.35f, 0f));
-        intent = MakeText("MindIntent", 40, 0.05f, new Vector3(0f, height, 0f));
+        mark = MakeText("MindMark", 90, 0.07f, new Vector3(0f, height + 0.75f, 0f));
+        intent = MakeText("MindIntent", 40, 0.045f, new Vector3(0f, height, 0f));
         barBack = MakeBar("MindBarBack", new Color(0f, 0f, 0f, 0.5f), 10);
         bar = MakeBar("MindBar", Color.yellow, 11);
     }
@@ -27,6 +27,7 @@ public class MarioMindLabel : MonoBehaviour
         go.transform.localPosition = offset;
         var text = go.AddComponent<TextMesh>();
         text.fontSize = fontSize; text.characterSize = charSize;
+        Step1Gui.ApplyFont(text); // S182：中英双语
         text.anchor = TextAnchor.LowerCenter; text.alignment = TextAlignment.Center;
         var renderer = go.GetComponent<MeshRenderer>();
         if (renderer != null) renderer.sortingOrder = 200;
@@ -52,7 +53,7 @@ public class MarioMindLabel : MonoBehaviour
         MarioOrder order = driver.LastOrder;
         mark.text = order.mark ?? "";
         mark.color = ColorFor(order.state, order.mark);
-        intent.text = order.intent ?? "";
+        intent.text = Step1Text.HeadIntent(order.state, order.intent ?? "");
         intent.color = new Color(1f, 1f, 1f, 0.85f);
 
         float n = driver.Mind.Meter.Normalized;

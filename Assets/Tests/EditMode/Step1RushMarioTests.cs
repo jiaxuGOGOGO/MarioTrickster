@@ -484,4 +484,33 @@ public class Step1RushMarioTests
         Assert.IsFalse(t.UpgradeData());
         Assert.AreEqual(6f, t.startDelaySeconds, "不覆盖手动调参");
     }
+
+    // ── S184：更大的房间 + 遮挡 ─────────────────────────
+    [Test]
+    public void RoomHasSpaceAndCoverForTheCatAndMouseGame()
+    {
+        var room = Step1PrankRoomBuilder.Room;
+        Assert.GreaterOrEqual(room[0].Length, 44, "出口到宝物的距离要足够埋伏");
+        float marioToLoot = Step1PrankRoomBuilder.CellOf('o').x - Step1PrankRoomBuilder.CellOf('M').x;
+        Assert.GreaterOrEqual(marioToLoot, 36f);
+        int standRow = room.Length - 1 - 3;
+        int crates = 0; foreach (char c in room[standRow]) if (c == '#') crates++;
+        Assert.GreaterOrEqual(crates, 2, "站立层至少 2 个挡视线的箱子");
+        // 高墙：同一列从 y4 往上连续都是墙，且 y3 是门洞（封路墙）
+        int tallWalls = 0;
+        for (int x = 1; x < room[0].Length - 1; x++)
+        {
+            bool tall = room[standRow][x] == '[';
+            for (int y = 4; y <= 8 && tall; y++) tall = room[room.Length - 1 - y][x] == 'W';
+            if (tall) tallWalls++;
+        }
+        Assert.GreaterOrEqual(tallWalls, 2, "至少两道带门洞的高墙把房间分区");
+    }
+
+    [Test]
+    public void SignsFollowTheTemplate()
+    {
+        Assert.AreEqual(new Vector2(2f, 3f), Step1PrankRoomBuilder.CellOf('G'));
+        StringAssert.DoesNotContain("new Vector2(32f, 8.3f)", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"), "标牌位置不能写死");
+    }
 }

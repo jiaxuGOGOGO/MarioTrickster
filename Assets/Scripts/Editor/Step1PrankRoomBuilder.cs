@@ -29,23 +29,31 @@ public static class Step1PrankRoomBuilder
     /// S181 = 2：每回合机关复位 + H10 无干预检查组件 + 每局问卷。
     /// S182 = 3：干净的中英对照界面（Step1Screen）、双语房间标牌。
     /// S183 = 4：崩塌桥只由玩家触发 + 桥下有人不重生（修"马里奥被关在坑里"）。
+    /// S184 = 5：房间扩大为 48×12 三区，加遮挡（高墙 + 箱子）。
     /// </summary>
-    public const int BuilderVersion = 4;
+    public const int BuilderVersion = 5;
 
-    // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，坑在 x12..16。
-    // x16 的单向台面 "-"：平时可以走过，掉进坑后也能从下面跳穿出来（桥重生后不会把马里奥封死在坑里）。
+    // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
+    // S184（用户反馈"地图太小、博弈空间不够"）：36×10 → 48×12，分三区（放松区 / 中区 / 宝物区，宪法 P3）：
+    //   - 两道高墙 x16/x31 只在地面留 1 格门洞，门洞里是封路墙 '['（关门 = 整条路被截断 3.5 秒）；
+    //     高墙挡视线：马里奥在一区看不到二区台子上的你（藏身/换位空间）。
+    //   - 地面 1 格高的箱子 '#'（x12、x40）挡低处视线：蹲在箱子后面不会被看见；马里奥会跳过去。
+    //   - 崩塌桥 x21..24 + 坑（桥下有人不重生，x25 单向台面可从坑里跳出）。
+    //   - 三把火 x9 / x28 / x37（平时安全，只有你能点）。
     public static readonly string[] Room =
     {
-        "W..................................W",
-        "W..................................W",
-        "W..................................W",
-        "W..................................W",
-        "W.................T................W",
-        "W.....---........----....----......W",
-        "W.G.M....~..........~[.....~....o..W",
-        "W###########CCCC-##################W",
-        "W###########.~...##################W",
-        "W##################################W"
+        "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+        "W...............W..............W...............W",
+        "W...............W..............W...............W",
+        "W...............W..............W...............W",
+        "W...............W..............W...............W",
+        "W...............W..............W...............W",
+        "W...............W..............W...............W",
+        "W.....----......W.---.....----.W...----........W",
+        "W.G.M....~..#...[..T........~..[.....~..#...o..W",
+        "W####################CCCC-#####################W",
+        "W####################..~..#####################W",
+        "W##############################################W"
     };
 
     public static string RoomAscii => string.Join("\n", Room);
@@ -309,9 +317,23 @@ public static class Step1PrankRoomBuilder
 
     private static void AddSigns(GameObject root)
     {
-        // S182：只留两块方向牌（中英），玩法说明改为开局帮助页（H 键）
-        AddSign(root, new Vector2(3f, 8.3f), "\u2190 出口 EXIT", 0.06f);
-        AddSign(root, new Vector2(32f, 8.3f), "宝物 LOOT \u2192", 0.06f);
+        // S182：只留两块方向牌（中英），玩法说明改为开局帮助页（H 键）。S184：位置从模板里的 G / o 算出，不写死坐标。
+        Vector2 exit = CellOf('G'), loot = CellOf('o');
+        AddSign(root, exit + new Vector2(1f, SignHeightAboveMarker), "\u2190 出口 EXIT", 0.06f);
+        AddSign(root, loot + new Vector2(-1f, SignHeightAboveMarker), "宝物 LOOT \u2192", 0.06f);
+    }
+
+    private const float SignHeightAboveMarker = 2.6f;
+
+    /// <summary>模板里某个字符的世界坐标（格子中心）。</summary>
+    public static Vector2 CellOf(char c)
+    {
+        for (int row = 0; row < Room.Length; row++)
+        {
+            int col = Room[row].IndexOf(c);
+            if (col >= 0) return new Vector2(col, Room.Length - 1 - row);
+        }
+        throw new InvalidOperationException("Room has no '" + c + "'");
     }
 
     private static void AddSign(GameObject root, Vector2 position, string text, float size)

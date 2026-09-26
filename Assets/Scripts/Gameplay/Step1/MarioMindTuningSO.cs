@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 1;
+    public const int CurrentDataVersion = 2;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -100,7 +100,7 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("自动检查每局结束后停留多久（真实秒）再开下一局")]
     public float autoCheckRoundGapSeconds = 1.5f;
     [Tooltip("自动检查每局最多等多少秒；超时 = 马里奥卡住（记下卡住的位置）")]
-    public float autoCheckRoundTimeoutSeconds = 45f;
+    public float autoCheckRoundTimeoutSeconds = 70f;
 
     [Header("Playtest screen (S182)")]
     [Tooltip("每次进入 Play 先显示玩法说明并暂停，按任意键开始")]
@@ -122,6 +122,10 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 2)
+        {
+            autoCheckRoundTimeoutSeconds = 70f; // S184 房间变大，单局更长
         }
         dataVersion = CurrentDataVersion;
         return true;

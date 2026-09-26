@@ -79,6 +79,7 @@ public static class Step1Text
         "1. 走到机关旁 → 按 <b>P</b> 伪装，站着别动一会儿    Go next to a trap → <b>P</b> to disguise, stand still\n" +
         "2. 他走近时 → 按 <b>L</b> 触发（火 / 封路墙 / 塌桥）    When he's close → <b>L</b> to trigger\n" +
         "   被火烧到他会晕一下，封路墙能拦住他。   Fire makes him dizzy; the wall blocks him.\n\n" +
+        "躲在<b>箱子后面</b>或<b>高墙另一边</b>，他就看不见你。   Hide behind a crate or a tall wall — he can't see you.\n" +
         "马里奥头顶  Above Mario:   <b>?</b> 起疑   <b>!</b> 来查看   <b>!!</b> 看见你在追   <b>?!</b> 追丢了\n" +
         "白色扇形 = 他的视野，墙会挡住。   White cone = his view (walls block it).\n\n" +
         "<color=#BBBBBB>H 关闭帮助 close help    C 换镜头 camera</color>";

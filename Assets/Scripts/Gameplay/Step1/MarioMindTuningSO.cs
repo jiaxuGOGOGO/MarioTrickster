@@ -10,14 +10,23 @@ public class MarioMindTuningSO : ScriptableObject
 {
     public const string ResourcePath = "Step1/RushMarioTuning";
 
+    /// <summary>
+    /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
+    /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
+    /// </summary>
+    public const int CurrentDataVersion = 1;
+    public int dataVersion = 0;
+
     [Header("Identity")]
     public string personaName = "Rush";
 
     [Header("Movement persona (feeds the existing HeuristicBot)")]
     [Range(0f, 1.5f)] public float reactionDelay = 0.12f;
     [Range(0f, 1f)] public float riskTolerance = 0.8f;
-    [Tooltip("开局站定几秒，给玩家就位时间")]
-    public float startDelaySeconds = 2f;
+    [Tooltip("开局站定几秒，给玩家就位时间（S183 用户反馈来不及：2→4）")]
+    public float startDelaySeconds = 4f;
+    [Tooltip("马里奥走路速度倍率（1 = 原速 9 格/秒；S183 用户反馈太快：0.55 ≈ 5 格/秒）")]
+    [Range(0.2f, 1f)] public float marioSpeedScale = 0.55f;
 
     [Header("Vision (H4: cone + range + occlusion only)")]
     public float visionRange = 9f;
@@ -29,7 +38,7 @@ public class MarioMindTuningSO : ScriptableObject
 
     [Header("Suspicion sources")]
     [Tooltip("看见未伪装的捣蛋者：每秒增加")]
-    public float seeTricksterPerSecond = 150f;
+    public float seeTricksterPerSecond = 90f;
     [Tooltip("看见一个'道具'在动：每秒增加")]
     public float seeDisguisedMovePerSecond = 60f;
     [Tooltip("速度超过此值（单位/秒）才算'在动'")]
@@ -62,6 +71,8 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("裁判抓捕距离（中心距）。台面高 1 格，略大于 1 以便跳上台可抓")]
     public float catchRadius = 1.1f;
     public float hurtFlashSeconds = 0.8f;
+    [Tooltip("被机关伤到后原地发晕几秒（给玩家换位/补刀的窗口；S183 用户反馈机关拦不住他）")]
+    public float hurtStunSeconds = 1.2f;
     public float celebrateSeconds = 1.2f;
 
     [Header("Rules")]
@@ -70,6 +81,16 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("机关触发后多少秒内马里奥受伤，算作这次恶作剧命中")]
     public float prankAttributionSeconds = 2.5f;
     public float roundTimeLimit = 150f;
+
+    [Header("Prank props (S183)")]
+    [Tooltip("封路墙升起后挡多久（秒）；原默认 1.5 秒太短，用户反馈拦不住马里奥")]
+    public float blockerActiveSeconds = 3.5f;
+
+    [Header("Collapse bridge (S183)")]
+    [Tooltip("桥重生前检查桥下多深（格）；有人在下面就推迟重生（H9 防止把马里奥封在坑里）")]
+    public float bridgeRespawnClearDepth = 2f;
+    [Tooltip("桥下检查向左右各扩展几格（覆盖整个坑）")]
+    public float bridgeRespawnClearMarginX = 4.5f;
 
     [Header("Playtest tools (S181)")]
     [Tooltip("菜单 Hands-off check：连续自动跑几局（宪法 H10：无干预时马里奥应能自己通关）")]
@@ -90,10 +111,29 @@ public class MarioMindTuningSO : ScriptableObject
     public float cameraPadding = 0.6f;
     public float frameBothMinHeight = 9f;
 
+    /// <summary>把 S183 校准值写入旧资产（只在 dataVersion 较旧时执行一次）。返回是否有改动。</summary>
+    public bool UpgradeData()
+    {
+        if (dataVersion >= CurrentDataVersion) return false;
+        if (dataVersion < 1)
+        {
+            startDelaySeconds = 4f;
+            seeTricksterPerSecond = 90f;
+            marioSpeedScale = 0.55f;
+            hurtStunSeconds = 1.2f;
+            blockerActiveSeconds = 3.5f;
+        }
+        dataVersion = CurrentDataVersion;
+        return true;
+    }
+
     public static MarioMindTuningSO LoadOrDefault()
     {
         var tuning = Resources.Load<MarioMindTuningSO>(ResourcePath);
-        return tuning != null ? tuning : CreateInstance<MarioMindTuningSO>();
+        if (tuning != null) return tuning;
+        tuning = CreateInstance<MarioMindTuningSO>();
+        tuning.dataVersion = CurrentDataVersion;
+        return tuning;
     }
 }
 

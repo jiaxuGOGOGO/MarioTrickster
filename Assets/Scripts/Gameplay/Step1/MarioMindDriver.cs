@@ -30,6 +30,7 @@ public class MarioMindDriver : MonoBehaviour
     public MarioOrder LastOrder { get; private set; }
     public MarioMindTuningSO Tuning => tuning;
     public bool IsWaitingToStart => startDelay > 0f;
+    public float StartDelayRemaining => Mathf.Max(0f, startDelay);
     /// <summary>马里奥被机关伤到（供试玩日志做恶作剧归因）。</summary>
     public event Action<MarioMindState> Hurt;
     public event Action Caught;
@@ -98,6 +99,7 @@ public class MarioMindDriver : MonoBehaviour
         if (hybrid == null || eyes == null) return;
         var gm = GameManager.Instance;
         bool playing = gm == null || gm.CurrentState == GameState.Playing;
+        hybrid.Bot.MarioSpeedScale = tuning.marioSpeedScale; // 每帧读取，Play 中改调参资产立即生效
         if (!playing) { hybrid.Bot.ExplorationTarget = (Vector2)transform.position; return; }
 
         if (startDelay > 0f)

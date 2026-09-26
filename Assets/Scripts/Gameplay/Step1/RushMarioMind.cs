@@ -37,7 +37,7 @@ public struct MarioOrder
 public sealed class RushMarioMind
 {
     private readonly MarioMindTuningSO t;
-    private float stateTime, lostTime, hurtFlash, celebrate, postScan;
+    private float stateTime, lostTime, hurtFlash, celebrate, postScan, stun;
     private bool scannedHere;
     private Vector2 lookPoint, lastSeen;
 
@@ -50,7 +50,7 @@ public sealed class RushMarioMind
 
     public void Reset()
     {
-        Meter.Reset(); hurtFlash = celebrate = 0f;
+        Meter.Reset(); hurtFlash = celebrate = stun = 0f;
         Enter(MarioMindState.Running, Vector2.zero);
     }
 
@@ -66,6 +66,7 @@ public sealed class RushMarioMind
         stateTime += dt;
         hurtFlash = Mathf.Max(0f, hurtFlash - dt);
         celebrate = Mathf.Max(0f, celebrate - dt);
+        stun = Mathf.Max(0f, stun - dt);
 
         bool seesTrickster = p.seesFigure && !p.figureLooksLikeProp;
         bool seesOddProp = p.seesFigure && p.figureLooksLikeProp && p.figureMoving;
@@ -75,7 +76,7 @@ public sealed class RushMarioMind
         if (p.witnessedActivation) { Meter.Add(t.witnessedActivation); Focus = p.activationPos; }
         if (p.hurt)
         {
-            Meter.Add(t.hurtByTrap); hurtFlash = t.hurtFlashSeconds;
+            Meter.Add(t.hurtByTrap); hurtFlash = t.hurtFlashSeconds; stun = t.hurtStunSeconds;
             if (!seesTrickster && !seesOddProp && !p.witnessedActivation) Focus = p.marioPos;
         }
         Meter.Tick(dt, rise);
@@ -139,8 +140,16 @@ public sealed class RushMarioMind
                 order.scan = TryScanAt(p, Focus);
                 break;
         }
+        // S183：被机关伤到 → 原地发晕（状态机照常，只是先站住不动；不扫描、不抓人）
+        if (stun > 0f)
+        {
+            order.moveTarget = p.marioPos; order.scan = false; order.tryCatch = false;
+            order.mark = "OUCH!"; order.intent = "DIZZY";
+        }
         return order;
     }
+
+    public bool IsStunned => stun > 0f;
 
     private bool TryScanAt(MarioPercept p, Vector2 point)
     {

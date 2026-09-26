@@ -63,6 +63,8 @@ public class HeuristicBotInputProvider : IInputProvider
 
     // Optional exploration guidance. Null preserves normal gameplay targeting.
     public Vector2? ExplorationTarget { get; set; }
+    /// <summary>S183：马里奥行走速度倍率（0..1，只缩放横向输入；默认 1 = 原速）。由人格/调参数据设置。</summary>
+    public float MarioSpeedScale { get; set; } = 1f;
     public bool AuthoredRouteTarget { get; set; }
     public int AnchorSwitchRequests { get; private set; }
     private float _anchorSwitchTimer;
@@ -1431,7 +1433,7 @@ public class HeuristicBotInputProvider : IInputProvider
 
     // ── P1 (Mario) ──
 
-    public float GetP1Horizontal() => p1Horizontal;
+    public float GetP1Horizontal() => p1Horizontal * Mathf.Clamp01(MarioSpeedScale);
     public float GetP1Vertical()   => p1Vertical;
     public bool GetP1JumpHeld()    => p1JumpHeld;
     public bool GetP1JumpDown()    => p1JumpDown;

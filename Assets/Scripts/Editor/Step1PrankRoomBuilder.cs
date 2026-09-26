@@ -28,8 +28,9 @@ public static class Step1PrankRoomBuilder
     /// 用户拉取新版本后不需要记得手动 Build。
     /// S181 = 2：每回合机关复位 + H10 无干预检查组件 + 每局问卷。
     /// S182 = 3：干净的中英对照界面（Step1Screen）、双语房间标牌。
+    /// S183 = 4：崩塌桥只由玩家触发 + 桥下有人不重生（修"马里奥被关在坑里"）。
     /// </summary>
-    public const int BuilderVersion = 3;
+    public const int BuilderVersion = 4;
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，坑在 x12..16。
     // x16 的单向台面 "-"：平时可以走过，掉进坑后也能从下面跳穿出来（桥重生后不会把马里奥封死在坑里）。
@@ -102,6 +103,7 @@ public static class Step1PrankRoomBuilder
     {
         if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog("Step 1", "Stop Play Mode first.", "OK"); return false; }
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return false;
+        EnsureTuningAsset(); // 同时升级旧调参资产（场景不用重建时也要生效）
         if (File.Exists(ScenePath))
         {
             EditorSceneManager.OpenScene(ScenePath);
@@ -133,10 +135,21 @@ public static class Step1PrankRoomBuilder
     public static MarioMindTuningSO EnsureTuningAsset()
     {
         var tuning = AssetDatabase.LoadAssetAtPath<MarioMindTuningSO>(TuningAssetPath);
-        if (tuning != null) return tuning;
+        if (tuning != null)
+        {
+            // 旧资产（S180/S181）写入一次 S183 校准值；之后的手动调参不会被覆盖。
+            if (tuning.UpgradeData())
+            {
+                EditorUtility.SetDirty(tuning);
+                AssetDatabase.SaveAssets();
+                Debug.Log("[Step1] Tuning asset upgraded to data version " + MarioMindTuningSO.CurrentDataVersion);
+            }
+            return tuning;
+        }
         if (!AssetDatabase.IsValidFolder("Assets/Resources")) AssetDatabase.CreateFolder("Assets", "Resources");
         if (!AssetDatabase.IsValidFolder("Assets/Resources/Step1")) AssetDatabase.CreateFolder("Assets/Resources", "Step1");
         tuning = ScriptableObject.CreateInstance<MarioMindTuningSO>();
+        tuning.dataVersion = MarioMindTuningSO.CurrentDataVersion;
         AssetDatabase.CreateAsset(tuning, TuningAssetPath);
         AssetDatabase.SaveAssets();
         return tuning;
@@ -162,6 +175,8 @@ public static class Step1PrankRoomBuilder
 
         ConfigureRules(gm, tuning);
         ConfigureFireTraps(root);
+        ConfigureBridge(root, tuning);
+        ConfigureBlockers(root, tuning);
         ConfigureTrickster(trickster);
         ConfigureMario(mario, tuning);
         ConfigureLives(gm.gameObject, tuning, trickster, level != null ? level.TricksterSpawn : null);
@@ -197,6 +212,42 @@ public static class Step1PrankRoomBuilder
         {
             var so = new SerializedObject(fire);
             so.FindProperty("coolOffDuration").floatValue = IdleSafeFireCoolOff;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            count++;
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// S183：崩塌桥 = 玩家的机关，马里奥踩上去不会自己塌（否则变慢后的马里奥会自己掉坑，违背 H10）；
+    /// 桥下有人时推迟重生（H9：不能把马里奥封在坑里）。
+    /// </summary>
+    public static int ConfigureBridge(GameObject root, MarioMindTuningSO tuning)
+    {
+        int count = 0;
+        foreach (var bridge in root.GetComponentsInChildren<CollapsingPlatform>(true))
+        {
+            var so = new SerializedObject(bridge);
+            so.FindProperty("collapseOnStep").boolValue = false;
+            so.FindProperty("waitForClearBelow").boolValue = true;
+            so.FindProperty("clearBelowDepth").floatValue = tuning.bridgeRespawnClearDepth;
+            so.FindProperty("clearBelowMarginX").floatValue = tuning.bridgeRespawnClearMarginX;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            count++;
+        }
+        return count;
+    }
+
+    /// <summary>S183：封路墙挡得更久，让"拦住他"真的有效（数值来自调参资产）。</summary>
+    public static int ConfigureBlockers(GameObject root, MarioMindTuningSO tuning)
+    {
+        int count = 0;
+        foreach (var blocker in root.GetComponentsInChildren<ControllableBlocker>(true))
+        {
+            var so = new SerializedObject(blocker);
+            var active = so.FindProperty("activeDuration");
+            if (active == null) continue;
+            active.floatValue = tuning.blockerActiveSeconds;
             so.ApplyModifiedPropertiesWithoutUndo();
             count++;
         }

@@ -36,9 +36,11 @@ public static class Step1Text
         }
     }
 
-    public static string MarioStateText(MarioMindState state, bool waiting, bool carryingLoot)
+    public static string MarioStateText(MarioMindState state, bool waiting, bool carryingLoot, float waitSeconds = 0f, bool stunned = false)
     {
-        if (waiting) return "准备中 Getting ready";
+        int secs = (int)System.Math.Ceiling(waitSeconds);
+        if (waiting) return secs > 0 ? $"{secs} 秒后出发，快去埋伏！ Starts in {secs}s — get ready!" : "准备中 Getting ready";
+        if (stunned) return "被坑晕了！ Dizzy!";
         switch (state)
         {
             case MarioMindState.Curious: return "? 起疑了 Suspicious";
@@ -53,6 +55,7 @@ public static class Step1Text
     public static string HeadIntent(MarioMindState state, string intent)
     {
         if (intent == "READY...") return "准备\nREADY";
+        if (intent == "DIZZY") return "晕了\nDIZZY";
         switch (state)
         {
             case MarioMindState.Curious: return "嗯？\nHUH?";
@@ -74,7 +77,8 @@ public static class Step1Text
         "<b>你的目标：</b>别让他带宝逃走。用机关坑他，别被他抓到（3 条命）。\n" +
         "<b>Your goal:</b> stop him escaping. Prank him with traps. Don't get caught (3 lives).\n\n" +
         "1. 走到机关旁 → 按 <b>P</b> 伪装，站着别动一会儿    Go next to a trap → <b>P</b> to disguise, stand still\n" +
-        "2. 他走近时 → 按 <b>L</b> 触发（火 / 封路墙 / 塌桥）    When he's close → <b>L</b> to trigger\n\n" +
+        "2. 他走近时 → 按 <b>L</b> 触发（火 / 封路墙 / 塌桥）    When he's close → <b>L</b> to trigger\n" +
+        "   被火烧到他会晕一下，封路墙能拦住他。   Fire makes him dizzy; the wall blocks him.\n\n" +
         "马里奥头顶  Above Mario:   <b>?</b> 起疑   <b>!</b> 来查看   <b>!!</b> 看见你在追   <b>?!</b> 追丢了\n" +
         "白色扇形 = 他的视野，墙会挡住。   White cone = his view (walls block it).\n\n" +
         "<color=#BBBBBB>H 关闭帮助 close help    C 换镜头 camera</color>";

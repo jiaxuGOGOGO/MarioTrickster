@@ -203,9 +203,9 @@ public class Step1PlaytestLog : MonoBehaviour
                           (lives.IsInvulnerable ? "  <color=#9AD0FF>(无敌 safe)</color>" : ""));
         if (gm != null) sb.AppendLine($"剩余时间 Time  <b>{Mathf.CeilToInt(Mathf.Max(0f, gm.GameTimer))}s</b>     第 {gm.CurrentRound} 局 Round");
         if (driver != null && driver.Mind != null)
-            sb.Append("马里奥 Mario  <b>" + Step1Text.MarioStateText(driver.Mind.State, driver.IsWaitingToStart, LootObjective.IsLootCarried) + "</b>");
-        Step1Gui.Panel(new Rect(16f, 16f, 620f, 120f));
-        GUI.Label(new Rect(32f, 24f, 600f, 110f), sb.ToString(), Step1Gui.Text(24));
+            sb.Append("马里奥 Mario  <b>" + Step1Text.MarioStateText(driver.Mind.State, driver.IsWaitingToStart, LootObjective.IsLootCarried, driver.StartDelayRemaining, driver.Mind.IsStunned) + "</b>");
+        Step1Gui.Panel(new Rect(16f, 16f, 760f, 120f));
+        GUI.Label(new Rect(32f, 24f, 740f, 110f), sb.ToString(), Step1Gui.Text(24));
 
         // ── 底部：一行按键 ──
         if (!roundOver)

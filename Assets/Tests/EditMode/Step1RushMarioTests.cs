@@ -420,4 +420,68 @@ public class Step1RushMarioTests
         StringAssert.Contains("trickster.gameObject.activeInHierarchy", Read("Scripts/Core/GameManager.cs"));
         StringAssert.Contains("if (rb == null) return;", Read("Scripts/Enemy/TricksterController.cs"));
     }
+
+    // ── S183：用户试玩反馈（马里奥被关坑里 / 太快 / 机关拦不住）───────
+    [Test]
+    public void BridgeClearAreaCoversThePitButNotTheFloorAbove()
+    {
+        // 桥格 (12..15, 2)，碰撞体 1×0.4；坑空格在 y=1；地面上站着的马里奥中心约 y=3。
+        CollapsingPlatform.ClearBelowArea(new Vector2(13.5f, 2f), new Vector2(4f, 0.4f), 2f, 4.5f, out Vector2 c, out Vector2 size);
+        var area = new Rect(c - size * 0.5f, size);
+        foreach (float x in new[] { 12f, 13f, 14f, 15f, 16f })
+            Assert.IsTrue(area.Contains(new Vector2(x, 1f)), "坑里 x=" + x + " 必须被检测到");
+        Assert.IsFalse(area.Contains(new Vector2(10f, 3f)), "坑边地面上的人不应阻止重生");
+        Assert.LessOrEqual(area.yMax, 2.21f, "检测区不能高过桥面");
+    }
+
+    [Test]
+    public void BuilderMakesBridgePlayerOnlyAndSafe()
+    {
+        string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
+        StringAssert.Contains("\"collapseOnStep\").boolValue = false", builder, "马里奥踩桥不应自己塌（H10）");
+        StringAssert.Contains("\"waitForClearBelow\").boolValue = true", builder, "桥下有人不重生（H9）");
+        StringAssert.Contains("ConfigureBlockers(root, tuning)", builder);
+        Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 4);
+        // 其他场景默认行为不变
+        string bridge = Read("Scripts/LevelElements/Platforms/CollapsingPlatform.cs");
+        StringAssert.Contains("private bool collapseOnStep = true;", bridge);
+        StringAssert.Contains("private bool waitForClearBelow = false;", bridge);
+    }
+
+    [Test]
+    public void TrapHurtStunsMarioBriefly()
+    {
+        var t = Tuning();
+        Assert.Greater(t.hurtStunSeconds, 0f);
+        var mind = new RushMarioMind(t);
+        var o = mind.Tick(Dt, new MarioPercept { hurt = true, marioPos = new Vector2(5f, 3f) });
+        Assert.IsTrue(mind.IsStunned);
+        Assert.AreEqual(new Vector2(5f, 3f), o.moveTarget.Value, "发晕时站住");
+        Assert.IsFalse(o.scan); Assert.IsFalse(o.tryCatch);
+        for (float time = 0f; time < t.hurtStunSeconds + 0.1f; time += Dt) mind.Tick(Dt, new MarioPercept { marioPos = new Vector2(5f, 3f) });
+        Assert.IsFalse(mind.IsStunned, "晕完恢复");
+    }
+
+    [Test]
+    public void SlowerMarioIsDataDrivenAndDefaultBotUnchanged()
+    {
+        var t = Tuning();
+        Assert.Less(t.marioSpeedScale, 1f);
+        Assert.GreaterOrEqual(t.startDelaySeconds, 4f);
+        Assert.AreEqual(1f, new HeuristicBotInputProvider().MarioSpeedScale, "其他场景的 Bot 默认原速");
+        StringAssert.Contains("hybrid.Bot.MarioSpeedScale = tuning.marioSpeedScale", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
+    }
+
+    [Test]
+    public void OldTuningAssetGetsUpgradedOnce()
+    {
+        var t = Tuning();
+        t.dataVersion = 0; t.startDelaySeconds = 2f; t.marioSpeedScale = 1f; t.seeTricksterPerSecond = 150f;
+        Assert.IsTrue(t.UpgradeData());
+        Assert.AreEqual(MarioMindTuningSO.CurrentDataVersion, t.dataVersion);
+        Assert.AreEqual(4f, t.startDelaySeconds);
+        t.startDelaySeconds = 6f; // 用户之后手动调参
+        Assert.IsFalse(t.UpgradeData());
+        Assert.AreEqual(6f, t.startDelaySeconds, "不覆盖手动调参");
+    }
 }

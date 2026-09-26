@@ -50,7 +50,8 @@ public class MarioVisionConeView : MonoBehaviour
         foreach (var hit in Physics2D.RaycastAll(eye, dir, range))
         {
             var c = hit.collider;
-            if (c == null || c.isTrigger || MarioSuspicionTracker.IsOneWayPlatform(c)) continue;
+            if (c == null || MarioSuspicionTracker.IsOneWayPlatform(c)) continue;
+            if (c.isTrigger && !SightBlocker.Blocks(c, eye)) continue; // 草丛挡视线（S187）
             if (c.GetComponentInParent<MarioController>() != null || c.GetComponentInParent<TricksterController>() != null) continue;
             if (hit.distance < best) best = hit.distance;
         }

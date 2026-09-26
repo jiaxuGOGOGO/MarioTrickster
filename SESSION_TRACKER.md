@@ -91,13 +91,22 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 186（S184 实测：追逐太好逃 → 跟丢按最后所见速度推算方向、追逐提速 0.8） |
+| **最新 Session** | Session 187（大炮 K/k：一发炮弹伤害 + 打完人肉发射逃跑；场景摆件 c/b/d；受控随机布局 32 组合全可达；草丛起风否认空间；游乐园/公园/山上公园主题底子） |
 | **日期** | 2026-09-26 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
 | **阶段** | 第 0 步已由用户在 Unity 确认（Console 无错、EditMode 全绿）。S180 实现第 1 步：菜单 `MarioTrickster → Step 1 → Build Prank Room` 生成 36×10 单屏房间；马里奥由 `RushMarioMind` 驱动（? → ! → !! → ?!），只凭 `MarioEyes` 视锥+距离+遮挡感知；捣蛋者 3 条命；默认整屏镜头（C 键切换）。 |
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S187] 用户提新机制：大炮 + 场景摆件 + 随机涌现 + 主题底子（详见 docs/step1/S187_CANNON_SCENERY_RANDOM_THEME.md）
+
+- 大炮 `PranksterCannon`（K 右 / k 左，k 由 `CannonFacesLeft` 数据标记实现，零代码）：伪装按 L 开炮（每回合 `cannonShotsPerRound`=1），炮弹 `CannonBall` 命中马里奥扣 1 血 + 击退，走原受伤流程（晕、连招）；打完后不伪装站进炮口 → 0.35s 装填 → 40° 发射自己（`TricksterController.Launch` 复用击退 stun 通道）。`ControllablePropBase.ExtraControlCondition()` 新增虚方法（默认 true，旧行为不变）。
+- 场景摆件 `SceneryProp`：c 箱子（实心）/ b 草丛（触发器 + `SightBlocker` + `RustleOnPass`）/ d 装饰。`MarioSuspicionTracker.CanWitness` 与视锥显示遵守 `SightBlocker`（只会让马里奥看得更少，H4 安全方向；观察者在同一丛内不挡）。Level Builder 新增一行调色板；主题新增 Cannon/Crate/Bush/Decor 插槽。
+- 受控随机：`Step1Layout`（纯逻辑，槽位 1/2/3）+ `Step1LayoutVariants`（运行时每回合按种子激活候选，与测试共用 `Step1Layout.Pick`）；构建器 `ValidateAllVariants` 对全部 32 组合跑 L1/L2（沙箱实跑 0 错误全可达）。草丛起风 7–16s 随机晃（与人晃外观一致），马里奥看见晃动加起疑 `rustleSuspicion`=40；赶路回头看、每回合速度 ±8%，种子写 CSV `layout_seed`。
+- `ThemePresets`：Whitebox/AmusementPark/CityPark/MountainPark，只生成配色主题交给 `AsciiLevelGenerator.ApplyTheme`，Sprite 空插槽保留白盒；调参 `themePreset`（默认游乐园），换主题自动重建场景。
+- `MechanismExplorationPlan.NotProbed = "cbdKk"`：显式说明不进自动探针目录的原因（摆件无激活行为；大炮第 1 步专属，扩目录会改变全部既有探针种子）。
+- 调参数据版本 5；构建器版本 7；测试 41→50。沙箱：全部运行时 + Editor + EditMode 测试编译通过；布局/验证逻辑实跑通过。未经 Unity 实跑。
 
 ### [S186] S184 实测 → 追逐更难甩（仍可逃）
 
@@ -1001,7 +1010,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
-| **最高** | **S184 验收**：H10 在新房间仍 5/5；真人 5 局看"有地方藏/来得及布局/机关有效"，"想再来"是否从 2 上升。 | 沙箱编译 + 关卡 L1/L2 实跑通过；未经 Unity |
+| **最高** | **S187 验收**：H10 仍 5/5；试大炮两种用法、草丛藏身、随机布局；"想再来"是否上升。 | 沙箱全量编译 + 32 布局可达实跑；未经 Unity |
+| 已完成 | **S184 验收**：H10 在新房间仍 5/5；真人 5 局看"有地方藏/来得及布局/机关有效"，"想再来"是否从 2 上升。 | 沙箱编译 + 关卡 L1/L2 实跑通过；未经 Unity |
 | **已完成** | **S179 第 0 步**：用户确认 Console 无错、EditMode 全绿、基础动作正常。 | 镜头跟马里奥问题已在 S180 用整屏镜头处理 |
 | **降级** | **S178双口可玩遭遇本地验证**：seed168，新大按钮/全回归/6首轮/最多6确认/顶部ZIP。 | 358模型过，27新EditMode预计666；实际退回分岔、换口/忍住与返程回应待Unity，不是原洞室同条件A/B |
 | **已审计、体验未满足** | **S177639/639、24局**：地表12局完整上路去返，S176落阶有效；地下暗线/记忆/返程出手/改道0。 | 用户明确“没啥变化、来来回回这些”，不以全绿反驳；不用重跑S177 |

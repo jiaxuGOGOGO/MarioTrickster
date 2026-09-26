@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 26;
+    private const int BUILTIN_ENTRY_COUNT = 31; // S187: +K k c b d
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -422,6 +422,42 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "Checkpoint" }, visualColor = new Color(0.20f, 0.80f, 0.90f), visualScale = new Vector2(0.5f, 1.2f),
                 customColliderSize = PhysicsMetrics.CHECKPOINT_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
                 sortingOrder = 5, isTrigger = true
+            },
+            // ── S187：恶作剧大炮（玩家机关）+ 场景摆件（不可操控，只负责阻挡/遮挡/装饰）──
+            new AsciiElementEntry
+            {
+                asciiChar = 'K', elementName = "Cannon", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "PranksterCannon" }, visualColor = new Color(0.20f, 0.22f, 0.28f), visualScale = new Vector2(0.9f, 0.8f),
+                customColliderSize = PhysicsMetrics.CANNON_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 6, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'k', elementName = "Cannon", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "CannonFacesLeft", "PranksterCannon" }, visualColor = new Color(0.20f, 0.22f, 0.28f), visualScale = new Vector2(0.9f, 0.8f),
+                customColliderSize = PhysicsMetrics.CANNON_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 6, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'c', elementName = "Crate", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SceneryProp" }, visualColor = new Color(0.62f, 0.44f, 0.24f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.CRATE_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 2, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'b', elementName = "Bush", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SightBlocker", "RustleOnPass", "SceneryProp" }, visualColor = new Color(0.22f, 0.55f, 0.25f, 0.85f), visualScale = new Vector2(1.1f, 1.2f),
+                customColliderSize = PhysicsMetrics.BUSH_COLLIDER_SIZE, customColliderOffset = PhysicsMetrics.BUSH_COLLIDER_OFFSET,
+                sortingOrder = 12, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'd', elementName = "Decor", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SceneryProp" }, visualColor = new Color(0.85f, 0.75f, 0.95f, 0.8f), visualScale = new Vector2(0.6f, 1.4f),
+                customColliderSize = PhysicsMetrics.DECOR_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = true
             },
         };
         registry.BuildCache();

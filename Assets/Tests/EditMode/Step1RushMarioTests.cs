@@ -205,11 +205,12 @@ public class Step1RushMarioTests
     [Test]
     public void RoomIsValidReachableAndHasThreePrankKinds()
     {
-        string report = Step1PrankRoomBuilder.Validate(out bool ok);
+        string report = Step1PrankRoomBuilder.ValidateAllVariants(out bool ok);
         Assert.IsTrue(ok, report);
         string ascii = Step1PrankRoomBuilder.RoomAscii;
         foreach (char c in "MTGo") Assert.AreEqual(1, CountOf(ascii, c.ToString()), "需要且只能有一个 " + c);
-        Assert.GreaterOrEqual(CountOf(ascii, "~"), 2, "火焰");
+        Assert.GreaterOrEqual(CountOf(string.Join("\n", Step1PrankRoomBuilder.Room), "~"), 2, "固定火焰");
+        Assert.GreaterOrEqual(CountOf(ascii, "K") + CountOf(ascii, "k"), 1, "大炮");
         Assert.GreaterOrEqual(CountOf(ascii, "["), 1, "封路");
         Assert.GreaterOrEqual(CountOf(ascii, "C"), 1, "崩塌桥");
         foreach (char banned in "^PB") Assert.AreEqual(0, CountOf(ascii, banned.ToString()), "第 1 步房间不放 " + banned);
@@ -494,8 +495,9 @@ public class Step1RushMarioTests
         float marioToLoot = Step1PrankRoomBuilder.CellOf('o').x - Step1PrankRoomBuilder.CellOf('M').x;
         Assert.GreaterOrEqual(marioToLoot, 36f);
         int standRow = room.Length - 1 - 3;
-        int crates = 0; foreach (char c in room[standRow]) if (c == '#') crates++;
-        Assert.GreaterOrEqual(crates, 2, "站立层至少 2 个挡视线的箱子");
+        // S187：藏身处 = 箱子 c / 草丛 b / 随机槽位 1（箱子或草丛，必有其一）
+        int cover = 0; foreach (char c in room[standRow]) if (c == 'c' || c == 'b' || c == '1') cover++;
+        Assert.GreaterOrEqual(cover, 3, "站立层至少 3 个藏身处（任何一局都保证有）");
         // 高墙：同一列从 y4 往上连续都是墙，且 y3 是门洞（封路墙）
         int tallWalls = 0;
         for (int x = 1; x < room[0].Length - 1; x++)
@@ -593,5 +595,143 @@ public class Step1RushMarioTests
         Assert.Less(t.chaseSpeedScale * 9f, 8f, "马里奥追逐速度仍略慢于捣蛋者 8 格/秒：能甩掉，但要跑");
         StringAssert.Contains("Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
         StringAssert.Contains("p.figureVelocity = velocity;", Read("Scripts/Gameplay/Step1/MarioEyes.cs"), "速度只在 CanSee 之后由所见位置算出");
+    }
+
+    // ── S187：大炮 / 场景摆件 / 受控随机 / 主题 ─────────────────
+    [Test]
+    public void EveryRandomLayoutVariantIsValidAndReachable()
+    {
+        // 宪法 H1：随机只改藏身处与可选火，任何组合都必须可达
+        string report = Step1PrankRoomBuilder.ValidateAllVariants(out bool ok);
+        Assert.IsTrue(ok, report);
+        StringAssert.Contains("layout variants valid", report);
+    }
+
+    [Test]
+    public void LayoutPickIsDeterministicAndVaries()
+    {
+        var room = Step1PrankRoomBuilder.Room;
+        CollectionAssert.AreEqual(Step1Layout.Resolve(room, 42), Step1Layout.Resolve(room, 42), "同种子必须可复现");
+        var seen = new HashSet<string>();
+        for (int seed = 0; seed < 64; seed++) seen.Add(string.Join("|", Step1Layout.Resolve(room, seed)));
+        Assert.Greater(seen.Count, 4, "不同种子要真的产生不同布局");
+        foreach (string row in Step1Layout.Resolve(room, 7))
+            foreach (char ch in row) Assert.IsFalse(Step1Layout.Slots.ContainsKey(ch), "解析后不能残留槽位字符");
+        string runtime = Read("Scripts/Gameplay/Step1/Step1LayoutVariants.cs");
+        StringAssert.Contains("Step1Layout.Pick(seed, options)", runtime, "运行时与测试共用同一个随机算法");
+    }
+
+    [Test]
+    public void NewElementsAreRegisteredWithoutTouchingGeneratorCore()
+    {
+        var registry = AsciiElementRegistry.GetDefault();
+        foreach (char c in "Kkcbd") Assert.IsNotNull(registry.GetEntry(c), "未登记: " + c);
+        Assert.IsTrue(registry.GetEntry('c').isSolid, "箱子挡路");
+        Assert.IsTrue(registry.GetEntry('b').isTrigger, "草丛可穿过");
+        CollectionAssert.Contains(registry.GetEntry('b').componentTypeNames, "SightBlocker");
+        CollectionAssert.Contains(registry.GetEntry('k').componentTypeNames, "CannonFacesLeft");
+        string gen = Read("Scripts/LevelDesign/AsciiLevelGenerator.cs");
+        foreach (string banned in new[] { "SpawnCannon", "SpawnCrate", "SpawnBush", "PranksterCannon" })
+            StringAssert.DoesNotContain(banned, gen, "零代码新增元素：生成器核心不得出现新元素专属代码");
+        var theme = ScriptableObject.CreateInstance<LevelThemeProfile>();
+        foreach (string key in new[] { "Cannon", "Crate", "Bush", "Decor" })
+            Assert.IsTrue(System.Array.Exists(theme.elementSprites, m => m.elementKey == key), "主题缺少换图插槽 " + key);
+    }
+
+    [Test]
+    public void BushBlocksSightUnlessViewerIsInside()
+    {
+        var bush = new GameObject("Bush_Test");
+        var target = new GameObject("Target");
+        try
+        {
+            Vector2 at = FarAway + new Vector2(100f, 0f);
+            bush.transform.position = at + new Vector2(2f, 0f);
+            var col = bush.AddComponent<BoxCollider2D>(); col.isTrigger = true; col.size = new Vector2(1f, 1.2f);
+            bush.AddComponent<SightBlocker>();
+            target.transform.position = at + new Vector2(4f, 0f);
+            Physics2D.SyncTransforms();
+            Assert.IsFalse(MarioSuspicionTracker.CanWitness(at, target.transform.position, 8f, target.transform), "草丛挡视线");
+            Assert.IsTrue(MarioSuspicionTracker.CanWitness(at + new Vector2(2f, 0f), target.transform.position, 8f, target.transform), "走进草丛就看得见");
+            Object.DestroyImmediate(bush.GetComponent<SightBlocker>());
+            Physics2D.SyncTransforms();
+            Assert.IsTrue(MarioSuspicionTracker.CanWitness(at, target.transform.position, 8f, target.transform), "普通触发器仍不挡视线（旧规则不变）");
+        }
+        finally { Object.DestroyImmediate(bush); Object.DestroyImmediate(target); }
+    }
+
+    [Test]
+    public void CannonHasOneShotThenHumanLaunchAndIsPlayerOnly()
+    {
+        var go = new GameObject("Cannon_Test");
+        try
+        {
+            go.transform.position = FarAway + new Vector2(200f, 0f);
+            go.AddComponent<BoxCollider2D>();
+            var cannon = go.AddComponent<PranksterCannon>();
+            cannon.Configure(true, 1);
+            Assert.IsTrue(cannon.HasAmmo);
+            Assert.IsTrue(cannon.CanBeControlled(), "有炮弹才能开炮");
+            Assert.IsFalse(cannon.CanHumanLaunch, "有炮弹时不能人肉发射");
+            cannon.Configure(true, 0);
+            Assert.IsFalse(cannon.CanBeControlled(), "没炮弹不能开炮");
+            Assert.IsTrue(cannon.CanHumanLaunch, "打完可以当逃跑工具");
+            cannon.OnLevelReset();
+            Assert.IsFalse(cannon.HasAmmo, "0 发配置复位后仍是 0");
+        }
+        finally { Object.DestroyImmediate(go); }
+        Vector2 v = PranksterCannon.LaunchVelocity(false, 20f, 40f);
+        Assert.Less(v.x, 0f, "朝左炮往左飞"); Assert.Greater(v.y, 0f, "斜上方");
+        Assert.AreEqual(20f, v.magnitude, 1e-3f);
+        string ball = Read("Scripts/LevelElements/Traps/CannonBall.cs");
+        StringAssert.Contains("GetComponentInParent<TricksterController>() != null) return;", ball, "玩家自己的炮不伤自己");
+        StringAssert.Contains("TakeDamage", ball);
+    }
+
+    [Test]
+    public void RustleNeverTellsMarioTheCause()
+    {
+        string eyes = Read("Scripts/Gameplay/Step1/MarioEyes.cs");
+        StringAssert.Contains("MarioVision.CanSee(eye, facingRight, where, pendingRustle, t)", eyes, "只在看得见草丛时才知道晃了");
+        string rustle = Read("Scripts/LevelElements/Props/RustleOnPass.cs");
+        StringAssert.Contains("public static event Action<Transform> Rustled;", rustle, "只广播位置，不广播原因");
+        float wind = RustleOnPass.NextWind(new System.Random(1), 7f, 16f);
+        Assert.That(wind, Is.InRange(7f, 16f));
+        Assert.IsTrue(float.IsPositiveInfinity(RustleOnPass.NextWind(new System.Random(1), 7f, 0f)), "≤0 关闭起风");
+    }
+
+    [Test]
+    public void PersonalityRandomnessIsSeededAndBounded()
+    {
+        var t = Tuning();
+        for (int seed = 0; seed < 50; seed++)
+        {
+            float f = RushMarioMind.RoundSpeedFactor(seed, t.roundSpeedVariance);
+            Assert.That(f, Is.InRange(1f - t.roundSpeedVariance - 1e-4f, 1f + t.roundSpeedVariance + 1e-4f));
+            Assert.AreEqual(f, RushMarioMind.RoundSpeedFactor(seed, t.roundSpeedVariance), "同种子同结果");
+        }
+        var a = new RushMarioMind(t); var b = new RushMarioMind(t);
+        a.Reset(99); b.Reset(99);
+        t.glanceChancePerSecond = 5f;
+        for (int i = 0; i < 40; i++)
+        {
+            var p = new MarioPercept { marioPos = new Vector2(i * 0.1f, 0f), facingRight = true };
+            Assert.AreEqual(a.Tick(Dt, p).intent, b.Tick(Dt, p).intent, "同种子行为一致（可复现）");
+        }
+    }
+
+    [Test]
+    public void ThemePresetsOnlyRecolorAndStayNullSafe()
+    {
+        Assert.IsNull(ThemePresets.Create(ThemePresets.Whitebox), "白盒 = 不换肤");
+        Assert.IsNull(ThemePresets.Create("NotATheme"));
+        foreach (string name in new[] { ThemePresets.AmusementPark, ThemePresets.CityPark, ThemePresets.MountainPark })
+        {
+            var p = ThemePresets.Create(name);
+            Assert.IsNotNull(p, name);
+            Assert.IsNull(p.GetElementSprite("Crate"), "预设只给颜色，Sprite 留空给美术（空插槽保留白盒）");
+            Assert.IsTrue(p.GetElementColor("Bush").HasValue);
+        }
+        Assert.IsTrue(ThemePresets.IsKnown(Tuning().themePreset), "默认主题必须是已知预设");
     }
 }

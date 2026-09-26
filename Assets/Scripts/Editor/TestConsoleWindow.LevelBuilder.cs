@@ -684,6 +684,16 @@ public partial class TestConsoleWindow
         DrawPaletteButton("Breakable", 'X', new Color(0.75f, 0.55f, 0.3f));
         EditorGUILayout.EndHorizontal();
 
+        // S187：大炮 + 场景摆件（不可操控，只负责阻挡/遮挡/装饰；换主题时只换图）
+        EditorGUILayout.LabelField("Cannon & Scenery", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        DrawPaletteButton("Cannon →", 'K', new Color(0.2f, 0.22f, 0.28f));
+        DrawPaletteButton("Cannon ←", 'k', new Color(0.2f, 0.22f, 0.28f));
+        DrawPaletteButton("Crate", 'c', new Color(0.62f, 0.44f, 0.24f));
+        DrawPaletteButton("Bush", 'b', new Color(0.22f, 0.55f, 0.25f));
+        DrawPaletteButton("Decor", 'd', new Color(0.85f, 0.75f, 0.95f));
+        EditorGUILayout.EndHorizontal();
+
         // 其他
         EditorGUILayout.LabelField("Other", EditorStyles.boldLabel);
         EditorGUILayout.BeginHorizontal();

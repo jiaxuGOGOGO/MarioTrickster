@@ -56,6 +56,7 @@ public static class Step1Text
     {
         if (intent == "READY...") return "准备\nREADY";
         if (intent == "DIZZY") return "晕了\nDIZZY";
+        if (intent == "LOOK BACK") return "回头看\nLOOK";
         switch (state)
         {
             case MarioMindState.Curious: return "嗯？\nHUH?";
@@ -80,7 +81,11 @@ public static class Step1Text
         "2. 他走近时 → 按 <b>L</b> 触发（火 / 封路墙 / 塌桥）    When he's close → <b>L</b> to trigger\n" +
         "   被火烧到他会晕一下，封路墙能拦住他。   Fire makes him dizzy; the wall blocks him.\n" +
         "   <b>4 秒内连着坑他 = 连招</b>，晕得更久！   Chain traps within 4s = COMBO, longer dizzy!\n\n" +
-        "躲在<b>箱子后面</b>或<b>高墙另一边</b>，他就看不见你。   Hide behind a crate or a tall wall — he can't see you.\n" +
+        "<b>大炮</b>（深色方块）：伪装在旁边按 L 开一炮（每局 1 发）；打完后<b>站进炮口</b>会把你打飞出去逃跑。\n" +
+        "<b>Cannon</b>: disguise next to it, L = fire (1 shot/round). Then stand inside it to launch yourself away.\n" +
+        "躲在<b>箱子后</b>、<b>草丛里</b>或<b>高墙另一边</b>，他就看不见你。草丛会晃——有时是风。\n" +
+        "Hide behind crates, inside bushes, or behind tall walls. Bushes shake — sometimes it's just wind.\n" +
+        "每局<b>藏身处和火会随机变化</b>。   Hiding spots and some fires change every round.\n" +
         "马里奥头顶  Above Mario:   <b>?</b> 起疑   <b>!</b> 来查看   <b>!!</b> 看见你在追   <b>?!</b> 追丢了\n" +
         "白色扇形 = 他的视野，墙会挡住。   White cone = his view (walls block it).\n\n" +
         "<color=#BBBBBB>H 关闭帮助 close help    C 换镜头 camera</color>";

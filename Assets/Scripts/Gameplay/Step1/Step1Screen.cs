@@ -84,9 +84,9 @@ public class Step1Screen : MonoBehaviour
 
         if (HelpOpen)
         {
-            var r = new Rect(w * 0.5f - 600f, h * 0.5f - 380f, 1200f, 760f);
+            var r = new Rect(w * 0.5f - 620f, h * 0.5f - 470f, 1240f, 940f);
             Step1Gui.Panel(r, 0.92f);
-            GUI.Label(new Rect(r.x + 50f, r.y + 36f, r.width - 100f, r.height - 110f), Step1Text.Help, Step1Gui.Text(24));
+            GUI.Label(new Rect(r.x + 40f, r.y + 28f, r.width - 80f, r.height - 100f), Step1Text.Help, Step1Gui.Text(22));
             GUI.Label(new Rect(r.x, r.yMax - 70f, r.width, 50f), "<b>按任意键开始  Press any key to start</b>",
                 Step1Gui.Text(28, TextAnchor.MiddleCenter));
             return;

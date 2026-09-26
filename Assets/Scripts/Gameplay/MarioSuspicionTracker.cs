@@ -261,8 +261,10 @@ public class MarioSuspicionTracker : MonoBehaviour
         foreach (var hit in Physics2D.LinecastAll(viewer, target))
         {
             Collider2D c = hit.collider;
-            if (c == null || c.isTrigger) continue;
+            if (c == null) continue;
             if (targetRoot != null && c.transform.IsChildOf(targetRoot)) continue;
+            // S187：触发器默认不挡视线；带 SightBlocker 的触发器（草丛）挡视线——但看的人自己站在同一丛里时看得见。
+            if (c.isTrigger) { if (SightBlocker.Blocks(c, viewer)) return false; continue; }
             // 单向平台是薄台面，不挡视线（第 1 步：捣蛋者站在台上仍可被看见）
             if (IsOneWayPlatform(c)) continue;
             if (c.GetComponentInParent<MarioController>() != null) continue;

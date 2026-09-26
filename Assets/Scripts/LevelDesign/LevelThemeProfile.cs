@@ -54,7 +54,8 @@ public class LevelThemeProfile : ScriptableObject
     [Tooltip("按名称键映射的元素 Sprite 列表。\n" +
              "键名约定: SpikeTrap, FireTrap, PendulumTrap, BouncingEnemy,\n" +
              "BouncyPlatform, CollapsingPlatform, OneWayPlatform, MovingPlatform,\n" +
-             "HiddenPassage, FakeWall, GoalZone, Collectible, SimpleEnemy\n" +
+             "HiddenPassage, FakeWall, GoalZone, Collectible, SimpleEnemy,\n" +
+             "Cannon, Crate, Bush, Decor (S187)\n" +
              "留空 Sprite = 保留白盒原样")]
     public ElementSpriteMapping[] elementSprites = new ElementSpriteMapping[]
     {
@@ -77,6 +78,11 @@ public class LevelThemeProfile : ScriptableObject
         new ElementSpriteMapping { elementKey = "ConveyorBelt" },
         new ElementSpriteMapping { elementKey = "Checkpoint" },
         new ElementSpriteMapping { elementKey = "BreakableBlock" },
+        // S187 新增：大炮 + 场景摆件（游乐园/公园/山上公园主题只需给这几个键拖图）
+        new ElementSpriteMapping { elementKey = "Cannon" },
+        new ElementSpriteMapping { elementKey = "Crate" },
+        new ElementSpriteMapping { elementKey = "Bush" },
+        new ElementSpriteMapping { elementKey = "Decor" },
     };
 
     [Header("=== 角色 ===")]

@@ -396,6 +396,20 @@ public class TricksterController : MonoBehaviour
         _knockbackStunTimer = duration > 0f ? duration : knockbackStunDuration;
     }
 
+    /// <summary>
+    /// S187：被外力发射（大炮人肉发射 / 以后的弹射装置）。解除伪装，设置速度，
+    /// 在 stunSeconds 内不覆盖速度（复用击退 stun 通道：物理自然衰减 + 重力），之后恢复正常控制。
+    /// </summary>
+    public void Launch(Vector2 velocity, float stunSeconds)
+    {
+        if (rb == null) return;
+        if (disguiseSystem != null && disguiseSystem.IsDisguised) disguiseSystem.Undisguise();
+        _grounded = false;
+        _frameVelocity = velocity;
+        rb.velocity = velocity;
+        ApplyKnockbackStun(Mathf.Max(0.05f, stunSeconds));
+    }
+
     #endregion
 
     // ─────────────────────────────────────────────────────
@@ -562,6 +576,9 @@ public class TricksterController : MonoBehaviour
 
         if (!abilitySystem.IsPossessionActionAllowed)
             return $"Possession gate blocked: {abilitySystem.PossessionState}";
+
+        if (abilitySystem.BoundProp is PranksterCannon cannon && !cannon.HasAmmo)
+            return "No cannonballs left! Stand inside the cannon to launch yourself.";
 
         if (!abilitySystem.BoundProp.CanBeControlled())
         {

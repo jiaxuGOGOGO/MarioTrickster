@@ -121,8 +121,14 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     {
         if (currentState != PropControlState.Idle) return false;
         if (maxUses >= 0 && remainingUses <= 0) return false;
-        return true;
+        return ExtraControlCondition();
     }
+
+    /// <summary>
+    /// S187：子类额外的"能否被操控"条件（默认 true = 旧行为不变）。
+    /// 例：大炮没炮弹时不能开炮（改为人肉发射）。
+    /// </summary>
+    protected virtual bool ExtraControlCondition() => true;
 
     public virtual void OnTricksterActivate(Vector2 direction)
     {

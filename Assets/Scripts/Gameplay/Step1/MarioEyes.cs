@@ -19,6 +19,8 @@ public sealed class MarioEyes
     private bool hasLastFigurePos;
     private Transform pendingActivation;
     private float pendingActivationAge = float.PositiveInfinity;
+    private Transform pendingRustle;
+    private float pendingRustleAge = float.PositiveInfinity;
 
     public MarioEyes(MarioMindTuningSO tuning, MarioController marioController, TricksterController figure)
     {
@@ -44,7 +46,15 @@ public sealed class MarioEyes
         pendingActivationAge = 0f;
     }
 
-    public void Forget() { hasLastFigurePos = false; pendingActivation = null; pendingActivationAge = float.PositiveInfinity; }
+    /// <summary>S187：草丛晃了（RustleOnPass.Rustled 转发）。只记录位置，看没看见由 Look 判定。</summary>
+    public void NoteRustle(Transform where)
+    {
+        if (where == null) return;
+        pendingRustle = where;
+        pendingRustleAge = 0f;
+    }
+
+    public void Forget() { hasLastFigurePos = false; pendingActivation = null; pendingActivationAge = float.PositiveInfinity; pendingRustle = null; }
 
     public void Look(float dt, ref MarioPercept p)
     {
@@ -72,6 +82,21 @@ public sealed class MarioEyes
             else hasLastFigurePos = false;
         }
         else hasLastFigurePos = false;
+
+        p.facingRight = facingRight;
+        p.sawRustle = false;
+        if (pendingRustle != null)
+        {
+            pendingRustleAge += dt;
+            Vector2 where = pendingRustle.position;
+            if (MarioVision.CanSee(eye, facingRight, where, pendingRustle, t))
+            {
+                p.sawRustle = true;
+                p.rustlePos = where;
+                pendingRustle = null;
+            }
+            else if (pendingRustleAge > t.activationWitnessWindow) pendingRustle = null;
+        }
 
         p.witnessedActivation = false;
         if (pendingActivation != null)

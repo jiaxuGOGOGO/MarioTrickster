@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -31,8 +32,9 @@ public static class Step1PrankRoomBuilder
     /// S183 = 4：崩塌桥只由玩家触发 + 桥下有人不重生（修"马里奥被关在坑里"）。
     /// S184 = 5：房间扩大为 48×12 三区，加遮挡（高墙 + 箱子）。
     /// S185 = 6：连招系统（Step1Combo）+ 伪装融入时间来自调参。
+    /// S187 = 7：大炮（K/k）+ 场景摆件（箱子/草丛）+ 每回合随机布局 + 游乐园主题配色。
     /// </summary>
-    public const int BuilderVersion = 6;
+    public const int BuilderVersion = 7;
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
     // S184（用户反馈"地图太小、博弈空间不够"）：36×10 → 48×12，分三区（放松区 / 中区 / 宝物区，宪法 P3）：
@@ -41,6 +43,9 @@ public static class Step1PrankRoomBuilder
     //   - 地面 1 格高的箱子 '#'（x12、x40）挡低处视线：蹲在箱子后面不会被看见；马里奥会跳过去。
     //   - 崩塌桥 x21..24 + 坑（桥下有人不重生，x25 单向台面可从坑里跳出）。
     //   - 三把火 x9 / x28 / x37（平时安全，只有你能点）。
+    //   S187：数字是"随机槽位"（见 Step1Layout.Slots）：1 = 箱子或草丛，2 = 草丛或空，3 = 火或空；
+    //   K = 朝右大炮（二区，捣蛋者出生点旁），k = 朝左大炮（宝物区）；b = 固定草丛。
+    //   每回合按种子重新生成一次房间布局（可达性对每个组合都有测试）。
     public static readonly string[] Room =
     {
         "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
@@ -51,20 +56,86 @@ public static class Step1PrankRoomBuilder
         "W...............W..............W...............W",
         "W...............W..............W...............W",
         "W.....----......W.---.....----.W...----........W",
-        "W.G.M....~..#...[..T........~..[.....~..#...o..W",
+        "W.G.M..2.~..1...[.K.T......b3..[..2..~..1.k.o..W",
         "W####################CCCC-#####################W",
         "W####################..~..#####################W",
         "W##############################################W"
     };
 
-    public static string RoomAscii => string.Join("\n", Room);
+    /// <summary>槽位全部当空气（生成主体用）。</summary>
+    public static string BaseAscii
+    {
+        get
+        {
+            var rows = new string[Room.Length];
+            for (int r = 0; r < Room.Length; r++)
+            {
+                var row = Room[r].ToCharArray();
+                for (int c = 0; c < row.Length; c++) if (Step1Layout.Slots.ContainsKey(row[c])) row[c] = '.';
+                rows[r] = new string(row);
+            }
+            return string.Join("\n", rows);
+        }
+    }
+
+    public struct VariantSlot { public Vector2Int cell; public string options; public GameObject[] objects; }
+
+    /// <summary>在每个槽位上生成全部候选元素（行优先，与 Step1Layout.Resolve 同序）。走生成器的片段模式，不改生成器核心。</summary>
+    private static List<VariantSlot> SpawnVariantSlots(GameObject root)
+    {
+        var result = new List<VariantSlot>();
+        for (int r = 0; r < Room.Length; r++)
+            for (int c = 0; c < Room[r].Length; c++)
+            {
+                if (!Step1Layout.Slots.TryGetValue(Room[r][c], out string options)) continue;
+                var cell = new Vector2Int(c, Room.Length - 1 - r);
+                var objects = new GameObject[options.Length];
+                for (int k = 0; k < options.Length; k++)
+                {
+                    if (options[k] == '.') continue;
+                    var temp = AsciiLevelGenerator.GenerateFromTemplate(options[k].ToString(), false, true);
+                    if (temp == null) continue;
+                    if (temp.transform.childCount > 0)
+                    {
+                        var child = temp.transform.GetChild(0);
+                        child.position = new Vector3(cell.x, cell.y, 0f);
+                        child.name = child.name.Replace("_0_0", $"_{cell.x}_{cell.y}");
+                        child.SetParent(root.transform, true);
+                        objects[k] = child.gameObject;
+                    }
+                    Object.DestroyImmediate(temp);
+                }
+                result.Add(new VariantSlot { cell = cell, options = options, objects = objects });
+            }
+        return result;
+    }
+
+    /// <summary>S187：大炮每回合炮弹数来自调参数据。</summary>
+    public static int ConfigureCannons(GameObject root, MarioMindTuningSO tuning)
+    {
+        int count = 0;
+        foreach (var cannon in root.GetComponentsInChildren<PranksterCannon>(true))
+        {
+            var so = new SerializedObject(cannon);
+            so.FindProperty("shotsPerRound").intValue = Mathf.Max(0, tuning.cannonShotsPerRound);
+            so.ApplyModifiedPropertiesWithoutUndo();
+            count++;
+        }
+        return count;
+    }
+
+    /// <summary>用于验证 / 标牌 / 相机的"代表布局"（种子 0）。</summary>
+    public static string[] ResolvedRoom(int seed) => Step1Layout.Resolve(Room, seed);
+
+    public static string RoomAscii => string.Join("\n", ResolvedRoom(0));
+    public static string RoomAsciiFor(int seed) => string.Join("\n", ResolvedRoom(seed));
 
     [MenuItem("MarioTrickster/Step 1/Build Prank Room", false, 10)]
     public static void BuildMenu()
     {
         if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog("Step 1", "Stop Play Mode first.", "OK"); return; }
         if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
-        string report = Validate(out bool ok);
+        string report = ValidateAllVariants(out bool ok);
         if (!ok) { EditorUtility.DisplayDialog("Step 1", "Room template invalid:\n" + report, "OK"); return; }
         Build();
         EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
@@ -117,10 +188,11 @@ public static class Step1PrankRoomBuilder
         {
             EditorSceneManager.OpenScene(ScenePath);
             var marker = Object.FindObjectOfType<Step1RoomReset>();
-            if (marker != null && marker.BuiltVersion >= BuilderVersion) return true;
+            if (marker != null && marker.BuiltVersion >= BuilderVersion &&
+                marker.BuiltTheme == EnsureTuningAsset().themePreset) return true;
             Debug.Log("[Step1] Prank room scene is from an older build - rebuilding automatically.");
         }
-        string report = Validate(out bool ok);
+        string report = ValidateAllVariants(out bool ok);
         if (!ok) { EditorUtility.DisplayDialog("Step 1", "Room template invalid:\n" + report, "OK"); return false; }
         Build();
         EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), ScenePath);
@@ -128,9 +200,36 @@ public static class Step1PrankRoomBuilder
         return true;
     }
 
-    public static string Validate(out bool ok)
+    public static string Validate(out bool ok) => Validate(RoomAscii, out ok);
+
+    /// <summary>S187：把随机槽位的每一种组合都验证一遍（H1：任何一局都可达）。</summary>
+    public static string ValidateAllVariants(out bool ok)
     {
-        ok = LevelStudioDocument.TryParse(RoomAscii, out var doc, out string error);
+        var options = Step1Layout.SlotOptions(Room);
+        int total = 1;
+        foreach (var o in options) total *= Mathf.Max(1, o.Length);
+        for (int n = 0; n < total; n++)
+        {
+            int rest = n, k = 0;
+            var rows = new string[Room.Length];
+            for (int r = 0; r < Room.Length; r++)
+            {
+                var row = Room[r].ToCharArray();
+                for (int c = 0; c < row.Length; c++)
+                    if (Step1Layout.Slots.TryGetValue(row[c], out string o))
+                    { row[c] = o[rest % o.Length]; rest /= o.Length; k++; }
+                rows[r] = new string(row);
+            }
+            string report = Validate(string.Join("\n", rows), out ok);
+            if (!ok) return "variant #" + n + ": " + report;
+        }
+        ok = true;
+        return "all " + total + " layout variants valid";
+    }
+
+    public static string Validate(string ascii, out bool ok)
+    {
+        ok = LevelStudioDocument.TryParse(ascii, out var doc, out string error);
         if (!ok) return error;
         error = doc.PlayReadiness();
         if (!string.IsNullOrEmpty(error)) { ok = false; return error; }
@@ -169,8 +268,12 @@ public static class Step1PrankRoomBuilder
         if (EditorApplication.isPlaying) throw new InvalidOperationException("Build only in edit mode");
         var tuning = EnsureTuningAsset();
         EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
-        var root = AsciiLevelGenerator.GenerateFromTemplate(RoomAscii, true, false);
+        // S187：槽位先当空气生成主体，再把每个槽位的所有候选元素摆上（运行时 Step1LayoutVariants 每回合只激活一个）
+        var root = AsciiLevelGenerator.GenerateFromTemplate(BaseAscii, true, false);
         if (root == null) throw new InvalidOperationException("Generator returned no root");
+        var variantSlots = SpawnVariantSlots(root);
+        var theme = ThemePresets.Create(tuning.themePreset);
+        if (theme != null) AsciiLevelGenerator.ApplyTheme(theme); // 只换配色/图；空插槽保留白盒
         root.name = "Step1_PrankRoom";
         PlayableEnvironmentBuilder.EnsurePlayableEnvironment(root);
         GameplayLoopSceneBootstrapper.EnsureGameplayLoopServices(root);
@@ -190,7 +293,13 @@ public static class Step1PrankRoomBuilder
         ConfigureMario(mario, tuning);
         ConfigureLives(gm.gameObject, tuning, trickster, level != null ? level.TricksterSpawn : null);
         gm.gameObject.AddComponent<Step1PlaytestLog>();
-        gm.gameObject.AddComponent<Step1RoomReset>().SetBuiltVersion(BuilderVersion);
+        var marker = gm.gameObject.AddComponent<Step1RoomReset>();
+        marker.SetBuiltVersion(BuilderVersion);
+        marker.SetBuiltTheme(tuning.themePreset);
+        var variants = gm.gameObject.AddComponent<Step1LayoutVariants>();
+        variants.SetTuning(tuning);
+        foreach (var slot in variantSlots) variants.AddSlot(slot.cell, slot.options, slot.objects);
+        ConfigureCannons(root, tuning);
         var handsOff = gm.gameObject.AddComponent<Step1HandsOffCheck>();
         var handsOffSo = new SerializedObject(handsOff);
         handsOffSo.FindProperty("tuning").objectReferenceValue = tuning;

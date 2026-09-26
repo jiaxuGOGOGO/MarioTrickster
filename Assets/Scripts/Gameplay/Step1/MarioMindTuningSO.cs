@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 4;
+    public const int CurrentDataVersion = 5;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -108,6 +108,29 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("伪装后站着不动多久才能操控机关（原 1.5 秒；缩短让连续触发更顺）")]
     public float disguiseBlendSeconds = 0.8f;
 
+    [Header("Cannon (S187)")]
+    [Tooltip("大炮每回合炮弹数（开炮打马里奥）。打完后可钻进炮口把自己打出去逃跑")]
+    public int cannonShotsPerRound = 1;
+
+    [Header("Randomness for emergence (S187)")]
+    [Tooltip("看见草丛晃动：起疑值一次性增加（风和人晃得一模一样，马里奥分不出）")]
+    public float rustleSuspicion = 40f;
+    [Tooltip("草丛起风的最短/最长间隔（秒，≤0 关闭）")]
+    public float windMinSeconds = 7f;
+    public float windMaxSeconds = 16f;
+    [Tooltip("赶路时每秒回头看一眼的概率")]
+    public float glanceChancePerSecond = 0.07f;
+    [Tooltip("回头看持续几秒")]
+    public float glanceSeconds = 0.7f;
+    [Tooltip("回头时往回走几格（转身）")]
+    public float glanceStep = 1f;
+    [Tooltip("每回合马里奥速度随机浮动 ±比例")]
+    [Range(0f, 0.3f)] public float roundSpeedVariance = 0.08f;
+
+    [Header("Theme (S187)")]
+    [Tooltip("房间配色主题：Whitebox / AmusementPark(游乐园) / CityPark(公园) / MountainPark(山上公园)。只换颜色/图，不改玩法")]
+    public string themePreset = "AmusementPark";
+
     [Header("Collapse bridge (S183)")]
     [Tooltip("桥重生前检查桥下多深（格）；有人在下面就推迟重生（H9 防止把马里奥封在坑里）")]
     public float bridgeRespawnClearDepth = 2f;
@@ -144,6 +167,12 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 5)
+        {
+            cannonShotsPerRound = 1; rustleSuspicion = 40f; windMinSeconds = 7f; windMaxSeconds = 16f;
+            glanceChancePerSecond = 0.07f; glanceSeconds = 0.7f; glanceStep = 1f; roundSpeedVariance = 0.08f;
+            themePreset = "AmusementPark";
         }
         if (dataVersion < 4)
         {

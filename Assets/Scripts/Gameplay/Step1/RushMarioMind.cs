@@ -18,6 +18,11 @@ public struct MarioPercept
     public bool hurt;
     public bool scanReady;
     public bool carryingLoot;
+    /// <summary>S187：看见草丛晃了（只知道位置，不知道是风还是人）。</summary>
+    public bool sawRustle;
+    public Vector2 rustlePos;
+    /// <summary>S187：马里奥自己的朝向（自身状态）。</summary>
+    public bool facingRight;
 }
 
 public struct MarioOrder
@@ -39,9 +44,10 @@ public struct MarioOrder
 public sealed class RushMarioMind
 {
     private readonly MarioMindTuningSO t;
-    private float stateTime, lostTime, hurtFlash, celebrate, postScan, stun;
+    private float stateTime, lostTime, hurtFlash, celebrate, postScan, stun, glance;
+    private System.Random dice = new System.Random(0);
     private bool scannedHere;
-    private Vector2 lookPoint, lastSeen, lastSeenVelocity;
+    private Vector2 lookPoint, lastSeen, lastSeenVelocity, glanceTarget;
 
     public SuspicionMeter Meter { get; }
     public MarioMindState State { get; private set; } = MarioMindState.Running;
@@ -50,9 +56,15 @@ public sealed class RushMarioMind
 
     public RushMarioMind(MarioMindTuningSO tuning) { t = tuning; Meter = new SuspicionMeter(tuning); }
 
-    public void Reset()
+    /// <summary>S187：本回合的随机种子（回头看等性格随机都由它决定，可复现；写入试玩记录）。</summary>
+    public int Seed { get; private set; }
+
+    public void Reset() => Reset(Seed);
+
+    public void Reset(int seed)
     {
-        Meter.Reset(); hurtFlash = celebrate = stun = 0f;
+        Seed = seed; dice = new System.Random(seed);
+        Meter.Reset(); hurtFlash = celebrate = stun = glance = 0f;
         Enter(MarioMindState.Running, Vector2.zero);
     }
 
@@ -69,6 +81,7 @@ public sealed class RushMarioMind
         hurtFlash = Mathf.Max(0f, hurtFlash - dt);
         celebrate = Mathf.Max(0f, celebrate - dt);
         stun = Mathf.Max(0f, stun - dt);
+        glance = Mathf.Max(0f, glance - dt);
 
         bool seesTrickster = p.seesFigure && !p.figureLooksLikeProp;
         bool seesOddProp = p.seesFigure && p.figureLooksLikeProp && p.figureMoving;
@@ -76,6 +89,11 @@ public sealed class RushMarioMind
         if (seesTrickster) { rise += t.seeTricksterPerSecond; Focus = p.figurePos; }
         else if (seesOddProp) { rise += t.seeDisguisedMovePerSecond; Focus = p.figurePos; }
         if (p.witnessedActivation) { Meter.Add(t.witnessedActivation); Focus = p.activationPos; }
+        if (p.sawRustle)
+        {
+            Meter.Add(t.rustleSuspicion);
+            if (!seesTrickster && !seesOddProp) Focus = p.rustlePos;
+        }
         if (p.hurt)
         {
             Meter.Add(t.hurtByTrap); hurtFlash = t.hurtFlashSeconds; stun = t.hurtStunSeconds;
@@ -125,6 +143,10 @@ public sealed class RushMarioMind
                 order.moveTarget = null;
                 order.mark = celebrate > 0f ? "GOTCHA!" : hurtFlash > 0f ? "OUCH!" : "";
                 order.intent = p.carryingLoot ? "RUN HOME" : "GET LOOT";
+                // S187 性格随机：赶路时偶尔回头看一眼（概率与时长来自调参，种子可复现）
+                if (glance <= 0f && dt > 0f && t.glanceChancePerSecond > 0f && dice.NextDouble() < t.glanceChancePerSecond * dt)
+                { glance = t.glanceSeconds; glanceTarget = p.marioPos + (p.facingRight ? Vector2.left : Vector2.right) * t.glanceStep; }
+                if (glance > 0f) { order.moveTarget = glanceTarget; order.intent = "LOOK BACK"; }
                 break;
             case MarioMindState.Curious:
                 order.moveTarget = lookPoint; order.mark = "?"; order.intent = "HUH?";
@@ -155,6 +177,15 @@ public sealed class RushMarioMind
     }
 
     public bool IsStunned => stun > 0f;
+    public bool IsGlancing => glance > 0f;
+
+    /// <summary>S187：本回合的速度随机倍率（以种子决定，1 ± variance）。</summary>
+    public static float RoundSpeedFactor(int seed, float variance)
+    {
+        variance = Mathf.Clamp01(variance);
+        var r = new System.Random(unchecked(seed * 7919 + 17));
+        return 1f + ((float)r.NextDouble() * 2f - 1f) * variance;
+    }
 
     /// <summary>跟丢后的追踪点：最后所见位置 + 最后所见速度 × 已跟丢时间（上限 chasePredictSeconds）。</summary>
     private Vector2 PredictLost(Vector2 marioPos)

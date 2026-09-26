@@ -41,6 +41,8 @@ using System.Text.RegularExpressions;
 ///   'X' = 可破坏方块 (BreakableBlock)              [S56 新增]
 ///   '[' = 临时封路机关 (ControllableBlocker)       [S53 原型B]
 ///   ']' = 公开队列机关 (StateQueueTrap)           [S53 原型C]
+///   'K'/'k' = 恶作剧大炮 朝右/朝左 (PranksterCannon) [S187]
+///   'c' = 箱子  'b' = 草丛(挡视线可穿过)  'd' = 装饰  (SceneryProp) [S187]
 ///
 /// 扩展方式 (S46 Data-Driven):
 ///   1. 在 AsciiElementRegistry 资产中添加新字符条目
@@ -410,7 +412,9 @@ public static class AsciiLevelGenerator
             "> = MovingPlatform\n" +
             "@ = SawBlade  f = FlyingEnemy  < = ConveyorBelt\n" +
             "S = Checkpoint  X = BreakableBlock\n" +
-            "[ = ControllableBlocker";
+            "[ = ControllableBlocker\n" +
+            "K = Cannon(right)  k = Cannon(left)\n" +
+            "c = Crate  b = Bush(hide)  d = Decor";
     }
 
     // ═══════════════════════════════════════════════════

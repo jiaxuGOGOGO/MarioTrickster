@@ -25,6 +25,10 @@ public class MarioMindDriver : MonoBehaviour
     private bool hurtThisFrame;
     private float startDelay;
     private GameManager subscribedManager;
+    private float roundSpeedFactor = 1f;
+    private int roundCounter;
+    /// <summary>本回合随机种子（写入试玩记录，便于复现）。</summary>
+    public int RoundSeed => Mind != null ? Mind.Seed : 0;
 
     public RushMarioMind Mind { get; private set; }
     public MarioOrder LastOrder { get; private set; }
@@ -53,6 +57,7 @@ public class MarioMindDriver : MonoBehaviour
         lives = FindObjectOfType<TricksterLives>();
         abilities = figure != null ? figure.AbilitySystem : null;
         if (abilities != null) abilities.OnPropActivated += eyes.NotePropActivated;
+        RustleOnPass.Rustled += eyes.NoteRustle;
         if (health != null) { health.OnHealthChanged += HandleHealthChanged; lastHealth = health.CurrentHealth; }
 
         inputManager = FindObjectOfType<InputManager>();
@@ -76,13 +81,17 @@ public class MarioMindDriver : MonoBehaviour
     private void OnDestroy()
     {
         if (abilities != null && eyes != null) abilities.OnPropActivated -= eyes.NotePropActivated;
+        if (eyes != null) RustleOnPass.Rustled -= eyes.NoteRustle;
         if (health != null) health.OnHealthChanged -= HandleHealthChanged;
         if (subscribedManager != null) subscribedManager.OnRoundStart -= ResetForRound;
     }
 
     public void ResetForRound()
     {
-        Mind.Reset();
+        // S187：每回合一个新种子（时间 + 回合计数），决定回头看/速度浮动；写入记录可复现。
+        int seed = unchecked(Environment.TickCount * 31 + (++roundCounter) * 7919);
+        Mind.Reset(seed);
+        roundSpeedFactor = RushMarioMind.RoundSpeedFactor(seed, tuning.roundSpeedVariance);
         eyes?.Forget();
         startDelay = tuning.startDelaySeconds;
         hurtThisFrame = false;
@@ -102,7 +111,7 @@ public class MarioMindDriver : MonoBehaviour
         var gm = GameManager.Instance;
         bool playing = gm == null || gm.CurrentState == GameState.Playing;
         // 每帧读取，Play 中改调参资产立即生效；追你时提速（S186）
-        hybrid.Bot.MarioSpeedScale = Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale;
+        hybrid.Bot.MarioSpeedScale = (Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale) * roundSpeedFactor;
         hybrid.Bot.TrapCommitDistance = tuning.trapCommitDistance;
         hybrid.Bot.SkipReactionDelayForTerrain = tuning.smoothJumps;
         hybrid.Bot.HoldStill = false;

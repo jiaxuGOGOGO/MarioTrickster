@@ -718,7 +718,7 @@ public class TricksterAbilitySystem : MonoBehaviour
 
         for (int i = 0; i < cachedProps.Length && propsInRangeCount < MaxPropsInRange; i++)
         {
-            if (cachedProps[i] == null) continue;
+            if (cachedProps[i] == null || !cachedProps[i].isActiveAndEnabled) continue; // S187：随机布局里未激活的机关
             float dist = Vector2.Distance(myPos, cachedProps[i].transform.position);
             if (dist <= controlRange)
             {
@@ -743,7 +743,7 @@ public class TricksterAbilitySystem : MonoBehaviour
 
         foreach (ControllablePropBase prop in cachedProps)
         {
-            if (prop == null) continue; // 防止已销毁的对象
+            if (prop == null || !prop.isActiveAndEnabled) continue; // 防止已销毁/未激活的对象（S187 随机布局）
             float dist = Vector2.Distance(transform.position, prop.transform.position);
             if (dist <= controlRange && dist < nearestDist)
             {

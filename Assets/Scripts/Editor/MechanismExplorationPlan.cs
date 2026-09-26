@@ -1157,8 +1157,15 @@ public static class MechanismExplorationPlan
     }
 
     public static string PairKey(char a, char b) => a < b ? $"{a}{b}" : $"{b}{a}";
+    /// <summary>
+    /// S187：不进入自动机制探针目录的已登记字符（显式列出原因，不是静默跳过）：
+    ///   c/b/d = 场景摆件（静态阻挡/遮挡/装饰，没有可激活行为）；
+    ///   K/k = 恶作剧大炮（第 1 步专属，由 Step1RushMarioTests 覆盖；探针目录扩容会改变全部既有探针种子，另行评估）。
+    /// </summary>
+    public const string NotProbed = "cbdKk";
+
     public static string[] MissingFromCatalog(IEnumerable<char> registryChars) => registryChars
-        .Where(c => !" .#=WMTG".Contains(c) && !Catalog.Contains(c)).Select(c => c.ToString()).Distinct().ToArray();
+        .Where(c => !" .#=WMTG".Contains(c) && !NotProbed.Contains(c) && !Catalog.Contains(c)).Select(c => c.ToString()).Distinct().ToArray();
 
     // Missing evidence is actionable, not a fun score or a requirement that every safe detour fight.
     public static string[] ExperienceIssues(Trial t, Scenario scenario = null)

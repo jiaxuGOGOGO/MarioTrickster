@@ -363,7 +363,9 @@ public class GameManager : MonoBehaviour
         }
 
         // 重置Trickster位置和状态
-        if (trickster != null && tricksterSpawnPoint != null)
+        // [AI防坑警告] S182 用户实测：Step1 无干预检查会让捣蛋者退场（未激活、Awake 未跑、rb 为空），
+        // 这里不能对未激活的捣蛋者做回合重置，否则第 2 局开始时 NullReferenceException、检查卡住。
+        if (trickster != null && tricksterSpawnPoint != null && trickster.gameObject.activeInHierarchy)
         {
             trickster.transform.position = tricksterSpawnPoint.position;
             trickster.ResetForNewRound();

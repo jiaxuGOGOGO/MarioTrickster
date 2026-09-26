@@ -419,6 +419,9 @@ public class TricksterController : MonoBehaviour
     /// </summary>
     public void ResetForNewRound()
     {
+        // 未初始化（对象从未激活过，Awake 未执行）时没有可重置的状态。
+        if (rb == null) return;
+
         // 1. 清零速度
         rb.velocity = Vector2.zero;
         _frameVelocity = Vector2.zero;

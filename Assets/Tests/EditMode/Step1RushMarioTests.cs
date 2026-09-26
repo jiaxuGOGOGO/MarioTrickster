@@ -412,4 +412,12 @@ public class Step1RushMarioTests
         foreach (string token in new[] { "ExplorationTarget", "RushMarioMind", "SetInputProvider", "TryCatch" })
             StringAssert.DoesNotContain(token, src, "界面层不能碰玩法/马里奥决策");
     }
+
+    [Test]
+    public void RoundResetSkipsAbsentTrickster()
+    {
+        // S182 用户实测：H10 检查第 2 局 NullReferenceException at TricksterController.ResetForNewRound
+        StringAssert.Contains("trickster.gameObject.activeInHierarchy", Read("Scripts/Core/GameManager.cs"));
+        StringAssert.Contains("if (rb == null) return;", Read("Scripts/Enemy/TricksterController.cs"));
+    }
 }

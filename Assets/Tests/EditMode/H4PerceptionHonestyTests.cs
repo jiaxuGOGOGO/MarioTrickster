@@ -18,7 +18,9 @@ public class H4PerceptionHonestyTests
         "tricksterPos", "TricksterPossessionState"
     };
 
-    static string Read(string relative) => File.ReadAllText(Path.Combine(Application.dataPath, relative));
+    // [AI防坑警告] Git for Windows 默认 core.autocrlf=true，克隆下来的源码是 CRLF；源码契约里的 "\n" 标记会找不到。
+    // 读取后统一成 LF 再比对（S181 用户实测：GuidedMarioBrainNeverReadsPossessionTruth end marker not found）。
+    static string Read(string relative) => File.ReadAllText(Path.Combine(Application.dataPath, relative)).Replace("\r\n", "\n");
 
     static string Slice(string source, string startMarker, string endMarker)
     {

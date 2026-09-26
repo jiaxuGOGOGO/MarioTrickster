@@ -41,8 +41,8 @@ public class Step0CoreLoopTests
     [Test]
     public void SceneBuildersRouteExtendedSystemsThroughTheSwitch()
     {
-        string builder = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/TestSceneBuilder.cs"));
-        string boot = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/GameplayLoopSceneBootstrapper.cs"));
+        string builder = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/TestSceneBuilder.cs")).Replace("\r\n", "\n");
+        string boot = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/GameplayLoopSceneBootstrapper.cs")).Replace("\r\n", "\n");
         foreach (string name in new[] { "RouteBudgetService", "InterferenceCompensationPolicy", "RepeatInterferenceStack",
             "CounterRevealReward", "PropComboTracker", "TricksterHeatMeter", "HeatBreachHint", "HeatSuspicionBridge", "AlarmCrisisDirector" })
             StringAssert.DoesNotContain($"managers.AddComponent<{name}>()", builder, name + " 不能绕过 CoreLoopOnly 直接装入");

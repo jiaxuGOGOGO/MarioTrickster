@@ -11,7 +11,7 @@ using UnityEngine;
 public class Step1RushMarioTests
 {
     static MarioMindTuningSO Tuning() => ScriptableObject.CreateInstance<MarioMindTuningSO>();
-    static string Read(string relative) => File.ReadAllText(Path.Combine(Application.dataPath, relative));
+    static string Read(string relative) => File.ReadAllText(Path.Combine(Application.dataPath, relative)).Replace("\r\n", "\n"); // CRLF 克隆也能比对
     const float Dt = 0.05f;
 
     static MarioPercept Seen(Vector2 mario, Vector2 figure, bool prop, bool moving) => new MarioPercept

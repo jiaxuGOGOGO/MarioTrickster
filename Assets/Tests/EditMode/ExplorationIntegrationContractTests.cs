@@ -33,7 +33,7 @@ public class ExplorationIntegrationContractTests
     public void JunctionRuntimeBypassesLegacyOpponentAndNeverSetsPhysicalState()
     {
         Assert.IsNotNull(typeof(ExplorationTrialObserver));
-        string source = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/ExplorationTrialObserver.cs"));
+        string source = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/ExplorationTrialObserver.cs")).Replace("\r\n", "\n");
         string brain = source.Substring(source.IndexOf("private void UpdateJunctionOpponent()"));
         brain = brain.Substring(0, brain.IndexOf("private void UpdateJunctionRunner"));
         foreach (string forbidden in new[] { "base.UpdateTricksterBrain", "runner.Velocity", "LootObjective", "navigation.",
@@ -52,7 +52,7 @@ public class ExplorationIntegrationContractTests
     public void JunctionWorkshopUsesNewBuilderAndKeepsOldComparisonExplicit()
     {
         Assert.IsNotNull(typeof(TestConsoleWindow));
-        string source = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/TestConsoleWindow.Exploration.cs"));
+        string source = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/TestConsoleWindow.Exploration.cs")).Replace("\r\n", "\n");
         int primary = source.IndexOf("开始双口遭遇（新图");
         Assert.Greater(primary, 0); Assert.Less(primary, source.IndexOf("开始同图战术对照"));
         string launch = source.Substring(primary, source.IndexOf("保留旧洞室实验", primary) - primary);
@@ -328,7 +328,7 @@ public class ExplorationIntegrationContractTests
     public void FeedbackExportPrecedesOptionalDemosAndAllLongHighlights()
     {
         Assert.IsNotNull(typeof(TestConsoleWindow));
-        string source = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/TestConsoleWindow.Exploration.cs"));
+        string source = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Editor/TestConsoleWindow.Exploration.cs")).Replace("\r\n", "\n");
         int export = source.IndexOf("导出本次完整反馈ZIP");
         Assert.Greater(export, 0);
         Assert.Less(export, source.IndexOf("可选：看地下去程与返程选择"));

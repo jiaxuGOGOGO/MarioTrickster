@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 3;
+    public const int CurrentDataVersion = 4;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -27,6 +27,8 @@ public class MarioMindTuningSO : ScriptableObject
     public float startDelaySeconds = 4f;
     [Tooltip("马里奥走路速度倍率（1 = 原速 9 格/秒；S183 用户反馈太快：0.55 ≈ 5 格/秒）")]
     [Range(0.2f, 1f)] public float marioSpeedScale = 0.55f;
+    [Tooltip("追你时的速度倍率（S186 用户反馈太容易逃脱：追逐时提速到 0.8 ≈ 7.2 格/秒，仍略慢于你的 8 格/秒，能甩掉但要跑）")]
+    [Range(0.2f, 1f)] public float chaseSpeedScale = 0.8f;
 
     [Header("Vision (H4: cone + range + occlusion only)")]
     public float visionRange = 9f;
@@ -65,6 +67,8 @@ public class MarioMindTuningSO : ScriptableObject
     public float investigateScanDistance = 3f;
     public float postScanSeconds = 0.8f;
     public float chaseGiveUpSeconds = 4f;
+    [Tooltip("跟丢后按'它刚才跑的方向'往前推算几秒（从头顶跳过去时会转身追）")]
+    public float chasePredictSeconds = 0.8f;
     public float arriveDistance = 0.8f;
     public float searchSeconds = 2.5f;
     public float afterSearchSuspicion = 30f;
@@ -140,6 +144,10 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 4)
+        {
+            chaseSpeedScale = 0.8f; chasePredictSeconds = 0.8f;
         }
         if (dataVersion < 3)
         {

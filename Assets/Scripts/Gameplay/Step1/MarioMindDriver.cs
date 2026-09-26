@@ -101,7 +101,8 @@ public class MarioMindDriver : MonoBehaviour
         if (hybrid == null || eyes == null) return;
         var gm = GameManager.Instance;
         bool playing = gm == null || gm.CurrentState == GameState.Playing;
-        hybrid.Bot.MarioSpeedScale = tuning.marioSpeedScale; // 每帧读取，Play 中改调参资产立即生效
+        // 每帧读取，Play 中改调参资产立即生效；追你时提速（S186）
+        hybrid.Bot.MarioSpeedScale = Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale;
         hybrid.Bot.TrapCommitDistance = tuning.trapCommitDistance;
         hybrid.Bot.SkipReactionDelayForTerrain = tuning.smoothJumps;
         hybrid.Bot.HoldStill = false;

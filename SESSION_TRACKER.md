@@ -91,13 +91,19 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 185（连招系统 + 反制更顺：预警一次性决策不抖、晕时真站住、跳跃不刹车、融入 0.8 秒） |
+| **最新 Session** | Session 186（S184 实测：追逐太好逃 → 跟丢按最后所见速度推算方向、追逐提速 0.8） |
 | **日期** | 2026-09-26 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
 | **阶段** | 第 0 步已由用户在 Unity 确认（Console 无错、EditMode 全绿）。S180 实现第 1 步：菜单 `MarioTrickster → Step 1 → Build Prank Room` 生成 36×10 单屏房间；马里奥由 `RushMarioMind` 驱动（? → ! → !! → ?!），只凭 `MarioEyes` 视锥+距离+遮挡感知；捣蛋者 3 条命；默认整屏镜头（C 键切换）。 |
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S186] S184 实测 → 追逐更难甩（仍可逃）
+
+- S184 数据（只 2 局）：H10 5/5（22 秒/局）；真人 2 局马里奥胜 26–28 秒；"算准了"2/2、**"差点被发现"2/2（此前 0/5，首次出现）**；想再来 3/3；备注"从他身上跳过去脱离追捕了，很容易逃脱"。
+- 根因：追逐只追"最后所见位置"，捣蛋者从头顶跳到身后→出视锥→马里奥走到旧点就放弃；追逐速度同巡逻 0.55×9≈5 格/秒，捣蛋者 8 格/秒。
+- 改动：MarioEyes 在 CanSee 之后由两帧所见位置算 `figureVelocity`（H4 合规，不读真值）；跟丢时追 `lastSeen + lastSeenVelocity × min(跟丢时长, chasePredictSeconds=0.8)`（只推水平）；追逐时 `chaseSpeedScale`=0.8（≈7.2 格/秒，仍慢于 8，能甩但要跑）。数据版本 4，测试 39→41。
 
 ### [S185] S183 实测 → 连招 + 反制更顺（S184 大房间尚未实测）
 

@@ -63,8 +63,9 @@ public sealed class MarioEyes
                 p.seesFigure = true;
                 p.figurePos = pos;
                 p.figureLooksLikeProp = figure.IsDisguised;
-                float speed = hasLastFigurePos && dt > 0f ? Vector2.Distance(pos, lastFigurePos) / dt : 0f;
-                p.figureMoving = speed > t.disguisedMoveThreshold;
+                Vector2 velocity = hasLastFigurePos && dt > 0f ? (pos - lastFigurePos) / dt : Vector2.zero;
+                p.figureVelocity = velocity;
+                p.figureMoving = velocity.magnitude > t.disguisedMoveThreshold;
                 lastFigurePos = pos;
                 hasLastFigurePos = true;
             }

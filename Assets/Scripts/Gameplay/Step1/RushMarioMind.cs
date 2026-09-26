@@ -11,6 +11,8 @@ public struct MarioPercept
     public Vector2 figurePos;
     public bool figureLooksLikeProp;
     public bool figureMoving;
+    /// <summary>S186：看得见时，它的移动速度（由两帧所见位置算出，看不见时为 0）。</summary>
+    public Vector2 figureVelocity;
     public bool witnessedActivation;
     public Vector2 activationPos;
     public bool hurt;
@@ -39,7 +41,7 @@ public sealed class RushMarioMind
     private readonly MarioMindTuningSO t;
     private float stateTime, lostTime, hurtFlash, celebrate, postScan, stun;
     private bool scannedHere;
-    private Vector2 lookPoint, lastSeen;
+    private Vector2 lookPoint, lastSeen, lastSeenVelocity;
 
     public SuspicionMeter Meter { get; }
     public MarioMindState State { get; private set; } = MarioMindState.Running;
@@ -102,7 +104,7 @@ public sealed class RushMarioMind
                 else if (stateTime > t.investigateTimeout) Enter(MarioMindState.Searching, Focus);
                 break;
             case MarioMindState.Chasing:
-                if (seesTrickster) { lastSeen = p.figurePos; lostTime = 0f; }
+                if (seesTrickster) { lastSeen = p.figurePos; lastSeenVelocity = p.figureVelocity; lostTime = 0f; }
                 else
                 {
                     lostTime += dt;
@@ -132,7 +134,10 @@ public sealed class RushMarioMind
                 order.scan = TryScanAt(p, Focus);
                 break;
             case MarioMindState.Chasing:
-                order.moveTarget = lastSeen; order.mark = "!!"; order.intent = "GET BACK HERE!";
+                // S186：跟丢时追"它刚才往哪跑"（只用亲眼看到的最后位置 + 最后速度推算，H4 合规），
+                // 从头顶跳过去时马里奥会转身追，而不是傻站在原地。
+                order.moveTarget = seesTrickster ? lastSeen : PredictLost(p.marioPos);
+                order.mark = "!!"; order.intent = "GET BACK HERE!";
                 order.tryCatch = seesTrickster && Vector2.Distance(p.marioPos, p.figurePos) <= t.catchRadius;
                 break;
             case MarioMindState.Searching:
@@ -150,6 +155,15 @@ public sealed class RushMarioMind
     }
 
     public bool IsStunned => stun > 0f;
+
+    /// <summary>跟丢后的追踪点：最后所见位置 + 最后所见速度 × 已跟丢时间（上限 chasePredictSeconds）。</summary>
+    private Vector2 PredictLost(Vector2 marioPos)
+    {
+        float ahead = Mathf.Min(lostTime, t.chasePredictSeconds);
+        Vector2 guess = lastSeen + lastSeenVelocity * ahead;
+        // 只推算水平方向（避免目标点跑到天上导致原地乱跳）
+        return new Vector2(guess.x, lastSeen.y);
+    }
 
     /// <summary>S185 连招奖励：在当前眩晕上追加时间（上限 cap 秒）。</summary>
     public void ExtendStun(float seconds, float cap)
@@ -176,7 +190,7 @@ public sealed class RushMarioMind
     {
         MarioMindState previous = State;
         State = next; Focus = focus; stateTime = 0f; lostTime = 0f; postScan = 0f; scannedHere = false;
-        if (next == MarioMindState.Chasing) lastSeen = focus;
+        if (next == MarioMindState.Chasing) { lastSeen = focus; lastSeenVelocity = Vector2.zero; }
         if (previous != next) StateChanged?.Invoke(previous, next);
     }
 }

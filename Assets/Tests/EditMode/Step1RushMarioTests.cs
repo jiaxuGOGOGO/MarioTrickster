@@ -563,4 +563,35 @@ public class Step1RushMarioTests
             StringAssert.DoesNotContain(token, src, "H4：连招只看马里奥自己和机关事件");
         StringAssert.Contains("AddComponent<Step1Combo>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
     }
+
+    // ── S186：从头顶跳过去太容易逃脱 ─────────────────────
+    [Test]
+    public void ChaseFollowsTheDirectionItLastSawYouRun()
+    {
+        var t = Tuning();
+        var mind = new RushMarioMind(t);
+        Vector2 mario = new Vector2(10f, 3f);
+        // 看见本体 → 追
+        MarioOrder o = default;
+        for (int i = 0; i < 40 && mind.State != MarioMindState.Chasing; i++)
+            o = mind.Tick(Dt, new MarioPercept { marioPos = mario, seesFigure = true, figurePos = new Vector2(12f, 3f), scanReady = true });
+        Assert.AreEqual(MarioMindState.Chasing, mind.State);
+        // 最后一眼：它正从头顶往左跑（速度 -8）
+        mind.Tick(Dt, new MarioPercept { marioPos = mario, seesFigure = true, figurePos = new Vector2(10f, 4.5f), figureVelocity = new Vector2(-8f, 0f) });
+        // 跟丢 0.5 秒后，追踪点应该在它原位置的左边（转身追），而不是停在原地
+        for (int i = 0; i < 10; i++) o = mind.Tick(Dt, new MarioPercept { marioPos = mario });
+        Assert.AreEqual(MarioMindState.Chasing, mind.State);
+        Assert.Less(o.moveTarget.Value.x, 10f - 2f, "应往它逃跑的方向追");
+        Assert.AreEqual(4.5f, o.moveTarget.Value.y, 1e-3f, "只推算水平方向");
+    }
+
+    [Test]
+    public void ChaseSpeedIsFasterButStillEscapable()
+    {
+        var t = Tuning();
+        Assert.Greater(t.chaseSpeedScale, t.marioSpeedScale, "追逐时要提速");
+        Assert.Less(t.chaseSpeedScale * 9f, 8f, "马里奥追逐速度仍略慢于捣蛋者 8 格/秒：能甩掉，但要跑");
+        StringAssert.Contains("Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
+        StringAssert.Contains("p.figureVelocity = velocity;", Read("Scripts/Gameplay/Step1/MarioEyes.cs"), "速度只在 CanSee 之后由所见位置算出");
+    }
 }

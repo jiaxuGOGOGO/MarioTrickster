@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
@@ -62,6 +62,15 @@ public class GameManager : MonoBehaviour
     public int MarioWins => marioWins;
     public int TricksterWins => tricksterWins;
     public int CurrentRound => currentRound;
+    public float RoundElapsed { get; private set; }
+    public string LastRoundReason { get; private set; } = "";
+    public Vector3 LastRoundPosition { get; private set; }
+#if UNITY_EDITOR
+    // Editor owns replaying unsaved scenes; runtime never depends on editor APIs.
+    public static System.Func<bool> EditorRestartHandler;
+#endif
+    /// <summary>S181：回合结束后若有问卷正在输入，返回 true 屏蔽 R/N（否则按 N 回答"否"会直接开下一局）。</summary>
+    public static System.Func<bool> BlockRoundOverKeys;
     public bool ShowResumedHint => false; // 已移除恢复提示功能
 
     // 事件
@@ -138,7 +147,7 @@ public class GameManager : MonoBehaviour
         }
 
         // 回合结束后的按键检测
-        if (currentState == GameState.RoundOver)
+        if (currentState == GameState.RoundOver && (BlockRoundOverKeys == null || !BlockRoundOverKeys()))
         {
             bool restartRound = gip != null ? gip.GetRestartRoundDown() : Input.GetKeyDown(KeyCode.R);
             bool nextRound = gip != null ? gip.GetNextRoundDown() : Input.GetKeyDown(KeyCode.N);
@@ -157,6 +166,8 @@ public class GameManager : MonoBehaviour
         // ===== 以下逻辑仅在 Playing 状态下执行 =====
         if (currentState != GameState.Playing) return;
 
+        RoundElapsed += Time.deltaTime;
+
         // 更新计时器
         if (useTimer)
         {
@@ -167,7 +178,7 @@ public class GameManager : MonoBehaviour
             {
                 gameTimer = 0;
                 // 时间到，Trickster胜利
-                EndRound("Trickster");
+                EndRound("Trickster", "Time ran out. Try a shorter route or a longer timer.");
             }
         }
     }
@@ -190,6 +201,9 @@ public class GameManager : MonoBehaviour
     /// <summary>开始游戏</summary>
     public void StartGame()
     {
+        Time.timeScale = 1f;
+        RoundElapsed = 0f;
+        LastRoundReason = "";
         SetGameState(GameState.Playing);
         gameTimer = levelTimeLimit;
 
@@ -202,10 +216,14 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>结束回合</summary>
-    public void EndRound(string winner)
+    public void EndRound(string winner, string reason = "")
     {
         if (currentState != GameState.Playing) return;
 
+        LastRoundReason = string.IsNullOrEmpty(reason)
+            ? (winner == "Mario" ? "Route cleared. Try a new timing or an alternate route." : "Runner stopped. Look for a safer approach.")
+            : reason;
+        LastRoundPosition = mario != null ? mario.transform.position : Vector3.zero;
         SetGameState(GameState.RoundOver);
 
         // 禁用输入
@@ -250,7 +268,7 @@ public class GameManager : MonoBehaviour
             mario.Die();
         }
 
-        EndRound("Trickster");
+        EndRound("Trickster", "Health depleted. Observe the hazard before committing.");
     }
 
     #endregion
@@ -289,9 +307,16 @@ public class GameManager : MonoBehaviour
     public void RestartLevel()
     {
         Time.timeScale = 1f;
-        // S57: 场景切换前释放未使用资源，降低内存峰值
-        Resources.UnloadUnusedAssets();
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+#if UNITY_EDITOR
+        // [AI防坑警告] 白盒场景可能尚未保存或未加入 Build Settings。
+        // 编辑器必须恢复完整编辑态快照，不能用 ResetRound 假装重载（已销毁的金币/敌人无法恢复）。
+        if (EditorRestartHandler != null && EditorRestartHandler()) return;
+#endif
+        var scene = SceneManager.GetActiveScene();
+        if (!string.IsNullOrEmpty(scene.path) && Application.CanStreamedLevelBeLoaded(scene.path))
+            SceneManager.LoadScene(scene.path);
+        else
+            Debug.LogWarning("[GameManager] Cannot reload this scene. In the Editor, use Stop then Play; in a build, include the scene in Build Settings.");
     }
 
     /// <summary>加载下一关</summary>
@@ -338,7 +363,9 @@ public class GameManager : MonoBehaviour
         }
 
         // 重置Trickster位置和状态
-        if (trickster != null && tricksterSpawnPoint != null)
+        // [AI防坑警告] S182 用户实测：Step1 无干预检查会让捣蛋者退场（未激活、Awake 未跑、rb 为空），
+        // 这里不能对未激活的捣蛋者做回合重置，否则第 2 局开始时 NullReferenceException、检查卡住。
+        if (trickster != null && tricksterSpawnPoint != null && trickster.gameObject.activeInHierarchy)
         {
             trickster.transform.position = tricksterSpawnPoint.position;
             trickster.ResetForNewRound();

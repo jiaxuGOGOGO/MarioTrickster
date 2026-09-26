@@ -168,7 +168,8 @@ public class MarioController : MonoBehaviour
     private bool _bufferedJumpUsable;
     private bool _endedJumpEarly;
     private bool _coyoteUsable;
-    private float _timeJumpWasPressed;
+    // No press exists at time zero. Zero is a valid press time, not an empty buffer.
+    private float _timeJumpWasPressed = float.NegativeInfinity;
 
     private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + JumpBuffer;
     private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + CoyoteTime;
@@ -215,6 +216,7 @@ public class MarioController : MonoBehaviour
     public Vector2 Velocity   => _frameVelocity;
     public float Speed        => Mathf.Abs(_frameVelocity.x);
     public float VerticalSpeed => _frameVelocity.y;
+    public float HorizontalSpeedLimit => MaxSpeed; // Read-only, respects the current SO/local movement configuration.
 
     // S39: 暴露跳跃键按住状态，供 BouncyPlatform 在 comedyDelay 结束时查询
     // 用于按键驱动大跳（Super Bounce）：冻结期按住 Space → 1.4x 弹射力
@@ -343,6 +345,17 @@ public class MarioController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Direct fixed-step TAS can deliver a jump between rendered Updates.
+        // Consume the same buffered request here, before collision/jump evaluation.
+        if (jumpPressedThisFrame)
+        {
+            if (!_isPreparingBounce)
+            {
+                _jumpToConsume = true;
+                _timeJumpWasPressed = _time;
+            }
+            jumpPressedThisFrame = false;
+        }
         // ── 击退 stun 分支：不覆盖 rb.velocity，让 AddForce 击退力自然衰减 ──
         if (_isKnockbackStunned)
         {
@@ -419,20 +432,10 @@ public class MarioController : MonoBehaviour
 
     private void CheckCollisions()
     {
-        bool prev = Physics2D.queriesStartInColliders;
-        Physics2D.queriesStartInColliders = false;
-
-        bool groundHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.down, GrounderDistance, groundLayer);
-
-        bool ceilingHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.up, GrounderDistance, groundLayer);
-
-        Physics2D.queriesStartInColliders = prev;
+        bool groundHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.down,
+            GrounderDistance, groundLayer, _frameVelocity.y);
+        bool ceilingHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.up,
+            GrounderDistance, groundLayer, _frameVelocity.y);
 
         if (ceilingHit)
         {
@@ -497,7 +500,7 @@ public class MarioController : MonoBehaviour
     private void ExecuteJump()
     {
         _endedJumpEarly = false;
-        _timeJumpWasPressed = 0;
+        _timeJumpWasPressed = float.NegativeInfinity;
         _bufferedJumpUsable = false;
         _coyoteUsable = false;
         _frameVelocity.y = JumpPower;
@@ -990,6 +993,9 @@ public class MarioController : MonoBehaviour
         _knockbackStunTimer = 0f;
 
         // 5. 重置跳跃状态
+        _timeJumpWasPressed = float.NegativeInfinity;
+        _timeLeftGrounded = float.NegativeInfinity;
+        _grounded = false;
         _jumpToConsume = false;
         _bufferedJumpUsable = false;
         _endedJumpEarly = false;

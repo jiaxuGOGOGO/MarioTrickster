@@ -110,7 +110,8 @@ public class TricksterController : MonoBehaviour
     private bool _bufferedJumpUsable;
     private bool _endedJumpEarly;
     private bool _coyoteUsable;
-    private float _timeJumpWasPressed;
+    // No press exists at time zero. Zero is a valid press time, not an empty buffer.
+    private float _timeJumpWasPressed = float.NegativeInfinity;
 
     private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + jumpBuffer;
     private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + coyoteTime;
@@ -215,6 +216,13 @@ public class TricksterController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Match Mario: direct fixed-step replay may press jump between rendered Updates.
+        if (jumpPressedThisFrame)
+        {
+            _jumpToConsume = true;
+            _timeJumpWasPressed = _time;
+            jumpPressedThisFrame = false;
+        }
         // 击退 stun 期间：不覆盖 rb.velocity，让物理引擎的 AddForce 击退力自然衰减
         if (_isKnockbackStunned)
         {
@@ -261,20 +269,10 @@ public class TricksterController : MonoBehaviour
 
     private void CheckCollisions()
     {
-        bool prev = Physics2D.queriesStartInColliders;
-        Physics2D.queriesStartInColliders = false;
-
-        bool groundHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.down, grounderDistance, groundLayer);
-
-        bool ceilingHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.up, grounderDistance, groundLayer);
-
-        Physics2D.queriesStartInColliders = prev;
+        bool groundHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.down,
+            grounderDistance, groundLayer, _frameVelocity.y);
+        bool ceilingHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.up,
+            grounderDistance, groundLayer, _frameVelocity.y);
 
         if (ceilingHit) _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
 
@@ -318,7 +316,7 @@ public class TricksterController : MonoBehaviour
     private void ExecuteJump()
     {
         _endedJumpEarly = false;
-        _timeJumpWasPressed = 0;
+        _timeJumpWasPressed = float.NegativeInfinity;
         _bufferedJumpUsable = false;
         _coyoteUsable = false;
         _frameVelocity.y = jumpPower;
@@ -421,6 +419,9 @@ public class TricksterController : MonoBehaviour
     /// </summary>
     public void ResetForNewRound()
     {
+        // 未初始化（对象从未激活过，Awake 未执行）时没有可重置的状态。
+        if (rb == null) return;
+
         // 1. 清零速度
         rb.velocity = Vector2.zero;
         _frameVelocity = Vector2.zero;
@@ -430,6 +431,9 @@ public class TricksterController : MonoBehaviour
         _knockbackStunTimer = 0f;
 
         // 3. 重置跳跃状态
+        _timeJumpWasPressed = float.NegativeInfinity;
+        _timeLeftGrounded = float.NegativeInfinity;
+        _grounded = false;
         _jumpToConsume = false;
         _bufferedJumpUsable = false;
         _endedJumpEarly = false;
@@ -588,9 +592,12 @@ public class TricksterController : MonoBehaviour
     // Session 11 修复：原来放在右上角(Screen.width-520)，Game视图窄时会被裁剪看不到
     // Session 18 性能优化：缓存 GUIStyle，消除每帧 new 分配
     private GUIStyle cachedDebugStyle;
+    [Tooltip("S182：左上角伪装调试状态行（第 1 步房间关掉）")]
+    [SerializeField] private bool showDebugStatus = true;
+    public void SetShowDebugStatus(bool value) => showDebugStatus = value;
     private void OnGUI()
     {
-        if (disguiseSystem == null) return;
+        if (!showDebugStatus || disguiseSystem == null) return;
         if (cachedDebugStyle == null)
         {
             cachedDebugStyle = new GUIStyle(GUI.skin.label)

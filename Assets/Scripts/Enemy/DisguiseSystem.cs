@@ -64,6 +64,7 @@ public class DisguiseSystem : MonoBehaviour
     // 公共属性
     public bool IsDisguised => isDisguised;
     public bool IsFullyBlended => isFullyBlended;
+    public float BlendInSeconds => Mathf.Max(0f, blendInTime); // Read-only timing for ordinary-input planning.
     public DisguiseData CurrentDisguise => availableDisguises.Count > 0 ? availableDisguises[currentDisguiseIndex] : null;
     public float CooldownRemaining => cooldownTimer;
     public float CooldownProgress => disguiseCooldown > 0 ? 1f - (cooldownTimer / disguiseCooldown) : 1f;

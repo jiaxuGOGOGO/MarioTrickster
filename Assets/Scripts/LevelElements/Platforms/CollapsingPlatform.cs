@@ -28,6 +28,14 @@ public class CollapsingPlatform : ControllableLevelElement
     [SerializeField] private float collapseDelay = 1f;
     [SerializeField] private float respawnDelay = 5f;
     [SerializeField] private bool canRespawn = true;
+    [Tooltip("S183：踩上去是否自动崩塌。关掉后只有捣蛋者按 L 才会塌（第 1 步：机关只由玩家触发）")]
+    [SerializeField] private bool collapseOnStep = true;
+    [Tooltip("S183（H9 防卡死）：重生前检查桥下是否有人；有人就推迟重生，避免把人封在坑里")]
+    [SerializeField] private bool waitForClearBelow = false;
+    [Tooltip("桥下检查深度（格）")]
+    [SerializeField] private float clearBelowDepth = 2f;
+    [Tooltip("桥下检查向左右各扩展多少格（覆盖整个坑，避免部分桥面先重生把人堵住）")]
+    [SerializeField] private float clearBelowMarginX = 0f;
 
     [Header("=== 震动设置 ===")]
     [SerializeField] private float shakeIntensity = 0.05f;
@@ -103,7 +111,9 @@ public class CollapsingPlatform : ControllableLevelElement
                     collapseTimer -= Time.deltaTime;
                     if (collapseTimer <= 0f)
                     {
-                        Respawn();
+                        // [AI防坑警告] S182 用户实测：桥重生把马里奥封在坑里（H9）。有人在桥下时推迟重生。
+                        if (waitForClearBelow && IsSomeoneBelow()) collapseTimer = RespawnRecheckSeconds;
+                        else Respawn();
                     }
                 }
                 break;
@@ -133,7 +143,7 @@ public class CollapsingPlatform : ControllableLevelElement
         // Session 17: 不再限制只有 Mario 才能触发
         // 任何有 Rigidbody2D 的对象从上方踩踏都能触发崩塌
         ContactPoint2D contact = collision.GetContact(0);
-        if (contact.normal.y < -0.5f && collision.gameObject.GetComponent<Rigidbody2D>() != null)
+        if (collapseOnStep && contact.normal.y < -0.5f && collision.gameObject.GetComponent<Rigidbody2D>() != null)
         {
             StartShaking();
         }
@@ -161,6 +171,32 @@ public class CollapsingPlatform : ControllableLevelElement
 
         tricksterForceCollapse = false;
         Debug.Log($"[CollapsingPlatform] {gameObject.name} 已崩塌");
+    }
+
+    private const float RespawnRecheckSeconds = 0.25f;
+
+    /// <summary>纯计算：桥面（中心 center、尺寸 size）下方需要清空的检查区域。</summary>
+    public static void ClearBelowArea(Vector2 center, Vector2 size, float depth, float marginX, out Vector2 areaCenter, out Vector2 areaSize)
+    {
+        depth = Mathf.Max(0f, depth);
+        marginX = Mathf.Max(0f, marginX);
+        areaSize = new Vector2(size.x + marginX * 2f, size.y + depth);
+        areaCenter = new Vector2(center.x, center.y + size.y * 0.5f - areaSize.y * 0.5f);
+    }
+
+    private bool IsSomeoneBelow()
+    {
+        // 崩塌后碰撞体被禁用，bounds 为空，改用 transform + size 计算。
+        Vector2 size = Vector2.Scale(boxCollider.size, new Vector2(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.y)));
+        Vector2 center = transform.TransformPoint(boxCollider.offset);
+        ClearBelowArea(center, size, clearBelowDepth, clearBelowMarginX, out Vector2 areaCenter, out Vector2 areaSize);
+        foreach (var hit in Physics2D.OverlapBoxAll(areaCenter, areaSize, 0f))
+        {
+            if (hit == null || hit.attachedRigidbody == null) continue;
+            if (hit.attachedRigidbody.bodyType != RigidbodyType2D.Dynamic) continue;
+            if (hit.GetComponentInParent<MarioController>() != null || hit.GetComponentInParent<TricksterController>() != null) return true;
+        }
+        return false;
     }
 
     private void Respawn()

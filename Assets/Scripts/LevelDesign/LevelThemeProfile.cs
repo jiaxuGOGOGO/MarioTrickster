@@ -89,6 +89,7 @@ public class LevelThemeProfile : ScriptableObject
         // S193：弹簧板、裂缝地板
         new ElementSpriteMapping { elementKey = "SpringPad" },
         new ElementSpriteMapping { elementKey = "CrackFloor" },
+        new ElementSpriteMapping { elementKey = "BananaPeel" },
     };
 
     [Header("=== 角色 ===")]

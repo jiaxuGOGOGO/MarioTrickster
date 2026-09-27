@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 33; // S187: +K k c b d; S193: +J x
+    private const int BUILTIN_ENTRY_COUNT = 34; // S187: +K k c b d; S193: +J x n
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -473,6 +473,13 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "CrackFloor" }, visualColor = new Color(0.70f, 0.58f, 0.42f), visualScale = Vector2.one,
                 customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
                 sortingOrder = 1, isTrigger = false, isDynamicTraversal = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'n', elementName = "BananaPeel", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "BananaPeel" }, visualColor = new Color(1.00f, 0.90f, 0.25f), visualScale = new Vector2(0.8f, 0.3f),
+                customColliderSize = new Vector2(0.8f, 0.5f), customColliderOffset = new Vector2(0f, -0.25f),
+                sortingOrder = 3, isTrigger = true
             },
         };
         registry.BuildCache();

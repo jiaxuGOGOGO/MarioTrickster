@@ -36,6 +36,20 @@ public class LevelWorkshopWindow : EditorWindow
     private Vector2Int lastCell, rectStart, hoverCell = new Vector2Int(-1, -1);
     private int undoGroup;
     private GUIStyle cellLabel, tileLabel;
+    // S193：连招路线（缓存：只在网格变化时重算）
+    private bool comboRoutes;
+    private string comboKey;
+    private ComboRouteAnalyzer.Result comboResult;
+    private ComboRouteAnalyzer.Result ComboResult()
+    {
+        if (comboKey != doc.Grid || comboResult == null)
+        {
+            comboKey = doc.Grid;
+            var tuning = AssetDatabase.LoadAssetAtPath<MarioMindTuningSO>(Step1PrankRoomBuilder.TuningAssetPath);
+            comboResult = ComboRouteAnalyzer.Analyze(Rows(), tuning != null ? tuning.comboRouteCells : 10f);
+        }
+        return comboResult;
+    }
     // S192 性能：
     //  - 画的时候只跑"快速检查"（摆放规则，~1ms），停笔 0.35 秒后再在后台节拍里跑完整检查（死局/结构/全部随机组合）；
     //  - 画布只在鼠标换格子时重画，不是每个像素移动都重画；
@@ -166,6 +180,7 @@ public class LevelWorkshopWindow : EditorWindow
         tool = (LevelWorkshopModel.Tool)GUILayout.Toolbar((int)tool, new[] { "✎ 画笔", "▭ 矩形", "⌫ 橡皮", "⊙ 吸管" }, EditorStyles.toolbarButton, GUILayout.Width(260));
         GUILayout.Space(10);
         step1Mode = GUILayout.Toggle(step1Mode, new GUIContent("第 1 步规则", "只显示/允许第 1 步恶作剧房间能用的元素，并按第 1 步规则检查"), EditorStyles.toolbarButton, GUILayout.Width(80));
+        comboRoutes = GUILayout.Toggle(comboRoutes, new GUIContent("连招路线", "把离得够近、能在连招窗口内依次坑到马里奥的机关连成线；一组线 = 一套连招。种类越多越好"), EditorStyles.toolbarButton, GUILayout.Width(66));
         worstCase = GUILayout.Toggle(worstCase, new GUIContent("最坏情况预览", "所有塌桥塌掉、裂缝地板碎掉、封路墙升起时：红 = 死局（出不去），黄 = 暂时出不去"), EditorStyles.toolbarButton, GUILayout.Width(90));
         GUILayout.FlexibleSpace();
         zoom = GUILayout.HorizontalSlider(zoom, 12f, 36f, GUILayout.Width(90));
@@ -297,6 +312,7 @@ public class LevelWorkshopWindow : EditorWindow
                     DrawOutline(r, issue.error ? new Color(1f, 0.2f, 0.2f) : new Color(1f, 0.8f, 0.2f), 2f);
                 }
             }
+            if (comboRoutes) DrawComboRoutes(canvas, size);
             if (rectDragging) DrawOutline(RectOf(canvas, rectStart, hoverCell, size), new Color(1f, 1f, 1f, 0.9f), 2f);
             else if (hoverCell.x >= 0) DrawOutline(CellRect(canvas, hoverCell.x, hoverCell.y, size), new Color(1f, 1f, 1f, 0.5f), 1f);
         }
@@ -365,6 +381,34 @@ public class LevelWorkshopWindow : EditorWindow
         return new Rect(top.x, top.y, (x1 - x0 + 1) * size, (y1 - y0 + 1) * size);
     }
 
+    private static readonly Color[] groupColors =
+    {
+        new Color(1f, 0.55f, 0.1f), new Color(0.3f, 0.9f, 1f), new Color(1f, 0.35f, 0.85f), new Color(0.5f, 1f, 0.4f), new Color(1f, 1f, 0.3f)
+    };
+
+    private void DrawComboRoutes(Rect canvas, float size)
+    {
+        var r = ComboResult();
+        var groupOf = new Dictionary<int, int>();
+        for (int g = 0; g < r.groups.Count; g++) foreach (int i in r.groups[g]) groupOf[i] = g;
+        Handles.BeginGUI();
+        foreach (var l in r.links)
+        {
+            var a = r.nodes[l.a]; var b = r.nodes[l.b];
+            Color c = groupColors[groupOf[l.a] % groupColors.Length];
+            Vector2 pa = CellRect(canvas, a.x, a.y, size).center, pb = CellRect(canvas, b.x, b.y, size).center;
+            Vector2 mid = (pa + pb) * 0.5f + Vector2.down * Mathf.Min(40f, Vector2.Distance(pa, pb) * 0.25f); // 弧线，重叠少
+            Handles.color = c;
+            Handles.DrawAAPolyLine(4f, pa, mid, pb);
+        }
+        Handles.EndGUI();
+        foreach (var n in r.nodes)
+        {
+            int g = groupOf.TryGetValue(r.nodes.IndexOf(n), out int gg) ? gg : 0;
+            DrawOutline(CellRect(canvas, n.x, n.y, size), groupColors[g % groupColors.Length], 3f);
+        }
+    }
+
     private void Tint(Rect canvas, int x, int y, float size, Color c) { if (x >= 0 && y >= 0 && x < doc.Width && y < doc.Height) EditorGUI.DrawRect(CellRect(canvas, x, y, size), c); }
 
     private static void DrawOutline(Rect r, Color c, float w)
@@ -407,6 +451,7 @@ public class LevelWorkshopWindow : EditorWindow
         if (check != null)
         {
             string head = fullCheckStale ? "…检查中（停笔后自动完成）" : check.Headline;
+            if (comboRoutes) head += "\n连招路线：" + ComboResult().Summary;
             EditorGUILayout.HelpBox(head + (check.cells.Count > 0 ? "（鼠标停在红/黄框格子上看原因）" : ""), check.Playable ? MessageType.Info : MessageType.Error);
             if (check.general.Count + check.cells.Count > 0)
             {

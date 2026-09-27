@@ -73,7 +73,10 @@ public class Step1Combo : MonoBehaviour
         if (hitstop == null) hitstop = gameObject.AddComponent<Step1Hitstop>();
         SpringPadEvents.Launched += HandleLaunched;
         CrackFloorEvents.MarioFell += HandleFell;
+        BananaPeelEvents.Slipped += HandleSlipped;
     }
+
+    private void HandleSlipped() => Register("slip");
 
     private void HandleLaunched() => Register("launch");
     private void HandleFell() => Register("drop");
@@ -84,6 +87,7 @@ public class Step1Combo : MonoBehaviour
         if (manager != null) manager.OnRoundStart -= ResetRound;
         SpringPadEvents.Launched -= HandleLaunched;
         CrackFloorEvents.MarioFell -= HandleFell;
+        BananaPeelEvents.Slipped -= HandleSlipped;
     }
 
     private void ResetRound()

@@ -9,6 +9,12 @@ public static class SpringPadEvents
     public static void RaiseLaunched() => Launched?.Invoke();
 }
 
+public static class BananaPeelEvents
+{
+    public static event Action Slipped;
+    public static void RaiseSlipped() => Slipped?.Invoke();
+}
+
 public static class CrackFloorEvents
 {
     public static event Action MarioFell;

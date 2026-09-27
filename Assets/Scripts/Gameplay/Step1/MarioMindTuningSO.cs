@@ -137,6 +137,16 @@ public class MarioMindTuningSO : ScriptableObject
     public float springTelegraphSeconds = 0.4f;
     [Tooltip("弹簧板激活窗口（秒）：窗口内踩上去的都会被弹")]
     public float springActiveSeconds = 0.5f;
+    [Tooltip("关卡工坊'连招路线'：两个机关水平距离不超过这么多格，就画一条可连线（≈ 连招窗口 × 马里奥赶路速度）")]
+    public float comboRouteCells = 10f;
+    [Tooltip("香蕉皮滑行速度（格/秒）")]
+    public float bananaSlideSpeed = 7f;
+    [Tooltip("香蕉皮失控时间（秒）。滑行距离 ≈ 速度 × 时间")]
+    public float bananaSlipSeconds = 0.5f;
+    [Tooltip("香蕉皮预警（秒）")]
+    public float bananaTelegraphSeconds = 0.4f;
+    [Tooltip("香蕉皮激活窗口（秒）：窗口内踩上去就滑")]
+    public float bananaActiveSeconds = 1.2f;
     [Tooltip("裂缝地板预警（秒）")]
     public float crackTelegraphSeconds = 0.6f;
 
@@ -212,6 +222,7 @@ public class MarioMindTuningSO : ScriptableObject
             comboStunScaling = 0.7f; shakePerStep = 0.06f; shakeMax = 0.3f; shakeSeconds = 0.25f;
             springLaunchSpeed = 16f; springForwardPush = 2.5f; springAirStunSeconds = 0.6f;
             springTelegraphSeconds = 0.4f; springActiveSeconds = 0.5f; crackTelegraphSeconds = 0.6f;
+            comboRouteCells = 10f; bananaSlideSpeed = 7f; bananaSlipSeconds = 0.5f; bananaTelegraphSeconds = 0.4f; bananaActiveSeconds = 1.2f;
         }
         if (dataVersion < 6)
         {

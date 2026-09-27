@@ -1158,5 +1158,31 @@ public class Step1RushMarioTests
         StringAssert.Contains("PrisonSample", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "工坊工具条有'样板：两层监狱'按钮");
     }
 
+    [Test]
+    public void BananaPeelIsTelegraphedReadableSlide()
+    {
+        var t = Tuning();
+        Assert.IsFalse(reg().IsSolid('n'), "香蕉皮可穿过（平时就是装饰）");
+        Assert.AreEqual(ElementCatalog.Role.PlayerPrank, ElementCatalog.Get('n').role);
+        Assert.Greater(t.bananaTelegraphSeconds, 0f, "H3：有预警");
+        float d = BananaPeel.SlideDistance(t.bananaSlideSpeed, t.bananaSlipSeconds);
+        Assert.GreaterOrEqual(d, 2f); Assert.LessOrEqual(d, 5f, "H8：滑行距离可读可预判（2–5 格）");
+        StringAssert.DoesNotContain("TricksterController", CodeOnly(Read("Scripts/LevelElements/Pranks/BananaPeel.cs")), "H4");
+        StringAssert.Contains("BananaPeelEvents.Slipped += HandleSlipped", Read("Scripts/Gameplay/Step1/Step1Combo.cs"), "滑倒计入连招");
+    }
+
+    [Test]
+    public void ComboRoutesShowWhichTrapsChain()
+    {
+        var room = Step1PrankRoomBuilder.Room;
+        var r = ComboRouteAnalyzer.Analyze(room, Tuning().comboRouteCells);
+        Assert.GreaterOrEqual(r.BestGroupSize, 3, "默认房间至少有一套 3 个机关能连");
+        Assert.GreaterOrEqual(r.BestGroupKinds, 3, "且至少 3 种不同机关（宪法：≥3 种坑法）");
+        var far = new[] { "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW", "W.G.M..~......................~..o...W", "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW" };
+        Assert.AreEqual(0, ComboRouteAnalyzer.Analyze(far, 10f).links.Count, "离得太远的机关不连线");
+        Assert.GreaterOrEqual(ComboRouteAnalyzer.Analyze(LevelWorkshopModel.PrisonSample, 10f).BestGroupKinds, 3, "样板房也要能连招");
+        StringAssert.Contains("DrawComboRoutes", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "工坊有'连招路线'开关");
+    }
+
     static AsciiElementRegistry reg() => AsciiElementRegistry.GetDefault();
 }

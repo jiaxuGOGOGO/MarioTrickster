@@ -82,6 +82,7 @@ public static class Step1Text
         "   被火烧到他会晕一下，封路墙能拦住他。   Fire makes him dizzy; the wall blocks him.\n" +
         "   <b>4 秒内连着坑他 = 连招</b>，晕得更久！<b>换不同机关</b>分更高。   Chain within 4s = COMBO. Mix different traps for more points!\n" +
         "   <color=#4FE08C><b>弹簧板</b></color>（绿地砖）：L 把他弹上天，落地前摆好火 = 浮空连招。  <b>Spring</b>: launch him, then fire where he lands.\n" +
+        "   <color=#FFE040><b>香蕉皮</b></color>（地上黄条）：L 后他踩上去会滑出 3–4 格。  <b>Banana</b>: he slides forward.\n" +
         "   <color=#C8A070><b>裂缝地板</b></color>（宝物旁）：L 打碎，他掉进地下室。  <b>Crack floor</b>: L drops him into the basement.\n\n" +
         "<b>大炮</b>（深色方块）：伪装在旁边按 L 开一炮（每局 1 发）；打完后<b>站进炮口</b>会把你打飞出去逃跑。\n" +
         "<b>Cannon</b>: disguise next to it, L = fire (1 shot/round). Then stand inside it to launch yourself away.\n" +

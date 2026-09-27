@@ -36,7 +36,7 @@ public static class Step1PrankRoomBuilder
     /// S189 = 9：死局分析进构建检查 + 运行时防卡死救援 + 支持关卡工坊的自定义房间。
     /// S188 = 8：摆放检查（ElementCatalog）+ V 键元素标签 + 构建时移除第 1 步不用的旧系统（减法）；宝物区炮口让开 3 格。
     /// </summary>
-    /// S193 = 10：连招手感（顿帧/震屏/段位/递减硬直）+ 弹簧板 J + 裂缝地板 x（房间加入一个浅地下室）。
+    /// S193 = 10：连招手感（顿帧/震屏/段位/递减硬直）+ 弹簧板 J + 裂缝地板 x（房间加入一个浅地下室）+ 香蕉皮 n。
     /// </summary>
     public const int BuilderVersion = 10;
     /// <summary>
@@ -61,7 +61,7 @@ public static class Step1PrankRoomBuilder
         "W...............W..............W...............W",
         "W...............W..............W...............W",
         "W.....----......W.---.....----.W...----........W",
-        "W.G.M..2.~..1...[.K.T......b3..[..1..~2...k.o..W",
+        "W.G.M..2.~..1...[.K.T...n..b3..[..1..~2...k.o..W",
         "W############J#######CCCC-#############xxx#####W",
         "W####################..~..#############.-.#####W",
         "W##############################################W"
@@ -458,6 +458,11 @@ public static class Step1PrankRoomBuilder
         {
             spring.Configure(tuning.springLaunchSpeed, tuning.springForwardPush, tuning.springAirStunSeconds, tuning.springTelegraphSeconds, tuning.springActiveSeconds);
             EditorUtility.SetDirty(spring); count++;
+        }
+        foreach (var peel in root.GetComponentsInChildren<BananaPeel>(true))
+        {
+            peel.Configure(tuning.bananaSlideSpeed, tuning.bananaSlipSeconds, tuning.bananaTelegraphSeconds, tuning.bananaActiveSeconds);
+            EditorUtility.SetDirty(peel); count++;
         }
         foreach (var crack in root.GetComponentsInChildren<CrackFloor>(true)) { crack.Configure(tuning.crackTelegraphSeconds); EditorUtility.SetDirty(crack); count++; }
         return count;

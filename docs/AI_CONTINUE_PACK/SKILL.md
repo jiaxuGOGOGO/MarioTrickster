@@ -1,0 +1,87 @@
+---
+name: mariotrickster-continue
+description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间 / 关卡工坊 / 捣蛋者 vs 冲冲型马里奥 AI）时必用。用户提到 MarioTrickster、马里奥捣蛋、恶作剧房间、关卡工坊、箱庭、连锁陷阱、马里奥 AI、S2xx 补丁、apply_Sxxx.bat、"继续"上次的游戏开发，或上传该项目的截图/报错时加载。内含设计宪法硬规则、质量红线、沙盒无 Unity 验证环境一键搭建、补丁交付流程，并按功能（新机关/AI/关卡/技能/修 bug/调研）分册给出做法。
+---
+
+# MarioTrickster 接续包（S200 起）
+
+这是一个**用户不会写代码**的独立游戏项目。你是他的唯一程序 + 关卡助手。质量靠下面的规则守住，不靠记忆。
+
+## 0. 开工三步（每个新对话都做，不用问用户）
+
+1. **搭环境**（约 1–2 分钟，可重复运行）：
+   ```bash
+   SK=$(dirname "$(ls -d ~/.opencode/skills/*/SKILL.md 2>/dev/null | xargs grep -l "name: mariotrickster-continue" | head -1)")
+   bash "$SK/scripts/setup_sandbox.sh"      # 之后：bash "$SK/scripts/verify.sh"、bash "$SK/scripts/make_patch.sh SXXX"
+   ```
+   产物：`/home/user/workspace/{repo,unityref,cc,cc2/full,sim}`。找不到技能目录时：仓库里 `docs/AI_CONTINUE_PACK/` 有同一套文件（双保险）。
+2. **读现状**：`repo/SESSION_TRACKER.md` 顶部"最新 Session"行 + 最后一个 `### [SXXX] 用户：` 条目；`git -C repo log --oneline -5`。
+   - GitHub 分支 `genspark_ai_developer` 可能**落后**于上次交付（用户还没双击 bat 上传）。若 tracker 写的最新 Session 在 git log 里找不到 → 让用户先跑上次的 `apply_SXXX.bat` 并选 Y 上传，**或**把用户重新上传的 zip 里的 `.patch` 用 `git am` 打到本地再继续。
+3. **按任务类型读分册**（只读需要的）：
+
+| 用户想要 | 读 |
+|---|---|
+| 加新机关/元素（ASCII 字符、陷阱、场景物） | `references/new-element.md` |
+| 改马里奥 AI（感知、起疑、追逐、学习、卡住） | `references/mario-ai.md` |
+| 捣蛋者技能/按键（炸弹、诱饵、连锁、挑衅…） | `references/trickster-skill.md` |
+| 关卡/样板/工坊/箱庭/监狱塔 | `references/level-design.md` |
+| 修 bug / 用户截图报错 / "没反应" | `references/bugfix.md` |
+| 调研玩法再升级 | `references/research.md` |
+| 文件在哪、关键数值、字符表 | `references/project-map.md` |
+| 打包交付给用户 | `references/delivery.md` |
+
+## 1. 设计宪法硬规则（违反 = 不许交付）
+
+权威原文：`repo/docs/DESIGN_CONSTITUTION_v1.0.md`。每次改动都要自问这 10 条：
+
+| # | 规则 | 落地做法 |
+|---|---|---|
+| H1 | 马里奥从任何可达状态都有拿宝+撤离的路线 | 新元素在死局检查里按**最坏情况**算（会塌的按塌、会挡的按挡、会炸开的按不炸）；样板必须 `Check().Playable` |
+| H2 | 识破前必有可见预兆（? → !） | 只能往 `SuspicionMeter` 加值，不能直接切 Chasing |
+| H3 | 陷阱有预警；判定只在激活期；判定框 ≤ 精灵 | 走 `ControllablePropBase` 的 Telegraph；自动触发也要调 `OnTricksterActivate`（不跳预警） |
+| H4 | **AI 不作弊**：马里奥只能看（视锥+距离+遮挡）、听（只有位置）、记（自己的经历） | 马里奥侧代码（RushMarioMind/MarioMindDriver/SuspicionMeter/MarioVision/MarioEyes）禁止出现：`TricksterPossessionGate CurrentAnchor IsHiddenAndArmed IsFullyBlended DisguiseSystem TricksterPossessionState CanBePossessed PossessionAnchor`；声音入口只收 `Vector2 where` |
+| H5 | 扫描 100% 真实 | 不做假阳性 |
+| H6 | 同一信号全局一种含义；静音也看得懂 | 每个效果都要有**画面**提示（闪烁/字幕/头顶字），不能只靠声音 |
+| H7 | 改移动参数 → 全部关卡重跑可达性 | 跑 `verify.sh` |
+| H8 | 跳跃不在临界区 | 马里奥实际跳高 ≈2 格；AI 只在目标 dx<2.25 时往上跳（`LevelPathPlanner.JumpUpSide=2`） |
+| H9 | 无卡死；任何控制都有结束 | 关人/晕/吊都有计时自动放；最外圈与最底层不可炸；卡住救援 `Step1StuckRescue` |
+| H10 | 无人干预时马里奥通关率 ≥95% | 学习/小心只能**减速**不能绕路停住；新 AI 行为不能让 hands-off 卡死 |
+
+支柱与 AI 协作规则（同样必须遵守）：
+- **每种优势都要有代价/反制**（宪法 A2）：新技能必须写清"代价"和"马里奥怎么反制"。
+- **修"不公平"先改呈现（预兆、可见度），后改数值**；压倒性打法先加代价，不先禁用。
+- **数值不写死在玩法代码里**：全部进 `MarioMindTuningSO`（资产 `Resources/Step1/RushMarioTuning`），带中文 Tooltip。
+- **重玩变化来自马里奥的性格/目标/学习状态，不来自地图平移。**
+- 实现者不能宣称"好玩"——只能说"具备条件"，好不好玩由用户试玩判断。
+- 用户已明确：**忽略"连玩 20 局"门槛**（S195）；要**魂系/艾尔登法环式箱庭**；借鉴只借规则不借素材。
+
+## 2. 质量红线（历次踩坑总结）
+
+1. **零代码扩展**：加元素只动 `AsciiElementRegistry`（+`BUILTIN_ENTRY_COUNT`）+ `ElementCatalog` + `LevelThemeProfile` 槽位 + `MechanismExplorationPlan.NotProbed`，**不改生成器核心**。
+2. **版本号三件套**：新数值 → `MarioMindTuningSO.CurrentDataVersion`+1 并加 `if (dataVersion < N)` 默认值块；场景结构变 → `Step1PrankRoomBuilder.BuilderVersion`+1 并写一行注释。
+3. **每个新机制配测试**（加在 `Tests/EditMode/Step1RushMarioTests.cs` 的 `static LevelPathPlanner.Cell CellOfIn(` 之前）：纯逻辑静态函数测行为 + `StringAssert` 测关键接线 + H4 检查 + 样板仍可玩。
+4. **纯逻辑优先**：判断写成 `public static` 纯函数（如 `ShouldFire`、`CanDecoy`、`AlarmAt`），MonoBehaviour 只做接线——这样沙盒能验证。
+5. **随机要可复现**：用回合种子 `MarioMindDriver.RoundSeed`，不用裸 `Random`。
+6. **按键两套输入都读**：用 `Step1Keys.Down(KeyCode.X)`（新键先在 `Step1Keys` 的 switch 里加一行），否则用户那边"按了没反应"。按键前检查 `Step1HandsOffCheck.IsRunning / Step1PlaytestLog.IsTyping / Step1Screen.HelpOpen / Time.timeScale`。
+7. **所有玩家可见文字**进 `Step1Text`（中英对照），并更新 `ControlsBar`、`Help`、`Step1MapLegend`。
+8. **性能**：不在 Update 里 `FindObjectsOfType`（用静态列表/缓存），物理查询用 NonAlloc，OnGUI 用 `Step1Gui.Text` 缓存样式。
+9. **样板/房间改了要跑 verify.sh**：体检会报具体格子问题（悬空、炮口被挡、弹簧头顶、死局）——按提示挪格子，别关检查。
+10. **沙盒没有 Unity**：永远不要说"测试通过"，只能说"编译通过 + 字符串断言 N 条 + 纯逻辑体检通过，Unity 里 EditMode 测试请你跑"。
+11. **交付前必须 `verify.sh` 全绿 + `make_patch.sh` 显示 TREE IDENTICAL**。
+
+## 3. 标准工作循环
+
+```
+读分册 → 调研（需要时，见 research.md）→ 写纯逻辑 + 接线 + Tuning + Text + 测试
+→ bash scripts/verify.sh（红了就修）→ 更新文档三处 → git commit（英文，末尾带 (SXXX)）
+→ bash scripts/make_patch.sh SXXX "提示" → genspark_deliver_files 交 zip + 说明文档 → 中文汇报
+```
+文档三处：`SESSION_TRACKER.md`（"最新 Session"行 + `### [SXXX] 用户：` 条目）、`docs/ELEMENT_LEGEND.md`（新字符插在 `| \`K\` |` 行前）、`docs/step1/SXXX_主题.md`（大白话说明 + 参数表 + 规则保障 + 下一步）。
+
+## 4. 和用户沟通（非常重要）
+
+- 用户**不懂技术**：全中文、大白话；说"为什么坏了 / 怎么修的 / 你要点哪里"，不说类名。
+- 汇报结构：一句结论 → 新东西表格（名字 / 怎么用 / 代价·反制）→ 验证情况（诚实写哪些是 Unity 里才能确认的）→ **最少步骤**（① 解压双击 `apply_SXXX.bat` 选 Y ② Unity Test Runner → EditMode → Run All ③ 工坊 Ctrl+Alt+W → 样板 → 试玩）→ 1–2 个下一步选项。
+- 用户说"继续"= 做上次汇报里推荐的下一步。用户给截图 = 先用 `gsk understand_images` 看清再判断。
+- 调研结论要**带来源链接**。
+- 用户本地项目路径：`E:\BaiduNetdiskDownload\MarioTricksterGensparkAI\MarioTrickster`；仓库 `https://github.com/jiaxuGOGOGO/MarioTrickster.git`，分支 `genspark_ai_developer`（用户用 bat 推送，AI 不直接推）。

@@ -15,6 +15,12 @@
 
 ---
 
+## 1.5 S200 起：接续包（第 1 步开发必读）
+
+继续第 1 步（恶作剧房间 / 关卡工坊 / 马里奥 AI / 连锁陷阱）时，先读 `docs/AI_CONTINUE_PACK/SKILL.md`：
+宪法硬规则落地做法、质量红线、沙盒无 Unity 验证（`scripts/setup_sandbox.sh` → `scripts/verify.sh`）、
+补丁交付（`scripts/make_patch.sh`），并按任务类型读 `references/*.md` 分册。
+
 ## 2. 强制静默读档
 
 AI 接手后必须先读以下文件，再开始执行。读档动作在后台完成，不需要用户确认，不需要让用户选择路线。

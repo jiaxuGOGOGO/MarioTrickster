@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 200（以身入局：F 连锁编排/Shift+F 一键布置 + 预判落点自动接力；T 挑衅；绊线 R；马里奥学习层；诱捕走廊样板） |
+| **最新 Session** | Session 201（接续包：`docs/AI_CONTINUE_PACK/`——SKILL.md 原则与红线 + 按功能分册 + 一键搭建/验证/打补丁脚本；新对话先读它） |
+| **S200** | Session 200（以身入局：F 连锁编排/Shift+F 一键布置 + 预判落点自动接力；T 挑衅；绊线 R；马里奥学习层；诱捕走廊样板） |
 | **S199** | Session 199（油桶 U 连锁爆炸（火/炸弹/炮弹/桶点燃，共用 TricksterBomb.Blast）；铁笼 Q；诱饵 G（同视锥，近看识破，透视看穿）；警报随机事件（静止伪装也会被怀疑）；马里奥踢门） |
 | **S198** | Session 198（修来回跳（进展式卡住判定 + 头顶路点对准再跳）、贴墙粘住、塌桥只塌一格；普通地形可炸 Destructible（外圈/底层锁定）；炸弹伤双方；大炮 ←→↑↓ 瞄准 + 马里奥也能钻炮 + 冷却 30s；墙上通风口 ←→；绳套 Y；随机道具箱 ?（同箱反转）） |
 | **S197** | Session 197（修 H4 测试断言范围；修 B 键无反应（新旧输入都读）；修工坊进出 Play 后空白（缓存 NonSerialized）；修马里奥楼层寻路卡住（只规划 AI 真能跳的跳法 + 起跳点）；捣蛋者跳跃力 20；技能包：炸弹×3（B）、缩小×2（Z）、通风管 O（↓）、马里奥时间静止×1；毒池 w / 黏胶 g；M/Tab 图例；扩展调研） |
@@ -111,6 +112,12 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S201] 用户："把项目原则等影响后续质量的做成接续包，下次新对话也能按功能选择使用"
+
+- 新增 `docs/AI_CONTINUE_PACK/`（同时以 `mariotrickster-continue.skill` 交付）：SKILL.md（开工三步、H1–H10 落地、11 条质量红线、工作循环、沟通方式）+ references（new-element / mario-ai / trickster-skill / level-design / bugfix / research / project-map / delivery）+ scripts（setup_sandbox.sh 从 NuGet 拉 Unity 2021.3.33 模块/UnityEditor 2020.2/NUnit 3.13.3 并生成 cc/cc2/sim 工程；verify.sh 四步；check_string_asserts.py；make_patch.sh 多补丁 + 幂等 bat + TREE IDENTICAL；sim/Check.cs 自动发现 *Sample）。
+- 在全新目录从零跑通：setup → verify（S199 与 S200 代码均全绿）→ make_patch（TREE IDENTICAL）。修复：nupkg 解压无读权限需 chmod。
+- AI_TAKEOVER_PROTOCOL.md 加 §1.5 指向接续包。
 
 ### [S200] 用户："以身入局诱惑马里奥进入连锁陷阱，方便提前布置，调研后全方位升级，AI 跟上"
 

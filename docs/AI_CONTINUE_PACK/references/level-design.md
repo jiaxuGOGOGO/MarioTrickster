@@ -1,0 +1,27 @@
+# 分册：关卡 / 样板 / 工坊 / 箱庭
+
+## 坐标与格式
+- ASCII 网格，**第 0 行在最上面**；工坊/检查里的 `(x,y)` 是 **x 从左 0、y 从下 0**。转换：`row = 高度-1-y`。
+- 宽度通常 48，最高 48 行（`FloorStacker.MaxFloors=11`）。外圈必须 `W`，底行实心。
+- 必须各 1 个：`M` 马里奥出生、`T` 捣蛋者出生、`G` 出口、`o` 宝物。
+- 随机槽位 `1 2 3`（`Step1Layout.Slots`）只在默认房间用。
+
+## 物理常识（不看会做出走不通的图）
+- 马里奥跳高 ≈2 格，AI 只在水平距离 <2.25 时往上跳 → 楼梯/台阶间隔 ≤2 格高、左右错开 ≤2 格。
+- 捣蛋者跳力 20（≈2.5 格）。
+- 掉下一层后**必须有路回去**（单向台面 `-` 阶梯），否则死局检查报"再也回不到出口"。
+- 弹簧 `J` 头顶空 4 格；大炮炮口前空 3 格；绳套/铁笼头顶空 2 格；毒池连续 ≤3 格；通风管成对。
+- 大多数物件 `needsSupport`：脚下必须实心。
+
+## 箱庭原则（用户要的魂系手法）
+- 一栋楼 = 一个连续空间（不切场景）；楼与楼之间才切换（"地下一百层" = 约 25 栋串联，**尚未实现**）。
+- 每层一个身份（主机关 + 藏身处），层间多条路，**单向捷径门 `|`**（绕一圈回来打开）、**秘密裂墙 `%`**、环路。
+- 用工坊"箱庭总览"看楼层身份/连接/捷径省步数；"连招路线"看哪些机关能连成一套（种类越多越好）。
+- 参考：Undead Burg / Stormveil（[Level Design Book](https://book.leveldesignbook.com/studies/sp/undead-burg)）、Metroidvania 地图设计（[PC Gamer](https://www.pcgamer.com/how-to-design-a-great-metroidvania-map/)）。
+
+## 样板在哪
+`Assets/Scripts/Editor/LevelWorkshopModel.cs`：`PrisonSample`（两层）、`HakoniwaSample`（四层箱庭）、`LureSample`（诱捕走廊，S200）。默认房间：`Step1PrankRoomBuilder.Room`。
+新样板：加 `public static readonly string[] XxxSample`（体检脚本会**自动发现**以 Sample 结尾的字段）+ 在 `LevelWorkshopWindow.DrawToolbar` 加按钮。
+
+## 改完必做
+`bash scripts/verify.sh` → 第 4 步会逐个样板报 `✓ 可以试玩` 或具体红格原因。用 Python 改样板时**按行列精确替换并断言原字符是 '.'**，行长度必须保持 48。

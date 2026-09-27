@@ -295,7 +295,8 @@ public class Step1RushMarioTests
     public void BuilderInstallsRoundResetAndHandsOffCheck()
     {
         string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
-        StringAssert.Contains("AddComponent<Step1RoomReset>().SetBuiltVersion(BuilderVersion)", builder);
+        StringAssert.Contains("AddComponent<Step1RoomReset>()", builder);
+        StringAssert.Contains("marker.SetBuiltVersion(BuilderVersion)", builder);
         StringAssert.Contains("AddComponent<Step1HandsOffCheck>()", builder);
         Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 3, "改了房间生成逻辑必须升版本，旧场景才会自动重建");
         StringAssert.Contains("AddComponent<Step1Screen>()", builder, "S182：第 1 步必须装干净界面");

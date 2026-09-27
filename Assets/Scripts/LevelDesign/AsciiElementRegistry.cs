@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 34; // S187: +K k c b d; S193: +J x n
+    private const int BUILTIN_ENTRY_COUNT = 36; // S187: +K k c b d; S193: +J x n; S196: +| %
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -480,6 +480,21 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "BananaPeel" }, visualColor = new Color(1.00f, 0.90f, 0.25f), visualScale = new Vector2(0.8f, 0.3f),
                 customColliderSize = new Vector2(0.8f, 0.5f), customColliderOffset = new Vector2(0f, -0.25f),
                 sortingOrder = 3, isTrigger = true
+            },
+            // S196：箱庭元素——单向捷径门 '|'（只能从一侧打开）、裂墙 '%'（可砸开/炮弹/高速撞开）。都按"墙"参与可达性（最坏情况）。
+            new AsciiElementEntry
+            {
+                asciiChar = '|', elementName = "OneWayDoor", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "OneWayDoor" }, visualColor = new Color(0.55f, 0.35f, 0.20f), visualScale = new Vector2(0.6f, 1f),
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 2, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '%', elementName = "CrackedWall", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "CrackedWall" }, visualColor = new Color(0.62f, 0.55f, 0.50f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = false
             },
         };
         registry.BuildCache();

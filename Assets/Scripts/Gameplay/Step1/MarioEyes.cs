@@ -54,6 +54,15 @@ public sealed class MarioEyes
         pendingRustleAge = 0f;
     }
 
+    /// <summary>S196：听见响声（砸墙）。声音不需要视线：在听力范围内就当作"看见草丛晃了"（同一起疑通道，只有位置）。</summary>
+    public void NoteNoise(Vector2 where)
+    {
+        if (mario == null || t == null) return;
+        if (Vector2.Distance(mario.position, where) > t.hearingRange) return;
+        heardNoise = true; heardAt = where;
+    }
+    private bool heardNoise; private Vector2 heardAt;
+
     public void Forget() { hasLastFigurePos = false; pendingActivation = null; pendingActivationAge = float.PositiveInfinity; pendingRustle = null; }
 
     public void Look(float dt, ref MarioPercept p)
@@ -97,6 +106,8 @@ public sealed class MarioEyes
             }
             else if (pendingRustleAge > t.activationWitnessWindow) pendingRustle = null;
         }
+
+        if (heardNoise) { p.sawRustle = true; p.rustlePos = heardAt; heardNoise = false; }
 
         p.witnessedActivation = false;
         if (pendingActivation != null)

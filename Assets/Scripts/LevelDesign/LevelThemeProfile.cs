@@ -90,6 +90,8 @@ public class LevelThemeProfile : ScriptableObject
         new ElementSpriteMapping { elementKey = "SpringPad" },
         new ElementSpriteMapping { elementKey = "CrackFloor" },
         new ElementSpriteMapping { elementKey = "BananaPeel" },
+        new ElementSpriteMapping { elementKey = "OneWayDoor" },
+        new ElementSpriteMapping { elementKey = "CrackedWall" },
     };
 
     [Header("=== 角色 ===")]

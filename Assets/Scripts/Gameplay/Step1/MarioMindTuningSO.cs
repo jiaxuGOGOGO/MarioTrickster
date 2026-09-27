@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 7;
+    public const int CurrentDataVersion = 8;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -141,6 +141,24 @@ public class MarioMindTuningSO : ScriptableObject
     public float floorReplanSeconds = 0.5f;
     [Tooltip("S195：房间高于这么多格时，镜头默认'框住两人'而不是'看整个房间'（C 键仍可切换）")]
     public float maxWholeRoomHeight = 16f;
+    [Header("Hakoniwa (S196: Souls-style interconnected floors)")]
+    [Tooltip("捣蛋者每回合能砸几次墙（B 键，必须现形）")]
+    public int wallSmashesPerRound = 2;
+    [Tooltip("砸墙冷却（秒）")]
+    public float wallSmashCooldown = 6f;
+    [Tooltip("砸完墙的硬直（秒）")]
+    public float wallSmashRecoverSeconds = 0.5f;
+    [Tooltip("离裂墙多近能砸（格）")]
+    public float wallSmashReach = 1.3f;
+    [Tooltip("马里奥听见砸墙声的范围（格，隔墙也听得见）")]
+    public float hearingRange = 14f;
+    [Tooltip("高速撞碎裂墙所需速度（格/秒）")]
+    public float wallBreakSpeed = 9f;
+    [Tooltip("捷径门：贴近开启侧站多久打开（秒）")]
+    public float doorOpenSeconds = 0.6f;
+    [Tooltip("每回合随机事件（涌现）：本回合随机选 1 面裂墙在开局前就已经塌了的概率")]
+    [Range(0f, 1f)] public float preCollapsedWallChance = 0.35f;
+
     [Tooltip("关卡工坊'连招路线'：两个机关水平距离不超过这么多格，就画一条可连线（≈ 连招窗口 × 马里奥赶路速度）")]
     public float comboRouteCells = 10f;
     [Tooltip("香蕉皮滑行速度（格/秒）")]
@@ -219,6 +237,11 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 8)
+        {
+            wallSmashesPerRound = 2; wallSmashCooldown = 6f; wallSmashRecoverSeconds = 0.5f; wallSmashReach = 1.3f;
+            hearingRange = 14f; wallBreakSpeed = 9f; doorOpenSeconds = 0.6f; preCollapsedWallChance = 0.35f;
         }
         if (dataVersion < 7)
         {

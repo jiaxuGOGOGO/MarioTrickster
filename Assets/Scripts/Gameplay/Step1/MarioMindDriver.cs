@@ -94,6 +94,7 @@ public class MarioMindDriver : MonoBehaviour
         abilities = figure != null ? figure.AbilitySystem : null;
         if (abilities != null) abilities.OnPropActivated += eyes.NotePropActivated;
         RustleOnPass.Rustled += eyes.NoteRustle;
+        CrackedWall.Smashed += eyes.NoteNoise;
         if (health != null) { health.OnHealthChanged += HandleHealthChanged; lastHealth = health.CurrentHealth; }
 
         inputManager = FindObjectOfType<InputManager>();
@@ -117,7 +118,7 @@ public class MarioMindDriver : MonoBehaviour
     private void OnDestroy()
     {
         if (abilities != null && eyes != null) abilities.OnPropActivated -= eyes.NotePropActivated;
-        if (eyes != null) RustleOnPass.Rustled -= eyes.NoteRustle;
+        if (eyes != null) { RustleOnPass.Rustled -= eyes.NoteRustle; CrackedWall.Smashed -= eyes.NoteNoise; }
         if (health != null) health.OnHealthChanged -= HandleHealthChanged;
         if (subscribedManager != null) subscribedManager.OnRoundStart -= ResetForRound;
     }

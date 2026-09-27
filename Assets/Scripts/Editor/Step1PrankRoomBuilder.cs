@@ -38,8 +38,9 @@ public static class Step1PrankRoomBuilder
     /// </summary>
     /// S193 = 10：连招手感（顿帧/震屏/段位/递减硬直）+ 弹簧板 J + 裂缝地板 x（房间加入一个浅地下室）+ 香蕉皮 n。
     /// S195 = 11：多层楼房间的楼层寻路（马里奥知道先去哪个楼梯口）；工坊楼层工具。
+    /// S196 = 12：箱庭元素（捷径门 |、裂墙 %）、砸墙技能 B、每回合随机塌墙事件、提示条。
     /// </summary>
-    public const int BuilderVersion = 11;
+    public const int BuilderVersion = 12;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -359,6 +360,7 @@ public static class Step1PrankRoomBuilder
         ConfigureBridge(root, tuning);
         ConfigureBlockers(root, tuning);
         ConfigurePranks(root, tuning);
+        ConfigureDoors(root, tuning, room);
         ConfigureTrickster(trickster, tuning);
         ConfigureMario(mario, tuning, room);
         ConfigureLives(gm.gameObject, tuning, trickster, level != null ? level.TricksterSpawn : null);
@@ -379,6 +381,10 @@ public static class Step1PrankRoomBuilder
         handsOffSo.ApplyModifiedPropertiesWithoutUndo();
         gm.gameObject.AddComponent<Step1ElementLabels>();
         StripUnusedLegacy(gm.gameObject);
+        gm.gameObject.AddComponent<Step1Hint>();
+        gm.gameObject.AddComponent<Step1HakoniwaEvents>().SetTuning(tuning);
+        var smash = trickster.gameObject.AddComponent<WallSmashAbility>();
+        smash.SetTuning(tuning);
         var combo = gm.gameObject.AddComponent<Step1Combo>();
         var comboSo = new SerializedObject(combo);
         comboSo.FindProperty("tuning").objectReferenceValue = tuning;
@@ -452,6 +458,20 @@ public static class Step1PrankRoomBuilder
     }
 
     /// <summary>S193：弹簧板 / 裂缝地板的数值来自调参资产（宪法 §6）。</summary>
+    /// <summary>S196：捷径门开启侧 = 离出生点更远的那一侧（先绕远路才能打开）。数值来自调参。</summary>
+    public static int ConfigureDoors(GameObject root, MarioMindTuningSO tuning, string[] room)
+    {
+        int count = 0;
+        var grid = room.Select(Step1Layout.StripSlots).ToArray();
+        foreach (var door in root.GetComponentsInChildren<OneWayDoor>(true))
+        {
+            Vector3 p = door.transform.position;
+            door.Configure(HakoniwaAnalyzer.DoorOpensFromLeft(grid, Mathf.RoundToInt(p.x), Mathf.RoundToInt(p.y)), tuning.doorOpenSeconds);
+            EditorUtility.SetDirty(door); count++;
+        }
+        return count;
+    }
+
     public static int ConfigurePranks(GameObject root, MarioMindTuningSO tuning)
     {
         int count = 0;
@@ -465,6 +485,7 @@ public static class Step1PrankRoomBuilder
             peel.Configure(tuning.bananaSlideSpeed, tuning.bananaSlipSeconds, tuning.bananaTelegraphSeconds, tuning.bananaActiveSeconds);
             EditorUtility.SetDirty(peel); count++;
         }
+        foreach (var wall in root.GetComponentsInChildren<CrackedWall>(true)) { wall.Configure(tuning.wallBreakSpeed); EditorUtility.SetDirty(wall); count++; }
         foreach (var crack in root.GetComponentsInChildren<CrackFloor>(true)) { crack.Configure(tuning.crackTelegraphSeconds); EditorUtility.SetDirty(crack); count++; }
         return count;
     }

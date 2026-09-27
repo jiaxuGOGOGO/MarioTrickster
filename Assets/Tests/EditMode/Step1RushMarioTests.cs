@@ -1224,6 +1224,63 @@ public class Step1RushMarioTests
         Assert.AreEqual(Step1CameraMode.WholeRoom, Step1RoomCamera.AutoMode(Step1CameraMode.WholeRoom, new Rect(0, 0, 48, 12), Tuning().maxWholeRoomHeight), "默认房间镜头不变");
     }
 
+    // ── S196：箱庭（层间巧思 / 捷径 / 可破坏墙 / 纵览）─────────────────
+    [Test]
+    public void HakoniwaSampleHasIdentityLoopsAndShortcuts()
+    {
+        var g = LevelWorkshopModel.HakoniwaSample;
+        foreach (var row in g) Assert.AreEqual(g[0].Length, row.Length);
+        var check = LevelWorkshopModel.Check(g, true, reg().IsSolid);
+        Assert.IsTrue(check.Playable, "箱庭样板必须通过死局检查（门/墙/裂缝全关与全开）：" + check.Headline);
+        var h = HakoniwaAnalyzer.Analyze(g);
+        Assert.GreaterOrEqual(h.floors.Count, 4);
+        Assert.IsTrue(h.hasLoop, "箱庭核心：有环路");
+        Assert.IsTrue(h.links.Exists(l => l.kind == "捷径门"), "有单向捷径门");
+        Assert.IsTrue(h.links.Exists(l => l.kind == "裂墙"), "有秘密裂墙");
+        var ids = new HashSet<string>(); foreach (var f in h.floors) ids.Add(f.Identity);
+        Assert.AreEqual(h.floors.Count, ids.Count, "每层主机关不同（身份）");
+    }
+
+    [Test]
+    public void PrisonTowerIsHakoniwaNotJustStackedFloors()
+    {
+        System.Func<char, bool> solid = reg().IsSolid;
+        for (int floors = 2; floors <= FloorStacker.MaxFloors; floors += 3)
+            for (int seed = 0; seed < 3; seed++)
+            {
+                var g = FloorStacker.Build(floors, seed, 32, out var names);
+                var h = HakoniwaAnalyzer.Analyze(g);
+                Assert.IsTrue(h.hasLoop, $"{floors} 层 seed {seed}：有环路");
+                Assert.Greater(h.ShortcutSaves, 0, $"{floors} 层 seed {seed}：打开捷径后回程变短");
+                int distinct = new HashSet<string>(names).Count;
+                Assert.AreEqual(System.Math.Min(names.Count, FloorStacker.Themes.Length), distinct, "主题不重复（超过主题数才循环）");
+                Assert.IsTrue(h.links.Exists(l => l.shortcut), "层间有要'打开'的路（裂墙/裂缝/捷径门）");
+            }
+    }
+
+    [Test]
+    public void CrackedWallAndDoorAreSafeAndSmashHasCost()
+    {
+        var r = reg();
+        Assert.IsTrue(r.IsSolid('|') && r.IsSolid('%'), "门与裂墙默认按墙参与可达性（最坏情况）");
+        StringAssert.Contains("|%", LevelDeadlockAnalyzer.PersistentOpeners, "打开后的状态也做死局检查");
+        Assert.IsFalse(WallSmashAbility.CanSmash(true, 2, 0f), "伪装时不能砸（必须现形 = 代价）");
+        Assert.IsFalse(WallSmashAbility.CanSmash(false, 0, 0f), "次数用完不能砸");
+        Assert.IsFalse(WallSmashAbility.CanSmash(false, 2, 1f), "冷却中不能砸");
+        Assert.IsTrue(WallSmashAbility.CanSmash(false, 2, 0f));
+        Assert.Greater(Tuning().hearingRange, 0f, "砸墙有响声，马里奥听得见");
+        StringAssert.Contains("CrackedWall.Smashed += eyes.NoteNoise", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
+        foreach (string token in new[] { "TricksterController", "IsDisguised" })
+            StringAssert.DoesNotContain(token, CodeOnly(Read("Scripts/Gameplay/Step1/MarioEyes.cs")), "H4：听见的只是声音位置");
+        Assert.IsTrue(OneWayDoor.OnOpeningSide(new Vector2(5, 1), new Vector2(5.8f, 1), false, 0.9f), "从右边开");
+        Assert.IsFalse(OneWayDoor.OnOpeningSide(new Vector2(5, 1), new Vector2(4.2f, 1), false, 0.9f), "左边推不开");
+        Assert.AreEqual(-1, Step1HakoniwaEvents.Pick(1, 0, 1f), "没有裂墙就没有塌墙事件");
+        Assert.AreEqual(Step1HakoniwaEvents.Pick(42, 3, 0.5f), Step1HakoniwaEvents.Pick(42, 3, 0.5f), "随机事件可复现");
+        var picks = new HashSet<int>(); for (int s = 0; s < 50; s++) picks.Add(Step1HakoniwaEvents.Pick(s, 3, 0.5f));
+        Assert.Greater(picks.Count, 2, "不同回合塌不同的墙 / 有时不塌");
+        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(r.GetAllRegisteredChars()), "新元素显式登记（不静默计数）");
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

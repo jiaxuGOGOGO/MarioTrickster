@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 195（用户：暂时忽略"连玩 20 局"门槛。多层楼：LevelPathPlanner 楼层寻路（只在宝物/出口不同层时启用）、FloorStacker 监狱塔 2–11 层 + 加一层、高楼镜头自动框住两人、防卡死救援预算+剪枝） |
+| **最新 Session** | Session 196（修 NewRegistryEntries 测试（J x n 未登记为 NotProbed）；箱庭：捷径门 | / 裂墙 % / 砸墙技能 B（现形、有声、有次数）/ 开局随机塌墙事件；工坊"箱庭总览"（纵览缩放、层身份、连接、环路、捷径省步数、建议）；手工"箱庭监狱"四层样板；监狱塔重做为每层主题 + 双通路 + 捷径竖井；结论：一座楼不转场，楼与楼之间转场） |
+| **S195** | Session 195（用户：暂时忽略"连玩 20 局"门槛。多层楼：LevelPathPlanner 楼层寻路（只在宝物/出口不同层时启用）、FloorStacker 监狱塔 2–11 层 + 加一层、高楼镜头自动框住两人、防卡死救援预算+剪枝） |
 | **S194** | Session 194（香蕉皮 n：可读滑行 2–5 格，计入连招；关卡工坊"连招路线"开关：同色弧线 = 一套可连机关，显示最长一套的机关数/种类数；两层监狱样板改为可连招布局） |
 | **S193** | Session 193（连招手感：顿帧/震屏/段位/递减硬直/换招加分；新机关弹簧板 J（浮空起手）+ 裂缝地板 x（可破坏地形，死局按永久打开检查）；恶作剧房间加地下室；关卡工坊"两层监狱"样板；纵向逃脱路线图文档） |
 | **S192** | Session 192（性能：关卡工坊拖动卡顿修复——画时快速检查 0.2ms、停笔 0.35s 后完整检查、按物理签名去重 32→8 组、死局分析剪枝、GUIStyle/颜色/行缓存、只在换格重画；游戏内视线/视锥改非分配射线、界面样式缓存） |
@@ -106,6 +107,16 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S196] 用户：测试失败 + "监狱塔只是堆层数；想要艾尔登法环/黑暗之魂式箱庭；全部展现还是转场？要纵览视图、破坏墙体、随机涌现"
+
+- 修复：MechanismExplorationPlan.NotProbed 追加 JxN|%（显式不探测 + 原因），NewRegistryEntriesAreReportedAsUnsupportedNotSilentlyCounted 通过。
+- 调研：Level Design Book《Undead Burg》（主路 + 绕回支路、单向下落、捷径、可破坏物藏暗道）；PC Gamer / Team Cherry（真实空间、尽可能多的连接、预制房间随机拼接被放弃）。结论与设计见 docs/step1/S196_HAKONIWA_DESIGN.md。
+- 新元素：OneWayDoor '|'（开启侧=离出生点更远一侧，构建器用 HakoniwaAnalyzer.DoorOpensFromLeft 判定）、CrackedWall '%'（砸/炮弹/高速撞开）；Registry 36。死局 PersistentOpeners = "Cx|%"。
+- WallSmashAbility（B）：现形、每回合 2 次、冷却 6s、硬直 0.5s；CrackedWall.Smashed → MarioEyes.NoteNoise（14 格听力，隔墙可闻，走 sawRustle 通道）。Step1Hint 提示条。Step1HakoniwaEvents：每回合 35% 开局塌一面裂墙（种子复现）。
+- HakoniwaAnalyzer：楼层划分、身份、层间连接（楼梯口/台面/裂缝/裂墙/捷径门）、环路、路线步数与捷径省步数、建议。工坊"箱庭总览"开关 + 右侧面板 + 自动缩放；"样板：箱庭监狱"。
+- FloorStacker 重做：6 个主题楼层不重复、层间主楼梯口 + 另一侧裂墙/裂缝、左侧捷径竖井通顶层捷径门；物件避开保留列。2–11 层全部可玩、有环路、有省路捷径。
+- BuilderVersion 12；调参 dataVersion 8。测试 83→86。
 
 ### [S195] 用户："暂时忽略连玩 20 局门槛，继续完成未完成的任务"
 

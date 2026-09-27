@@ -38,6 +38,16 @@ public class LevelWorkshopWindow : EditorWindow
     private GUIStyle cellLabel, tileLabel;
     // S193：连招路线（缓存：只在网格变化时重算）
     private bool comboRoutes;
+    // S196：箱庭总览
+    private bool overview;
+    private string hakoKey;
+    private HakoniwaAnalyzer.Result hako;
+    private Vector2 overviewScroll;
+    private HakoniwaAnalyzer.Result Hako()
+    {
+        if (hakoKey != doc.Grid || hako == null) { hakoKey = doc.Grid; hako = HakoniwaAnalyzer.Analyze(Rows()); }
+        return hako;
+    }
     private string comboKey;
     private ComboRouteAnalyzer.Result comboResult;
     private ComboRouteAnalyzer.Result ComboResult()
@@ -160,6 +170,7 @@ public class LevelWorkshopWindow : EditorWindow
         DrawCanvas();
         DrawStatus();
         EditorGUILayout.EndVertical();
+        if (overview) DrawOverviewPanel();
         EditorGUILayout.EndHorizontal();
     }
 
@@ -174,13 +185,21 @@ public class LevelWorkshopWindow : EditorWindow
             SetSource(string.Join("\n", Step1PrankRoomBuilder.Room), "Load prank room");
         if (GUILayout.Button(new GUIContent("样板：两层监狱", "纵向逃脱示例：地下拿宝、爬回地面；裂缝地板 x + 弹簧板 J"), EditorStyles.toolbarButton, GUILayout.Width(96)))
             SetSource(string.Join("\n", LevelWorkshopModel.PrisonSample), "Load prison sample");
+        if (GUILayout.Button(new GUIContent("样板：箱庭监狱", "手工设计的四层地下监狱：每层一个身份，层间多条路，有单向捷径门、秘密裂墙竖井、裂缝地板"), EditorStyles.toolbarButton, GUILayout.Width(96)))
+        { SetSource(string.Join("\n", LevelWorkshopModel.HakoniwaSample), "Load hakoniwa sample"); overview = true; }
         if (GUILayout.Button(new GUIContent("监狱塔…", "按层数自动拼一座监狱塔：每层是手工楼层模板，楼梯口左右交替；宝物在最底层，出口在顶层。拼完自动做死局检查"), EditorStyles.toolbarButton, GUILayout.Width(60)))
         {
             var menu = new GenericMenu();
             for (int f = 2; f <= FloorStacker.MaxFloors; f++)
             {
                 int floors = f;
-                menu.AddItem(new GUIContent($"{floors} 层（随机组合）"), false, () => SetSource(string.Join("\n", FloorStacker.Build(floors, UnityEngine.Random.Range(0, 100000))), "Prison tower"));
+                menu.AddItem(new GUIContent($"{floors} 层（每层不同主题 + 捷径竖井）"), false, () =>
+                {
+                    var grid = FloorStacker.Build(floors, UnityEngine.Random.Range(0, 100000), 32, out var names);
+                    SetSource(string.Join("\n", grid), "Prison tower");
+                    overview = true;
+                    ShowNotification(new GUIContent(string.Join(" / ", names)));
+                });
             }
             menu.AddSeparator("");
             menu.AddItem(new GUIContent("在当前房间上面加一层"), false, () => SetSource(string.Join("\n", FloorStacker.AddFloorOnTop(Rows())), "Add floor"));
@@ -192,6 +211,7 @@ public class LevelWorkshopWindow : EditorWindow
         tool = (LevelWorkshopModel.Tool)GUILayout.Toolbar((int)tool, new[] { "✎ 画笔", "▭ 矩形", "⌫ 橡皮", "⊙ 吸管" }, EditorStyles.toolbarButton, GUILayout.Width(260));
         GUILayout.Space(10);
         step1Mode = GUILayout.Toggle(step1Mode, new GUIContent("第 1 步规则", "只显示/允许第 1 步恶作剧房间能用的元素，并按第 1 步规则检查"), EditorStyles.toolbarButton, GUILayout.Width(80));
+        overview = GUILayout.Toggle(overview, new GUIContent("箱庭总览", "左侧显示每层的身份（主机关/藏身处）、层间连接（楼梯/捷径/秘密）、环路与捷径省下的步数，并在画布上标出楼层分隔与连接点；同时自动缩放到能看见整张图"), EditorStyles.toolbarButton, GUILayout.Width(66));
         comboRoutes = GUILayout.Toggle(comboRoutes, new GUIContent("连招路线", "把离得够近、能在连招窗口内依次坑到马里奥的机关连成线；一组线 = 一套连招。种类越多越好"), EditorStyles.toolbarButton, GUILayout.Width(66));
         worstCase = GUILayout.Toggle(worstCase, new GUIContent("最坏情况预览", "所有塌桥塌掉、裂缝地板碎掉、封路墙升起时：红 = 死局（出不去），黄 = 暂时出不去"), EditorStyles.toolbarButton, GUILayout.Width(90));
         GUILayout.FlexibleSpace();
@@ -286,6 +306,12 @@ public class LevelWorkshopWindow : EditorWindow
     private void DrawCanvas()
     {
         float size = zoom;
+        // S196：箱庭总览时自动缩放到能看见整张图（纵览全局）；关掉后回到手动缩放
+        if (overview)
+        {
+            float availW = Mathf.Max(200f, position.width - 260f - 260f), availH = Mathf.Max(150f, position.height - 190f);
+            size = Mathf.Clamp(Mathf.Min(availW / doc.Width, availH / doc.Height), 8f, zoom);
+        }
         var reg = AsciiElementRegistry.GetDefault();
         canvasScroll = EditorGUILayout.BeginScrollView(canvasScroll, GUILayout.ExpandHeight(true));
         Rect canvas = GUILayoutUtility.GetRect(doc.Width * size, doc.Height * size, GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false));
@@ -325,6 +351,7 @@ public class LevelWorkshopWindow : EditorWindow
                 }
             }
             if (comboRoutes) DrawComboRoutes(canvas, size);
+            if (overview) DrawHakoniwa(canvas, size);
             if (rectDragging) DrawOutline(RectOf(canvas, rectStart, hoverCell, size), new Color(1f, 1f, 1f, 0.9f), 2f);
             else if (hoverCell.x >= 0) DrawOutline(CellRect(canvas, hoverCell.x, hoverCell.y, size), new Color(1f, 1f, 1f, 0.5f), 1f);
         }
@@ -391,6 +418,55 @@ public class LevelWorkshopWindow : EditorWindow
         int x0 = Math.Min(a.x, b.x), x1 = Math.Max(a.x, b.x), y0 = Math.Min(a.y, b.y), y1 = Math.Max(a.y, b.y);
         var top = CellRect(canvas, x0, y1, size);
         return new Rect(top.x, top.y, (x1 - x0 + 1) * size, (y1 - y0 + 1) * size);
+    }
+
+    private static readonly Color[] floorTints =
+    {
+        new Color(0.3f, 0.6f, 1f, 0.07f), new Color(1f, 0.6f, 0.2f, 0.07f), new Color(0.4f, 1f, 0.5f, 0.07f), new Color(1f, 0.3f, 0.7f, 0.07f)
+    };
+
+    private void DrawHakoniwa(Rect canvas, float size)
+    {
+        var r = Hako();
+        foreach (var f in r.floors)
+            for (int y = f.yMin; y <= f.yMax; y++)
+                for (int x = 0; x < doc.Width; x++) Tint(canvas, x, y, size, floorTints[f.index % floorTints.Length]);
+        foreach (var l in r.links)
+        {
+            Color c = l.kind == "楼梯口" || l.kind == "单向台面" ? new Color(0.4f, 1f, 0.5f) : l.kind == "捷径门" ? new Color(1f, 0.85f, 0.2f) : new Color(1f, 0.4f, 0.9f);
+            DrawOutline(CellRect(canvas, l.x, l.y, size), c, 3f);
+        }
+        foreach (var f in r.floors)
+        {
+            Rect label = CellRect(canvas, 1, f.yMax, size);
+            GUI.Label(new Rect(label.x, label.y, 260, 16), $"F{f.index + 1}  {f.Identity}", EditorStyles.whiteMiniLabel);
+        }
+    }
+
+    private void DrawOverviewPanel()
+    {
+        var r = Hako();
+        EditorGUILayout.BeginVertical(GUILayout.Width(260));
+        EditorGUILayout.LabelField("箱庭总览 Overview", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox(r.Summary, r.hasLoop ? MessageType.Info : MessageType.Warning);
+        overviewScroll = EditorGUILayout.BeginScrollView(overviewScroll);
+        foreach (var f in r.floors)
+        {
+            EditorGUILayout.LabelField($"F{f.index + 1}：{f.Identity}", EditorStyles.miniBoldLabel);
+            EditorGUILayout.LabelField($"   藏身处 {f.cover} 个；机关 {string.Join("、", f.pranks.Select(kv => kv.Key + "×" + kv.Value))}", EditorStyles.wordWrappedMiniLabel);
+            foreach (var l in r.links.Where(l => l.upper == f.index))
+                EditorGUILayout.LabelField(l.lower == l.upper ? $"   ↔ 同层{l.kind} ({l.x},{l.y})" : $"   ↓ 到 F{l.lower + 1}：{l.kind} ({l.x},{l.y}){(l.shortcut ? " [要打开]" : "")}", EditorStyles.wordWrappedMiniLabel);
+        }
+        if (r.advice.Count > 0)
+        {
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("箱庭建议", EditorStyles.miniBoldLabel);
+            foreach (var a in r.advice) EditorGUILayout.LabelField("• " + a, EditorStyles.wordWrappedMiniLabel);
+        }
+        EditorGUILayout.Space(4);
+        EditorGUILayout.LabelField("图例：绿框=楼梯/台面  黄框=捷径门  粉框=裂墙/裂缝（要打开）", EditorStyles.wordWrappedMiniLabel);
+        EditorGUILayout.EndScrollView();
+        EditorGUILayout.EndVertical();
     }
 
     private static readonly Color[] groupColors =

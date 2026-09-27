@@ -1,147 +1,134 @@
 using System.Collections.Generic;
-using System.Text;
 
 /// <summary>
-/// S195：楼层拼接（纯逻辑，关卡工坊"加一层"/"监狱塔"用）。"地下一百层"的做法：**随机的是组合，每一层都是手工模板**（Spelunky 式），
-/// 拼接只决定顺序与楼梯口位置；拼完仍要过死局检查（H1/H9），不合格的组合不输出。
-/// 约定：
-///   - 每层模板宽度相同，最上一行与最下一行是地板/天花板（'#' 或 'x'），两侧是墙 'W'；
-///   - 层与层共用一行楼板：楼板上开 2 格"楼梯口"（'.'），并在下层楼梯口正下方放单向台面阶梯，保证能从下往上爬；
-///   - 宝物放最底层，出口与出生点在最上层（"越狱：从地下带赃物爬回地面"）。
+/// S195/S196：监狱塔拼接（纯逻辑，关卡工坊"监狱塔…"菜单用）。
+/// S196 改为**箱庭式**（用户反馈：只是堆层数，没有每层特色与层间巧思）：
+///   - 每层从"主题楼层"里选（放风场/牢房区/水牢/看守所…），**同一座塔不重复主题** → 每层有身份（主机关 + 藏身处布局）；
+///   - 层与层之间**至少两条路**：主楼梯口（左右交替，迫使横穿） + 一条"要打开的捷径"（裂墙 % 或裂缝地板 x，交替出现）；
+///   - 每两层一扇**单向捷径门 |**，把长回程切短（Undead Burg 式 loop back）；
+///   - 宝物在最底层远端，出口/出生点在顶层；所有组合过死局检查（门/墙"全关"与"全开"两种最坏情况，测试校验）。
+/// 随机的是组合，每一层都是手工模板（Spelunky 的做法）；画布最高 48 行 → 最多 11 层。
 /// </summary>
 public static class FloorStacker
 {
-    /// <summary>一层楼的内部（不含上下楼板），3 行：第 0 行最上。用 '.' 空气、'-' 单向台面、机关字符。
-    /// 层高只有 3 格，所以楼层模板里不放弹簧板（需要头顶空 4 格）；要用弹簧就在工坊里把那层加高。</summary>
-    public static readonly string[][] FloorPool =
+    public sealed class Theme
     {
-        new[] { "..............................",
-                "..............................",
-                ".....~.......n.........[......",
-                "" },
-        new[] { "..............................",
-                "..............................",
-                "..b.....n.......~.....c.......",
-                "" },
-        new[] { "..............................",
-                "..............................",
-                "......[....~.......n....b.....",
-                "" },
-        new[] { "..............................",
-                "..............................",
-                "...c...~....b......~......n...",
-                "" },
+        public string zh;       // 楼层名（显示在总览里）
+        public string row;      // 站立行（30 格内部宽度），机关与藏身处
+        public Theme(string zh, string row) { this.zh = zh; this.row = row; }
+    }
+
+    /// <summary>主题楼层（站立行，内部宽 30）。层高 3 格 → 不放弹簧板（需要头顶空 4 格）。</summary>
+    public static readonly Theme[] Themes =
+    {
+        new Theme("放风场·香蕉皮", "...b....n......c......n....b.."),
+        new Theme("牢房区·封路墙", "..c...[.....b......[.....c...."),
+        new Theme("锅炉房·火", "...~....b....~.......c...~...."),
+        new Theme("看守所·大炮", "..b.......K..........k.....c.."),
+        new Theme("水牢·混合", "...c...~.......n......b...[..."),
+        new Theme("废墟·裂缝与香蕉", "..b..c....n..b.....c..n..b...."),
     };
 
-    public const int FloorInnerHeight = 3; // 每层内部有效 3 行（跳 2 格 + 站 1 格）
-    /// <summary>工坊画布最高 48 行：1 行顶墙 + 每层 4 行 + 1 行底 → 最多 11 层。更多层 = 多个房间串联（见路线图），不塞进一个画布。</summary>
+    public const int FloorInnerHeight = 3;
     public const int MaxFloors = 11;
 
+    public static string[] Build(int floors, int seed, int width = 32) => Build(floors, seed, width, out _);
+
     /// <summary>
-    /// 拼一座 floors 层的监狱塔。seed 决定每层用哪个模板与楼梯口位置（可复现）。
-    /// 返回完整网格（第 0 行在最上）；楼梯口在每层左右交替，迫使马里奥在每层横穿一次（经过该层机关）。
+    /// 结构（每层 4 行：空气、空气、站立行、楼板）：
+    ///   - 主楼梯口左右交替（每层都要横穿、经过该层机关）；
+    ///   - 第二条路：楼板上另一侧的裂墙 %（砸开）或裂缝地板 x（踩塌），交替出现；
+    ///   - **捷径竖井**（最左 3 列）：只在最底层开口，一路单向台面爬到顶层，顶层出口旁一扇从竖井一侧开的捷径门 |。
+    ///     拿宝后绕回竖井 → 爬上去 → 开门 = 直通出口（Undead Burg 式"绕一大圈后打开的回头门"）。门关着时整座塔也能通关。
+    /// 主题物件最后放：遇到楼梯口/落点/竖井等保留列就挪到最近空位（不再被清空）。
     /// </summary>
-    public static string[] Build(int floors, int seed, int width = 32)
+    public static string[] Build(int floors, int seed, int width, out List<string> floorNames)
     {
         floors = System.Math.Max(2, System.Math.Min(floors, MaxFloors));
-        var rng = new System.Random(seed);
+        width = 32;
         int inner = width - 2;
-        var rows = new List<string>();
-        rows.Add(new string('W', width));
-        // 顶层上方留 1 行空气（出口层可跳）
+        var rng = new System.Random(seed);
+        var order = new List<int>(); for (int i = 0; i < Themes.Length; i++) order.Add(i);
+        for (int i = order.Count - 1; i > 0; i--) { int j = rng.Next(i + 1); (order[i], order[j]) = (order[j], order[i]); }
+        floorNames = new List<string>();
+
+        int h = 1 + floors * 4;      // 顶墙 + 每层 4 行（最底层的"楼板"= 地面）
+        var g = new char[h][];
+        for (int r = 0; r < h; r++) { g[r] = Line('.', width); g[r][0] = g[r][width - 1] = 'W'; }
+        for (int x = 0; x < width; x++) g[0][x] = 'W';
+        const int shaftL = 1, shaftR = 3, shaftWall = 4;
+        var standRows = new int[floors];
         for (int f = 0; f < floors; f++)
         {
-            var tpl = FloorPool[rng.Next(FloorPool.Length)];
-            var floor = new List<char[]>();
-            for (int r = 0; r < FloorInnerHeight; r++) floor.Add(Fit(tpl[r], inner).ToCharArray());
-            bool top = f == 0, bottom = f == floors - 1;
-            // 楼梯口：偶数层在右边，奇数层在左边（交替 → 每层都要横穿）
-            bool holeRight = f % 2 == 0;
-            int holeX = holeRight ? inner - 5 : 3;
-            if (top)
-            {
-                // 出口 G、出生点 M 在顶层左侧（远离第一个楼梯口）；T 在顶层中间
-                Put(floor[FloorInnerHeight - 1], 1, 'G'); Put(floor[FloorInnerHeight - 1], 3, 'M');
-                Put(floor[FloorInnerHeight - 1], inner / 2, 'T');
-                ClearNear(floor[FloorInnerHeight - 1], holeX, 3);
-            }
-            if (bottom)
-            {
-                bool holeAboveRight = (f - 1) % 2 == 0; // 上方楼板的楼梯口属于上一层
-                int lootX = holeAboveRight ? 2 : inner - 3; // 宝物在最底层、离上方楼梯口远的一端 → 横穿整层
-                Put(floor[FloorInnerHeight - 1], lootX, 'o');
-            }
-            foreach (var line in floor) rows.Add("W" + new string(line) + "W");
-            // 楼板
+            int a1 = 1 + f * 4, a2 = a1 + 1, st = a1 + 2, slab = a1 + 3;
+            standRows[f] = st;
+            bool bottom = f == floors - 1;
+            for (int x = 1; x < width - 1; x++) g[slab][x] = '#';
             if (!bottom)
             {
-                var slab = new string('#', inner).ToCharArray();
-                slab[holeX] = '.'; slab[holeX + 1] = '.';
-                rows.Add("W" + new string(slab) + "W");
+                bool mainRight = f % 2 == 0;
+                int mainX = mainRight ? inner - 4 : 7;
+                int altX = mainRight ? 10 : inner - 11;
+                g[slab][mainX] = g[slab][mainX + 1] = '.';
+                char alt = f % 2 == 0 ? '%' : 'x';
+                for (int k = 0; k < (alt == 'x' ? 3 : 2); k++) g[slab][altX + k] = alt;
+                // 主楼梯口下方一级台面（下层 a2 行）
+                g[slab + 2][mainX] = g[slab + 2][mainX + 1] = '-';
+                if (alt == '%') { g[slab + 2][altX] = g[slab + 2][altX + 1] = '-'; }
+            }
+            // 竖井：左 3 列，楼板行与 a2 行放单向台面；竖井墙（最底层不设 → 入口）
+            for (int x = shaftL; x <= shaftR; x++) { g[slab][x] = bottom ? '#' : '-'; g[a2][x] = '-'; }
+            if (!bottom) { g[a1][shaftWall] = 'W'; g[a2][shaftWall] = 'W'; g[st][shaftWall] = f == 0 ? '|' : 'W'; }
+            if (f == 0) { g[a1][shaftWall] = 'W'; }
+        }
+        // 最顶层竖井顶端：a2 行的台面去掉（顶上是天花板，没必要）
+        for (int x = shaftL; x <= shaftR; x++) g[2][x] = '.';
+
+        // 保留列（站立行上不能放东西的格）
+        for (int f = 0; f < floors; f++)
+        {
+            var theme = Themes[order[f % order.Count]];
+            floorNames.Add(theme.zh);
+            int st = standRows[f];
+            var reserved = new HashSet<int> { 0, width - 1, shaftL, shaftL + 1, shaftR, shaftWall, shaftWall + 1 };
+            // 脚下（本层楼板）的开口 / 裂缝 / 裂墙 → 上面不能放（会悬空）
+            for (int x = 1; x < width - 1; x++) if (g[st + 1][x] != '#') reserved.Add(x);
+            // 头顶（上层楼板）的开口 → 落点 ±1 留空
+            if (f > 0) for (int x = 1; x < width - 1; x++) { char c = g[st - 3][x]; if (c == '.' || c == '%' || c == 'x') { reserved.Add(x - 1); reserved.Add(x); reserved.Add(x + 1); } }
+            if (f == 0) { Place(g[st], 6, 'G', reserved); Place(g[st], 8, 'M', reserved); Place(g[st], inner / 2 + 2, 'T', reserved); }
+            if (f == floors - 1)
+            {
+                bool holeAboveRight = (f - 1) % 2 == 0;
+                Place(g[st], holeAboveRight ? 9 : inner - 2, 'o', reserved);
+            }
+            for (int x = 0; x < theme.row.Length; x++)
+            {
+                char c = theme.row[x];
+                if (c == '.') continue;
+                Place(g[st], x + 1, c, reserved);
             }
         }
-        rows.Add(new string('W', width).Remove(1, inner).Insert(1, new string('#', inner)));
-        var grid = rows.ToArray();
-        AddStairs(grid, width);
-        ClearAboveHoles(grid, width);
+        var grid = new string[h];
+        for (int i = 0; i < h; i++) grid[i] = new string(g[i]);
         return grid;
     }
 
-    /// <summary>在每个楼梯口正下方那层里放一级单向台面（离地 2 格），从下层地面 → 台面 → 穿过楼梯口到上层。</summary>
-    private static void AddStairs(string[] grid, int width)
+    /// <summary>把 c 放在 x 附近最近的空位（不在保留列、原本是空气），放下后该列及两侧加入保留（物件之间留空隙）。</summary>
+    private static void Place(char[] row, int x, char c, HashSet<int> reserved)
     {
-        int h = grid.Length;
-        for (int row = 1; row < h - 1; row++)
-        {
-            string line = grid[row];
-            if (line.IndexOf('#') < 0) continue; // 只看楼板行
-            for (int x = 1; x < width - 2; x++)
+        for (int d = 0; d < row.Length; d++)
+            foreach (int nx in new[] { x + d, x - d })
             {
-                if (line[x] != '.' || line[x + 1] != '.') continue;
-                // 楼梯口 → 下方第 2 行放 "--"（下层地面在楼板下方第 FloorInnerHeight+1 行）
-                int stairRow = row + 2;
-                if (stairRow >= h - 1) continue;
-                var s = grid[stairRow].ToCharArray();
-                int sx = x; // 台面正对楼梯口：站在台面上头顶是洞，跳 2 格穿过洞口站上楼板
-                for (int k = 0; k < 2; k++) s[sx + k] = '-';
-                grid[stairRow] = new string(s);
-                // 楼梯口下方的落点清空危险物
-                var landing = grid[row + FloorInnerHeight].ToCharArray();
-                for (int k = -1; k <= 2; k++) if (x + k > 0 && x + k < width - 1 && landing[x + k] != '.' && landing[x + k] != 'o') landing[x + k] = '.';
-                grid[row + FloorInnerHeight] = new string(landing);
-                break;
+                if (nx <= 0 || nx >= row.Length - 1 || reserved.Contains(nx) || row[nx] != '.') continue;
+                row[nx] = c;
+                reserved.Add(nx); reserved.Add(nx - 1); reserved.Add(nx + 1);
+                if (c == 'K') { reserved.Add(nx + 1); reserved.Add(nx + 2); reserved.Add(nx + 3); } // 炮口前留空
+                if (c == 'k') { reserved.Add(nx - 1); reserved.Add(nx - 2); reserved.Add(nx - 3); }
+                return;
             }
-        }
     }
 
-    /// <summary>楼梯口正上方那一格（上一层地面）不能放东西——它脚下是洞，会悬空。</summary>
-    private static void ClearAboveHoles(string[] grid, int width)
-    {
-        for (int row = 1; row < grid.Length - 1; row++)
-        {
-            if (grid[row].IndexOf('#') < 0) continue;
-            var above = grid[row - 1].ToCharArray();
-            for (int x = 1; x < width - 1; x++)
-                if (grid[row][x] == '.' && above[x] != '.' && above[x] != 'W') above[x] = '.';
-            grid[row - 1] = new string(above);
-        }
-    }
-
-    private static string Fit(string s, int w)
-    {
-        if (string.IsNullOrEmpty(s)) s = "";
-        if (s.Length >= w) return s.Substring(0, w);
-        var sb = new StringBuilder(s);
-        while (sb.Length < w) sb.Append('.');
-        return sb.ToString();
-    }
-
-    private static void Put(char[] line, int x, char c) { if (x >= 0 && x < line.Length) line[x] = c; }
-
-    private static void ClearNear(char[] line, int x, int r)
-    {
-        for (int k = x - r; k <= x + r + 1; k++) if (k >= 0 && k < line.Length && line[k] != 'G' && line[k] != 'M' && line[k] != 'T') line[k] = '.';
-    }
+    private static char[] Line(char c, int w) { var a = new char[w]; for (int i = 0; i < w; i++) a[i] = c; return a; }
 
     /// <summary>在给定网格上方再加一层空楼（楼板 + 3 行空气），供工坊"加一层"。</summary>
     public static string[] AddFloorOnTop(IList<string> grid)
@@ -151,9 +138,9 @@ public static class FloorStacker
         var rows = new List<string> { new string('W', w) };
         for (int r = 0; r < FloorInnerHeight; r++) rows.Add("W" + new string('.', w - 2) + "W");
         var slab = ("W" + new string('#', w - 2) + "W").ToCharArray();
-        slab[w - 5] = '.'; slab[w - 4] = '.'; // 右侧楼梯口
+        slab[w - 5] = '.'; slab[w - 4] = '.';
         rows.Add(new string(slab));
-        for (int i = 1; i < grid.Count; i++) rows.Add(grid[i]); // 原来的天花板行被新楼板取代
+        for (int i = 1; i < grid.Count; i++) rows.Add(grid[i]);
         return rows.ToArray();
     }
 }

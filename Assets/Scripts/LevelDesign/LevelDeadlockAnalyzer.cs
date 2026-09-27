@@ -45,7 +45,7 @@ public static class LevelDeadlockAnalyzer
 
     public const char Loot = 'o', Exit = 'G', Mario = 'M', Bridge = 'C', Blocker = '[', Crack = 'x';
     /// <summary>S193：触发后永久打开（本回合不复原或桥下有人不重生）的机关：塌桥 + 裂缝地板。最坏情况 = 全部同时打开。</summary>
-    public const string PersistentOpeners = "Cx";
+    public const string PersistentOpeners = "Cx|%";
 
     /// <summary>分析一个完整关卡（grid 第 0 行在最上面）。</summary>
     public static Report Analyze(IList<string> grid)
@@ -73,9 +73,9 @@ public static class LevelDeadlockAnalyzer
             report.issues.Add(new Issue { severity = Severity.Error, x = mx, y = my, message = "马里奥走不到出口" });
 
         // 2) 持续状态：所有塌桥塌掉
-        if (Contains(grid, Bridge) || Contains(grid, Crack))
+        if (Contains(grid, Bridge) || Contains(grid, Crack) || Contains(grid, '|') || Contains(grid, '%'))
             CheckState(grid, report, mx, my, hasLoot, ox, oy, gx, gy, PersistentOpeners, '.', true,
-                "塌桥/裂缝地板打开后，站在这里的马里奥再也回不到出口（死局：给下面留一条回去的路，比如单向台面 - 或弹簧）");
+                "塌桥/裂缝地板/捷径门/裂墙打开后，站在这里的马里奥再也回不到出口（死局：给下面留一条回去的路，比如单向台面 -）");
         // 3) 暂时状态：所有封路墙升起
         if (Contains(grid, Blocker))
             CheckState(grid, report, mx, my, hasLoot, ox, oy, gx, gy, Blocker.ToString(), 'W', false,

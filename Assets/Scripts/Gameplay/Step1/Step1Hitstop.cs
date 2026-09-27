@@ -18,7 +18,7 @@ public class Step1Hitstop : MonoBehaviour
 
     public void Request(float seconds, float slowScale)
     {
-        if (seconds <= 0f || Step1HandsOffCheck.IsRunning || Step1Screen.HelpOpen || Time.timeScale <= 0f && !active) return;
+        if (seconds <= 0f || ChainReplay.Playing || Step1HandsOffCheck.IsRunning || Step1Screen.HelpOpen || Time.timeScale <= 0f && !active) return;
         if (!active) { restoreScale = Time.timeScale; active = true; }
         until = Mathf.Max(until, Time.unscaledTime + seconds);
         appliedScale = Mathf.Clamp(slowScale, 0f, 1f);
@@ -28,6 +28,7 @@ public class Step1Hitstop : MonoBehaviour
     private void Update()
     {
         if (!active) return;
+        if (ChainReplay.Playing) { active = false; return; } // S202：回放接管了 timeScale，回放结束时自己恢复
         if (Step1Screen.HelpOpen || Step1HandsOffCheck.IsRunning) { active = false; return; } // 别人接管了 timeScale
         if (!Mathf.Approximately(Time.timeScale, appliedScale)) { active = false; return; }    // 顿帧期间按了暂停：不去"恢复"成未暂停
         if (Time.unscaledTime >= until) { active = false; Time.timeScale = restoreScale; }

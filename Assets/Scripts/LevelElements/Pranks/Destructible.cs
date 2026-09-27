@@ -22,10 +22,29 @@ public class Destructible : MonoBehaviour
     public static IReadOnlyList<Destructible> All => all;
     public int StartX => startX; public int Y => y; public int Width => width;
 
-    public void Configure(int sx, int row, int w, bool[] lockedCells)
+    [SerializeField] private bool[] reinforcedCells = new bool[0]; // S202：策略模拟判定的承重格（炸不掉，画铆钉）
+    public void Configure(int sx, int row, int w, bool[] lockedCells, bool[] reinforced = null)
     {
         startX = sx; y = row; width = Mathf.Max(1, w);
         locked = lockedCells != null && lockedCells.Length == width ? lockedCells : new bool[width];
+        reinforcedCells = reinforced != null && reinforced.Length == width ? reinforced : new bool[width];
+        for (int i = 0; i < width; i++) if (reinforcedCells[i]) locked[i] = true;
+    }
+
+    /// <summary>S202：加固格画"铆钉"（H6：看得见哪里炸不掉）。</summary>
+    private void Start()
+    {
+        if (reinforcedCells == null) return;
+        for (int i = 0; i < reinforcedCells.Length && i < width; i++)
+        {
+            if (!reinforcedCells[i]) continue;
+            var go = new GameObject("Rivet");
+            go.transform.SetParent(transform.parent, false);
+            go.transform.position = new Vector3(startX + i, y + 0.28f, 0f);
+            var r = go.AddComponent<SpriteRenderer>();
+            r.sprite = Step1Sprites.Square; r.color = new Color(0.85f, 0.85f, 0.9f, 0.9f); r.sortingOrder = 5;
+            go.transform.localScale = new Vector3(0.28f, 0.14f, 1f);
+        }
     }
 
     private void OnEnable() { if (!all.Contains(this)) all.Add(this); }

@@ -136,6 +136,27 @@ public sealed class MarioEyes
         }
 
         p.facingRight = facingRight;
+        // S202：看得见的危险 / 道具箱（场景里公开可见的物体；同一视锥+遮挡规则）
+        p.dangerRadius = 0f; float bestD = float.MaxValue;
+        foreach (var b in TricksterBomb.Live)
+        {
+            if (b == null) continue;
+            Vector2 bp = b.transform.position; float d = (bp - (Vector2)mario.position).sqrMagnitude;
+            if (d < bestD && MarioVision.CanSee(eye, facingRight, bp, b.transform, t)) { bestD = d; p.dangerPos = bp; p.dangerRadius = b.Radius; }
+        }
+        foreach (var o in OilBarrel.All)
+        {
+            if (o == null || !o.Lit || o.Exploded) continue;
+            Vector2 op = o.transform.position; float d = (op - (Vector2)mario.position).sqrMagnitude;
+            if (d < bestD && MarioVision.CanSee(eye, facingRight, op, o.transform, t)) { bestD = d; p.dangerPos = op; p.dangerRadius = o.Radius; }
+        }
+        p.seesPickup = false; float bestP = float.MaxValue;
+        foreach (var s in PickupSpot.All)
+        {
+            if (s == null || !s.Live) continue;
+            Vector2 sp = s.transform.position; float d = (sp - (Vector2)mario.position).sqrMagnitude;
+            if (d < bestP && MarioVision.CanSee(eye, facingRight, sp, s.transform, t)) { bestP = d; p.seesPickup = true; p.pickupPos = sp; }
+        }
         if (pendingRustle != null)
         {
             pendingRustleAge += dt;

@@ -23,6 +23,12 @@ public struct MarioPercept
     /// <summary>S187：看见草丛晃了（只知道位置，不知道是风还是人）。</summary>
     public bool sawRustle;
     public Vector2 rustlePos;
+    /// <summary>S202：看得见的危险（正在冒烟的炸弹/油桶：公开的场景物，谁都看得见，H4 合规）。dangerRadius=0 表示没有。</summary>
+    public Vector2 dangerPos;
+    public float dangerRadius;
+    /// <summary>S202：看得见的道具箱（亮着的问号方块）。</summary>
+    public bool seesPickup;
+    public Vector2 pickupPos;
     /// <summary>S200：听见挑衅（只有位置，H4）。</summary>
     public bool heardTaunt;
     public Vector2 tauntPos;
@@ -75,6 +81,27 @@ public sealed class RushMarioMind
         return false;
     }
 
+    /// <summary>S202 纯逻辑：危险在前方且自己在爆炸圈（+安全边）内 → 该退到哪里（圈外）；不用退返回 null。</summary>
+    public static Vector2? DodgeTarget(Vector2 mario, Vector2 danger, float radius, float margin)
+    {
+        if (radius <= 0f) return null;
+        float dx = mario.x - danger.x;
+        if (Mathf.Abs(mario.y - danger.y) > radius + 0.5f || Mathf.Abs(dx) > radius + margin) return null;
+        float side = Mathf.Abs(dx) < 0.05f ? 1f : Mathf.Sign(dx);
+        return new Vector2(danger.x + side * (radius + margin + 0.5f), mario.y);
+    }
+
+    /// <summary>S202 纯逻辑：道具箱值不值得绕过去（同层、离得近、不往回走太多）。</summary>
+    public static bool WorthPickup(Vector2 mario, Vector2 pickup, float maxDetour)
+        => Mathf.Abs(pickup.y - mario.y) <= 1.5f && Mathf.Abs(pickup.x - mario.x) <= maxDetour;
+
+    public bool Dodging { get; private set; }
+    // S202：捡道具放弃机制（够不着的道具箱不会让他一直原地走，H10）
+    private float grabTime; private Vector2 grabTarget; private readonly System.Collections.Generic.List<Vector2> skippedPickups = new System.Collections.Generic.List<Vector2>();
+    public const float GrabGiveUpSeconds = 3f;
+    /// <summary>纯逻辑：这个道具箱是不是已经放弃了。</summary>
+    public static bool Skipped(System.Collections.Generic.IReadOnlyList<Vector2> skipped, Vector2 at) { foreach (var s in skipped) if ((s - at).sqrMagnitude < 0.25f) return true; return false; }
+
     public void RememberHurt(Vector2 at)
     {
         foreach (var s in hurtSpots) if ((s - at).sqrMagnitude < 1f) return;
@@ -96,7 +123,7 @@ public sealed class RushMarioMind
     {
         Seed = seed; dice = new System.Random(seed);
         Meter.Reset(); hurtFlash = celebrate = stun = glance = 0f;
-        hurtSpots.Clear(); Cautious = false;
+        hurtSpots.Clear(); Cautious = false; skippedPickups.Clear(); grabTime = 0f; Dodging = false;
         Enter(MarioMindState.Running, Vector2.zero);
     }
 
@@ -175,7 +202,7 @@ public sealed class RushMarioMind
         }
 
         order.state = State;
-        if (State != MarioMindState.Running) Cautious = false;
+        if (State != MarioMindState.Running) { Cautious = false; Dodging = false; }
         switch (State)
         {
             case MarioMindState.Running:
@@ -186,9 +213,21 @@ public sealed class RushMarioMind
                 if (glance <= 0f && dt > 0f && t.glanceChancePerSecond > 0f && dice.NextDouble() < t.glanceChancePerSecond * dt)
                 { glance = t.glanceSeconds; glanceTarget = p.marioPos + (p.facingRight ? Vector2.left : Vector2.right) * t.glanceStep; }
                 if (glance > 0f) { order.moveTarget = glanceTarget; order.intent = "LOOK BACK"; }
+                // S202：看得见的危险（冒烟的炸弹/油桶）→ 先退到爆炸圈外等它炸（引信最多 1.5 秒，不会卡住，H10）
+                var dodge = t.dodgeVisibleDanger ? DodgeTarget(p.marioPos, p.dangerPos, p.dangerRadius, t.dodgeMargin) : null;
+                Dodging = dodge.HasValue;
+                if (Dodging) { order.moveTarget = dodge; order.intent = "DODGE"; order.mark = "!"; }
+                // S202：看得见的道具箱在附近 → 顺路捡（和你抢道具，反转变数）
+                else if (p.seesPickup && WorthPickup(p.marioPos, p.pickupPos, t.pickupDetourCells) && !Skipped(skippedPickups, p.pickupPos))
+                {
+                    if ((grabTarget - p.pickupPos).sqrMagnitude > 0.25f) { grabTarget = p.pickupPos; grabTime = 0f; }
+                    grabTime += dt;
+                    if (grabTime > GrabGiveUpSeconds) skippedPickups.Add(p.pickupPos); // 够不着 → 放弃这个箱子，继续赶路
+                    else { order.moveTarget = p.pickupPos; order.intent = "GRAB"; }
+                }
                 // S200 学习层：前面是上次被坑的地方 → 放慢脚步（司机层减速），头顶显示"小心"
                 Cautious = t.learnFromHurt && NearHurtSpot(hurtSpots, p.marioPos, p.facingRight, t.cautiousRadius);
-                if (Cautious && glance <= 0f) order.intent = "CAREFUL";
+                if (Cautious && glance <= 0f && !Dodging && order.intent != "GRAB") order.intent = "CAREFUL";
                 break;
             case MarioMindState.Curious:
                 order.moveTarget = lookPoint; order.mark = "?"; order.intent = "HUH?";

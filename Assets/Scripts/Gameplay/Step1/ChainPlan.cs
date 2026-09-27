@@ -30,6 +30,8 @@ public class ChainPlan : MonoBehaviour
     public static ChainPlan Instance { get; private set; }
     public static event System.Action<IControllableProp> LinkFired;
     public static event System.Action<Vector2> Clicked;
+    /// <summary>S202：完美连锁（≥3 环）完成 → 参数 = 环数（ChainReplay 播回放）。</summary>
+    public static event System.Action<int> PerfectChain;
     public IReadOnlyList<ControllablePropBase> Links => links;
     public bool Live => Time.time < liveUntil;
     public int Step => step;
@@ -121,6 +123,7 @@ public class ChainPlan : MonoBehaviour
         links.RemoveAll(l => l == null);
         bool inputOk = !Step1HandsOffCheck.IsRunning && !Step1PlaytestLog.IsTyping && !Step1Screen.HelpOpen && Time.timeScale > 0f;
         if (inputOk && Step1Keys.Down(KeyCode.F)) { if (Step1Keys.Shift()) AutoArrange(); else TryToggleNearest(); }
+        if (!Live && liveUntil > 0f) { liveUntil = -1f; if (step > 0) Finish(); }
         if (!Live || mario == null) return;
         Vector2 mp = mario.position, mv = marioBody != null ? marioBody.velocity : Vector2.zero;
         foreach (var l in links)
@@ -188,7 +191,7 @@ public class ChainPlan : MonoBehaviour
 
     private void Finish()
     {
-        if (step >= 3) { flash = Step1Text.ChainPerfect; flashUntil = Time.time + 1.6f; }
+        if (step >= 3) { flash = Step1Text.ChainPerfect; flashUntil = Time.time + 1.6f; PerfectChain?.Invoke(step); }
         links.RemoveAll(l => fired.Contains(l));
         fired.Clear(); liveUntil = -1f;
     }

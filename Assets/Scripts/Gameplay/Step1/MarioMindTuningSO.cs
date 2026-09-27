@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 12;
+    public const int CurrentDataVersion = 13;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -213,6 +213,28 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("加速道具：马里奥速度倍率")]
     public float pickupSpeedBoost = 1.35f;
 
+    [Header("S202: replay, strategy sim, trap probe, Mario dodge/grab")]
+    [Tooltip("完美连锁/大连招后慢动作回放")]
+    public bool replayEnabled = true;
+    [Tooltip("回放最近几秒")]
+    public float replaySeconds = 4f;
+    [Tooltip("回放速度（0.35 = 慢动作）")]
+    [Range(0.1f, 1f)] public float replaySpeed = 0.35f;
+    [Tooltip("连招达到几段也回放（0 = 只在完美连锁时回放）")]
+    public int replayMinCombo = 4;
+    [Tooltip("两次回放之间至少隔多久（真实秒）")]
+    public float replayCooldown = 12f;
+    [Tooltip("构建房间时：模拟'最坏的对手用炸弹把马里奥困死'，把会被利用的承重格加固（炸不掉、画铆钉）")]
+    public bool reinforceAgainstBombs = true;
+    [Tooltip("陷阱试探：每个机关每局最多触发几次")]
+    public int probeUsesPerTrap = 1;
+    [Tooltip("马里奥看见冒烟的炸弹/油桶会先退到爆炸圈外")]
+    public bool dodgeVisibleDanger = true;
+    [Tooltip("躲闪：退到爆炸半径外多少格")]
+    public float dodgeMargin = 0.8f;
+    [Tooltip("马里奥会顺路捡道具箱：同层、这么多格以内")]
+    public float pickupDetourCells = 4f;
+
     [Header("S200: chain plan (F), taunt (T), tripwire, Mario learning")]
     [Tooltip("一条连锁最多几个机关")]
     public int maxChainLinks = 4;
@@ -365,6 +387,11 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 13)
+        {
+            replayEnabled = true; replaySeconds = 4f; replaySpeed = 0.35f; replayMinCombo = 4; replayCooldown = 12f; reinforceAgainstBombs = true; probeUsesPerTrap = 1;
+            dodgeVisibleDanger = true; dodgeMargin = 0.8f; pickupDetourCells = 4f;
         }
         if (dataVersion < 12)
         {

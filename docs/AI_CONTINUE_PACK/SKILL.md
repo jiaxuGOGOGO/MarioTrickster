@@ -75,8 +75,9 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 7. **所有玩家可见文字**进 `Step1Text`（中英对照），并更新 `ControlsBar`、`Help`、`Step1MapLegend`。
 8. **性能**：不在 Update 里 `FindObjectsOfType`（用静态列表/缓存），物理查询用 NonAlloc，OnGUI 用 `Step1Gui.Text` 缓存样式。
 9. **样板/房间改了要跑 verify.sh**：体检会报具体格子问题（悬空、炮口被挡、弹簧头顶、死局）——按提示挪格子，别关检查。
-10. **沙盒没有 Unity**：永远不要说"测试通过"，只能说"编译通过 + 字符串断言 N 条 + 纯逻辑体检通过，Unity 里 EditMode 测试请你跑"。
-11. **交付前必须 `verify.sh` 全绿 + `make_patch.sh` 显示 TREE IDENTICAL**。
+10. **策略死局**：任何"会破坏地形/改变地形"的新机制，都要进 `StrategySim`（或说明为什么不影响），verify 的"炸弹仍能困住"=失败。
+11. **沙盒没有 Unity**：永远不要说"测试通过"，只能说"编译通过 + 字符串断言 N 条 + 纯逻辑体检通过，Unity 里 EditMode 测试请你跑"。
+12. **交付前必须 `verify.sh` 全绿 + `make_patch.sh` 显示 TREE IDENTICAL**。
 
 ## 3. 标准工作循环
 

@@ -48,6 +48,36 @@ public class LevelWorkshopWindow : EditorWindow
         if (hakoKey != doc.Grid || hako == null) { hakoKey = doc.Grid; hako = HakoniwaAnalyzer.Analyze(Rows()); }
         return hako;
     }
+    // S202：策略模拟（炸弹困人 → 自动加固格、路线时间线、离路线太远的机关）+ 自动检查轨迹热力图
+    private bool strategy;
+    [NonSerialized] private string strategyKey;
+    private StrategySim.Report strategyResult;
+    private StrategySim.Report Strategy()
+    {
+        // 高楼（11 层）一次约 5 秒：画的过程中不重算，停笔、完整检查跑完后才算（fullCheckStale = false）
+        if ((strategyKey != doc.Grid || strategyResult == null) && (!fullCheckStale || strategyResult == null))
+        {
+            strategyKey = doc.Grid;
+            var t = AssetDatabase.LoadAssetAtPath<MarioMindTuningSO>(Step1PrankRoomBuilder.TuningAssetPath);
+            float speed = StrategySim.RunSpeed(9f, t != null ? t.marioSpeedScale : 0.55f);
+            EditorUtility.DisplayProgressBar("策略模拟", "模拟最坏的对手用炸弹困住马里奥…", 0.5f);
+            try { strategyResult = StrategySim.Analyze(Rows(), speed, t != null ? t.startDelaySeconds : 4f, t != null ? t.bombsPerRound : 3, t != null ? t.bombRadius : 1.6f, 1.5f, 3f, t != null ? t.oilRadius : 1.8f); }
+            finally { EditorUtility.ClearProgressBar(); }
+        }
+        return strategyResult;
+    }
+    private bool showTrack;
+    [NonSerialized] private Dictionary<int, int> trackVisits;
+    [NonSerialized] private HashSet<int> trackStuck;
+    [NonSerialized] private string trackNote = "";
+    private void LoadTrack()
+    {
+        string path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder, Step1HandsOffCheck.TrackFile);
+        if (!System.IO.File.Exists(path)) { trackVisits = null; trackNote = "还没有轨迹：先跑一次 菜单 MarioTrickster → Step 1 → Hands-off Check 或 Trap Probe"; return; }
+        var (room, visits, stuck) = Step1HandsOffCheck.ParseTrack(System.IO.File.ReadAllText(path));
+        trackVisits = visits; trackStuck = stuck;
+        trackNote = room == StrategySim.Hash(doc.Grid) ? $"轨迹：{visits.Count} 格，卡住点 {stuck.Count} 个" : "⚠ 轨迹来自另一张图（先把这张图作为第 1 步房间试玩/检查一次）";
+    }
     [NonSerialized] private string comboKey;
     private ComboRouteAnalyzer.Result comboResult;
     private ComboRouteAnalyzer.Result ComboResult()
@@ -214,6 +244,10 @@ public class LevelWorkshopWindow : EditorWindow
         GUILayout.Space(10);
         step1Mode = GUILayout.Toggle(step1Mode, new GUIContent("第 1 步规则", "只显示/允许第 1 步恶作剧房间能用的元素，并按第 1 步规则检查"), EditorStyles.toolbarButton, GUILayout.Width(80));
         overview = GUILayout.Toggle(overview, new GUIContent("箱庭总览", "左侧显示每层的身份（主机关/藏身处）、层间连接（楼梯/捷径/秘密）、环路与捷径省下的步数，并在画布上标出楼层分隔与连接点；同时自动缩放到能看见整张图"), EditorStyles.toolbarButton, GUILayout.Width(66));
+        strategy = GUILayout.Toggle(strategy, new GUIContent("策略模拟", "① 最坏的对手用 3 颗炸弹能不能把马里奥困死（能 → 标出会被自动加固的承重格，游戏里画铆钉）② 马里奥一趟路线的时间线：几秒到哪个机关 ③ 离路线太远、只能靠引诱才用得上的机关"), EditorStyles.toolbarButton, GUILayout.Width(66));
+        bool newTrack = GUILayout.Toggle(showTrack, new GUIContent("检查轨迹", "显示最近一次自动检查 / 陷阱试探里马里奥走过的格子（越亮走得越多）和卡住点（红叉）"), EditorStyles.toolbarButton, GUILayout.Width(66));
+        if (newTrack && !showTrack) LoadTrack();
+        showTrack = newTrack;
         comboRoutes = GUILayout.Toggle(comboRoutes, new GUIContent("连招路线", "把离得够近、能在连招窗口内依次坑到马里奥的机关连成线；一组线 = 一套连招。种类越多越好"), EditorStyles.toolbarButton, GUILayout.Width(66));
         worstCase = GUILayout.Toggle(worstCase, new GUIContent("最坏情况预览", "所有塌桥塌掉、裂缝地板碎掉、封路墙升起时：红 = 死局（出不去），黄 = 暂时出不去"), EditorStyles.toolbarButton, GUILayout.Width(90));
         GUILayout.FlexibleSpace();
@@ -353,6 +387,8 @@ public class LevelWorkshopWindow : EditorWindow
                 }
             }
             if (comboRoutes) DrawComboRoutes(canvas, size);
+            if (strategy) DrawStrategy(canvas, size);
+            if (showTrack) DrawTrack(canvas, size);
             if (overview) DrawHakoniwa(canvas, size);
             if (rectDragging) DrawOutline(RectOf(canvas, rectStart, hoverCell, size), new Color(1f, 1f, 1f, 0.9f), 2f);
             else if (hoverCell.x >= 0) DrawOutline(CellRect(canvas, hoverCell.x, hoverCell.y, size), new Color(1f, 1f, 1f, 0.5f), 1f);
@@ -499,6 +535,34 @@ public class LevelWorkshopWindow : EditorWindow
         }
     }
 
+    private void DrawStrategy(Rect canvas, float size)
+    {
+        var r = Strategy();
+        foreach (int k in r.reinforced) { var cr = CellRect(canvas, k / 1000, k % 1000, size); EditorGUI.DrawRect(new Rect(cr.x + cr.width * 0.3f, cr.y + 2, cr.width * 0.4f, cr.height * 0.25f), new Color(0.9f, 0.9f, 1f, 0.95f)); DrawOutline(cr, new Color(0.7f, 0.8f, 1f), 2f); }
+        if (r.trapBeforeReinforce != null)
+        {
+            foreach (var b in r.trapBeforeReinforce.bombs) GUI.Label(CellRect(canvas, b.x, b.y, size), "💣", cellLabel);
+            foreach (var v in r.trapBeforeReinforce.victims) DrawOutline(CellRect(canvas, v.x, v.y, size), new Color(1f, 0.3f, 0.3f), 2f);
+        }
+        foreach (var o in r.offRoute) DrawOutline(CellRect(canvas, o.x, o.y, size), new Color(0.6f, 0.6f, 0.6f), 2f);
+        if (r.route != null)
+        {
+            Handles.BeginGUI(); Handles.color = new Color(0.4f, 1f, 0.6f, 0.8f);
+            var pts = r.route.Select(c => (Vector3)CellRect(canvas, c.x, c.y, size).center).ToArray();
+            if (pts.Length > 1) Handles.DrawAAPolyLine(3f, pts);
+            Handles.EndGUI();
+            foreach (var s in r.onRoute) GUI.Label(new Rect(CellRect(canvas, s.x, s.y, size).x, CellRect(canvas, s.x, s.y, size).y - size * 0.6f, size * 2f, size * 0.6f), $"{s.at:F0}s", EditorStyles.miniBoldLabel);
+        }
+    }
+
+    private void DrawTrack(Rect canvas, float size)
+    {
+        if (trackVisits == null) return;
+        int max = 1; foreach (var v in trackVisits.Values) if (v > max) max = v;
+        foreach (var kv in trackVisits) Tint(canvas, kv.Key / 1000, kv.Key % 1000, size, new Color(0.3f, 0.8f, 1f, 0.15f + 0.5f * kv.Value / max));
+        foreach (int k in trackStuck) GUI.Label(CellRect(canvas, k / 1000, k % 1000, size), "<color=#FF4040><b>✗</b></color>", new GUIStyle(cellLabel) { richText = true });
+    }
+
     private void Tint(Rect canvas, int x, int y, float size, Color c) { if (x >= 0 && y >= 0 && x < doc.Width && y < doc.Height) EditorGUI.DrawRect(CellRect(canvas, x, y, size), c); }
 
     private static void DrawOutline(Rect r, Color c, float w)
@@ -542,6 +606,8 @@ public class LevelWorkshopWindow : EditorWindow
         {
             string head = fullCheckStale ? "…检查中（停笔后自动完成）" : check.Headline;
             if (comboRoutes) head += "\n连招路线：" + ComboResult().Summary;
+            if (strategy) { var sr = Strategy(); head += "\n策略模拟：" + sr.Summary(); foreach (var wn in sr.warnings) head += "\n  · " + wn; }
+            if (showTrack) head += "\n" + trackNote;
             EditorGUILayout.HelpBox(head + (check.cells.Count > 0 ? "（鼠标停在红/黄框格子上看原因）" : ""), check.Playable ? MessageType.Info : MessageType.Error);
             if (check.general.Count + check.cells.Count > 0)
             {

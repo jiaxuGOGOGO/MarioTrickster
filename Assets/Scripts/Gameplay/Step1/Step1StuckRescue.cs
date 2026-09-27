@@ -65,7 +65,7 @@ public class Step1StuckRescue : MonoBehaviour
     {
         if (mario == null || manager == null || manager.CurrentState != GameState.Playing) { still = 0f; return; }
         // 只在"赶路"（去拿宝/回出口，一定有目标）时判定；起疑、查看、找人时站着不动是正常表演，不算卡住。
-        if (driver.IsWaitingToStart || driver.Mind.IsStunned || driver.Mind.IsGlancing || driver.Mind.State != MarioMindState.Running)
+        if (driver.IsWaitingToStart || driver.Mind.IsStunned || driver.Mind.IsGlancing || driver.Mind.Dodging || ChainReplay.Playing || driver.Mind.State != MarioMindState.Running)
         { still = 0f; hasBest = false; anchor = mario.transform.position; return; }
         Vector2 pos = mario.transform.position;
         // S198：原来"离锚点超过 0.6 格就重置" → 来回跳（每次移动 1–2 格）永远不算卡住（用户截图：出口下方来回跳）。

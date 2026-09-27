@@ -17,6 +17,7 @@ static class CHECK {
    var m=F(g,'M'); var o=F(g,'o'); var e=F(g,'G');
    Console.WriteLine($"[{(c.Playable?"OK":"FAIL")}] {n}: {c.Headline} | M→宝 {LevelPathPlanner.Path(g,m,o)?.Count} 宝→出口 {LevelPathPlanner.Path(g,o,e)?.Count} | {ComboRouteAnalyzer.Analyze(g,10f).Summary}");
    if(!c.Playable) fail++;
+   var st=StrategySim.Analyze(g,5f,4f,3,1.6f,1.5f,3f,1.8f); Console.WriteLine("     策略模拟："+st.Summary()); if(st.trapAfterReinforce||st.route==null){ fail++; Console.WriteLine("     [FAIL] 炸弹仍能困住马里奥 / 寻路走不通"); }
    foreach(var q in c.cells.Take(6)) Console.WriteLine($"     ({q.x},{q.y}) {q.text}"); foreach(var q in c.general.Take(3)) Console.WriteLine("     "+q);
   }
   foreach(var info in ElementCatalog.All){ if(info.ch=='.'||info.ch==' ') continue; var bg=ElementCatalog.EditorColor(info.ch); bg.a=1f; float r=ElementCatalog.ContrastRatio(bg,ElementCatalog.TextColorOn(bg)); if(r<3f){ Console.WriteLine($"[FAIL] 工坊格子文字对比度低 {info.ch} {r}"); fail++; } }

@@ -102,6 +102,11 @@ public class PickupSpot : LevelElementBase
 {
     private bool live;
     private int kind;
+    private static readonly List<PickupSpot> all = new List<PickupSpot>();
+    /// <summary>S202：所有道具点（马里奥眼睛只看亮着的）。</summary>
+    public static IReadOnlyList<PickupSpot> All => all;
+    protected override void OnEnable() { base.OnEnable(); if (!all.Contains(this)) all.Add(this); }
+    protected override void OnDisable() { base.OnDisable(); all.Remove(this); }
     private Transform visual;
     public bool Live => live;
 

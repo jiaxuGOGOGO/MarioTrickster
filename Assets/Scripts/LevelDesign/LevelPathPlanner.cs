@@ -62,13 +62,14 @@ public static class LevelPathPlanner
         return null;
     }
 
-    private static Cell Settle(IList<string> grid, Cell c, HashSet<char> solid, HashSet<char> hazard)
+    public static Cell Settle(IList<string> grid, Cell c, HashSet<char> solid, HashSet<char> hazard)
     {
         for (int y = c.y; y >= 0; y--) if (CanStand(grid, c.x, y, solid, hazard)) return new Cell(c.x, y);
         return new Cell(-1, -1);
     }
 
-    private static IEnumerable<Cell> Moves(IList<string> grid, Cell c, int w, int h, HashSet<char> solid, HashSet<char> hazard)
+    /// <summary>S202：公开给策略模拟（StrategySim）复用同一套移动模型。</summary>
+    public static IEnumerable<Cell> Moves(IList<string> grid, Cell c, int w, int h, HashSet<char> solid, HashSet<char> hazard)
     {
         // 走路 / 走下台阶 / 下落
         for (int dx = -1; dx <= 1; dx += 2)

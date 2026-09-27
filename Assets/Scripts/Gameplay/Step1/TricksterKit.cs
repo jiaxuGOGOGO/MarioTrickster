@@ -138,6 +138,12 @@ public class TricksterBomb : MonoBehaviour
     private SpriteRenderer sr;
     private static readonly Collider2D[] s_hits = new Collider2D[24];
     public static event System.Action<Vector2> Exploded;
+    private static readonly System.Collections.Generic.List<TricksterBomb> live = new System.Collections.Generic.List<TricksterBomb>();
+    /// <summary>S202：场上正在冒烟的炸弹（看得见的公开物体，马里奥眼睛可用）。</summary>
+    public static System.Collections.Generic.IReadOnlyList<TricksterBomb> Live => live;
+    public float Radius => radius;
+    private void OnEnable() { if (!live.Contains(this)) live.Add(this); }
+    private void OnDisable() { live.Remove(this); }
 
     public void Arm(float fuseSeconds, float r, float stunSeconds, float knockback, int dmgMario = 1, int dmgSelf = 1)
     {

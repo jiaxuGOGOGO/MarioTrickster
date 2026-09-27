@@ -40,11 +40,12 @@ public static class Step1PrankRoomBuilder
     /// S195 = 11：多层楼房间的楼层寻路（马里奥知道先去哪个楼梯口）；工坊楼层工具。
     /// S196 = 12：箱庭元素（捷径门 |、裂墙 %）、每回合随机塌墙事件、提示条。
     /// S197 = 13：炸弹/缩小/通风管/时间静止/毒池/黏胶/图例；捣蛋者跳跃力 20；马里奥楼层寻路修卡住。
+    /// S202 = 17：炸弹策略加固（承重格铆钉）、连锁回放、自动检查轨迹/陷阱试探。
     /// S200 = 16：连锁编排 F（ChainPlan）、挑衅 T、绊线 R、马里奥学习层（被坑过的地方放慢）。
     /// S199 = 15：油桶 U（连锁爆炸）、铁笼 Q、诱饵 G、警报事件、马里奥踢门。
     /// S198 = 14：普通地形可炸（Destructible）、炸弹伤双方、整座塌桥、大炮瞄准 + 马里奥也能钻炮（冷却 30s）、墙上通风口、绳套、道具箱、修来回跳/贴墙。
     /// </summary>
-    public const int BuilderVersion = 16;
+    public const int BuilderVersion = 17;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -220,6 +221,7 @@ public static class Step1PrankRoomBuilder
     {
         if (!PrepareScene()) return;
         PlayerPrefs.DeleteKey(Step1HandsOffCheck.RequestKey);
+        PlayerPrefs.DeleteKey(Step1HandsOffCheck.ProbeKey);
         EditorApplication.isPlaying = true;
     }
 
@@ -229,6 +231,18 @@ public static class Step1PrankRoomBuilder
     {
         if (!PrepareScene()) return;
         PlayerPrefs.SetInt(Step1HandsOffCheck.RequestKey, 1);
+        PlayerPrefs.DeleteKey(Step1HandsOffCheck.ProbeKey);
+        PlayerPrefs.Save();
+        EditorApplication.isPlaying = true;
+    }
+
+    /// <summary>S202：陷阱试探——AI 捣蛋者在马里奥走到时触发每个机关，看连起来会不会把他坑死/卡住。</summary>
+    [MenuItem("MarioTrickster/Step 1/Trap Probe (陷阱试探)", false, 1)]
+    public static void TrapProbeMenu()
+    {
+        if (!PrepareScene()) return;
+        PlayerPrefs.SetInt(Step1HandsOffCheck.RequestKey, 1);
+        PlayerPrefs.SetInt(Step1HandsOffCheck.ProbeKey, 1);
         PlayerPrefs.Save();
         EditorApplication.isPlaying = true;
     }
@@ -365,7 +379,7 @@ public static class Step1PrankRoomBuilder
         ConfigureBlockers(root, tuning);
         ConfigurePranks(root, tuning);
         ConfigureDoors(root, tuning, room);
-        MarkDestructibles(root, room);
+        MarkDestructibles(root, room, tuning);
         ConfigureTrickster(trickster, tuning);
         ConfigureMario(mario, tuning, room);
         ConfigureLives(gm.gameObject, tuning, trickster, level != null ? level.TricksterSpawn : null);
@@ -394,6 +408,8 @@ public static class Step1PrankRoomBuilder
         gm.gameObject.AddComponent<RandomPickups>().SetTuning(tuning);                 // S198：随机道具箱
         trickster.gameObject.AddComponent<DecoyAbility>().SetTuning(tuning);            // S199：G 诱饵
         trickster.gameObject.AddComponent<ChainPlan>().SetTuning(tuning);               // S200：F 连锁编排
+        gm.gameObject.AddComponent<ChainReplay>().SetTuning(tuning);                   // S202：完美连锁慢动作回放
+        gm.gameObject.AddComponent<Step1PrankRoomBuilderBridge>().SetRoom(room);        // S202：自动检查轨迹对上号
         trickster.gameObject.AddComponent<TauntAbility>().SetTuning(tuning);            // S200：T 挑衅
         var combo = gm.gameObject.AddComponent<Step1Combo>();
         var comboSo = new SerializedObject(combo);
@@ -473,18 +489,31 @@ public static class Step1PrankRoomBuilder
     /// S198：给普通地形挂 Destructible（炸弹可炸）。可炸：房间内部的 # W -（名字前缀 Ground_/Wall_/OneWayPlatform_）；
     /// 锁定：最外圈（x=0 / x=宽-1 / 最上行）与最底行 y=0 的格子（不能炸出地图，H9）。机关/特殊地形不挂。
     /// </summary>
-    public static int MarkDestructibles(GameObject root, string[] room)
+    public static int MarkDestructibles(GameObject root, string[] room, MarioMindTuningSO tuning = null)
     {
         int count = 0, w = room[0].Length, h = room.Length;
+        // S202：炸弹策略模拟——最坏的对手用 3 颗炸弹能不能把马里奥困死？能 → 把那些承重格加固（炸不掉）。
+        HashSet<int> rivets = new HashSet<int>();
+        if (tuning != null && tuning.reinforceAgainstBombs)
+        {
+            EditorUtility.DisplayProgressBar("MarioTrickster", "策略模拟：检查炸弹能不能把马里奥困死…", 0.6f);
+            try
+            {
+                rivets = StrategySim.Reinforce(room.Select(Step1Layout.StripSlots).ToList(), tuning.bombsPerRound, tuning.bombRadius, out var trap, out bool still, 24, tuning.oilRadius);
+                if (trap != null) Debug.Log($"[Step1 H9] 炸弹策略：{trap.Describe()} → 已加固 {rivets.Count} 个承重格（铆钉）" + (still ? "；⚠ 仍有风险，请给坑里留一条回去的路" : ""));
+            }
+            finally { EditorUtility.ClearProgressBar(); }
+        }
         foreach (Transform child in root.transform)
         {
             string n = child.name;
             if (!(n.StartsWith("Ground_") || n.StartsWith("Wall_") || n.StartsWith("OneWayPlatform_"))) continue;
             if (!TryParseCell(n, out int sx, out int y, out int width)) continue;
             var locked = new bool[width];
-            for (int i = 0; i < width; i++) { int x = sx + i; locked[i] = DestructibleLocked(x, y, w, h); }
+            var reinforced = new bool[width];
+            for (int i = 0; i < width; i++) { int x = sx + i; locked[i] = DestructibleLocked(x, y, w, h); reinforced[i] = rivets.Contains(StrategySim.Key(x, y)); }
             var d = child.gameObject.GetComponent<Destructible>() ?? child.gameObject.AddComponent<Destructible>();
-            d.Configure(sx, y, width, locked);
+            d.Configure(sx, y, width, locked, reinforced);
             count++;
         }
         return count;

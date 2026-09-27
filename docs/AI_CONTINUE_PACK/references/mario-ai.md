@@ -22,6 +22,10 @@ MarioMindDriver（接线、速度、楼层寻路）◄── MarioOrder ◄─�
 - 卡住判定 = 一段时间内**没有朝目标前进**（`Step1StuckRescue.SecondsUntilStuck`，`stuckProgressCells`），不是"没动"。
 - 头顶意图文字：`order.intent` → `Step1Text.HeadIntent`（新 intent 在那里加一行中英文）。
 
+## S202 新增感知
+`dangerPos/dangerRadius`（看见冒烟炸弹/点着油桶 → `DodgeTarget` 退到圈外）、`seesPickup/pickupPos`（→ `WorthPickup` 顺路捡，3 秒够不着放弃）。新的"临时绕行"行为都要有**放弃计时**并在 `Step1StuckRescue` 豁免，否则会被误判卡住。
+验证 AI 用两种自动检查：Hands-off（无人捣乱，H10）+ Trap Probe（机关按最佳时机全触发，看会不会坑死/卡住）。
+
 ## 必测
 - 新行为的纯逻辑测试（用 `new RushMarioMind(Tuning())` + 构造 `MarioPercept` 逐帧 Tick）。
 - `MindAndDriverNeverReadTricksterTruth` 必须仍过（禁用词见 SKILL.md H4）。

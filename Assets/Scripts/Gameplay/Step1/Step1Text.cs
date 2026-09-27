@@ -58,6 +58,8 @@ public static class Step1Text
         if (intent == "DIZZY") return "晕了\nDIZZY";
         if (intent == "LOOK BACK") return "回头看\nLOOK";
         if (intent == "CAREFUL") return "小心点\nCAREFUL";
+        if (intent == "DODGE") return "要炸了！\nDODGE";
+        if (intent == "GRAB") return "捡道具\nGRAB";
         switch (state)
         {
             case MarioMindState.Curious: return "嗯？\nHUH?";
@@ -136,6 +138,9 @@ public static class Step1Text
     public const string TauntCooldown = "挑衅冷却中  Taunt cooling down";
     public const string TauntDone = "📣 挑衅！他听见了你的位置（还剩 {0} 次）  Taunted!";
     public const string TripwireHit = "马里奥被<b>绊线</b>绊了一下！  Mario tripped!";
+    public const string ReplayChain = "⛓ 完美连锁 ×{0}  PERFECT CHAIN";
+    public const string ReplayCombo = "{0} 连击  {0}-HIT COMBO";
+    public const string ProbeBanner = "🧪 陷阱试探：AI 捣蛋者按固定策略坑马里奥（你不用操作）  Trap probe";
     public const string BarrelBoom = "🛢 油桶爆炸！  OIL BARREL BOOM!";
     public const string CageMario = "🔒 马里奥被<b>铁笼</b>关住了！（3 秒）  Mario is caged!";
     public const string CageYou = "🔒 你被<b>铁笼</b>关住了！  You got caged!";

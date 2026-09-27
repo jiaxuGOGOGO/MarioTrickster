@@ -25,6 +25,7 @@ public class OilBarrel : LevelElementBase
     private static readonly List<OilBarrel> all = new List<OilBarrel>();
     public static IReadOnlyList<OilBarrel> All => all;
     public bool Lit => fuse >= 0f;
+    public float Radius => radius;
     public bool Exploded => exploded;
 
     public void Configure(float fuseS, float r, float stunS, float knockV, int dmgM, int dmgS)

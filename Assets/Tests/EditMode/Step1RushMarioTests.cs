@@ -1386,7 +1386,7 @@ public class Step1RushMarioTests
         StringAssert.Contains("lives.HitBySelf(damageSelf)", kit, "炸到自己掉命");
         StringAssert.Contains("Destructible.RestoreAll()", Read("Scripts/Gameplay/Step1/Step1RoomReset.cs"), "回合重置复原");
         Assert.AreEqual(1, Tuning().bombDamageMario); Assert.AreEqual(1, Tuning().bombDamageSelf);
-        StringAssert.Contains("MarkDestructibles(root, room)", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+        StringAssert.Contains("MarkDestructibles(root, room, tuning)", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
     }
 
     [Test]
@@ -1558,6 +1558,103 @@ public class Step1RushMarioTests
             Assert.IsTrue(LevelWorkshopModel.Check(sample, true, reg().IsSolid).Playable, "加绊线后样板仍可玩");
         Assert.GreaterOrEqual(ComboRouteAnalyzer.Analyze(LevelWorkshopModel.LureSample, 10f).BestGroupKinds, 5, "诱捕走廊一套连锁至少 5 种机关");
         CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(reg().GetAllRegisteredChars()));
+    }
+
+    // ── S202：连锁回放 / 策略模拟（炸弹困人→加固）/ 陷阱试探 / 马里奥躲闪与捡道具 ─────────
+    [Test]
+    public void ChainReplayTriggersOnPerfectChainAndNeverDuringAutoCheck()
+    {
+        var t = Tuning();
+        Assert.IsTrue(ChainReplay.ShouldReplay(true, 3, 0, t.replayMinCombo, false, false), "完美连锁（≥3 环）回放");
+        Assert.IsFalse(ChainReplay.ShouldReplay(true, 2, 0, t.replayMinCombo, false, false), "2 环不回放");
+        Assert.IsTrue(ChainReplay.ShouldReplay(true, 0, t.replayMinCombo, t.replayMinCombo, false, false), "大连招也回放");
+        Assert.IsFalse(ChainReplay.ShouldReplay(true, 5, 9, 4, true, false), "自动检查期间绝不回放（H10 不受影响）");
+        Assert.IsFalse(ChainReplay.ShouldReplay(true, 5, 9, 4, false, true), "冷却中不回放");
+        Assert.IsFalse(ChainReplay.ShouldReplay(false, 5, 9, 4, false, false), "可关闭");
+        var fs = new List<ChainReplay.Frame> { new ChainReplay.Frame { t = 0f, mario = new Vector2(0, 0) }, new ChainReplay.Frame { t = 1f, mario = new Vector2(10, 0) } };
+        Assert.AreEqual(5f, ChainReplay.Sample(fs, 0.5f, true).x, 0.01f, "回放插值");
+        Assert.AreEqual(1, ChainReplay.TrimIndex(fs, 6f, 5.5f), "环形缓冲只留最近几秒");
+        Assert.Less(t.replaySpeed, 1f, "慢动作");
+        string src = CodeOnly(Read("Scripts/Gameplay/Step1/ChainReplay.cs"));
+        StringAssert.Contains("Time.timeScale = restoreScale", src, "回放结束恢复速度（H9）");
+        StringAssert.Contains("Step1Keys.Down(KeyCode.Space)", src, "可跳过");
+        StringAssert.Contains("ChainPlan.PerfectChain += HandlePerfect", src);
+        StringAssert.Contains("ChainReplay.Playing", Read("Scripts/Gameplay/Step1/Step1Hitstop.cs"), "顿帧不和回放抢 timeScale");
+        StringAssert.Contains("AddComponent<ChainReplay>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+    }
+
+    [Test]
+    public void StrategySimFindsBombTrapsAndReinforcementRemovesThem()
+    {
+        // 一个坑：马里奥在右边出生，唯一回出口的路是左边的两级台阶；炸掉台阶 → 困在坑里
+        var pit = new[] { "WWWWWWWWWWWW", "W..........W", "W.Go.....M.W", "W###...####W", "W.....--...W", "W..........W", "W...--.....W", "W..........W", "WWWWWWWWWWWW" };
+        var t = Tuning();
+        var trap = StrategySim.FindBombTrap(pit, t.bombsPerRound, t.bombRadius);
+        Assert.IsNotNull(trap, "最坏的对手能用炸弹把马里奥困在坑里");
+        var locked = StrategySim.Reinforce(pit, t.bombsPerRound, t.bombRadius, out var first, out bool still);
+        Assert.IsNotNull(first);
+        Assert.Greater(locked.Count, 0, "加固了承重格");
+        Assert.IsFalse(still, "加固后困不住（H9）");
+        Assert.IsNull(StrategySim.FindBombTrap(pit, t.bombsPerRound, t.bombRadius, locked));
+        // 爆炸格：外圈与底层永远炸不掉
+        foreach (var c in StrategySim.BlastCells(pit, new StrategySim.Cell(1, 1), 3f, null)) { Assert.Greater(c.x, 0); Assert.Greater(c.y, 0); }
+        // 每个样板 + 默认房间：加固后都困不住
+        foreach (var g in new[] { Step1PrankRoomBuilder.Room, LevelWorkshopModel.PrisonSample, LevelWorkshopModel.LureSample, LevelWorkshopModel.HakoniwaSample })
+        {
+            StrategySim.Reinforce(g.Select(Step1Layout.StripSlots).ToList(), t.bombsPerRound, t.bombRadius, out _, out bool s2, 24, t.oilRadius);
+            Assert.IsFalse(s2, "样板加固后炸弹困不住马里奥");
+        }
+        var rep = StrategySim.Analyze(Step1PrankRoomBuilder.Room, 5f, t.startDelaySeconds, 0, t.bombRadius);
+        Assert.IsNotNull(rep.route, "默认房间马里奥能按寻路走完");
+        Assert.Greater(rep.onRoute.Count, 3, "路线上途经多个机关");
+        for (int i = 1; i < rep.onRoute.Count; i++) Assert.LessOrEqual(rep.onRoute[i - 1].at, rep.onRoute[i].at, "时间线按顺序");
+        Assert.IsTrue(t.reinforceAgainstBombs);
+        StringAssert.Contains("StrategySim.Reinforce(", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"), "构建房间时自动加固");
+        StringAssert.Contains("DrawStrategy", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "工坊有'策略模拟'开关");
+        Assert.AreEqual(StrategySim.Hash("a\nb"), StrategySim.Hash("a\r\nb"), "指纹不受换行符影响");
+    }
+
+    [Test]
+    public void TrapProbeAndTrackRecordingForAutoCheck()
+    {
+        Assert.IsTrue(Step1TrapProbe.CanProbe(0, 1, true));
+        Assert.IsFalse(Step1TrapProbe.CanProbe(1, 1, true), "每个机关每局只试探一次");
+        Assert.IsFalse(Step1TrapProbe.CanProbe(0, 1, false), "冷却中的不触发");
+        string probe = CodeOnly(Read("Scripts/Gameplay/Step1/Step1TrapProbe.cs"));
+        StringAssert.Contains("p.OnTricksterActivate(", probe, "H3：试探走机关自己的预警");
+        StringAssert.Contains("ChainPlan.ShouldFire(", probe, "与连锁接力同一套预判");
+        StringAssert.Contains("TrapProbeMenu", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"), "菜单：Trap Probe");
+        var visits = new Dictionary<int, int> { { 3 * 1000 + 2, 5 }, { 4 * 1000 + 2, 1 } };
+        string text = Step1HandsOffCheck.TrackText("abc", visits, new[] { 7 * 1000 + 1 });
+        var (room, v2, stuck) = Step1HandsOffCheck.ParseTrack(text);
+        Assert.AreEqual("abc", room);
+        Assert.AreEqual(5, v2[3002]);
+        Assert.IsTrue(stuck.Contains(7001), "卡住点也记下");
+        StringAssert.Contains("mode,rescues,hurts", Read("Scripts/Gameplay/Step1/Step1HandsOffCheck.cs"), "CSV 多了模式/救援/被坑次数");
+        StringAssert.Contains("figure != null && !ProbeMode", Read("Scripts/Gameplay/Step1/Step1HandsOffCheck.cs"), "试探模式捣蛋者留在场上");
+    }
+
+    [Test]
+    public void MarioDodgesVisibleDangerAndGrabsNearbyPickups()
+    {
+        var t = Tuning();
+        var d = RushMarioMind.DodgeTarget(new Vector2(10, 1), new Vector2(11, 1), 1.6f, t.dodgeMargin);
+        Assert.IsTrue(d.HasValue, "在爆炸圈里 → 退");
+        Assert.Less(d.Value.x, 11f - 1.6f, "退到圈外（远离炸弹那一边）");
+        Assert.IsFalse(RushMarioMind.DodgeTarget(new Vector2(3, 1), new Vector2(11, 1), 1.6f, t.dodgeMargin).HasValue, "离得远 → 不管");
+        Assert.IsFalse(RushMarioMind.DodgeTarget(new Vector2(10, 6), new Vector2(11, 1), 1.6f, t.dodgeMargin).HasValue, "不在同一层 → 不管");
+        var mind = new RushMarioMind(t);
+        var o = mind.Tick(Dt, new MarioPercept { marioPos = new Vector2(10, 1), dangerPos = new Vector2(11, 1), dangerRadius = 1.6f });
+        Assert.AreEqual("DODGE", o.intent); Assert.IsTrue(mind.Dodging);
+        o = mind.Tick(Dt, new MarioPercept { marioPos = new Vector2(10, 1), seesPickup = true, pickupPos = new Vector2(12, 1) });
+        Assert.AreEqual("GRAB", o.intent, "看见道具箱 → 顺路捡");
+        Assert.AreEqual(12f, o.moveTarget.Value.x, 0.01f);
+        Assert.IsFalse(RushMarioMind.WorthPickup(new Vector2(0, 1), new Vector2(20, 1), t.pickupDetourCells), "太远不绕");
+        for (int i = 0; i < 80; i++) o = mind.Tick(Dt, new MarioPercept { marioPos = new Vector2(10, 1), seesPickup = true, pickupPos = new Vector2(12, 1) });
+        Assert.AreNotEqual("GRAB", o.intent, "够不着的道具箱 3 秒后放弃（不会一直原地走，H10）");
+        string eyes = CodeOnly(Read("Scripts/Gameplay/Step1/MarioEyes.cs"));
+        StringAssert.Contains("MarioVision.CanSee(eye, facingRight, bp, b.transform, t)", eyes, "H4：炸弹要看得见才躲");
+        StringAssert.Contains("driver.Mind.Dodging", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs"), "躲闪时不误判卡住");
     }
 
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)

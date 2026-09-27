@@ -17,10 +17,15 @@ public class Step1HandsOffCheck : MonoBehaviour
 {
     public const string RequestKey = "MarioTrickster.Step1.HandsOffRequested";
     public const string LogFile = "step1_handsoff.csv";
+    /// <summary>S202：陷阱试探模式（捣蛋者由 Step1TrapProbe 按固定策略操作，测"机关连起来会不会把马里奥坑死/卡死"）。</summary>
+    public const string ProbeKey = "MarioTrickster.Step1.TrapProbeRequested";
+    /// <summary>S202：每局马里奥走过的格子（工坊"自动检查轨迹"热力图用）。</summary>
+    public const string TrackFile = "step1_track.txt";
+    public static bool ProbeMode { get; private set; }
 
     [SerializeField] private MarioMindTuningSO tuning;
 
-    public struct RoundResult { public string winner, reason; public float seconds; public Vector2 marioPos; public bool hadLoot; }
+    public struct RoundResult { public string winner, reason; public float seconds; public Vector2 marioPos; public bool hadLoot; public int rescues; public int hurts; }
 
     public static bool IsRunning { get; private set; }
     private readonly List<RoundResult> results = new List<RoundResult>();
@@ -44,12 +49,15 @@ public class Step1HandsOffCheck : MonoBehaviour
     private void Awake()
     {
         IsRunning = PlayerPrefs.GetInt(RequestKey, 0) == 1;
+        ProbeMode = IsRunning && PlayerPrefs.GetInt(ProbeKey, 0) == 1;
         if (!IsRunning) return;
         PlayerPrefs.DeleteKey(RequestKey);
+        PlayerPrefs.DeleteKey(ProbeKey);
         PlayerPrefs.Save();
         // 在所有 Start 之前让捣蛋者退场：马里奥的眼睛/裁判都找不到它，等于"玩家完全不操作、也不在场"。
+        // S202 陷阱试探模式：捣蛋者留在场上，由 Step1TrapProbe 接管（只按 L 触发路线上的机关，不伪装、不移动）。
         var figure = FindObjectOfType<TricksterController>();
-        if (figure != null) figure.gameObject.SetActive(false);
+        if (figure != null && !ProbeMode) figure.gameObject.SetActive(false);
     }
 
     private void Start()
@@ -61,7 +69,45 @@ public class Step1HandsOffCheck : MonoBehaviour
         if (manager != null) manager.OnGameOver += HandleGameOver;
         roundStartedAt = Time.time;
         LootObjective.OnLootCollected += HandleLoot;
+        rescue = FindObjectOfType<Step1StuckRescue>();
+        var driver = FindObjectOfType<MarioMindDriver>();
+        if (driver != null) driver.Hurt += HandleHurt;
+        if (ProbeMode && mario != null) mario.gameObject.AddComponent<Step1TrapProbe>().SetTuning(tuning);
     }
+
+    private Step1StuckRescue rescue;
+    private int hurtsThisRound;
+    private readonly HashSet<int> trackCells = new HashSet<int>();
+    private readonly HashSet<int> trackStuck = new HashSet<int>();
+    private void HandleHurt(MarioMindState s) { hurtsThisRound++; }
+
+    /// <summary>纯逻辑：轨迹文件一行一格 "x,y,次数"，stuck 行以 "S," 开头。</summary>
+    public static string TrackText(string roomHash, IDictionary<int, int> visits, IEnumerable<int> stuck)
+    {
+        var sb = new StringBuilder();
+        sb.Append("# room ").AppendLine(roomHash ?? "");
+        foreach (var kv in visits) sb.Append(kv.Key / 1000).Append(',').Append(kv.Key % 1000).Append(',').Append(kv.Value).AppendLine();
+        foreach (int k in stuck) sb.Append("S,").Append(k / 1000).Append(',').Append(k % 1000).AppendLine();
+        return sb.ToString();
+    }
+
+    /// <summary>纯逻辑：读轨迹文件。</summary>
+    public static (string room, Dictionary<int, int> visits, HashSet<int> stuck) ParseTrack(string text)
+    {
+        var visits = new Dictionary<int, int>(); var stuck = new HashSet<int>(); string room = "";
+        foreach (var raw in (text ?? "").Replace("\r", "").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.StartsWith("# room ")) { room = line.Substring(7).Trim(); continue; }
+            var p = line.Split(',');
+            if (p.Length == 3 && p[0] == "S" && int.TryParse(p[1], out int sx) && int.TryParse(p[2], out int sy)) stuck.Add(sx * 1000 + sy);
+            else if (p.Length == 3 && int.TryParse(p[0], out int x) && int.TryParse(p[1], out int y) && int.TryParse(p[2], out int n)) visits[x * 1000 + y] = n;
+        }
+        return (room, visits, stuck);
+    }
+
+    private readonly Dictionary<int, int> visits = new Dictionary<int, int>();
+    private int lastTrackKey = -1;
 
     private void OnDestroy()
     {
@@ -78,8 +124,12 @@ public class Step1HandsOffCheck : MonoBehaviour
         results.Add(new RoundResult
         {
             winner = winner, reason = manager.LastRoundReason, seconds = manager.RoundElapsed,
-            marioPos = manager.LastRoundPosition, hadLoot = lootSeenThisRound || LootObjective.IsLootCarried
+            marioPos = manager.LastRoundPosition, hadLoot = lootSeenThisRound || LootObjective.IsLootCarried,
+            rescues = rescue != null ? rescue.RescuesThisRound : 0, hurts = hurtsThisRound
         });
+        if (rescue != null && rescue.RescuesThisRound > 0) trackStuck.Add(Mathf.RoundToInt(rescue.LastStuckAt.x) * 1000 + Mathf.RoundToInt(rescue.LastStuckAt.y));
+        if (manager.LastRoundReason == Step1Text.HandsOffTimeoutReason) trackStuck.Add(Mathf.RoundToInt(manager.LastRoundPosition.x) * 1000 + Mathf.RoundToInt(manager.LastRoundPosition.y));
+        hurtsThisRound = 0;
         if (results.Count >= Mathf.Max(1, tuning.autoCheckRounds)) Finish();
         else nextRoundAt = Time.unscaledTime + tuning.autoCheckRoundGapSeconds;
     }
@@ -88,6 +138,11 @@ public class Step1HandsOffCheck : MonoBehaviour
     {
         if (finished || manager == null) return;
         // GameManager.StartGame 每局会把 timeScale 设回 1，这里每帧保持检查倍速。
+        if (manager.CurrentState == GameState.Playing && mario != null)
+        {
+            int k = Mathf.RoundToInt(mario.transform.position.x) * 1000 + Mathf.Max(0, Mathf.RoundToInt(mario.transform.position.y));
+            if (k != lastTrackKey) { lastTrackKey = k; visits.TryGetValue(k, out int n); visits[k] = n + 1; }
+        }
         if (manager.CurrentState == GameState.Playing)
         {
             Time.timeScale = Mathf.Max(0.1f, tuning.autoCheckTimeScale);
@@ -115,16 +170,19 @@ public class Step1HandsOffCheck : MonoBehaviour
             string path = Path.Combine(folder, LogFile);
             bool fresh = !File.Exists(path);
             var sb = new StringBuilder();
-            if (fresh) sb.AppendLine("timestamp,check_round,winner,got_loot,reason,seconds,mario_x,mario_y");
+            if (fresh) sb.AppendLine("timestamp,check_round,winner,got_loot,reason,seconds,mario_x,mario_y,mode,rescues,hurts");
             string stamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             for (int i = 0; i < results.Count; i++)
             {
                 var r = results[i];
                 sb.AppendLine(string.Join(",", stamp, i + 1, r.winner, r.hadLoot ? "yes" : "no", (r.reason ?? "").Replace(",", ";"),
-                    r.seconds.ToString("F1", inv), r.marioPos.x.ToString("F1", inv), r.marioPos.y.ToString("F1", inv)));
+                    r.seconds.ToString("F1", inv), r.marioPos.x.ToString("F1", inv), r.marioPos.y.ToString("F1", inv),
+                    ProbeMode ? "probe" : "handsoff", r.rescues, r.hurts));
             }
             File.AppendAllText(path, sb.ToString());
+            // S202：轨迹（覆盖写，只保留最近一次检查）——工坊"自动检查轨迹"按钮读它画热力图
+            File.WriteAllText(Path.Combine(folder, TrackFile), TrackText(StrategySim.Hash(string.Join("\n", Step1PrankRoomBuilderBridge.CurrentRoom ?? new string[0])), visits, trackStuck));
             Debug.Log($"[Step1 H10] Mario cleared {MarioClears(results)}/{results.Count} rounds without interference -> {path}");
         }
         catch (Exception e) { Debug.LogWarning("[Step1 H10] Could not write log: " + e.Message); }
@@ -133,11 +191,13 @@ public class Step1HandsOffCheck : MonoBehaviour
     /// <summary>一局的中文+英文结论（纯函数，供显示与测试）。</summary>
     public static string Describe(RoundResult r)
     {
-        if (r.winner == "Mario" && r.hadLoot) return $"<color=#7CFC7C>\u2713 通关 Cleared</color>   {r.seconds:F0}s";
+        string extra = (r.hurts > 0 ? $"  被坑 {r.hurts} 次" : "") + (r.rescues > 0 ? $"  <color=#FFB347>救援 {r.rescues} 次</color>" : "");
+        if (r.winner == "Mario" && r.hadLoot) return $"<color=#7CFC7C>\u2713 通关 Cleared</color>   {r.seconds:F0}s{extra}";
         string where = $"(x={r.marioPos.x:F0}, y={r.marioPos.y:F0})";
         if (r.reason == Step1Text.HandsOffTimeoutReason)
-            return $"<color=#FF7070>\u2717 卡住 Stuck</color>   {(r.hadLoot ? "拿到宝后 after loot" : "没拿到宝 before loot")} {where}";
-        return $"<color=#FF7070>\u2717 失败 Failed</color>   {where}";
+            return $"<color=#FF7070>\u2717 卡住 Stuck</color>   {(r.hadLoot ? "拿到宝后 after loot" : "没拿到宝 before loot")} {where}{extra}";
+        if (r.winner == "Trickster" && (r.reason ?? "").StartsWith("Health")) return $"<color=#FFB347>\u2717 被坑倒 KO</color>   {where}{extra}";
+        return $"<color=#FF7070>\u2717 失败 Failed</color>   {where}{extra}";
     }
 
     private void OnGUI()
@@ -147,9 +207,18 @@ public class Step1HandsOffCheck : MonoBehaviour
         int total = Mathf.Max(1, tuning != null ? tuning.autoCheckRounds : 5);
         int clears = MarioClears(results);
         var sb = new StringBuilder();
-        sb.AppendLine("<b>自动检查：马里奥能不能自己通关</b>");
-        sb.AppendLine("<b>Auto check: can Mario finish on his own?</b>");
-        sb.AppendLine("<color=#BBBBBB>你不用操作，看着就行（你的角色已移出房间）  Just watch — you're removed from the room</color>");
+        if (ProbeMode)
+        {
+            sb.AppendLine("<b>陷阱试探：机关连起来坑他，会不会把他坑死/卡死</b>");
+            sb.AppendLine("<b>Trap probe: can chained traps kill or trap Mario?</b>");
+            sb.AppendLine("<color=#BBBBBB>AI 捣蛋者只在他走到时按 L（不伪装、不移动）；目标：他仍然能通关，只是更慢  Probe presses L when he arrives</color>");
+        }
+        else
+        {
+            sb.AppendLine("<b>自动检查：马里奥能不能自己通关</b>");
+            sb.AppendLine("<b>Auto check: can Mario finish on his own?</b>");
+            sb.AppendLine("<color=#BBBBBB>你不用操作，看着就行（你的角色已移出房间）  Just watch — you're removed from the room</color>");
+        }
         sb.AppendLine();
         for (int i = 0; i < total; i++)
         {

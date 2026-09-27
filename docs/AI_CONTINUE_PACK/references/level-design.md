@@ -23,5 +23,8 @@
 `Assets/Scripts/Editor/LevelWorkshopModel.cs`：`PrisonSample`（两层）、`HakoniwaSample`（四层箱庭）、`LureSample`（诱捕走廊，S200）。默认房间：`Step1PrankRoomBuilder.Room`。
 新样板：加 `public static readonly string[] XxxSample`（体检脚本会**自动发现**以 Sample 结尾的字段）+ 在 `LevelWorkshopWindow.DrawToolbar` 加按钮。
 
+## 策略死局（S202）
+炸弹能炸普通地形 → 静态死局检查漏掉"炸掉台阶把他困在坑里"。`StrategySim` 模拟最坏对手，构建时自动加固承重格（铆钉）。新图若 verify 报"炸弹仍能困住"→ 给坑里加第二条回去的路（单向台面 `-` 阶梯），别关加固。工坊"策略模拟"开关可视化；"检查轨迹"看自动检查/陷阱试探的实际走位。
+
 ## 改完必做
 `bash scripts/verify.sh` → 第 4 步会逐个样板报 `✓ 可以试玩` 或具体红格原因。用 Python 改样板时**按行列精确替换并断言原字符是 '.'**，行长度必须保持 48。

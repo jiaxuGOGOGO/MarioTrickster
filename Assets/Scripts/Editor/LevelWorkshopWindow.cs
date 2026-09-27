@@ -134,9 +134,9 @@ public class LevelWorkshopWindow : EditorWindow
         foreach (var group in LevelWorkshopModel.Palette(step1Mode))
         {
             EditorGUILayout.LabelField(group.title, EditorStyles.boldLabel);
-            DrawTiles(group.items.Select(i => (i.ch, i.zh, $"{i.zh} {i.en}\n{i.what}\n摆放：{i.place}", ColorOf(reg, i.ch))).ToList());
+            DrawTiles(group.items.Select(i => (i.ch, i.zh, $"{i.zh} {i.en}\n{i.what}\n摆放：{i.place}\n美术：{ArtHint(i)}", ElementCatalog.EditorColor(i.ch))).ToList());
             if (group.items.Count > 0 && group.items[0].role == ElementCatalog.Role.Scenery)
-                DrawTiles(LevelWorkshopModel.RandomSlots.Select(s => (s.ch, s.zh, s.zh + "\n每局随机决定（检查会把所有组合都查一遍）", new Color(0.45f, 0.4f, 0.6f))).ToList());
+                DrawTiles(LevelWorkshopModel.RandomSlots.Select(s => (s.ch, s.zh, s.zh + "\n每局随机决定（检查会把所有组合都查一遍）", ElementCatalog.EditorColor(s.ch))).ToList());
         }
         EditorGUILayout.Space(6);
         EditorGUILayout.HelpBox("左键画 · 右键擦 · Alt+点击吸取\nShift+拖 = 矩形 · Ctrl+Z 撤销整笔", MessageType.None);
@@ -159,8 +159,11 @@ public class LevelWorkshopWindow : EditorWindow
                 var inner = new Rect(r.x + 3, r.y + 3, r.width - 6, 20);
                 var c = t.color; c.a = 1f;
                 EditorGUI.DrawRect(inner, c);
-                GUI.Label(inner, t.ch.ToString(), cellLabel);
-                GUI.Label(new Rect(r.x, r.y + 23, r.width, 22), new GUIContent(t.name, t.tip), tileLabel);
+                DrawOutline(inner, new Color(0f, 0f, 0f, 0.6f), 1f);
+                Glyph(inner, t.ch.ToString(), c);
+                // 名称永远写在深色底上（不随元素颜色变），任何颜色都看得清
+                var nameStyle = new GUIStyle(tileLabel) { normal = { textColor = selected ? new Color(0.1f, 0.1f, 0.1f) : new Color(0.92f, 0.92f, 0.92f) } };
+                GUI.Label(new Rect(r.x, r.y + 23, r.width, 22), new GUIContent(t.name, t.tip), nameStyle);
                 if (GUI.Button(r, new GUIContent("", t.tip), GUIStyle.none))
                 { brush = t.ch; if (tool == LevelWorkshopModel.Tool.Erase || tool == LevelWorkshopModel.Tool.Pick) tool = LevelWorkshopModel.Tool.Brush; }
             }
@@ -168,10 +171,24 @@ public class LevelWorkshopWindow : EditorWindow
         }
     }
 
-    private static Color ColorOf(AsciiElementRegistry reg, char c)
+    private static Color ColorOf(AsciiElementRegistry reg, char c) => ElementCatalog.EditorColor(c);
+
+    /// <summary>按底色亮度自动用黑字或白字（亮色块上白字看不清的问题）。</summary>
+    private void Glyph(Rect r, string text, Color bg)
     {
-        var e = reg.GetEntry(c);
-        return e != null ? e.visualColor : new Color(0.14f, 0.17f, 0.21f);
+        var st = new GUIStyle(cellLabel) { normal = { textColor = ElementCatalog.TextColorOn(bg) } };
+        GUI.Label(r, text, st);
+    }
+
+    private static string ArtHint(ElementCatalog.Info i)
+    {
+        switch (i.fit)
+        {
+            case ElementCatalog.ArtFit.Tile: return "平铺（" + ElementCatalog.SuggestedPixels(i.ch) + "）";
+            case ElementCatalog.ArtFit.Fit: return "等比放进格子，建议 " + ElementCatalog.SuggestedPixels(i.ch) + " 像素";
+            case ElementCatalog.ArtFit.Stretch: return "拉伸填满，建议 " + ElementCatalog.SuggestedPixels(i.ch) + " 像素";
+            default: return "不需要图";
+        }
     }
 
     // ── 画布 ─────────────────────────────────────────
@@ -196,8 +213,9 @@ public class LevelWorkshopWindow : EditorWindow
                 {
                     char ch = shown[h - 1 - y][x];
                     Rect cell = CellRect(canvas, x, y, size);
-                    EditorGUI.DrawRect(cell, ch == '.' ? new Color(0.13f, 0.15f, 0.19f) : Opaque(Step1Layout.Slots.ContainsKey(ch) ? new Color(0.45f, 0.4f, 0.6f) : ColorOf(reg, ch)));
-                    if (ch != '.' && ch != '#' && ch != 'W' && size >= 14) GUI.Label(cell, ch.ToString(), cellLabel);
+                    Color bg = ch == '.' ? new Color(0.13f, 0.15f, 0.19f) : Opaque(ColorOf(reg, ch));
+                    EditorGUI.DrawRect(cell, bg);
+                    if (ch != '.' && ch != '#' && ch != 'W' && size >= 14) Glyph(cell, ch.ToString(), bg);
                 }
             if (check != null)
             {

@@ -36,6 +36,50 @@ public static class ElementCatalog
         public bool needsSupport; // 脚下（正下方）必须是实心
         public bool step1;        // 第 1 步恶作剧房间允许使用
         public int muzzle;        // 大炮：炮口方向 +1 右 / -1 左（0 = 不是炮）
+        public ArtFit fit;        // 美术换图时怎么贴（见 ArtFit）
+    }
+
+    /// <summary>
+    /// S191：美术换图的贴法（接到项目原有的 SpriteAutoFit 视碰分离适配，碰撞体永远不动）：
+    ///   Tile  = 平铺（地面/墙/台面/桥：连续多格拼成一条，图按原尺寸重复，不拉伸）→ SpriteAutoFit.Tiled；
+    ///   Fit   = 等比缩放放进格子（箱子、大炮、火、宝物、装饰：不变形，留边）→ 按"显示框"等比缩放；
+    ///   Stretch = 拉满显示框（出口光柱等可以拉伸的效果）→ SpriteAutoFit.Scaled；
+    ///   None  = 没有图（出生点、空气）。
+    /// 显示框 = Registry 的 visualScale 格数（白盒尺寸），所以美术只要按"建议图尺寸"画，放进去就对。
+    /// </summary>
+    public enum ArtFit { None, Tile, Fit, Stretch }
+
+    /// <summary>编辑器/图例里的显示颜色（Registry 没有颜色的元素，如出生点，用这里的）。</summary>
+    public static UnityEngine.Color EditorColor(char c)
+    {
+        switch (c)
+        {
+            case 'M': return new UnityEngine.Color(0.90f, 0.20f, 0.20f); // 与场景里马里奥同色
+            case 'T': return new UnityEngine.Color(0.20f, 0.40f, 0.90f); // 与场景里捣蛋者同色
+            case '1': case '2': case '3': return new UnityEngine.Color(0.45f, 0.40f, 0.60f);
+        }
+        var e = AsciiElementRegistry.GetDefault().GetEntry(c);
+        return e != null ? e.visualColor : new UnityEngine.Color(0.13f, 0.15f, 0.19f);
+    }
+
+    /// <summary>在这个底色上写字用黑还是白：按 WCAG 相对亮度算两种对比度，取对比度更高的（黄、白、浅蓝上用黑字）。</summary>
+    public static UnityEngine.Color TextColorOn(UnityEngine.Color bg)
+    {
+        var dark = new UnityEngine.Color(0.08f, 0.08f, 0.1f);
+        return ContrastRatio(bg, dark) >= ContrastRatio(bg, UnityEngine.Color.white) ? dark : UnityEngine.Color.white;
+    }
+
+    /// <summary>WCAG 2 对比度（1–21）。</summary>
+    public static float ContrastRatio(UnityEngine.Color a, UnityEngine.Color b)
+    {
+        float la = RelLum(a), lb = RelLum(b);
+        return (UnityEngine.Mathf.Max(la, lb) + 0.05f) / (UnityEngine.Mathf.Min(la, lb) + 0.05f);
+    }
+
+    private static float RelLum(UnityEngine.Color c)
+    {
+        float R(float v) => v <= 0.03928f ? v / 12.92f : UnityEngine.Mathf.Pow((v + 0.055f) / 1.055f, 2.4f);
+        return 0.2126f * R(c.r) + 0.7152f * R(c.g) + 0.0722f * R(c.b);
     }
 
     /// <summary>大炮炮口前方至少空出几格（否则炮弹一出膛就撞墙/箱子）。</summary>
@@ -82,7 +126,31 @@ public static class ElementCatalog
     private static Info I(char ch, string key, string zh, string en, Role role, string what, string place,
         bool unique = false, bool needsSupport = false, bool step1 = false, int muzzle = 0) =>
         new Info { ch = ch, themeKey = key, zh = zh, en = en, role = role, what = what, place = place,
-                   unique = unique, needsSupport = needsSupport, step1 = step1, muzzle = muzzle };
+                   unique = unique, needsSupport = needsSupport, step1 = step1, muzzle = muzzle, fit = DefaultFit(key, role) };
+
+    /// <summary>贴法默认值：地形与桥/台面类平铺；出生点/空气无图；出口拉伸；其余等比放进格子。</summary>
+    private static ArtFit DefaultFit(string key, Role role)
+    {
+        switch (key)
+        {
+            case "Air": case "Space": case "MarioSpawn": case "TricksterSpawn": return ArtFit.None;
+            case "Ground": case "Platform": case "Wall": case "OneWayPlatform": case "CollapsingPlatform":
+            case "ConveyorBelt": case "BouncyPlatform": case "MovingPlatform": case "BreakableBlock": case "FakeWall": return ArtFit.Tile;
+            case "GoalZone": return ArtFit.Stretch;
+            default: return ArtFit.Fit;
+        }
+    }
+
+    /// <summary>建议图片像素尺寸（按项目标准 PPU 32：1 格 = 32 像素；显示框 = Registry.visualScale）。平铺类给单格尺寸。</summary>
+    public static string SuggestedPixels(char c, int ppu = 32)
+    {
+        var info = Get(c);
+        var e = AsciiElementRegistry.GetDefault().GetEntry(c);
+        if (info == null || info.fit == ArtFit.None || e == null) return "—";
+        var v = e.visualScale == UnityEngine.Vector2.zero ? UnityEngine.Vector2.one : e.visualScale;
+        if (info.fit == ArtFit.Tile) return $"{ppu}×{UnityEngine.Mathf.RoundToInt(UnityEngine.Mathf.Max(v.y, 0.25f) * ppu)} 一格（自动平铺）";
+        return $"{UnityEngine.Mathf.RoundToInt(v.x * ppu)}×{UnityEngine.Mathf.RoundToInt(v.y * ppu)}";
+    }
 
     public static IReadOnlyList<Info> All => all;
 

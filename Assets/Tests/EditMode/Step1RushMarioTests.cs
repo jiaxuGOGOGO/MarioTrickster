@@ -958,4 +958,74 @@ public class Step1RushMarioTests
             if (!file.EndsWith("LevelWorkshopWindow.cs"))
                 StringAssert.DoesNotContain("%&w\"", File.ReadAllText(file), Path.GetFileName(file));
     }
+
+    // ── S191：编辑器看得清 + 美术换图不用手调尺寸 ─────────────────
+    [Test]
+    public void EveryPaletteColorHasReadableGlyph()
+    {
+        foreach (var info in ElementCatalog.All)
+        {
+            if (info.ch == '.' || info.ch == ' ') continue;
+            var bg = ElementCatalog.EditorColor(info.ch); bg.a = 1f;
+            float ratio = ElementCatalog.ContrastRatio(bg, ElementCatalog.TextColorOn(bg));
+            Assert.GreaterOrEqual(ratio, 3.0f, $"'{info.ch}' {info.zh} 的字符看不清（对比度 {ratio:F2}）");
+        }
+        var mario = ElementCatalog.EditorColor('M');
+        Assert.Greater(mario.r, 0.5f, "出生点不再是白色：马里奥红");
+        Assert.Greater(ElementCatalog.EditorColor('T').b, 0.5f, "捣蛋者蓝");
+        Assert.AreEqual(new Color(0.08f, 0.08f, 0.1f), ElementCatalog.TextColorOn(new Color(1f, 0.85f, 0.2f)), "亮黄底用黑字");
+    }
+
+    [Test]
+    public void EveryArtElementHasAFitRule()
+    {
+        foreach (var info in ElementCatalog.All)
+        {
+            if (info.fit == ElementCatalog.ArtFit.None) continue;
+            StringAssert.DoesNotContain("—", ElementCatalog.SuggestedPixels(info.ch), info.zh + " 需要建议尺寸");
+        }
+        Assert.AreEqual(ElementCatalog.ArtFit.Tile, ElementCatalog.Get('#').fit);
+        Assert.AreEqual(ElementCatalog.ArtFit.Tile, ElementCatalog.Get('C').fit, "桥是连续多格，平铺");
+        Assert.AreEqual(ElementCatalog.ArtFit.Fit, ElementCatalog.Get('c').fit, "箱子等比放入不变形");
+        Assert.AreEqual(ElementCatalog.ArtFit.None, ElementCatalog.Get('M').fit);
+        Assert.AreEqual("32×32", ElementCatalog.SuggestedPixels('c'));
+    }
+
+    [Test]
+    public void ContainFitKeepsAspectAndBoxIsUntouched()
+    {
+        Assert.AreEqual(0.5f, SpriteAutoFit.ContainScale(new Vector2(2f, 1f), new Vector2(1f, 1f)), 1e-4f, "宽图按宽缩");
+        Assert.AreEqual(0.8f, SpriteAutoFit.ContainScale(new Vector2(1f, 1.5f), new Vector2(0.9f, 1.2f)), 1e-4f, "高图按高缩");
+        Assert.AreEqual(0f, ArtReadinessCheck.AspectDeviation(new Vector2(2f, 2f), Vector2.one), 1e-4f);
+        Assert.Greater(ArtReadinessCheck.AspectDeviation(new Vector2(3f, 1f), Vector2.one), ArtReadinessCheck.AspectTolerance);
+
+        // 视碰分离：Contain 只改 Visual，Root 碰撞体不变
+        var root = new GameObject("Crate_1_1");
+        try
+        {
+            var box = root.AddComponent<BoxCollider2D>(); box.size = Vector2.one;
+            var visual = new GameObject("Visual"); visual.transform.SetParent(root.transform, false);
+            var sr = visual.AddComponent<SpriteRenderer>();
+            var tex = new Texture2D(64, 32);
+            sr.sprite = Sprite.Create(tex, new Rect(0, 0, 64, 32), new Vector2(0.5f, 0.5f), 32f);
+            var fit = visual.AddComponent<SpriteAutoFit>();
+            Assert.IsNull(visual.GetComponent<BoxCollider2D>(), "SpriteAutoFit 不能在 Visual 上自动加碰撞体");
+            fit.SetFitMode(SpriteAutoFit.FitMode.Contain);
+            fit.SetDisplayBox(Vector2.one, true);
+            Assert.AreEqual(0.5f, visual.transform.localScale.x, 1e-3f, "2×1 的图放进 1×1：等比缩到 0.5");
+            Assert.AreEqual(visual.transform.localScale.x, visual.transform.localScale.y, 1e-4f, "不变形");
+            Assert.AreEqual(Vector2.one, box.size, "碰撞体不动");
+            float bottom = visual.transform.localPosition.y - 0.5f * 0.5f;
+            Assert.AreEqual(-0.5f, bottom, 1e-3f, "底边贴地");
+        }
+        finally { Object.DestroyImmediate(root); }
+    }
+
+    [Test]
+    public void ThemeAndApplyArtShareTheSameFitPath()
+    {
+        StringAssert.Contains("FitThemedSprite(child.gameObject, sr, elementKey)", Read("Scripts/LevelDesign/AsciiLevelGenerator.cs"), "主题换肤按说明书贴法适配");
+        StringAssert.Contains("AsciiLevelGenerator.TryFitCatalogVisual(target, sr)", Read("Scripts/Editor/AssetApplyToSelected.cs"), "单个换皮与主题换肤同一套适配");
+        StringAssert.DoesNotContain("[RequireComponent(typeof(BoxCollider2D))]", CodeOnly(Read("Scripts/Core/SpriteAutoFit.cs")));
+    }
 }

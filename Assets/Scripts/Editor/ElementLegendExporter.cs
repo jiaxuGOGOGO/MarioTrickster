@@ -32,6 +32,8 @@ public static class ElementLegendExporter
         sb.AppendLine();
         sb.AppendLine("> 生成来源：`ElementCatalog`（说明）+ `AsciiElementRegistry`（物理）。菜单 `MarioTrickster → Level Design → Export Element Legend` 重新生成。");
         sb.AppendLine("> **美术换图**：在 LevelThemeProfile 的 elementSprites 里按\"主题键\"拖 Sprite；地面/平台/墙用 Profile 顶部的专用插槽。空插槽 = 保留白盒。");
+        sb.AppendLine("> **不用手调尺寸**：换图后按\"贴法\"自动适配（平铺 = 按原尺寸重复；等比放入 = 不变形放进格子、站地上的底边贴地；拉伸 = 填满）。碰撞体永远不动。");
+        sb.AppendLine("> 按\"建议像素\"画、PPU=32 导入（Asset Import Pipeline 自动设置）就是一次到位；菜单 `Level Design → Check Theme Art` 可检查整套主题。");
         sb.AppendLine("> 游戏里按 **V** 可以在每个元素头上看到名字。");
         sb.AppendLine();
         foreach (ElementCatalog.Role role in System.Enum.GetValues(typeof(ElementCatalog.Role)))
@@ -40,18 +42,29 @@ public static class ElementLegendExporter
             if (rows.Count == 0) continue;
             sb.AppendLine("## " + ElementCatalog.RoleName(role));
             sb.AppendLine();
-            sb.AppendLine("| 字符 | 名称 | 干什么 | 摆在哪 | 挡路 / 挡视线 | 主题键（换图） | 建议图尺寸 | 第1步 |");
-            sb.AppendLine("|---|---|---|---|---|---|---|---|");
+            sb.AppendLine("| 字符 | 名称 | 干什么 | 摆在哪 | 挡路 / 挡视线 | 主题键（换图） | 贴法 | 建议像素（PPU 32） | 第1步 |");
+            sb.AppendLine("|---|---|---|---|---|---|---|---|---|");
             foreach (var i in rows)
             {
                 var e = reg.GetEntry(i.ch);
                 string block = e == null ? "?" : (e.isSolid && !e.isTrigger ? "挡路" : "可穿过") + " / " + SightOf(e);
                 string size = e == null ? "?" : $"{Fmt(e.visualScale.x)}×{Fmt(e.visualScale.y)} 格";
-                sb.AppendLine($"| `{i.ch}` | {i.zh} {i.en} | {i.what} | {i.place} | {block} | `{i.themeKey}` | {size} | {(i.step1 ? "✓" : "—")} |");
+                sb.AppendLine($"| `{i.ch}` | {i.zh} {i.en} | {i.what} | {i.place} | {block} | `{i.themeKey}` | {FitName(i.fit)} | {ElementCatalog.SuggestedPixels(i.ch)} | {(i.step1 ? "✓" : "—")} |");
             }
             sb.AppendLine();
         }
         return sb.ToString();
+    }
+
+    private static string FitName(ElementCatalog.ArtFit f)
+    {
+        switch (f)
+        {
+            case ElementCatalog.ArtFit.Tile: return "平铺";
+            case ElementCatalog.ArtFit.Fit: return "等比放入";
+            case ElementCatalog.ArtFit.Stretch: return "拉伸";
+            default: return "无图";
+        }
     }
 
     private static string SightOf(AsciiElementEntry e)

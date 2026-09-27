@@ -91,7 +91,9 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 189（关卡工坊窗口 + 死局分析 + 运行时防卡死 + 塌桥渐显复查；修主题插槽测试） |
+| **最新 Session** | Session 191（关卡工坊看得清：出生点改红/蓝、字色按对比度自动黑白；美术换图按元素贴法自动适配：平铺/等比放入/拉伸，接入原 SpriteAutoFit，单个换皮与主题换肤同一路径；美术检查菜单） |
+| **S190** | 关卡工坊快捷键改 Ctrl+Alt+W（原键与 Unity Generate Lighting 冲突） |
+| **S189** | Session 189（关卡工坊窗口 + 死局分析 + 运行时防卡死 + 塌桥渐显复查；修主题插槽测试） |
 | **更早 Session** | Session 188（修 S187 两个测试；元素说明书 ElementCatalog + 摆放检查 + V 键标签 + 元素图例；第 1 步构建时移除不用的旧系统） |
 | **上一 Session** | Session 187（大炮 K/k：一发炮弹伤害 + 打完人肉发射逃跑；场景摆件 c/b/d；受控随机布局 32 组合全可达；草丛起风否认空间；游乐园/公园/山上公园主题底子） |
 | **日期** | 2026-09-26 |
@@ -100,6 +102,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S191] 用户："工坊有些白色看不清" + "换美术会不会反复调尺寸，能否融入原有适配"
+
+- 看不清根因：M/T 在 Registry 无 visualColor（默认白），工坊白底白字；亮黄/浅蓝底上白字对比度低。修：`ElementCatalog.EditorColor`（M 红、T 蓝，与场景一致）；`TextColorOn` 按 WCAG 对比度自动选黑/白字；元素名写在固定深色底上。测试保证所有元素字符对比度 ≥3。旧 Level Studio 画布同步。
+- 美术适配：原有 SpriteAutoFit（S32 视碰分离）只在地面/平台/墙换图时用；其它元素换图后按白盒 localScale 显示，非等比素材会变形，需要手调。修：`ElementCatalog.ArtFit`（平铺 Tile / 等比放入 Fit / 拉伸 Stretch / 无图），`AsciiLevelGenerator.ApplyTheme` 对每个元素调 `FitThemedSprite`：Tile→SpriteAutoFit.Tiled；Fit→新增 SpriteAutoFit.Contain（等比放入 Registry.visualScale 显示框，站地元素底边贴地）；Stretch→Scaled（显示框）。碰撞体不动。`AssetApplyToSelected` 冻结玩法盒分支对说明书元素走同一路径（`TryFitCatalogVisual`），角色保持原逻辑。
+- 修潜在 bug：SpriteAutoFit 的 `[RequireComponent(BoxCollider2D)]` 挂在 Visual 上会自动加多余碰撞体（草丛/大炮触发器变实心）。移除 Require（本来就读父级碰撞体），EnsureSpriteAutoFit 清理旧场景里 Visual 上的多余碰撞体。
+- `ArtReadinessCheck` 菜单：PPU=32、平铺类 Full Rect、等比类宽高比偏差 >35% 提示、空插槽列表。图例加"贴法 / 建议像素（PPU 32）"列。测试 67→71。
 
 ### [S189] 用户：插槽测试红 + "封路把马里奥关住了怎么办" + 想要 Mario Maker 式方便搭建（详见 docs/LEVEL_WORKSHOP.md）
 

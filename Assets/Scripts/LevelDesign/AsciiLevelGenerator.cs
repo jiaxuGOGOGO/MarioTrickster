@@ -881,6 +881,8 @@ public static class AsciiLevelGenerator
                 if (themeSprite != null)
                 {
                     sr.sprite = themeSprite;
+                    // S191：按元素说明书的贴法自动适配（平铺 / 等比放入 / 拉伸），碰撞体不动，美术不用手调尺寸
+                    FitThemedSprite(child.gameObject, sr, elementKey);
                     replacedCount++;
                 }
                 if (themeColor.HasValue)
@@ -894,6 +896,48 @@ public static class AsciiLevelGenerator
 
         // S41: 通知 Editor 侧同步 Picking 状态
         OnLevelGenerated?.Invoke();
+    }
+
+    /// <summary>
+    /// S191：换图后按 ElementCatalog 的贴法把 Sprite 适配到白盒显示框（= Registry.visualScale × 合并宽度），复用 SpriteAutoFit。
+    /// 平铺类（台面/桥）显示框宽 = 碰撞体宽（连续多格合并后的整条），高 = visualScale.y；其余 = visualScale。
+    /// </summary>
+    /// <summary>S191：对任意"名称前缀在元素说明书里"的关卡元素按说明书贴法适配 Visual。成功返回 true。</summary>
+    public static bool TryFitCatalogVisual(GameObject root, SpriteRenderer sr)
+    {
+        if (root == null || sr == null || sr.sprite == null) return false;
+        string key = ExtractElementKey(root.name);
+        var info = ElementCatalog.ByKey(key);
+        if (info == null || info.fit == ElementCatalog.ArtFit.None) return false;
+        return FitThemedSprite(root, sr, key);
+    }
+
+    private static bool FitThemedSprite(GameObject root, SpriteRenderer sr, string elementKey)
+    {
+        var info = ElementCatalog.ByKey(elementKey);
+        if (info == null || info.fit == ElementCatalog.ArtFit.None) return false;
+        var col = root.GetComponent<BoxCollider2D>();
+        if (col == null || sr.transform == root.transform) return false; // 视碰分离：只动 Visual
+        var entry = AsciiElementRegistry.GetDefault().GetEntry(info.ch);
+        Vector2 vs = entry != null && entry.visualScale != Vector2.zero ? entry.visualScale : Vector2.one;
+        // 合并生成的长条：碰撞体宽 = 格数 × 单格碰撞宽，显示框按同样格数放大
+        float cells = entry != null && entry.customColliderSize.x > 0f ? col.size.x / entry.customColliderSize.x : 1f;
+        Vector2 box = new Vector2(vs.x * Mathf.Max(1f, Mathf.Round(cells)), vs.y);
+        switch (info.fit)
+        {
+            case ElementCatalog.ArtFit.Tile:
+                EnsureSpriteAutoFit(sr.gameObject, SpriteAutoFit.FitMode.Tiled);
+                break;
+            case ElementCatalog.ArtFit.Stretch:
+                EnsureSpriteAutoFit(sr.gameObject, SpriteAutoFit.FitMode.Scaled);
+                sr.GetComponent<SpriteAutoFit>().SetDisplayBox(box, false);
+                break;
+            default:
+                EnsureSpriteAutoFit(sr.gameObject, SpriteAutoFit.FitMode.Contain);
+                sr.GetComponent<SpriteAutoFit>().SetDisplayBox(box, info.needsSupport);
+                break;
+        }
+        return true;
     }
 
     /// <summary>
@@ -915,6 +959,12 @@ public static class AsciiLevelGenerator
     /// </summary>
     private static void EnsureSpriteAutoFit(GameObject go, SpriteAutoFit.FitMode mode)
     {
+        // S191：清掉旧版本 RequireComponent 在 Visual 上误加的碰撞体（Root 才是物理真相）
+        var stray = go.GetComponent<BoxCollider2D>();
+        if (stray != null && go.transform.parent != null && go.transform.parent.GetComponent<BoxCollider2D>() != null)
+        {
+            if (Application.isPlaying) UnityEngine.Object.Destroy(stray); else UnityEngine.Object.DestroyImmediate(stray);
+        }
         SpriteAutoFit autoFit = go.GetComponent<SpriteAutoFit>();
         if (autoFit == null)
         {

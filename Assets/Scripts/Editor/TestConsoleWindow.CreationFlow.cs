@@ -191,11 +191,11 @@ public partial class TestConsoleWindow
                 {
                     char c = studioDocument.Cell(x, y);
                     Rect cell = new Rect(canvas.x + x * size, canvas.y + (studioDocument.Height - 1 - y) * size, size - 1, size - 1);
-                    var entry = registry.GetEntry(c);
-                    Color color = entry != null ? entry.visualColor : new Color(0.14f, 0.17f, 0.21f);
+                    Color color = c == '.' ? new Color(0.14f, 0.17f, 0.21f) : ElementCatalog.EditorColor(c);
                     color.a = 1f;
                     EditorGUI.DrawRect(cell, color);
-                    if (c != '.' && c != '#') GUI.Label(cell, c.ToString(), studioCellStyle);
+                    // S191：亮色格用黑字，暗色格用白字
+                    if (c != '.' && c != '#') GUI.Label(cell, c.ToString(), new GUIStyle(studioCellStyle) { normal = { textColor = ElementCatalog.TextColorOn(color) } });
                 }
             var report = LevelStudioPlaySession.Latest;
             if (report.hasResult && report.lastFailed && report.role == studioRole && report.identity == Hash128.Compute(customAsciiTemplate).ToString())

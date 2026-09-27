@@ -1,6 +1,6 @@
 # 关卡工坊（S189）
 
-菜单 **MarioTrickster → Level Workshop（关卡工坊）**，快捷键 **Ctrl+Shift+L**。
+菜单 **MarioTrickster → Level Workshop（关卡工坊）**，快捷键 **Ctrl+Alt+W**。
 
 ## 怎么搭
 

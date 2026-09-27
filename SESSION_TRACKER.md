@@ -108,7 +108,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 - `LevelReachabilityAnalyzer.ReachableFrom`（新 API，收集全部可达格；收集模式下额外做横向高墙阻挡判定，原 Analyze 行为不变，测试守护）。
 - `LevelDeadlockAnalyzer`（纯逻辑）：M→o→G 往返；塌桥塌掉（持续）后每个可能站位能否到出口 = 死局；封路墙升起（暂时）= 提示。构建器 Validate 纳入；32 变体 0 死局。
 - `Step1StuckRescue`：只在"赶路"状态判定（起疑/查看/找人不算），6 秒几乎不动 → 挪到最近"能到出口"的格，提示 + CSV `stuck_rescues`。H4：不读捣蛋者。
-- `LevelWorkshopWindow` + `LevelWorkshopModel`（Ctrl+Shift+L）：Mario Maker 式分类调色板（来自 ElementCatalog，第 1 步模式过滤）、画笔/矩形/橡皮/吸管、随机槽位 1/2/3、每次改动自动检查并在格子上标红黄、最坏情况预览、"作为第 1 步房间试玩"（Assets/Levels/Step1CustomRoom.txt，房间哈希变化自动重建）。LevelStudioDocument 接受槽位数字；宝物 o 画第二个 = 移动。
+- `LevelWorkshopWindow` + `LevelWorkshopModel`（Ctrl+Alt+W；S190 起，原 Ctrl+Shift+L 与 Unity Generate Lighting 冲突）：Mario Maker 式分类调色板（来自 ElementCatalog，第 1 步模式过滤）、画笔/矩形/橡皮/吸管、随机槽位 1/2/3、每次改动自动检查并在格子上标红黄、最坏情况预览、"作为第 1 步房间试玩"（Assets/Levels/Step1CustomRoom.txt，房间哈希变化自动重建）。LevelStudioDocument 接受槽位数字；宝物 o 画第二个 = 移动。
 - 调参数据 v6；构建器 v9；测试 56→66。
 
 ### [S188] 用户：两个测试红 + "有些机关不知道是什么，自己摆容易摆错、影响换素材" + 做减法

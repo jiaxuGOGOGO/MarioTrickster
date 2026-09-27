@@ -945,4 +945,17 @@ public class Step1RushMarioTests
         StringAssert.Contains("ValidateAllVariants(Current, out bool ok)", builder, "构建前检查的是实际要玩的房间");
         Assert.AreNotEqual(Step1PrankRoomBuilder.RoomHash(new[] { "W.M" }), Step1PrankRoomBuilder.RoomHash(new[] { "W.T" }));
     }
+
+    [Test]
+    public void WorkshopShortcutDoesNotClashWithUnityOrProjectMenus()
+    {
+        // S190 用户实测：Ctrl+Shift+L 与 Unity 自带 Assets/Generate Lighting 冲突
+        string src = Read("Scripts/Editor/LevelWorkshopWindow.cs");
+        StringAssert.DoesNotContain("%#l\"", src);
+        StringAssert.Contains("%&w\"", src);
+        // 项目内其它菜单不得占用同一组合
+        foreach (var file in Directory.GetFiles(Path.Combine(Application.dataPath, "Scripts/Editor"), "*.cs"))
+            if (!file.EndsWith("LevelWorkshopWindow.cs"))
+                StringAssert.DoesNotContain("%&w\"", File.ReadAllText(file), Path.GetFileName(file));
+    }
 }

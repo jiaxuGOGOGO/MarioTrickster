@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// S189：关卡工坊（菜单 MarioTrickster → Level Workshop，快捷键 Ctrl+Shift+L）。
+/// S189：关卡工坊（菜单 MarioTrickster → Level Workshop，快捷键 Ctrl+Alt+W（S190：Ctrl+Shift+L 与 Unity 自带 Generate Lighting 冲突，已改））。
 /// 参考 Super Mario Maker 2 的搭建方式：左边一排分类元素（地形 / 摆件 / 你的机关 / 目标 / 角色），点一下选中，
 /// 在画布上点或拖着画；右键擦除；Alt 点吸取；Shift 拖出矩形；Ctrl+Z 撤销整笔。
 /// 与项目规则的关系：
@@ -37,7 +37,7 @@ public class LevelWorkshopWindow : EditorWindow
     private int undoGroup;
     private GUIStyle cellLabel, tileLabel;
 
-    [MenuItem("MarioTrickster/Level Workshop (关卡工坊) %#l", false, 1)]
+    [MenuItem("MarioTrickster/Level Workshop (关卡工坊) %&w", false, 1)]
     public static void Open()
     {
         var w = GetWindow<LevelWorkshopWindow>("关卡工坊");

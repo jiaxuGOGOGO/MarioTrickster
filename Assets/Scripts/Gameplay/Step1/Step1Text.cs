@@ -57,6 +57,7 @@ public static class Step1Text
         if (intent == "READY...") return "准备\nREADY";
         if (intent == "DIZZY") return "晕了\nDIZZY";
         if (intent == "LOOK BACK") return "回头看\nLOOK";
+        if (intent == "CAREFUL") return "小心点\nCAREFUL";
         switch (state)
         {
             case MarioMindState.Curious: return "嗯？\nHUH?";
@@ -67,7 +68,7 @@ public static class Step1Text
         }
     }
 
-    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   ↓ 通风管   |   V 这是什么 Labels   H 帮助 Help   Esc 暂停";
+    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   F 连锁   T 挑衅   ↓ 通风管   |   V 这是什么 Labels   H 帮助 Help   Esc 暂停";
 
     public const string Help =
         "<b>怎么玩  HOW TO PLAY</b>\n\n" +
@@ -86,6 +87,7 @@ public static class Step1Text
         "   <color=#C8A070><b>裂缝地板</b></color>（宝物旁）：L 打碎，他掉进地下室。  <b>Crack floor</b>: L drops him into the basement.\n\n" +
         "<b>B 炸弹</b>（3 枚，现形才能放）：炸开附近的<b>裂墙</b>/裂缝地板/箱子，炸晕马里奥——但<b>他听得见</b>。  <b>B</b> = bomb (he hears it!)\n" +
         "<b>大炮</b>：伪装控制时 <b>←→</b> 调方向、<b>↑↓</b> 调仰角，<b>L</b> 开炮；炮弹打完后你和马里奥都能钻进去把自己打出去（冷却 30 秒）。  Cannon: aim with arrows\n" +
+        "<b>以身入局（连锁）</b>：走到机关旁按 <b>F</b> 编号①②③（Shift+F 一键把周围的机关全编上）→ 按 <b>T</b> 挑衅把他引过来 → 他追你踩到<b>绊线</b>或你按 L 触发任意一环 → 其余几环在他走到时<b>自动接上</b>。  <b>F</b> link traps, <b>T</b> taunt\n" +
         "<b>G 诱饵</b>（每局 1 次，现形才能放）：留个假的你，他会去追——走近会识破。  <b>G</b> = decoy\n" +
         "<b>油桶</b>：被火/炸弹/炮弹点燃后爆炸，还会引爆旁边的油桶（连锁）。  <b>Oil barrel</b>: chain explosions\n" +
         "<b>铁笼</b>：伪装在旁按 L 落下，关住下面的人 3 秒。  <b>Cage</b>: L drops it on whoever is below\n" +
@@ -122,6 +124,18 @@ public static class Step1Text
     public const string SnareMario = "🪢 马里奥被<b>绳套</b>吊起来了！（10 秒）  Mario is snared!";
     public const string SnareYou = "🪢 你踩到<b>绳套</b>被吊起来了！  You got snared!";
     public const string ShieldBlocked = "🛡 马里奥的护盾挡住了这一下  Shield blocked it";
+    public const string ChainNoneNear = "附近没有能编进连锁的机关（走到机关旁再按 F）  No trap nearby";
+    public const string ChainFull = "连锁最多 {0} 环  Chain is full";
+    public const string ChainAdded = "⛓ 编入连锁 第 {0} 环：{1}  Linked #{0}";
+    public const string ChainRemoved = "⛓ 取消：{0}  Unlinked";
+    public const string ChainAuto = "⛓ 一键布置：周围 {0} 个机关按远近编号  Auto-linked {0}";
+    public const string ChainStarted = "⛓ 绊线！连锁启动  Chain started!";
+    public const string ChainPerfect = "⛓⛓⛓ 完美连锁！  PERFECT CHAIN!";
+    public const string TauntNeedUndisguise = "要先<b>现形</b>才能挑衅  Undisguise to taunt";
+    public const string TauntNone = "挑衅用完了  No taunts left";
+    public const string TauntCooldown = "挑衅冷却中  Taunt cooling down";
+    public const string TauntDone = "📣 挑衅！他听见了你的位置（还剩 {0} 次）  Taunted!";
+    public const string TripwireHit = "马里奥被<b>绊线</b>绊了一下！  Mario tripped!";
     public const string BarrelBoom = "🛢 油桶爆炸！  OIL BARREL BOOM!";
     public const string CageMario = "🔒 马里奥被<b>铁笼</b>关住了！（3 秒）  Mario is caged!";
     public const string CageYou = "🔒 你被<b>铁笼</b>关住了！  You got caged!";

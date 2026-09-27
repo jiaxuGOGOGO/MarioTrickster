@@ -41,6 +41,9 @@ public static class ComboRouteAnalyzer
     /// <summary>同一种"招"：大炮朝左/右算一种。</summary>
     public static string Kind(char c) { var i = ElementCatalog.Get(c); return i != null ? i.themeKey : c.ToString(); }
 
+    /// <summary>S200：绊线（启动连锁）和油桶（被引爆）也是连锁的一环。</summary>
+    public static bool IsChainPart(char c) => c == 'R' || c == 'U';
+
     public static bool IsLauncher(char c) => c == 'J' || c == 'n' || c == 'K' || c == 'k';
 
     /// <summary>grid 第 0 行在最上面；chainCells = 连招窗口 × 马里奥速度。随机槽位字符（1/2/3）当作空气。</summary>
@@ -52,7 +55,7 @@ public static class ComboRouteAnalyzer
             for (int x = 0; x < grid[row].Length; x++)
             {
                 var info = ElementCatalog.Get(grid[row][x]);
-                if (info != null && info.role == ElementCatalog.Role.PlayerPrank) r.nodes.Add(new Node { x = x, y = h - 1 - row, ch = grid[row][x] });
+                if (info != null && (info.role == ElementCatalog.Role.PlayerPrank || IsChainPart(grid[row][x]))) r.nodes.Add(new Node { x = x, y = h - 1 - row, ch = grid[row][x] });
             }
         // 同一种机关连成一片的（例如 4 格塌桥、3 格裂缝）只算一个节点：保留最左边那格
         var merged = new List<Node>();

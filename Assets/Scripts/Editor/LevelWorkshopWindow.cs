@@ -187,6 +187,8 @@ public class LevelWorkshopWindow : EditorWindow
             SetSource(string.Join("\n", LevelWorkshopModel.PrisonSample), "Load prison sample");
         if (GUILayout.Button(new GUIContent("样板：箱庭监狱", "手工设计的四层地下监狱：每层一个身份，层间多条路，有单向捷径门、秘密裂墙竖井、裂缝地板"), EditorStyles.toolbarButton, GUILayout.Width(96)))
         { SetSource(string.Join("\n", LevelWorkshopModel.HakoniwaSample), "Load hakoniwa sample"); overview = true; }
+        if (GUILayout.Button(new GUIContent("样板：诱捕走廊", "练习'以身入局'：一条排好的连锁（绊线→香蕉皮→火+油桶→塌桥→弹簧→封路墙）。试玩时 Shift+F 一键编号，再按 T 挑衅把他引过来"), EditorStyles.toolbarButton, GUILayout.Width(96)))
+        { SetSource(string.Join("\n", LevelWorkshopModel.LureSample), "Load lure sample"); comboRoutes = true; }
         if (GUILayout.Button(new GUIContent("监狱塔…", "按层数自动拼一座监狱塔：每层是手工楼层模板，楼梯口左右交替；宝物在最底层，出口在顶层。拼完自动做死局检查"), EditorStyles.toolbarButton, GUILayout.Width(60)))
         {
             var menu = new GenericMenu();

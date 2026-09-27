@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 199（油桶 U 连锁爆炸（火/炸弹/炮弹/桶点燃，共用 TricksterBomb.Blast）；铁笼 Q；诱饵 G（同视锥，近看识破，透视看穿）；警报随机事件（静止伪装也会被怀疑）；马里奥踢门） |
+| **最新 Session** | Session 200（以身入局：F 连锁编排/Shift+F 一键布置 + 预判落点自动接力；T 挑衅；绊线 R；马里奥学习层；诱捕走廊样板） |
+| **S199** | Session 199（油桶 U 连锁爆炸（火/炸弹/炮弹/桶点燃，共用 TricksterBomb.Blast）；铁笼 Q；诱饵 G（同视锥，近看识破，透视看穿）；警报随机事件（静止伪装也会被怀疑）；马里奥踢门） |
 | **S198** | Session 198（修来回跳（进展式卡住判定 + 头顶路点对准再跳）、贴墙粘住、塌桥只塌一格；普通地形可炸 Destructible（外圈/底层锁定）；炸弹伤双方；大炮 ←→↑↓ 瞄准 + 马里奥也能钻炮 + 冷却 30s；墙上通风口 ←→；绳套 Y；随机道具箱 ?（同箱反转）） |
 | **S197** | Session 197（修 H4 测试断言范围；修 B 键无反应（新旧输入都读）；修工坊进出 Play 后空白（缓存 NonSerialized）；修马里奥楼层寻路卡住（只规划 AI 真能跳的跳法 + 起跳点）；捣蛋者跳跃力 20；技能包：炸弹×3（B）、缩小×2（Z）、通风管 O（↓）、马里奥时间静止×1；毒池 w / 黏胶 g；M/Tab 图例；扩展调研） |
 | **S196** | Session 196（修 NewRegistryEntries 测试（J x n 未登记为 NotProbed）；箱庭：捷径门 | / 裂墙 % / 砸墙技能 B（现形、有声、有次数）/ 开局随机塌墙事件；工坊"箱庭总览"（纵览缩放、层身份、连接、环路、捷径省步数、建议）；手工"箱庭监狱"四层样板；监狱塔重做为每层主题 + 双通路 + 捷径竖井；结论：一座楼不转场，楼与楼之间转场） |
@@ -110,6 +111,15 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S200] 用户："以身入局诱惑马里奥进入连锁陷阱，方便提前布置，调研后全方位升级，AI 跟上"
+
+- 调研：Deception IV（布置→引诱→陷阱接力；差评：时机难、Boss 透视）、CritPoints 分心工具（敲墙引诱、绊线、诱饵）。
+- ChainPlan（F / Shift+F）：Toggle/AutoOrder/ShouldFire/ShouldFireCannon 纯逻辑；L 触发编号机关或 Tripwire 启动；预判落点自动 OnTricksterActivate（保留预警）；LinkFired→MarioEyes.NotePropActivated，Clicked→NoteNoiseNear（代价）。
+- TauntAbility（T）：CanTaunt；MarioEyes.NoteTaunt → MarioPercept.heardTaunt → tauntSuspicion + Focus。
+- Tripwire 'R'：只对马里奥；绊 tripStunSeconds；启动连锁；计入连招（trip/cage/snare 也计入）。
+- 学习层：RushMarioMind.RememberHurt/NearHurtSpot/Cautious → 驱动层 cautiousSpeedScale；头顶"小心点"。
+- ComboRouteAnalyzer.IsChainPart（R/U）；LureSample 诱捕走廊；默认房间与箱庭加绊线。Registry 44；BuilderVersion 16；dataVersion 12；测试 98→100。
 
 ### [S199] 用户："继续"（实现 S198 文档第 4 节前 5 项）
 

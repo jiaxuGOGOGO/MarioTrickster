@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 11;
+    public const int CurrentDataVersion = 12;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -213,6 +213,36 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("加速道具：马里奥速度倍率")]
     public float pickupSpeedBoost = 1.35f;
 
+    [Header("S200: chain plan (F), taunt (T), tripwire, Mario learning")]
+    [Tooltip("一条连锁最多几个机关")]
+    public int maxChainLinks = 4;
+    [Tooltip("按 F 编号：离你多近的机关（格）")]
+    public float chainArmRange = 2.5f;
+    [Tooltip("Shift+F 一键布置：你周围多远的机关（格）")]
+    public float chainAutoRange = 10f;
+    [Tooltip("连锁启动后，多久没接上下一环就结束（秒，每接一环续时）")]
+    public float chainLiveSeconds = 6f;
+    [Tooltip("预判容差：马里奥预计落点离机关这么近（格）就触发")]
+    public float chainFireTolerance = 0.8f;
+    [Tooltip("大炮：马里奥进入炮口前方多远（格）就开炮")]
+    public float chainCannonRange = 6f;
+    [Tooltip("每接一环的顿帧（秒，演出感）")]
+    public float chainHitstopSeconds = 0.06f;
+    [Tooltip("挑衅：每回合次数")]
+    public int tauntUses = 3;
+    [Tooltip("挑衅：冷却（秒）")]
+    public float tauntCooldown = 8f;
+    [Tooltip("挑衅：马里奥听见后增加的起疑值（35 = 起疑，100 = 过来）")]
+    public float tauntSuspicion = 70f;
+    [Tooltip("绊线：绊一下多久（秒）")]
+    public float tripStunSeconds = 0.4f;
+    [Tooltip("马里奥会记住被坑的地方，下次经过放慢（学习层）")]
+    public bool learnFromHurt = true;
+    [Tooltip("学习层：前方多远内有被坑过的地方就小心（格）")]
+    public float cautiousRadius = 3f;
+    [Tooltip("学习层：小心时的速度倍率（越小越慢，给你重新布置的机会也更难坑中）")]
+    [Range(0.3f, 1f)] public float cautiousSpeedScale = 0.7f;
+
     [Header("S199: oil barrel, cage, decoy, alarm, door kick")]
     [Tooltip("油桶引信（秒）：被点燃后闪烁多久爆炸")]
     public float oilFuseSeconds = 0.8f;
@@ -335,6 +365,11 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 12)
+        {
+            maxChainLinks = 4; chainArmRange = 2.5f; chainAutoRange = 10f; chainLiveSeconds = 6f; chainFireTolerance = 0.8f; chainCannonRange = 6f; chainHitstopSeconds = 0.06f;
+            tauntUses = 3; tauntCooldown = 8f; tauntSuspicion = 70f; tripStunSeconds = 0.4f; learnFromHurt = true; cautiousRadius = 3f; cautiousSpeedScale = 0.7f;
         }
         if (dataVersion < 11)
         {

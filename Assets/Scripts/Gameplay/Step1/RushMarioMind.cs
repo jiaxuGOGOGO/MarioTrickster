@@ -23,6 +23,9 @@ public struct MarioPercept
     /// <summary>S187：看见草丛晃了（只知道位置，不知道是风还是人）。</summary>
     public bool sawRustle;
     public Vector2 rustlePos;
+    /// <summary>S200：听见挑衅（只有位置，H4）。</summary>
+    public bool heardTaunt;
+    public Vector2 tauntPos;
     /// <summary>S187：马里奥自己的朝向（自身状态）。</summary>
     public bool facingRight;
 }
@@ -54,6 +57,30 @@ public sealed class RushMarioMind
     private Vector2 lookPoint, lastSeen, lastSeenVelocity, glanceTarget;
 
     public SuspicionMeter Meter { get; }
+    // S200 学习层：在哪里被坑过（他自己的记忆，只有位置）。赶路经过这些地方会放慢、小心；追人时气昏头，不会小心。
+    private readonly System.Collections.Generic.List<Vector2> hurtSpots = new System.Collections.Generic.List<Vector2>();
+    public System.Collections.Generic.IReadOnlyList<Vector2> HurtSpots => hurtSpots;
+    public bool Cautious { get; private set; }
+    public const int MaxHurtSpots = 6;
+
+    /// <summary>纯逻辑：前方（面向）cautiousRadius 格内有被坑过的地方 → 小心。</summary>
+    public static bool NearHurtSpot(System.Collections.Generic.IReadOnlyList<Vector2> spots, Vector2 mario, bool facingRight, float radius)
+    {
+        foreach (var s in spots)
+        {
+            float dx = s.x - mario.x;
+            if (Mathf.Abs(s.y - mario.y) > 1.5f) continue;
+            if ((facingRight ? dx : -dx) >= -0.3f && Mathf.Abs(dx) <= radius) return true;
+        }
+        return false;
+    }
+
+    public void RememberHurt(Vector2 at)
+    {
+        foreach (var s in hurtSpots) if ((s - at).sqrMagnitude < 1f) return;
+        hurtSpots.Add(at);
+        if (hurtSpots.Count > MaxHurtSpots) hurtSpots.RemoveAt(0);
+    }
     public MarioMindState State { get; private set; } = MarioMindState.Running;
     public Vector2 Focus { get; private set; }
     public event Action<MarioMindState, MarioMindState> StateChanged;
@@ -69,6 +96,7 @@ public sealed class RushMarioMind
     {
         Seed = seed; dice = new System.Random(seed);
         Meter.Reset(); hurtFlash = celebrate = stun = glance = 0f;
+        hurtSpots.Clear(); Cautious = false;
         Enter(MarioMindState.Running, Vector2.zero);
     }
 
@@ -98,8 +126,14 @@ public sealed class RushMarioMind
             Meter.Add(t.rustleSuspicion);
             if (!seesTrickster && !seesOddProp) Focus = p.rustlePos;
         }
+        if (p.heardTaunt)
+        {
+            Meter.Add(t.tauntSuspicion);
+            if (!seesTrickster) Focus = p.tauntPos;
+        }
         if (p.hurt)
         {
+            if (t.learnFromHurt) RememberHurt(p.marioPos);
             Meter.Add(t.hurtByTrap); hurtFlash = t.hurtFlashSeconds; stun = t.hurtStunSeconds;
             if (!seesTrickster && !seesOddProp && !p.witnessedActivation) Focus = p.marioPos;
         }
@@ -141,6 +175,7 @@ public sealed class RushMarioMind
         }
 
         order.state = State;
+        if (State != MarioMindState.Running) Cautious = false;
         switch (State)
         {
             case MarioMindState.Running:
@@ -151,6 +186,9 @@ public sealed class RushMarioMind
                 if (glance <= 0f && dt > 0f && t.glanceChancePerSecond > 0f && dice.NextDouble() < t.glanceChancePerSecond * dt)
                 { glance = t.glanceSeconds; glanceTarget = p.marioPos + (p.facingRight ? Vector2.left : Vector2.right) * t.glanceStep; }
                 if (glance > 0f) { order.moveTarget = glanceTarget; order.intent = "LOOK BACK"; }
+                // S200 学习层：前面是上次被坑的地方 → 放慢脚步（司机层减速），头顶显示"小心"
+                Cautious = t.learnFromHurt && NearHurtSpot(hurtSpots, p.marioPos, p.facingRight, t.cautiousRadius);
+                if (Cautious && glance <= 0f) order.intent = "CAREFUL";
                 break;
             case MarioMindState.Curious:
                 order.moveTarget = lookPoint; order.mark = "?"; order.intent = "HUH?";

@@ -111,6 +111,7 @@ public static class ElementCatalog
         I('?', "PickupSpot", "道具箱", "Pickup", Role.Special, "每局随机亮起几个：谁先碰到归谁，同一个箱子给你和给马里奥效果不同（反转变数）。", "放在路线附近的地面上；多放几个，每局只亮一部分。", needsSupport: true, step1: true),
         I('U', "OilBarrel", "油桶", "Oil barrel", Role.Special, "实心障碍：被喷火、炸弹、炮弹或另一个油桶爆炸点燃，0.8 秒后爆炸（炸毁周围、伤双方、引爆旁边的油桶 → 连锁）。", "放在火旁、裂墙旁、马里奥路线旁；不炸也必须能通关（死局检查按实心算）。", needsSupport: true, step1: true),
         I('Q', "IronCage", "铁笼", "Iron cage", Role.PlayerPrank, "悬在头顶的笼子：伪装在旁按 L 落下，关住正下方的人 3 秒后自动打开（每局一次）。炸弹能把笼子炸开。", "放在马里奥必经的地面上；头顶要空 2 格（笼子挂在上面）。", needsSupport: true, step1: true),
+        I('R', "Tripwire", "绊线", "Tripwire", Role.Special, "地上一根细线：马里奥踩到绊一下（0.4 秒），并**启动你用 F 布置好的连锁**。每局一次；你自己踩不触发。", "放在连锁第一环前 1–3 格，马里奥必经的地面上。", needsSupport: true, step1: true),
         I('K', "Cannon", "大炮（朝右）", "Cannon (→)", Role.PlayerPrank, "伪装在旁按 L 开一炮（每局 1 发）；打完后站进炮口把自己打飞逃跑。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: 1),
         I('k', "Cannon", "大炮（朝左）", "Cannon (←)", Role.PlayerPrank, "同上，炮口朝左。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: -1),
         I('o', "Collectible", "宝物", "Loot", Role.Objective, "马里奥要拿的宝物（实战房里自动变成 LootObjective）。", "放在离出口远的一端，只能有 1 个。", unique: true, step1: true),

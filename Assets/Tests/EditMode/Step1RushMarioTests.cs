@@ -1498,6 +1498,68 @@ public class Step1RushMarioTests
         Assert.IsTrue(LevelWorkshopModel.Check(LevelWorkshopModel.HakoniwaSample, true, reg().IsSolid).Playable, "样板加油桶/铁笼后仍可玩");
     }
 
+    // ── S200：以身入局——连锁编排 / 挑衅 / 绊线 / 马里奥学习 ─────────
+    [Test]
+    public void ChainPlanLinksFiresOnArrivalAndKeepsTelegraph()
+    {
+        var list = new List<string>();
+        Assert.AreEqual(0, ChainPlan.Toggle(list, "a", 2), "第 1 环");
+        Assert.AreEqual(1, ChainPlan.Toggle(list, "b", 2), "第 2 环");
+        Assert.AreEqual(-2, ChainPlan.Toggle(list, "c", 2), "满了");
+        Assert.AreEqual(-1, ChainPlan.Toggle(list, "a", 2), "再按一次取消");
+        CollectionAssert.AreEqual(new[] { "b" }, list);
+        // 预判：他正以 4 格/秒往右走，机关预警 0.8 秒 → 离机关 3.2 格时就该触发（落点刚好）
+        Assert.IsTrue(ChainPlan.ShouldFire(new Vector2(6.8f, 1), new Vector2(4f, 0), new Vector2(10f, 1), 0.8f, 0.8f), "预判落点正好 → 触发");
+        Assert.IsFalse(ChainPlan.ShouldFire(new Vector2(2f, 1), new Vector2(4f, 0), new Vector2(10f, 1), 0.8f, 0.8f), "太远 → 还不触发");
+        Assert.IsFalse(ChainPlan.ShouldFire(new Vector2(13f, 1), new Vector2(4f, 0), new Vector2(10f, 1), 0.8f, 0.8f), "已经冲过去 → 不触发");
+        Assert.IsFalse(ChainPlan.ShouldFire(new Vector2(9.8f, 5), new Vector2(0f, 0), new Vector2(10f, 1), 0.8f, 0.8f), "不在同一层 → 不触发");
+        Assert.IsTrue(ChainPlan.ShouldFireCannon(new Vector2(14, 1), new Vector2(10, 1), true, 6f), "炮口前方 → 开炮");
+        Assert.IsFalse(ChainPlan.ShouldFireCannon(new Vector2(6, 1), new Vector2(10, 1), true, 6f), "炮口后面 → 不开");
+        var order = ChainPlan.AutoOrder(new[] { new Vector2(8, 1), new Vector2(3, 1), new Vector2(30, 1), new Vector2(5, 1) }, new Vector2(1, 1), 10f, 4);
+        CollectionAssert.AreEqual(new[] { 1, 3, 0 }, order, "一键布置：由近到远，超出范围的不编");
+        string plan = CodeOnly(Read("Scripts/Gameplay/Step1/ChainPlan.cs"));
+        StringAssert.Contains("l.OnTricksterActivate(", plan, "H3：自动触发走机关自己的预警流程，不跳过预警");
+        StringAssert.Contains("l.CanBeControlled()", plan, "冷却中的机关不会被强制触发");
+        StringAssert.Contains("ChainPlan.LinkFired += eyes.NoteChainLink", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"), "连锁触发的机关被他看见照样起疑");
+        StringAssert.Contains("ChainPlan.Clicked += eyes.NoteNoiseNear", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"), "代价：编号咔哒声");
+        StringAssert.Contains("AddComponent<ChainPlan>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+    }
+
+    [Test]
+    public void TauntTripwireAndMarioLearning()
+    {
+        Assert.IsFalse(TauntAbility.CanTaunt(true, 3, 0f), "伪装时不能挑衅");
+        Assert.IsFalse(TauntAbility.CanTaunt(false, 0, 0f));
+        Assert.IsFalse(TauntAbility.CanTaunt(false, 3, 1f), "冷却");
+        Assert.IsTrue(TauntAbility.CanTaunt(false, 3, 0f));
+        var t = Tuning();
+        var mind = new RushMarioMind(t);
+        mind.Tick(Dt, new MarioPercept { marioPos = Vector2.zero, heardTaunt = true, tauntPos = new Vector2(6, 0) });
+        Assert.GreaterOrEqual(mind.Meter.Value, t.curiousThreshold);
+        Assert.AreEqual(6f, mind.Focus.x, 0.01f, "注意力转向挑衅的位置");
+        StringAssert.Contains("NoteTaunt(Vector2 where)", Read("Scripts/Gameplay/Step1/MarioEyes.cs"), "H4：挑衅只给一个位置");
+        // 学习层
+        var m2 = new RushMarioMind(t);
+        m2.Tick(Dt, new MarioPercept { marioPos = new Vector2(10, 1), hurt = true });
+        Assert.AreEqual(1, m2.HurtSpots.Count, "记住被坑的地方");
+        Assert.IsTrue(RushMarioMind.NearHurtSpot(m2.HurtSpots, new Vector2(8, 1), true, t.cautiousRadius), "前方是被坑过的地方 → 小心");
+        Assert.IsFalse(RushMarioMind.NearHurtSpot(m2.HurtSpots, new Vector2(8, 1), false, t.cautiousRadius), "背对着 → 不管");
+        Assert.IsFalse(RushMarioMind.NearHurtSpot(m2.HurtSpots, new Vector2(2, 1), true, t.cautiousRadius), "离得远 → 不管");
+        m2.Reset(1); Assert.AreEqual(0, m2.HurtSpots.Count, "每回合忘掉");
+        Assert.Less(t.cautiousSpeedScale, 1f); Assert.Greater(t.cautiousSpeedScale, 0.3f, "小心只是放慢，不会停");
+        StringAssert.Contains("Mind.Cautious ? tuning.cautiousSpeedScale", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
+        // 绊线
+        Assert.IsFalse(reg().IsSolid('R'), "绊线不挡路");
+        StringAssert.Contains("GetComponentInParent<MarioController>()", Read("Scripts/LevelElements/Pranks/Tripwire.cs"), "只有马里奥会踩响");
+        StringAssert.Contains("Tripwire.Tripped += HandleTripped", Read("Scripts/Gameplay/Step1/ChainPlan.cs"), "绊线启动连锁");
+        StringAssert.Contains("Tripwire.Tripped += HandleTripped", Read("Scripts/Gameplay/Step1/Step1Combo.cs"), "绊到计入连招");
+        Assert.IsTrue(ComboRouteAnalyzer.IsChainPart('R') && ComboRouteAnalyzer.IsChainPart('U'), "工坊连招路线把绊线/油桶算进去");
+        foreach (var sample in new[] { LevelWorkshopModel.LureSample, LevelWorkshopModel.HakoniwaSample, Step1PrankRoomBuilder.Room })
+            Assert.IsTrue(LevelWorkshopModel.Check(sample, true, reg().IsSolid).Playable, "加绊线后样板仍可玩");
+        Assert.GreaterOrEqual(ComboRouteAnalyzer.Analyze(LevelWorkshopModel.LureSample, 10f).BestGroupKinds, 5, "诱捕走廊一套连锁至少 5 种机关");
+        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(reg().GetAllRegisteredChars()));
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

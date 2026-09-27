@@ -38,6 +38,8 @@ public sealed class MarioEyes
     }
 
     /// <summary>由 TricksterAbilitySystem.OnPropActivated 转发：只记录"哪里动了"，是否被看见由 Look 判定。</summary>
+    public void NoteChainLink(IControllableProp prop) => NotePropActivated(prop);
+
     public void NotePropActivated(IControllableProp prop)
     {
         Transform where = prop != null ? prop.GetTransform() : null;
@@ -62,6 +64,15 @@ public sealed class MarioEyes
         heardNoise = true; heardAt = where;
     }
     private bool heardNoise; private Vector2 heardAt;
+
+    /// <summary>S200：听见挑衅（"来抓我呀"）。只收一个位置；听力范围与响声相同。</summary>
+    public void NoteTaunt(Vector2 where)
+    {
+        if (mario == null || t == null) return;
+        if (Vector2.Distance(mario.position, where) > t.hearingRange) return;
+        heardTauntFlag = true; tauntAt = where;
+    }
+    private bool heardTauntFlag; private Vector2 tauntAt;
 
     /// <summary>S197：小声音（通风管咣当）：只有很近才听得见（听力范围的 1/3）。</summary>
     public void NoteNoiseNear(Vector2 where)
@@ -139,6 +150,7 @@ public sealed class MarioEyes
         }
 
         if (heardNoise) { p.sawRustle = true; p.rustlePos = heardAt; heardNoise = false; }
+        p.heardTaunt = heardTauntFlag; p.tauntPos = tauntAt; heardTauntFlag = false;
 
         p.witnessedActivation = false;
         if (pendingActivation != null)

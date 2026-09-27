@@ -74,7 +74,15 @@ public class Step1Combo : MonoBehaviour
         SpringPadEvents.Launched += HandleLaunched;
         CrackFloorEvents.MarioFell += HandleFell;
         BananaPeelEvents.Slipped += HandleSlipped;
+        Tripwire.Tripped += HandleTripped;
+        IronCage.MarioCaged += HandleCaged;
+        SnareTrap.MarioSnared += HandleSnared;
     }
+
+    // S200：绊线/铁笼/绳套也算"坑到"，能接进连招
+    private void HandleTripped(Vector2 at) => Register("trip");
+    private void HandleCaged(MarioController m) => Register("cage");
+    private void HandleSnared(MarioController m) => Register("snare");
 
     private void HandleSlipped() => Register("slip");
 
@@ -88,6 +96,9 @@ public class Step1Combo : MonoBehaviour
         SpringPadEvents.Launched -= HandleLaunched;
         CrackFloorEvents.MarioFell -= HandleFell;
         BananaPeelEvents.Slipped -= HandleSlipped;
+        Tripwire.Tripped -= HandleTripped;
+        IronCage.MarioCaged -= HandleCaged;
+        SnareTrap.MarioSnared -= HandleSnared;
     }
 
     private void ResetRound()

@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 43; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?; S199: +U Q
+    private const int BUILTIN_ENTRY_COUNT = 44; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?; S199: +U Q; S200: +R
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -540,6 +540,13 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "OilBarrel" }, visualColor = new Color(0.75f, 0.25f, 0.15f), visualScale = new Vector2(0.8f, 0.9f),
                 customColliderSize = new Vector2(0.8f, 0.9f), customColliderOffset = new Vector2(0f, -0.05f),
                 sortingOrder = 4, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'R', elementName = "Tripwire", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "Tripwire" }, visualColor = new Color(0.85f, 0.85f, 0.80f), visualScale = new Vector2(1f, 0.12f),
+                customColliderSize = new Vector2(0.9f, 0.4f), customColliderOffset = new Vector2(0f, -0.3f),
+                sortingOrder = 3, isTrigger = true
             },
             new AsciiElementEntry
             {

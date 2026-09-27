@@ -101,6 +101,9 @@ public class MarioMindDriver : MonoBehaviour
         CrackedWall.Smashed += eyes.NoteNoise;
         TricksterBomb.Exploded += eyes.NoteNoise;
         Vent.Clanged += eyes.NoteNoiseNear;
+        TauntAbility.Taunted += eyes.NoteTaunt;          // S200：挑衅 = 听见一个位置
+        ChainPlan.LinkFired += eyes.NoteChainLink;       // S200：连锁自动触发的机关，看见了照样起疑
+        ChainPlan.Clicked += eyes.NoteNoiseNear;         // S200：编号时"咔哒"一声（很近才听得见）
         if (health != null) { health.OnHealthChanged += HandleHealthChanged; lastHealth = health.CurrentHealth; }
 
         inputManager = FindObjectOfType<InputManager>();
@@ -124,7 +127,7 @@ public class MarioMindDriver : MonoBehaviour
     private void OnDestroy()
     {
         if (abilities != null && eyes != null) abilities.OnPropActivated -= eyes.NotePropActivated;
-        if (eyes != null) { RustleOnPass.Rustled -= eyes.NoteRustle; CrackedWall.Smashed -= eyes.NoteNoise; TricksterBomb.Exploded -= eyes.NoteNoise; Vent.Clanged -= eyes.NoteNoiseNear; }
+        if (eyes != null) { RustleOnPass.Rustled -= eyes.NoteRustle; CrackedWall.Smashed -= eyes.NoteNoise; TricksterBomb.Exploded -= eyes.NoteNoise; Vent.Clanged -= eyes.NoteNoiseNear; TauntAbility.Taunted -= eyes.NoteTaunt; ChainPlan.LinkFired -= eyes.NoteChainLink; ChainPlan.Clicked -= eyes.NoteNoiseNear; }
         if (health != null) health.OnHealthChanged -= HandleHealthChanged;
         if (subscribedManager != null) subscribedManager.OnRoundStart -= ResetForRound;
     }
@@ -172,7 +175,8 @@ public class MarioMindDriver : MonoBehaviour
         bool playing = gm == null || gm.CurrentState == GameState.Playing;
         // 每帧读取，Play 中改调参资产立即生效；追你时提速（S186）
         hybrid.Bot.MarioSpeedScale = (Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale) * roundSpeedFactor * SlowTerrain.CurrentMarioSpeedScale
-            * (Time.time < RandomPickups.MarioSpeedUntil ? tuning.pickupSpeedBoost : 1f);
+            * (Time.time < RandomPickups.MarioSpeedUntil ? tuning.pickupSpeedBoost : 1f)
+            * (Mind.Cautious ? tuning.cautiousSpeedScale : 1f);
         hybrid.Bot.TrapCommitDistance = tuning.trapCommitDistance;
         hybrid.Bot.SkipReactionDelayForTerrain = tuning.smoothJumps;
         hybrid.Bot.HoldStill = false;

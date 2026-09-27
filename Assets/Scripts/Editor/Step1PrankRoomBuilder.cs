@@ -40,10 +40,11 @@ public static class Step1PrankRoomBuilder
     /// S195 = 11：多层楼房间的楼层寻路（马里奥知道先去哪个楼梯口）；工坊楼层工具。
     /// S196 = 12：箱庭元素（捷径门 |、裂墙 %）、每回合随机塌墙事件、提示条。
     /// S197 = 13：炸弹/缩小/通风管/时间静止/毒池/黏胶/图例；捣蛋者跳跃力 20；马里奥楼层寻路修卡住。
+    /// S200 = 16：连锁编排 F（ChainPlan）、挑衅 T、绊线 R、马里奥学习层（被坑过的地方放慢）。
     /// S199 = 15：油桶 U（连锁爆炸）、铁笼 Q、诱饵 G、警报事件、马里奥踢门。
     /// S198 = 14：普通地形可炸（Destructible）、炸弹伤双方、整座塌桥、大炮瞄准 + 马里奥也能钻炮（冷却 30s）、墙上通风口、绳套、道具箱、修来回跳/贴墙。
     /// </summary>
-    public const int BuilderVersion = 15;
+    public const int BuilderVersion = 16;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -66,7 +67,7 @@ public static class Step1PrankRoomBuilder
         "W...............W..............W...............W",
         "W...............W..............W...............W",
         "W.....----......W.---.....----.W...----........W",
-        "W.G.M..2.~..1...[.K.T...n..b3..[..1..~2...k.o..W",
+        "W.G.M..2.~..1.R.[.K.T...n..b3..[..1..~2...k.o..W",
         "W############J#######CCCC-#############xxx#####W",
         "W####################..~..#############.-.#####W",
         "W##############################################W"
@@ -392,6 +393,8 @@ public static class Step1PrankRoomBuilder
         gm.gameObject.AddComponent<Step1MapLegend>();                                  // S197：M/Tab 图例
         gm.gameObject.AddComponent<RandomPickups>().SetTuning(tuning);                 // S198：随机道具箱
         trickster.gameObject.AddComponent<DecoyAbility>().SetTuning(tuning);            // S199：G 诱饵
+        trickster.gameObject.AddComponent<ChainPlan>().SetTuning(tuning);               // S200：F 连锁编排
+        trickster.gameObject.AddComponent<TauntAbility>().SetTuning(tuning);            // S200：T 挑衅
         var combo = gm.gameObject.AddComponent<Step1Combo>();
         var comboSo = new SerializedObject(combo);
         comboSo.FindProperty("tuning").objectReferenceValue = tuning;
@@ -540,6 +543,7 @@ public static class Step1PrankRoomBuilder
         int count = 0;
         foreach (var cage in root.GetComponentsInChildren<IronCage>(true)) { cage.Configure(tuning.cageSeconds); EditorUtility.SetDirty(cage); count++; }
         foreach (var barrel in root.GetComponentsInChildren<OilBarrel>(true)) { barrel.Configure(tuning.oilFuseSeconds, tuning.oilRadius, tuning.bombStunSeconds, tuning.bombKnockback, tuning.bombDamageMario, tuning.bombDamageSelf); EditorUtility.SetDirty(barrel); count++; }
+        foreach (var wire in root.GetComponentsInChildren<Tripwire>(true)) { wire.Configure(tuning.tripStunSeconds); EditorUtility.SetDirty(wire); count++; }
         foreach (var snare in root.GetComponentsInChildren<SnareTrap>(true)) { snare.Configure(tuning.snareSeconds); EditorUtility.SetDirty(snare); count++; }
         foreach (var cannon in root.GetComponentsInChildren<PranksterCannon>(true)) { cannon.ConfigureLaunch(tuning.cannonLaunchCooldown, tuning.cannonLoadSeconds); EditorUtility.SetDirty(cannon); }
         foreach (var spring in root.GetComponentsInChildren<SpringPad>(true))

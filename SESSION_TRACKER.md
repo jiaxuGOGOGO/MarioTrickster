@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 198（修来回跳（进展式卡住判定 + 头顶路点对准再跳）、贴墙粘住、塌桥只塌一格；普通地形可炸 Destructible（外圈/底层锁定）；炸弹伤双方；大炮 ←→↑↓ 瞄准 + 马里奥也能钻炮 + 冷却 30s；墙上通风口 ←→；绳套 Y；随机道具箱 ?（同箱反转）） |
+| **最新 Session** | Session 199（油桶 U 连锁爆炸（火/炸弹/炮弹/桶点燃，共用 TricksterBomb.Blast）；铁笼 Q；诱饵 G（同视锥，近看识破，透视看穿）；警报随机事件（静止伪装也会被怀疑）；马里奥踢门） |
+| **S198** | Session 198（修来回跳（进展式卡住判定 + 头顶路点对准再跳）、贴墙粘住、塌桥只塌一格；普通地形可炸 Destructible（外圈/底层锁定）；炸弹伤双方；大炮 ←→↑↓ 瞄准 + 马里奥也能钻炮 + 冷却 30s；墙上通风口 ←→；绳套 Y；随机道具箱 ?（同箱反转）） |
 | **S197** | Session 197（修 H4 测试断言范围；修 B 键无反应（新旧输入都读）；修工坊进出 Play 后空白（缓存 NonSerialized）；修马里奥楼层寻路卡住（只规划 AI 真能跳的跳法 + 起跳点）；捣蛋者跳跃力 20；技能包：炸弹×3（B）、缩小×2（Z）、通风管 O（↓）、马里奥时间静止×1；毒池 w / 黏胶 g；M/Tab 图例；扩展调研） |
 | **S196** | Session 196（修 NewRegistryEntries 测试（J x n 未登记为 NotProbed）；箱庭：捷径门 | / 裂墙 % / 砸墙技能 B（现形、有声、有次数）/ 开局随机塌墙事件；工坊"箱庭总览"（纵览缩放、层身份、连接、环路、捷径省步数、建议）；手工"箱庭监狱"四层样板；监狱塔重做为每层主题 + 双通路 + 捷径竖井；结论：一座楼不转场，楼与楼之间转场） |
 | **S195** | Session 195（用户：暂时忽略"连玩 20 局"门槛。多层楼：LevelPathPlanner 楼层寻路（只在宝物/出口不同层时启用）、FloorStacker 监狱塔 2–11 层 + 加一层、高楼镜头自动框住两人、防卡死救援预算+剪枝） |
@@ -109,6 +110,15 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S199] 用户："继续"（实现 S198 文档第 4 节前 5 项）
+
+- OilBarrel 'U'：实心；Ignite（FireTrap.IsFiring 火焰碰到 / 炮弹 / Blast 波及）→ oilFuseSeconds 后 TricksterBomb.Blast（统一爆炸规则，点燃范围内油桶 → 连锁，ChainTargets 纯逻辑）。
+- IronCage 'Q'：L 落下关正下方 3s（cageSeconds）自动放；可被炸开；头顶空 2 格摆放规则。
+- DecoyAbility（G，decoysPerRound 1，必须现形）+ Decoy：MarioEyes 用同一 CanSee 看诱饵；SeenThrough(≤ decoyRevealDistance 或透视) 识破并在该处起疑。
+- Step1HakoniwaEvents 警报：AlarmAt(seed, alarmChance, 25..70s)，持续 alarmSeconds；MarioPercept.alarm → 静止伪装按 alarmStillFactor 起疑。
+- MarioDoorKick：ShouldKick（错误一侧 + 目标在门后）→ doorKickSeconds 后 OneWayDoor.Open；门抖动。
+- Registry 43；BuilderVersion 15；调参 dataVersion 11。箱庭样板三层各一油桶挨着火、放风场一铁笼。测试 96→98。文档 docs/step1/S199_OIL_CAGE_DECOY_ALARM_KICK.md。
 
 ### [S198] 用户：马里奥来回跳；炸弹要伤双方、要能破坏除机关/特殊地形外所有东西；红色是什么、为什么能粘墙；通风管左右；塌桥没反应；大炮调方向/弹数/马里奥也能钻/冷却 30s；猎人绳套；涌现/随机道具
 

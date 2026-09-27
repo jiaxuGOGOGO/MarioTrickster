@@ -1164,9 +1164,9 @@ public static class MechanismExplorationPlan
     ///   J/x/n = S193/S194 恶作剧机关（弹簧板/裂缝地板/香蕉皮），同理：第 1 步专属，Step1RushMarioTests 覆盖；
     ///   |/% = S196 箱庭元素（捷径门/裂墙），同理；
     ///   O/w/g = S197 通风管/毒池/黏胶（第 1 步专属，Step1RushMarioTests 覆盖）；
-    ///   Y/? = S198 绳套/道具箱（同上）。
+    ///   Y/? = S198 绳套/道具箱（同上）；U/Q = S199 油桶/铁笼（同上）。
     /// </summary>
-    public const string NotProbed = "cbdKkJxn|%OwgY?";
+    public const string NotProbed = "cbdKkJxn|%OwgY?UQ";
 
     public static string[] MissingFromCatalog(IEnumerable<char> registryChars) => registryChars
         .Where(c => !" .#=WMTG".Contains(c) && !NotProbed.Contains(c) && !Catalog.Contains(c)).Select(c => c.ToString()).Distinct().ToArray();

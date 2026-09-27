@@ -1453,6 +1453,51 @@ public class Step1RushMarioTests
         StringAssert.Contains("if (HitsWall(side)) _frameVelocity.x = 0f;", Read("Scripts/Enemy/TricksterController.cs"), "空中朝墙推不会粘在墙上");
     }
 
+    // ── S199：油桶连锁 / 铁笼 / 诱饵 / 警报 / 踢门 ─────────────────
+    [Test]
+    public void OilBarrelsChainAndShareBombRules()
+    {
+        var barrels = new List<Vector2> { new Vector2(0, 1), new Vector2(1.5f, 1), new Vector2(3f, 1), new Vector2(9, 1) };
+        var first = OilBarrel.ChainTargets(barrels, barrels[0], Tuning().oilRadius, 0);
+        CollectionAssert.Contains(first, 1, "爆炸点燃旁边的桶");
+        CollectionAssert.DoesNotContain(first, 3, "远的桶不受影响");
+        var second = OilBarrel.ChainTargets(barrels, barrels[1], Tuning().oilRadius, 1);
+        CollectionAssert.Contains(second, 2, "连锁：第二个桶再点燃第三个");
+        string kit = CodeOnly(Read("Scripts/Gameplay/Step1/TricksterKit.cs"));
+        StringAssert.Contains("public static void Blast(", kit, "炸弹与油桶共用一套爆炸规则");
+        StringAssert.Contains("barrel.Ignite()", kit, "炸弹点燃油桶");
+        StringAssert.Contains("fire.IsFiring", Read("Scripts/LevelElements/Pranks/OilBarrel.cs"), "喷火点燃油桶");
+        Assert.Greater(Tuning().oilFuseSeconds, 0f, "H3：点燃后有引信");
+        Assert.IsTrue(reg().IsSolid('U'), "死局检查按实心算（最坏情况：不炸）");
+    }
+
+    [Test]
+    public void CageDecoyAlarmAndDoorKick()
+    {
+        Assert.AreEqual(3f, Tuning().cageSeconds, 0.01f, "铁笼关 3 秒后自动打开");
+        StringAssert.Contains("if (timer <= 0f) Release();", Read("Scripts/LevelElements/Pranks/IronCage.cs"), "H9：必然放人");
+        Assert.IsTrue(ElementCatalog.PlacementIssues(new[] { "WWWWWW", "W#...W", "W.Q..W", "W####W" }, true, reg().IsSolid).Exists(i => i.Contains("铁笼")), "铁笼头顶要空");
+        Assert.IsFalse(DecoyAbility.CanDecoy(true, false, 1, false), "伪装时不能放诱饵");
+        Assert.IsFalse(DecoyAbility.CanDecoy(false, false, 0, false), "次数用完");
+        Assert.IsFalse(DecoyAbility.CanDecoy(false, false, 1, true), "同时只能一个");
+        Assert.IsTrue(Decoy.SeenThrough(new Vector2(0, 0), new Vector2(2, 0), 2.5f, false), "走近识破");
+        Assert.IsFalse(Decoy.SeenThrough(new Vector2(0, 0), new Vector2(8, 0), 2.5f, false), "远处看不穿");
+        Assert.IsTrue(Decoy.SeenThrough(new Vector2(0, 0), new Vector2(8, 0), 2.5f, true), "透视道具直接看穿");
+        string eyes = CodeOnly(Read("Scripts/Gameplay/Step1/MarioEyes.cs"));
+        StringAssert.Contains("MarioVision.CanSee(eye, facingRight, dp, decoy.transform, t)", eyes, "H4：诱饵与真身同一视锥/遮挡规则");
+        Assert.AreEqual(Step1HakoniwaEvents.AlarmAt(5, 0.4f, 25f, 70f), Step1HakoniwaEvents.AlarmAt(5, 0.4f, 25f, 70f), "警报可复现");
+        Assert.AreEqual(-1f, Step1HakoniwaEvents.AlarmAt(5, 0f, 25f, 70f), "概率 0 = 没有警报");
+        int alarms = 0; for (int sd = 0; sd < 100; sd++) { float at = Step1HakoniwaEvents.AlarmAt(sd, 0.4f, 25f, 70f); if (at >= 0f) { alarms++; Assert.That(at, Is.InRange(25f, 70f)); } }
+        Assert.That(alarms, Is.InRange(20, 60), "大约 40% 的回合有警报");
+        StringAssert.Contains("p.alarm", Read("Scripts/Gameplay/Step1/RushMarioMind.cs"), "警报走公开环境状态，不读捣蛋者信息");
+        Assert.IsTrue(MarioDoorKick.ShouldKick(new Vector2(4.4f, 1), new Vector2(5, 1), false, new Vector2(20, 1), 0.9f), "在打不开的一侧、目标在门后 → 踢");
+        Assert.IsFalse(MarioDoorKick.ShouldKick(new Vector2(5.6f, 1), new Vector2(5, 1), false, new Vector2(0, 1), 0.9f), "在能开的一侧 → 不踢（推开就行）");
+        Assert.IsFalse(MarioDoorKick.ShouldKick(new Vector2(4.4f, 1), new Vector2(5, 1), false, new Vector2(0, 1), 0.9f), "目标在自己这边 → 不踢");
+        StringAssert.Contains("AddComponent<MarioDoorKick>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(reg().GetAllRegisteredChars()), "新元素显式登记");
+        Assert.IsTrue(LevelWorkshopModel.Check(LevelWorkshopModel.HakoniwaSample, true, reg().IsSolid).Playable, "样板加油桶/铁笼后仍可玩");
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

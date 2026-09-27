@@ -67,7 +67,7 @@ public static class Step1Text
         }
     }
 
-    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   ↓ 通风管   |   V 这是什么 Labels   H 帮助 Help   Esc 暂停";
+    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   ↓ 通风管   |   V 这是什么 Labels   H 帮助 Help   Esc 暂停";
 
     public const string Help =
         "<b>怎么玩  HOW TO PLAY</b>\n\n" +
@@ -86,6 +86,9 @@ public static class Step1Text
         "   <color=#C8A070><b>裂缝地板</b></color>（宝物旁）：L 打碎，他掉进地下室。  <b>Crack floor</b>: L drops him into the basement.\n\n" +
         "<b>B 炸弹</b>（3 枚，现形才能放）：炸开附近的<b>裂墙</b>/裂缝地板/箱子，炸晕马里奥——但<b>他听得见</b>。  <b>B</b> = bomb (he hears it!)\n" +
         "<b>大炮</b>：伪装控制时 <b>←→</b> 调方向、<b>↑↓</b> 调仰角，<b>L</b> 开炮；炮弹打完后你和马里奥都能钻进去把自己打出去（冷却 30 秒）。  Cannon: aim with arrows\n" +
+        "<b>G 诱饵</b>（每局 1 次，现形才能放）：留个假的你，他会去追——走近会识破。  <b>G</b> = decoy\n" +
+        "<b>油桶</b>：被火/炸弹/炮弹点燃后爆炸，还会引爆旁边的油桶（连锁）。  <b>Oil barrel</b>: chain explosions\n" +
+        "<b>铁笼</b>：伪装在旁按 L 落下，关住下面的人 3 秒。  <b>Cage</b>: L drops it on whoever is below\n" +
         "<b>绳套</b>：谁踩到谁被倒吊 10 秒——你也会中！  <b>Snare</b>: anyone who steps in hangs for 10s\n" +
         "<b>? 道具箱</b>：谁先碰到归谁，同一个箱子给你和给他效果不同。  <b>?</b> = random pickup for whoever grabs it\n" +
         "<b>Z 缩小</b>（每局 2 次）：钻窄缝、跑得快，但不能伪装/触发机关。  <b>Z</b> = shrink\n" +
@@ -119,6 +122,18 @@ public static class Step1Text
     public const string SnareMario = "🪢 马里奥被<b>绳套</b>吊起来了！（10 秒）  Mario is snared!";
     public const string SnareYou = "🪢 你踩到<b>绳套</b>被吊起来了！  You got snared!";
     public const string ShieldBlocked = "🛡 马里奥的护盾挡住了这一下  Shield blocked it";
+    public const string BarrelBoom = "🛢 油桶爆炸！  OIL BARREL BOOM!";
+    public const string CageMario = "🔒 马里奥被<b>铁笼</b>关住了！（3 秒）  Mario is caged!";
+    public const string CageYou = "🔒 你被<b>铁笼</b>关住了！  You got caged!";
+    public const string DecoyNeedUndisguise = "要先<b>现形</b>才能放诱饵  Undisguise to drop a decoy";
+    public const string DecoyNone = "诱饵用完了  No decoys left";
+    public const string DecoyBusy = "已经有一个诱饵了  A decoy is already out";
+    public const string DecoyPlaced = "🎭 放下诱饵！快溜（还剩 {0} 个）  Decoy placed! ({0} left)";
+    public const string DecoyRevealed = "马里奥识破了诱饵！  Mario saw through the decoy!";
+    public const string AlarmOn = "🚨 <b>警报</b>响了！一段时间内你站着不动也会被怀疑  ALARM — even still disguises look suspicious";
+    public const string AlarmOff = "警报解除  Alarm off";
+    public const string DoorKicking = "咚咚！马里奥在<b>踢门</b>（2 秒）  Mario is kicking the door!";
+    public const string DoorKicked = "马里奥把门踢开了！  Mario kicked the door open!";
     public const string TimeStopWarn = "⏳ 马里奥要<b>停止时间</b>了！快躲（草丛/通风管）  Mario is about to STOP TIME — hide!";
     public const string TimeStopOn = "⏸ 时间静止！你动不了  TIME STOPPED — you're frozen";
     public const string HeardSmash = "哐！<size=20>（马里奥听见了）</size>  CRASH! (Mario heard it)";

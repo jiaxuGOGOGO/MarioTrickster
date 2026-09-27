@@ -190,7 +190,8 @@ public class MarioMindDriver : MonoBehaviour
         {
             scanReady = scan != null && scan.isActiveAndEnabled && scan.IsReady,
             carryingLoot = LootObjective.IsLootCarried,
-            hurt = hurtThisFrame
+            hurt = hurtThisFrame,
+            alarm = Step1HakoniwaEvents.AlarmOn
         };
         eyes.Look(Time.deltaTime, ref percept);
         if (hurtThisFrame) Hurt?.Invoke(Mind.State);

@@ -13,6 +13,39 @@ public class Step1HakoniwaEvents : MonoBehaviour
     [SerializeField] private MarioMindTuningSO tuning;
     private GameManager manager;
     public string LastEvent { get; private set; } = "";
+    /// <summary>S199：全场警报灯亮着（你的伪装更容易被看穿：马里奥看"像道具的东西"时起疑更快）。</summary>
+    public static bool AlarmOn { get; private set; }
+    private float alarmStart = -1f, alarmEnd = -1f, roundTime;
+
+    /// <summary>纯逻辑：本回合警报在第几秒开始（-1 = 这局没有警报）。</summary>
+    public static float AlarmAt(int seed, float chance, float earliest, float latest)
+    {
+        if (chance <= 0f) return -1f;
+        var rng = new System.Random(seed * 131 + 11);
+        if (rng.NextDouble() >= chance) return -1f;
+        return earliest + (float)rng.NextDouble() * Mathf.Max(0f, latest - earliest);
+    }
+
+    private void Update()
+    {
+        if (manager != null && manager.CurrentState != GameState.Playing) return;
+        roundTime += Time.deltaTime;
+        bool on = alarmStart >= 0f && roundTime >= alarmStart && roundTime < alarmEnd;
+        if (on && !AlarmOn) Step1Hint.Show(Step1Text.AlarmOn, 2.5f);
+        if (!on && AlarmOn) Step1Hint.Show(Step1Text.AlarmOff, 1.5f);
+        AlarmOn = on;
+    }
+
+    private void OnGUI()
+    {
+        if (!AlarmOn || Step1HandsOffCheck.IsRunning) return;
+        float w = Step1Gui.Begin();
+        var c = GUI.color;
+        GUI.color = new Color(1f, 0.15f, 0.1f, 0.10f + Mathf.PingPong(Time.time * 1.5f, 0.12f));
+        GUI.DrawTexture(new Rect(0, 0, w, Step1Gui.VirtualHeight), Texture2D.whiteTexture);
+        GUI.color = c;
+        GUI.Label(new Rect(w * 0.5f - 200, 60, 400, 40), "<color=#FF5A4A><b>🚨 警报 ALARM</b></color>", Step1Gui.Text(28, TextAnchor.MiddleCenter, false));
+    }
 
     public void SetTuning(MarioMindTuningSO t) { tuning = t; }
 
@@ -40,6 +73,11 @@ public class Step1HakoniwaEvents : MonoBehaviour
     {
         yield return null;
         LastEvent = "";
+        roundTime = 0f; AlarmOn = false;
+        var d0 = FindObjectOfType<MarioMindDriver>();
+        int s0 = d0 != null ? d0.RoundSeed : Random.Range(0, 100000);
+        alarmStart = AlarmAt(s0, tuning.alarmChance, tuning.alarmEarliest, tuning.alarmLatest);
+        alarmEnd = alarmStart + tuning.alarmSeconds;
         var walls = FindObjectsOfType<CrackedWall>();
         System.Array.Sort(walls, (a, b) => a.transform.position.x != b.transform.position.x
             ? a.transform.position.x.CompareTo(b.transform.position.x) : a.transform.position.y.CompareTo(b.transform.position.y));

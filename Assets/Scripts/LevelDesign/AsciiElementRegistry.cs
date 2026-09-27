@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 41; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?
+    private const int BUILTIN_ENTRY_COUNT = 43; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?; S199: +U Q
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -532,6 +532,21 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "PickupSpot" }, visualColor = new Color(1.00f, 0.80f, 0.20f), visualScale = new Vector2(0.6f, 0.6f),
                 customColliderSize = new Vector2(0.8f, 0.8f), customColliderOffset = Vector2.zero,
                 sortingOrder = 6, isTrigger = true
+            },
+            // S199：油桶（连锁爆炸，实心可站）、铁笼（L 落下关人 3 秒）
+            new AsciiElementEntry
+            {
+                asciiChar = 'U', elementName = "OilBarrel", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "OilBarrel" }, visualColor = new Color(0.75f, 0.25f, 0.15f), visualScale = new Vector2(0.8f, 0.9f),
+                customColliderSize = new Vector2(0.8f, 0.9f), customColliderOffset = new Vector2(0f, -0.05f),
+                sortingOrder = 4, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'Q', elementName = "IronCage", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "IronCage" }, visualColor = new Color(0.55f, 0.60f, 0.68f, 0.85f), visualScale = new Vector2(0.9f, 0.9f),
+                customColliderSize = new Vector2(0.9f, 1f), customColliderOffset = Vector2.zero,
+                sortingOrder = 7, isTrigger = true
             },
         };
         registry.BuildCache();

@@ -134,6 +134,7 @@ public class TricksterController : MonoBehaviour
     // ── S197：第 1 步技能钩子（数据驱动，默认值 = 旧行为不变）─────────
     /// <summary>移动速度倍率（缩小时变快等）。</summary>
     public float AbilitySpeedMultiplier { get; set; } = 1f;
+    public bool IsFacingRightValue => isFacingRight;
     /// <summary>跳跃力（构建器按"必须跳得上 2.5 格"设定；null = Inspector 值）。</summary>
     public void SetJumpPower(float power) { if (power > 0f) jumpPower = power; }
     public float JumpPowerValue => jumpPower;

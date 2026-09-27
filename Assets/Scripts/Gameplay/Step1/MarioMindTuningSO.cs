@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 10;
+    public const int CurrentDataVersion = 11;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -213,6 +213,36 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("加速道具：马里奥速度倍率")]
     public float pickupSpeedBoost = 1.35f;
 
+    [Header("S199: oil barrel, cage, decoy, alarm, door kick")]
+    [Tooltip("油桶引信（秒）：被点燃后闪烁多久爆炸")]
+    public float oilFuseSeconds = 0.8f;
+    [Tooltip("油桶爆炸半径（格），比炸弹略大")]
+    public float oilRadius = 1.8f;
+    [Tooltip("铁笼：关住多久（秒，之后自动打开）")]
+    public float cageSeconds = 3f;
+    [Tooltip("诱饵：每回合次数（G 键，必须现形）")]
+    public int decoysPerRound = 1;
+    [Tooltip("诱饵：存在多久（秒）")]
+    public float decoySeconds = 6f;
+    [Tooltip("诱饵：放下后往前走多久（秒）")]
+    public float decoyWalkSeconds = 1.5f;
+    [Tooltip("诱饵：马里奥离它多近会识破（格）")]
+    public float decoyRevealDistance = 2.5f;
+    [Tooltip("警报：每回合出现的概率")]
+    [Range(0f, 1f)] public float alarmChance = 0.4f;
+    [Tooltip("警报：最早第几秒开始")]
+    public float alarmEarliest = 25f;
+    [Tooltip("警报：最晚第几秒开始")]
+    public float alarmLatest = 70f;
+    [Tooltip("警报：持续多久（秒）")]
+    public float alarmSeconds = 12f;
+    [Tooltip("警报期间：静止的伪装被看见时的起疑速度 = 移动伪装速度 × 这个倍率")]
+    [Range(0f, 1f)] public float alarmStillFactor = 0.35f;
+    [Tooltip("马里奥踢开捷径门要多久（秒，0 = 不会踢门）")]
+    public float doorKickSeconds = 2f;
+    [Tooltip("H10 自动检查时也允许踢门（保证无人干预也能过）")]
+    public bool doorKickInHandsOff = true;
+
     [Header("Movement-limiting terrain (S197)")]
     [Tooltip("毒池：移动速度倍率")]
     public float poisonSpeedScale = 0.55f;
@@ -305,6 +335,11 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 11)
+        {
+            oilFuseSeconds = 0.8f; oilRadius = 1.8f; cageSeconds = 3f; decoysPerRound = 1; decoySeconds = 6f; decoyWalkSeconds = 1.5f; decoyRevealDistance = 2.5f;
+            alarmChance = 0.4f; alarmEarliest = 25f; alarmLatest = 70f; alarmSeconds = 12f; alarmStillFactor = 0.35f; doorKickSeconds = 2f; doorKickInHandsOff = true;
         }
         if (dataVersion < 10)
         {

@@ -97,6 +97,8 @@ public class LevelThemeProfile : ScriptableObject
         new ElementSpriteMapping { elementKey = "Glue" },
         new ElementSpriteMapping { elementKey = "SnareTrap" },
         new ElementSpriteMapping { elementKey = "PickupSpot" },
+        new ElementSpriteMapping { elementKey = "OilBarrel" },
+        new ElementSpriteMapping { elementKey = "IronCage" },
     };
 
     [Header("=== 角色 ===")]

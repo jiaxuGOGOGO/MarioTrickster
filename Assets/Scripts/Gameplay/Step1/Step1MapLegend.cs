@@ -20,6 +20,7 @@ public class Step1MapLegend : MonoBehaviour
         ('x', "裂缝地板：按 L 踩塌 / 炸弹炸开"), ('|', "捷径门：只能从一侧推开"), ('-', "单向台面：能从下面跳上去"),
         ('C', "塌桥：按 L 让它塌"), ('c', "箱子：挡路挡视线，<b>炸弹能炸掉</b>"), ('b', "草丛：能躲"),
         ('O', "通风管：按 ↓ 钻到配对的管口"), ('w', "毒池：减速 + 晕"), ('g', "黏胶：减速、跳不高"),
+        ('U', "油桶：被点燃会爆炸（连锁）"), ('Q', "铁笼：按 L 落下关人 3 秒"),
         ('Y', "绳套：谁踩谁被吊 10 秒"), ('?', "道具箱：谁先碰归谁"), ('K', "大炮：←→↑↓ 瞄准，L 开炮；没弹可钻进去"),
         ('J', "弹簧板：按 L 弹飞他"), ('n', "香蕉皮：按 L 让他滑"), ('~', "火：按 L 喷火"), ('[', "封路墙：按 L 升墙"),
     };
@@ -46,6 +47,8 @@ public class Step1MapLegend : MonoBehaviour
         foreach (var w in FindObjectsOfType<CrackedWall>()) if (!w.Broken) tags.Add((w.transform, "可炸", new Color(1f, 0.55f, 0.4f)));
         foreach (var d in FindObjectsOfType<OneWayDoor>()) if (!d.IsOpen) tags.Add((d.transform, d.OpenFromLeft ? "← 从左开" : "从右开 →", new Color(1f, 0.85f, 0.3f)));
         foreach (var s in FindObjectsOfType<SlowTerrain>()) tags.Add((s.transform, s.TerrainKind == SlowTerrain.Kind.Poison ? "毒" : "黏", new Color(0.7f, 1f, 0.4f)));
+        foreach (var o in OilBarrel.All) if (o != null && !o.Exploded) tags.Add((o.transform, o.Lit ? "要炸了!" : "油", new Color(1f, 0.5f, 0.3f)));
+        if (DecoyAbility.Active != null) tags.Add((DecoyAbility.Active.transform, "诱饵", new Color(0.6f, 0.8f, 1f)));
         foreach (var s in FindObjectsOfType<SnareTrap>()) tags.Add((s.transform, s.Armed ? "绳套" : "绳套(空)", new Color(1f, 0.85f, 0.5f)));
         foreach (var c in PranksterCannon.All) tags.Add((c.transform, c.HasAmmo ? $"炮 {c.ShotsLeft} 发" : c.LaunchCooldownRemaining > 0f ? $"冷却 {c.LaunchCooldownRemaining:F0}s" : "可钻", new Color(1f, 0.9f, 0.4f)));
         foreach (var p in FindObjectsOfType<PickupSpot>()) if (p.Live) tags.Add((p.transform, "?", new Color(1f, 0.85f, 0.2f)));

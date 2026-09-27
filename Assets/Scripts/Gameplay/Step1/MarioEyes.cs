@@ -81,6 +81,7 @@ public sealed class MarioEyes
         p.marioPos = mario.position;
 
         p.seesFigure = false;
+        p.sawRustle = false;
         if (figure != null && figure.isActiveAndEnabled && AnyRendererVisible())
         {
             Vector2 pos = figure.transform.position;
@@ -103,8 +104,27 @@ public sealed class MarioEyes
         }
         else hasLastFigurePos = false;
 
+        // S199：诱饵——和看你同一个视锥/遮挡规则。看得见你真身时以真身为准；只看得见诱饵时把诱饵当成你。
+        var decoy = DecoyAbility.Active;
+        if (!p.seesFigure && decoy != null && !decoy.Revealed)
+        {
+            Vector2 dp = decoy.transform.position;
+            if (MarioVision.CanSee(eye, facingRight, dp, decoy.transform, t))
+            {
+                if (Decoy.SeenThrough(mario.position, dp, decoy.RevealDistance, Time.time < RandomPickups.MarioXRayUntil))
+                {
+                    decoy.Reveal();                       // 识破：看见的是"一个假人"，并在附近起疑（只有诱饵的位置）
+                    p.sawRustle = true; p.rustlePos = dp;
+                }
+                else
+                {
+                    p.seesFigure = true; p.figurePos = dp; p.figureLooksLikeProp = false;
+                    p.figureVelocity = Vector2.zero; p.figureMoving = true; hasLastFigurePos = false;
+                }
+            }
+        }
+
         p.facingRight = facingRight;
-        p.sawRustle = false;
         if (pendingRustle != null)
         {
             pendingRustleAge += dt;

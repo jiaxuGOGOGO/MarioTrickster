@@ -109,6 +109,8 @@ public static class ElementCatalog
         I('g', "Glue", "黏胶", "Glue", Role.Terrain, "踩上去移动变慢、跳不高，离开就恢复。放在楼梯口前最狠。", "铺在地面上；别放在必须跳高的台阶前（会跳不上去）。", needsSupport: true, step1: true),
         I('Y', "SnareTrap", "绳套", "Snare", Role.PlayerPrank, "踩到就被绳子倒吊 10 秒再掉下来——马里奥中了是你的机会，你自己踩到也会中。伪装在旁按 L = 重新装好 / 放人。", "放在地面上；正上方至少空 2 格（吊起来不能卡墙）。", needsSupport: true, step1: true),
         I('?', "PickupSpot", "道具箱", "Pickup", Role.Special, "每局随机亮起几个：谁先碰到归谁，同一个箱子给你和给马里奥效果不同（反转变数）。", "放在路线附近的地面上；多放几个，每局只亮一部分。", needsSupport: true, step1: true),
+        I('U', "OilBarrel", "油桶", "Oil barrel", Role.Special, "实心障碍：被喷火、炸弹、炮弹或另一个油桶爆炸点燃，0.8 秒后爆炸（炸毁周围、伤双方、引爆旁边的油桶 → 连锁）。", "放在火旁、裂墙旁、马里奥路线旁；不炸也必须能通关（死局检查按实心算）。", needsSupport: true, step1: true),
+        I('Q', "IronCage", "铁笼", "Iron cage", Role.PlayerPrank, "悬在头顶的笼子：伪装在旁按 L 落下，关住正下方的人 3 秒后自动打开（每局一次）。炸弹能把笼子炸开。", "放在马里奥必经的地面上；头顶要空 2 格（笼子挂在上面）。", needsSupport: true, step1: true),
         I('K', "Cannon", "大炮（朝右）", "Cannon (→)", Role.PlayerPrank, "伪装在旁按 L 开一炮（每局 1 发）；打完后站进炮口把自己打飞逃跑。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: 1),
         I('k', "Cannon", "大炮（朝左）", "Cannon (←)", Role.PlayerPrank, "同上，炮口朝左。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: -1),
         I('o', "Collectible", "宝物", "Loot", Role.Objective, "马里奥要拿的宝物（实战房里自动变成 LootObjective）。", "放在离出口远的一端，只能有 1 个。", unique: true, step1: true),
@@ -230,12 +232,12 @@ public static class ElementCatalog
                     int run = 0; while (x + run < line.Length && line[x + run] == 'w') run++;
                     if (run > MaxPoolCells) issues.Add($"({x},{y}) 毒池连续 {run} 格太宽：最多 {MaxPoolCells} 格（保证晕了也能走出来）");
                 }
-                if (c == 'Y')
+                if (c == 'Y' || c == 'Q')
                     for (int d = 1; d <= 2; d++)
                     {
                         if (row - d < 0) break;
                         string above = grid[row - d];
-                        if (x < above.Length && isSolid(above[x]) && above[x] != '-') { issues.Add($"({x},{y}) 绳套：正上方第 {d} 格是实心，吊起来会卡进墙；上方至少空 2 格"); break; }
+                        if (x < above.Length && isSolid(above[x]) && above[x] != '-') { issues.Add($"({x},{y}) {(c == 'Y' ? "绳套：正上方第 {d} 格是实心，吊起来会卡进墙" : "铁笼：正上方第 {d} 格是实心，笼子挂不上去")}；上方至少空 2 格"); break; }
                     }
                 if (c == 'J')
                     for (int d = 1; d <= SpringHeadroomCells; d++)

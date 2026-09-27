@@ -10,6 +10,8 @@ public struct MarioPercept
     public bool seesFigure;
     public Vector2 figurePos;
     public bool figureLooksLikeProp;
+    /// <summary>S199：全场警报中（公开的环境状态，不是捣蛋者信息）。警报时"静止的伪装"也会慢慢引起怀疑。</summary>
+    public bool alarm;
     public bool figureMoving;
     /// <summary>S186：看得见时，它的移动速度（由两帧所见位置算出，看不见时为 0）。</summary>
     public Vector2 figureVelocity;
@@ -86,10 +88,10 @@ public sealed class RushMarioMind
         glance = Mathf.Max(0f, glance - dt);
 
         bool seesTrickster = p.seesFigure && !p.figureLooksLikeProp;
-        bool seesOddProp = p.seesFigure && p.figureLooksLikeProp && p.figureMoving;
+        bool seesOddProp = p.seesFigure && p.figureLooksLikeProp && (p.figureMoving || p.alarm);
         float rise = 0f;
         if (seesTrickster) { rise += t.seeTricksterPerSecond; Focus = p.figurePos; }
-        else if (seesOddProp) { rise += t.seeDisguisedMovePerSecond; Focus = p.figurePos; }
+        else if (seesOddProp) { rise += p.figureMoving ? t.seeDisguisedMovePerSecond : t.seeDisguisedMovePerSecond * t.alarmStillFactor; Focus = p.figurePos; }
         if (p.witnessedActivation) { Meter.Add(t.witnessedActivation); Focus = p.activationPos; }
         if (p.sawRustle)
         {

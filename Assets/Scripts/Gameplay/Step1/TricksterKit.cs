@@ -179,35 +179,42 @@ public class TricksterBomb : MonoBehaviour
 
     private void Explode()
     {
-        Vector2 c = transform.position;
+        Blast(transform.position, radius, stun, knock, damageMario, damageSelf, null);
+        Destroy(gameObject);
+    }
+
+    /// <summary>
+    /// S199：爆炸的统一规则（炸弹与油桶共用）：炸毁普通地形/摆件/裂墙/裂缝地板，伤双方，点燃范围内的油桶（连锁）。
+    /// </summary>
+    public static void Blast(Vector2 c, float radius, float stun, float knock, int damageMario, int damageSelf, OilBarrel source)
+    {
         int n = Physics2D.OverlapCircleNonAlloc(c, radius, s_hits);
         bool hitMario = false, hitFigure = false;
         for (int i = 0; i < n; i++)
         {
             var h = s_hits[i];
             if (h == null) continue;
+            var barrel = h.GetComponentInParent<OilBarrel>(); if (barrel != null) { if (barrel != source) barrel.Ignite(); continue; }
             var wall = h.GetComponentInParent<CrackedWall>(); if (wall != null) { wall.Break(); continue; }
             var crack = h.GetComponentInParent<CrackFloor>(); if (crack != null) { crack.ShatterFromBlast(); continue; }
             var prop = h.GetComponentInParent<SceneryProp>(); if (prop != null) { prop.BlowUp(); continue; }
+            var cage = h.GetComponentInParent<IronCage>(); if (cage != null) { cage.BreakOpen(); continue; }
             var mario = h.GetComponentInParent<MarioController>();
-            if (mario != null && !hitMario) { hitMario = true; HurtMario(mario, c); continue; }
+            if (mario != null && !hitMario) { hitMario = true; HurtMario(mario, c, stun, knock, damageMario); continue; }
             var figure = h.GetComponentInParent<TricksterController>();
-            if (figure != null && !hitFigure) { hitFigure = true; HurtFigure(figure, c); continue; }
+            if (figure != null && !hitFigure) { hitFigure = true; HurtFigure(figure, c, stun, knock, damageSelf); continue; }
         }
-        // S198：普通地形（地面/墙/台面，不含外圈与底层）按格炸掉
-        int cells = 0;
-        foreach (var d in new System.Collections.Generic.List<Destructible>(Destructible.All)) if (d != null) cells += d.Blast(c, radius);
+        foreach (var d in new System.Collections.Generic.List<Destructible>(Destructible.All)) if (d != null) d.Blast(c, radius);
         Exploded?.Invoke(c);
-        Step1Hint.Show(Step1Text.BombBoom);
-        var cam = FindObjectOfType<Step1RoomCamera>();
-        if (cam != null) cam.Shake(0.35f, 0.35f);
-        Destroy(gameObject);
+        Step1Hint.Show(source != null ? Step1Text.BarrelBoom : Step1Text.BombBoom);
+        var cam = Object.FindObjectOfType<Step1RoomCamera>();
+        if (cam != null) cam.Shake(source != null ? 0.45f : 0.35f, 0.35f);
     }
 
     /// <summary>纯逻辑：爆炸击退方向（左右取决于相对位置；正中间朝右）。</summary>
     public static Vector2 KnockDir(Vector2 center, Vector2 target) => new Vector2(target.x >= center.x ? 1f : -1f, 0.6f);
 
-    private void HurtMario(MarioController mario, Vector2 c)
+    private static void HurtMario(MarioController mario, Vector2 c, float stun, float knock, int damageMario)
     {
         var rb = mario.GetComponent<Rigidbody2D>();
         if (rb != null) rb.velocity = KnockDir(c, mario.transform.position) * knock;
@@ -217,11 +224,11 @@ public class TricksterBomb : MonoBehaviour
         BombEvents.RaiseMarioBlasted();
     }
 
-    private void HurtFigure(TricksterController figure, Vector2 c)
+    private static void HurtFigure(TricksterController figure, Vector2 c, float stun, float knock, int damageSelf)
     {
         // S198：炸到自己也掉命（公平 + 风险）；无敌期内不掉
         figure.Launch(KnockDir(c, figure.transform.position) * knock, stun);
-        var lives = FindObjectOfType<TricksterLives>();
+        var lives = Object.FindObjectOfType<TricksterLives>();
         if (lives != null && damageSelf > 0) lives.HitBySelf(damageSelf);
     }
 }

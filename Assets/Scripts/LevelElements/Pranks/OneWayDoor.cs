@@ -28,6 +28,13 @@ public class OneWayDoor : LevelElementBase
     public bool IsOpen => open;
     public bool OpenFromLeft => openFromLeft;
     public static event System.Action<OneWayDoor> Opened;
+    private static readonly System.Collections.Generic.List<OneWayDoor> doors = new System.Collections.Generic.List<OneWayDoor>();
+    public static System.Collections.Generic.IReadOnlyList<OneWayDoor> AllDoors => doors;
+    private float shake;
+    protected override void OnEnable() { base.OnEnable(); if (!doors.Contains(this)) doors.Add(this); }
+    protected override void OnDisable() { base.OnDisable(); doors.Remove(this); }
+    /// <summary>S199：被踢时抖动（看得见，H3）。</summary>
+    public void Shake() { shake = 0.15f; }
 
     public void Configure(bool fromLeft, float seconds) { openFromLeft = fromLeft; openSeconds = seconds; }
 
@@ -53,6 +60,7 @@ public class OneWayDoor : LevelElementBase
     private void Update()
     {
         if (open) return;
+        if (shake > 0f && visual != null) { shake -= Time.deltaTime; visual.localPosition = new Vector3(Mathf.Sin(Time.time * 60f) * 0.06f, 0f, 0f); if (shake <= 0f) visual.localPosition = Vector3.zero; }
         Vector2 door = transform.position;
         Vector2 probe = door + new Vector2(openFromLeft ? -(0.5f + reach * 0.5f) : (0.5f + reach * 0.5f), 0f);
         int n = Physics2D.OverlapBoxNonAlloc(probe, new Vector2(reach, 0.9f), 0f, s_hits);

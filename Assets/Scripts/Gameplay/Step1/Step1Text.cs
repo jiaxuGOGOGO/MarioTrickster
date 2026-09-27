@@ -67,7 +67,7 @@ public static class Step1Text
         }
     }
 
-    public const string ControlsBar = "← → 移动 Move    ↑ 跳 Jump    P 伪装 Disguise    L 触发机关 Trigger    |    H 帮助 Help    Esc 暂停 Pause";
+    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发 Trigger   |   V 这是什么 Labels   H 帮助 Help   Esc 暂停";
 
     public const string Help =
         "<b>怎么玩  HOW TO PLAY</b>\n\n" +
@@ -88,7 +88,7 @@ public static class Step1Text
         "每局<b>藏身处和火会随机变化</b>。   Hiding spots and some fires change every round.\n" +
         "马里奥头顶  Above Mario:   <b>?</b> 起疑   <b>!</b> 来查看   <b>!!</b> 看见你在追   <b>?!</b> 追丢了\n" +
         "白色扇形 = 他的视野，墙会挡住。   White cone = his view (walls block it).\n\n" +
-        "<color=#BBBBBB>H 关闭帮助 close help    C 换镜头 camera</color>";
+        "<color=#BBBBBB>V 显示每个东西是什么 labels    H 关闭帮助 help    C 换镜头 camera</color>";
 
     public const string Paused = "已暂停  Paused\n<size=22>Esc 继续 Resume</size>";
     public const string AfterSurvey = "✓ 已保存 Saved\n\n<b>N</b> = 下一局 Next round        <b>R</b> = 从头开始 Restart";

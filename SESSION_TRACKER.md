@@ -91,13 +91,24 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 187（大炮 K/k：一发炮弹伤害 + 打完人肉发射逃跑；场景摆件 c/b/d；受控随机布局 32 组合全可达；草丛起风否认空间；游乐园/公园/山上公园主题底子） |
+| **最新 Session** | Session 188（修 S187 两个测试；元素说明书 ElementCatalog + 摆放检查 + V 键标签 + 元素图例；第 1 步构建时移除不用的旧系统） |
+| **上一 Session** | Session 187（大炮 K/k：一发炮弹伤害 + 打完人肉发射逃跑；场景摆件 c/b/d；受控随机布局 32 组合全可达；草丛起风否认空间；游乐园/公园/山上公园主题底子） |
 | **日期** | 2026-09-26 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
 | **阶段** | 第 0 步已由用户在 Unity 确认（Console 无错、EditMode 全绿）。S180 实现第 1 步：菜单 `MarioTrickster → Step 1 → Build Prank Room` 生成 36×10 单屏房间；马里奥由 `RushMarioMind` 驱动（? → ! → !! → ?!），只凭 `MarioEyes` 视锥+距离+遮挡感知；捣蛋者 3 条命；默认整屏镜头（C 键切换）。 |
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S188] 用户：两个测试红 + "有些机关不知道是什么，自己摆容易摆错、影响换素材" + 做减法
+
+- S187 实测：H10 5/5（21.5–26.6s）；真人 1 局 31.4s，首次记到 Cannon 命中 1 次（Cannon:1 Escape:2，distinct 2），连招 1，被抓判"服气"，想再来 3。
+- 修测试：①`NewElementsAreRegisteredWithoutTouchingGeneratorCore` 把生成器文件头注释（字符表说明）当成代码 → 改为只查代码行（`CodeOnly`），并额外禁止 `SceneryProp`；②`SlowerMarioIsDataDrivenAndDefaultBotUnchanged` 断言写死了 S186 前的旧表达式 → 改为断言数据来源。另把全部 EditMode 源码断言与源码逐条比对（按测试方法分作用域）0 不符。
+- `ElementCatalog`（运行时程序集，纯数据）：每个字符的中英文名、角色、干什么、摆在哪、主题键、唯一/脚下实心/第 1 步可用/炮口方向；参考 LDtk 实体定义（https://ldtk.io/docs/general/editor-components/entities/）。测试保证与 Registry 一一对应、主题键 = elementName、所有非地形元素都有主题插槽。
+- `ElementCatalog.PlacementIssues`：脚下实心、唯一元素、炮口前 3 格留空、第 1 步禁用元素；`Step1PrankRoomBuilder.Validate` 调用（32 变体全过）。发现并修正宝物区炮口前第 3 格是随机箱子槽（x40→x39）。
+- `Step1ElementLabels`：游戏里按 V 显示每个元素中英文名（按物体名前缀 = 主题键查说明书，换图后仍正确）；Level Builder 调色板按钮悬停显示说明；`ElementLegendExporter` 菜单生成 `docs/ELEMENT_LEGEND.md`（已随包附一份）。
+- 减法：`StripUnusedLegacy` 构建时移除第 1 步不用的 GlobalGameUICanvas / SuspicionHUD / LootEscapeHUD / ResidueVisualHint / MarioSuspicionTracker（代码保留给其他场景；`CanWitness` 是静态方法仍可用）。
+- 构建器版本 8；测试 50→56。
 
 ### [S187] 用户提新机制：大炮 + 场景摆件 + 随机涌现 + 主题底子（详见 docs/step1/S187_CANNON_SCENERY_RANDOM_THEME.md）
 

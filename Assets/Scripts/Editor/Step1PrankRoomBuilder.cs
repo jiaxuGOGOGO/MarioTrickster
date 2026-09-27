@@ -33,8 +33,9 @@ public static class Step1PrankRoomBuilder
     /// S184 = 5：房间扩大为 48×12 三区，加遮挡（高墙 + 箱子）。
     /// S185 = 6：连招系统（Step1Combo）+ 伪装融入时间来自调参。
     /// S187 = 7：大炮（K/k）+ 场景摆件（箱子/草丛）+ 每回合随机布局 + 游乐园主题配色。
+    /// S188 = 8：摆放检查（ElementCatalog）+ V 键元素标签 + 构建时移除第 1 步不用的旧系统（减法）；宝物区炮口让开 3 格。
     /// </summary>
-    public const int BuilderVersion = 7;
+    public const int BuilderVersion = 8;
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
     // S184（用户反馈"地图太小、博弈空间不够"）：36×10 → 48×12，分三区（放松区 / 中区 / 宝物区，宪法 P3）：
@@ -56,7 +57,7 @@ public static class Step1PrankRoomBuilder
         "W...............W..............W...............W",
         "W...............W..............W...............W",
         "W.....----......W.---.....----.W...----........W",
-        "W.G.M..2.~..1...[.K.T......b3..[..2..~..1.k.o..W",
+        "W.G.M..2.~..1...[.K.T......b3..[..2..~1...k.o..W",
         "W####################CCCC-#####################W",
         "W####################..~..#####################W",
         "W##############################################W"
@@ -108,6 +109,26 @@ public static class Step1PrankRoomBuilder
                 result.Add(new VariantSlot { cell = cell, options = options, objects = objects });
             }
         return result;
+    }
+
+    /// <summary>
+    /// S188 减法：第 1 步房间不用的旧系统在构建时直接移除（代码保留给其他场景，这里不再运行、不再占屏幕）。
+    /// 旧 UGUI 总 HUD、旧起疑/拿宝 HUD、第 0 步锚点起疑追踪与残留提示——第 1 步的马里奥只用 MarioEyes/RushMarioMind。
+    /// </summary>
+    public static readonly System.Type[] Step1Unused =
+    {
+        typeof(SuspicionHUD), typeof(LootEscapeHUD), typeof(ResidueVisualHint), typeof(MarioSuspicionTracker)
+    };
+
+    public static int StripUnusedLegacy(GameObject managers)
+    {
+        int removed = 0;
+        foreach (var type in Step1Unused)
+            foreach (var c in Object.FindObjectsOfType(type))
+            { Object.DestroyImmediate(c); removed++; }
+        foreach (var canvas in Object.FindObjectsOfType<GlobalGameUICanvas>())
+        { Object.DestroyImmediate(canvas.gameObject); removed++; }
+        return removed;
     }
 
     /// <summary>S187：大炮每回合炮弹数来自调参数据。</summary>
@@ -235,7 +256,10 @@ public static class Step1PrankRoomBuilder
         if (!string.IsNullOrEmpty(error)) { ok = false; return error; }
         var l1 = AsciiLevelValidator.ValidateTemplate(doc.Grid);
         var l2 = LevelReachabilityAnalyzer.Analyze(doc.Grid);
-        ok = l1.errors.Count == 0 && l2.IsReachable;
+        // S188：元素说明书的摆放规则（脚下实心、唯一、炮口留空、第 1 步可用）
+        var placement = ElementCatalog.PlacementIssues(doc.Grid.Split('\n'), true, AsciiElementRegistry.GetDefault().IsSolid);
+        ok = l1.errors.Count == 0 && l2.IsReachable && placement.Count == 0;
+        if (placement.Count > 0) return "Placement: " + string.Join("\n", placement);
         return "L1 errors=" + l1.errors.Count + ", warnings=" + l1.warnings.Count + "; L2 reachable=" + l2.IsReachable +
             (l1.errors.Count + l1.warnings.Count > 0 ? "\n" + string.Join("\n", l1.errors.Concat(l1.warnings)) : "");
     }
@@ -304,6 +328,8 @@ public static class Step1PrankRoomBuilder
         var handsOffSo = new SerializedObject(handsOff);
         handsOffSo.FindProperty("tuning").objectReferenceValue = tuning;
         handsOffSo.ApplyModifiedPropertiesWithoutUndo();
+        gm.gameObject.AddComponent<Step1ElementLabels>();
+        StripUnusedLegacy(gm.gameObject);
         var combo = gm.gameObject.AddComponent<Step1Combo>();
         var comboSo = new SerializedObject(combo);
         comboSo.FindProperty("tuning").objectReferenceValue = tuning;

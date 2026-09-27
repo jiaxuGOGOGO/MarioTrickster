@@ -722,7 +722,10 @@ public partial class TestConsoleWindow
             GUI.backgroundColor = color;
         }
 
-        Rect btnRect = GUILayoutUtility.GetRect(new GUIContent(label), style, GUILayout.Height(25));
+        // S188：鼠标悬停显示元素说明书里的"它是干什么的 / 摆在哪"
+        var info = ElementCatalog.Get(charKey);
+        var content = new GUIContent(label, info != null ? $"{info.zh} {info.en}\n{info.what}\n摆放：{info.place}" : label);
+        Rect btnRect = GUILayoutUtility.GetRect(content, style, GUILayout.Height(25));
 
         // 检测右键点击
         Event e = Event.current;
@@ -733,7 +736,7 @@ public partial class TestConsoleWindow
             e.Use();
             Repaint();
         }
-        else if (GUI.Button(btnRect, label, style))
+        else if (GUI.Button(btnRect, content, style))
         {
             // 左键：单个放置（原有行为）
             SpawnElementAtSceneCenter(charKey, label);

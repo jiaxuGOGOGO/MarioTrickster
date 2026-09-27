@@ -199,6 +199,18 @@ public class Step1RushMarioTests
         Assert.AreEqual(1, CountOf(eyes, "IsDisguised"), "外观只读一次，且在 CanSee 之内");
     }
 
+    /// <summary>去掉 // 与 /// 注释，只留代码。</summary>
+    static string CodeOnly(string src)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var line in src.Split('\n'))
+        {
+            int i = line.IndexOf("//", System.StringComparison.Ordinal);
+            sb.AppendLine(i >= 0 ? line.Substring(0, i) : line);
+        }
+        return sb.ToString();
+    }
+
     static int CountOf(string s, string token) { int n = 0, i = 0; while ((i = s.IndexOf(token, i)) >= 0) { n++; i += token.Length; } return n; }
 
     // ── 房间与规则 ────────────────────────────────────
@@ -471,7 +483,7 @@ public class Step1RushMarioTests
         Assert.Less(t.marioSpeedScale, 1f);
         Assert.GreaterOrEqual(t.startDelaySeconds, 4f);
         Assert.AreEqual(1f, new HeuristicBotInputProvider().MarioSpeedScale, "其他场景的 Bot 默认原速");
-        StringAssert.Contains("hybrid.Bot.MarioSpeedScale = tuning.marioSpeedScale", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
+        StringAssert.Contains("tuning.marioSpeedScale) * roundSpeedFactor", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"), "巡逻速度来自调参数据");
     }
 
     [Test]
@@ -631,9 +643,10 @@ public class Step1RushMarioTests
         Assert.IsTrue(registry.GetEntry('b').isTrigger, "草丛可穿过");
         CollectionAssert.Contains(registry.GetEntry('b').componentTypeNames, "SightBlocker");
         CollectionAssert.Contains(registry.GetEntry('k').componentTypeNames, "CannonFacesLeft");
-        string gen = Read("Scripts/LevelDesign/AsciiLevelGenerator.cs");
-        foreach (string banned in new[] { "SpawnCannon", "SpawnCrate", "SpawnBush", "PranksterCannon" })
-            StringAssert.DoesNotContain(banned, gen, "零代码新增元素：生成器核心不得出现新元素专属代码");
+        // 只查代码行（注释里的字符表说明允许提到新元素）
+        string gen = CodeOnly(Read("Scripts/LevelDesign/AsciiLevelGenerator.cs"));
+        foreach (string banned in new[] { "SpawnCannon", "SpawnCrate", "SpawnBush", "PranksterCannon", "SceneryProp" })
+            StringAssert.DoesNotContain(banned, gen, "零代码新增元素：生成器核心代码不得出现新元素专属逻辑");
         var theme = ScriptableObject.CreateInstance<LevelThemeProfile>();
         foreach (string key in new[] { "Cannon", "Crate", "Bush", "Decor" })
             Assert.IsTrue(System.Array.Exists(theme.elementSprites, m => m.elementKey == key), "主题缺少换图插槽 " + key);
@@ -734,5 +747,81 @@ public class Step1RushMarioTests
             Assert.IsTrue(p.GetElementColor("Bush").HasValue);
         }
         Assert.IsTrue(ThemePresets.IsKnown(Tuning().themePreset), "默认主题必须是已知预设");
+    }
+
+    // ── S188：元素说明书 / 摆放检查 / 美术插槽一致 / 减法 ──────────
+    [Test]
+    public void EveryRegisteredCharHasACatalogEntryWithMatchingThemeKey()
+    {
+        var reg = AsciiElementRegistry.GetDefault();
+        foreach (char c in reg.GetAllRegisteredChars())
+        {
+            var info = ElementCatalog.Get(c);
+            Assert.IsNotNull(info, $"'{c}' 已登记但元素说明书里没有说明（新增元素必须写说明）");
+            Assert.AreEqual(reg.GetEntry(c).elementName, info.themeKey, $"'{c}' 主题键必须等于 Registry 名（物体名前缀），美术拖图才能对上");
+            Assert.IsNotEmpty(info.zh); Assert.IsNotEmpty(info.what);
+        }
+        foreach (var info in ElementCatalog.All)
+            Assert.IsNotNull(reg.GetEntry(info.ch), $"说明书里的 '{info.ch}' 没有在 Registry 登记");
+    }
+
+    [Test]
+    public void EveryNonTerrainElementHasAThemeSlot()
+    {
+        var theme = ScriptableObject.CreateInstance<LevelThemeProfile>();
+        var skip = new HashSet<string> { "Ground", "Platform", "Wall", "Air", "Space", "MarioSpawn", "TricksterSpawn" };
+        var missing = new List<string>();
+        foreach (var info in ElementCatalog.All)
+        {
+            if (skip.Contains(info.themeKey)) continue;
+            if (!System.Array.Exists(theme.elementSprites, m => m.elementKey == info.themeKey)) missing.Add(info.themeKey);
+        }
+        CollectionAssert.IsEmpty(missing, "这些元素在主题里没有换图插槽：" + string.Join(",", missing));
+    }
+
+    [Test]
+    public void PlacementCheckCatchesCommonMistakes()
+    {
+        System.Func<char, bool> solid = AsciiElementRegistry.GetDefault().IsSolid;
+        var floating = new[] { "W.....W", "W..c..W", "W.....W", "W#####W" };
+        Assert.IsTrue(ElementCatalog.PlacementIssues(floating, true, solid).Exists(i => i.Contains("脚下不是实心")), "悬空箱子");
+        var blocked = new[] { "W.....W", "WK#...W", "W#####W" };
+        Assert.IsTrue(ElementCatalog.PlacementIssues(blocked, true, solid).Exists(i => i.Contains("炮口")), "炮口贴墙");
+        var twoLoot = new[] { "W.o.o.W", "W#####W" };
+        Assert.IsTrue(ElementCatalog.PlacementIssues(twoLoot, true, solid).Exists(i => i.Contains("只能有 1 个")), "两个宝物");
+        var spikes = new[] { "W..^..W", "W#####W" };
+        Assert.IsTrue(ElementCatalog.PlacementIssues(spikes, true, solid).Exists(i => i.Contains("第 1 步")), "第 1 步不用地刺");
+        Assert.IsEmpty(ElementCatalog.PlacementIssues(spikes, false, solid), "其他关卡允许地刺");
+        var good = new[] { "W......W", "WK...c.W", "W######W" };
+        Assert.IsEmpty(ElementCatalog.PlacementIssues(good, true, solid));
+    }
+
+    [Test]
+    public void Step1RoomPassesPlacementCheckForEveryVariant()
+    {
+        string report = Step1PrankRoomBuilder.ValidateAllVariants(out bool ok);
+        Assert.IsTrue(ok, report);
+        StringAssert.Contains("ElementCatalog.PlacementIssues", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"), "构建器必须跑摆放检查");
+    }
+
+    [Test]
+    public void LabelsResolveGeneratedNamesToCatalog()
+    {
+        Assert.AreEqual("Cannon", Step1ElementLabels.KeyOf("Cannon_18_3"));
+        Assert.AreEqual("Collectible", Step1ElementLabels.KeyOf("LootObjective_Collectible_44_3"));
+        Assert.AreEqual("GoalZone", Step1ElementLabels.KeyOf("EscapeGate_GoalZone_2_3"));
+        Assert.IsNotNull(ElementCatalog.ByKey(Step1ElementLabels.KeyOf("Bush_7_3")));
+    }
+
+    [Test]
+    public void LegendListsEveryElementAndStep1StripsUnusedLegacy()
+    {
+        string legend = ElementLegendExporter.Build();
+        foreach (var info in ElementCatalog.All)
+            if (info.ch != '.' && info.ch != ' ') StringAssert.Contains("`" + info.ch + "`", legend);
+        string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
+        StringAssert.Contains("StripUnusedLegacy(gm.gameObject)", builder, "减法：第 1 步房间不跑用不到的旧系统");
+        foreach (var t in Step1PrankRoomBuilder.Step1Unused)
+            StringAssert.DoesNotContain(t.Name, CodeOnly(Read("Scripts/Gameplay/Step1/MarioEyes.cs")), "第 1 步马里奥感知不依赖被移除的系统");
     }
 }

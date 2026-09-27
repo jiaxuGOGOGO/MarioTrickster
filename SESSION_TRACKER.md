@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 201（接续包：`docs/AI_CONTINUE_PACK/`——SKILL.md 原则与红线 + 按功能分册 + 一键搭建/验证/打补丁脚本；新对话先读它） |
+| **最新 Session** | Session 201（接续包：`docs/AI_CONTINUE_PACK/`——SKILL.md 原则与红线 + 按功能分册 + 一键搭建/验证/打补丁脚本；新对话先读它；换账号也能用：自带未上传补丁、bat 可拖入项目文件夹） |
 | **S200** | Session 200（以身入局：F 连锁编排/Shift+F 一键布置 + 预判落点自动接力；T 挑衅；绊线 R；马里奥学习层；诱捕走廊样板） |
 | **S199** | Session 199（油桶 U 连锁爆炸（火/炸弹/炮弹/桶点燃，共用 TricksterBomb.Blast）；铁笼 Q；诱饵 G（同视锥，近看识破，透视看穿）；警报随机事件（静止伪装也会被怀疑）；马里奥踢门） |
 | **S198** | Session 198（修来回跳（进展式卡住判定 + 头顶路点对准再跳）、贴墙粘住、塌桥只塌一格；普通地形可炸 Destructible（外圈/底层锁定）；炸弹伤双方；大炮 ←→↑↓ 瞄准 + 马里奥也能钻炮 + 冷却 30s；墙上通风口 ←→；绳套 Y；随机道具箱 ?（同箱反转）） |

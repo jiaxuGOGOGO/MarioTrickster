@@ -9,6 +9,15 @@ PACK=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$WS" && cd "$WS"
 if [ ! -d repo/.git ]; then git clone -q -b genspark_ai_developer https://github.com/jiaxuGOGOGO/MarioTrickster.git repo; else git -C repo fetch -q origin && git -C repo checkout -q genspark_ai_developer && git -C repo pull -q --ff-only || true; fi
 git -C repo config user.name "MarioTrickster AI"; git -C repo config user.email "ai@mariotrickster.local"
+# 接续包里自带"还没上传到 GitHub"的补丁（换账号/用户忘了跑 bat 时也不丢进度）：缺哪个补哪个
+if ls "$PACK/pending/"*.patch >/dev/null 2>&1; then
+  for p in "$PACK/pending/"*.patch; do
+    subj=$(sed -n 's/^Subject: \[PATCH[^]]*\] //p' "$p" | head -1)
+    if git -C repo log --format=%s -200 | grep -qF "$subj"; then echo "已有: $subj"; else
+      git -C repo am -q --whitespace=nowarn "$p" && echo "补上: $subj" || { git -C repo am --abort; echo "补丁冲突: $p（说明 GitHub 上已有更新的改动，按 git log 判断）"; }
+    fi
+  done
+fi
 fetch() { # id version dir
   [ -d "unityref/$3/lib" ] && return 0
   mkdir -p "unityref/$3" && curl -sL "https://api.nuget.org/v3-flatcontainer/$1/$2/$1.$2.nupkg" -o "unityref/$3.nupkg" && (cd "unityref/$3" && unzip -qo "../$3.nupkg" && chmod -R u+rwX .)

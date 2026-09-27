@@ -30,6 +30,15 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 | 文件在哪、关键数值、字符表 | `references/project-map.md` |
 | 打包交付给用户 | `references/delivery.md` |
 
+## 0.5 换账号 / 全新对话也能接上（不依赖任何账号记忆）
+
+- 本包**自给自足**：不需要旧账号的历史对话、记忆或 AI Drive。仓库是公开的（`https://github.com/jiaxuGOGOGO/MarioTrickster`），任何账号都能克隆。
+- 用户如果**没有把技能加进新账号**，而是直接把 `mariotrickster-continue.skill`（zip）发进对话：`gsk download` 下来 → `unzip` 到 `~/.opencode/skills/` 或工作区 → 读里面的 `SKILL.md`，照做即可。
+- `scripts/pending/*.patch` = 打包时**还没上传到 GitHub** 的改动。`setup_sandbox.sh` 会自动检查：GitHub 上缺哪个就补哪个（已有的跳过）。所以哪怕用户换了账号、忘了跑 bat，进度也不会丢。补完后在汇报里提醒用户"上次的补丁还没上传，这次的 bat 会一起带上"。
+- 上传 GitHub 是用户**自己电脑上的 git 账号**在做（bat 里选 Y），和 Genspark 账号无关。如果用户换了 GitHub 账号、推不上去：让他在仓库设置里把新账号加为协作者，或 fork 后告诉你新地址（改 `setup_sandbox.sh` 与 `make_patch.sh` 里的仓库地址）。
+- bat 找不到项目文件夹时会让用户**把 MarioTrickster 文件夹拖进窗口**，换电脑/换路径也能用。
+- **每次交付后**都要刷新本包：`scripts/pending/` 换成最新未上传补丁（`make_patch.sh` 的输出里那些 .patch），并重新打 `.skill` 交给用户，让用户"随时都拿着最新的接续包"。
+
 ## 1. 设计宪法硬规则（违反 = 不许交付）
 
 权威原文：`repo/docs/DESIGN_CONSTITUTION_v1.0.md`。每次改动都要自问这 10 条：

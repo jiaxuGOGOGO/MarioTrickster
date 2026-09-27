@@ -11,18 +11,25 @@ public sealed class Step1ComboCounter
     public int Count { get; private set; }
     public int Max { get; private set; }
     public float LastHitTime => lastHit;
+    /// <summary>S193：本回合连招总分（换招加分、同招减半）。</summary>
+    public int Score { get; private set; }
+    public string LastKind { get; private set; } = "";
 
     public Step1ComboCounter(float window) { Window = window; }
 
-    public int Register(float time)
+    public int Register(float time) => Register(time, "");
+
+    public int Register(float time, string kind)
     {
         Count = time - lastHit <= Window ? Count + 1 : 1;
         lastHit = time;
         if (Count > Max) Max = Count;
+        Score += Step1ComboFeel.StepScore(Count, kind ?? "", Count > 1 ? LastKind : "");
+        LastKind = kind ?? "";
         return Count;
     }
 
-    public void Reset() { lastHit = float.NegativeInfinity; Count = 0; Max = 0; }
+    public void Reset() { lastHit = float.NegativeInfinity; Count = 0; Max = 0; Score = 0; LastKind = ""; }
 }
 
 /// <summary>
@@ -38,6 +45,9 @@ public class Step1Combo : MonoBehaviour
     public event Action<int, string> ComboRegistered;
     public Step1ComboCounter Counter { get; private set; }
     public int MaxThisRound => Counter != null ? Counter.Max : 0;
+    public int ScoreThisRound => Counter != null ? Counter.Score : 0;
+    private Step1RoomCamera roomCamera;
+    private Step1Hitstop hitstop;
 
     private MarioMindDriver driver;
     private MarioController mario;
@@ -47,6 +57,7 @@ public class Step1Combo : MonoBehaviour
     private float floorY = float.NaN;
     private float flashUntil;
     private string flashText = "";
+    private int flashSize = 32;
 
     private void Start()
     {
@@ -57,12 +68,22 @@ public class Step1Combo : MonoBehaviour
         if (driver != null) driver.Hurt += HandleHurt;
         manager = GameManager.Instance;
         if (manager != null) manager.OnRoundStart += ResetRound;
+        roomCamera = FindObjectOfType<Step1RoomCamera>();
+        hitstop = GetComponent<Step1Hitstop>();
+        if (hitstop == null) hitstop = gameObject.AddComponent<Step1Hitstop>();
+        SpringPadEvents.Launched += HandleLaunched;
+        CrackFloorEvents.MarioFell += HandleFell;
     }
+
+    private void HandleLaunched() => Register("launch");
+    private void HandleFell() => Register("drop");
 
     private void OnDestroy()
     {
         if (driver != null) driver.Hurt -= HandleHurt;
         if (manager != null) manager.OnRoundStart -= ResetRound;
+        SpringPadEvents.Launched -= HandleLaunched;
+        CrackFloorEvents.MarioFell -= HandleFell;
     }
 
     private void ResetRound()
@@ -74,8 +95,18 @@ public class Step1Combo : MonoBehaviour
     private int Register(string kind)
     {
         Counter.Window = tuning.comboWindowSeconds;
-        int n = Counter.Register(Time.time);
-        if (n >= 2) { flashText = $"连招 x{n}!\nCOMBO x{n}!"; flashUntil = Time.time + tuning.comboFlashSeconds; }
+        int n = Counter.Register(Time.time, kind);
+        if (n >= 2)
+        {
+            flashText = $"<color={Step1ComboFeel.TierColor(n)}>x{n}  {Step1ComboFeel.TierName(n)}</color>";
+            flashUntil = Time.time + tuning.comboFlashSeconds;
+            flashSize = 30 + Mathf.Min(4, n - 2) * 4; // 段位越高字越大
+        }
+        // S193 手感：顿帧 + 屏幕震动（段数越高越重）
+        if (hitstop != null)
+            hitstop.Request(Step1ComboFeel.HitstopSeconds(n, tuning.hitstopBaseSeconds, tuning.hitstopPerStepSeconds, tuning.hitstopMaxSeconds), tuning.hitstopTimeScale);
+        if (roomCamera != null)
+            roomCamera.Shake(Step1ComboFeel.ShakeAmplitude(n, tuning.shakePerStep, tuning.shakeMax), tuning.shakeSeconds);
         ComboRegistered?.Invoke(n, kind);
         return n;
     }
@@ -83,8 +114,9 @@ public class Step1Combo : MonoBehaviour
     private void HandleHurt(MarioMindState state)
     {
         int n = Register("hurt");
+        // S193：递减追加（格斗游戏 damage scaling）—— 第 2 段 +0.6s，第 3 段 +0.42s，第 4 段 +0.29s…，总量仍受 maxStunSeconds 限制
         if (n >= 2 && driver != null && driver.Mind != null)
-            driver.Mind.ExtendStun(tuning.comboBonusStunSeconds * (n - 1), tuning.maxStunSeconds);
+            driver.Mind.ExtendStun(Step1ComboFeel.BonusStun(n, tuning.comboBonusStunSeconds, tuning.comboStunScaling), tuning.maxStunSeconds);
     }
 
     private void Update()
@@ -116,8 +148,11 @@ public class Step1Combo : MonoBehaviour
         Step1Gui.Begin();
         float scale = Mathf.Max(0.1f, Screen.height / Step1Gui.VirtualHeight);
         var at = new Vector2(sp.x / scale, (Screen.height - sp.y) / scale);
-        var r = new Rect(at.x - 170f, at.y - 45f, 340f, 90f);
+        // 弹出动画：刚出现时放大再回落
+        float age = tuning.comboFlashSeconds - (flashUntil - Time.time);
+        float pop = 1f + Mathf.Max(0f, 0.35f - age) * 1.2f;
+        var r = new Rect(at.x - 210f * pop, at.y - 45f * pop, 420f * pop, 90f * pop);
         Step1Gui.Panel(r, 0.7f);
-        GUI.Label(r, $"<color=#FFD24A><b>{flashText}</b></color>", Step1Gui.Text(32, TextAnchor.MiddleCenter));
+        GUI.Label(r, $"<b>{flashText}</b>", Step1Gui.Text(Mathf.RoundToInt(flashSize * pop), TextAnchor.MiddleCenter));
     }
 }

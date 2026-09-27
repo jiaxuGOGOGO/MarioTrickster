@@ -158,13 +158,15 @@ public class LevelWorkshopWindow : EditorWindow
             SetSource(LevelWorkshopModel.NewRoom(48, 12), "New room");
         if (GUILayout.Button("载入恶作剧房间", EditorStyles.toolbarButton, GUILayout.Width(96)))
             SetSource(string.Join("\n", Step1PrankRoomBuilder.Room), "Load prank room");
+        if (GUILayout.Button(new GUIContent("样板：两层监狱", "纵向逃脱示例：地下拿宝、爬回地面；裂缝地板 x + 弹簧板 J"), EditorStyles.toolbarButton, GUILayout.Width(96)))
+            SetSource(string.Join("\n", LevelWorkshopModel.PrisonSample), "Load prison sample");
         if (GUILayout.Button("导入", EditorStyles.toolbarButton, GUILayout.Width(44))) Import();
         if (GUILayout.Button("导出", EditorStyles.toolbarButton, GUILayout.Width(44))) Export();
         GUILayout.Space(10);
         tool = (LevelWorkshopModel.Tool)GUILayout.Toolbar((int)tool, new[] { "✎ 画笔", "▭ 矩形", "⌫ 橡皮", "⊙ 吸管" }, EditorStyles.toolbarButton, GUILayout.Width(260));
         GUILayout.Space(10);
         step1Mode = GUILayout.Toggle(step1Mode, new GUIContent("第 1 步规则", "只显示/允许第 1 步恶作剧房间能用的元素，并按第 1 步规则检查"), EditorStyles.toolbarButton, GUILayout.Width(80));
-        worstCase = GUILayout.Toggle(worstCase, new GUIContent("最坏情况预览", "所有塌桥塌掉、封路墙升起时：红 = 死局（出不去），黄 = 暂时出不去"), EditorStyles.toolbarButton, GUILayout.Width(90));
+        worstCase = GUILayout.Toggle(worstCase, new GUIContent("最坏情况预览", "所有塌桥塌掉、裂缝地板碎掉、封路墙升起时：红 = 死局（出不去），黄 = 暂时出不去"), EditorStyles.toolbarButton, GUILayout.Width(90));
         GUILayout.FlexibleSpace();
         zoom = GUILayout.HorizontalSlider(zoom, 12f, 36f, GUILayout.Width(90));
         EditorGUILayout.EndHorizontal();
@@ -269,7 +271,7 @@ public class LevelWorkshopWindow : EditorWindow
         {
             shownKey = sk;
             IList<string> rows = Rows();
-            shownCache = worstCase ? LevelDeadlockAnalyzer.ApplyPrankState(LevelDeadlockAnalyzer.ApplyPrankState(rows, 'C', '.'), '[', 'W') : rows;
+            shownCache = worstCase ? LevelDeadlockAnalyzer.ApplyPrankState(LevelDeadlockAnalyzer.ApplyPrankState(rows, LevelDeadlockAnalyzer.PersistentOpeners, '.'), '[', 'W') : rows;
         }
         IList<string> shown = shownCache;
 

@@ -15,6 +15,8 @@ public class Step1RoomCamera : MonoBehaviour
     [SerializeField] private float smoothing = 6f;
 
     private Camera cam;
+    private float shakeAmp, shakeUntil, shakeDuration;
+    private Vector3 shakeOffset;
     public Step1CameraMode Mode { get; private set; }
     public Rect RoomBounds => roomBounds;
 
@@ -50,13 +52,29 @@ public class Step1RoomCamera : MonoBehaviour
         Frame(out Vector2 center, out float size);
         float k = 1f - Mathf.Exp(-smoothing * Time.unscaledDeltaTime);
         Vector3 target = new Vector3(center.x, center.y, transform.position.z);
-        transform.position = Vector3.Lerp(transform.position, target, k);
+        Vector3 basePos = transform.position - shakeOffset;
+        basePos = Vector3.Lerp(basePos, target, k);
+        // S193：连招震屏（真实时间计时，顿帧期间也在抖）
+        float left = shakeUntil - Time.unscaledTime;
+        shakeOffset = left > 0f && shakeDuration > 0f
+            ? (Vector3)(Random.insideUnitCircle * shakeAmp * (left / shakeDuration))
+            : Vector3.zero;
+        transform.position = basePos + shakeOffset;
         cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, size, k);
+    }
+
+    /// <summary>S193：屏幕震动（幅度按格，随时间衰减）。多次调用取较大的那次。</summary>
+    public void Shake(float amplitude, float seconds)
+    {
+        if (amplitude <= 0f || seconds <= 0f || Step1HandsOffCheck.IsRunning) return;
+        if (Time.unscaledTime < shakeUntil && amplitude < shakeAmp) return;
+        shakeAmp = amplitude; shakeDuration = seconds; shakeUntil = Time.unscaledTime + seconds;
     }
 
     public void Snap()
     {
         Frame(out Vector2 center, out float size);
+        shakeOffset = Vector3.zero;
         transform.position = new Vector3(center.x, center.y, -10f);
         cam.orthographicSize = size;
     }

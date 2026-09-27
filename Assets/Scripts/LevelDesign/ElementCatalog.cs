@@ -84,6 +84,7 @@ public static class ElementCatalog
 
     /// <summary>大炮炮口前方至少空出几格（否则炮弹一出膛就撞墙/箱子）。</summary>
     public const int MuzzleClearCells = 3;
+    public const int SpringHeadroomCells = 4;
 
     private static readonly Info[] all =
     {
@@ -97,6 +98,8 @@ public static class ElementCatalog
         I('C', "CollapsingPlatform", "塌桥", "Collapse bridge", Role.PlayerPrank, "捣蛋者按 L 让它塌；桥下有人时不会重新长出来。", "横跨在坑上；坑里要留出跳出来的路。", step1: true),
         I('[', "ControllableBlocker", "封路墙", "Blocker wall", Role.PlayerPrank, "捣蛋者按 L 升起一堵墙，挡住路 3.5 秒，不伤人。", "放在必经的门洞/窄道（脚下要实心）。", needsSupport: true, step1: true),
         I('~', "FireTrap", "火", "Fire", Role.PlayerPrank, "平时安全；捣蛋者按 L 喷火，烧到马里奥会晕。", "放在地面上（脚下要实心）。", needsSupport: true, step1: true),
+        I('J', "SpringPad", "弹簧板", "Spring pad", Role.PlayerPrank, "平时是普通地面；捣蛋者按 L 把站在上面的马里奥弹上天（空中不能动）→ 在落点摆好火/塌桥 = 浮空连招。", "放在地面层；正上方至少空 4 格（别弹到天花板）。", step1: true),
+        I('x', "CrackFloor", "裂缝地板", "Crack floor", Role.PlayerPrank, "平时是实心地面；捣蛋者按 L 打碎，站在上面的人掉到下一层（本回合不复原）。多层楼/地下监狱的'凿地板'。", "铺在楼层之间；碎后下面那层必须能走回出口（死局检查会查）。", step1: true),
         I('K', "Cannon", "大炮（朝右）", "Cannon (→)", Role.PlayerPrank, "伪装在旁按 L 开一炮（每局 1 发）；打完后站进炮口把自己打飞逃跑。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: 1),
         I('k', "Cannon", "大炮（朝左）", "Cannon (←)", Role.PlayerPrank, "同上，炮口朝左。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: -1),
         I('o', "Collectible", "宝物", "Loot", Role.Objective, "马里奥要拿的宝物（实战房里自动变成 LootObjective）。", "放在离出口远的一端，只能有 1 个。", unique: true, step1: true),
@@ -135,7 +138,7 @@ public static class ElementCatalog
         {
             case "Air": case "Space": case "MarioSpawn": case "TricksterSpawn": return ArtFit.None;
             case "Ground": case "Platform": case "Wall": case "OneWayPlatform": case "CollapsingPlatform":
-            case "ConveyorBelt": case "BouncyPlatform": case "MovingPlatform": case "BreakableBlock": case "FakeWall": return ArtFit.Tile;
+            case "ConveyorBelt": case "BouncyPlatform": case "MovingPlatform": case "BreakableBlock": case "FakeWall": case "CrackFloor": return ArtFit.Tile;
             case "GoalZone": return ArtFit.Stretch;
             default: return ArtFit.Fit;
         }
@@ -213,6 +216,13 @@ public static class ElementCatalog
                     char below = row + 1 < h && x < grid[row + 1].Length ? grid[row + 1][x] : '.';
                     if (!isSolid(below)) issues.Add($"({x},{y}) {info.zh} '{c}'：脚下不是实心（会悬空或掉下去）");
                 }
+                if (c == 'J')
+                    for (int d = 1; d <= SpringHeadroomCells; d++)
+                    {
+                        if (row - d < 0) break;
+                        string above = grid[row - d];
+                        if (x < above.Length && isSolid(above[x])) { issues.Add($"({x},{y}) 弹簧板：正上方第 {d} 格是实心，马里奥会撞天花板；上方至少空 {SpringHeadroomCells} 格"); break; }
+                    }
                 if (info.muzzle != 0)
                     for (int d = 1; d <= MuzzleClearCells; d++)
                     {

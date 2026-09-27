@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 6;
+    public const int CurrentDataVersion = 7;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -108,6 +108,38 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("伪装后站着不动多久才能操控机关（原 1.5 秒；缩短让连续触发更顺）")]
     public float disguiseBlendSeconds = 0.8f;
 
+    [Header("Combo feel (S193: fighting-game rules)")]
+    [Tooltip("命中顿帧：第 1 段停多久（真实秒，0 = 关闭）")]
+    public float hitstopBaseSeconds = 0.05f;
+    [Tooltip("每多一段连招，顿帧多停多久")]
+    public float hitstopPerStepSeconds = 0.03f;
+    [Tooltip("顿帧上限（秒）")]
+    public float hitstopMaxSeconds = 0.16f;
+    [Tooltip("顿帧期间的时间倍率（0 = 完全定格，0.05 = 几乎定格）")]
+    [Range(0f, 1f)] public float hitstopTimeScale = 0.05f;
+    [Tooltip("连招每段追加晕眩的递减倍率（格斗游戏 damage scaling）：第 n 段追加 = comboBonusStunSeconds × 此值^(n-2)")]
+    [Range(0.1f, 1f)] public float comboStunScaling = 0.7f;
+    [Tooltip("屏幕震动：每段幅度（格）")]
+    public float shakePerStep = 0.06f;
+    [Tooltip("屏幕震动：幅度上限（格）")]
+    public float shakeMax = 0.3f;
+    [Tooltip("屏幕震动持续（秒）")]
+    public float shakeSeconds = 0.25f;
+
+    [Header("New pranks (S193)")]
+    [Tooltip("弹簧板弹起速度（格/秒）")]
+    public float springLaunchSpeed = 16f;
+    [Tooltip("弹簧板水平推送（格/秒）")]
+    public float springForwardPush = 2.5f;
+    [Tooltip("被弹起后空中不能动的时间（秒）")]
+    public float springAirStunSeconds = 0.6f;
+    [Tooltip("弹簧板预警（秒，H3 必须 > 0）。短一点，马里奥还没走下板就弹")]
+    public float springTelegraphSeconds = 0.4f;
+    [Tooltip("弹簧板激活窗口（秒）：窗口内踩上去的都会被弹")]
+    public float springActiveSeconds = 0.5f;
+    [Tooltip("裂缝地板预警（秒）")]
+    public float crackTelegraphSeconds = 0.6f;
+
     [Header("Cannon (S187)")]
     [Tooltip("大炮每回合炮弹数（开炮打马里奥）。打完后可钻进炮口把自己打出去逃跑")]
     public int cannonShotsPerRound = 1;
@@ -173,6 +205,13 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 7)
+        {
+            hitstopBaseSeconds = 0.05f; hitstopPerStepSeconds = 0.03f; hitstopMaxSeconds = 0.16f; hitstopTimeScale = 0.05f;
+            comboStunScaling = 0.7f; shakePerStep = 0.06f; shakeMax = 0.3f; shakeSeconds = 0.25f;
+            springLaunchSpeed = 16f; springForwardPush = 2.5f; springAirStunSeconds = 0.6f;
+            springTelegraphSeconds = 0.4f; springActiveSeconds = 0.5f; crackTelegraphSeconds = 0.6f;
         }
         if (dataVersion < 6)
         {

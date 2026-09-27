@@ -43,7 +43,9 @@ public static class LevelDeadlockAnalyzer
         }
     }
 
-    public const char Loot = 'o', Exit = 'G', Mario = 'M', Bridge = 'C', Blocker = '[';
+    public const char Loot = 'o', Exit = 'G', Mario = 'M', Bridge = 'C', Blocker = '[', Crack = 'x';
+    /// <summary>S193：触发后永久打开（本回合不复原或桥下有人不重生）的机关：塌桥 + 裂缝地板。最坏情况 = 全部同时打开。</summary>
+    public const string PersistentOpeners = "Cx";
 
     /// <summary>分析一个完整关卡（grid 第 0 行在最上面）。</summary>
     public static Report Analyze(IList<string> grid)
@@ -71,17 +73,29 @@ public static class LevelDeadlockAnalyzer
             report.issues.Add(new Issue { severity = Severity.Error, x = mx, y = my, message = "马里奥走不到出口" });
 
         // 2) 持续状态：所有塌桥塌掉
-        if (Contains(grid, Bridge))
-            CheckState(grid, report, mx, my, hasLoot, ox, oy, gx, gy, Bridge, '.', true,
-                "塌桥塌掉后，站在这里的马里奥再也回不到出口（死局：给坑里留一条跳出来的路，比如单向台面 -）");
+        if (Contains(grid, Bridge) || Contains(grid, Crack))
+            CheckState(grid, report, mx, my, hasLoot, ox, oy, gx, gy, PersistentOpeners, '.', true,
+                "塌桥/裂缝地板打开后，站在这里的马里奥再也回不到出口（死局：给下面留一条回去的路，比如单向台面 - 或弹簧）");
         // 3) 暂时状态：所有封路墙升起
         if (Contains(grid, Blocker))
-            CheckState(grid, report, mx, my, hasLoot, ox, oy, gx, gy, Blocker, 'W', false,
+            CheckState(grid, report, mx, my, hasLoot, ox, oy, gx, gy, Blocker.ToString(), 'W', false,
                 "封路墙升起时这里暂时出不去（3.5 秒后恢复，不算死局）");
         return report;
     }
 
     /// <summary>把网格里所有 from 字符换成 to（机关触发后的样子）。供编辑器"最坏情况预览"用。</summary>
+    public static List<string> ApplyPrankState(IList<string> grid, string froms, char to)
+    {
+        var result = new List<string>(grid.Count);
+        foreach (var row in grid)
+        {
+            var chars = row.ToCharArray();
+            for (int i = 0; i < chars.Length; i++) if (froms.IndexOf(chars[i]) >= 0) chars[i] = to;
+            result.Add(new string(chars));
+        }
+        return result;
+    }
+
     public static List<string> ApplyPrankState(IList<string> grid, char from, char to)
     {
         var result = new List<string>(grid.Count);
@@ -90,9 +104,9 @@ public static class LevelDeadlockAnalyzer
     }
 
     private static void CheckState(IList<string> grid, Report report, int mx, int my, bool hasLoot, int ox, int oy, int gx, int gy,
-        char from, char to, bool persistent, string message)
+        string froms, char to, bool persistent, string message)
     {
-        var state = ApplyPrankState(grid, from, to);
+        var state = ApplyPrankState(grid, froms, to);
         string text = string.Join("\n", state);
         int h = grid.Count;
         // 马里奥可能站的格：状态下从 M 与从宝物出发可达的格 + 基础状态可达格 + 机关格正下方的落点
@@ -103,7 +117,7 @@ public static class LevelDeadlockAnalyzer
         var stateStand = StandableCells(state);
         for (int row = 0; row < h; row++)
             for (int x = 0; x < grid[row].Length; x++)
-                if (grid[row][x] == from)
+                if (froms.IndexOf(grid[row][x]) >= 0)
                 {
                     int y = h - 1 - row;
                     int landing = FirstLandingBelow(stateStand, x, y);

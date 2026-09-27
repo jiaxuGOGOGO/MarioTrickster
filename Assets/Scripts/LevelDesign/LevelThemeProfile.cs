@@ -86,6 +86,9 @@ public class LevelThemeProfile : ScriptableObject
         new ElementSpriteMapping { elementKey = "Crate" },
         new ElementSpriteMapping { elementKey = "Bush" },
         new ElementSpriteMapping { elementKey = "Decor" },
+        // S193：弹簧板、裂缝地板
+        new ElementSpriteMapping { elementKey = "SpringPad" },
+        new ElementSpriteMapping { elementKey = "CrackFloor" },
     };
 
     [Header("=== 角色 ===")]

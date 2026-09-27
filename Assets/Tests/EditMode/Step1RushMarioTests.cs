@@ -1066,4 +1066,97 @@ public class Step1RushMarioTests
         StringAssert.Contains("textCache", Read("Scripts/Gameplay/Step1/Step1Gui.cs"), "界面文字样式要缓存");
         // 视线结果与改动前一致（墙挡、单向台面不挡、草丛挡）由 WallBlocksSightButOneWayPlatformDoesNot / BushBlocksSightUnlessViewerIsInside 守护
     }
+
+    // ── S193：连招手感 + 弹簧板 / 裂缝地板（可破坏地形）─────────────
+    [Test]
+    public void ComboFeelFollowsFightingGameRules()
+    {
+        var t = Tuning();
+        float h1 = Step1ComboFeel.HitstopSeconds(1, t.hitstopBaseSeconds, t.hitstopPerStepSeconds, t.hitstopMaxSeconds);
+        float h3 = Step1ComboFeel.HitstopSeconds(3, t.hitstopBaseSeconds, t.hitstopPerStepSeconds, t.hitstopMaxSeconds);
+        float h9 = Step1ComboFeel.HitstopSeconds(9, t.hitstopBaseSeconds, t.hitstopPerStepSeconds, t.hitstopMaxSeconds);
+        Assert.Greater(h3, h1, "段数越高顿帧越久");
+        Assert.LessOrEqual(h9, t.hitstopMaxSeconds, "顿帧有上限（不拖慢节奏）");
+        Assert.LessOrEqual(h9, 0.25f, "顿帧必须很短（< 0.25 秒）");
+        float b2 = Step1ComboFeel.BonusStun(2, t.comboBonusStunSeconds, t.comboStunScaling);
+        float b3 = Step1ComboFeel.BonusStun(3, t.comboBonusStunSeconds, t.comboStunScaling);
+        Assert.AreEqual(0f, Step1ComboFeel.BonusStun(1, t.comboBonusStunSeconds, t.comboStunScaling));
+        Assert.Less(b3, b2, "递减硬直：越往后追加越少（防无限控，H9）");
+        Assert.AreNotEqual(Step1ComboFeel.TierName(2), Step1ComboFeel.TierName(5), "段位名随连招升级");
+        var c = new Step1ComboCounter(4f);
+        c.Register(0f, "hurt"); c.Register(1f, "hurt");
+        int same = c.Score;
+        var d = new Step1ComboCounter(4f);
+        d.Register(0f, "hurt"); d.Register(1f, "launch");
+        Assert.Greater(d.Score, same, "换不同机关比重复同一招分高");
+        StringAssert.Contains("combo_score", Step1PlaytestLog.CsvHeader);
+    }
+
+    [Test]
+    public void HitstopAndShakeStayOutOfAutomationAndPause()
+    {
+        string hs = CodeOnly(Read("Scripts/Gameplay/Step1/Step1Hitstop.cs"));
+        StringAssert.Contains("Step1HandsOffCheck.IsRunning", hs, "H10 自动检查期间不顿帧");
+        StringAssert.Contains("Step1Screen.HelpOpen", hs, "帮助/暂停时不顿帧");
+        StringAssert.Contains("Time.unscaledTime", hs, "用真实时间计时，顿帧自己能结束");
+        StringAssert.Contains("Step1HandsOffCheck.IsRunning", CodeOnly(Read("Scripts/Gameplay/Step1/Step1RoomCamera.cs")));
+        foreach (string token in new[] { "TricksterController", "IsDisguised", "IsFullyBlended" })
+        {
+            StringAssert.DoesNotContain(token, CodeOnly(Read("Scripts/Gameplay/Step1/Step1PrankEvents.cs")), "H4：机关事件不带捣蛋者信息");
+            StringAssert.DoesNotContain(token, CodeOnly(Read("Scripts/LevelElements/Pranks/SpringPad.cs")));
+            StringAssert.DoesNotContain(token, CodeOnly(Read("Scripts/LevelElements/Pranks/CrackFloor.cs")));
+        }
+    }
+
+    [Test]
+    public void SpringAndCrackAreZeroCodeElementsWithTelegraph()
+    {
+        var reg = AsciiElementRegistry.GetDefault();
+        Assert.IsTrue(reg.IsSolid('J') && reg.IsSolid('x'), "平时都是实心可站（平时安全，H10）");
+        Assert.IsNotNull(ElementCatalog.Get('J')); Assert.IsNotNull(ElementCatalog.Get('x'));
+        Assert.AreEqual(ElementCatalog.Role.PlayerPrank, ElementCatalog.Get('J').role);
+        string gen = CodeOnly(Read("Scripts/LevelDesign/AsciiLevelGenerator.cs"));
+        StringAssert.DoesNotContain("SpringPad", gen, "零代码扩展：不改生成器核心");
+        StringAssert.DoesNotContain("CrackFloor", gen);
+        var t = Tuning();
+        Assert.Greater(t.springTelegraphSeconds, 0f, "H3：有预警");
+        Assert.Greater(t.crackTelegraphSeconds, 0f, "H3：有预警");
+        // 弹高：约 5–6 格，房间 12 行放得下
+        float apex = SpringPad.ApexHeight(t.springLaunchSpeed, 24f);
+        Assert.Greater(apex, 3f); Assert.Less(apex, 8f);
+        System.Func<char, bool> solid = reg.IsSolid;
+        Assert.IsTrue(ElementCatalog.PlacementIssues(new[] { "W..W..W", "W..J..W", "W#####W" }, true, solid).Exists(i => i.Contains("弹簧板")), "弹簧板头顶贴天花板要报");
+        // 裂缝沿同一行蔓延
+        var cells = new List<Vector2> { new Vector2(0, 0), new Vector2(1, 0), new Vector2(2, 0), new Vector2(5, 0), new Vector2(1, 3) };
+        CollectionAssert.AreEquivalent(new[] { 0, 1, 2 }, CrackFloor.ContiguousLine(cells, 1));
+    }
+
+    [Test]
+    public void CrackFloorIsPermanentInDeadlockCheck()
+    {
+        var bad = new[] { "WWWWWWWWWWWWWWWWWWWW", "W..................W", "W..................W", "W.G.M.........T..o.W",
+                          "W#########xxx######W", "W#########...######W", "W#########...######W", "W##################W" };
+        var r = LevelDeadlockAnalyzer.Analyze(bad);
+        Assert.IsTrue(r.HasErrors, "裂缝地板打开后掉进深坑出不来 = 死局");
+        var stair = (string[])bad.Clone(); stair[5] = "W#########J..######W";
+        Assert.IsFalse(LevelDeadlockAnalyzer.Analyze(stair).HasErrors, "坑里有台阶就能出来");
+        // 默认房间（含弹簧板 + 裂缝地板 + 地下室）所有随机组合都没有死局
+        var check = LevelWorkshopModel.Check(Step1PrankRoomBuilder.Room, true, reg().IsSolid);
+        Assert.IsTrue(check.Playable, check.Headline);
+        StringAssert.Contains("J", Step1PrankRoomBuilder.RoomAscii);
+        StringAssert.Contains("x", Step1PrankRoomBuilder.RoomAscii);
+    }
+    [Test]
+    public void PrisonSampleIsPlayableVerticalEscape()
+    {
+        var p = LevelWorkshopModel.PrisonSample;
+        foreach (var row in p) Assert.AreEqual(p[0].Length, row.Length);
+        string all = string.Join("\n", p);
+        StringAssert.Contains("x", all, "样板房演示裂缝地板（楼层之间）");
+        var check = LevelWorkshopModel.Check(p, true, reg().IsSolid);
+        Assert.IsTrue(check.Playable, "两层监狱样板必须通过全部检查（含裂缝打开后的死局检查）：" + check.Headline);
+        StringAssert.Contains("PrisonSample", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "工坊工具条有'样板：两层监狱'按钮");
+    }
+
+    static AsciiElementRegistry reg() => AsciiElementRegistry.GetDefault();
 }

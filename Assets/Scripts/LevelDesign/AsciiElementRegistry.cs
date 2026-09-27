@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 31; // S187: +K k c b d
+    private const int BUILTIN_ENTRY_COUNT = 33; // S187: +K k c b d; S193: +J x
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -458,6 +458,21 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "SceneryProp" }, visualColor = new Color(0.85f, 0.75f, 0.95f, 0.8f), visualScale = new Vector2(0.6f, 1.4f),
                 customColliderSize = PhysicsMetrics.DECOR_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
                 sortingOrder = 1, isTrigger = true
+            },
+            // S193：弹簧板（浮空追击起手）+ 裂缝地板（可破坏地形，打通楼层）。平时都是实心可站。
+            new AsciiElementEntry
+            {
+                asciiChar = 'J', elementName = "SpringPad", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SpringPad" }, visualColor = new Color(0.30f, 0.90f, 0.55f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 2, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'x', elementName = "CrackFloor", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "CrackFloor" }, visualColor = new Color(0.70f, 0.58f, 0.42f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = false, isDynamicTraversal = true
             },
         };
         registry.BuildCache();

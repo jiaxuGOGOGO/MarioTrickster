@@ -130,7 +130,7 @@ public static class LevelWorkshopModel
         foreach (var row in grid)
         {
             foreach (char c in row)
-                sb.Append(solid.Contains(c) || hazard.Contains(c) || c == 'C' || c == '[' || c == 'M' || c == 'G' || c == 'o' ? c : '.');
+                sb.Append(solid.Contains(c) || hazard.Contains(c) || c == 'C' || c == 'x' || c == '[' || c == 'M' || c == 'G' || c == 'o' ? c : '.');
             sb.Append('\n');
         }
         return sb.ToString();
@@ -206,6 +206,25 @@ public static class LevelWorkshopModel
     }
 
     /// <summary>新建空房间：四周墙 + 三层地面 + M T G o，保证"一打开就能试玩"。</summary>
+    /// <summary>
+    /// S193：样板房"两层监狱"——演示纵向逃脱：马里奥在地下层拿宝，要爬回地面出口。
+    /// 裂缝地板 x 把上层的人掉回下层，弹簧板 J 是下层回上层的"楼梯"之一（另一条是单向台面阶梯），
+    /// 所以任何机关打开后都有回去的路（死局检查必须通过——测试校验）。
+    /// </summary>
+    public static readonly string[] PrisonSample =
+    {
+        "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+        "W..............................................W",
+        "W..............................................W",
+        "W.G.M....b.....~.......T.....c..[..............W",
+        "W#########xxxx####################.....########W",
+        "W...................................--.........W",
+        "W..............................................W",
+        "W.................................--...........W",
+        "W..............~..........[....b...........o...W",
+        "W##############################################W",
+    };
+
     public static string NewRoom(int width, int height)
     {
         width = System.Math.Max(16, System.Math.Min(LevelStudioDocument.MaxWidth, width));

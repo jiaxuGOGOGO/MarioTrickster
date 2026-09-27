@@ -47,7 +47,7 @@ public sealed class LevelStudioDocument
         var registry = AsciiElementRegistry.GetDefault();
         for (int y = 0; y < grid.Count; y++)
             for (int x = 0; x < grid[y].Length; x++)
-                if (grid[y][x] != '.' && registry.GetEntry(grid[y][x]) == null)
+                if (grid[y][x] != '.' && registry.GetEntry(grid[y][x]) == null && !Step1Layout.Slots.ContainsKey(grid[y][x]))
                 { error = $"第 {y + 1} 行第 {x + 1} 列的 '{grid[y][x]}' 不在元素库中；原文未修改。"; return false; }
         document = new LevelStudioDocument(grid.Select(r => r.PadRight(width, '.').ToCharArray()).ToArray(), notes.ToArray());
         return true;
@@ -65,10 +65,11 @@ public sealed class LevelStudioDocument
     public void Paint(int x, int y, char value)
     {
         if (x < 0 || x >= Width || y < 0 || y >= Height) return;
-        if (value != '.' && AsciiElementRegistry.GetDefault().GetEntry(value) == null)
+        if (value != '.' && AsciiElementRegistry.GetDefault().GetEntry(value) == null && !Step1Layout.Slots.ContainsKey(value))
             throw new ArgumentException("Unknown palette element", nameof(value));
-        // Spawns and the goal are moves, not copies: one clear objective per room.
-        if (value == 'M' || value == 'T' || value == 'G')
+        // Spawns, goal and loot are moves, not copies: one clear objective per room (S189: + loot 'o', per ElementCatalog.unique).
+        var info = ElementCatalog.Get(value);
+        if (value == 'M' || value == 'T' || value == 'G' || (info != null && info.unique))
             foreach (char[] row in rows)
                 for (int i = 0; i < row.Length; i++) if (row[i] == value) row[i] = '.';
         rows[Height - 1 - y][x] = value;

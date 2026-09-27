@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using NUnit.Framework;
+using System.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -823,5 +824,125 @@ public class Step1RushMarioTests
         StringAssert.Contains("StripUnusedLegacy(gm.gameObject)", builder, "减法：第 1 步房间不跑用不到的旧系统");
         foreach (var t in Step1PrankRoomBuilder.Step1Unused)
             StringAssert.DoesNotContain(t.Name, CodeOnly(Read("Scripts/Gameplay/Step1/MarioEyes.cs")), "第 1 步马里奥感知不依赖被移除的系统");
+    }
+
+    // ── S189：死局分析 / 防卡死 / 关卡工坊 ─────────────────────
+    static string[] Filled(string[] room) { var r = new string[room.Length]; for (int i = 0; i < room.Length; i++) r[i] = room[i].Replace('1', '.').Replace('2', '.').Replace('3', '.'); return r; }
+
+    [Test]
+    public void DeadlockAnalyzerPassesTheDefaultRoom()
+    {
+        foreach (var variant in LevelWorkshopModel.Variants(Step1PrankRoomBuilder.Room))
+        {
+            var report = LevelDeadlockAnalyzer.Analyze(variant);
+            Assert.IsFalse(report.HasErrors, report.Summary() + "\n" + string.Join("\n", report.issues));
+            Assert.Greater(report.standingCellsChecked, 20);
+        }
+    }
+
+    [Test]
+    public void DeadlockAnalyzerFindsPitWithoutExitAndWalledLoot()
+    {
+        var room = Filled(Step1PrankRoomBuilder.Room);
+        int h = room.Length;
+        // 1) 深坑（3 格深，超过 2.5 格跳跃高度）上架塌桥：塌掉后掉进去就出不来 → 死局；给坑里加单向台面 → 解除
+        var deep = new[] { "WWWWWWWWWWWWWWWWWWWW", "W..................W", "W..................W", "W.G.M.........T..o.W",
+                           "W########CCCC######W", "W########....######W", "W########....######W" };
+        var r1 = LevelDeadlockAnalyzer.Analyze(deep);
+        Assert.IsTrue(r1.HasErrors, "深坑塌桥必须报死局");
+        Assert.IsTrue(r1.issues.Exists(i => i.message.Contains("塌桥")));
+        var fixedPit = (string[])deep.Clone(); fixedPit[5] = "W########-...######W";
+        Assert.IsFalse(LevelDeadlockAnalyzer.Analyze(fixedPit).HasErrors, "坑里有单向台面就能跳出来");
+        // 2) 用高墙把宝物围起来：走不到宝物
+        var walled = (string[])room.Clone();
+        for (int y = 3; y <= 10; y++) { var rr = walled[h - 1 - y].ToCharArray(); rr[43] = 'W'; walled[h - 1 - y] = new string(rr); }
+        var r2 = LevelDeadlockAnalyzer.Analyze(walled);
+        Assert.IsTrue(r2.issues.Exists(i => i.message.Contains("走不到宝物")));
+    }
+
+    [Test]
+    public void BlockerIsTemporaryNotDeadlock()
+    {
+        var report = LevelDeadlockAnalyzer.Analyze(Filled(Step1PrankRoomBuilder.Room));
+        Assert.IsFalse(report.HasErrors);
+        Assert.Greater(report.temporaryCells.Count, 0, "封路墙升起会暂时堵路（提示），但不是死局");
+    }
+
+    [Test]
+    public void ReachableFromDoesNotChangeOriginalL2()
+    {
+        string ascii = Step1PrankRoomBuilder.RoomAscii;
+        Assert.IsTrue(LevelReachabilityAnalyzer.Analyze(ascii).IsReachable);
+        var cells = LevelReachabilityAnalyzer.ReachableFrom(ascii, 4, 3);
+        Assert.IsTrue(cells.Contains(LevelReachabilityAnalyzer.CellKey(2, 3)), "从马里奥出生点能到出口");
+        Assert.IsTrue(LevelReachabilityAnalyzer.Analyze(ascii).IsReachable, "收集模式结束后不影响原 L2");
+    }
+
+    [Test]
+    public void BridgeRespawnRechecksBeforeColliderReturns()
+    {
+        string bridge = Read("Scripts/LevelElements/Platforms/CollapsingPlatform.cs");
+        int respawning = bridge.IndexOf("case CollapseState.Respawning:");
+        int recheck = bridge.IndexOf("if (waitForClearBelow && IsSomeoneBelow())", respawning);
+        Assert.Greater(recheck, respawning, "渐显结束、碰撞体打开前必须再查一次桥下有没有人（S189 用户实测被封住）");
+    }
+
+    [Test]
+    public void StuckRescueIsInstalledAndOnlyJudgesWhileRushing()
+    {
+        StringAssert.Contains("AddComponent<Step1StuckRescue>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+        string src = Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs");
+        StringAssert.Contains("driver.Mind.State != MarioMindState.Running", src, "起疑/查看/找人时站着是正常表演");
+        foreach (string token in new[] { "TricksterController", "IsDisguised", "TryCatch" })
+            StringAssert.DoesNotContain(token, CodeOnly(src), "H4：救援不读捣蛋者");
+        var t = Tuning();
+        Assert.Greater(t.stuckSeconds, 3f);
+    }
+
+    [Test]
+    public void WorkshopPaletteFollowsCatalogAndStep1Mode()
+    {
+        var step1 = LevelWorkshopModel.Palette(true).SelectMany(g => g.items).Select(i => i.ch).ToList();
+        CollectionAssert.Contains(step1, 'K'); CollectionAssert.Contains(step1, 'b'); CollectionAssert.Contains(step1, '[');
+        CollectionAssert.DoesNotContain(step1, '^', "第 1 步调色板不给地刺");
+        var all = LevelWorkshopModel.Palette(false).SelectMany(g => g.items).Select(i => i.ch).ToList();
+        CollectionAssert.Contains(all, '^');
+        foreach (var info in ElementCatalog.All) if (info.ch != '.' && info.ch != ' ') CollectionAssert.Contains(all, info.ch, "说明书里的元素都能在工坊里找到");
+    }
+
+    [Test]
+    public void WorkshopCheckMarksCellsAndNewRoomIsPlayable()
+    {
+        System.Func<char, bool> solid = AsciiElementRegistry.GetDefault().IsSolid;
+        var fresh = LevelWorkshopModel.NewRoom(48, 12).Split('\n');
+        var ok = LevelWorkshopModel.Check(fresh, true, solid);
+        Assert.IsTrue(ok.Playable, ok.Headline + "\n" + string.Join("\n", ok.general) + string.Join("\n", ok.cells.Select(c => c.text)));
+        var bad = (string[])fresh.Clone();
+        var row = bad[4].ToCharArray(); row[20] = 'c'; bad[4] = new string(row); // 悬空箱子
+        var r = LevelWorkshopModel.Check(bad, true, solid);
+        Assert.IsFalse(r.Playable);
+        Assert.IsTrue(r.cells.Exists(c => c.x == 20 && c.error), "问题要落在具体格子上");
+        var def = LevelWorkshopModel.Check(Step1PrankRoomBuilder.Room, true, solid);
+        Assert.IsTrue(def.Playable, "默认房间在工坊里也必须通过（含全部随机组合）");
+    }
+
+    [Test]
+    public void DocumentAcceptsRandomSlotsAndLootMovesInsteadOfDuplicating()
+    {
+        Assert.IsTrue(LevelStudioDocument.TryParse("M1TGo\n#####", out var doc, out string err), err);
+        doc.Paint(1, 1, 'o');
+        Assert.AreEqual(1, doc.Grid.Count(c => c == 'o'), "宝物是唯一元素，画第二个 = 移动");
+        doc.Paint(2, 1, '3');
+        Assert.AreEqual('3', doc.Cell(2, 1));
+        Assert.IsFalse(LevelStudioDocument.TryParse("M?TG\n####", out _, out _), "未知字符仍拒绝");
+    }
+
+    [Test]
+    public void CustomRoomRebuildsWhenChanged()
+    {
+        string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
+        StringAssert.Contains("marker.BuiltRoomHash == RoomHash(Current)", builder, "改了自定义房间，▶ Play 必须自动重建");
+        StringAssert.Contains("ValidateAllVariants(Current, out bool ok)", builder, "构建前检查的是实际要玩的房间");
+        Assert.AreNotEqual(Step1PrankRoomBuilder.RoomHash(new[] { "W.M" }), Step1PrankRoomBuilder.RoomHash(new[] { "W.T" }));
     }
 }

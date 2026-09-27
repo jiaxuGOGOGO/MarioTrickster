@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 188（修 S187 两个测试；元素说明书 ElementCatalog + 摆放检查 + V 键标签 + 元素图例；第 1 步构建时移除不用的旧系统） |
+| **最新 Session** | Session 189（关卡工坊窗口 + 死局分析 + 运行时防卡死 + 塌桥渐显复查；修主题插槽测试） |
+| **更早 Session** | Session 188（修 S187 两个测试；元素说明书 ElementCatalog + 摆放检查 + V 键标签 + 元素图例；第 1 步构建时移除不用的旧系统） |
 | **上一 Session** | Session 187（大炮 K/k：一发炮弹伤害 + 打完人肉发射逃跑；场景摆件 c/b/d；受控随机布局 32 组合全可达；草丛起风否认空间；游乐园/公园/山上公园主题底子） |
 | **日期** | 2026-09-26 |
 | **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
@@ -99,6 +100,16 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S189] 用户：插槽测试红 + "封路把马里奥关住了怎么办" + 想要 Mario Maker 式方便搭建（详见 docs/LEVEL_WORKSHOP.md）
+
+- 修测试：LevelThemeProfile 补 ControllableBlocker / StateQueueTrap 插槽（S188 新测试发现的真实缺口）。
+- 被关住根因：塌桥"渐显"0.5 秒结束时直接打开碰撞体，没再查桥下；马里奥在渐显期间走进坑 → 被封。修：打开碰撞体前再查一次，有人退回已塌状态。另：默认房间坑深 1 格，静态上马里奥能自己出来（死局分析确认）。
+- `LevelReachabilityAnalyzer.ReachableFrom`（新 API，收集全部可达格；收集模式下额外做横向高墙阻挡判定，原 Analyze 行为不变，测试守护）。
+- `LevelDeadlockAnalyzer`（纯逻辑）：M→o→G 往返；塌桥塌掉（持续）后每个可能站位能否到出口 = 死局；封路墙升起（暂时）= 提示。构建器 Validate 纳入；32 变体 0 死局。
+- `Step1StuckRescue`：只在"赶路"状态判定（起疑/查看/找人不算），6 秒几乎不动 → 挪到最近"能到出口"的格，提示 + CSV `stuck_rescues`。H4：不读捣蛋者。
+- `LevelWorkshopWindow` + `LevelWorkshopModel`（Ctrl+Shift+L）：Mario Maker 式分类调色板（来自 ElementCatalog，第 1 步模式过滤）、画笔/矩形/橡皮/吸管、随机槽位 1/2/3、每次改动自动检查并在格子上标红黄、最坏情况预览、"作为第 1 步房间试玩"（Assets/Levels/Step1CustomRoom.txt，房间哈希变化自动重建）。LevelStudioDocument 接受槽位数字；宝物 o 画第二个 = 移动。
+- 调参数据 v6；构建器 v9；测试 56→66。
 
 ### [S188] 用户：两个测试红 + "有些机关不知道是什么，自己摆容易摆错、影响换素材" + 做减法
 

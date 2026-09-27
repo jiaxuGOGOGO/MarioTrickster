@@ -128,6 +128,14 @@ public class CollapsingPlatform : ControllableLevelElement
                 }
                 if (collapseTimer <= 0f)
                 {
+                    // S189（H9）：渐显的 0.5 秒里可能有人走进桥下；碰撞体真正打开前再查一次，有人就退回"已塌"继续等。
+                    if (waitForClearBelow && IsSomeoneBelow())
+                    {
+                        state = CollapseState.Collapsed;
+                        collapseTimer = RespawnRecheckSeconds;
+                        if (sr != null) sr.color = new Color(initialColor.r, initialColor.g, initialColor.b, 0f);
+                        break;
+                    }
                     state = CollapseState.Stable;
                     if (sr != null) sr.color = initialColor;
                     boxCollider.enabled = true;

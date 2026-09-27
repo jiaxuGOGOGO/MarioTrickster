@@ -1,0 +1,122 @@
+using UnityEngine;
+
+/// <summary>
+/// S189：运行时防卡死救援（宪法 H9 的最后一道保险）。
+/// 编辑器里的死局分析只能查"静态布局"，实际物理（击退、塌桥、封路墙挤压、同时触发几个机关）仍可能让马里奥卡住。
+/// 规则：游戏进行中、马里奥不在"被坑晕 / 起步等待"状态，却在 stuckSeconds 秒内几乎没动 → 判定卡住：
+///   1. 屏幕提示"马里奥卡住了，已救出"，并写入试玩记录（stuck_rescues 列），方便你告诉我是哪里的布局有问题；
+///   2. 把他挪到最近的一个"能到达出口"的安全站位（来自 LevelDeadlockAnalyzer 同一套可达性，不是随便传送）。
+/// 不给马里奥任何关于捣蛋者的信息（H4）；不改变胜负判定。卡死本身就是布局 bug，救援只是让测试能继续。
+/// </summary>
+public class Step1StuckRescue : MonoBehaviour
+{
+    [SerializeField] private MarioMindTuningSO tuning;
+    [SerializeField] private string[] roomGrid = new string[0];
+
+    private MarioMindDriver driver;
+    private MarioController mario;
+    private GameManager manager;
+    private Vector2 anchor;
+    private float still;
+    private float flashUntil;
+    private System.Collections.Generic.HashSet<int> safeCells;
+    private string safeSource;
+
+    public int RescuesThisRound { get; private set; }
+    public Vector2 LastStuckAt { get; private set; }
+
+    public void Configure(MarioMindTuningSO t, string[] grid) { tuning = t; roomGrid = grid ?? new string[0]; }
+
+    private void Start()
+    {
+        if (tuning == null) tuning = MarioMindTuningSO.LoadOrDefault();
+        driver = FindObjectOfType<MarioMindDriver>();
+        mario = driver != null ? driver.GetComponent<MarioController>() : null;
+        manager = GameManager.Instance;
+        if (manager != null) manager.OnRoundStart += ResetRound;
+        ResetRound();
+    }
+
+    private void OnDestroy() { if (manager != null) manager.OnRoundStart -= ResetRound; }
+
+    private void ResetRound()
+    {
+        RescuesThisRound = 0; still = 0f;
+        if (mario != null) anchor = mario.transform.position;
+    }
+
+    private void Update()
+    {
+        if (mario == null || manager == null || manager.CurrentState != GameState.Playing) { still = 0f; return; }
+        // 只在"赶路"（去拿宝/回出口，一定有目标）时判定；起疑、查看、找人时站着不动是正常表演，不算卡住。
+        if (driver.IsWaitingToStart || driver.Mind.IsStunned || driver.Mind.IsGlancing || driver.Mind.State != MarioMindState.Running)
+        { still = 0f; anchor = mario.transform.position; return; }
+        Vector2 pos = mario.transform.position;
+        if ((pos - anchor).sqrMagnitude > tuning.stuckMoveEpsilon * tuning.stuckMoveEpsilon) { anchor = pos; still = 0f; return; }
+        still += Time.deltaTime;
+        if (still < tuning.stuckSeconds) return;
+        Rescue(pos);
+    }
+
+    private void Rescue(Vector2 pos)
+    {
+        still = 0f;
+        RescuesThisRound++;
+        LastStuckAt = pos;
+        Vector2 target = NearestSafe(pos);
+        mario.transform.position = target;
+        var rb = mario.GetComponent<Rigidbody2D>();
+        if (rb != null) rb.velocity = Vector2.zero;
+        anchor = target;
+        flashUntil = Time.time + 2.5f;
+        Debug.LogWarning($"[Step1 H9] Mario stuck at ({pos.x:F1},{pos.y:F1}) for {tuning.stuckSeconds}s -> rescued to ({target.x:F1},{target.y:F1}). This is a layout bug; please report the spot.");
+    }
+
+    /// <summary>最近的"能到出口"的站位中心（世界坐标 = 格坐标，角色站在格内）。没有分析数据时原地抬高半格。</summary>
+    public Vector2 NearestSafe(Vector2 pos)
+    {
+        var cells = SafeCells();
+        if (cells == null || cells.Count == 0) return pos + Vector2.up * 0.5f;
+        float best = float.MaxValue; Vector2 bestPos = pos;
+        foreach (int key in cells)
+        {
+            var c = new Vector2(key / 100000, key % 100000);
+            float d = (c - pos).sqrMagnitude;
+            if (d > 0.25f && d < best) { best = d; bestPos = c; }
+        }
+        return bestPos;
+    }
+
+    private System.Collections.Generic.HashSet<int> SafeCells()
+    {
+        if (roomGrid == null || roomGrid.Length == 0) return null;
+        string text = string.Join("\n", roomGrid);
+        if (safeCells != null && safeSource == text) return safeCells;
+        safeSource = text;
+        safeCells = new System.Collections.Generic.HashSet<int>();
+        int exitX = -1, exitY = -1;
+        for (int row = 0; row < roomGrid.Length; row++)
+        {
+            int col = roomGrid[row].IndexOf('G');
+            if (col >= 0) { exitX = col; exitY = roomGrid.Length - 1 - row; }
+        }
+        if (exitX < 0) return safeCells;
+        // 能到达出口的格 = 从出口反查代价太高；直接用"从出口出发可达"的格（地面大多是双向的），再过滤"从该格能到出口"。
+        foreach (int key in LevelReachabilityAnalyzer.ReachableFrom(text, exitX, exitY))
+        {
+            int x = key / 100000, y = key % 100000;
+            if (LevelReachabilityAnalyzer.ReachableFrom(text, x, y).Contains(LevelReachabilityAnalyzer.CellKey(exitX, exitY))) safeCells.Add(key);
+        }
+        return safeCells;
+    }
+
+    private void OnGUI()
+    {
+        if (Time.time > flashUntil) return;
+        float w = Step1Gui.Begin();
+        var r = new Rect(w * 0.5f - 330f, 140f, 660f, 70f);
+        Step1Gui.Panel(r, 0.85f);
+        GUI.Label(r, "<color=#FFB347><b>马里奥卡住了，已把他挪到最近的安全位置</b>\nMario got stuck — moved to the nearest safe spot (layout bug, please report)</color>",
+            Step1Gui.Text(20, TextAnchor.MiddleCenter));
+    }
+}

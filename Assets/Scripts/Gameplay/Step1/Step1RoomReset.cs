@@ -10,12 +10,15 @@ public class Step1RoomReset : MonoBehaviour
 {
     [SerializeField] private int builtVersion;
     [SerializeField] private string builtTheme = "";
+    [SerializeField] private string builtRoomHash = "";
     private GameManager subscribed;
 
     public int BuiltVersion => builtVersion;
     public void SetBuiltVersion(int version) => builtVersion = version;
     public string BuiltTheme => builtTheme ?? "";
     public void SetBuiltTheme(string theme) => builtTheme = theme ?? "";
+    public string BuiltRoomHash => builtRoomHash ?? "";
+    public void SetBuiltRoomHash(string hash) => builtRoomHash = hash ?? "";
 
     private void Start()
     {

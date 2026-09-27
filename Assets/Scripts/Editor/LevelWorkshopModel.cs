@@ -1,0 +1,195 @@
+using System.Collections.Generic;
+using System.Linq;
+
+/// <summary>
+/// S189：关卡工坊的纯逻辑（不依赖 EditorWindow，可测试）。
+///   - 调色板：按 ElementCatalog 的角色分组，只列出当前模式可用的元素（第 1 步模式只给第 1 步能用的）；
+///   - 工具：画笔 / 矩形填充 / 橡皮 / 吸管；
+///   - 检查：L1 结构 + L2 可达 + 摆放规则 + 死局分析，汇总成"格子 → 问题"，窗口直接在画布上标红/标黄；
+///   - 所有编辑都落在 LevelStudioDocument（ASCII）上：ASCII 仍是唯一的关卡源，美术换图、验证器、生成器全部照旧。
+/// </summary>
+public static class LevelWorkshopModel
+{
+    public enum Tool { Brush, Rect, Erase, Pick }
+
+    public sealed class Group
+    {
+        public string title;
+        public List<ElementCatalog.Info> items = new List<ElementCatalog.Info>();
+    }
+
+    /// <summary>调色板分组（按 Mario Maker 式分类：地形 / 摆件 / 你的机关 / 目标与角色 / 其他）。随机槽位作为"特殊摆件"附在摆件组。</summary>
+    public static List<Group> Palette(bool step1Only)
+    {
+        var order = new[]
+        {
+            (ElementCatalog.Role.Terrain, "地形 Terrain"),
+            (ElementCatalog.Role.Scenery, "场景摆件 Scenery"),
+            (ElementCatalog.Role.PlayerPrank, "你的机关 Pranks（伪装后按 L）"),
+            (ElementCatalog.Role.Objective, "目标 Goals"),
+            (ElementCatalog.Role.Spawn, "角色 Characters"),
+            (ElementCatalog.Role.Movement, "移动类 Movement"),
+            (ElementCatalog.Role.AutoHazard, "自动危险 Hazards"),
+            (ElementCatalog.Role.Special, "其他 Special"),
+            (ElementCatalog.Role.Enemy, "敌人 Enemies"),
+        };
+        var groups = new List<Group>();
+        foreach (var (role, title) in order)
+        {
+            var g = new Group { title = title };
+            g.items.AddRange(ElementCatalog.All.Where(i => i.role == role && i.ch != '.' && i.ch != ' ' && (!step1Only || i.step1)));
+            if (g.items.Count > 0) groups.Add(g);
+        }
+        return groups;
+    }
+
+    /// <summary>随机槽位（数字 1/2/3）：说明给人看。</summary>
+    public static readonly (char ch, string zh)[] RandomSlots =
+    {
+        ('1', "随机：箱子或草丛"), ('2', "随机：草丛或空"), ('3', "随机：火或空"),
+    };
+
+    public sealed class CellIssue
+    {
+        public int x, y;
+        public bool error;       // true = 必须改（红），false = 提示（黄）
+        public string text;
+    }
+
+    public sealed class CheckResult
+    {
+        public readonly List<CellIssue> cells = new List<CellIssue>();
+        public readonly List<string> general = new List<string>();
+        public int errors, warnings;
+        public HashSet<int> deadlock = new HashSet<int>(), temporary = new HashSet<int>();
+        public bool Playable => errors == 0;
+        public string Headline => errors == 0
+            ? (warnings == 0 ? "✓ 可以试玩：没有发现问题" : $"✓ 可以试玩，有 {warnings} 个提示")
+            : $"✗ 有 {errors} 个问题要改（红格）";
+    }
+
+    /// <summary>
+    /// 全面检查。grid 第 0 行在最上面。随机槽位（1/2/3）会把所有组合都检查一遍（组合太多时只查最坏的两种：全实心 / 全空）。
+    /// </summary>
+    public static CheckResult Check(IList<string> grid, bool step1Rules, System.Func<char, bool> isSolid)
+    {
+        var result = new CheckResult();
+        if (grid == null || grid.Count == 0) { result.general.Add("画布是空的"); result.errors++; return result; }
+        foreach (var c in new[] { 'M', 'T', 'G' })
+        {
+            int n = grid.Sum(r => r.Count(ch => ch == c));
+            if (n != 1) { result.general.Add($"需要且只能有一个 {ElementCatalog.Get(c)?.zh ?? c.ToString()}（现在 {n} 个）"); result.errors++; }
+        }
+        if (step1Rules && grid.Sum(r => r.Count(ch => ch == 'o')) != 1) { result.general.Add("第 1 步房间需要且只能有一个宝物 o"); result.errors++; }
+        if (result.errors > 0) return result;
+
+        foreach (var variant in Variants(grid))
+        {
+            // 摆放规则
+            foreach (var issue in ElementCatalog.PlacementIssues(variant, step1Rules, isSolid))
+                AddParsed(result, issue, true);
+            // L1 结构
+            string text = string.Join("\n", variant);
+            var l1 = AsciiLevelValidator.ValidateTemplate(text);
+            foreach (var e in l1.errors) AddGeneral(result, "结构：" + e, true);
+            // 死局（含拿宝往返、塌桥塌后能否出去、封路墙暂时阻挡）
+            var dl = LevelDeadlockAnalyzer.Analyze(variant);
+            result.deadlock.UnionWith(dl.deadlockCells);
+            result.temporary.UnionWith(dl.temporaryCells);
+            foreach (var i in dl.issues)
+            {
+                if (i.severity == LevelDeadlockAnalyzer.Severity.Info) continue;
+                if (i.x >= 0) AddCell(result, i.x, i.y, i.severity == LevelDeadlockAnalyzer.Severity.Error, i.message);
+                else AddGeneral(result, i.message, i.severity == LevelDeadlockAnalyzer.Severity.Error);
+            }
+        }
+        return result;
+    }
+
+    /// <summary>随机槽位的检查组合：≤ 64 种全部枚举；更多时取"每个槽位第一个选项 / 最后一个选项"两种极端。</summary>
+    public static IEnumerable<List<string>> Variants(IList<string> grid)
+    {
+        var slots = Step1Layout.SlotOptions(grid.ToArray());
+        long total = 1;
+        foreach (var o in slots) { total *= System.Math.Max(1, o.Length); if (total > 64) break; }
+        if (slots.Count == 0) { yield return grid.ToList(); yield break; }
+        if (total <= 64)
+        {
+            for (long n = 0; n < total; n++) yield return Fill(grid, n, true);
+        }
+        else
+        {
+            yield return Fill(grid, 0, false);
+            yield return Fill(grid, -1, false);
+        }
+    }
+
+    private static List<string> Fill(IList<string> grid, long n, bool enumerate)
+    {
+        long rest = n;
+        var rows = new List<string>(grid.Count);
+        foreach (var r in grid)
+        {
+            var row = r.ToCharArray();
+            for (int c = 0; c < row.Length; c++)
+                if (Step1Layout.Slots.TryGetValue(row[c], out string o))
+                {
+                    if (enumerate) { row[c] = o[(int)(rest % o.Length)]; rest /= o.Length; }
+                    else row[c] = n < 0 ? o[o.Length - 1] : o[0];
+                }
+            rows.Add(new string(row));
+        }
+        return rows;
+    }
+
+    private static void AddParsed(CheckResult r, string issue, bool error)
+    {
+        // "(x,y) ..." → 格子问题
+        if (issue.StartsWith("(") && issue.IndexOf(')') > 0)
+        {
+            var coords = issue.Substring(1, issue.IndexOf(')') - 1).Split(',');
+            if (coords.Length == 2 && int.TryParse(coords[0], out int x) && int.TryParse(coords[1], out int y))
+            { AddCell(r, x, y, error, issue.Substring(issue.IndexOf(')') + 1).Trim()); return; }
+        }
+        AddGeneral(r, issue, error);
+    }
+
+    private static void AddCell(CheckResult r, int x, int y, bool error, string text)
+    {
+        if (r.cells.Exists(c => c.x == x && c.y == y && c.text == text)) return;
+        r.cells.Add(new CellIssue { x = x, y = y, error = error, text = text });
+        if (error) r.errors++; else r.warnings++;
+    }
+
+    private static void AddGeneral(CheckResult r, string text, bool error)
+    {
+        if (r.general.Contains(text)) return;
+        r.general.Add(text);
+        if (error) r.errors++; else r.warnings++;
+    }
+
+    /// <summary>矩形填充（x0..x1, y0..y1，含边界）。</summary>
+    public static void FillRect(LevelStudioDocument doc, int x0, int y0, int x1, int y1, char value)
+    {
+        int ax = System.Math.Min(x0, x1), bx = System.Math.Max(x0, x1), ay = System.Math.Min(y0, y1), by = System.Math.Max(y0, y1);
+        for (int y = ay; y <= by; y++) for (int x = ax; x <= bx; x++) doc.Paint(x, y, value);
+    }
+
+    /// <summary>新建空房间：四周墙 + 三层地面 + M T G o，保证"一打开就能试玩"。</summary>
+    public static string NewRoom(int width, int height)
+    {
+        width = System.Math.Max(16, System.Math.Min(LevelStudioDocument.MaxWidth, width));
+        height = System.Math.Max(8, System.Math.Min(LevelStudioDocument.MaxHeight, height));
+        var rows = new char[height][];
+        for (int r = 0; r < height; r++)
+        {
+            rows[r] = new string('.', width).ToCharArray();
+            rows[r][0] = rows[r][width - 1] = 'W';
+        }
+        for (int x = 0; x < width; x++) rows[0][x] = 'W';
+        for (int y = 0; y < 3; y++) for (int x = 1; x < width - 1; x++) rows[height - 1 - y][x] = '#';
+        int stand = height - 1 - 3;
+        rows[stand][2] = 'G'; rows[stand][4] = 'M'; rows[stand][System.Math.Min(width - 4, 10)] = 'T'; rows[stand][width - 4] = 'o';
+        return string.Join("\n", rows.Select(r => new string(r)));
+    }
+}

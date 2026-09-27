@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 5;
+    public const int CurrentDataVersion = 6;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -127,6 +127,12 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("每回合马里奥速度随机浮动 ±比例")]
     [Range(0f, 0.3f)] public float roundSpeedVariance = 0.08f;
 
+    [Header("Anti-stuck (S189, H9)")]
+    [Tooltip("马里奥这么多秒几乎没动（且没在发晕/起步）就判定卡住并救出")]
+    public float stuckSeconds = 6f;
+    [Tooltip("判定'几乎没动'的距离（格）")]
+    public float stuckMoveEpsilon = 0.6f;
+
     [Header("Theme (S187)")]
     [Tooltip("房间配色主题：Whitebox / AmusementPark(游乐园) / CityPark(公园) / MountainPark(山上公园)。只换颜色/图，不改玩法")]
     public string themePreset = "AmusementPark";
@@ -167,6 +173,10 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 6)
+        {
+            stuckSeconds = 6f; stuckMoveEpsilon = 0.6f;
         }
         if (dataVersion < 5)
         {

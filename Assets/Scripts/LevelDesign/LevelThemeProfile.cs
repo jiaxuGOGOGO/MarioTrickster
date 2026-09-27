@@ -80,6 +80,9 @@ public class LevelThemeProfile : ScriptableObject
         new ElementSpriteMapping { elementKey = "BreakableBlock" },
         // S187 新增：大炮 + 场景摆件（游乐园/公园/山上公园主题只需给这几个键拖图）
         new ElementSpriteMapping { elementKey = "Cannon" },
+        // S189：封路墙、队列机关此前没有插槽（测试 EveryNonTerrainElementHasAThemeSlot 发现）
+        new ElementSpriteMapping { elementKey = "ControllableBlocker" },
+        new ElementSpriteMapping { elementKey = "StateQueueTrap" },
         new ElementSpriteMapping { elementKey = "Crate" },
         new ElementSpriteMapping { elementKey = "Bush" },
         new ElementSpriteMapping { elementKey = "Decor" },

@@ -1028,4 +1028,42 @@ public class Step1RushMarioTests
         StringAssert.Contains("AsciiLevelGenerator.TryFitCatalogVisual(target, sr)", Read("Scripts/Editor/AssetApplyToSelected.cs"), "单个换皮与主题换肤同一套适配");
         StringAssert.DoesNotContain("[RequireComponent(typeof(BoxCollider2D))]", CodeOnly(Read("Scripts/Core/SpriteAutoFit.cs")));
     }
+
+    // ── S192：编辑卡顿 / 每帧分配 ─────────────────────────
+    [Test]
+    public void WorkshopPaintsWithQuickCheckAndDefersFullCheck()
+    {
+        string win = Read("Scripts/Editor/LevelWorkshopWindow.cs");
+        StringAssert.Contains("LevelWorkshopModel.QuickCheck(", win, "画的时候只跑快速检查");
+        StringAssert.Contains("EditorApplication.update += Tick", win, "完整检查停笔后在编辑器节拍里跑");
+        StringAssert.Contains("if (next != hoverCell)", win, "只在换格子时重画");
+        StringAssert.DoesNotContain("new GUIStyle(cellLabel) { normal = { textColor = ElementCatalog.TextColorOn(bg)", win, "格子字不能每帧 new GUIStyle");
+        var room = Step1PrankRoomBuilder.Room;
+        System.Func<char, bool> solid = AsciiElementRegistry.GetDefault().IsSolid;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; i < 20; i++) LevelWorkshopModel.QuickCheck(room, true, solid);
+        Assert.Less(sw.ElapsedMilliseconds / 20.0, 20.0, "快速检查必须足够快（画一格 < 20ms）");
+    }
+
+    [Test]
+    public void FullCheckDedupesVariantsByPhysics()
+    {
+        var sigs = new HashSet<string>();
+        int variants = 0;
+        foreach (var v in LevelWorkshopModel.Variants(Step1PrankRoomBuilder.Room)) { variants++; sigs.Add(LevelWorkshopModel.PhysicsSignature(v)); }
+        Assert.Less(sigs.Count, variants, "草丛/火等不影响物理的组合要合并，只查不同的物理布局");
+        StringAssert.Contains("if (!seenPhysics.Add(signature)) continue;", Read("Scripts/Editor/LevelWorkshopModel.cs"));
+        // 去重后结论不变：默认房间通过，坏房间仍能被抓到（见 DeadlockAnalyzerFindsPitWithoutExitAndWalledLoot）
+        Assert.IsTrue(LevelWorkshopModel.Check(Step1PrankRoomBuilder.Room, true, AsciiElementRegistry.GetDefault().IsSolid).Playable);
+    }
+
+    [Test]
+    public void PerFrameCodePathsDoNotAllocate()
+    {
+        string tracker = CodeOnly(Read("Scripts/Gameplay/MarioSuspicionTracker.cs"));
+        StringAssert.DoesNotContain("Physics2D.LinecastAll(", tracker, "视线检测每帧多次调用，不能用会分配数组的 LinecastAll");
+        StringAssert.DoesNotContain("Physics2D.RaycastAll(", CodeOnly(Read("Scripts/Gameplay/Step1/MarioVisionConeView.cs")));
+        StringAssert.Contains("textCache", Read("Scripts/Gameplay/Step1/Step1Gui.cs"), "界面文字样式要缓存");
+        // 视线结果与改动前一致（墙挡、单向台面不挡、草丛挡）由 WallBlocksSightButOneWayPlatformDoesNot / BushBlocksSightUnlessViewerIsInside 守护
+    }
 }

@@ -35,11 +35,17 @@ public static class Step1Gui
         return Screen.width / s;
     }
 
+    // S192 性能：原来每次调用都 new GUIStyle（每帧几十次 → GC 卡顿）。按参数缓存。
+    private static readonly System.Collections.Generic.Dictionary<int, GUIStyle> textCache = new System.Collections.Generic.Dictionary<int, GUIStyle>();
+
     public static GUIStyle Text(int size, TextAnchor anchor = TextAnchor.UpperLeft, bool wrap = true)
     {
+        int key = size * 100 + (int)anchor * 2 + (wrap ? 1 : 0);
+        if (textCache.TryGetValue(key, out var cached) && cached != null && (Font == null || cached.font == Font)) return cached;
         var st = new GUIStyle(GUI.skin.label) { fontSize = size, alignment = anchor, wordWrap = wrap, richText = true };
         if (Font != null) st.font = Font;
         st.normal.textColor = Color.white;
+        textCache[key] = st;
         return st;
     }
 

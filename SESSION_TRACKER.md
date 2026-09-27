@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 191（关卡工坊看得清：出生点改红/蓝、字色按对比度自动黑白；美术换图按元素贴法自动适配：平铺/等比放入/拉伸，接入原 SpriteAutoFit，单个换皮与主题换肤同一路径；美术检查菜单） |
+| **最新 Session** | Session 192（性能：关卡工坊拖动卡顿修复——画时快速检查 0.2ms、停笔 0.35s 后完整检查、按物理签名去重 32→8 组、死局分析剪枝、GUIStyle/颜色/行缓存、只在换格重画；游戏内视线/视锥改非分配射线、界面样式缓存） |
+| **S191** | Session 191（关卡工坊看得清：出生点改红/蓝、字色按对比度自动黑白；美术换图按元素贴法自动适配：平铺/等比放入/拉伸，接入原 SpriteAutoFit，单个换皮与主题换肤同一路径；美术检查菜单） |
 | **S190** | 关卡工坊快捷键改 Ctrl+Alt+W（原键与 Unity Generate Lighting 冲突） |
 | **S189** | Session 189（关卡工坊窗口 + 死局分析 + 运行时防卡死 + 塌桥渐显复查；修主题插槽测试） |
 | **更早 Session** | Session 188（修 S187 两个测试；元素说明书 ElementCatalog + 摆放检查 + V 键标签 + 元素图例；第 1 步构建时移除不用的旧系统） |
@@ -102,6 +103,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S192] 用户："编辑的时候很卡，拖动有延迟"
+
+- 实测根因（沙箱计时）：工坊每改一格就同步跑完整检查——32 个随机组合 × (L1 + 死局分析 ~115 次 BFS)，约 0.8–0.9 秒/格；另外每个格子每帧 new GUIStyle、每次鼠标移动都整窗重画。
+- 工坊：画的时候只跑 `LevelWorkshopModel.QuickCheck`（摆放规则，实测 0.17ms）；停笔 0.35 秒后由 `EditorApplication.update` 跑完整检查，期间显示"检查中"、试玩按钮暂不可点；完整检查按 `PhysicsSignature` 去重（草丛/火/装饰不影响物理，32→8 组），总耗时 ~0.35s 且只在停笔后跑一次。GUIStyle、格子颜色、字符串、网格行、最坏预览网格、调色板全部缓存；鼠标移动只在换格时重画；同一格重复拖动不重复记 Undo。
+- `LevelDeadlockAnalyzer`：严格成立的剪枝（B∈Reach(A) 且 A 到不了出口 ⇒ B 也到不了），落点计算复用同一份站位表。不改 L2 算法。
+- 游戏内每帧路径：`MarioSuspicionTracker.CanWitness` LinecastAll → 共享缓冲非分配 Linecast（判定与顺序无关，结果一致）；视锥 RaycastAll ×15/帧 → 非分配；`Step1Gui.Text` / 问卷按钮样式缓存（原每帧几十次 new GUIStyle）。
+- 测试 71→74（快速检查 <20ms、物理去重、每帧路径无分配 API）。
 
 ### [S191] 用户："工坊有些白色看不清" + "换美术会不会反复调尺寸，能否融入原有适配"
 

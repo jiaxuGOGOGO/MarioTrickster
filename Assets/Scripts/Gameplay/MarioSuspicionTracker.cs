@@ -253,13 +253,22 @@ public class MarioSuspicionTracker : MonoBehaviour
     /// H4 纯函数：viewer 能否在 range 内无遮挡地看到 target。
     /// 忽略触发器、Mario、Trickster 以及目标自身的碰撞体；任何其他实体碰撞体都算遮挡。
     /// </summary>
+    private static RaycastHit2D[] s_hits = new RaycastHit2D[32];
+    private static readonly ContactFilter2D s_noFilter = NoFilter();
+    private static ContactFilter2D NoFilter() { var f = new ContactFilter2D(); f.NoFilter(); return f; }
+
     public static bool CanWitness(Vector2 viewer, Vector2 target, float range, Transform targetRoot)
     {
         if (float.IsNaN(viewer.x) || float.IsNaN(viewer.y) || float.IsNaN(target.x) || float.IsNaN(target.y)) return false;
         if (float.IsInfinity(viewer.x) || float.IsInfinity(viewer.y) || float.IsInfinity(target.x) || float.IsInfinity(target.y)) return false;
         if (Vector2.Distance(viewer, target) > range) return false;
-        foreach (var hit in Physics2D.LinecastAll(viewer, target))
+        // S192 性能：LinecastAll 每次新建数组（每帧多次 → GC 卡顿）。改用共享缓冲的非分配版本；
+        // 判定与顺序无关（任何一个遮挡物就返回 false），结果与 LinecastAll 完全一致。
+        int count = Physics2D.Linecast(viewer, target, s_noFilter, s_hits);
+        if (count == s_hits.Length) { s_hits = new RaycastHit2D[s_hits.Length * 2]; count = Physics2D.Linecast(viewer, target, s_noFilter, s_hits); }
+        for (int i = 0; i < count; i++)
         {
+            var hit = s_hits[i];
             Collider2D c = hit.collider;
             if (c == null) continue;
             if (targetRoot != null && c.transform.IsChildOf(targetRoot)) continue;

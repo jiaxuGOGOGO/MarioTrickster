@@ -44,11 +44,18 @@ public class MarioVisionConeView : MonoBehaviour
         line.startColor = line.endColor = c;
     }
 
+    private static readonly RaycastHit2D[] s_hits = new RaycastHit2D[32];
+    private static readonly ContactFilter2D s_filter = MakeFilter();
+    private static ContactFilter2D MakeFilter() { var f = new ContactFilter2D(); f.NoFilter(); return f; }
+
     private static float ClearDistance(Vector2 eye, Vector2 dir, float range)
     {
         float best = range;
-        foreach (var hit in Physics2D.RaycastAll(eye, dir, range))
+        // S192 性能：非分配射线（原 RaycastAll 每帧 15 次新建数组）
+        int count = Physics2D.Raycast(eye, dir, s_filter, s_hits, range);
+        for (int i = 0; i < count; i++)
         {
+            var hit = s_hits[i];
             var c = hit.collider;
             if (c == null || MarioSuspicionTracker.IsOneWayPlatform(c)) continue;
             if (c.isTrigger && !SightBlocker.Blocks(c, eye)) continue; // 草丛挡视线（S187）

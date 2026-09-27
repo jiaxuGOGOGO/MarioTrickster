@@ -71,6 +71,15 @@ public static class LevelWorkshopModel
     /// <summary>
     /// 全面检查。grid 第 0 行在最上面。随机槽位（1/2/3）会把所有组合都检查一遍（组合太多时只查最坏的两种：全实心 / 全空）。
     /// </summary>
+    /// <summary>快速检查（画画时用）：只查代表布局（槽位取第一个选项）的摆放 + 结构，~1ms。完整检查在停笔后再跑。</summary>
+    public static CheckResult QuickCheck(IList<string> grid, bool step1Rules, System.Func<char, bool> isSolid)
+    {
+        var result = new CheckResult();
+        var variant = Fill(grid, 0, false);
+        foreach (var issue in ElementCatalog.PlacementIssues(variant, step1Rules, isSolid)) AddParsed(result, issue, true);
+        return result;
+    }
+
     public static CheckResult Check(IList<string> grid, bool step1Rules, System.Func<char, bool> isSolid)
     {
         var result = new CheckResult();
@@ -83,11 +92,16 @@ public static class LevelWorkshopModel
         if (step1Rules && grid.Sum(r => r.Count(ch => ch == 'o')) != 1) { result.general.Add("第 1 步房间需要且只能有一个宝物 o"); result.errors++; }
         if (result.errors > 0) return result;
 
+        var seenPhysics = new HashSet<string>();
         foreach (var variant in Variants(grid))
         {
             // 摆放规则
             foreach (var issue in ElementCatalog.PlacementIssues(variant, step1Rules, isSolid))
                 AddParsed(result, issue, true);
+            // S192 性能：结构检查与死局只取决于"实心/危险/机关"的分布；草丛、装饰、火（非实心非危险）
+            // 不同的组合结果相同，按"物理签名"去重（32 组合 → 通常 2–4 组）。
+            string signature = PhysicsSignature(variant);
+            if (!seenPhysics.Add(signature)) continue;
             // L1 结构
             string text = string.Join("\n", variant);
             var l1 = AsciiLevelValidator.ValidateTemplate(text);
@@ -104,6 +118,22 @@ public static class LevelWorkshopModel
             }
         }
         return result;
+    }
+
+    /// <summary>死局分析只关心：实心、危险、塌桥、封路墙、出生点/宝物/出口；其它字符视为空气。</summary>
+    public static string PhysicsSignature(IList<string> grid)
+    {
+        var reg = AsciiElementRegistry.GetDefault();
+        var solid = reg.GetSolidChars();
+        var hazard = reg.GetHazardChars();
+        var sb = new System.Text.StringBuilder();
+        foreach (var row in grid)
+        {
+            foreach (char c in row)
+                sb.Append(solid.Contains(c) || hazard.Contains(c) || c == 'C' || c == '[' || c == 'M' || c == 'G' || c == 'o' ? c : '.');
+            sb.Append('\n');
+        }
+        return sb.ToString();
     }
 
     /// <summary>随机槽位的检查组合：≤ 64 种全部枚举；更多时取"每个槽位第一个选项 / 最后一个选项"两种极端。</summary>

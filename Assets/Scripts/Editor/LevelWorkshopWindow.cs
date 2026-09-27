@@ -32,10 +32,22 @@ public class LevelWorkshopWindow : EditorWindow
     private LevelWorkshopModel.CheckResult check;
     private string checkedSource;
     private Vector2 paletteScroll, canvasScroll, issueScroll;
-    private bool painting, rectDragging;
+    private bool painting, rectDragging, strokeStarted;
     private Vector2Int lastCell, rectStart, hoverCell = new Vector2Int(-1, -1);
     private int undoGroup;
     private GUIStyle cellLabel, tileLabel;
+    // S192 性能：
+    //  - 画的时候只跑"快速检查"（摆放规则，~1ms），停笔 0.35 秒后再在后台节拍里跑完整检查（死局/结构/全部随机组合）；
+    //  - 画布只在鼠标换格子时重画，不是每个像素移动都重画；
+    //  - GUIStyle 全部缓存（原来每个格子每帧 new 一个）；网格行只在内容变化时拆分一次。
+    private const double FullCheckDelay = 0.35;
+    private double fullCheckAt = -1;
+    private bool fullCheckStale;
+    private string[] rowsCache = new string[0];
+    private string rowsSource;
+    private GUIStyle glyphDark, glyphLight, nameNormal, nameSelected;
+    private IList<string> shownCache;
+    private string shownKey;
 
     [MenuItem("MarioTrickster/Level Workshop (关卡工坊) %&w", false, 1)]
     public static void Open()
@@ -50,9 +62,31 @@ public class LevelWorkshopWindow : EditorWindow
         if (string.IsNullOrEmpty(source)) source = EditorPrefs.GetString(DraftKey, "");
         if (string.IsNullOrEmpty(source)) source = string.Join("\n", Step1PrankRoomBuilder.Current);
         Undo.undoRedoPerformed += OnUndo;
+        EditorApplication.update += Tick;
+        wantsMouseMove = true;
     }
 
-    private void OnDisable() { Undo.undoRedoPerformed -= OnUndo; }
+    private void OnDisable() { Undo.undoRedoPerformed -= OnUndo; EditorApplication.update -= Tick; }
+
+    /// <summary>停笔一小会儿后再跑完整检查（不在画的过程中跑）。</summary>
+    private void Tick()
+    {
+        if (fullCheckAt < 0 || painting || rectDragging) return;
+        if (EditorApplication.timeSinceStartup < fullCheckAt) return;
+        fullCheckAt = -1;
+        if (doc == null) return;
+        checkedSource = doc.Grid + step1Mode;
+        check = LevelWorkshopModel.Check(Rows(), step1Mode, AsciiElementRegistry.GetDefault().IsSolid);
+        fullCheckStale = false;
+        Repaint();
+    }
+
+    private string[] Rows()
+    {
+        string grid = doc.Grid;
+        if (rowsSource != grid) { rowsSource = grid; rowsCache = grid.Split('\n'); }
+        return rowsCache;
+    }
     private void OnUndo() { parsedSource = null; Save(); Repaint(); }
     private void Save() => EditorPrefs.SetString(DraftKey, source ?? "");
 
@@ -65,9 +99,16 @@ public class LevelWorkshopWindow : EditorWindow
 
     private void RunCheck()
     {
-        if (doc == null || checkedSource == doc.Grid + step1Mode) return;
-        checkedSource = doc.Grid + step1Mode;
-        check = LevelWorkshopModel.Check(doc.Grid.Split('\n'), step1Mode, AsciiElementRegistry.GetDefault().IsSolid);
+        if (doc == null) return;
+        string key = doc.Grid + step1Mode;
+        if (checkedSource == key || (fullCheckStale && fullCheckAt >= 0)) return;
+        if (check == null) { checkedSource = key; check = LevelWorkshopModel.Check(Rows(), step1Mode, AsciiElementRegistry.GetDefault().IsSolid); return; }
+        // 有改动：先给快速结果（摆放问题立刻标红），完整检查延后
+        var quick = LevelWorkshopModel.QuickCheck(Rows(), step1Mode, AsciiElementRegistry.GetDefault().IsSolid);
+        quick.deadlock = check.deadlock; quick.temporary = check.temporary; // 旧的死局图先保留，避免闪烁
+        check = quick;
+        fullCheckStale = true;
+        fullCheckAt = EditorApplication.timeSinceStartup + FullCheckDelay;
     }
 
     private void SetSource(string text, string op)
@@ -85,6 +126,10 @@ public class LevelWorkshopWindow : EditorWindow
         {
             cellLabel = new GUIStyle(EditorStyles.miniBoldLabel) { alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
             tileLabel = new GUIStyle(EditorStyles.miniLabel) { alignment = TextAnchor.MiddleCenter, wordWrap = true, fontSize = 10 };
+            glyphDark = new GUIStyle(cellLabel) { normal = { textColor = new Color(0.08f, 0.08f, 0.1f) } };
+            glyphLight = new GUIStyle(cellLabel) { normal = { textColor = Color.white } };
+            nameNormal = new GUIStyle(tileLabel) { normal = { textColor = new Color(0.92f, 0.92f, 0.92f) } };
+            nameSelected = new GUIStyle(tileLabel) { normal = { textColor = new Color(0.1f, 0.1f, 0.1f) } };
         }
         Parse();
         DrawToolbar();
@@ -131,7 +176,7 @@ public class LevelWorkshopWindow : EditorWindow
         EditorGUILayout.BeginVertical(GUILayout.Width(236));
         paletteScroll = EditorGUILayout.BeginScrollView(paletteScroll);
         var reg = AsciiElementRegistry.GetDefault();
-        foreach (var group in LevelWorkshopModel.Palette(step1Mode))
+        foreach (var group in PaletteCached())
         {
             EditorGUILayout.LabelField(group.title, EditorStyles.boldLabel);
             DrawTiles(group.items.Select(i => (i.ch, i.zh, $"{i.zh} {i.en}\n{i.what}\n摆放：{i.place}\n美术：{ArtHint(i)}", ElementCatalog.EditorColor(i.ch))).ToList());
@@ -142,6 +187,14 @@ public class LevelWorkshopWindow : EditorWindow
         EditorGUILayout.HelpBox("左键画 · 右键擦 · Alt+点击吸取\nShift+拖 = 矩形 · Ctrl+Z 撤销整笔", MessageType.None);
         EditorGUILayout.EndScrollView();
         EditorGUILayout.EndVertical();
+    }
+
+    private List<LevelWorkshopModel.Group> paletteCache;
+    private bool paletteMode;
+    private List<LevelWorkshopModel.Group> PaletteCached()
+    {
+        if (paletteCache == null || paletteMode != step1Mode) { paletteCache = LevelWorkshopModel.Palette(step1Mode); paletteMode = step1Mode; }
+        return paletteCache;
     }
 
     private void DrawTiles(List<(char ch, string name, string tip, Color color)> tiles)
@@ -162,8 +215,7 @@ public class LevelWorkshopWindow : EditorWindow
                 DrawOutline(inner, new Color(0f, 0f, 0f, 0.6f), 1f);
                 Glyph(inner, t.ch.ToString(), c);
                 // 名称永远写在深色底上（不随元素颜色变），任何颜色都看得清
-                var nameStyle = new GUIStyle(tileLabel) { normal = { textColor = selected ? new Color(0.1f, 0.1f, 0.1f) : new Color(0.92f, 0.92f, 0.92f) } };
-                GUI.Label(new Rect(r.x, r.y + 23, r.width, 22), new GUIContent(t.name, t.tip), nameStyle);
+                GUI.Label(new Rect(r.x, r.y + 23, r.width, 22), new GUIContent(t.name, t.tip), selected ? nameSelected : nameNormal);
                 if (GUI.Button(r, new GUIContent("", t.tip), GUIStyle.none))
                 { brush = t.ch; if (tool == LevelWorkshopModel.Tool.Erase || tool == LevelWorkshopModel.Tool.Pick) tool = LevelWorkshopModel.Tool.Brush; }
             }
@@ -174,10 +226,20 @@ public class LevelWorkshopWindow : EditorWindow
     private static Color ColorOf(AsciiElementRegistry reg, char c) => ElementCatalog.EditorColor(c);
 
     /// <summary>按底色亮度自动用黑字或白字（亮色块上白字看不清的问题）。</summary>
+    private static readonly string[] glyphText = BuildGlyphText();
+    private static string[] BuildGlyphText() { var a = new string[128]; for (int i = 0; i < 128; i++) a[i] = ((char)i).ToString(); return a; }
+    private readonly Dictionary<char, bool> darkGlyph = new Dictionary<char, bool>();
+
     private void Glyph(Rect r, string text, Color bg)
     {
-        var st = new GUIStyle(cellLabel) { normal = { textColor = ElementCatalog.TextColorOn(bg) } };
-        GUI.Label(r, text, st);
+        GUI.Label(r, text, ElementCatalog.TextColorOn(bg).r < 0.5f ? glyphDark : glyphLight);
+    }
+
+    /// <summary>画布格子的字：字符串与黑白判断都缓存（原来每格每帧新建 GUIStyle + 字符串）。</summary>
+    private void GlyphFor(Rect r, char ch, Color bg)
+    {
+        if (!darkGlyph.TryGetValue(ch, out bool dark)) darkGlyph[ch] = dark = ElementCatalog.TextColorOn(bg).r < 0.5f;
+        GUI.Label(r, ch < 128 ? glyphText[ch] : ch.ToString(), dark ? glyphDark : glyphLight);
     }
 
     private static string ArtHint(ElementCatalog.Info i)
@@ -202,8 +264,14 @@ public class LevelWorkshopWindow : EditorWindow
         int control = GUIUtility.GetControlID("LevelWorkshopGrid".GetHashCode(), FocusType.Passive);
 
         // 最坏情况预览的网格
-        IList<string> shown = doc.Grid.Split('\n');
-        if (worstCase) shown = LevelDeadlockAnalyzer.ApplyPrankState(LevelDeadlockAnalyzer.ApplyPrankState(shown, 'C', '.'), '[', 'W');
+        string sk = doc.Grid + worstCase;
+        if (shownKey != sk)
+        {
+            shownKey = sk;
+            IList<string> rows = Rows();
+            shownCache = worstCase ? LevelDeadlockAnalyzer.ApplyPrankState(LevelDeadlockAnalyzer.ApplyPrankState(rows, 'C', '.'), '[', 'W') : rows;
+        }
+        IList<string> shown = shownCache;
 
         if (e.type == EventType.Repaint)
         {
@@ -213,9 +281,9 @@ public class LevelWorkshopWindow : EditorWindow
                 {
                     char ch = shown[h - 1 - y][x];
                     Rect cell = CellRect(canvas, x, y, size);
-                    Color bg = ch == '.' ? new Color(0.13f, 0.15f, 0.19f) : Opaque(ColorOf(reg, ch));
+                    Color bg = CellColor(ch);
                     EditorGUI.DrawRect(cell, bg);
-                    if (ch != '.' && ch != '#' && ch != 'W' && size >= 14) Glyph(cell, ch.ToString(), bg);
+                    if (ch != '.' && ch != '#' && ch != 'W' && size >= 14) GlyphFor(cell, ch, bg);
                 }
             if (check != null)
             {
@@ -233,7 +301,11 @@ public class LevelWorkshopWindow : EditorWindow
 
         var point = new Vector2Int(Mathf.FloorToInt((e.mousePosition.x - canvas.x) / size), doc.Height - 1 - Mathf.FloorToInt((e.mousePosition.y - canvas.y) / size));
         bool inside = canvas.Contains(e.mousePosition);
-        if (e.type == EventType.MouseMove || e.type == EventType.MouseDrag) { hoverCell = inside ? point : new Vector2Int(-1, -1); Repaint(); }
+        if (e.type == EventType.MouseMove || e.type == EventType.MouseDrag)
+        {
+            var next = inside ? point : new Vector2Int(-1, -1);
+            if (next != hoverCell) { hoverCell = next; Repaint(); } // 只在换格子时重画
+        }
 
         if (inside && e.type == EventType.MouseDown && (e.button == 0 || e.button == 1))
         {
@@ -243,7 +315,7 @@ public class LevelWorkshopWindow : EditorWindow
                 Undo.IncrementCurrentGroup(); undoGroup = Undo.GetCurrentGroup(); Undo.SetCurrentGroupName("Workshop stroke");
                 GUIUtility.hotControl = control;
                 if (e.shift || tool == LevelWorkshopModel.Tool.Rect) { rectDragging = true; rectStart = point; }
-                else { painting = true; lastCell = point; PaintLine(point, e.button == 1 || tool == LevelWorkshopModel.Tool.Erase); }
+                else { painting = true; strokeStarted = false; lastCell = point; PaintLine(point, e.button == 1 || tool == LevelWorkshopModel.Tool.Erase); }
                 e.Use();
             }
         }
@@ -257,6 +329,7 @@ public class LevelWorkshopWindow : EditorWindow
                 source = doc.Text; parsedSource = source;
             }
             painting = rectDragging = false;
+            fullCheckAt = EditorApplication.timeSinceStartup + FullCheckDelay;
             Undo.CollapseUndoOperations(undoGroup);
             GUIUtility.hotControl = 0;
             Save();
@@ -267,8 +340,10 @@ public class LevelWorkshopWindow : EditorWindow
 
     private void PaintLine(Vector2Int p, bool erase)
     {
-        Undo.RecordObject(this, "Workshop stroke");
         char v = erase ? '.' : brush;
+        if (p == lastCell && p.x >= 0 && p.x < doc.Width && p.y >= 0 && p.y < doc.Height && doc.Cell(p.x, p.y) == v && painting && strokeStarted) return; // 同一格不重复记录
+        strokeStarted = true;
+        Undo.RecordObject(this, "Workshop stroke");
         int steps = Mathf.Max(Mathf.Abs(p.x - lastCell.x), Mathf.Abs(p.y - lastCell.y));
         for (int i = 0; i <= steps; i++)
         {
@@ -298,6 +373,15 @@ public class LevelWorkshopWindow : EditorWindow
 
     private static Color Opaque(Color c) { c.a = 1f; return c; }
 
+    private readonly Dictionary<char, Color> colorCache = new Dictionary<char, Color>();
+    private Color CellColor(char ch)
+    {
+        if (colorCache.TryGetValue(ch, out var c)) return c;
+        c = ch == '.' ? new Color(0.13f, 0.15f, 0.19f) : Opaque(ElementCatalog.EditorColor(ch));
+        colorCache[ch] = c;
+        return c;
+    }
+
     // ── 底部：状态 + 问题列表 + 试玩 ──────────────────────
     private void DrawStatus()
     {
@@ -320,7 +404,8 @@ public class LevelWorkshopWindow : EditorWindow
 
         if (check != null)
         {
-            EditorGUILayout.HelpBox(check.Headline + (check.cells.Count > 0 ? "（鼠标停在红/黄框格子上看原因）" : ""), check.Playable ? MessageType.Info : MessageType.Error);
+            string head = fullCheckStale ? "…检查中（停笔后自动完成）" : check.Headline;
+            EditorGUILayout.HelpBox(head + (check.cells.Count > 0 ? "（鼠标停在红/黄框格子上看原因）" : ""), check.Playable ? MessageType.Info : MessageType.Error);
             if (check.general.Count + check.cells.Count > 0)
             {
                 issueScroll = EditorGUILayout.BeginScrollView(issueScroll, GUILayout.Height(70));
@@ -331,7 +416,7 @@ public class LevelWorkshopWindow : EditorWindow
         }
 
         EditorGUILayout.BeginHorizontal();
-        using (new EditorGUI.DisabledScope(check == null || !check.Playable || EditorApplication.isPlayingOrWillChangePlaymode || !step1Mode))
+        using (new EditorGUI.DisabledScope(check == null || fullCheckStale || !check.Playable || EditorApplication.isPlayingOrWillChangePlaymode || !step1Mode))
             if (GUILayout.Button(new GUIContent("▶ 作为第 1 步房间试玩", "用恶作剧房间的全部规则（马里奥心智、问卷、随机、防卡死）玩这张图"), GUILayout.Height(34)))
                 PlayAsStep1();
         if (GUILayout.Button(new GUIContent("恢复默认恶作剧房间", "以后 ▶ Play Prank Room 用回默认房间"), GUILayout.Height(34), GUILayout.Width(150)))

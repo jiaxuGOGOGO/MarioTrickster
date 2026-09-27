@@ -268,10 +268,13 @@ public class Step1PlaytestLog : MonoBehaviour
             Step1Gui.Text(20, TextAnchor.MiddleCenter));
     }
 
+    private static readonly Dictionary<int, GUIStyle> buttonCache = new Dictionary<int, GUIStyle>();
     private static GUIStyle Button(int size)
     {
+        if (buttonCache.TryGetValue(size, out var cached) && cached != null) return cached;
         var st = new GUIStyle(GUI.skin.button) { fontSize = size, wordWrap = true, richText = true };
         if (Step1Gui.Font != null) st.font = Step1Gui.Font;
+        buttonCache[size] = st;
         return st;
     }
 

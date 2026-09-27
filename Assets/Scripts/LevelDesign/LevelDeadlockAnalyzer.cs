@@ -100,23 +100,34 @@ public static class LevelDeadlockAnalyzer
         string baseText = string.Join("\n", grid);
         candidates.UnionWith(LevelReachabilityAnalyzer.ReachableFrom(baseText, mx, my));
         if (hasLoot) candidates.UnionWith(LevelReachabilityAnalyzer.ReachableFrom(baseText, ox, oy));
+        var stateStand = StandableCells(state);
         for (int row = 0; row < h; row++)
             for (int x = 0; x < grid[row].Length; x++)
                 if (grid[row][x] == from)
                 {
                     int y = h - 1 - row;
-                    int landing = FirstLandingBelow(state, x, y);
+                    int landing = FirstLandingBelow(stateStand, x, y);
                     if (landing >= 0) candidates.Add(LevelReachabilityAnalyzer.CellKey(x, landing));
                 }
         int exitKey = LevelReachabilityAnalyzer.CellKey(gx, gy);
-        var standable = StandableCells(state);
+        var standable = stateStand;
+        // S192 性能：原来对每个候选格各跑一次 BFS（~115 次）。严格成立的剪枝：
+        // 若 B ∈ Reach(A) 且 Reach(A) 不含出口，则 Reach(B) ⊆ Reach(A) 也不含出口 → B 直接判死，不再 BFS。
+        // 不改 L2 算法本身，只减少调用次数。
+        var cache = new Dictionary<int, bool>();
         foreach (int key in candidates)
         {
             if (!standable.Contains(key)) continue; // 触发后这格站不住了（例如桥面本身）→ 马里奥会掉到落点，落点已单独加入
             report.standingCellsChecked++;
             int x = key / 100000, y = key % 100000;
-            var reach = LevelReachabilityAnalyzer.ReachableFrom(text, x, y);
-            if (reach.Contains(exitKey)) continue;
+            if (!cache.TryGetValue(key, out bool canExit))
+            {
+                var reach = LevelReachabilityAnalyzer.ReachableFrom(text, x, y);
+                canExit = reach.Contains(exitKey);
+                cache[key] = canExit;
+                if (!canExit) foreach (int b in reach) cache[b] = false; // Reach(B) ⊆ Reach(A)：都到不了出口
+            }
+            if (canExit) continue;
             if (persistent)
             {
                 if (report.deadlockCells.Add(key))
@@ -128,9 +139,10 @@ public static class LevelDeadlockAnalyzer
     }
 
     /// <summary>纯函数：某格往下第一个能站的高度（-1 = 掉出地图）。</summary>
-    private static int FirstLandingBelow(IList<string> state, int x, int y)
+    private static int FirstLandingBelow(IList<string> state, int x, int y) => FirstLandingBelow(StandableCells(state), x, y);
+
+    private static int FirstLandingBelow(HashSet<int> stand, int x, int y)
     {
-        var stand = StandableCells(state);
         for (int ny = y; ny >= 0; ny--) if (stand.Contains(LevelReachabilityAnalyzer.CellKey(x, ny))) return ny;
         return -1;
     }

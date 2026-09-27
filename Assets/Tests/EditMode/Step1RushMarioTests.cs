@@ -1264,14 +1264,21 @@ public class Step1RushMarioTests
         var r = reg();
         Assert.IsTrue(r.IsSolid('|') && r.IsSolid('%'), "门与裂墙默认按墙参与可达性（最坏情况）");
         StringAssert.Contains("|%", LevelDeadlockAnalyzer.PersistentOpeners, "打开后的状态也做死局检查");
-        Assert.IsFalse(WallSmashAbility.CanSmash(true, 2, 0f), "伪装时不能砸（必须现形 = 代价）");
-        Assert.IsFalse(WallSmashAbility.CanSmash(false, 0, 0f), "次数用完不能砸");
-        Assert.IsFalse(WallSmashAbility.CanSmash(false, 2, 1f), "冷却中不能砸");
-        Assert.IsTrue(WallSmashAbility.CanSmash(false, 2, 0f));
-        Assert.Greater(Tuning().hearingRange, 0f, "砸墙有响声，马里奥听得见");
+        Assert.IsFalse(TricksterKit.CanBomb(true, false, 3, 0f), "伪装时不能放炸弹（必须现形 = 代价）");
+        Assert.IsFalse(TricksterKit.CanBomb(false, true, 3, 0f), "缩小时不能放");
+        Assert.IsFalse(TricksterKit.CanBomb(false, false, 0, 0f), "炸弹用完不能放");
+        Assert.IsFalse(TricksterKit.CanBomb(false, false, 3, 1f), "冷却中不能放");
+        Assert.IsTrue(TricksterKit.CanBomb(false, false, 3, 0f));
+        Assert.Greater(Tuning().hearingRange, 0f, "爆炸有响声，马里奥听得见");
         StringAssert.Contains("CrackedWall.Smashed += eyes.NoteNoise", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
-        foreach (string token in new[] { "TricksterController", "IsDisguised" })
-            StringAssert.DoesNotContain(token, CodeOnly(Read("Scripts/Gameplay/Step1/MarioEyes.cs")), "H4：听见的只是声音位置");
+        // H4：MarioEyes 本来就持有捣蛋者（用于"看"），这里只检查"听"的入口：只收一个位置，不碰捣蛋者
+        string eyes = CodeOnly(Read("Scripts/Gameplay/Step1/MarioEyes.cs"));
+        int a = eyes.IndexOf("public void NoteNoise("), b = eyes.IndexOf("public void Forget(");
+        Assert.IsTrue(a >= 0 && b > a, "有 NoteNoise 入口");
+        string hear = eyes.Substring(a, b - a);
+        StringAssert.Contains("NoteNoise(Vector2 where)", hear, "只收声音位置");
+        foreach (string token in new[] { "figure", "TricksterController", "IsDisguised" })
+            StringAssert.DoesNotContain(token, hear, "H4：听见的只是声音位置");
         Assert.IsTrue(OneWayDoor.OnOpeningSide(new Vector2(5, 1), new Vector2(5.8f, 1), false, 0.9f), "从右边开");
         Assert.IsFalse(OneWayDoor.OnOpeningSide(new Vector2(5, 1), new Vector2(4.2f, 1), false, 0.9f), "左边推不开");
         Assert.AreEqual(-1, Step1HakoniwaEvents.Pick(1, 0, 1f), "没有裂墙就没有塌墙事件");
@@ -1279,6 +1286,79 @@ public class Step1RushMarioTests
         var picks = new HashSet<int>(); for (int s = 0; s < 50; s++) picks.Add(Step1HakoniwaEvents.Pick(s, 3, 0.5f));
         Assert.Greater(picks.Count, 2, "不同回合塌不同的墙 / 有时不塌");
         CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(r.GetAllRegisteredChars()), "新元素显式登记（不静默计数）");
+    }
+
+    // ── S197：技能包 / 限制地形 / 图例 / 修复 ─────────────────
+    [Test]
+    public void TricksterKitIsDataDrivenAndHasCosts()
+    {
+        var t = Tuning();
+        Assert.AreEqual(3, t.bombsPerRound, "默认 3 枚炸弹（可配置）");
+        Assert.Greater(t.bombFuseSeconds, 0f, "H3：炸弹有引信预警");
+        Assert.IsTrue(TricksterBomb.InBlast(Vector2.zero, new Vector2(1f, 0.5f), t.bombRadius), "小范围");
+        Assert.IsFalse(TricksterBomb.InBlast(Vector2.zero, new Vector2(3f, 0f), t.bombRadius), "不是全屏清图");
+        Assert.IsTrue(TricksterKit.CanShrink(false, 2)); Assert.IsFalse(TricksterKit.CanShrink(false, 0), "缩小有次数限制");
+        Assert.Less(t.shrinkScale, 1f);
+        StringAssert.Contains("TricksterKit.BlocksPranks", Read("Scripts/Enemy/TricksterController.cs"), "缩小时不能触发机关（代价）");
+        StringAssert.Contains("Step1Keys.Down(KeyCode.B)", Read("Scripts/Gameplay/Step1/TricksterKit.cs"), "B 键同时读新旧输入系统（修'按 B 没反应'）");
+        StringAssert.Contains("Keyboard.current", Read("Scripts/Gameplay/Step1/Step1Keys.cs"));
+        StringAssert.Contains("AddComponent<TricksterKit>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+        // 跳跃力：能跳上 2.5 格（与马里奥/可达性分析一致）
+        float apex = t.tricksterJumpPower * t.tricksterJumpPower / (2f * 80f);
+        Assert.GreaterOrEqual(apex, 2.45f, "捣蛋者要跳得上关卡里的 2 格台阶（原 18 只有 2.0 格）");
+    }
+
+    [Test]
+    public void VentsPairTopDownLeftRightAndTimeStopIsTelegraphed()
+    {
+        var pos = new List<Vector2> { new Vector2(10, 1), new Vector2(3, 9), new Vector2(20, 9), new Vector2(5, 1) };
+        Assert.AreEqual(2, Vent.PairOf(pos, 1), "上层左 ↔ 上层右");
+        Assert.AreEqual(0, Vent.PairOf(pos, 3), "下层左 ↔ 下层右");
+        Assert.AreEqual(-1, Vent.PairOf(new List<Vector2> { Vector2.zero }, 0), "落单没有配对");
+        Assert.IsTrue(ElementCatalog.PlacementIssues(new[] { "WWWWWW", "W.O..W", "W####W" }, true, reg().IsSolid).Exists(i => i.Contains("成对")), "单个通风管要报");
+        var t = Tuning();
+        Assert.Greater(t.timeStopWarnSeconds, 0f, "H3：时间静止有预警");
+        Assert.IsFalse(MarioTimeStop.ShouldTrigger(true, false, 0, 0f, false), "次数用完不用");
+        Assert.IsFalse(MarioTimeStop.ShouldTrigger(true, false, 1, 5f, false), "冷却中不用");
+        Assert.IsFalse(MarioTimeStop.ShouldTrigger(false, false, 1, 0f, false), "没追你、没挨坑时不用");
+        Assert.IsTrue(MarioTimeStop.ShouldTrigger(true, false, 1, 0f, false));
+        foreach (string token in new[] { "IsDisguised", "IsFullyBlended" })
+            StringAssert.DoesNotContain(token, CodeOnly(Read("Scripts/Gameplay/Step1/MarioTimeStop.cs")), "H4：只根据马里奥自己看见的决定");
+    }
+
+    [Test]
+    public void SlowTerrainNeverCreatesDeadlocks()
+    {
+        var r = reg();
+        foreach (char c in "wgO") { Assert.IsFalse(r.IsSolid(c), c + " 可穿过"); Assert.IsFalse(r.GetHazardChars().Contains(c), c + " 不致死 → 不影响可达性"); }
+        Assert.IsTrue(ElementCatalog.PlacementIssues(new[] { "WWWWWWWW", "W.wwww.W", "W######W" }, true, r.IsSolid).Exists(i => i.Contains("毒池")), "毒池太宽要报");
+        Assert.IsFalse(ElementCatalog.PlacementIssues(new[] { "WWWWWWWW", "W..ww..W", "W######W" }, true, r.IsSolid).Exists(i => i.Contains("毒池")));
+        StringAssert.Contains("SlowTerrain.CurrentMarioSpeedScale", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
+        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(r.GetAllRegisteredChars()), "新元素显式登记");
+        Assert.IsTrue(LevelWorkshopModel.Check(LevelWorkshopModel.HakoniwaSample, true, r.IsSolid).Playable, "样板加了通风管/毒池/黏胶后仍可玩");
+    }
+
+    [Test]
+    public void FloorPlannerOnlyPlansJumpsTheBotCanTake()
+    {
+        // 往上跳的路点：先站到起跳点再换目标（修"马里奥走到平台正下方撞头卡住"）
+        var path = new List<LevelPathPlanner.Cell> { new LevelPathPlanner.Cell(2, 1), new LevelPathPlanner.Cell(3, 1), new LevelPathPlanner.Cell(4, 3) };
+        Assert.AreEqual(3, LevelPathPlanner.NextWaypoint(path, 2f).x, "还没到起跳点 → 先去起跳点");
+        Assert.AreEqual(3, LevelPathPlanner.NextWaypoint(path, 3f).y, "站到起跳点 → 目标换成落点（AI 此时起跳）");
+        Assert.LessOrEqual(LevelPathPlanner.JumpUpSide, 2, "向上跳的水平距离不超过 AI 的起跳判定（2.25 格）");
+        foreach (var g in new[] { LevelWorkshopModel.HakoniwaSample, LevelWorkshopModel.PrisonSample, FloorStacker.Build(6, 3) })
+            Assert.Greater(HakoniwaAnalyzer.RouteLength(g), 0, "样板与监狱塔都能按 AI 真实跳法走通");
+    }
+
+    [Test]
+    public void WorkshopSurvivesPlayModeAndLegendExists()
+    {
+        string win = Read("Scripts/Editor/LevelWorkshopWindow.cs");
+        StringAssert.Contains("[NonSerialized] private IList<string> shownCache;", win, "进出 Play 模式后缓存不能半恢复（修'回来后工坊全空白'）");
+        StringAssert.Contains("shownCache == null || shownCache.Count != doc.Height", win);
+        StringAssert.Contains("[NonSerialized] private string parsedSource;", win);
+        foreach (var (ch, _) in Step1MapLegend.Entries) Assert.IsNotNull(ElementCatalog.Get(ch), $"图例里的 '{ch}' 必须在元素说明书里");
+        StringAssert.Contains("AddComponent<Step1MapLegend>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
     }
 
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)

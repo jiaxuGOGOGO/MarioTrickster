@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 36; // S187: +K k c b d; S193: +J x n; S196: +| %
+    private const int BUILTIN_ENTRY_COUNT = 39; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -495,6 +495,28 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "CrackedWall" }, visualColor = new Color(0.62f, 0.55f, 0.50f), visualScale = Vector2.one,
                 customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
                 sortingOrder = 1, isTrigger = false
+            },
+            // S197：通风管（捣蛋者专用转移）、毒池 / 黏胶（限制行动、不致死）。都可站、不是实心、不算危险 → 可达性不变。
+            new AsciiElementEntry
+            {
+                asciiChar = 'O', elementName = "Vent", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "Vent" }, visualColor = new Color(0.45f, 0.50f, 0.58f), visualScale = new Vector2(0.9f, 0.35f),
+                customColliderSize = new Vector2(0.9f, 0.9f), customColliderOffset = Vector2.zero,
+                sortingOrder = 2, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'w', elementName = "PoisonPool", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SlowTerrain", "PoisonMarker" }, visualColor = new Color(0.55f, 0.85f, 0.25f, 0.8f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'g', elementName = "Glue", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SlowTerrain" }, visualColor = new Color(0.85f, 0.55f, 0.95f, 0.75f), visualScale = new Vector2(1f, 0.25f),
+                customColliderSize = new Vector2(1f, 0.6f), customColliderOffset = new Vector2(0f, -0.2f),
+                sortingOrder = 3, isTrigger = true
             },
         };
         registry.BuildCache();

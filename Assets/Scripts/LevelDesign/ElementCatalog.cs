@@ -85,6 +85,7 @@ public static class ElementCatalog
     /// <summary>大炮炮口前方至少空出几格（否则炮弹一出膛就撞墙/箱子）。</summary>
     public const int MuzzleClearCells = 3;
     public const int SpringHeadroomCells = 4;
+    public const int MaxPoolCells = 3;
 
     private static readonly Info[] all =
     {
@@ -103,6 +104,9 @@ public static class ElementCatalog
         I('n', "BananaPeel", "香蕉皮", "Banana peel", Role.PlayerPrank, "平时是地上的装饰（可穿过）；捣蛋者按 L 后，踩上去的马里奥会朝前滑出约 3–4 格（打乱落点）→ 滑进火/裂缝前。", "放在地面上，前方留出滑行空间。", needsSupport: true, step1: true),
         I('|', "OneWayDoor", "捷径门", "Shortcut door", Role.Special, "只能从一侧（默认右侧）贴近推开，开了本回合一直开着。魂系'从另一边打开的门'：先绕远路，再回头打通捷径。", "放在两个区域之间的墙洞里；关着时整张图也必须能通关（死局检查按关着算）。", step1: true),
         I('%', "CrackedWall", "裂墙", "Cracked wall", Role.Special, "看起来有裂纹的墙：捣蛋者现形按 B 砸开（马里奥听得见）、炮弹打开、被弹飞的人撞开。本回合不复原。", "藏秘密通路/捷径；不破也必须能通关（死局检查按墙算）。", step1: true),
+        I('O', "Vent", "通风管", "Vent", Role.Special, "捣蛋者站在管口按 ↓ 钻到配对的管口（按上→下、左→右编号 1↔2、3↔4）。马里奥进不去，但离得近听得见。", "成对摆放，放在地面上；一个在楼上一个在楼下最有用。", needsSupport: true, step1: true),
+        I('w', "PoisonPool", "毒池", "Poison pool", Role.Terrain, "能走但减速，每隔一会儿让人晕一下（不扣命）。马里奥会被拖慢——你的伏击窗口。", "铺在地面上，宽不超过 3 格（保证能走出来）。", needsSupport: true, step1: true),
+        I('g', "Glue", "黏胶", "Glue", Role.Terrain, "踩上去移动变慢、跳不高，离开就恢复。放在楼梯口前最狠。", "铺在地面上；别放在必须跳高的台阶前（会跳不上去）。", needsSupport: true, step1: true),
         I('K', "Cannon", "大炮（朝右）", "Cannon (→)", Role.PlayerPrank, "伪装在旁按 L 开一炮（每局 1 发）；打完后站进炮口把自己打飞逃跑。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: 1),
         I('k', "Cannon", "大炮（朝左）", "Cannon (←)", Role.PlayerPrank, "同上，炮口朝左。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: -1),
         I('o', "Collectible", "宝物", "Loot", Role.Objective, "马里奥要拿的宝物（实战房里自动变成 LootObjective）。", "放在离出口远的一端，只能有 1 个。", unique: true, step1: true),
@@ -219,6 +223,11 @@ public static class ElementCatalog
                     char below = row + 1 < h && x < grid[row + 1].Length ? grid[row + 1][x] : '.';
                     if (!isSolid(below)) issues.Add($"({x},{y}) {info.zh} '{c}'：脚下不是实心（会悬空或掉下去）");
                 }
+                if (c == 'w' && (x == 0 || line[x - 1] != 'w'))
+                {
+                    int run = 0; while (x + run < line.Length && line[x + run] == 'w') run++;
+                    if (run > MaxPoolCells) issues.Add($"({x},{y}) 毒池连续 {run} 格太宽：最多 {MaxPoolCells} 格（保证晕了也能走出来）");
+                }
                 if (c == 'J')
                     for (int d = 1; d <= SpringHeadroomCells; d++)
                     {
@@ -235,6 +244,7 @@ public static class ElementCatalog
                     }
             }
         }
+        if (counts.TryGetValue('O', out int vents) && vents % 2 == 1) issues.Add($"通风管 'O' 有 {vents} 个：要成对摆放（按上→下、左→右编号 1↔2、3↔4），现在有一个没有配对");
         foreach (var i in all)
             if (i.unique && counts.TryGetValue(i.ch, out int n) && n > 1) issues.Add($"{i.zh} '{i.ch}' 只能有 1 个（现在有 {n} 个）");
         return issues;

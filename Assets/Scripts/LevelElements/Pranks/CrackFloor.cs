@@ -74,6 +74,9 @@ public class CrackFloor : ControllableLevelElement
         foreach (int i in ContiguousLine(cells, self)) s_all[i].Shatter();
     }
 
+    /// <summary>S197：被炸弹炸开（整条裂缝一起碎，与按 L 同效果）。</summary>
+    public void ShatterFromBlast() => OnActivate(Vector2.zero);
+
     private void Shatter()
     {
         if (broken) return;

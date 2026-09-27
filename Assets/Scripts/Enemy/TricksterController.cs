@@ -131,6 +131,36 @@ public class TricksterController : MonoBehaviour
     public bool IsGrounded  => _grounded;
     public bool IsDisguised => disguiseSystem != null && disguiseSystem.IsDisguised;
 
+    // ── S197：第 1 步技能钩子（数据驱动，默认值 = 旧行为不变）─────────
+    /// <summary>移动速度倍率（缩小时变快等）。</summary>
+    public float AbilitySpeedMultiplier { get; set; } = 1f;
+    /// <summary>跳跃力（构建器按"必须跳得上 2.5 格"设定；null = Inspector 值）。</summary>
+    public void SetJumpPower(float power) { if (power > 0f) jumpPower = power; }
+    public float JumpPowerValue => jumpPower;
+    public float FallAccelerationValue => fallAcceleration;
+    /// <summary>缩小身体：碰撞体与外观按比例缩放（底边对齐，站在原地不会穿地）。</summary>
+    public void SetBodyScale(float scale)
+    {
+        scale = Mathf.Clamp(scale, 0.3f, 1f);
+        if (boxCollider == null) boxCollider = GetComponent<BoxCollider2D>();
+        if (!_baseSizeCaptured && boxCollider != null) { _baseSize = boxCollider.size; _baseOffset = boxCollider.offset; _baseScale = transform.localScale; _baseSizeCaptured = true; }
+        if (!_baseSizeCaptured) return;
+        float bottom = _baseOffset.y - _baseSize.y * 0.5f;
+        boxCollider.size = _baseSize * scale;
+        boxCollider.offset = new Vector2(_baseOffset.x, bottom + _baseSize.y * scale * 0.5f);
+        var vis = visualTransform != null ? visualTransform : transform.Find("Visual");
+        if (vis != null)
+        {
+            if (!_visualCaptured) { _visualBase = vis.localScale; _visualPos = vis.localPosition; _visualCaptured = true; }
+            vis.localScale = new Vector3(_visualBase.x * scale, _visualBase.y * scale, _visualBase.z);
+            // 视觉底边与碰撞体底边一起对齐（视觉锚点在脚底，见 PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y）
+            vis.localPosition = _visualPos;
+        }
+        BodyScale = scale;
+    }
+    public float BodyScale { get; private set; } = 1f;
+    private bool _baseSizeCaptured, _visualCaptured; private Vector2 _baseSize, _baseOffset; private Vector3 _baseScale, _visualBase, _visualPos;
+
     /// <summary>Session 20: 是否处于融入状态（已伪装且完全融入）</summary>
     public bool IsFullyBlended => disguiseSystem != null && disguiseSystem.IsDisguised && disguiseSystem.IsFullyBlended;
 
@@ -332,7 +362,7 @@ public class TricksterController : MonoBehaviour
         // Session 20: 融入状态下方向键被拦截，不产生移动
         // moveInput 在融入状态下由 InputManager 设为 zero（见 DispatchP2 修改）
         float speedMult = IsDisguised ? disguisedMoveMultiplier : 1f;
-        float target = moveInput.x * maxSpeed * speedMult;
+        float target = moveInput.x * maxSpeed * speedMult * AbilitySpeedMultiplier;
 
         if (Mathf.Abs(moveInput.x) > 0.01f)
         {
@@ -558,6 +588,7 @@ public class TricksterController : MonoBehaviour
     /// </summary>
     private string GetAbilityFailReason()
     {
+        if (TricksterKit.BlocksPranks) return "Too small to trigger props!";
         if (disguiseSystem == null || !disguiseSystem.IsDisguised)
             return "Must be disguised to control props!";
 

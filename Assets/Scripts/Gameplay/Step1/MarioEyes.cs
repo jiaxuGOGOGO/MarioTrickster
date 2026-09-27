@@ -63,6 +63,14 @@ public sealed class MarioEyes
     }
     private bool heardNoise; private Vector2 heardAt;
 
+    /// <summary>S197：小声音（通风管咣当）：只有很近才听得见（听力范围的 1/3）。</summary>
+    public void NoteNoiseNear(Vector2 where)
+    {
+        if (mario == null || t == null) return;
+        if (Vector2.Distance(mario.position, where) > t.hearingRange / 3f) return;
+        heardNoise = true; heardAt = where;
+    }
+
     public void Forget() { hasLastFigurePos = false; pendingActivation = null; pendingActivationAge = float.PositiveInfinity; pendingRustle = null; }
 
     public void Look(float dt, ref MarioPercept p)

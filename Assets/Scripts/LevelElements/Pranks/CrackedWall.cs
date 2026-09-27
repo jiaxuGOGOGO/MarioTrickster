@@ -3,7 +3,7 @@ using UnityEngine;
 /// <summary>
 /// S196：裂墙（ASCII '%'）—— 可破坏墙体。平时是实心墙（挡路、挡视线）。
 /// 打破方式（本回合不复原）：
-///   1. 捣蛋者的"砸墙"技能（贴墙按 B，有冷却和次数，会发出**响声**——马里奥听得见，H6 有字幕）；
+///   1. 捣蛋者的炸弹（B 键，3 枚，会发出**响声**——马里奥听得见，H6 有字幕）；
 ///   2. 被大炮炮弹打中；
 ///   3. 马里奥被弹簧板/香蕉皮"撞"过去时的速度足够大（环境连锁 → 涌现）。
 /// 箱庭意义：隐藏通路 / 秘密捷径（Dark Souls 的"打墙"、Undead Burg 被木桶挡住的暗道）。
@@ -53,7 +53,7 @@ public class CrackedWall : LevelElementBase
         if (body != null) body.enabled = false;
         if (visual != null) visual.gameObject.SetActive(false);
         Smashed?.Invoke(transform.position);
-        Step1Hint.Show(Step1Text.HeardSmash);
+        Step1Hint.Show(Step1Text.HeardSmash, 1.2f);
         var cam = FindObjectOfType<Step1RoomCamera>();
         if (cam != null) cam.Shake(0.25f, 0.3f);
     }

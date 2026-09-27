@@ -1162,9 +1162,10 @@ public static class MechanismExplorationPlan
     ///   c/b/d = 场景摆件（静态阻挡/遮挡/装饰，没有可激活行为）；
     ///   K/k = 恶作剧大炮（第 1 步专属，由 Step1RushMarioTests 覆盖；探针目录扩容会改变全部既有探针种子，另行评估）；
     ///   J/x/n = S193/S194 恶作剧机关（弹簧板/裂缝地板/香蕉皮），同理：第 1 步专属，Step1RushMarioTests 覆盖；
-    ///   |/% = S196 箱庭元素（捷径门/裂墙），同理。
+    ///   |/% = S196 箱庭元素（捷径门/裂墙），同理；
+    ///   O/w/g = S197 通风管/毒池/黏胶（第 1 步专属，Step1RushMarioTests 覆盖）。
     /// </summary>
-    public const string NotProbed = "cbdKkJxn|%";
+    public const string NotProbed = "cbdKkJxn|%Owg";
 
     public static string[] MissingFromCatalog(IEnumerable<char> registryChars) => registryChars
         .Where(c => !" .#=WMTG".Contains(c) && !NotProbed.Contains(c) && !Catalog.Contains(c)).Select(c => c.ToString()).Distinct().ToArray();

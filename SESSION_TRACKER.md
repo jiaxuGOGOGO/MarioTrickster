@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 196（修 NewRegistryEntries 测试（J x n 未登记为 NotProbed）；箱庭：捷径门 | / 裂墙 % / 砸墙技能 B（现形、有声、有次数）/ 开局随机塌墙事件；工坊"箱庭总览"（纵览缩放、层身份、连接、环路、捷径省步数、建议）；手工"箱庭监狱"四层样板；监狱塔重做为每层主题 + 双通路 + 捷径竖井；结论：一座楼不转场，楼与楼之间转场） |
+| **最新 Session** | Session 197（修 H4 测试断言范围；修 B 键无反应（新旧输入都读）；修工坊进出 Play 后空白（缓存 NonSerialized）；修马里奥楼层寻路卡住（只规划 AI 真能跳的跳法 + 起跳点）；捣蛋者跳跃力 20；技能包：炸弹×3（B）、缩小×2（Z）、通风管 O（↓）、马里奥时间静止×1；毒池 w / 黏胶 g；M/Tab 图例；扩展调研） |
+| **S196** | Session 196（修 NewRegistryEntries 测试（J x n 未登记为 NotProbed）；箱庭：捷径门 | / 裂墙 % / 砸墙技能 B（现形、有声、有次数）/ 开局随机塌墙事件；工坊"箱庭总览"（纵览缩放、层身份、连接、环路、捷径省步数、建议）；手工"箱庭监狱"四层样板；监狱塔重做为每层主题 + 双通路 + 捷径竖井；结论：一座楼不转场，楼与楼之间转场） |
 | **S195** | Session 195（用户：暂时忽略"连玩 20 局"门槛。多层楼：LevelPathPlanner 楼层寻路（只在宝物/出口不同层时启用）、FloorStacker 监狱塔 2–11 层 + 加一层、高楼镜头自动框住两人、防卡死救援预算+剪枝） |
 | **S194** | Session 194（香蕉皮 n：可读滑行 2–5 格，计入连招；关卡工坊"连招路线"开关：同色弧线 = 一套可连机关，显示最长一套的机关数/种类数；两层监狱样板改为可连招布局） |
 | **S193** | Session 193（连招手感：顿帧/震屏/段位/递减硬直/换招加分；新机关弹簧板 J（浮空起手）+ 裂缝地板 x（可破坏地形，死局按永久打开检查）；恶作剧房间加地下室；关卡工坊"两层监狱"样板；纵向逃脱路线图文档） |
@@ -107,6 +108,15 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S197] 用户：H4 测试失败；马里奥卡住；阻挠者跳不上；试玩后工坊空白；想要图例；按 B 没反应；要炸弹×3、通风管、马里奥时间静止、阻挠者缩小；调研更多机关/毒池
+
+- 修复：测试只检查 MarioEyes.NoteNoise 段落（H4 真实含义）；Step1Keys 新旧输入都读（B/Z/M/Tab）；LevelWorkshopWindow 缓存全部 [NonSerialized] + 画布缓存空时重建；LevelPathPlanner JumpUpSide=2 + NextWaypoint(path, fromX) 先去起跳点；tricksterJumpPower 20（2.5 格）。
+- 删 WallSmashAbility，改 TricksterKit：B 炸弹（bombsPerRound 3、引信 1.5s、半径 1.6、晕 1s、现形才能放、爆炸声 hearingRange）；Z 缩小（2 次、5s、0.5 倍、1.25 速、不能伪装/触发/放炸弹、头顶不够不变回）。TricksterController：AbilitySpeedMultiplier / SetBodyScale / SetJumpPower；缩小时 L 被拒。
+- Vent 'O'（上→下左→右两两配对、↓ 进入、0.35s、冷却 3s、近处咣当声 NoteNoiseNear）；SlowTerrain 'w' 毒池（0.55 速、1.2s 晕 0.35s）/'g' 黏胶（0.45 速、跳 0.6）；摆放检查：毒池 ≤3 格、通风管成对。Registry 39。
+- MarioTimeStop：追人且看得见、7 格内（或刚挨坑）→ 预警 1s（蓝边 + 字幕）→ 冻结捣蛋者 2s；每回合 1 次、开局 15s 后、冷却 20s。MarioOrder.seesQuarry（H4：马里奥自己的感知）。
+- Step1MapLegend（M/Tab）：图例面板 + 场景标签。箱庭样板加 2 对通风管/毒池/黏胶。
+- BuilderVersion 13；调参 dataVersion 9。文档 docs/step1/S197_KIT_TERRAIN_FIXES.md。测试 86→91。
 
 ### [S196] 用户：测试失败 + "监狱塔只是堆层数；想要艾尔登法环/黑暗之魂式箱庭；全部展现还是转场？要纵览视图、破坏墙体、随机涌现"
 

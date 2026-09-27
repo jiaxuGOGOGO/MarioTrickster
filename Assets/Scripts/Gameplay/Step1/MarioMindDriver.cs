@@ -69,7 +69,7 @@ public class MarioMindDriver : MonoBehaviour
             new LevelPathPlanner.Cell(Mathf.RoundToInt(from.x), Mathf.RoundToInt(from.y)),
             new LevelPathPlanner.Cell(Mathf.RoundToInt(target.x), Mathf.RoundToInt(target.y)));
         if (path == null || path.Count < 2) return null;
-        var w = LevelPathPlanner.NextWaypoint(path);
+        var w = LevelPathPlanner.NextWaypoint(path, from.x);
         return new Vector2(w.x, w.y);
     }
 
@@ -95,6 +95,8 @@ public class MarioMindDriver : MonoBehaviour
         if (abilities != null) abilities.OnPropActivated += eyes.NotePropActivated;
         RustleOnPass.Rustled += eyes.NoteRustle;
         CrackedWall.Smashed += eyes.NoteNoise;
+        TricksterBomb.Exploded += eyes.NoteNoise;
+        Vent.Clanged += eyes.NoteNoiseNear;
         if (health != null) { health.OnHealthChanged += HandleHealthChanged; lastHealth = health.CurrentHealth; }
 
         inputManager = FindObjectOfType<InputManager>();
@@ -118,7 +120,7 @@ public class MarioMindDriver : MonoBehaviour
     private void OnDestroy()
     {
         if (abilities != null && eyes != null) abilities.OnPropActivated -= eyes.NotePropActivated;
-        if (eyes != null) { RustleOnPass.Rustled -= eyes.NoteRustle; CrackedWall.Smashed -= eyes.NoteNoise; }
+        if (eyes != null) { RustleOnPass.Rustled -= eyes.NoteRustle; CrackedWall.Smashed -= eyes.NoteNoise; TricksterBomb.Exploded -= eyes.NoteNoise; Vent.Clanged -= eyes.NoteNoiseNear; }
         if (health != null) health.OnHealthChanged -= HandleHealthChanged;
         if (subscribedManager != null) subscribedManager.OnRoundStart -= ResetForRound;
     }
@@ -154,7 +156,7 @@ public class MarioMindDriver : MonoBehaviour
         var gm = GameManager.Instance;
         bool playing = gm == null || gm.CurrentState == GameState.Playing;
         // 每帧读取，Play 中改调参资产立即生效；追你时提速（S186）
-        hybrid.Bot.MarioSpeedScale = (Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale) * roundSpeedFactor;
+        hybrid.Bot.MarioSpeedScale = (Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale) * roundSpeedFactor * SlowTerrain.CurrentMarioSpeedScale;
         hybrid.Bot.TrapCommitDistance = tuning.trapCommitDistance;
         hybrid.Bot.SkipReactionDelayForTerrain = tuning.smoothJumps;
         hybrid.Bot.HoldStill = false;
@@ -183,7 +185,7 @@ public class MarioMindDriver : MonoBehaviour
         if (order.moveTarget == null && gridRows != null && order.state == MarioMindState.Running)
         {
             replanTimer -= Time.deltaTime;
-            if (replanTimer <= 0f || floorWaypoint == null || Vector2.Distance(transform.position, floorWaypoint.Value) < 0.8f)
+            if (replanTimer <= 0f || floorWaypoint == null || Vector2.Distance(transform.position, floorWaypoint.Value) < 0.5f)
             {
                 replanTimer = tuning.floorReplanSeconds;
                 Vector2? goal = LootObjective.IsLootCarried ? FindPos<GoalZone>() : FindPos<LootObjective>();

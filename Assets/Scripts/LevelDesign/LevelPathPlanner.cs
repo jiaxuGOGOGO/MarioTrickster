@@ -11,6 +11,8 @@ public static class LevelPathPlanner
     public struct Cell { public int x, y; public Cell(int x, int y) { this.x = x; this.y = y; } }
 
     public const int JumpUp = 2, JumpSide = 4, MaxFall = 30;
+    /// <summary>S197：向上跳的最大水平距离。AI 只在目标水平距离 &lt; 2.25 格时起跳（HeuristicBotInputProvider），规划必须与之一致，否则会规划出"跳不上去"的路线（用户反馈马里奥卡住）。</summary>
+    public const int JumpUpSide = 2;
 
     private static bool Solid(char c, HashSet<char> solid) => solid.Contains(c);
 
@@ -86,7 +88,7 @@ public static class LevelPathPlanner
             bool headClear = true;
             for (int k = 1; k <= dy; k++) { char above = At(grid, c.x, c.y + k); if (Solid(above, solid) && above != '-') { headClear = false; break; } }
             if (!headClear) break;
-            int side = (int)(JumpSide * (1f - 0.5f * dy / JumpUp));
+            int side = JumpUpSide;
             for (int dx = -side; dx <= side; dx++)
             {
                 int nx = c.x + dx, ny = c.y + dy;
@@ -121,6 +123,24 @@ public static class LevelPathPlanner
     /// <summary>
     /// 下一个路点：沿路径走，遇到第一次"换高度"的格就停在那里（跳上去/掉下去的落点）；全程同高则返回终点。
     /// </summary>
+    /// <summary>
+    /// S197：带"起跳点"的路点——换高度前先走到起跳格（同层），站到起跳格上（±0.4 格）后才把目标换成落点（此时 AI 会起跳）。
+    /// 原来直接给落点：马里奥会走到平台正下方、头顶撞楼板，卡住。
+    /// </summary>
+    public static Cell NextWaypoint(List<Cell> path, float fromX)
+    {
+        if (path == null || path.Count == 0) return new Cell(-1, -1);
+        int y0 = path[0].y;
+        for (int i = 1; i < path.Count; i++)
+        {
+            if (path[i].y == y0) continue;
+            var takeoff = path[i - 1];
+            if (path[i].y > y0 && System.Math.Abs(fromX - takeoff.x) > 0.4f) return takeoff; // 往上：先站到起跳点
+            return path[i];                                                                 // 往下：直接走过去掉下去
+        }
+        return path[path.Count - 1];
+    }
+
     public static Cell NextWaypoint(List<Cell> path)
     {
         if (path == null || path.Count == 0) return new Cell(-1, -1);

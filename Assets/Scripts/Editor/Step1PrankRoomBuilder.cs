@@ -38,9 +38,10 @@ public static class Step1PrankRoomBuilder
     /// </summary>
     /// S193 = 10：连招手感（顿帧/震屏/段位/递减硬直）+ 弹簧板 J + 裂缝地板 x（房间加入一个浅地下室）+ 香蕉皮 n。
     /// S195 = 11：多层楼房间的楼层寻路（马里奥知道先去哪个楼梯口）；工坊楼层工具。
-    /// S196 = 12：箱庭元素（捷径门 |、裂墙 %）、砸墙技能 B、每回合随机塌墙事件、提示条。
+    /// S196 = 12：箱庭元素（捷径门 |、裂墙 %）、每回合随机塌墙事件、提示条。
+    /// S197 = 13：炸弹/缩小/通风管/时间静止/毒池/黏胶/图例；捣蛋者跳跃力 20；马里奥楼层寻路修卡住。
     /// </summary>
-    public const int BuilderVersion = 12;
+    public const int BuilderVersion = 13;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -383,8 +384,9 @@ public static class Step1PrankRoomBuilder
         StripUnusedLegacy(gm.gameObject);
         gm.gameObject.AddComponent<Step1Hint>();
         gm.gameObject.AddComponent<Step1HakoniwaEvents>().SetTuning(tuning);
-        var smash = trickster.gameObject.AddComponent<WallSmashAbility>();
-        smash.SetTuning(tuning);
+        trickster.gameObject.AddComponent<TricksterKit>().SetTuning(tuning);          // S197：B 炸弹 / Z 缩小
+        gm.gameObject.AddComponent<MarioTimeStop>().SetTuning(tuning);                 // S197：马里奥时间静止
+        gm.gameObject.AddComponent<Step1MapLegend>();                                  // S197：M/Tab 图例
         var combo = gm.gameObject.AddComponent<Step1Combo>();
         var comboSo = new SerializedObject(combo);
         comboSo.FindProperty("tuning").objectReferenceValue = tuning;
@@ -485,6 +487,13 @@ public static class Step1PrankRoomBuilder
             peel.Configure(tuning.bananaSlideSpeed, tuning.bananaSlipSeconds, tuning.bananaTelegraphSeconds, tuning.bananaActiveSeconds);
             EditorUtility.SetDirty(peel); count++;
         }
+        foreach (var vent in root.GetComponentsInChildren<Vent>(true)) { vent.Configure(tuning.ventEnterSeconds, tuning.ventCooldown); EditorUtility.SetDirty(vent); count++; }
+        foreach (var st in root.GetComponentsInChildren<SlowTerrain>(true))
+        {
+            bool poison = st.GetComponent<PoisonMarker>() != null;
+            st.Configure(poison ? tuning.poisonSpeedScale : tuning.glueSpeedScale, poison ? 1f : tuning.glueJumpScale, tuning.poisonTickSeconds, poison ? tuning.poisonStunSeconds : 0f);
+            EditorUtility.SetDirty(st); count++;
+        }
         foreach (var wall in root.GetComponentsInChildren<CrackedWall>(true)) { wall.Configure(tuning.wallBreakSpeed); EditorUtility.SetDirty(wall); count++; }
         foreach (var crack in root.GetComponentsInChildren<CrackFloor>(true)) { crack.Configure(tuning.crackTelegraphSeconds); EditorUtility.SetDirty(crack); count++; }
         return count;
@@ -496,6 +505,8 @@ public static class Step1PrankRoomBuilder
         if (ability == null) return;
         var so = new SerializedObject(ability);
         so.FindProperty("controlRange").floatValue = TricksterControlRange;
+        trickster.SetJumpPower(tuning.tricksterJumpPower); // S197：跳 ~2.5 格（原 18 只有 2.0，个别台阶跳不上）
+        EditorUtility.SetDirty(trickster);
         so.ApplyModifiedPropertiesWithoutUndo();
         var disguise = trickster.GetComponent<DisguiseSystem>();
         if (disguise != null)

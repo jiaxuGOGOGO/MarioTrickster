@@ -27,10 +27,10 @@ public class LevelWorkshopWindow : EditorWindow
     [SerializeField] private float zoom = 22f;
 
     private LevelStudioDocument doc;
-    private string parsedSource;
+    [NonSerialized] private string parsedSource;
     private string parseError;
     private LevelWorkshopModel.CheckResult check;
-    private string checkedSource;
+    [NonSerialized] private string checkedSource;
     private Vector2 paletteScroll, canvasScroll, issueScroll;
     private bool painting, rectDragging, strokeStarted;
     private Vector2Int lastCell, rectStart, hoverCell = new Vector2Int(-1, -1);
@@ -40,7 +40,7 @@ public class LevelWorkshopWindow : EditorWindow
     private bool comboRoutes;
     // S196：箱庭总览
     private bool overview;
-    private string hakoKey;
+    [NonSerialized] private string hakoKey;
     private HakoniwaAnalyzer.Result hako;
     private Vector2 overviewScroll;
     private HakoniwaAnalyzer.Result Hako()
@@ -48,7 +48,7 @@ public class LevelWorkshopWindow : EditorWindow
         if (hakoKey != doc.Grid || hako == null) { hakoKey = doc.Grid; hako = HakoniwaAnalyzer.Analyze(Rows()); }
         return hako;
     }
-    private string comboKey;
+    [NonSerialized] private string comboKey;
     private ComboRouteAnalyzer.Result comboResult;
     private ComboRouteAnalyzer.Result ComboResult()
     {
@@ -65,13 +65,13 @@ public class LevelWorkshopWindow : EditorWindow
     //  - 画布只在鼠标换格子时重画，不是每个像素移动都重画；
     //  - GUIStyle 全部缓存（原来每个格子每帧 new 一个）；网格行只在内容变化时拆分一次。
     private const double FullCheckDelay = 0.35;
-    private double fullCheckAt = -1;
-    private bool fullCheckStale;
-    private string[] rowsCache = new string[0];
-    private string rowsSource;
+    [NonSerialized] private double fullCheckAt = -1;
+    [NonSerialized] private bool fullCheckStale;
+    [NonSerialized] private string[] rowsCache = new string[0];
+    [NonSerialized] private string rowsSource;
     private GUIStyle glyphDark, glyphLight, nameNormal, nameSelected;
-    private IList<string> shownCache;
-    private string shownKey;
+    [NonSerialized] private IList<string> shownCache;
+    [NonSerialized] private string shownKey;
 
     [MenuItem("MarioTrickster/Level Workshop (关卡工坊) %&w", false, 1)]
     public static void Open()
@@ -320,7 +320,7 @@ public class LevelWorkshopWindow : EditorWindow
 
         // 最坏情况预览的网格
         string sk = doc.Grid + worstCase;
-        if (shownKey != sk)
+        if (shownKey != sk || shownCache == null || shownCache.Count != doc.Height) // S197：进出 Play 模式后缓存丢失 → 重建（原来会空白 + NullReference）
         {
             shownKey = sk;
             IList<string> rows = Rows();

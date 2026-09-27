@@ -31,6 +31,8 @@ public struct MarioOrder
     public Vector2? moveTarget;
     public bool scan;
     public bool tryCatch;
+    /// <summary>S197：追人状态下此刻亲眼看得见（马里奥自己的感知，H4）。时间静止等技能用。</summary>
+    public bool seesQuarry;
     public string mark;
     public string intent;
 }
@@ -161,6 +163,7 @@ public sealed class RushMarioMind
                 order.moveTarget = seesTrickster ? lastSeen : PredictLost(p.marioPos);
                 order.mark = "!!"; order.intent = "GET BACK HERE!";
                 order.tryCatch = seesTrickster && Vector2.Distance(p.marioPos, p.figurePos) <= t.catchRadius;
+                order.seesQuarry = seesTrickster;
                 break;
             case MarioMindState.Searching:
                 order.moveTarget = Focus; order.mark = "?!"; order.intent = "WHERE'D IT GO?";

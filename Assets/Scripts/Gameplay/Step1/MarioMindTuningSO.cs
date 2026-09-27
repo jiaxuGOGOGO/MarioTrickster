@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 8;
+    public const int CurrentDataVersion = 9;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -142,15 +142,7 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("S195：房间高于这么多格时，镜头默认'框住两人'而不是'看整个房间'（C 键仍可切换）")]
     public float maxWholeRoomHeight = 16f;
     [Header("Hakoniwa (S196: Souls-style interconnected floors)")]
-    [Tooltip("捣蛋者每回合能砸几次墙（B 键，必须现形）")]
-    public int wallSmashesPerRound = 2;
-    [Tooltip("砸墙冷却（秒）")]
-    public float wallSmashCooldown = 6f;
-    [Tooltip("砸完墙的硬直（秒）")]
-    public float wallSmashRecoverSeconds = 0.5f;
-    [Tooltip("离裂墙多近能砸（格）")]
-    public float wallSmashReach = 1.3f;
-    [Tooltip("马里奥听见砸墙声的范围（格，隔墙也听得见）")]
+    [Tooltip("马里奥听见爆炸/塌墙声的范围（格，隔墙也听得见）；通风管咣当声只有它的 1/3")]
     public float hearingRange = 14f;
     [Tooltip("高速撞碎裂墙所需速度（格/秒）")]
     public float wallBreakSpeed = 9f;
@@ -158,6 +150,60 @@ public class MarioMindTuningSO : ScriptableObject
     public float doorOpenSeconds = 0.6f;
     [Tooltip("每回合随机事件（涌现）：本回合随机选 1 面裂墙在开局前就已经塌了的概率")]
     [Range(0f, 1f)] public float preCollapsedWallChance = 0.35f;
+
+    [Header("Trickster kit (S197)")]
+    [Tooltip("捣蛋者身上的炸弹数（每回合，B 键放置，必须现形）")]
+    public int bombsPerRound = 3;
+    [Tooltip("炸弹引信（秒）：闪烁 + 倒计时（H3）")]
+    public float bombFuseSeconds = 1.5f;
+    [Tooltip("爆炸半径（格）：炸开范围内的裂墙/裂缝地板/箱子")]
+    public float bombRadius = 1.6f;
+    [Tooltip("马里奥在爆炸范围内：晕几秒（不扣命）")]
+    public float bombStunSeconds = 1.0f;
+    [Tooltip("爆炸击退速度（格/秒）")]
+    public float bombKnockback = 6f;
+    [Tooltip("两次放炸弹之间的冷却（秒）")]
+    public float bombCooldown = 2f;
+    [Tooltip("缩小：每回合次数（Z 键）")]
+    public int shrinkUsesPerRound = 2;
+    [Tooltip("缩小：持续秒数（再按 Z 可提前变回）")]
+    public float shrinkSeconds = 5f;
+    [Tooltip("缩小：身体比例（0.5 = 半高，可以钻 1 格高的缝）")]
+    [Range(0.3f, 0.9f)] public float shrinkScale = 0.5f;
+    [Tooltip("缩小：移动速度倍率")]
+    public float shrinkSpeedMultiplier = 1.25f;
+    [Tooltip("通风管：钻入所需时间（秒）")]
+    public float ventEnterSeconds = 0.35f;
+    [Tooltip("通风管：冷却（秒）")]
+    public float ventCooldown = 3f;
+    [Tooltip("捣蛋者跳跃力（S197：原 18 只能跳 2.0 格，个别台阶跳不上；20 ≈ 2.5 格，与马里奥一致）")]
+    public float tricksterJumpPower = 20f;
+
+    [Header("Mario time stop (S197)")]
+    [Tooltip("马里奥每回合能用几次时间静止（0 = 关闭）")]
+    public int timeStopUsesPerRound = 1;
+    [Tooltip("预警时长（秒）：屏幕边缘蓝光 + 字幕，给你时间钻管/躲草丛（H3）")]
+    public float timeStopWarnSeconds = 1.0f;
+    [Tooltip("冻结捣蛋者多久（秒）")]
+    public float timeStopSeconds = 2.0f;
+    [Tooltip("两次之间冷却（秒）")]
+    public float timeStopCooldown = 20f;
+    [Tooltip("开局多少秒内不会用（给你布置的时间）")]
+    public float timeStopFirstDelay = 15f;
+    [Tooltip("追你时离你多近才会用（格）")]
+    public float timeStopRange = 7f;
+
+    [Header("Movement-limiting terrain (S197)")]
+    [Tooltip("毒池：移动速度倍率")]
+    public float poisonSpeedScale = 0.55f;
+    [Tooltip("毒池：每隔几秒晕一下")]
+    public float poisonTickSeconds = 1.2f;
+    [Tooltip("毒池：每次晕多久（秒，不扣命）")]
+    public float poisonStunSeconds = 0.35f;
+    [Tooltip("黏胶：移动速度倍率")]
+    public float glueSpeedScale = 0.45f;
+    [Tooltip("黏胶：跳跃倍率")]
+    public float glueJumpScale = 0.6f;
 
     [Tooltip("关卡工坊'连招路线'：两个机关水平距离不超过这么多格，就画一条可连线（≈ 连招窗口 × 马里奥赶路速度）")]
     public float comboRouteCells = 10f;
@@ -238,9 +284,16 @@ public class MarioMindTuningSO : ScriptableObject
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
         }
+        if (dataVersion < 9)
+        {
+            bombsPerRound = 3; bombFuseSeconds = 1.5f; bombRadius = 1.6f; bombStunSeconds = 1f; bombKnockback = 6f; bombCooldown = 2f;
+            shrinkUsesPerRound = 2; shrinkSeconds = 5f; shrinkScale = 0.5f; shrinkSpeedMultiplier = 1.25f;
+            ventEnterSeconds = 0.35f; ventCooldown = 3f; tricksterJumpPower = 20f;
+            timeStopUsesPerRound = 1; timeStopWarnSeconds = 1f; timeStopSeconds = 2f; timeStopCooldown = 20f; timeStopFirstDelay = 15f; timeStopRange = 7f;
+            poisonSpeedScale = 0.55f; poisonTickSeconds = 1.2f; poisonStunSeconds = 0.35f; glueSpeedScale = 0.45f; glueJumpScale = 0.6f;
+        }
         if (dataVersion < 8)
         {
-            wallSmashesPerRound = 2; wallSmashCooldown = 6f; wallSmashRecoverSeconds = 0.5f; wallSmashReach = 1.3f;
             hearingRange = 14f; wallBreakSpeed = 9f; doorOpenSeconds = 0.6f; preCollapsedWallChance = 0.35f;
         }
         if (dataVersion < 7)

@@ -67,7 +67,7 @@ public static class Step1Text
         }
     }
 
-    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发 Trigger   B 砸墙 Smash   |   V 这是什么 Labels   H 帮助 Help   Esc 暂停";
+    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   ↓ 通风管   |   V 这是什么 Labels   H 帮助 Help   Esc 暂停";
 
     public const string Help =
         "<b>怎么玩  HOW TO PLAY</b>\n\n" +
@@ -84,7 +84,11 @@ public static class Step1Text
         "   <color=#4FE08C><b>弹簧板</b></color>（绿地砖）：L 把他弹上天，落地前摆好火 = 浮空连招。  <b>Spring</b>: launch him, then fire where he lands.\n" +
         "   <color=#FFE040><b>香蕉皮</b></color>（地上黄条）：L 后他踩上去会滑出 3–4 格。  <b>Banana</b>: he slides forward.\n" +
         "   <color=#C8A070><b>裂缝地板</b></color>（宝物旁）：L 打碎，他掉进地下室。  <b>Crack floor</b>: L drops him into the basement.\n\n" +
-        "<b>砸墙</b>：现形时贴着<b>裂墙</b>按 <b>B</b>（每局 2 次）——开出捷径，但<b>他会听见</b>。  <b>B</b> = smash a cracked wall (he hears it!)\n" +
+        "<b>B 炸弹</b>（3 枚，现形才能放）：炸开附近的<b>裂墙</b>/裂缝地板/箱子，炸晕马里奥——但<b>他听得见</b>。  <b>B</b> = bomb (he hears it!)\n" +
+        "<b>Z 缩小</b>（每局 2 次）：钻窄缝、跑得快，但不能伪装/触发机关。  <b>Z</b> = shrink\n" +
+        "<b>通风管</b>：站在管口按 <b>↓</b> 钻到配对的管口（马里奥进不去，但近处听得见咣当声）。  <b>↓</b> on a vent = travel\n" +
+        "<b>马里奥会停止时间</b>（每局 1 次）：屏幕边缘变蓝 = 快躲！   Blue edges = Mario is about to stop time!\n" +
+        "<b>M</b> 或 <b>Tab</b> = 地图图例（哪些是墙、哪些能炸）   <b>M/Tab</b> = legend\n" +
         "<b>捷径门</b>：只能从一边推开，开了就一直开着。  <b>Shortcut door</b>: opens from one side only.\n" +
         "<b>大炮</b>（深色方块）：伪装在旁边按 L 开一炮（每局 1 发）；打完后<b>站进炮口</b>会把你打飞出去逃跑。\n" +
         "<b>Cannon</b>: disguise next to it, L = fire (1 shot/round). Then stand inside it to launch yourself away.\n" +
@@ -95,9 +99,20 @@ public static class Step1Text
         "白色扇形 = 他的视野，墙会挡住。   White cone = his view (walls block it).\n\n" +
         "<color=#BBBBBB>V 显示每个东西是什么 labels    H 关闭帮助 help    C 换镜头 camera</color>";
 
-    public const string SmashNeedUndisguise = "要先<b>现形</b>（P 取消伪装）才能砸墙  Undisguise first to smash";
-    public const string SmashNotReady = "砸墙还没准备好（次数用完或在冷却）  Smash not ready";
-    public const string SmashNoWall = "附近没有裂墙（带裂纹的墙）  No cracked wall nearby";
+    public const string BombNeedUndisguise = "要先<b>现形</b>（P 取消伪装）才能放炸弹  Undisguise to place a bomb";
+    public const string BombWhileSmall = "缩小时拿不动炸弹  Can't bomb while small";
+    public const string BombNone = "炸弹用完了  No bombs left";
+    public const string BombCooldown = "炸弹冷却中  Bomb cooling down";
+    public const string BombPlaced = "💣 放下炸弹！快跑（还剩 {0} 枚）  Bomb placed! ({0} left)";
+    public const string BombBoom = "轰！<size=20>（马里奥听见了）</size>  BOOM! (Mario heard it)";
+    public const string ShrinkOn = "缩小！{0:F0} 秒（还剩 {1} 次）——能钻窄缝，但不能伪装/触发机关  Shrunk!";
+    public const string ShrinkNone = "缩小次数用完了  No shrinks left";
+    public const string ShrinkBlocked = "头顶太低，变不回去  No room to grow";
+    public const string VentIn = "钻进通风管…  Into the vent…";
+    public const string VentOut = "从通风管出来！  Out of the vent!";
+    public const string VentNoMate = "这个通风管没有配对的出口  This vent has no pair";
+    public const string TimeStopWarn = "⏳ 马里奥要<b>停止时间</b>了！快躲（草丛/通风管）  Mario is about to STOP TIME — hide!";
+    public const string TimeStopOn = "⏸ 时间静止！你动不了  TIME STOPPED — you're frozen";
     public const string HeardSmash = "哐！<size=20>（马里奥听见了）</size>  CRASH! (Mario heard it)";
 
     public const string PreCollapsedWall = "这一局有一面<b>裂墙已经塌了</b>——多了一条秘密路线！  A cracked wall has already collapsed this round!";

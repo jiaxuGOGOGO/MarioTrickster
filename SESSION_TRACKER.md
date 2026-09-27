@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 202（完美连锁慢动作回放；StrategySim 炸弹困人模拟 + 构建时自动加固承重格（铆钉）；陷阱试探菜单 + 检查轨迹热力图；马里奥躲炸弹/抢道具） |
+| **最新 Session** | Session 203（马里奥性格：冲冲/谨慎（绕开被坑点、绕不开跳、再不行原路）/贪财（跨层必抢道具）；开局头顶亮性格；自动检查轮流测三种；诱捕走廊加高路） |
+| **S202** | Session 202（完美连锁慢动作回放；StrategySim 炸弹困人模拟 + 构建时自动加固承重格（铆钉）；陷阱试探菜单 + 检查轨迹热力图；马里奥躲炸弹/抢道具） |
 | **S201** | Session 201（接续包：`docs/AI_CONTINUE_PACK/`——SKILL.md 原则与红线 + 按功能分册 + 一键搭建/验证/打补丁脚本；新对话先读它；换账号也能用：自带未上传补丁、bat 可拖入项目文件夹） |
 | **S200** | Session 200（以身入局：F 连锁编排/Shift+F 一键布置 + 预判落点自动接力；T 挑衅；绊线 R；马里奥学习层；诱捕走廊样板） |
 | **S199** | Session 199（油桶 U 连锁爆炸（火/炸弹/炮弹/桶点燃，共用 TricksterBomb.Blast）；铁笼 Q；诱饵 G（同视锥，近看识破，透视看穿）；警报随机事件（静止伪装也会被怀疑）；马里奥踢门） |
@@ -113,6 +114,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S203] 用户："马里奥的不同性格（谨慎型绕开被坑过的地方，贪财型一定去抢道具）"
+
+- MarioPersonality（Roll 种子权重 / For 特质 / ShouldHop / DetourWaypoint）+ LevelDesign/DetourPlanner（AvoidCells 禁区、Detour 只认"换高度"的绕路）+ LevelPathPlanner.Path 带 avoid 重载。
+- RushMarioMind：Personality/Traits/ForcedPersonality/ShowingPersonality；WantsPickup（贪财跨层）；起疑 × suspicionScale；贪财放弃 5 秒。
+- MarioMindDriver：allRows 所有房间保留网格；谨慎型 DETOUR 路点 / HOP（HeuristicBot.JumpRequest）；贪财跨层 GRAB 走楼层寻路；速度 × Traits.speedScale；CycledPersonality 自动检查轮换；开局提示。
+- 头顶显示性格；HandsOff CSV/屏幕 + 试玩 CSV 加 personality；诱捕走廊高路。dataVersion 14；测试 +2。
 
 ### [S202] 用户："连锁录像回放 + AI 充分优化 + 策略死局 + 策略模拟 + 调试关卡 AI 试探模拟升级"
 

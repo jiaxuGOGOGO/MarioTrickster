@@ -95,7 +95,22 @@ public sealed class RushMarioMind
     public static bool WorthPickup(Vector2 mario, Vector2 pickup, float maxDetour)
         => Mathf.Abs(pickup.y - mario.y) <= 1.5f && Mathf.Abs(pickup.x - mario.x) <= maxDetour;
 
+    /// <summary>S203 纯逻辑：这种性格要不要去捡（贪财型：跨层也去、距离放宽）。</summary>
+    public static bool WantsPickup(MarioPersonality.Traits tr, Vector2 mario, Vector2 pickup)
+    {
+        if (tr.pickupDetour < 0f) return false;
+        if (tr.pickupAnyFloor) return Vector2.Distance(mario, pickup) <= tr.pickupDetour;
+        return WorthPickup(mario, pickup, tr.pickupDetour);
+    }
+
     public bool Dodging { get; private set; }
+    /// <summary>S203：本回合性格（开局按种子抽，见 MarioPersonality）。</summary>
+    public MarioPersonalityKind Personality { get; private set; } = MarioPersonalityKind.Rush;
+    public MarioPersonality.Traits Traits { get; private set; }
+    /// <summary>S203：强制性格（测试 / 调参面板"固定性格"用）。null = 按权重随机。</summary>
+    public MarioPersonalityKind? ForcedPersonality { get; set; }
+    private float introTimer;
+    public bool ShowingPersonality => introTimer > 0f;
     // S202：捡道具放弃机制（够不着的道具箱不会让他一直原地走，H10）
     private float grabTime; private Vector2 grabTarget; private readonly System.Collections.Generic.List<Vector2> skippedPickups = new System.Collections.Generic.List<Vector2>();
     public const float GrabGiveUpSeconds = 3f;
@@ -112,7 +127,7 @@ public sealed class RushMarioMind
     public Vector2 Focus { get; private set; }
     public event Action<MarioMindState, MarioMindState> StateChanged;
 
-    public RushMarioMind(MarioMindTuningSO tuning) { t = tuning; Meter = new SuspicionMeter(tuning); }
+    public RushMarioMind(MarioMindTuningSO tuning) { t = tuning; Meter = new SuspicionMeter(tuning); Traits = MarioPersonality.For(MarioPersonalityKind.Rush, tuning); }
 
     /// <summary>S187：本回合的随机种子（回头看等性格随机都由它决定，可复现；写入试玩记录）。</summary>
     public int Seed { get; private set; }
@@ -124,6 +139,9 @@ public sealed class RushMarioMind
         Seed = seed; dice = new System.Random(seed);
         Meter.Reset(); hurtFlash = celebrate = stun = glance = 0f;
         hurtSpots.Clear(); Cautious = false; skippedPickups.Clear(); grabTime = 0f; Dodging = false;
+        Personality = ForcedPersonality ?? (t.personalitiesEnabled ? MarioPersonality.Roll(seed, t.rushWeight, t.cautiousWeight, t.greedyWeight) : MarioPersonalityKind.Rush);
+        Traits = MarioPersonality.For(Personality, t);
+        introTimer = t.personalityIntroSeconds;
         Enter(MarioMindState.Running, Vector2.zero);
     }
 
@@ -141,6 +159,7 @@ public sealed class RushMarioMind
         celebrate = Mathf.Max(0f, celebrate - dt);
         stun = Mathf.Max(0f, stun - dt);
         glance = Mathf.Max(0f, glance - dt);
+        introTimer = Mathf.Max(0f, introTimer - dt);
 
         bool seesTrickster = p.seesFigure && !p.figureLooksLikeProp;
         bool seesOddProp = p.seesFigure && p.figureLooksLikeProp && (p.figureMoving || p.alarm);
@@ -164,7 +183,8 @@ public sealed class RushMarioMind
             Meter.Add(t.hurtByTrap); hurtFlash = t.hurtFlashSeconds; stun = t.hurtStunSeconds;
             if (!seesTrickster && !seesOddProp && !p.witnessedActivation) Focus = p.marioPos;
         }
-        Meter.Tick(dt, rise);
+        bool greedyGrab = Personality == MarioPersonalityKind.Greedy && grabTime > 0f && p.seesPickup;
+        Meter.Tick(dt, rise * Traits.suspicionScale * (greedyGrab ? 0.5f : 1f));
 
         var order = new MarioOrder();
         switch (State)
@@ -218,15 +238,15 @@ public sealed class RushMarioMind
                 Dodging = dodge.HasValue;
                 if (Dodging) { order.moveTarget = dodge; order.intent = "DODGE"; order.mark = "!"; }
                 // S202：看得见的道具箱在附近 → 顺路捡（和你抢道具，反转变数）
-                else if (p.seesPickup && WorthPickup(p.marioPos, p.pickupPos, t.pickupDetourCells) && !Skipped(skippedPickups, p.pickupPos))
+                else if (p.seesPickup && Traits.pickupDetour >= 0f && WantsPickup(Traits, p.marioPos, p.pickupPos) && !Skipped(skippedPickups, p.pickupPos))
                 {
                     if ((grabTarget - p.pickupPos).sqrMagnitude > 0.25f) { grabTarget = p.pickupPos; grabTime = 0f; }
                     grabTime += dt;
-                    if (grabTime > GrabGiveUpSeconds) skippedPickups.Add(p.pickupPos); // 够不着 → 放弃这个箱子，继续赶路
+                    if (grabTime > (Personality == MarioPersonalityKind.Greedy ? t.greedyGiveUpSeconds : GrabGiveUpSeconds)) skippedPickups.Add(p.pickupPos); // 够不着 → 放弃这个箱子，继续赶路（贪财型更执着）
                     else { order.moveTarget = p.pickupPos; order.intent = "GRAB"; }
                 }
                 // S200 学习层：前面是上次被坑的地方 → 放慢脚步（司机层减速），头顶显示"小心"
-                Cautious = t.learnFromHurt && NearHurtSpot(hurtSpots, p.marioPos, p.facingRight, t.cautiousRadius);
+                Cautious = t.learnFromHurt && Traits.slowNearHurtSpots && NearHurtSpot(hurtSpots, p.marioPos, p.facingRight, t.cautiousRadius);
                 if (Cautious && glance <= 0f && !Dodging && order.intent != "GRAB") order.intent = "CAREFUL";
                 break;
             case MarioMindState.Curious:

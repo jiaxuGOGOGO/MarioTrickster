@@ -26,6 +26,9 @@ MarioMindDriver（接线、速度、楼层寻路）◄── MarioOrder ◄─�
 `dangerPos/dangerRadius`（看见冒烟炸弹/点着油桶 → `DodgeTarget` 退到圈外）、`seesPickup/pickupPos`（→ `WorthPickup` 顺路捡，3 秒够不着放弃）。新的"临时绕行"行为都要有**放弃计时**并在 `Step1StuckRescue` 豁免，否则会被误判卡住。
 验证 AI 用两种自动检查：Hands-off（无人捣乱，H10）+ Trap Probe（机关按最佳时机全触发，看会不会坑死/卡住）。
 
+## S203 性格层
+`MarioPersonality.For(kind)` 返回特质（速度、绕被坑点、捡道具距离/跨层、起疑倍率）。新性格 = 在 enum + For() 加一项 + Tuning 权重；**行为差异必须通过特质实现**，不要在各处写 `if (Personality == X)`。自动检查按 `CycledPersonality` 轮流测每种性格，任何一种过不了 H10 都不许交付。绕路走 `DetourPlanner`（纯逻辑、沙盒可测），绕不开 → 跳（`HeuristicBot.JumpRequest`）→ 原路。
+
 ## 必测
 - 新行为的纯逻辑测试（用 `new RushMarioMind(Tuning())` + 构造 `MarioPercept` 逐帧 Tick）。
 - `MindAndDriverNeverReadTricksterTruth` 必须仍过（禁用词见 SKILL.md H4）。

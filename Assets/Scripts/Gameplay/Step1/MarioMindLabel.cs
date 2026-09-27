@@ -53,7 +53,11 @@ public class MarioMindLabel : MonoBehaviour
         MarioOrder order = driver.LastOrder;
         mark.text = order.mark ?? "";
         mark.color = ColorFor(order.state, order.mark);
-        intent.text = Step1Text.HeadIntent(order.state, order.intent ?? "");
+        var tr = driver.Mind.Traits;
+        // S203：开局几秒大字亮出性格；之后意图前面一直带性格前缀（H6：你随时知道他是哪种）
+        intent.text = driver.Mind.ShowingPersonality
+            ? $"{tr.zh}\n{tr.en}"
+            : (driver.Mind.Personality == MarioPersonalityKind.Rush ? "" : tr.zh + "·") + Step1Text.HeadIntent(order.state, order.intent ?? "");
         intent.color = new Color(1f, 1f, 1f, 0.85f);
 
         float n = driver.Mind.Meter.Normalized;

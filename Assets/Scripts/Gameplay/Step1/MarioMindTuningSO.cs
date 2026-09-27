@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 13;
+    public const int CurrentDataVersion = 14;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -213,6 +213,34 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("加速道具：马里奥速度倍率")]
     public float pickupSpeedBoost = 1.35f;
 
+    [Header("S203: Mario personalities (Rush / Cautious / Greedy)")]
+    [Tooltip("每回合随机一种性格（关掉 = 永远冲冲型）")]
+    public bool personalitiesEnabled = true;
+    [Tooltip("固定性格：-1 随机，0 冲冲型，1 谨慎型，2 贪财型（试某种性格时用）")]
+    [Range(-1, 2)] public int fixedPersonality = -1;
+    [Tooltip("抽到冲冲型的权重")]
+    public float rushWeight = 1f;
+    [Tooltip("抽到谨慎型的权重")]
+    public float cautiousWeight = 1f;
+    [Tooltip("抽到贪财型的权重")]
+    public float greedyWeight = 1f;
+    [Tooltip("开局头顶显示性格几秒")]
+    public float personalityIntroSeconds = 3f;
+    [Tooltip("谨慎型赶路速度倍率")]
+    [Range(0.5f, 1f)] public float cautiousTypeSpeedScale = 0.9f;
+    [Tooltip("谨慎型起疑速度倍率（>1 更容易起疑）")]
+    public float cautiousTypeSuspicionScale = 1.25f;
+    [Tooltip("谨慎型绕开被坑点的范围（格）")]
+    public float avoidRadius = 2f;
+    [Tooltip("贪财型：多远的道具箱都去抢（格，跨层也算）")]
+    public float greedyPickupDetourCells = 14f;
+    [Tooltip("贪财型：够不着的道具箱几秒后放弃")]
+    public float greedyGiveUpSeconds = 5f;
+    [Tooltip("贪财型起疑速度倍率（抢道具时再减半）")]
+    public float greedySuspicionScale = 0.9f;
+    [Tooltip("自动检查时轮流测三种性格")]
+    public bool autoCheckCyclePersonalities = true;
+
     [Header("S202: replay, strategy sim, trap probe, Mario dodge/grab")]
     [Tooltip("完美连锁/大连招后慢动作回放")]
     public bool replayEnabled = true;
@@ -387,6 +415,12 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 14)
+        {
+            personalitiesEnabled = true; fixedPersonality = -1; rushWeight = cautiousWeight = greedyWeight = 1f; personalityIntroSeconds = 3f;
+            cautiousTypeSpeedScale = 0.9f; cautiousTypeSuspicionScale = 1.25f; avoidRadius = 2f; greedyPickupDetourCells = 14f; greedyGiveUpSeconds = 5f; greedySuspicionScale = 0.9f;
+            autoCheckCyclePersonalities = true;
         }
         if (dataVersion < 13)
         {

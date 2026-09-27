@@ -1657,6 +1657,65 @@ public class Step1RushMarioTests
         StringAssert.Contains("driver.Mind.Dodging", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs"), "躲闪时不误判卡住");
     }
 
+    // ── S203：马里奥性格（冲冲型 / 谨慎型 / 贪财型）─────────
+    [Test]
+    public void PersonalitiesAreSeededVisibleAndDifferent()
+    {
+        var t = Tuning();
+        Assert.IsTrue(t.personalitiesEnabled);
+        Assert.AreEqual(MarioPersonality.Roll(42, 1, 1, 1), MarioPersonality.Roll(42, 1, 1, 1), "同种子同性格（可复现）");
+        Assert.AreEqual(MarioPersonalityKind.Rush, MarioPersonality.Roll(42, 0, 0, 0), "权重全 0 = 冲冲型");
+        Assert.AreEqual(MarioPersonalityKind.Greedy, MarioPersonality.Roll(42, 0, 0, 1));
+        var seen = new HashSet<MarioPersonalityKind>();
+        for (int sd = 0; sd < 60; sd++) seen.Add(MarioPersonality.Roll(sd, 1, 1, 1));
+        Assert.AreEqual(3, seen.Count, "三种性格都会出现");
+        var rush = MarioPersonality.For(MarioPersonalityKind.Rush, t);
+        var cau = MarioPersonality.For(MarioPersonalityKind.Cautious, t);
+        var gre = MarioPersonality.For(MarioPersonalityKind.Greedy, t);
+        Assert.IsTrue(cau.avoidHurtSpots && !rush.avoidHurtSpots && !gre.avoidHurtSpots, "只有谨慎型绕开被坑点");
+        Assert.Less(cau.pickupDetour, 0f, "谨慎型不绕路捡道具");
+        Assert.IsTrue(gre.pickupAnyFloor && gre.pickupDetour > rush.pickupDetour, "贪财型跨层、更远也去抢");
+        Assert.IsFalse(gre.slowNearHurtSpots, "贪财型不长记性");
+        Assert.Greater(cau.suspicionScale, 1f, "谨慎型更容易起疑");
+        Assert.IsTrue(RushMarioMind.WantsPickup(gre, new Vector2(0, 1), new Vector2(10, 6)), "贪财型：别的楼层 10 格外也去");
+        Assert.IsFalse(RushMarioMind.WantsPickup(rush, new Vector2(0, 1), new Vector2(10, 6)), "冲冲型：不跨层");
+        Assert.IsFalse(RushMarioMind.WantsPickup(cau, new Vector2(0, 1), new Vector2(1, 1)), "谨慎型：就在旁边也不捡");
+        var mind = new RushMarioMind(t) { ForcedPersonality = MarioPersonalityKind.Cautious };
+        mind.Reset(7);
+        Assert.AreEqual(MarioPersonalityKind.Cautious, mind.Personality);
+        Assert.IsTrue(mind.ShowingPersonality, "开局亮出性格（H6）");
+        StringAssert.Contains("tr.zh", Read("Scripts/Gameplay/Step1/MarioMindLabel.cs"), "头顶显示性格");
+        StringAssert.Contains("Mind.Traits.speedScale", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
+        Assert.AreEqual(MarioPersonalityKind.Rush, MarioMindDriver.CycledPersonality(1));
+        Assert.AreEqual(MarioPersonalityKind.Cautious, MarioMindDriver.CycledPersonality(2));
+        Assert.AreEqual(MarioPersonalityKind.Greedy, MarioMindDriver.CycledPersonality(3), "自动检查轮流测三种性格（H10）");
+        StringAssert.Contains(",personality", Step1PlaytestLog.CsvHeader, "试玩记录写性格");
+    }
+
+    [Test]
+    public void CautiousDetoursAroundHurtSpotsButNeverGetsStuck()
+    {
+        // 两条路：地面直走 / 台阶上高路绕过去
+        var two = new[] { "WWWWWWWWWWWWWWWW", "W..............W", "W..............W", "W..............W", "W...--------...W", "W..............W", "W.-..........-.W", "W.M.........G..W", "W##############W" };
+        var w = DetourPlanner.Detour(two, 2, 1, 12, 1, 2f, new List<(int, int)> { (7, 1) }, 2f, out bool d);
+        Assert.IsTrue(d, "被坑点在地面 → 走高路");
+        Assert.Greater(w.y, 1, "下一个路点在上面");
+        // 只有一条路：绕不开 → 走原路（不会停住）
+        var one = new[] { "WWWWWWWWWWWW", "W..........W", "W.M......G.W", "W##########W" };
+        DetourPlanner.Detour(one, 2, 1, 9, 1, 2f, new List<(int, int)> { (5, 1) }, 2f, out bool d1);
+        Assert.IsFalse(d1, "绕不开 → 原路（H1/H10）");
+        Assert.IsTrue(MarioPersonality.ShouldHop(new[] { new Vector2(6, 1) }, new Vector2(5, 1), true), "绕不开时跳过被坑点");
+        Assert.IsFalse(MarioPersonality.ShouldHop(new[] { new Vector2(6, 1) }, new Vector2(5, 1), false), "背对着不跳");
+        Assert.AreEqual(0, MarioMindDriver.SpotsAhead(new[] { new Vector2(5, 1) }, new Vector2(5.5f, 1), 2f).Count, "刚被坑的地方（脚下）不算，避免原地卡住");
+        var hop = CodeOnly(Read("Scripts/Core/HeuristicBotInputProvider.cs"));
+        StringAssert.Contains("if (JumpRequest && _mario.IsGrounded)", hop);
+        // 诱捕走廊有高路：谨慎型被坑后能绕
+        DetourPlanner.Detour(LevelWorkshopModel.LureSample, 5, 8, 44, 8, 5f, new List<(int, int)> { (21, 8) }, 2f, out bool dl);
+        Assert.IsTrue(dl, "诱捕走廊：谨慎型能走高路绕开火");
+        Assert.IsTrue(LevelWorkshopModel.Check(LevelWorkshopModel.LureSample, true, reg().IsSolid).Playable);
+        Assert.IsNotNull(LevelPathPlanner.Path(two, new LevelPathPlanner.Cell(2, 1), new LevelPathPlanner.Cell(12, 1), null), "不带禁区 = 原寻路");
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

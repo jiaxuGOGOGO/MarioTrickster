@@ -79,6 +79,8 @@ public class HeuristicBotInputProvider : IInputProvider
     private ControllablePropBase _trapDecisionProp;
     private bool _trapDecisionRush;
     public bool AuthoredRouteTarget { get; set; }
+    /// <summary>S203：这一帧在地上就起跳（谨慎型马里奥跳过被坑过的地方）。默认 false = 旧行为不变。</summary>
+    public bool JumpRequest { get; set; }
     public int AnchorSwitchRequests { get; private set; }
     private float _anchorSwitchTimer;
     public enum RunnerPolicy { Legacy, Rush, Scout, SafeRoute }
@@ -493,6 +495,8 @@ public class HeuristicBotInputProvider : IInputProvider
 
         // [垂直寻路] Wiggle 模式下高频触发跳跃
         if (verticalWiggle && _mario.IsGrounded)
+            shouldJump = true;
+        if (JumpRequest && _mario.IsGrounded)
             shouldJump = true;
 
         // ── 2c. Persona 行为注入：反应延迟 (reactionDelay) ──

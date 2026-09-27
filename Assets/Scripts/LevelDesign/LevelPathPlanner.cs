@@ -32,7 +32,10 @@ public static class LevelPathPlanner
     }
 
     /// <summary>从 from 到 to 的一条路径（含首尾）；到不了返回 null。to 不可站时取它正下方第一个可站格。</summary>
-    public static List<Cell> Path(IList<string> grid, Cell from, Cell to)
+    public static List<Cell> Path(IList<string> grid, Cell from, Cell to) => Path(grid, from, to, null);
+
+    /// <summary>S203：带禁区的寻路（谨慎型马里奥绕开被坑过的地方）。avoid = 格子 key（x*1000+y），null = 不限。</summary>
+    public static List<Cell> Path(IList<string> grid, Cell from, Cell to, ICollection<int> avoid)
     {
         var reg = AsciiElementRegistry.GetDefault();
         var solid = reg.GetSolidChars();
@@ -57,7 +60,7 @@ public static class LevelPathPlanner
                 return path;
             }
             foreach (var n in Moves(grid, c, w, h, solid, hazard))
-                if (!prev.ContainsKey(Key(n))) { prev[Key(n)] = Key(c); q.Enqueue(n); }
+                if (!prev.ContainsKey(Key(n)) && (avoid == null || !avoid.Contains(Key(n)) || (n.x == to.x && n.y == to.y))) { prev[Key(n)] = Key(c); q.Enqueue(n); }
         }
         return null;
     }

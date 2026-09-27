@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using UnityEngine;
 
@@ -53,13 +54,33 @@ public class MarioMindDriver : MonoBehaviour
         ParseGrid();
     }
 
+    private string[] allRows; // S203：任何房间都保留网格（谨慎型绕路 / 贪财型跨层抢道具用）
     private void ParseGrid()
     {
-        gridRows = null;
+        gridRows = null; allRows = null;
         if (string.IsNullOrEmpty(roomGrid)) return;
         var rows = roomGrid.Replace("\r", "").Split('\n');
         for (int i = 0; i < rows.Length; i++) rows[i] = Step1Layout.StripSlots(rows[i]);
+        allRows = rows;
         if (LevelPathPlanner.NeedsPlanning(rows)) gridRows = rows;
+    }
+
+    /// <summary>S203：调参"固定性格"（-1 = 随机）。</summary>
+    private MarioPersonalityKind? forcedPersonality => tuning != null && tuning.fixedPersonality >= 0 ? (MarioPersonalityKind?)(MarioPersonalityKind)Mathf.Clamp(tuning.fixedPersonality, 0, 2) : null;
+    /// <summary>纯逻辑：自动检查第 n 局用哪种性格（1→冲冲 2→谨慎 3→贪财 4→冲冲…）。</summary>
+    public static MarioPersonalityKind CycledPersonality(int round) => (MarioPersonalityKind)(((round - 1) % 3 + 3) % 3);
+    public static string PersonalityTip(MarioPersonalityKind k) => k == MarioPersonalityKind.Cautious ? Step1Text.CautiousTip : k == MarioPersonalityKind.Greedy ? Step1Text.GreedyTip : "";
+
+    /// <summary>S203：谨慎型当前是不是在绕开被坑点（头顶显示"绕开"）。</summary>
+    public bool Detouring { get; private set; }
+    private float detourReplan; private Vector2? detourWaypoint; private bool hopRequest;
+
+    /// <summary>纯逻辑：只绕"前面还没到"的被坑点（离自己 ≤ 半径+1 的不算，否则刚被坑完就原地卡住）。</summary>
+    public static List<Vector2> SpotsAhead(IReadOnlyList<Vector2> spots, Vector2 mario, float radius)
+    {
+        var list = new List<Vector2>();
+        foreach (var s in spots) if (Vector2.Distance(s, mario) > radius + 1f) list.Add(s);
+        return list;
     }
 
     /// <summary>纯逻辑：楼层路点在上方（要往上跳）时用"指定路线"转向（对准再跳），避免旧 AI 头顶目标的左右徘徊。</summary>
@@ -136,7 +157,10 @@ public class MarioMindDriver : MonoBehaviour
     {
         // S187：每回合一个新种子（时间 + 回合计数），决定回头看/速度浮动；写入记录可复现。
         int seed = unchecked(Environment.TickCount * 31 + (++roundCounter) * 7919);
+        // S203：自动检查时轮流测三种性格（每种都要能自己通关，H10）
+        Mind.ForcedPersonality = Step1HandsOffCheck.IsRunning && tuning.autoCheckCyclePersonalities ? (MarioPersonalityKind?)CycledPersonality(roundCounter) : forcedPersonality;
         Mind.Reset(seed);
+        if (!Step1HandsOffCheck.IsRunning && Mind.Personality != MarioPersonalityKind.Rush) Step1Hint.Show(string.Format(Step1Text.PersonalityHint, Mind.Traits.zh, PersonalityTip(Mind.Personality)), 3.5f);
         roundSpeedFactor = RushMarioMind.RoundSpeedFactor(seed, tuning.roundSpeedVariance);
         eyes?.Forget();
         startDelay = tuning.startDelaySeconds;
@@ -176,7 +200,8 @@ public class MarioMindDriver : MonoBehaviour
         // 每帧读取，Play 中改调参资产立即生效；追你时提速（S186）
         hybrid.Bot.MarioSpeedScale = (Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale) * roundSpeedFactor * SlowTerrain.CurrentMarioSpeedScale
             * (Time.time < RandomPickups.MarioSpeedUntil ? tuning.pickupSpeedBoost : 1f)
-            * (Mind.Cautious ? tuning.cautiousSpeedScale : 1f);
+            * (Mind.Cautious ? tuning.cautiousSpeedScale : 1f)
+            * (Mind.State == MarioMindState.Running ? Mind.Traits.speedScale : 1f);
         hybrid.Bot.TrapCommitDistance = tuning.trapCommitDistance;
         hybrid.Bot.SkipReactionDelayForTerrain = tuning.smoothJumps;
         hybrid.Bot.HoldStill = false;
@@ -215,9 +240,35 @@ public class MarioMindDriver : MonoBehaviour
             order.moveTarget = floorWaypoint;
         }
         else floorWaypoint = null;
+        // S203 谨慎型：赶路时绕开被坑过的地方（能绕就绕，绕不开走原路，H1/H10）
+        Detouring = false;
+        if (order.state == MarioMindState.Running && order.intent != "DODGE" && order.intent != "GRAB" && allRows != null
+            && Mind.Traits.avoidHurtSpots && Mind.HurtSpots.Count > 0)
+        {
+            detourReplan -= Time.deltaTime;
+            Vector2? goal = CurrentGoal();
+            if (goal.HasValue && (detourReplan <= 0f || detourWaypoint == null || Vector2.Distance(transform.position, detourWaypoint.Value) < 0.5f))
+            {
+                detourReplan = tuning.floorReplanSeconds;
+                var ahead = SpotsAhead(Mind.HurtSpots, transform.position, tuning.avoidRadius);
+                bool took = false;
+                detourWaypoint = ahead.Count > 0 ? MarioPersonality.DetourWaypoint(allRows, transform.position, goal.Value, ahead, tuning.avoidRadius, out took) : null;
+                if (!took) detourWaypoint = null;
+            }
+            if (detourWaypoint.HasValue) { order.moveTarget = detourWaypoint; floorWaypoint = detourWaypoint; Detouring = true; order.intent = "DETOUR"; }
+            else if (MarioPersonality.ShouldHop(Mind.HurtSpots, transform.position, marioController != null && marioController.IsFacingRight)) { hopRequest = true; order.intent = "HOP"; }
+        }
+        else detourWaypoint = null;
+        // S203 贪财型：道具箱在别的楼层 → 用楼层寻路走过去
+        if (order.intent == "GRAB" && order.moveTarget.HasValue && allRows != null && Mathf.Abs(order.moveTarget.Value.y - transform.position.y) > 1.5f)
+        {
+            var w = PlanWaypoint(allRows, transform.position, order.moveTarget.Value);
+            if (w.HasValue) { order.moveTarget = w; floorWaypoint = w; }
+        }
         // S198（修"来回跳"）：往上走的路点（楼板洞口正上方）会触发旧 AI 的"头顶目标 → 左右徘徊跳"模式。
         // 楼层路点一律按"指定路线"处理：对准路点正下方再起跳（HeuristicBotInputProvider 的 AuthoredRouteTarget 通道）。
         hybrid.Bot.AuthoredRouteTarget = UseAuthoredSteering(floorWaypoint, transform.position);
+        hybrid.Bot.JumpRequest = hopRequest; hopRequest = false;
         hybrid.Bot.ExplorationTarget = order.moveTarget;
         if (order.scan && scan != null) scan.ActivateScan();
         if (order.tryCatch && lives != null && lives.TryCatch(transform.position))

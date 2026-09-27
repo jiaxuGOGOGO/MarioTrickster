@@ -158,10 +158,10 @@ public class Step1PlaytestLog : MonoBehaviour
     }
 
     public static string CsvHeader => "timestamp,round,winner,reason,seconds,trickster_lives_left,times_caught,omens,alerts,pranks,distinct_kinds," +
-        "calculated_moment,near_miss_moment,caught_verdict,want_again_1to5,note,max_combo,layout_seed,stuck_rescues,combo_score";
+        "calculated_moment,near_miss_moment,caught_verdict,want_again_1to5,note,max_combo,layout_seed,stuck_rescues,combo_score,personality";
 
     public static string CsvRow(DateTime time, int round, string winner, string reason, float seconds, int livesLeft,
-        int caught, int omens, int alerts, IReadOnlyDictionary<string, int> pranks, Step1RoundSurvey answers, int maxCombo = 0, int layoutSeed = 0, int stuckRescues = 0, int comboScore = 0)
+        int caught, int omens, int alerts, IReadOnlyDictionary<string, int> pranks, Step1RoundSurvey answers, int maxCombo = 0, int layoutSeed = 0, int stuckRescues = 0, int comboScore = 0, string personality = "")
     {
         var parts = new List<string>();
         foreach (var kv in pranks) parts.Add(kv.Key + ":" + kv.Value);
@@ -170,7 +170,7 @@ public class Step1PlaytestLog : MonoBehaviour
             seconds.ToString("F1", System.Globalization.CultureInfo.InvariantCulture), livesLeft, caught, omens, alerts,
             string.Join(" ", parts), pranks.Count,
             Step1RoundSurvey.YesNo(answers?.Calculated), Step1RoundSurvey.YesNo(answers?.NearMiss), Clean(answers?.CaughtVerdict),
-            answers != null ? answers.WantAgain : 0, Clean(answers?.Note), maxCombo, layoutSeed, stuckRescues, comboScore);
+            answers != null ? answers.WantAgain : 0, Clean(answers?.Note), maxCombo, layoutSeed, stuckRescues, comboScore, Clean(personality));
     }
 
     private static string Clean(string s) => (s ?? "").Replace(",", ";").Replace("\n", " ").Replace("\r", " ");
@@ -187,7 +187,7 @@ public class Step1PlaytestLog : MonoBehaviour
             if (fresh) sb.AppendLine(CsvHeader);
             sb.AppendLine(CsvRow(DateTime.Now, manager != null ? manager.CurrentRound : 0, lastWinner,
                 manager != null ? manager.LastRoundReason : "", manager != null ? manager.RoundElapsed : 0f,
-                lives != null ? lives.Lives : 0, CaughtThisRound, roundOmens, roundAlerts, roundPranks, answers, combo != null ? combo.MaxThisRound : 0, layout != null ? layout.LastSeed : 0, rescue != null ? rescue.RescuesThisRound : 0, combo != null ? combo.ScoreThisRound : 0));
+                lives != null ? lives.Lives : 0, CaughtThisRound, roundOmens, roundAlerts, roundPranks, answers, combo != null ? combo.MaxThisRound : 0, layout != null ? layout.LastSeed : 0, rescue != null ? rescue.RescuesThisRound : 0, combo != null ? combo.ScoreThisRound : 0, driver != null ? driver.Mind.Personality.ToString() : ""));
             File.AppendAllText(path, sb.ToString());
             roundsLogged++;
             Debug.Log($"[Step1PlaytestLog] Round logged ({roundsLogged}) -> {path}");

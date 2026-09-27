@@ -25,7 +25,7 @@ public class Step1HandsOffCheck : MonoBehaviour
 
     [SerializeField] private MarioMindTuningSO tuning;
 
-    public struct RoundResult { public string winner, reason; public float seconds; public Vector2 marioPos; public bool hadLoot; public int rescues; public int hurts; }
+    public struct RoundResult { public string winner, reason; public float seconds; public Vector2 marioPos; public bool hadLoot; public int rescues; public int hurts; public string personality; }
 
     public static bool IsRunning { get; private set; }
     private readonly List<RoundResult> results = new List<RoundResult>();
@@ -71,11 +71,13 @@ public class Step1HandsOffCheck : MonoBehaviour
         LootObjective.OnLootCollected += HandleLoot;
         rescue = FindObjectOfType<Step1StuckRescue>();
         var driver = FindObjectOfType<MarioMindDriver>();
+        driverRef = driver;
         if (driver != null) driver.Hurt += HandleHurt;
         if (ProbeMode && mario != null) mario.gameObject.AddComponent<Step1TrapProbe>().SetTuning(tuning);
     }
 
     private Step1StuckRescue rescue;
+    private MarioMindDriver driverRef;
     private int hurtsThisRound;
     private readonly HashSet<int> trackCells = new HashSet<int>();
     private readonly HashSet<int> trackStuck = new HashSet<int>();
@@ -125,7 +127,8 @@ public class Step1HandsOffCheck : MonoBehaviour
         {
             winner = winner, reason = manager.LastRoundReason, seconds = manager.RoundElapsed,
             marioPos = manager.LastRoundPosition, hadLoot = lootSeenThisRound || LootObjective.IsLootCarried,
-            rescues = rescue != null ? rescue.RescuesThisRound : 0, hurts = hurtsThisRound
+            rescues = rescue != null ? rescue.RescuesThisRound : 0, hurts = hurtsThisRound,
+            personality = driverRef != null ? driverRef.Mind.Traits.zh : ""
         });
         if (rescue != null && rescue.RescuesThisRound > 0) trackStuck.Add(Mathf.RoundToInt(rescue.LastStuckAt.x) * 1000 + Mathf.RoundToInt(rescue.LastStuckAt.y));
         if (manager.LastRoundReason == Step1Text.HandsOffTimeoutReason) trackStuck.Add(Mathf.RoundToInt(manager.LastRoundPosition.x) * 1000 + Mathf.RoundToInt(manager.LastRoundPosition.y));
@@ -170,7 +173,7 @@ public class Step1HandsOffCheck : MonoBehaviour
             string path = Path.Combine(folder, LogFile);
             bool fresh = !File.Exists(path);
             var sb = new StringBuilder();
-            if (fresh) sb.AppendLine("timestamp,check_round,winner,got_loot,reason,seconds,mario_x,mario_y,mode,rescues,hurts");
+            if (fresh) sb.AppendLine("timestamp,check_round,winner,got_loot,reason,seconds,mario_x,mario_y,mode,rescues,hurts,personality");
             string stamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             var inv = System.Globalization.CultureInfo.InvariantCulture;
             for (int i = 0; i < results.Count; i++)
@@ -178,7 +181,7 @@ public class Step1HandsOffCheck : MonoBehaviour
                 var r = results[i];
                 sb.AppendLine(string.Join(",", stamp, i + 1, r.winner, r.hadLoot ? "yes" : "no", (r.reason ?? "").Replace(",", ";"),
                     r.seconds.ToString("F1", inv), r.marioPos.x.ToString("F1", inv), r.marioPos.y.ToString("F1", inv),
-                    ProbeMode ? "probe" : "handsoff", r.rescues, r.hurts));
+                    ProbeMode ? "probe" : "handsoff", r.rescues, r.hurts, r.personality ?? ""));
             }
             File.AppendAllText(path, sb.ToString());
             // S202：轨迹（覆盖写，只保留最近一次检查）——工坊"自动检查轨迹"按钮读它画热力图
@@ -222,7 +225,7 @@ public class Step1HandsOffCheck : MonoBehaviour
         sb.AppendLine();
         for (int i = 0; i < total; i++)
         {
-            if (i < results.Count) sb.AppendLine($"第 {i + 1} 局 Round {i + 1}:   {Describe(results[i])}");
+            if (i < results.Count) sb.AppendLine($"第 {i + 1} 局 Round {i + 1}  [{results[i].personality}]:   {Describe(results[i])}");
             else if (i == results.Count && !finished) sb.AppendLine($"第 {i + 1} 局 Round {i + 1}:   <color=#FFD966>进行中… running…</color>");
             else sb.AppendLine($"<color=#777777>第 {i + 1} 局 Round {i + 1}:   —</color>");
         }

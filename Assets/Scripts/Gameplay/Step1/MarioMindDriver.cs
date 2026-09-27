@@ -38,11 +38,47 @@ public class MarioMindDriver : MonoBehaviour
     /// <summary>移动执行层（只读，供连招统计读"是否被机关挡停"）。</summary>
     public HeuristicBotInputProvider Bot => hybrid != null ? hybrid.Bot : null;
     /// <summary>马里奥被机关伤到（供试玩日志做恶作剧归因）。</summary>
+    // S195：楼层寻路（只在"宝物与出口不在同一层"的房间启用；默认恶作剧房间行为不变）
+    [SerializeField, TextArea(2, 20)] private string roomGrid = "";
+    private string[] gridRows;
+    private float replanTimer;
+    private Vector2? floorWaypoint;
+    public Vector2? FloorWaypoint => floorWaypoint;
+    public bool FloorPlanning => gridRows != null;
+
+    /// <summary>构建器写入房间网格（第 0 行在最上面）。宝物与出口同层时不启用。</summary>
+    public void SetRoomGrid(string[] rows)
+    {
+        roomGrid = rows != null ? string.Join("\n", rows) : "";
+        ParseGrid();
+    }
+
+    private void ParseGrid()
+    {
+        gridRows = null;
+        if (string.IsNullOrEmpty(roomGrid)) return;
+        var rows = roomGrid.Replace("\r", "").Split('\n');
+        for (int i = 0; i < rows.Length; i++) rows[i] = Step1Layout.StripSlots(rows[i]);
+        if (LevelPathPlanner.NeedsPlanning(rows)) gridRows = rows;
+    }
+
+    /// <summary>纯逻辑：在网格上为"去 target"算出下一个路点（世界坐标 = 格坐标，与生成器一致）。</summary>
+    public static Vector2? PlanWaypoint(string[] rows, Vector2 from, Vector2 target)
+    {
+        var path = LevelPathPlanner.Path(rows,
+            new LevelPathPlanner.Cell(Mathf.RoundToInt(from.x), Mathf.RoundToInt(from.y)),
+            new LevelPathPlanner.Cell(Mathf.RoundToInt(target.x), Mathf.RoundToInt(target.y)));
+        if (path == null || path.Count < 2) return null;
+        var w = LevelPathPlanner.NextWaypoint(path);
+        return new Vector2(w.x, w.y);
+    }
+
     public event Action<MarioMindState> Hurt;
     public event Action Caught;
 
     private void Awake()
     {
+        ParseGrid();
         if (tuning == null) tuning = MarioMindTuningSO.LoadOrDefault();
         marioController = GetComponent<MarioController>();
         health = GetComponent<PlayerHealth>();
@@ -99,6 +135,12 @@ public class MarioMindDriver : MonoBehaviour
         if (hybrid != null) { hybrid.Bot.ExplorationTarget = null; hybrid.InvalidateCache(); }
     }
 
+    private Vector2? FindPos<T>() where T : Component
+    {
+        var c = FindObjectOfType<T>();
+        return c != null && c.gameObject.activeInHierarchy ? (Vector2?)c.transform.position : null;
+    }
+
     private void HandleHealthChanged(int current, int max)
     {
         if (lastHealth >= 0 && current < lastHealth) hurtThisFrame = true;
@@ -136,6 +178,19 @@ public class MarioMindDriver : MonoBehaviour
         hurtThisFrame = false;
 
         MarioOrder order = Mind.Tick(Time.deltaTime, percept);
+        // S195：赶路（去拿宝/回出口）时，多层楼房间按楼层路径给下一个路点；其它状态（查看/追你）不改
+        if (order.moveTarget == null && gridRows != null && order.state == MarioMindState.Running)
+        {
+            replanTimer -= Time.deltaTime;
+            if (replanTimer <= 0f || floorWaypoint == null || Vector2.Distance(transform.position, floorWaypoint.Value) < 0.8f)
+            {
+                replanTimer = tuning.floorReplanSeconds;
+                Vector2? goal = LootObjective.IsLootCarried ? FindPos<GoalZone>() : FindPos<LootObjective>();
+                floorWaypoint = goal.HasValue ? PlanWaypoint(gridRows, transform.position, goal.Value) : null;
+            }
+            order.moveTarget = floorWaypoint;
+        }
+        else floorWaypoint = null;
         hybrid.Bot.ExplorationTarget = order.moveTarget;
         if (order.scan && scan != null) scan.ActivateScan();
         if (order.tryCatch && lives != null && lives.TryCatch(transform.position))

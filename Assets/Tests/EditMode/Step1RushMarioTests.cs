@@ -1184,5 +1184,51 @@ public class Step1RushMarioTests
         StringAssert.Contains("DrawComboRoutes", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "工坊有'连招路线'开关");
     }
 
+    // ── S195：多层楼 / 监狱塔 ─────────────────────────
+    [Test]
+    public void FloorPlannerFindsStairsInEveryTowerAndSkipsFlatRooms()
+    {
+        Assert.IsFalse(LevelPathPlanner.NeedsPlanning(Step1PrankRoomBuilder.Room), "默认恶作剧房间（同层）不启用 → 马里奥行为完全不变");
+        Assert.IsTrue(LevelPathPlanner.NeedsPlanning(LevelWorkshopModel.PrisonSample));
+        for (int floors = 2; floors <= FloorStacker.MaxFloors; floors++)
+            for (int seed = 0; seed < 4; seed++)
+            {
+                var g = FloorStacker.Build(floors, seed);
+                var m = CellOfIn(g, 'M'); var o = CellOfIn(g, 'o'); var e = CellOfIn(g, 'G');
+                Assert.IsNotNull(LevelPathPlanner.Path(g, m, o), $"{floors} 层 seed {seed}：马里奥找得到下到宝物的路");
+                Assert.IsNotNull(LevelPathPlanner.Path(g, o, e), $"{floors} 层 seed {seed}：拿宝后找得到爬回出口的路");
+            }
+        var p = LevelPathPlanner.Path(LevelWorkshopModel.PrisonSample, CellOfIn(LevelWorkshopModel.PrisonSample, 'M'), CellOfIn(LevelWorkshopModel.PrisonSample, 'o'));
+        var w = LevelPathPlanner.NextWaypoint(p);
+        Assert.AreNotEqual(p[p.Count - 1].x, w.x, "路点是'先去楼梯口'，不是直冲宝物");
+        foreach (string token in new[] { "TricksterController", "IsDisguised", "Trickster" })
+            StringAssert.DoesNotContain(token, CodeOnly(Read("Scripts/LevelDesign/LevelPathPlanner.cs")), "H4：寻路只看地形和自己的目标");
+        StringAssert.Contains("so.FindProperty(\"roomGrid\")", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+    }
+
+    [Test]
+    public void PrisonTowersArePlayableForEverySeed()
+    {
+        System.Func<char, bool> solid = reg().IsSolid;
+        for (int floors = 2; floors <= FloorStacker.MaxFloors; floors += 3)
+            for (int seed = 0; seed < 3; seed++)
+            {
+                var g = FloorStacker.Build(floors, seed);
+                Assert.LessOrEqual(g.Length, LevelStudioDocument.MaxHeight, "塞得进工坊画布");
+                var c = LevelWorkshopModel.Check(g, true, solid);
+                Assert.IsTrue(c.Playable, $"{floors} 层 seed {seed}: {c.Headline}");
+            }
+        CollectionAssert.AreEqual(FloorStacker.Build(5, 9), FloorStacker.Build(5, 9), "同种子可复现");
+        Assert.IsTrue(LevelWorkshopModel.Check(FloorStacker.AddFloorOnTop(LevelWorkshopModel.PrisonSample), true, solid).Playable, "加一层后仍可玩");
+        Assert.AreEqual(Step1CameraMode.FrameBoth, Step1RoomCamera.AutoMode(Step1CameraMode.WholeRoom, new Rect(0, 0, 32, 45), Tuning().maxWholeRoomHeight), "高楼镜头自动框住两人");
+        Assert.AreEqual(Step1CameraMode.WholeRoom, Step1RoomCamera.AutoMode(Step1CameraMode.WholeRoom, new Rect(0, 0, 48, 12), Tuning().maxWholeRoomHeight), "默认房间镜头不变");
+    }
+
+    static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
+    {
+        for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }
+        return new LevelPathPlanner.Cell(-1, -1);
+    }
+
     static AsciiElementRegistry reg() => AsciiElementRegistry.GetDefault();
 }

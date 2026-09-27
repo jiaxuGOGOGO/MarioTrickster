@@ -35,8 +35,13 @@ public class Step1RoomCamera : MonoBehaviour
         if (follow != null) follow.enabled = false;
     }
 
+    /// <summary>S195：房间太高（多层楼/监狱塔）时，"看整个房间"会把人缩成小点 → 自动改为"框住两人"。</summary>
+    public static Step1CameraMode AutoMode(Step1CameraMode wanted, Rect room, float maxWholeRoomHeight) =>
+        wanted == Step1CameraMode.WholeRoom && maxWholeRoomHeight > 0f && room.height > maxWholeRoomHeight ? Step1CameraMode.FrameBoth : wanted;
+
     private void Start()
     {
+        Mode = AutoMode(Mode, roomBounds, tuning.maxWholeRoomHeight);
         if (mario == null) { var m = FindObjectOfType<MarioController>(); if (m != null) mario = m.transform; }
         if (trickster == null) { var t = FindObjectOfType<TricksterController>(); if (t != null) trickster = t.transform; }
         Snap();

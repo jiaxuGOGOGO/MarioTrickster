@@ -55,6 +55,14 @@ public static class Step1Layout
         return result;
     }
 
+    /// <summary>S195：把随机槽位当空气（寻路只看固定地形；槽位里的箱子由现有避障跳过）。</summary>
+    public static string StripSlots(string row)
+    {
+        var chars = row.ToCharArray();
+        for (int i = 0; i < chars.Length; i++) if (Slots.ContainsKey(chars[i])) chars[i] = '.';
+        return new string(chars);
+    }
+
     public static bool HasSlots(string[] template)
     {
         foreach (var row in template) foreach (char ch in row) if (Slots.ContainsKey(ch)) return true;

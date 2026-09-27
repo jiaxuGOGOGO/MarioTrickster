@@ -174,6 +174,18 @@ public class LevelWorkshopWindow : EditorWindow
             SetSource(string.Join("\n", Step1PrankRoomBuilder.Room), "Load prank room");
         if (GUILayout.Button(new GUIContent("样板：两层监狱", "纵向逃脱示例：地下拿宝、爬回地面；裂缝地板 x + 弹簧板 J"), EditorStyles.toolbarButton, GUILayout.Width(96)))
             SetSource(string.Join("\n", LevelWorkshopModel.PrisonSample), "Load prison sample");
+        if (GUILayout.Button(new GUIContent("监狱塔…", "按层数自动拼一座监狱塔：每层是手工楼层模板，楼梯口左右交替；宝物在最底层，出口在顶层。拼完自动做死局检查"), EditorStyles.toolbarButton, GUILayout.Width(60)))
+        {
+            var menu = new GenericMenu();
+            for (int f = 2; f <= FloorStacker.MaxFloors; f++)
+            {
+                int floors = f;
+                menu.AddItem(new GUIContent($"{floors} 层（随机组合）"), false, () => SetSource(string.Join("\n", FloorStacker.Build(floors, UnityEngine.Random.Range(0, 100000))), "Prison tower"));
+            }
+            menu.AddSeparator("");
+            menu.AddItem(new GUIContent("在当前房间上面加一层"), false, () => SetSource(string.Join("\n", FloorStacker.AddFloorOnTop(Rows())), "Add floor"));
+            menu.ShowAsContext();
+        }
         if (GUILayout.Button("导入", EditorStyles.toolbarButton, GUILayout.Width(44))) Import();
         if (GUILayout.Button("导出", EditorStyles.toolbarButton, GUILayout.Width(44))) Export();
         GUILayout.Space(10);

@@ -35,6 +35,7 @@ public class Step1StuckRescue : MonoBehaviour
         manager = GameManager.Instance;
         if (manager != null) manager.OnRoundStart += ResetRound;
         ResetRound();
+        SafeCells(); // S195：开局就算好（高楼房间第一次救援时不再卡一下）
     }
 
     private void OnDestroy() { if (manager != null) manager.OnRoundStart -= ResetRound; }
@@ -102,10 +103,17 @@ public class Step1StuckRescue : MonoBehaviour
         }
         if (exitX < 0) return safeCells;
         // 能到达出口的格 = 从出口反查代价太高；直接用"从出口出发可达"的格（地面大多是双向的），再过滤"从该格能到出口"。
+        // S195 性能（高楼房间 300+ 格时原来要 ~0.4s）：同 S192 的严格剪枝——
+        // 若 B ∈ Reach(A)：A 能到出口不代表 B 能，但 A 到不了出口 ⇒ B 也到不了；B 能到 A 且 A 能到出口 ⇒ 先不推断，只剪"到不了"的一侧。
+        int exitKey = LevelReachabilityAnalyzer.CellKey(exitX, exitY);
+        var dead = new System.Collections.Generic.HashSet<int>();
         foreach (int key in LevelReachabilityAnalyzer.ReachableFrom(text, exitX, exitY))
         {
+            if (dead.Contains(key)) continue;
             int x = key / 100000, y = key % 100000;
-            if (LevelReachabilityAnalyzer.ReachableFrom(text, x, y).Contains(LevelReachabilityAnalyzer.CellKey(exitX, exitY))) safeCells.Add(key);
+            var reach = LevelReachabilityAnalyzer.ReachableFrom(text, x, y);
+            if (reach.Contains(exitKey)) safeCells.Add(key);
+            else dead.UnionWith(reach);
         }
         return safeCells;
     }

@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 194（香蕉皮 n：可读滑行 2–5 格，计入连招；关卡工坊"连招路线"开关：同色弧线 = 一套可连机关，显示最长一套的机关数/种类数；两层监狱样板改为可连招布局） |
+| **最新 Session** | Session 195（用户：暂时忽略"连玩 20 局"门槛。多层楼：LevelPathPlanner 楼层寻路（只在宝物/出口不同层时启用）、FloorStacker 监狱塔 2–11 层 + 加一层、高楼镜头自动框住两人、防卡死救援预算+剪枝） |
+| **S194** | Session 194（香蕉皮 n：可读滑行 2–5 格，计入连招；关卡工坊"连招路线"开关：同色弧线 = 一套可连机关，显示最长一套的机关数/种类数；两层监狱样板改为可连招布局） |
 | **S193** | Session 193（连招手感：顿帧/震屏/段位/递减硬直/换招加分；新机关弹簧板 J（浮空起手）+ 裂缝地板 x（可破坏地形，死局按永久打开检查）；恶作剧房间加地下室；关卡工坊"两层监狱"样板；纵向逃脱路线图文档） |
 | **S192** | Session 192（性能：关卡工坊拖动卡顿修复——画时快速检查 0.2ms、停笔 0.35s 后完整检查、按物理签名去重 32→8 组、死局分析剪枝、GUIStyle/颜色/行缓存、只在换格重画；游戏内视线/视锥改非分配射线、界面样式缓存） |
 | **S191** | Session 191（关卡工坊看得清：出生点改红/蓝、字色按对比度自动黑白；美术换图按元素贴法自动适配：平铺/等比放入/拉伸，接入原 SpriteAutoFit，单个换皮与主题换肤同一路径；美术检查菜单） |
@@ -105,6 +106,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S195] 用户："暂时忽略连玩 20 局门槛，继续完成未完成的任务"
+
+- 取舍：宪法 §5 的"第 1 步退出条件"按用户明确指示暂时搁置；其余 H1–H10 硬约束不变。
+- LevelPathPlanner（纯逻辑）：网格 BFS（走/跳≤2/下落/单向台面穿过）；NextWaypoint = 第一次换高度的落点。MarioMindDriver 在 Running 状态且 NeedsPlanning（宝物/出口高差>2）时每 floorReplanSeconds 重算路点；其它状态（查看/追人）不改。构建器写 roomGrid。
+- FloorStacker：4 个手工楼层模板（层高 3，不放弹簧），楼梯口左右交替 + 正下方单向台面阶梯 + 洞口上方清空；宝物在底层远端、出口/出生点在顶层。2–11 层 × 10 种子全部通过 Check；寻路 110/110 成功，最坏 14ms。工坊"监狱塔…"菜单（含"上面加一层"）。
+- Step1RoomCamera.AutoMode：房间高 > maxWholeRoomHeight(16) → FrameBoth。Step1StuckRescue：开局预算 SafeCells + 剪枝（结果集合与旧算法逐格一致）。
+- BuilderVersion 11，调参 dataVersion 7 内新增 floorReplanSeconds / maxWholeRoomHeight。测试 81→83。
 
 ### [S194] 用户："继续完成"（补完 S193 计划里剩下的两项）
 

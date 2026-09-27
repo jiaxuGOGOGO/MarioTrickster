@@ -37,8 +37,9 @@ public static class Step1PrankRoomBuilder
     /// S188 = 8：摆放检查（ElementCatalog）+ V 键元素标签 + 构建时移除第 1 步不用的旧系统（减法）；宝物区炮口让开 3 格。
     /// </summary>
     /// S193 = 10：连招手感（顿帧/震屏/段位/递减硬直）+ 弹簧板 J + 裂缝地板 x（房间加入一个浅地下室）+ 香蕉皮 n。
+    /// S195 = 11：多层楼房间的楼层寻路（马里奥知道先去哪个楼梯口）；工坊楼层工具。
     /// </summary>
-    public const int BuilderVersion = 10;
+    public const int BuilderVersion = 11;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -359,7 +360,7 @@ public static class Step1PrankRoomBuilder
         ConfigureBlockers(root, tuning);
         ConfigurePranks(root, tuning);
         ConfigureTrickster(trickster, tuning);
-        ConfigureMario(mario, tuning);
+        ConfigureMario(mario, tuning, room);
         ConfigureLives(gm.gameObject, tuning, trickster, level != null ? level.TricksterSpawn : null);
         gm.gameObject.AddComponent<Step1PlaytestLog>();
         var marker = gm.gameObject.AddComponent<Step1RoomReset>();
@@ -484,11 +485,12 @@ public static class Step1PrankRoomBuilder
         }
     }
 
-    private static void ConfigureMario(MarioController mario, MarioMindTuningSO tuning)
+    private static void ConfigureMario(MarioController mario, MarioMindTuningSO tuning, string[] room)
     {
         var driver = mario.gameObject.AddComponent<MarioMindDriver>();
         var so = new SerializedObject(driver);
         so.FindProperty("tuning").objectReferenceValue = tuning;
+        so.FindProperty("roomGrid").stringValue = string.Join("\n", room); // S195：多层楼房间的楼层寻路（同层房间自动不启用）
         so.ApplyModifiedPropertiesWithoutUndo();
         var label = new GameObject("MarioMindLabel");
         label.transform.SetParent(mario.transform, false);

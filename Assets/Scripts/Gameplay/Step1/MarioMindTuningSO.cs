@@ -137,6 +137,10 @@ public class MarioMindTuningSO : ScriptableObject
     public float springTelegraphSeconds = 0.4f;
     [Tooltip("弹簧板激活窗口（秒）：窗口内踩上去的都会被弹")]
     public float springActiveSeconds = 0.5f;
+    [Tooltip("S195 楼层寻路：多久重算一次路径（秒）。只在宝物与出口不同层的房间生效")]
+    public float floorReplanSeconds = 0.5f;
+    [Tooltip("S195：房间高于这么多格时，镜头默认'框住两人'而不是'看整个房间'（C 键仍可切换）")]
+    public float maxWholeRoomHeight = 16f;
     [Tooltip("关卡工坊'连招路线'：两个机关水平距离不超过这么多格，就画一条可连线（≈ 连招窗口 × 马里奥赶路速度）")]
     public float comboRouteCells = 10f;
     [Tooltip("香蕉皮滑行速度（格/秒）")]
@@ -222,7 +226,7 @@ public class MarioMindTuningSO : ScriptableObject
             comboStunScaling = 0.7f; shakePerStep = 0.06f; shakeMax = 0.3f; shakeSeconds = 0.25f;
             springLaunchSpeed = 16f; springForwardPush = 2.5f; springAirStunSeconds = 0.6f;
             springTelegraphSeconds = 0.4f; springActiveSeconds = 0.5f; crackTelegraphSeconds = 0.6f;
-            comboRouteCells = 10f; bananaSlideSpeed = 7f; bananaSlipSeconds = 0.5f; bananaTelegraphSeconds = 0.4f; bananaActiveSeconds = 1.2f;
+            comboRouteCells = 10f; floorReplanSeconds = 0.5f; maxWholeRoomHeight = 16f; bananaSlideSpeed = 7f; bananaSlipSeconds = 0.5f; bananaTelegraphSeconds = 0.4f; bananaActiveSeconds = 1.2f;
         }
         if (dataVersion < 6)
         {

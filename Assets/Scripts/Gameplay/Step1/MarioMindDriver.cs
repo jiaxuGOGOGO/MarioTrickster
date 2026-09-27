@@ -62,6 +62,10 @@ public class MarioMindDriver : MonoBehaviour
         if (LevelPathPlanner.NeedsPlanning(rows)) gridRows = rows;
     }
 
+    /// <summary>纯逻辑：楼层路点在上方（要往上跳）时用"指定路线"转向（对准再跳），避免旧 AI 头顶目标的左右徘徊。</summary>
+    public static bool UseAuthoredSteering(Vector2? waypoint, Vector2 marioPos) =>
+        waypoint.HasValue && waypoint.Value.y > marioPos.y + 0.4f;
+
     /// <summary>纯逻辑：在网格上为"去 target"算出下一个路点（世界坐标 = 格坐标，与生成器一致）。</summary>
     public static Vector2? PlanWaypoint(string[] rows, Vector2 from, Vector2 target)
     {
@@ -138,6 +142,9 @@ public class MarioMindDriver : MonoBehaviour
         if (hybrid != null) { hybrid.Bot.ExplorationTarget = null; hybrid.InvalidateCache(); }
     }
 
+    /// <summary>S198：马里奥此刻的赶路目标（宝物，拿到后是出口）。只看他自己的目标（H4）。</summary>
+    public Vector2? CurrentGoal() => LootObjective.IsLootCarried ? FindPos<GoalZone>() : FindPos<LootObjective>();
+
     private Vector2? FindPos<T>() where T : Component
     {
         var c = FindObjectOfType<T>();
@@ -146,6 +153,14 @@ public class MarioMindDriver : MonoBehaviour
 
     private void HandleHealthChanged(int current, int max)
     {
+        // S198 道具：护盾 = 下一次受伤免疫（把血加回去）
+        if (lastHealth >= 0 && current < lastHealth && RandomPickups.MarioShield && health != null)
+        {
+            RandomPickups.MarioShield = false;
+            health.Heal(lastHealth - current);
+            Step1Hint.Show(Step1Text.ShieldBlocked, 1.5f);
+            return;
+        }
         if (lastHealth >= 0 && current < lastHealth) hurtThisFrame = true;
         lastHealth = current;
     }
@@ -156,7 +171,8 @@ public class MarioMindDriver : MonoBehaviour
         var gm = GameManager.Instance;
         bool playing = gm == null || gm.CurrentState == GameState.Playing;
         // 每帧读取，Play 中改调参资产立即生效；追你时提速（S186）
-        hybrid.Bot.MarioSpeedScale = (Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale) * roundSpeedFactor * SlowTerrain.CurrentMarioSpeedScale;
+        hybrid.Bot.MarioSpeedScale = (Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale) * roundSpeedFactor * SlowTerrain.CurrentMarioSpeedScale
+            * (Time.time < RandomPickups.MarioSpeedUntil ? tuning.pickupSpeedBoost : 1f);
         hybrid.Bot.TrapCommitDistance = tuning.trapCommitDistance;
         hybrid.Bot.SkipReactionDelayForTerrain = tuning.smoothJumps;
         hybrid.Bot.HoldStill = false;
@@ -194,6 +210,9 @@ public class MarioMindDriver : MonoBehaviour
             order.moveTarget = floorWaypoint;
         }
         else floorWaypoint = null;
+        // S198（修"来回跳"）：往上走的路点（楼板洞口正上方）会触发旧 AI 的"头顶目标 → 左右徘徊跳"模式。
+        // 楼层路点一律按"指定路线"处理：对准路点正下方再起跳（HeuristicBotInputProvider 的 AuthoredRouteTarget 通道）。
+        hybrid.Bot.AuthoredRouteTarget = UseAuthoredSteering(floorWaypoint, transform.position);
         hybrid.Bot.ExplorationTarget = order.moveTarget;
         if (order.scan && scan != null) scan.ActivateScan();
         if (order.tryCatch && lives != null && lives.TryCatch(transform.position))

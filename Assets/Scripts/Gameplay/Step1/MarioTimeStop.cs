@@ -18,7 +18,9 @@ public class MarioTimeStop : MonoBehaviour
     private float warn = -1f, freeze = -1f, cooldown;
     public bool Warning => warn > 0f;
     public bool Frozen => freeze > 0f;
-    public int UsesLeft => Mathf.Max(0, tuning != null ? tuning.timeStopUsesPerRound - used : 0);
+    public int UsesLeft => Mathf.Max(0, tuning != null ? tuning.timeStopUsesPerRound + bonus - used : 0);
+    private int bonus;
+    public void AddUse() { bonus++; cooldown = Mathf.Min(cooldown, 0f); }
     public static MarioTimeStop Instance { get; private set; }
 
     public void SetTuning(MarioMindTuningSO t) { tuning = t; }
@@ -42,7 +44,7 @@ public class MarioTimeStop : MonoBehaviour
         if (Instance == this) Instance = null;
     }
 
-    private void ResetRound() { used = 0; warn = freeze = -1f; cooldown = tuning.timeStopFirstDelay; Unfreeze(); }
+    private void ResetRound() { used = 0; bonus = 0; warn = freeze = -1f; cooldown = tuning.timeStopFirstDelay; Unfreeze(); }
     private bool hurtRecently;
     private void OnHurt(MarioMindState s) { hurtRecently = true; }
 
@@ -52,7 +54,7 @@ public class MarioTimeStop : MonoBehaviour
 
     private void Update()
     {
-        if (tuning == null || driver == null || figure == null || Step1HandsOffCheck.IsRunning || tuning.timeStopUsesPerRound <= 0) return;
+        if (tuning == null || driver == null || figure == null || Step1HandsOffCheck.IsRunning || UsesLeft <= 0 && warn <= 0f && freeze <= 0f) return;
         if (manager != null && manager.CurrentState != GameState.Playing) return;
         if (cooldown > 0f) cooldown -= Time.deltaTime;
         if (warn > 0f)

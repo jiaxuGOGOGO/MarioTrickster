@@ -1361,6 +1361,98 @@ public class Step1RushMarioTests
         StringAssert.Contains("AddComponent<Step1MapLegend>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
     }
 
+    // ── S198：可炸地形 / 伤害 / 塌桥 / 大炮 / 通风口 / 绳套 / 道具 / 修卡住与贴墙 ───────
+    [Test]
+    public void BombDestroysOrdinaryTerrainButNotBordersOrPranks()
+    {
+        Assert.IsTrue(Step1PrankRoomBuilder.DestructibleLocked(0, 5, 48, 12), "左外墙不可炸");
+        Assert.IsTrue(Step1PrankRoomBuilder.DestructibleLocked(47, 5, 48, 12), "右外墙不可炸");
+        Assert.IsTrue(Step1PrankRoomBuilder.DestructibleLocked(10, 0, 48, 12), "最底层地面不可炸（不会掉出地图）");
+        Assert.IsFalse(Step1PrankRoomBuilder.DestructibleLocked(10, 3, 48, 12), "内部地面/墙可炸");
+        Assert.IsTrue(Step1PrankRoomBuilder.TryParseCell("Ground_3_9_w12", out int x, out int y, out int w) && x == 3 && y == 9 && w == 12);
+        Assert.IsTrue(Step1PrankRoomBuilder.TryParseCell("Wall_15_16", out x, out y, out w) && w == 1);
+        var hit = Destructible.CellsInBlast(0, 5, 10, new bool[10], new Vector2(4f, 5f), 1.6f);
+        CollectionAssert.AreEquivalent(new[] { 3, 4, 5 }, hit, "只炸半径内的格");
+        var locked = new bool[10]; locked[4] = true;
+        CollectionAssert.DoesNotContain(Destructible.CellsInBlast(0, 5, 10, locked, new Vector2(4f, 5f), 1.6f), 4, "锁定格不炸");
+        var gone = new bool[6]; gone[2] = gone[3] = true;
+        var segs = Destructible.Segments(gone);
+        Assert.AreEqual(2, segs.Count, "长条被炸断成两段");
+        Assert.AreEqual((0, 1), segs[0]); Assert.AreEqual((4, 5), segs[1]);
+        string kit = CodeOnly(Read("Scripts/Gameplay/Step1/TricksterKit.cs"));
+        StringAssert.Contains("Destructible.All", kit, "炸弹炸普通地形");
+        StringAssert.Contains("prop.BlowUp()", kit, "炸弹炸箱子/草丛/装饰");
+        StringAssert.Contains("health.TakeDamage(damageMario)", kit, "炸到马里奥掉血");
+        StringAssert.Contains("lives.HitBySelf(damageSelf)", kit, "炸到自己掉命");
+        StringAssert.Contains("Destructible.RestoreAll()", Read("Scripts/Gameplay/Step1/Step1RoomReset.cs"), "回合重置复原");
+        Assert.AreEqual(1, Tuning().bombDamageMario); Assert.AreEqual(1, Tuning().bombDamageSelf);
+        StringAssert.Contains("MarkDestructibles(root, room)", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+    }
+
+    [Test]
+    public void WholeBridgeCollapsesAndCannonAims()
+    {
+        var cells = new List<Vector2> { new Vector2(21, 3), new Vector2(22, 3), new Vector2(23, 3), new Vector2(24, 3), new Vector2(30, 3) };
+        CollectionAssert.AreEquivalent(new[] { 0, 1, 2, 3 }, CollapsingPlatform.Span(cells, 2), "按 L 整座桥一起塌（修'塌桥没反应'）");
+        StringAssert.Contains("so.FindProperty(\"collapseWholeSpan\").boolValue = true", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+        var r = PranksterCannon.Aim(true, 0f, Vector2.left, 15f, -45f, 75f);
+        Assert.IsFalse(r.faceRight, "← 调头");
+        r = PranksterCannon.Aim(true, 0f, Vector2.up, 15f, -45f, 75f);
+        Assert.AreEqual(15f, r.angle, 0.01f, "↑ 抬高");
+        r = PranksterCannon.Aim(true, 75f, Vector2.up, 15f, -45f, 75f);
+        Assert.AreEqual(75f, r.angle, 0.01f, "有上限");
+        Assert.Greater(PranksterCannon.AimDirection(true, 45f).y, 0.6f);
+        StringAssert.Contains("cannon.Nudge(direction)", Read("Scripts/Enemy/TricksterController.cs"), "伪装控制大炮时方向键瞄准");
+        Assert.AreEqual(30f, Tuning().cannonLaunchCooldown, 0.01f, "人肉炮冷却 30 秒（可配置）");
+        Assert.IsTrue(PranksterCannon.WorthLaunching(new Vector2(10, 1), new Vector2(20, 1), true, 18f, 40f), "炮口朝目标且够远 → 马里奥会钻");
+        Assert.IsFalse(PranksterCannon.WorthLaunching(new Vector2(10, 1), new Vector2(2, 1), true, 18f, 40f), "炮口背对目标 → 不钻");
+        StringAssert.Contains("MarioMayUse(mario)", Read("Scripts/LevelElements/Traps/PranksterCannon.cs"), "马里奥也能钻炮");
+    }
+
+    [Test]
+    public void VentsWorkFromSidesAndSnareHolds()
+    {
+        Assert.IsTrue(Vent.WantsEnter(true, false, false, false, false), "↓ 永远能进");
+        Assert.IsTrue(Vent.WantsEnter(false, true, false, true, false), "左边贴墙 → 按 ← 进（墙上通风口）");
+        Assert.IsFalse(Vent.WantsEnter(false, true, false, false, false), "地上的管口按 ← 不会误进");
+        Assert.IsTrue(Vent.WantsEnter(false, false, true, false, true), "右边贴墙 → 按 → 进");
+        var (l, rr) = Step1PrankRoomBuilder.VentWalls(new[] { "WWWWW", "WO..W", "W###W" }, 1, 1);
+        Assert.IsTrue(l); Assert.IsFalse(rr);
+        Assert.AreEqual(10.3f, SnareTrap.TotalHold(0.3f, Tuning().snareSeconds), 0.01f, "绳套吊 10 秒（可配置）");
+        Assert.IsTrue(ElementCatalog.PlacementIssues(new[] { "WWWWWW", "W#...W", "W.Y..W", "W####W" }, true, reg().IsSolid).Exists(i => i.Contains("绳套")), "绳套头顶要空 2 格");
+        Assert.IsFalse(reg().IsSolid('Y')); Assert.IsFalse(reg().GetHazardChars().Contains('Y'), "绳套不致死 → 不影响可达性");
+    }
+
+    [Test]
+    public void PickupsAreFairReproducibleAndReversing()
+    {
+        var a = RandomPickups.Pick(7, 4, 2); var b = RandomPickups.Pick(7, 4, 2);
+        CollectionAssert.AreEqual(a, b, "同种子可复现");
+        Assert.AreEqual(2, a.Count, "每局亮 2 个");
+        Assert.AreNotEqual(a[0].spot, a[1].spot, "不重复");
+        for (int k = 0; k < 8; k++)
+        {
+            Assert.Contains(RandomPickups.Resolve(k, true), RandomPickups.ForTrickster, "你捡到的是捣蛋者道具");
+            Assert.Contains(RandomPickups.Resolve(k, false), RandomPickups.ForMario, "他捡到的是马里奥道具（同一箱子，反转）");
+        }
+        StringAssert.Contains("RandomPickups.MarioXRayUntil", Read("Scripts/Gameplay/Step1/MarioEyes.cs"), "透视道具走马里奥感知");
+        StringAssert.Contains("RandomPickups.TricksterInvisibleUntil", Read("Scripts/Gameplay/Step1/MarioEyes.cs"));
+        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(reg().GetAllRegisteredChars()), "新元素显式登记");
+        Assert.IsTrue(LevelWorkshopModel.Check(LevelWorkshopModel.HakoniwaSample, true, reg().IsSolid).Playable, "样板加绳套/道具后仍可玩");
+    }
+
+    [Test]
+    public void BackAndForthJumpingCountsAsStuckAndNoWallSticking()
+    {
+        var bounce = new float[200]; for (int i = 0; i < 200; i++) bounce[i] = 5f + (i % 10 < 5 ? 0.8f : -0.8f);
+        Assert.Greater(Step1StuckRescue.SecondsUntilStuck(bounce, 0.05f, 6f, 1.5f), 0f, "原地来回跳（离目标没变近）= 卡住 → 救援");
+        var progress = new float[200]; for (int i = 0; i < 200; i++) progress[i] = 20f - i * 0.1f;
+        Assert.AreEqual(-1f, Step1StuckRescue.SecondsUntilStuck(progress, 0.05f, 6f, 1.5f), "一直在靠近目标 = 不卡");
+        Assert.IsTrue(MarioMindDriver.UseAuthoredSteering(new Vector2(5, 4), new Vector2(5, 1)), "路点在头顶 → 对准再跳（不左右徘徊）");
+        Assert.IsFalse(MarioMindDriver.UseAuthoredSteering(new Vector2(9, 1), new Vector2(5, 1)));
+        StringAssert.Contains("if (HitsWall(side)) _frameVelocity.x = 0f;", Read("Scripts/Enemy/TricksterController.cs"), "空中朝墙推不会粘在墙上");
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

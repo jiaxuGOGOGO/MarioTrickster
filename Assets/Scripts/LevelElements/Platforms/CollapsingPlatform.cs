@@ -223,7 +223,35 @@ public class CollapsingPlatform : ControllableLevelElement
     protected override void OnTelegraphStart() { }
     protected override void OnTelegraphEnd() { }
 
+    // S198：一座桥由多格组成（每格一个物体）。原来按 L 只塌离你最近的那一格，旁边几格照样托住马里奥
+    // → 看起来"塌桥没反应"。改为：按 L 时同一行相连的整座桥一起塌（与裂缝地板同规则）。
+    private static readonly System.Collections.Generic.List<CollapsingPlatform> bridges = new System.Collections.Generic.List<CollapsingPlatform>();
+    [Tooltip("S198：按 L 时是否让同一行相连的整座桥一起塌（第 1 步开启）")]
+    [SerializeField] private bool collapseWholeSpan = false;
+    public void SetCollapseWholeSpan(bool on) => collapseWholeSpan = on;
+
+    protected override void OnEnable() { base.OnEnable(); if (!bridges.Contains(this)) bridges.Add(this); }
+    protected override void OnDisable() { base.OnDisable(); bridges.Remove(this); }
+
+    /// <summary>纯逻辑：与 start 同一行、相邻（间距 ≤ 1.05 格）连成一片的桥格下标。</summary>
+    public static System.Collections.Generic.List<int> Span(System.Collections.Generic.IList<Vector2> cells, int start) => CrackFloor.ContiguousLine(cells, start);
+
     protected override void OnActivate(Vector2 direction)
+    {
+        if (collapseWholeSpan)
+        {
+            var cells = new System.Collections.Generic.List<Vector2>(bridges.Count);
+            foreach (var b in bridges) cells.Add(b.stablePosition + (b.transform.parent != null ? b.transform.parent.position : Vector3.zero));
+            int self = bridges.IndexOf(this);
+            if (self >= 0)
+                foreach (int i in Span(cells, self))
+                    if (bridges[i] != this) bridges[i].ForceCollapse();
+        }
+        ForceCollapse();
+    }
+
+    /// <summary>S198：立即塌（整座桥联动用）。</summary>
+    public void ForceCollapse()
     {
         if (state == CollapseState.Stable)
         {

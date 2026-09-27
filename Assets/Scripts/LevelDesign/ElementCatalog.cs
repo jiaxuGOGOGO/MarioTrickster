@@ -107,6 +107,8 @@ public static class ElementCatalog
         I('O', "Vent", "通风管", "Vent", Role.Special, "捣蛋者站在管口按 ↓ 钻到配对的管口（按上→下、左→右编号 1↔2、3↔4）。马里奥进不去，但离得近听得见。", "成对摆放，放在地面上；一个在楼上一个在楼下最有用。", needsSupport: true, step1: true),
         I('w', "PoisonPool", "毒池", "Poison pool", Role.Terrain, "能走但减速，每隔一会儿让人晕一下（不扣命）。马里奥会被拖慢——你的伏击窗口。", "铺在地面上，宽不超过 3 格（保证能走出来）。", needsSupport: true, step1: true),
         I('g', "Glue", "黏胶", "Glue", Role.Terrain, "踩上去移动变慢、跳不高，离开就恢复。放在楼梯口前最狠。", "铺在地面上；别放在必须跳高的台阶前（会跳不上去）。", needsSupport: true, step1: true),
+        I('Y', "SnareTrap", "绳套", "Snare", Role.PlayerPrank, "踩到就被绳子倒吊 10 秒再掉下来——马里奥中了是你的机会，你自己踩到也会中。伪装在旁按 L = 重新装好 / 放人。", "放在地面上；正上方至少空 2 格（吊起来不能卡墙）。", needsSupport: true, step1: true),
+        I('?', "PickupSpot", "道具箱", "Pickup", Role.Special, "每局随机亮起几个：谁先碰到归谁，同一个箱子给你和给马里奥效果不同（反转变数）。", "放在路线附近的地面上；多放几个，每局只亮一部分。", needsSupport: true, step1: true),
         I('K', "Cannon", "大炮（朝右）", "Cannon (→)", Role.PlayerPrank, "伪装在旁按 L 开一炮（每局 1 发）；打完后站进炮口把自己打飞逃跑。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: 1),
         I('k', "Cannon", "大炮（朝左）", "Cannon (←)", Role.PlayerPrank, "同上，炮口朝左。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: -1),
         I('o', "Collectible", "宝物", "Loot", Role.Objective, "马里奥要拿的宝物（实战房里自动变成 LootObjective）。", "放在离出口远的一端，只能有 1 个。", unique: true, step1: true),
@@ -228,6 +230,13 @@ public static class ElementCatalog
                     int run = 0; while (x + run < line.Length && line[x + run] == 'w') run++;
                     if (run > MaxPoolCells) issues.Add($"({x},{y}) 毒池连续 {run} 格太宽：最多 {MaxPoolCells} 格（保证晕了也能走出来）");
                 }
+                if (c == 'Y')
+                    for (int d = 1; d <= 2; d++)
+                    {
+                        if (row - d < 0) break;
+                        string above = grid[row - d];
+                        if (x < above.Length && isSolid(above[x]) && above[x] != '-') { issues.Add($"({x},{y}) 绳套：正上方第 {d} 格是实心，吊起来会卡进墙；上方至少空 2 格"); break; }
+                    }
                 if (c == 'J')
                     for (int d = 1; d <= SpringHeadroomCells; d++)
                     {

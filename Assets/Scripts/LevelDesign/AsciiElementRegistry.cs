@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 39; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g
+    private const int BUILTIN_ENTRY_COUNT = 41; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -517,6 +517,21 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "SlowTerrain" }, visualColor = new Color(0.85f, 0.55f, 0.95f, 0.75f), visualScale = new Vector2(1f, 0.25f),
                 customColliderSize = new Vector2(1f, 0.6f), customColliderOffset = new Vector2(0f, -0.2f),
                 sortingOrder = 3, isTrigger = true
+            },
+            // S198：猎人绳套（被动陷阱，双方都会中）、随机道具点
+            new AsciiElementEntry
+            {
+                asciiChar = 'Y', elementName = "SnareTrap", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SnareTrap" }, visualColor = new Color(0.80f, 0.70f, 0.45f), visualScale = new Vector2(0.8f, 0.15f),
+                customColliderSize = new Vector2(0.7f, 0.5f), customColliderOffset = new Vector2(0f, -0.25f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '?', elementName = "PickupSpot", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "PickupSpot" }, visualColor = new Color(1.00f, 0.80f, 0.20f), visualScale = new Vector2(0.6f, 0.6f),
+                customColliderSize = new Vector2(0.8f, 0.8f), customColliderOffset = Vector2.zero,
+                sortingOrder = 6, isTrigger = true
             },
         };
         registry.BuildCache();

@@ -16,10 +16,11 @@ public class Step1MapLegend : MonoBehaviour
 
     public static readonly (char ch, string use)[] Entries =
     {
-        ('#', "地面：挡路"), ('W', "墙：挡路挡视线（炸不开）"), ('%', "裂墙：<b>炸弹能炸开</b>"),
+        ('#', "地面：挡路，<b>炸弹能炸</b>（最外圈/最底层除外）"), ('W', "墙：挡路挡视线，<b>炸弹能炸</b>（外圈围墙除外）"), ('%', "裂墙：<b>炸弹能炸开</b>"),
         ('x', "裂缝地板：按 L 踩塌 / 炸弹炸开"), ('|', "捷径门：只能从一侧推开"), ('-', "单向台面：能从下面跳上去"),
         ('C', "塌桥：按 L 让它塌"), ('c', "箱子：挡路挡视线，<b>炸弹能炸掉</b>"), ('b', "草丛：能躲"),
         ('O', "通风管：按 ↓ 钻到配对的管口"), ('w', "毒池：减速 + 晕"), ('g', "黏胶：减速、跳不高"),
+        ('Y', "绳套：谁踩谁被吊 10 秒"), ('?', "道具箱：谁先碰归谁"), ('K', "大炮：←→↑↓ 瞄准，L 开炮；没弹可钻进去"),
         ('J', "弹簧板：按 L 弹飞他"), ('n', "香蕉皮：按 L 让他滑"), ('~', "火：按 L 喷火"), ('[', "封路墙：按 L 升墙"),
     };
 
@@ -31,7 +32,7 @@ public class Step1MapLegend : MonoBehaviour
         if (Step1Keys.Down(KeyCode.M) || Step1Keys.Down(KeyCode.Tab)) { Visible = !Visible; rescan = 0f; }
         if (!Visible) return;
         rescan -= Time.unscaledDeltaTime;
-        if (rescan <= 0f) { Scan(); rescan = 0.5f; }
+        if (rescan <= 0f) { Scan(); rescan = 0.25f; }
     }
 
     private void Scan()
@@ -45,7 +46,11 @@ public class Step1MapLegend : MonoBehaviour
         foreach (var w in FindObjectsOfType<CrackedWall>()) if (!w.Broken) tags.Add((w.transform, "可炸", new Color(1f, 0.55f, 0.4f)));
         foreach (var d in FindObjectsOfType<OneWayDoor>()) if (!d.IsOpen) tags.Add((d.transform, d.OpenFromLeft ? "← 从左开" : "从右开 →", new Color(1f, 0.85f, 0.3f)));
         foreach (var s in FindObjectsOfType<SlowTerrain>()) tags.Add((s.transform, s.TerrainKind == SlowTerrain.Kind.Poison ? "毒" : "黏", new Color(0.7f, 1f, 0.4f)));
+        foreach (var s in FindObjectsOfType<SnareTrap>()) tags.Add((s.transform, s.Armed ? "绳套" : "绳套(空)", new Color(1f, 0.85f, 0.5f)));
+        foreach (var c in PranksterCannon.All) tags.Add((c.transform, c.HasAmmo ? $"炮 {c.ShotsLeft} 发" : c.LaunchCooldownRemaining > 0f ? $"冷却 {c.LaunchCooldownRemaining:F0}s" : "可钻", new Color(1f, 0.9f, 0.4f)));
+        foreach (var p in FindObjectsOfType<PickupSpot>()) if (p.Live) tags.Add((p.transform, "?", new Color(1f, 0.85f, 0.2f)));
         foreach (var p in FindObjectsOfType<SceneryProp>()) if (p.gameObject.activeInHierarchy && p.name.StartsWith("Crate")) tags.Add((p.transform, "可炸", new Color(1f, 0.7f, 0.4f)));
+        foreach (var d in Destructible.All) if (d != null && d.Width <= 3 && d.name.StartsWith("Wall_")) tags.Add((d.transform, "可炸", new Color(1f, 0.55f, 0.4f)));
     }
 
     private void OnGUI()

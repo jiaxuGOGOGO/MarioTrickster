@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// S197：通风管（ASCII 'O'）—— 捣蛋者专用的快速转移通道（马里奥进不去：管口太小）。
 /// 配对规则（零配置）：房间里的通风管按"从上到下、从左到右"编号，**1↔2、3↔4…** 两两相连。
-/// 用法：站在管口上按 ↓（或 S）→ 0.35 秒钻进去（看得见的钻入动画，H3）→ 从配对的管口出来，冷却 ventCooldown 秒。
+/// 用法：站在管口上按 ↓（或 S）；管口贴墙时也可以朝墙按 ← / →（墙上的通风口）→ 0.35 秒钻进去（看得见的钻入动画，H3）→ 从配对的管口出来，冷却 ventCooldown 秒。
 /// 代价：钻管时解除伪装；管口会"咣当"一声，**离出入口近的马里奥听得见**（H4：只知道位置），所以不是无代价瞬移。
 /// 箱庭意义：让捣蛋者能在层间快速换场地——一条只属于你的"内部通道"（Hollow Knight 的鹿角站 / 魂系的电梯，只借规则）。
 /// 不参与马里奥可达性（可站立、不是实心、不是危险）。
@@ -19,7 +19,14 @@ public class Vent : LevelElementBase
     private float timer;
     public static event System.Action<Vector2> Clanged;
 
+    [Tooltip("S198：管口左侧紧贴墙（朝墙按 ← 进管）")]
+    [SerializeField] private bool wallLeft;
+    [Tooltip("S198：管口右侧紧贴墙（朝墙按 → 进管）")]
+    [SerializeField] private bool wallRight;
+    public bool WallLeft => wallLeft; public bool WallRight => wallRight;
+
     public void Configure(float enter, float cd) { enterSeconds = enter; cooldown = cd; }
+    public void ConfigureWalls(bool left, bool right) { wallLeft = left; wallRight = right; }
 
     private void Awake()
     {
@@ -73,7 +80,8 @@ public class Vent : LevelElementBase
         if (loading != null || sharedCooldown > 0f || other == null) return;
         var t = other.GetComponentInParent<TricksterController>();
         if (t == null) return;
-        if (!DownPressed()) return;
+        // S198：↓ = 管口下面、← / → = 管口在墙里侧面（贴着管口朝管口方向按）——**只要朝管口按**就进
+        if (!EnterPressed(wallLeft, wallRight)) return;
         if (Mate() == null) { Step1Hint.Show(Step1Text.VentNoMate); return; }
         if (t.IsDisguised) t.OnDisguisePressed();
         loading = t; timer = enterSeconds;
@@ -81,13 +89,29 @@ public class Vent : LevelElementBase
         Step1Hint.Show(Step1Text.VentIn, enterSeconds + 0.2f);
     }
 
-    private static bool DownPressed()
+    /// <summary>
+    /// 纯逻辑：进管方向（S198）。站在管口上：↓ 永远能进；管口左边/右边紧贴墙时，**朝墙按 ← / →** 也能进（墙上的通风口）。
+    /// 走路路过地上的管口按 ← / → 不会误进（那一侧没有墙）。
+    /// </summary>
+    public static bool WantsEnter(bool down, bool left, bool right, bool wallLeft, bool wallRight) =>
+        down || (left && wallLeft) || (right && wallRight);
+
+    private static bool EnterPressed(bool wallLeft, bool wallRight)
     {
-        bool legacy = false;
-        try { legacy = Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S); } catch (System.InvalidOperationException) { }
-        if (legacy) return true;
+        bool d = false, l = false, r = false;
+        try
+        {
+            d = Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S);
+            l = Input.GetKey(KeyCode.LeftArrow); r = Input.GetKey(KeyCode.RightArrow);
+        }
+        catch (System.InvalidOperationException) { }
         var kb = UnityEngine.InputSystem.Keyboard.current;
-        return kb != null && (kb.downArrowKey.isPressed || kb.sKey.isPressed);
+        if (kb != null)
+        {
+            d |= kb.downArrowKey.isPressed || kb.sKey.isPressed;
+            l |= kb.leftArrowKey.isPressed; r |= kb.rightArrowKey.isPressed;
+        }
+        return WantsEnter(d, l, r, wallLeft, wallRight);
     }
 
     public override void OnLevelReset() { loading = null; sharedCooldown = 0f; }

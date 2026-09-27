@@ -297,6 +297,26 @@ public class TricksterController : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region 碰撞检测
 
+    private static readonly RaycastHit2D[] s_wallHits = new RaycastHit2D[4];
+
+    /// <summary>S198：身体一侧紧贴实心（非单向台面）墙面。</summary>
+    private bool HitsWall(Vector2 side)
+    {
+        if (boxCollider == null) return false;
+        var b = boxCollider.bounds;
+        var filter = new ContactFilter2D { useTriggers = false };
+        filter.SetLayerMask(groundLayer);
+        int n = Physics2D.BoxCast(b.center, new Vector2(b.size.x, b.size.y * 0.8f), 0f, side, filter, s_wallHits, 0.04f);
+        for (int i = 0; i < n; i++)
+        {
+            var c = s_wallHits[i].collider;
+            if (c == null || c == boxCollider || c.isTrigger) continue;
+            if (MarioSuspicionTracker.IsOneWayPlatform(c)) continue;
+            if (Mathf.Abs(s_wallHits[i].normal.x) > 0.5f) return true;
+        }
+        return false;
+    }
+
     private void CheckCollisions()
     {
         bool groundHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.down,
@@ -305,6 +325,14 @@ public class TricksterController : MonoBehaviour
             grounderDistance, groundLayer, _frameVelocity.y);
 
         if (ceilingHit) _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
+
+        // S198：贴墙不粘。空中朝墙推时，零摩擦材质之外 Unity 的接触求解仍会让刚体"卡"在墙面上（用户反馈：跳起来能粘在墙上）。
+        // 检测到正在朝实心墙移动 → 清掉朝墙的水平速度，让重力正常把人拉下来。
+        if (!_grounded && Mathf.Abs(_frameVelocity.x) > 0.01f)
+        {
+            Vector2 side = _frameVelocity.x > 0f ? Vector2.right : Vector2.left;
+            if (HitsWall(side)) _frameVelocity.x = 0f;
+        }
 
         if (!_grounded && groundHit)
         {
@@ -566,11 +594,28 @@ public class TricksterController : MonoBehaviour
         if (!IsFullyBlended) return;
         if (direction.sqrMagnitude < 0.01f) return;
 
+        // S198：当前控制的是有炮弹的大炮 → 方向键用来瞄准（←→ 调头、↑↓ 仰角），不切换目标。
+        // 想换别的机关：按住 Shift + 方向键（或先打完炮弹）。
+        if (abilitySystem.BoundProp is PranksterCannon cannon && cannon.HasAmmo && !ShiftHeld())
+        {
+            cannon.Nudge(direction);
+            return;
+        }
+
         // 防抖：冷却时间内不重复切换
         if (Time.time - _lastSwitchTime < SwitchCooldown) return;
         _lastSwitchTime = Time.time;
 
         abilitySystem.SwitchTarget(direction);
+    }
+
+    private static bool ShiftHeld()
+    {
+        bool legacy = false;
+        try { legacy = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift); } catch (System.InvalidOperationException) { }
+        if (legacy) return true;
+        var kb = UnityEngine.InputSystem.Keyboard.current;
+        return kb != null && kb.shiftKey.isPressed;
     }
 
     /// <summary>

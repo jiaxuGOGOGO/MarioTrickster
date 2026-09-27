@@ -10,6 +10,11 @@ using UnityEngine;
 /// </summary>
 public class SceneryProp : LevelElementBase
 {
+    // S198：被炸弹炸掉的摆件（只复原这些；随机布局自己管其余的开关）
+    private static readonly System.Collections.Generic.List<SceneryProp> blasted = new System.Collections.Generic.List<SceneryProp>();
+    public void BlowUp() { if (!gameObject.activeSelf) return; gameObject.SetActive(false); blasted.Add(this); }
+    public static void RestoreBlasted() { foreach (var p in blasted) if (p != null) p.gameObject.SetActive(true); blasted.Clear(); }
+
     private void Awake()
     {
         category = ElementCategory.Misc;

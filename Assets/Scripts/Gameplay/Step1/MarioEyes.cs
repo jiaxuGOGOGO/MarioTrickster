@@ -95,6 +95,9 @@ public sealed class MarioEyes
                 p.figureMoving = velocity.magnitude > t.disguisedMoveThreshold;
                 lastFigurePos = pos;
                 hasLastFigurePos = true;
+                // S198 道具：透视 = 看穿伪装；隐身 = 站着不动时看不见（动起来照样看得见）
+                if (Time.time < RandomPickups.MarioXRayUntil) p.figureLooksLikeProp = false;
+                if (Time.time < RandomPickups.TricksterInvisibleUntil && !p.figureMoving) { p.seesFigure = false; hasLastFigurePos = false; }
             }
             else hasLastFigurePos = false;
         }

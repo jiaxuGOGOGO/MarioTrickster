@@ -40,8 +40,9 @@ public static class Step1PrankRoomBuilder
     /// S195 = 11：多层楼房间的楼层寻路（马里奥知道先去哪个楼梯口）；工坊楼层工具。
     /// S196 = 12：箱庭元素（捷径门 |、裂墙 %）、每回合随机塌墙事件、提示条。
     /// S197 = 13：炸弹/缩小/通风管/时间静止/毒池/黏胶/图例；捣蛋者跳跃力 20；马里奥楼层寻路修卡住。
+    /// S198 = 14：普通地形可炸（Destructible）、炸弹伤双方、整座塌桥、大炮瞄准 + 马里奥也能钻炮（冷却 30s）、墙上通风口、绳套、道具箱、修来回跳/贴墙。
     /// </summary>
-    public const int BuilderVersion = 13;
+    public const int BuilderVersion = 14;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -362,6 +363,7 @@ public static class Step1PrankRoomBuilder
         ConfigureBlockers(root, tuning);
         ConfigurePranks(root, tuning);
         ConfigureDoors(root, tuning, room);
+        MarkDestructibles(root, room);
         ConfigureTrickster(trickster, tuning);
         ConfigureMario(mario, tuning, room);
         ConfigureLives(gm.gameObject, tuning, trickster, level != null ? level.TricksterSpawn : null);
@@ -387,6 +389,7 @@ public static class Step1PrankRoomBuilder
         trickster.gameObject.AddComponent<TricksterKit>().SetTuning(tuning);          // S197：B 炸弹 / Z 缩小
         gm.gameObject.AddComponent<MarioTimeStop>().SetTuning(tuning);                 // S197：马里奥时间静止
         gm.gameObject.AddComponent<Step1MapLegend>();                                  // S197：M/Tab 图例
+        gm.gameObject.AddComponent<RandomPickups>().SetTuning(tuning);                 // S198：随机道具箱
         var combo = gm.gameObject.AddComponent<Step1Combo>();
         var comboSo = new SerializedObject(combo);
         comboSo.FindProperty("tuning").objectReferenceValue = tuning;
@@ -437,6 +440,7 @@ public static class Step1PrankRoomBuilder
             so.FindProperty("waitForClearBelow").boolValue = true;
             so.FindProperty("clearBelowDepth").floatValue = tuning.bridgeRespawnClearDepth;
             so.FindProperty("clearBelowMarginX").floatValue = tuning.bridgeRespawnClearMarginX;
+            so.FindProperty("collapseWholeSpan").boolValue = true; // S198：按 L 整座桥一起塌
             so.ApplyModifiedPropertiesWithoutUndo();
             count++;
         }
@@ -460,6 +464,61 @@ public static class Step1PrankRoomBuilder
     }
 
     /// <summary>S193：弹簧板 / 裂缝地板的数值来自调参资产（宪法 §6）。</summary>
+    /// <summary>
+    /// S198：给普通地形挂 Destructible（炸弹可炸）。可炸：房间内部的 # W -（名字前缀 Ground_/Wall_/OneWayPlatform_）；
+    /// 锁定：最外圈（x=0 / x=宽-1 / 最上行）与最底行 y=0 的格子（不能炸出地图，H9）。机关/特殊地形不挂。
+    /// </summary>
+    public static int MarkDestructibles(GameObject root, string[] room)
+    {
+        int count = 0, w = room[0].Length, h = room.Length;
+        foreach (Transform child in root.transform)
+        {
+            string n = child.name;
+            if (!(n.StartsWith("Ground_") || n.StartsWith("Wall_") || n.StartsWith("OneWayPlatform_"))) continue;
+            if (!TryParseCell(n, out int sx, out int y, out int width)) continue;
+            var locked = new bool[width];
+            for (int i = 0; i < width; i++) { int x = sx + i; locked[i] = DestructibleLocked(x, y, w, h); }
+            var d = child.gameObject.GetComponent<Destructible>() ?? child.gameObject.AddComponent<Destructible>();
+            d.Configure(sx, y, width, locked);
+            count++;
+        }
+        return count;
+    }
+
+    /// <summary>S198：通风管左右是否紧贴墙（朝墙按 ←/→ 进管）。纯网格判定。</summary>
+    public static (bool left, bool right) VentWalls(string[] room, int x, int y)
+    {
+        int row = room.Length - 1 - y;
+        if (row < 0 || row >= room.Length) return (false, false);
+        bool Solid(int cx) => cx >= 0 && cx < room[row].Length && AsciiElementRegistry.GetDefault().IsSolid(room[row][cx]) && room[row][cx] != '-';
+        return (Solid(x - 1), Solid(x + 1));
+    }
+
+    private static void ConfigureVentWalls(GameObject root, string[] room)
+    {
+        foreach (var vent in root.GetComponentsInChildren<Vent>(true))
+        {
+            var p = vent.transform.position;
+            var (l, r) = VentWalls(room, Mathf.RoundToInt(p.x), Mathf.RoundToInt(p.y));
+            vent.ConfigureWalls(l, r);
+            EditorUtility.SetDirty(vent);
+        }
+    }
+
+    /// <summary>纯逻辑：这一格是不是"不可炸"（外圈围墙 / 最底层地面 / 最上层天花板）。</summary>
+    public static bool DestructibleLocked(int x, int y, int width, int height) => x <= 0 || x >= width - 1 || y <= 0 || y >= height - 1;
+
+    /// <summary>从生成器命名 "Name_x_y" 或 "Name_x_y_wN" 解析格子。</summary>
+    public static bool TryParseCell(string name, out int x, out int y, out int width)
+    {
+        x = y = 0; width = 1;
+        var parts = name.Split('_');
+        if (parts.Length < 3) return false;
+        if (!int.TryParse(parts[1], out x) || !int.TryParse(parts[2], out y)) return false;
+        if (parts.Length >= 4 && parts[3].StartsWith("w") && int.TryParse(parts[3].Substring(1), out int ww)) width = Mathf.Max(1, ww);
+        return true;
+    }
+
     /// <summary>S196：捷径门开启侧 = 离出生点更远的那一侧（先绕远路才能打开）。数值来自调参。</summary>
     public static int ConfigureDoors(GameObject root, MarioMindTuningSO tuning, string[] room)
     {
@@ -477,6 +536,8 @@ public static class Step1PrankRoomBuilder
     public static int ConfigurePranks(GameObject root, MarioMindTuningSO tuning)
     {
         int count = 0;
+        foreach (var snare in root.GetComponentsInChildren<SnareTrap>(true)) { snare.Configure(tuning.snareSeconds); EditorUtility.SetDirty(snare); count++; }
+        foreach (var cannon in root.GetComponentsInChildren<PranksterCannon>(true)) { cannon.ConfigureLaunch(tuning.cannonLaunchCooldown, tuning.cannonLoadSeconds); EditorUtility.SetDirty(cannon); }
         foreach (var spring in root.GetComponentsInChildren<SpringPad>(true))
         {
             spring.Configure(tuning.springLaunchSpeed, tuning.springForwardPush, tuning.springAirStunSeconds, tuning.springTelegraphSeconds, tuning.springActiveSeconds);
@@ -488,6 +549,7 @@ public static class Step1PrankRoomBuilder
             EditorUtility.SetDirty(peel); count++;
         }
         foreach (var vent in root.GetComponentsInChildren<Vent>(true)) { vent.Configure(tuning.ventEnterSeconds, tuning.ventCooldown); EditorUtility.SetDirty(vent); count++; }
+        ConfigureVentWalls(root, Current);
         foreach (var st in root.GetComponentsInChildren<SlowTerrain>(true))
         {
             bool poison = st.GetComponent<PoisonMarker>() != null;

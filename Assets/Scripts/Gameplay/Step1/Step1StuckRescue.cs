@@ -40,9 +40,24 @@ public class Step1StuckRescue : MonoBehaviour
 
     private void OnDestroy() { if (manager != null) manager.OnRoundStart -= ResetRound; }
 
+    private float bestDist; private bool hasBest;
+
+    /// <summary>纯逻辑（测试用）：给定一串"到目标距离"采样与时间间隔，多少秒后判定卡住（-1 = 不卡）。</summary>
+    public static float SecondsUntilStuck(float[] distances, float dt, float stuckSeconds, float progressCells)
+    {
+        float best = float.MaxValue, still = 0f;
+        for (int i = 0; i < distances.Length; i++)
+        {
+            if (distances[i] < best - progressCells) { best = distances[i]; still = 0f; continue; }
+            still += dt;
+            if (still >= stuckSeconds) return i * dt;
+        }
+        return -1f;
+    }
+
     private void ResetRound()
     {
-        RescuesThisRound = 0; still = 0f;
+        RescuesThisRound = 0; still = 0f; hasBest = false;
         if (mario != null) anchor = mario.transform.position;
     }
 
@@ -51,11 +66,20 @@ public class Step1StuckRescue : MonoBehaviour
         if (mario == null || manager == null || manager.CurrentState != GameState.Playing) { still = 0f; return; }
         // 只在"赶路"（去拿宝/回出口，一定有目标）时判定；起疑、查看、找人时站着不动是正常表演，不算卡住。
         if (driver.IsWaitingToStart || driver.Mind.IsStunned || driver.Mind.IsGlancing || driver.Mind.State != MarioMindState.Running)
-        { still = 0f; anchor = mario.transform.position; return; }
+        { still = 0f; hasBest = false; anchor = mario.transform.position; return; }
         Vector2 pos = mario.transform.position;
-        if ((pos - anchor).sqrMagnitude > tuning.stuckMoveEpsilon * tuning.stuckMoveEpsilon) { anchor = pos; still = 0f; return; }
+        // S198：原来"离锚点超过 0.6 格就重置" → 来回跳（每次移动 1–2 格）永远不算卡住（用户截图：出口下方来回跳）。
+        // 改为"没有进展"：到目标的距离 stuckSeconds 秒内没有缩短 stuckProgressCells 格 = 卡住（来回跳、原地跳都算）。
+        Vector2? goal = driver.CurrentGoal();
+        if (goal.HasValue)
+        {
+            float d = Vector2.Distance(pos, goal.Value);
+            if (!hasBest || d < bestDist - tuning.stuckProgressCells) { bestDist = d; hasBest = true; still = 0f; anchor = pos; return; }
+        }
+        else if ((pos - anchor).sqrMagnitude > tuning.stuckMoveEpsilon * tuning.stuckMoveEpsilon) { anchor = pos; still = 0f; return; }
         still += Time.deltaTime;
         if (still < tuning.stuckSeconds) return;
+        hasBest = false;
         Rescue(pos);
     }
 
@@ -69,6 +93,7 @@ public class Step1StuckRescue : MonoBehaviour
         var rb = mario.GetComponent<Rigidbody2D>();
         if (rb != null) rb.velocity = Vector2.zero;
         anchor = target;
+        hasBest = false;
         flashUntil = Time.time + 2.5f;
         Debug.LogWarning($"[Step1 H9] Mario stuck at ({pos.x:F1},{pos.y:F1}) for {tuning.stuckSeconds}s -> rescued to ({target.x:F1},{target.y:F1}). This is a layout bug; please report the spot.");
     }

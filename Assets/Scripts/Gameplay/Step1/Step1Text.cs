@@ -85,6 +85,9 @@ public static class Step1Text
         "   <color=#FFE040><b>香蕉皮</b></color>（地上黄条）：L 后他踩上去会滑出 3–4 格。  <b>Banana</b>: he slides forward.\n" +
         "   <color=#C8A070><b>裂缝地板</b></color>（宝物旁）：L 打碎，他掉进地下室。  <b>Crack floor</b>: L drops him into the basement.\n\n" +
         "<b>B 炸弹</b>（3 枚，现形才能放）：炸开附近的<b>裂墙</b>/裂缝地板/箱子，炸晕马里奥——但<b>他听得见</b>。  <b>B</b> = bomb (he hears it!)\n" +
+        "<b>大炮</b>：伪装控制时 <b>←→</b> 调方向、<b>↑↓</b> 调仰角，<b>L</b> 开炮；炮弹打完后你和马里奥都能钻进去把自己打出去（冷却 30 秒）。  Cannon: aim with arrows\n" +
+        "<b>绳套</b>：谁踩到谁被倒吊 10 秒——你也会中！  <b>Snare</b>: anyone who steps in hangs for 10s\n" +
+        "<b>? 道具箱</b>：谁先碰到归谁，同一个箱子给你和给他效果不同。  <b>?</b> = random pickup for whoever grabs it\n" +
         "<b>Z 缩小</b>（每局 2 次）：钻窄缝、跑得快，但不能伪装/触发机关。  <b>Z</b> = shrink\n" +
         "<b>通风管</b>：站在管口按 <b>↓</b> 钻到配对的管口（马里奥进不去，但近处听得见咣当声）。  <b>↓</b> on a vent = travel\n" +
         "<b>马里奥会停止时间</b>（每局 1 次）：屏幕边缘变蓝 = 快躲！   Blue edges = Mario is about to stop time!\n" +
@@ -111,6 +114,11 @@ public static class Step1Text
     public const string VentIn = "钻进通风管…  Into the vent…";
     public const string VentOut = "从通风管出来！  Out of the vent!";
     public const string VentNoMate = "这个通风管没有配对的出口  This vent has no pair";
+    public const string CannonLoadYou = "进炮！<b>↑↓</b> 调角度 <b>←→</b> 调方向，马上发射  In the cannon: aim!";
+    public const string CannonLoadMario = "马里奥钻进了大炮！  Mario jumped into the cannon!";
+    public const string SnareMario = "🪢 马里奥被<b>绳套</b>吊起来了！（10 秒）  Mario is snared!";
+    public const string SnareYou = "🪢 你踩到<b>绳套</b>被吊起来了！  You got snared!";
+    public const string ShieldBlocked = "🛡 马里奥的护盾挡住了这一下  Shield blocked it";
     public const string TimeStopWarn = "⏳ 马里奥要<b>停止时间</b>了！快躲（草丛/通风管）  Mario is about to STOP TIME — hide!";
     public const string TimeStopOn = "⏸ 时间静止！你动不了  TIME STOPPED — you're frozen";
     public const string HeardSmash = "哐！<size=20>（马里奥听见了）</size>  CRASH! (Mario heard it)";

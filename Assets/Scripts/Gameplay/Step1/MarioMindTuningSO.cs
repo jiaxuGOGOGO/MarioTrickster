@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 9;
+    public const int CurrentDataVersion = 10;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -193,6 +193,26 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("追你时离你多近才会用（格）")]
     public float timeStopRange = 7f;
 
+    [Header("S198: bombs hurt, cannon aim, snare, pickups")]
+    [Tooltip("炸弹炸到马里奥：扣几点血（0 = 只晕不扣）")]
+    public int bombDamageMario = 1;
+    [Tooltip("炸弹炸到捣蛋者自己：掉几条命（0 = 不伤自己）")]
+    public int bombDamageSelf = 1;
+    [Tooltip("人肉炮弹冷却（秒）——捣蛋者和马里奥都能钻进没炮弹的炮")]
+    public float cannonLaunchCooldown = 30f;
+    [Tooltip("人肉炮弹装填时间（秒）")]
+    public float cannonLoadSeconds = 0.6f;
+    [Tooltip("马里奥 AI 会不会钻大炮（炮口朝他的目标且目标够远时）")]
+    public bool marioUsesCannons = true;
+    [Tooltip("绳套：被吊起多久（秒）")]
+    public float snareSeconds = 10f;
+    [Tooltip("每回合随机刷出几个道具箱（'?' 道具点里随机选）")]
+    public int pickupsPerRound = 2;
+    [Tooltip("道具效果时长（秒）：隐身 / 加速；透视为其 0.6 倍")]
+    public float pickupEffectSeconds = 8f;
+    [Tooltip("加速道具：马里奥速度倍率")]
+    public float pickupSpeedBoost = 1.35f;
+
     [Header("Movement-limiting terrain (S197)")]
     [Tooltip("毒池：移动速度倍率")]
     public float poisonSpeedScale = 0.55f;
@@ -242,6 +262,8 @@ public class MarioMindTuningSO : ScriptableObject
     public float stuckSeconds = 6f;
     [Tooltip("判定'几乎没动'的距离（格）")]
     public float stuckMoveEpsilon = 0.6f;
+    [Tooltip("S198：卡住判定——这么多秒内到目标的距离没有缩短这么多格，就算卡住（来回跳也算）")]
+    public float stuckProgressCells = 1.5f;
 
     [Header("Theme (S187)")]
     [Tooltip("房间配色主题：Whitebox / AmusementPark(游乐园) / CityPark(公园) / MountainPark(山上公园)。只换颜色/图，不改玩法")]
@@ -283,6 +305,11 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 10)
+        {
+            bombDamageMario = 1; bombDamageSelf = 1; cannonLaunchCooldown = 30f; cannonLoadSeconds = 0.6f; marioUsesCannons = true;
+            snareSeconds = 10f; pickupsPerRound = 2; pickupEffectSeconds = 8f; pickupSpeedBoost = 1.35f; stuckProgressCells = 1.5f;
         }
         if (dataVersion < 9)
         {

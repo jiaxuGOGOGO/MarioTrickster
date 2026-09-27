@@ -2,8 +2,9 @@ using UnityEngine;
 
 /// <summary>
 /// S197：捣蛋者技能包（数据驱动，全部数值在 RushMarioTuning）。
-///   B = 炸弹：身上 bombsPerRound 枚（默认 3）。放下 → 引信 bombFuseSeconds（闪烁 + 滴答字幕，H3/H6）→ 炸开半径 bombRadius 内的
-///       **裂墙 %、裂缝地板 x、箱子 c**，马里奥在范围内会被炸晕并击退（不扣命，只晕）。爆炸声马里奥隔墙也听得见（H4：只知道位置）。
+///   B = 炸弹：身上 bombsPerRound 枚（默认 3）。放下 → 引信 bombFuseSeconds（闪烁 + 倒计时，H3/H6）→ 半径 bombRadius 内：
+///       **除机关陷阱与特殊地形外全部炸毁**（地面/墙/台面/箱子/草丛/装饰/裂墙/裂缝地板；最外圈围墙与最底层地面不炸，H9）；
+///       马里奥与捣蛋者**都会被炸伤掉血**并击退（S198 用户要求；伤害可配置）。爆炸声马里奥隔墙也听得见（H4：只知道位置）。
 ///       必须**现形**才能放（伪装时双手被占）。
 ///   Z = 缩小：瞬间缩到 shrinkScale（默认 0.5），持续 shrinkSeconds，每回合 shrinkUsesPerRound 次。
 ///       缩小时能钻 1 格高的缝、跑得更快，但**不能伪装、不能触发机关**（代价）。头顶有东西时不会变回（等到能站起来）。
@@ -21,6 +22,8 @@ public class TricksterKit : MonoBehaviour
     private static readonly Collider2D[] s_hits = new Collider2D[16];
 
     public int BombsLeft => bombsLeft;
+    public void AddBombs(int n) { bombsLeft += Mathf.Max(0, n); }
+    public void AddShrinks(int n) { shrinksLeft += Mathf.Max(0, n); }
     public int ShrinksLeft => shrinksLeft;
     public bool Shrunk => shrunk;
     public float ShrinkRemaining => Mathf.Max(0f, shrinkTimer);
@@ -75,7 +78,7 @@ public class TricksterKit : MonoBehaviour
         var go = new GameObject("TricksterBomb");
         go.transform.position = (Vector2)transform.position + Vector2.down * 0.2f;
         var bomb = go.AddComponent<TricksterBomb>();
-        bomb.Arm(tuning.bombFuseSeconds, tuning.bombRadius, tuning.bombStunSeconds, tuning.bombKnockback);
+        bomb.Arm(tuning.bombFuseSeconds, tuning.bombRadius, tuning.bombStunSeconds, tuning.bombKnockback, tuning.bombDamageMario, tuning.bombDamageSelf);
         Step1Hint.Show(string.Format(Step1Text.BombPlaced, bombsLeft));
         return true;
     }
@@ -131,12 +134,14 @@ public class TricksterKit : MonoBehaviour
 public class TricksterBomb : MonoBehaviour
 {
     private float fuse, radius, stun, knock, total;
+    private int damageMario = 1, damageSelf = 1;
     private SpriteRenderer sr;
     private static readonly Collider2D[] s_hits = new Collider2D[24];
     public static event System.Action<Vector2> Exploded;
 
-    public void Arm(float fuseSeconds, float r, float stunSeconds, float knockback)
+    public void Arm(float fuseSeconds, float r, float stunSeconds, float knockback, int dmgMario = 1, int dmgSelf = 1)
     {
+        damageMario = Mathf.Max(0, dmgMario); damageSelf = Mathf.Max(0, dmgSelf);
         fuse = total = Mathf.Max(0.3f, fuseSeconds); radius = r; stun = stunSeconds; knock = knockback;
         var v = new GameObject("Visual");
         v.transform.SetParent(transform, false);
@@ -176,28 +181,48 @@ public class TricksterBomb : MonoBehaviour
     {
         Vector2 c = transform.position;
         int n = Physics2D.OverlapCircleNonAlloc(c, radius, s_hits);
+        bool hitMario = false, hitFigure = false;
         for (int i = 0; i < n; i++)
         {
             var h = s_hits[i];
             if (h == null) continue;
             var wall = h.GetComponentInParent<CrackedWall>(); if (wall != null) { wall.Break(); continue; }
             var crack = h.GetComponentInParent<CrackFloor>(); if (crack != null) { crack.ShatterFromBlast(); continue; }
+            var prop = h.GetComponentInParent<SceneryProp>(); if (prop != null) { prop.BlowUp(); continue; }
             var mario = h.GetComponentInParent<MarioController>();
-            if (mario != null)
-            {
-                var rb = mario.GetComponent<Rigidbody2D>();
-                if (rb != null) { var dir = ((Vector2)mario.transform.position - c).normalized; rb.velocity = new Vector2(Mathf.Sign(dir.x == 0 ? 1 : dir.x) * knock, knock * 0.6f); }
-                mario.ApplyKnockbackStun(stun);
-                BombEvents.RaiseMarioBlasted();
-            }
-            var crate = h.GetComponentInParent<SceneryProp>();
-            if (crate != null && crate.name.StartsWith("Crate")) crate.gameObject.SetActive(false);
+            if (mario != null && !hitMario) { hitMario = true; HurtMario(mario, c); continue; }
+            var figure = h.GetComponentInParent<TricksterController>();
+            if (figure != null && !hitFigure) { hitFigure = true; HurtFigure(figure, c); continue; }
         }
+        // S198：普通地形（地面/墙/台面，不含外圈与底层）按格炸掉
+        int cells = 0;
+        foreach (var d in new System.Collections.Generic.List<Destructible>(Destructible.All)) if (d != null) cells += d.Blast(c, radius);
         Exploded?.Invoke(c);
         Step1Hint.Show(Step1Text.BombBoom);
         var cam = FindObjectOfType<Step1RoomCamera>();
         if (cam != null) cam.Shake(0.35f, 0.35f);
         Destroy(gameObject);
+    }
+
+    /// <summary>纯逻辑：爆炸击退方向（左右取决于相对位置；正中间朝右）。</summary>
+    public static Vector2 KnockDir(Vector2 center, Vector2 target) => new Vector2(target.x >= center.x ? 1f : -1f, 0.6f);
+
+    private void HurtMario(MarioController mario, Vector2 c)
+    {
+        var rb = mario.GetComponent<Rigidbody2D>();
+        if (rb != null) rb.velocity = KnockDir(c, mario.transform.position) * knock;
+        mario.ApplyKnockbackStun(stun);
+        var health = mario.GetComponent<PlayerHealth>();
+        if (health != null && damageMario > 0) health.TakeDamage(damageMario); // S198：炸到马里奥掉血
+        BombEvents.RaiseMarioBlasted();
+    }
+
+    private void HurtFigure(TricksterController figure, Vector2 c)
+    {
+        // S198：炸到自己也掉命（公平 + 风险）；无敌期内不掉
+        figure.Launch(KnockDir(c, figure.transform.position) * knock, stun);
+        var lives = FindObjectOfType<TricksterLives>();
+        if (lives != null && damageSelf > 0) lives.HitBySelf(damageSelf);
     }
 }
 

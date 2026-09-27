@@ -60,6 +60,7 @@ public class Step1LayoutVariants : MonoBehaviour
     public string Apply(int seed)
     {
         LastSeed = seed;
+        SceneryProp.RestoreBlasted(); // S198：先复原被炸掉的摆件，再按种子开关（顺序无关，列表复原后清空）
         var options = new List<string>();
         foreach (var slot in slots) options.Add(slot.options ?? "");
         int[] picks = Step1Layout.Pick(seed, options);

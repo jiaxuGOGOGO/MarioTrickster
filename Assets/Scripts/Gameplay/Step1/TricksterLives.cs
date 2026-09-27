@@ -60,6 +60,19 @@ public class TricksterLives : MonoBehaviour
         LivesChanged?.Invoke(Lives);
     }
 
+    /// <summary>S198：被自己的炸弹等炸到：掉 n 条命（无敌期内不掉），命没了本局马里奥赢。原地不传送（不是被抓）。</summary>
+    public bool HitBySelf(int n)
+    {
+        if (trickster == null || invulnerable > 0f || Lives <= 0 || n <= 0) return false;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.CurrentState != GameState.Playing) return false;
+        Lives = Mathf.Max(0, Lives - n);
+        LivesChanged?.Invoke(Lives);
+        invulnerable = tuning.respawnInvulnerableSeconds;
+        if (Lives <= 0 && gm != null) gm.EndRound("Mario", "Trickster blew themselves up.");
+        return true;
+    }
+
     /// <summary>裁判：马里奥在 catchRadius 内且捣蛋者不在无敌期 → 抓到。</summary>
     public bool TryCatch(Vector2 marioPosition)
     {

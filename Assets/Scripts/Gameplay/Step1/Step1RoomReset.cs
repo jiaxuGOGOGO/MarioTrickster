@@ -35,5 +35,7 @@ public class Step1RoomReset : MonoBehaviour
     {
         // [AI防坑警告] 必须走 OnLevelReset（每个机关自己关掉效果），不能只 ResetUses。
         LevelElementRegistry.ResetAll();
+        Destructible.RestoreAll();                       // S198：被炸掉的地形复原
+        SceneryProp.RestoreBlasted();                    // S198：被炸掉的箱子/草丛/装饰复原（随机布局随后照常重掷）
     }
 }

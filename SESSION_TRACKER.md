@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 197（修 H4 测试断言范围；修 B 键无反应（新旧输入都读）；修工坊进出 Play 后空白（缓存 NonSerialized）；修马里奥楼层寻路卡住（只规划 AI 真能跳的跳法 + 起跳点）；捣蛋者跳跃力 20；技能包：炸弹×3（B）、缩小×2（Z）、通风管 O（↓）、马里奥时间静止×1；毒池 w / 黏胶 g；M/Tab 图例；扩展调研） |
+| **最新 Session** | Session 198（修来回跳（进展式卡住判定 + 头顶路点对准再跳）、贴墙粘住、塌桥只塌一格；普通地形可炸 Destructible（外圈/底层锁定）；炸弹伤双方；大炮 ←→↑↓ 瞄准 + 马里奥也能钻炮 + 冷却 30s；墙上通风口 ←→；绳套 Y；随机道具箱 ?（同箱反转）） |
+| **S197** | Session 197（修 H4 测试断言范围；修 B 键无反应（新旧输入都读）；修工坊进出 Play 后空白（缓存 NonSerialized）；修马里奥楼层寻路卡住（只规划 AI 真能跳的跳法 + 起跳点）；捣蛋者跳跃力 20；技能包：炸弹×3（B）、缩小×2（Z）、通风管 O（↓）、马里奥时间静止×1；毒池 w / 黏胶 g；M/Tab 图例；扩展调研） |
 | **S196** | Session 196（修 NewRegistryEntries 测试（J x n 未登记为 NotProbed）；箱庭：捷径门 | / 裂墙 % / 砸墙技能 B（现形、有声、有次数）/ 开局随机塌墙事件；工坊"箱庭总览"（纵览缩放、层身份、连接、环路、捷径省步数、建议）；手工"箱庭监狱"四层样板；监狱塔重做为每层主题 + 双通路 + 捷径竖井；结论：一座楼不转场，楼与楼之间转场） |
 | **S195** | Session 195（用户：暂时忽略"连玩 20 局"门槛。多层楼：LevelPathPlanner 楼层寻路（只在宝物/出口不同层时启用）、FloorStacker 监狱塔 2–11 层 + 加一层、高楼镜头自动框住两人、防卡死救援预算+剪枝） |
 | **S194** | Session 194（香蕉皮 n：可读滑行 2–5 格，计入连招；关卡工坊"连招路线"开关：同色弧线 = 一套可连机关，显示最长一套的机关数/种类数；两层监狱样板改为可连招布局） |
@@ -108,6 +109,15 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S198] 用户：马里奥来回跳；炸弹要伤双方、要能破坏除机关/特殊地形外所有东西；红色是什么、为什么能粘墙；通风管左右；塌桥没反应；大炮调方向/弹数/马里奥也能钻/冷却 30s；猎人绳套；涌现/随机道具
+
+- 修复：Step1StuckRescue 改为"到目标距离 stuckSeconds 内未缩短 stuckProgressCells"判卡住（SecondsUntilStuck 纯逻辑）；MarioMindDriver 头顶楼层路点走 AuthoredRouteTarget（UseAuthoredSteering）；TricksterController 空中朝墙清水平速度（HitsWall）；CollapsingPlatform collapseWholeSpan（整桥联动）。
+- Destructible：构建器 MarkDestructibles 给 Ground_/Wall_/OneWayPlatform_ 挂上，外圈与 y=0 锁定；Blast 切段重建；RestoreAll 回合复原；SceneryProp.BlowUp/RestoreBlasted。炸弹：伤马里奥 bombDamageMario、伤自己 TricksterLives.HitBySelf(bombDamageSelf)。
+- PranksterCannon 重写：aimAngle + Nudge（伪装控制时方向键瞄准，Shift+方向 = 换目标）、炮管显示、人肉炮捣蛋者/马里奥都能用（MarioMayUse/WorthLaunching）、cannonLaunchCooldown 30、cannonLoadSeconds 0.6。
+- Vent：wallLeft/wallRight（构建器按网格判定），WantsEnter(down,left,right,wallL,wallR)。
+- SnareTrap 'Y'（10s，双方都中，L 上弦/放人，头顶空 2 格规则）；RandomPickups + PickupSpot '?'（每局亮 2 个，同箱给双方不同效果：炸弹/缩小/炮冷却/隐身 vs 时间静止/加速/护盾/透视）。Registry 41。
+- BuilderVersion 14；调参 dataVersion 10。测试 91→96。文档 docs/step1/S198_DESTRUCTION_CANNON_SNARE_PICKUPS.md。
 
 ### [S197] 用户：H4 测试失败；马里奥卡住；阻挠者跳不上；试玩后工坊空白；想要图例；按 B 没反应；要炸弹×3、通风管、马里奥时间静止、阻挠者缩小；调研更多机关/毒池
 

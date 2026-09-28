@@ -165,6 +165,13 @@ public static class LevelWorkshopModel
                 if (i.x >= 0) AddCell(result, i.x, i.y, i.severity == LevelDeadlockAnalyzer.Severity.Error, i.message);
                 else AddGeneral(result, i.message, i.severity == LevelDeadlockAnalyzer.Severity.Error);
             }
+            // S209：按马里奥 AI 的真实走法（身体宽 0.8、同一条转向规则）走一遍——理论上走得到 ≠ 他真的会走过去
+            if (step1Rules && dl.issues.All(i => i.severity != LevelDeadlockAnalyzer.Severity.Error))
+            {
+                var walk = LevelRouteFollower.Run(variant);
+                if (!walk.ok) AddCell(result, (int)System.Math.Round(walk.stuckX), (int)System.Math.Round(walk.stuckY), false,
+                    $"按马里奥的走法走一遍：{walk.Summary}（请把这里告诉 AI；游戏里会触发卡住救援）");
+            }
         }
         return result;
     }

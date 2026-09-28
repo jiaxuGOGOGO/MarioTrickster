@@ -1943,6 +1943,58 @@ public class Step1RushMarioTests
         StringAssert.Contains("if (S.firstRun) setTimeout(openWizard", app, "第一次打开网页直接弹向导");
     }
 
+    // ── S209：用户截图——马里奥在宝物上方台边左右徘徊拿不到；捣蛋者跳到墙边伪装后悬在半空 ──
+    [Test]
+    public void MarioWalksOffLedgeWhenGoalIsDirectlyBelow()
+    {
+        Assert.AreEqual(0f, LevelPathPlanner.SteerX(0.1f, 0f, true, 1f), "同一高度对准了 = 停下（不变）");
+        Assert.AreEqual(1f, LevelPathPlanner.SteerX(0.5f, 0f, true, -1f), "离得远就朝目标走（不变）");
+        Assert.AreEqual(1f, LevelPathPlanner.SteerX(0.1f, -2f, true, -1f), "宝物在台边正下方：继续朝宝物那侧走下台边（旧规则这里停住 = 截图的徘徊）");
+        Assert.AreEqual(-1f, LevelPathPlanner.SteerX(0f, -2f, true, -1f), "正好对准：按朝向走下去");
+        Assert.AreEqual(0f, LevelPathPlanner.SteerX(0.1f, -2f, false, 1f), "已经在空中：不再推，直直落下");
+        StringAssert.Contains("LevelPathPlanner.SteerX(dx, dy, _mario.IsGrounded, facingDir)", Read("Scripts/Core/HeuristicBotInputProvider.cs"), "游戏里的 AI 用同一条规则");
+    }
+
+    [Test]
+    public void EverySampleTowerAndWizardLevelCanBeWalkedTheWayMarioWalks()
+    {
+        var levels = new List<(string, string[])> { ("Hakoniwa", LevelWorkshopModel.HakoniwaSample), ("Prison", LevelWorkshopModel.PrisonSample), ("Lure", LevelWorkshopModel.LureSample), ("LongHall", LevelWorkshopModel.LongHallSample) };
+        for (int f = 2; f <= FloorStacker.MaxFloors; f++) levels.Add(("tower" + f, FloorStacker.Build(f, 0)));
+        foreach (char star in LevelBlueprint.WizardStars) levels.Add(("wizard " + star, LevelBlueprint.Wizard(star, 30, "").grid));
+        foreach (var (name, g) in levels)
+            Assert.IsTrue(LevelRouteFollower.Run(g).ok, name + "：" + LevelRouteFollower.Run(g).Summary);
+        Assert.IsFalse(LevelRouteFollower.Run(LevelWorkshopModel.HakoniwaSample, true).ok, "旧转向规则在地下监狱样板里会卡住（复现截图）");
+        StringAssert.Contains("LevelRouteFollower.Run(variant)", Read("Scripts/Editor/LevelWorkshopModel.cs"), "工坊检查按马里奥走法走一遍");
+    }
+
+    [Test]
+    public void StuckRescueMovesMarioForwardAlongHisRoute()
+    {
+        var g = LevelWorkshopModel.HakoniwaSample;
+        var loot = CellOfIn(g, 'o');
+        var p = Step1StuckRescue.RescueAlongRoute(g, new Vector2(43f, 3f), new Vector2(loot.x, loot.y), null);
+        Assert.IsTrue(p.HasValue, "能沿路线找到下一个站位");
+        Assert.Less(Mathf.Abs(p.Value.x - loot.x) + Mathf.Abs(p.Value.y - loot.y), Mathf.Abs(43f - loot.x) + Mathf.Abs(3f - loot.y), "救援后离宝物更近（原来放回原处 → 又卡住）");
+        StringAssert.Contains("RescueAlongRoute(roomGrid, pos, goal.Value, SafeCells())", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs"));
+    }
+
+    [Test]
+    public void BodiesArePushedOutOfWallsAndWallCheckRunsAfterInput()
+    {
+        Assert.AreEqual(Vector2.zero, BodyUnstick.PushFor(false, Vector2.right, 0.1f, 0.02f, 0.5f), "没重叠不推");
+        Assert.AreEqual(Vector2.zero, BodyUnstick.PushFor(true, Vector2.right, -0.01f, 0.02f, 0.5f), "擦边（接触偏移）不推");
+        var push = BodyUnstick.PushFor(true, Vector2.right, -0.2f, 0.02f, 0.5f);
+        Assert.Less(push.x, -0.2f); Assert.AreEqual(0f, push.y, 1e-4f); // 墙在右边 → 往左推出来
+        Assert.AreEqual(0.5f, BodyUnstick.PushFor(true, Vector2.down, -3f, 0.02f, 0.5f).magnitude, 1e-4f, "每帧最多推 0.5 格（不瞬移）");
+        float oldBottom = -0.025f - 0.95f * 0.5f;
+        Assert.AreEqual(oldBottom, DisguiseSystem.FeetAlignedOffsetY(-0.025f, 0.95f, 1.2f) - 1.2f * 0.5f, 1e-4f, "伪装变大后脚底仍在原位（往上长，不长进地里）");
+        string tc = Read("Scripts/Enemy/TricksterController.cs");
+        StringAssert.Contains("BodyUnstick.Resolve(rb, boxCollider, groundLayer)", tc);
+        int fixedStep = tc.IndexOf("private void FixedUpdate()");
+        Assert.Greater(tc.IndexOf("HitsWall(_frameVelocity.x > 0f", fixedStep), tc.IndexOf("HandleDirection();", fixedStep), "贴墙判定在方向键之后（原来在之前 → 方向键又把朝墙速度加回去 = 粘墙）");
+        StringAssert.Contains("BodyUnstick.Resolve(rb, boxCollider, groundLayer)", Read("Scripts/Player/MarioController.cs"));
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

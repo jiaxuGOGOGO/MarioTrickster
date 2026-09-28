@@ -150,6 +150,9 @@ public class DisguiseSystem : MonoBehaviour
         }
     }
 
+    /// <summary>S209 纯逻辑：换成 newHeight 的碰撞体后，让底边仍在原来的位置所需的 offset.y。</summary>
+    public static float FeetAlignedOffsetY(float oldOffsetY, float oldHeight, float newHeight) => oldOffsetY - oldHeight * 0.5f + newHeight * 0.5f;
+
     #region 公共方法
 
     /// <summary>切换伪装状态</summary>
@@ -219,6 +222,9 @@ public class DisguiseSystem : MonoBehaviour
         {
             boxCollider.size = data.customColliderSize;
             boxCollider.offset = data.customColliderOffset;
+            // S209：变大时脚底不动（往上长，不往地里/墙里长）——原来以中心放大，1.2 格的身体会嵌进地面和旁边的墙
+            if (data.customColliderOffset == Vector2.zero)
+                boxCollider.offset = new Vector2(originalColliderOffset.x, FeetAlignedOffsetY(originalColliderOffset.y, originalColliderSize.y, data.customColliderSize.y));
         }
 
         // S37: 视碰分离 — 视觉缩放操作 visualTransform，物理碰撞体同步修改 size/offset

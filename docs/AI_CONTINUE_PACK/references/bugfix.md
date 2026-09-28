@@ -16,9 +16,15 @@
 | 捣蛋者贴墙粘住 | 贴墙时仍有水平输入 | `HitsWall` 时清水平速度 |
 | 塌桥只塌一格 | 每格独立 | `collapseWholeSpan` 整段一起塌 |
 | 测试 H4 误报 | 检查范围过大 | 只检查"听"的入口段落（NoteNoise…Forget 之间） |
+| 马里奥在台边/楼梯口左右抖、拿不到正下方的宝物 | 转向"对准 0.3 格就停"，身体一半还在台上（S209） | 用 `LevelPathPlanner.SteerX`（目标在下方继续走下台边）；`LevelRouteFollower` 走一遍复现 |
+| 卡住救援后又回到原处循环 | 救援放"最近安全格" | `RescueAlongRoute` 沿路线往前放（S209） |
+| 捣蛋者/马里奥空中粘墙或悬空 | 贴墙判定在方向键之前；伪装变大长进墙 | 判定放 HandleDirection 之后；`FeetAlignedOffsetY`；`BodyUnstick.Resolve`（S209） |
 | 编辑器编译报 MonoBehaviour 找不到（沙盒） | nupkg 解压文件无读权限 | `chmod -R u+rwX unityref`（setup 已处理） |
 | dotnet 报 version 错（沙盒） | 环境变量 `version=N/A` | `unset version`（脚本已处理） |
 | 编辑器 cc2 找不到运行时类型 | 先要编好 `cc/out/cc.dll` | verify.sh 的顺序就是先 cc 后 cc2 |
 
 ## 性能问题
 工坊卡：检查放到停笔后（`EditorApplication.update` 延迟 0.35s）、按物理签名去重、只在格子变化时重绘。游戏卡：去掉 Update 里的 Find、GUIStyle 缓存、NonAlloc 物理查询。
+
+## S209 教训
+死局检查（理论可达）≠ AI 真的会走过去。改 AI 移动/转向后，除了 verify 的死局检查，还要看 "S209 按马里奥走法走一遍" 那一行；用户报"徘徊/卡住"先用 `LevelRouteFollower.Run(grid)` 和 `Run(grid, true)`（旧规则）对照复现。

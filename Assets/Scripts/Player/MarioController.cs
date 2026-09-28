@@ -392,6 +392,9 @@ public class MarioController : MonoBehaviour
             return;
         }
 
+        // S209：嵌进墙里先推出来（与捣蛋者同一条规则）
+        if (!rb.isKinematic) BodyUnstick.Resolve(rb, boxCollider, groundLayer);
+
         // 1. 从 rb 读回速度，并减去上一帧注入的平台速度
         _frameVelocity = rb.velocity - _lastPlatformVelocity;
 

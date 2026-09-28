@@ -273,12 +273,17 @@ public class TricksterController : MonoBehaviour
             return;
         }
 
+        // S209：身体嵌进墙里（伪装变大 / 缩小恢复 / 传送）→ 先推出来，否则脚下检测会把墙里的方块顶当地面，悬在半空（用户截图）
+        if (!rb.isKinematic) BodyUnstick.Resolve(rb, boxCollider, groundLayer);
+
         // 读回 rb.velocity 并减去上一帧平台速度
         _frameVelocity = rb.velocity - _lastPlatformVelocity;
 
         CheckCollisions();
         HandleJump();
         HandleDirection();
+        // S209：贴墙不粘要在"施加方向键之后"再判断（原来在之前判断，随后方向键又把朝墙速度加回去 → 仍然粘墙）
+        if (!_grounded && Mathf.Abs(_frameVelocity.x) > 0.01f && HitsWall(_frameVelocity.x > 0f ? Vector2.right : Vector2.left)) _frameVelocity.x = 0f;
         HandleGravity();
 
         // 叠加平台速度

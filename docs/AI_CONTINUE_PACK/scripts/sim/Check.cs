@@ -37,6 +37,13 @@ static class CHECK {
   { var b=LevelBlueprint.Wizard('~',20,"").grid.Select(r=>r).ToArray(); var row=b.Length-1-3; b[row]=new string(b[row].Select((ch,i)=> i>5&&i<b[row].Length-5&&"MGoT".IndexOf(ch)<0 ? '.' : ch).ToArray()); for(int r=b.Length-3;r<b.Length-1;r++) b[r]="W"+new string('#',b[r].Length-2)+"W";
     int pbad=0; foreach(var p in LevelBlueprint.Patterns){ var g=LevelBlueprint.Stamp(b,p,12,3); if(!LevelWorkshopModel.Check(g,true,solid).Playable){ pbad++; Console.WriteLine("     [FAIL] 印章 "+p.zh+" 盖在空房间里不可玩"); } }
     Console.WriteLine($"[{(pbad==0?"OK":"FAIL")}] S208 模式印章 {LevelBlueprint.Patterns.Length} 个单独盖章：不可玩 {pbad}"); fail+=pbad; }
+  // S209：按马里奥 AI 的走法（身体宽 0.8、同一条转向规则 LevelPathPlanner.SteerX）走一遍：所有样板 + 监狱塔 + 向导关卡都要走得完
+  { int rbad=0, rt=0; var all=Samples().ToList();
+    for(int f=2;f<=FloorStacker.MaxFloors;f++) for(int s=0;s<3;s++) all.Add(($"监狱塔{f}层#{s}",FloorStacker.Build(f,s)));
+    foreach(char star in LevelBlueprint.WizardStars) foreach(int sec in new[]{20,30,40}) all.Add(($"向导{star}{sec}s",LevelBlueprint.Wizard(star,sec,"").grid));
+    foreach(var (n,g) in all){ rt++; var w=LevelRouteFollower.Run(g); if(!w.ok){ rbad++; Console.WriteLine($"     [FAIL] {n}：{w.Summary}"); } }
+    bool repro=!LevelRouteFollower.Run(LevelWorkshopModel.HakoniwaSample,true).ok;
+    Console.WriteLine($"[{(rbad==0&&repro?"OK":"FAIL")}] S209 按马里奥走法走一遍 {rt} 关：走不完 {rbad}（旧规则复现截图卡住：{(repro?"是":"否")}）"); fail+=rbad+(repro?0:1); }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
  }}

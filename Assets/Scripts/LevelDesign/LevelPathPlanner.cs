@@ -14,6 +14,22 @@ public static class LevelPathPlanner
     /// <summary>S197：向上跳的最大水平距离。AI 只在目标水平距离 &lt; 2.25 格时起跳（HeuristicBotInputProvider），规划必须与之一致，否则会规划出"跳不上去"的路线（用户反馈马里奥卡住）。</summary>
     public const int JumpUpSide = 2;
 
+    /// <summary>离目标水平距离小于这个就算"对准了"（旧规则到这里就停步）。</summary>
+    public const float ArriveDx = 0.3f;
+
+    /// <summary>
+    /// S209：马里奥 AI 的水平转向（游戏里的 HeuristicBotInputProvider 与沙盒路线模拟共用这一条规则）。
+    /// 旧规则：|dx| ≤ 0.3 就停。问题（用户截图）：宝物在单向台面**边缘正下方**时，他在台边对准了就停下，
+    /// 身体还有一半在台面上 → 永远掉不下去，左右抖动，最后被"卡住救援"放回原处，循环。
+    /// 新规则：目标在**脚下更低处**（dy &lt; -0.5）而且他站在地上 → 继续朝目标那一侧（或当前朝向）走，直到走下台边；在空中则不再推（直直落下）。
+    /// </summary>
+    public static float SteerX(float dx, float dy, bool grounded, float facing)
+    {
+        if (System.Math.Abs(dx) > ArriveDx) return dx > 0f ? 1f : -1f;
+        if (grounded && dy < -0.5f) return System.Math.Abs(dx) > 0.02f ? (dx > 0f ? 1f : -1f) : (facing >= 0f ? 1f : -1f);
+        return 0f;
+    }
+
     private static bool Solid(char c, HashSet<char> solid) => solid.Contains(c);
 
     /// <summary>grid 第 0 行在最上面。y 从下往上数。</summary>

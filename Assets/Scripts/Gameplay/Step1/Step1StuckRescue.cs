@@ -88,7 +88,10 @@ public class Step1StuckRescue : MonoBehaviour
         still = 0f;
         RescuesThisRound++;
         LastStuckAt = pos;
-        Vector2 target = NearestSafe(pos);
+        // S209：先沿"去目标的路线"往前放（越过卡住的地方）；原来只放到最近的安全格 = 常常就是卡住的那一格旁边 → 又卡住，循环（用户截图）
+        Vector2? goal = driver.CurrentGoal();
+        Vector2? ahead = goal.HasValue ? RescueAlongRoute(roomGrid, pos, goal.Value, SafeCells()) : null;
+        Vector2 target = ahead ?? NearestSafe(pos);
         mario.transform.position = target;
         var rb = mario.GetComponent<Rigidbody2D>();
         if (rb != null) rb.velocity = Vector2.zero;
@@ -96,6 +99,33 @@ public class Step1StuckRescue : MonoBehaviour
         hasBest = false;
         flashUntil = Time.time + 2.5f;
         Debug.LogWarning($"[Step1 H9] Mario stuck at ({pos.x:F1},{pos.y:F1}) for {tuning.stuckSeconds}s -> rescued to ({target.x:F1},{target.y:F1}). This is a layout bug; please report the spot.");
+    }
+
+    /// <summary>
+    /// S209 纯逻辑：沿马里奥去 goal 的规划路线，找第一个离卡住点 ≥ 2 格、而且"能到出口"的站位（safe = null 时不过滤）。
+    /// 找不到返回 null（用最近安全格兜底）。只用地形与马里奥自己的目标（H4）。
+    /// </summary>
+    public static Vector2? RescueAlongRoute(string[] grid, Vector2 pos, Vector2 goal, System.Collections.Generic.ICollection<int> safe)
+    {
+        if (grid == null || grid.Length == 0) return null;
+        var reg = AsciiElementRegistry.GetDefault();
+        var solid = reg.GetSolidChars(); var hazard = reg.GetHazardChars();
+        var from = new LevelPathPlanner.Cell(Mathf.RoundToInt(pos.x), Mathf.RoundToInt(pos.y));
+        foreach (int dx in new[] { 0, -1, 1 })
+        {
+            var c = LevelPathPlanner.Settle(grid, new LevelPathPlanner.Cell(from.x + dx, from.y), solid, hazard);
+            if (c.x >= 0) { from = c; break; }
+        }
+        var path = LevelPathPlanner.Path(grid, from, new LevelPathPlanner.Cell(Mathf.RoundToInt(goal.x), Mathf.RoundToInt(goal.y)));
+        if (path == null || path.Count < 2) return null;
+        for (int i = 1; i < path.Count; i++)
+        {
+            var c = path[i];
+            if (Mathf.Abs(c.x - pos.x) + Mathf.Abs(c.y - pos.y) < 2f && i < path.Count - 1) continue;
+            if (safe != null && safe.Count > 0 && !safe.Contains(LevelReachabilityAnalyzer.CellKey(c.x, c.y))) continue;
+            return new Vector2(c.x, c.y);
+        }
+        return null;
     }
 
     /// <summary>最近的"能到出口"的站位中心（世界坐标 = 格坐标，角色站在格内）。没有分析数据时原地抬高半格。</summary>

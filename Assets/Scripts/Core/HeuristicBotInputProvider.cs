@@ -411,10 +411,8 @@ public class HeuristicBotInputProvider : IInputProvider
             }
             else
             {
-                if (Mathf.Abs(dx) > 0.3f)
-                    p1Horizontal = dx > 0f ? 1f : -1f;
-                else
-                    p1Horizontal = 0f;
+                // S209：目标在台边正下方时继续走下台边（旧规则对准 0.3 格就停 → 半个身子还在台上，永远掉不下去）
+                p1Horizontal = LevelPathPlanner.SteerX(dx, dy, _mario.IsGrounded, facingDir);
             }
 
             if (AuthoredRouteTarget)

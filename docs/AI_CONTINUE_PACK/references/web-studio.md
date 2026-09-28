@@ -31,3 +31,10 @@
 - 工具：画笔 B / 矩形 R / 填充 F / 吸管 I（吸完自动回原工具；Ctrl+点击随时吸）/ 移动 V（拖动、框选、方向键、Del、Ctrl+C/V；外圈与 M/T/G/o 受保护）。logic.js 的 selectAt/moveBlock/clampMove/copyBlock/pasteBlock/clearBlock 与 LevelWorkshopModel 同名函数同规则——改一边必须改另一边。
 - "显示（只改画面）"勾选框不改关卡/检查/导出；"最坏情况预览"勾着时禁止绘制；"游戏一屏"= cameraPlan（与 Step1RoomCamera 同阈值）。
 - 关卡包 `rules: 'S207'`。
+
+## S208 起步帮手（与 Unity `LevelDesign/LevelBlueprint.cs` 同规则同数据，改一边必须改另一边）
+- logic.js：`PATTERNS`(8 个印章：rows 从上到下，`stand`=马里奥站的行，`_` 不动、`*` 主角) / `stampPattern`（不动外圈、不覆盖 MTGo）/ `WIZ_RECIPES`+`wizardLevel(star, 20|30|40, idea)`（确定性；48/64/94 宽 × 高 12，下 3 层地面，站 y=3；段 ≥17 格补伏击点）/ `beatBounds` / `routePasses`（去程+回程）/ `rhythm`（RHYTHM 常量）/ `coverHints`（COVER_CHARS + 房内隔墙，5 格）。
+- verify.sh 第 4 步：node 跑网页 wizardLevel 生成 24 张 → `sim/wiz_web.json` → C# 逐字对照 + 可玩 + 炸弹策略；8 印章单独可玩。改了印章/配方后两边都要改，否则 verify 红。
+- 生成的草稿要求"干净"：无节奏提醒、无转移点提示（EditMode 测试 WizardDraftsArePlayableCleanAndDeterministic）。
+- 设计原则（Morai Maker 研究）：AI 起草只在用户点"新建/盖章"时发生，从不自动往图里塞；同样选择 = 同样结果。
+- 关卡包 levels[].beats（5 个 x）可选；rules 'S208'。

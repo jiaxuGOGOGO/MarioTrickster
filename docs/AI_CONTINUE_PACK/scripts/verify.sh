@@ -16,5 +16,11 @@ s=open(ws+'/repo/Assets/Scripts/Editor/Step1PrankRoomBuilder.cs',encoding='utf-8
 i=s.index('public static readonly string[] Room =');j=s.index('};',i)
 open(ws+'/sim/room_template.txt','w').write('\n'.join(re.findall(r'"([^"]+)"',s[i:j])))
 PY
+# S208：用网页 logic.js 生成全部向导关卡，交给 C# 体检逐字对照（没装 node 就跳过对照）
+command -v node >/dev/null && (cd "$WS/repo/tools/LevelStudioWeb" && python3 build.py >/dev/null && node -e "
+const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html','utf8');
+const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+const c={};vm.createContext(c);vm.runInContext(src.slice(src.indexOf('const ELEMENTS='),src.indexOf('// ── 状态'))+';this.X={wizardLevel,WIZ_STARS};',c);
+const o={};for(const s of c.X.WIZ_STARS)for(const t of [20,30,40])o['wiz_'+s+'_'+t]=c.X.wizardLevel(s,t,'').grid;fs.writeFileSync('$WS/sim/wiz_web.json',JSON.stringify(o));") || rm -f "$WS/sim/wiz_web.json"
 (cd "$WS/sim" && rm -rf obj bin && dotnet build -c Release -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error " | head -10; dotnet bin/Release/net8.0/sim.dll) || ok=0
 [ $ok = 1 ] && echo "VERIFY ALL GREEN（提醒：Unity 里的 EditMode 测试仍需用户跑）" || { echo "VERIFY FAILED"; exit 1; }

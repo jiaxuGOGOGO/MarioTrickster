@@ -233,9 +233,112 @@ function check(W, rawGrid, step1) {
     }
     if (total > 5) res.issues.push({ x: -1, y: -1, t: `还有 ${total - 5} 个死局格（画布上红色斜线）`, sev: 'error' });
   }
+  const unreach = unreachableStands(W, rawGrid); res.unreach = unreach;
+  if (unreach.size) {
+    const first = [...unreach].slice(0, 3).map(k => `(${Math.floor(k / 1000)},${k % 1000})`).join(' ');
+    res.issues.push({ x: Math.floor([...unreach][0] / 1000), y: [...unreach][0] % 1000, t: `${unreach.size} 个能站的格子马里奥永远上不去（台子太高 / 坑太深 / 被墙隔开）：${first}${unreach.size > 3 ? ' …' : ''}（画布上紫色点；如果是故意给捣蛋者用的高台可以不管）`, sev: 'warn' });
+  }
   if (res.offRoute.length) res.issues.push({ x: -1, y: -1, t: `${res.offRoute.length} 个机关离马里奥的路线超过 3 格：只能靠挑衅/诱饵把他引过去`, sev: 'info' });
   res.playable = !res.issues.some(i => i.sev === 'error');
   return res;
 }
 
 if (typeof module !== 'undefined') module.exports = { makeWorld, check, path, placementIssues, stripSlots, find };
+
+// ── S205：跳跃辅助 ────────────────────────────────────
+/** 从 (x,y) 站着起跳，一步能到哪：ai = AI 马里奥实际会走的（保守：往上 ≤2 格、左右 ≤2 格；平跳 ≤4 格），
+ *  phys = 物理上跳得到但 AI 不会稳定走（临界区，H8：别让关键路线只靠这种跳）。 */
+function jumpReach(W, rawGrid, x, y) {
+  const g = stripSlots(rawGrid), s = settle(W, g, x, y), ai = new Set(), phys = new Set();
+  if (!s) return { from: null, ai, phys };
+  for (const [nx, ny] of moves(W, g, s[0], s[1])) ai.add(key(nx, ny));
+  const buf = []; l2Step(W, g, s[0], s[1], l2Boost(W, g, s[0], s[1]), true, buf);
+  for (const [nx, ny] of buf) { const k = key(nx, ny); if (!ai.has(k) && k !== key(s[0], s[1])) phys.add(k); }
+  return { from: s, ai, phys };
+}
+/** 整张图：马里奥（从 M 出发）永远到不了的"能站的格"——台子太高、坑太深等。 */
+function unreachableStands(W, rawGrid) {
+  const g = stripSlots(rawGrid), M = find(g, 'M')[0], out = new Set();
+  if (!M) return out;
+  // 塌桥/裂缝/门/裂墙打开后才去得了的地方（比如桥下的坑）也算"去得了"——那是死局检查管的事
+  const open = g.map(r => r.replace(/[Cx|%]/g, '.'));
+  const reach = l2Reach(W, g, M[0], M[1], false), O = find(g, 'o')[0];
+  for (const k of l2Reach(W, open, M[0], M[1], false)) reach.add(k);
+  if (O && reach.has(key(O[0], O[1]))) for (const k of l2Reach(W, g, O[0], O[1], false)) reach.add(k);
+  for (let yy = 0; yy < g.length; yy++) for (let xx = 0; xx < g[0].length; xx++) if (l2Stand(W, g, xx, yy) && l2Stand(W, open, xx, yy) && !reach.has(key(xx, yy))) out.add(key(xx, yy));
+  return out;
+}
+
+// ── S205：从别的工具导入 ─────────────────────────────
+/** 识别文本格式：Tiled JSON / LDtk（.ldtk 或超简导出 data.json 不含网格 → 用 CSV）/ 数字 CSV / ASCII。 */
+function parseForeign(text, name) {
+  const t = text.replace(/^\uFEFF/, '').trim(); name = (name || '').toLowerCase();
+  if (t[0] === '{') {
+    const d = JSON.parse(t);
+    if (d.grid) return { kind: 'studio', studio: d };
+    if (Array.isArray(d.layers) && d.width && d.height && d.tiledversion !== undefined || (Array.isArray(d.layers) && d.layers.some(l => l.type === 'tilelayer'))) {
+      const layers = d.layers.filter(l => l.type === 'tilelayer' && Array.isArray(l.data));
+      if (!layers.length) throw new Error('Tiled 地图里没有"图块层"（或层数据被压缩了：请在 Tiled 地图属性里把"图层格式"改成 CSV 再导出 JSON）');
+      const w = d.width, h = d.height, nums = [];
+      for (let r = 0; r < h; r++) { const row = []; for (let c = 0; c < w; c++) { let v = 0; for (const l of layers) { const g = (l.data[r * w + c] || 0) & 0x1fffffff; if (g) v = g; } row.push(v); } nums.push(row); }
+      return { kind: 'numbers', from: 'Tiled', nums };
+    }
+    if (d.levels && d.defs) {
+      const lv = d.levels[0], li = (lv.layerInstances || []).find(l => l.__type === 'IntGrid' && l.intGridCsv);
+      if (!li) throw new Error('LDtk 文件里没找到 IntGrid 层（或关卡存成了外部文件：请用"超简导出"里的 .csv）');
+      const w = li.__cWid, h = li.__cHei, nums = [];
+      for (let r = 0; r < h; r++) nums.push(li.intGridCsv.slice(r * w, (r + 1) * w));
+      const vals = {}; const def = d.defs.layers.find(x => x.uid === li.layerDefUid);
+      if (def && def.intGridValues) for (const v of def.intGridValues) vals[v.value] = v.identifier || '';
+      return { kind: 'numbers', from: 'LDtk', nums, names: vals };
+    }
+    throw new Error('认不出这个 JSON：支持 本设计台 .studio.json / Tiled 导出的 .json / LDtk 的 .ldtk');
+  }
+  const lines = t.replace(/\r/g, '').split('\n').map(l => l.trimEnd()).filter(l => l.length);
+  if (lines.length && lines.every(l => /^\s*-?\d+(\s*,\s*-?\d+)*\s*,?\s*$/.test(l))) {
+    const nums = lines.map(l => l.split(',').map(s => s.trim()).filter(s => s.length).map(Number));
+    return { kind: 'numbers', from: name.endsWith('.csv') ? 'CSV（LDtk 超简导出 / Tiled CSV）' : '数字网格', nums };
+  }
+  const rows = lines.filter(l => !l.startsWith('#') || /^#+$/.test(l.replace(/[^#]/g, '')) && l.length > 3);
+  const w = Math.max(...rows.map(r => r.length));
+  return { kind: 'ascii', rows: rows.map(r => r.replace(/ /g, '.').padEnd(w, '.')) };
+}
+/** 数字网格 + 映射（数字 → 字符）→ ASCII 行；0 或没映射 = 空气。外圈自动补墙、底行补地面（可选）。 */
+function numbersToAscii(nums, map, frame) {
+  const h = nums.length, w = Math.max(...nums.map(r => r.length));
+  const rows = nums.map(r => { let s = ''; for (let x = 0; x < w; x++) { const v = r[x] || 0; s += v && map[v] ? map[v] : '.'; } return s; });
+  if (!frame) return rows;
+  const out = [('W').repeat(w + 2)];
+  for (const r of rows) out.push('W' + r + 'W');
+  if (rows.length && /[^#W=]/.test(rows[rows.length - 1])) out.push('W' + '#'.repeat(w) + 'W');
+  else out.push('W'.repeat(w + 2));
+  return out;
+}
+/** 默认映射：LDtk 值名 / 常见习惯（1 = 地面）。 */
+function defaultMap(values, names) {
+  const byName = { ground: '#', floor: '#', wall: 'W', solid: '#', platform: '-', oneway: '-', spike: '^', fire: '~', bridge: 'C', spring: 'J', crate: 'c', bush: 'b', mario: 'M', player: 'M', start: 'M', trickster: 'T', goal: 'G', exit: 'G', loot: 'o', coin: 'o', treasure: 'o' };
+  const m = {};
+  for (const v of values) {
+    const n = ((names && names[v]) || '').toLowerCase().replace(/[^a-z]/g, '');
+    m[v] = byName[n] || (v === 1 ? '#' : v === 2 ? 'W' : v === 3 ? '-' : '');
+  }
+  return m;
+}
+
+/** S205：像素图导入——每个像素 = 一格，按颜色找最接近的元素（只在给定元素里找）。pixels = [r,g,b,a]*w*h（0..255）。 */
+function imageToAscii(pixels, w, h, elements) {
+  const pal = elements.map(e => ({ c: e.c, rgb: e.rgb.map(v => v * 255) }));
+  const rows = [], used = {};
+  for (let y = 0; y < h; y++) {
+    let s = '';
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4, a = pixels[i + 3];
+      if (a < 128) { s += '.'; continue; }
+      let best = '.', bd = 1e9;
+      for (const p of pal) { const d = (p.rgb[0] - pixels[i]) ** 2 + (p.rgb[1] - pixels[i + 1]) ** 2 + (p.rgb[2] - pixels[i + 2]) ** 2; if (d < bd) { bd = d; best = p.c; } }
+      s += best; used[best] = (used[best] || 0) + 1;
+    }
+    rows.push(s);
+  }
+  return { rows, used };
+}

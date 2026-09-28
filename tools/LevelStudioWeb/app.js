@@ -3,7 +3,7 @@ const LS = 'mariotrickster.studio.v1';
 const S = {
   grid: [], name: '', goal: '', notes: [], proposals: [], cuts: {},
   brush: '#', tool: 'brush', zoom: 20, showAll: false,
-  ov: { route: true, dead: true, worst: false, notes: true }
+  ov: { route: true, dead: true, worst: false, notes: true, jump: true, unreach: true }
 };
 let W = makeWorld([]), R = null, undo = [], redo = [], hover = null, dragStart = null, painting = false, dirtyTimer = 0;
 const $ = s => document.querySelector(s);
@@ -93,6 +93,18 @@ function draw() {
     for (const s of R.offRoute) { ctx.strokeStyle = 'rgba(157,147,179,.9)'; ctx.setLineDash([2, 2]); ctx.strokeRect(s.x * z + 1, (h - 1 - s.y) * z + 1, z - 2, z - 2); ctx.setLineDash([]); }
   }
   if (R) for (const i of R.issues) if (i.x >= 0 && i.sev === 'error') { ctx.strokeStyle = '#ff5a4e'; ctx.lineWidth = 2; ctx.strokeRect(i.x * z + 1, (h - 1 - i.y) * z + 1, z - 2, z - 2); ctx.lineWidth = 1; }
+  if (R && R.unreach && S.ov.unreach) { ctx.fillStyle = 'rgba(176,140,255,.9)'; for (const k of R.unreach) { const x = Math.floor(k / 1000), y = k % 1000; ctx.beginPath(); ctx.arc(x * z + z / 2, (h - 1 - y) * z + z * 0.78, Math.max(2, z / 7), 0, 7); ctx.fill(); } }
+  // S205 跳跃辅助：鼠标停的地方站着起跳，一步能到哪
+  if (S.ov.jump && hover && !painting && !dragStart) {
+    const jr = jumpReach(W, S.grid, hover[0], hover[1]);
+    $('#jumpKey').hidden = !jr.from;
+    if (jr.from) {
+      const paint = (set, col) => { for (const k of set) { const x = Math.floor(k / 1000), y = k % 1000, px = x * z, py = (h - 1 - y) * z; ctx.fillStyle = col; ctx.fillRect(px + 2, py + 2, z - 4, z - 4); } };
+      paint(jr.phys, 'rgba(255,179,71,.45)'); paint(jr.ai, 'rgba(95,211,154,.45)');
+      const fx = jr.from[0] * z + z / 2, fy = (h - 1 - jr.from[1]) * z + z / 2;
+      ctx.strokeStyle = '#5fd39a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(fx, fy, z * 0.35, 0, 7); ctx.stroke(); ctx.lineWidth = 1;
+    }
+  } else if ($('#jumpKey')) $('#jumpKey').hidden = true;
   if (S.ov.notes) for (const n of S.notes) { const px = n.x * z, py = (h - 1 - n.y) * z; ctx.fillStyle = '#ffc83d'; ctx.beginPath(); ctx.moveTo(px + z, py); ctx.lineTo(px + z, py + z * 0.5); ctx.lineTo(px + z * 0.5, py); ctx.fill(); }
   if (focusCell) { ctx.strokeStyle = '#ffc83d'; ctx.lineWidth = 3; ctx.strokeRect(focusCell[0] * z - 2, (h - 1 - focusCell[1]) * z - 2, z + 4, z + 4); ctx.lineWidth = 1; }
   if (dragStart && hover && S.tool === 'rect') { const [a, b] = rectOf(dragStart, hover); ctx.strokeStyle = '#fff'; ctx.setLineDash([4, 3]); ctx.strokeRect(a[0] * z, (h - 1 - b[1]) * z, (b[0] - a[0] + 1) * z, (b[1] - a[1] + 1) * z); ctx.setLineDash([]); }
@@ -288,17 +300,53 @@ function download(name, text, type) { const a = document.createElement('a'); a.h
 $('#hCopy').onclick = async () => { const t = handoff(); try { await navigator.clipboard.writeText(t); toast('设计单已复制'); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('设计单已复制'); } };
 $('#hDownload').onclick = () => download(`设计单_${(S.name || 'level').replace(/[\\/:*?"<>|]/g, '')}.md`, handoff(), 'text/markdown');
 $('#hTxt').onclick = () => download(`${(S.name || 'my_level').replace(/[\\/:*?"<>|]/g, '')}.txt`, S.grid.join('\n') + '\n', 'text/plain');
+function gridToPng(grid, scale) {
+  const h = grid.length, w = grid[0].length, c = document.createElement('canvas'); c.width = w * scale; c.height = h * scale; const x = c.getContext('2d');
+  for (let r = 0; r < h; r++) for (let q = 0; q < w; q++) { const ch = grid[r][q]; if (ch === '.') continue; x.fillStyle = rgbCss(colorOf(ch)); x.fillRect(q * scale, r * scale, scale, scale); }
+  return c;
+}
+$('#hPng').onclick = () => gridToPng(S.grid, 1).toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `${(S.name || 'level').replace(/[\\/:*?"<>|]/g, '')}_1px.png`; a.click(); });
+$('#hPal').onclick = () => {
+  const els = [...W.info.values()].filter(e => e.s1 && e.c !== ' ' && e.c !== '.'), cell = 28, cols = 4, c = document.createElement('canvas');
+  c.width = cols * 170; c.height = Math.ceil(els.length / cols) * (cell + 8) + 8; const x = c.getContext('2d'); x.fillStyle = '#16131f'; x.fillRect(0, 0, c.width, c.height);
+  x.font = '14px sans-serif'; x.textBaseline = 'middle';
+  els.forEach((e, i) => { const px = (i % cols) * 170 + 8, py = Math.floor(i / cols) * (cell + 8) + 8; x.fillStyle = rgbCss(e.rgb); x.fillRect(px, py, cell, cell); x.fillStyle = '#efe7d6'; x.fillText(`${e.c} ${e.zh}`, px + cell + 8, py + cell / 2); });
+  c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'MarioTrickster_调色板.png'; a.click(); });
+};
 $('#btnExport').onclick = () => download(`${(S.name || 'mariotrickster').replace(/[\\/:*?"<>|]/g, '')}.studio.json`, JSON.stringify({ v: 1, grid: S.grid, name: S.name, goal: S.goal, notes: S.notes, proposals: S.proposals, cuts: S.cuts }, null, 1), 'application/json');
 $('#btnImport').onclick = () => $('#fileIn').click();
 $('#fileIn').onchange = async e => {
-  const f = e.target.files[0]; if (!f) return; const t = await f.text();
+  const f = e.target.files[0]; if (!f) return; e.target.value = '';
   try {
-    if (f.name.endsWith('.json')) { const d = JSON.parse(t); Object.assign(S, { grid: d.grid, name: d.name || '', goal: d.goal || '', notes: d.notes || [], proposals: d.proposals || [], cuts: d.cuts || {} }); }
-    else { const rows = t.replace(/\r/g, '').split('\n').map(l => l.trimEnd()).filter(l => l && !l.startsWith('#')); const w = Math.max(...rows.map(r => r.length)); S.grid = rows.map(r => r.replace(/ /g, '.').padEnd(w, '.')); }
-    snapshot(); syncInputs(); fitZoom(); W = makeWorld(S.proposals); renderAll(); toast('已导入');
+    if (/\.(png|gif|bmp)$/i.test(f.name)) return importImage(f);
+    const p = parseForeign(await f.text(), f.name);
+    if (p.kind === 'studio') { const d = p.studio; Object.assign(S, { grid: d.grid, name: d.name || '', goal: d.goal || '', notes: d.notes || [], proposals: d.proposals || [], cuts: d.cuts || {} }); applyImport('已导入设计台项目'); }
+    else if (p.kind === 'ascii') { S.grid = p.rows; applyImport('已导入 ASCII 关卡'); }
+    else askMapping(p);
   } catch (err) { toast('导入失败：' + err.message); }
-  e.target.value = '';
 };
+function applyImport(msg) { snapshot(); syncInputs(); fitZoom(); W = makeWorld(S.proposals); renderAll(); toast(msg); }
+function askMapping(p) {
+  const values = [...new Set(p.nums.flat())].filter(v => v).sort((a, b) => a - b), m = defaultMap(values, p.names);
+  $('#mapFrom').textContent = `来自 ${p.from}：${p.nums[0].length}×${p.nums.length} 格，出现了 ${values.length} 种数字（0 = 空气）。给每种数字选一个元素：`;
+  const box = $('#mapRows'); box.innerHTML = '';
+  const opts = ['<option value="">空气</option>', ...[...W.info.values()].filter(e => e.c !== '.' && e.c !== ' ').map(e => `<option value="${e.c}">${e.c}  ${e.zh}</option>`)].join('');
+  for (const v of values) { const l = document.createElement('span'); l.textContent = `数字 ${v}${p.names && p.names[v] ? `（${p.names[v]}）` : ''}`; const s = document.createElement('select'); s.className = 'f'; s.innerHTML = opts; s.value = m[v] || ''; s.dataset.v = v; box.append(l, s); }
+  const dlg = $('#mapDlg'); dlg.showModal();
+  $('#mapCancel').onclick = () => dlg.close();
+  $('#mapOk').onclick = () => { const map = {}; box.querySelectorAll('select').forEach(s => map[s.dataset.v] = s.value); dlg.close(); S.grid = numbersToAscii(p.nums, map, $('#mapFrame').checked); S.name = S.name || '导入的关卡'; applyImport(`已从 ${p.from} 导入`); };
+}
+function importImage(f) {
+  const img = new Image(); img.onload = () => {
+    if (img.width > 128 || img.height > 48) { toast(`图太大（${img.width}×${img.height}）：1 像素 = 1 格，最多 128×48`); return; }
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const els = [...W.info.values()].filter(e => e.s1 && e.c !== ' ');
+    const r = imageToAscii(x.getImageData(0, 0, img.width, img.height).data, img.width, img.height, els);
+    S.grid = r.rows; S.name = S.name || f.name.replace(/\.[^.]+$/, '');
+    applyImport(`已从像素图导入：${Object.entries(r.used).map(([k, n]) => k + '×' + n).join(' ')}`);
+  };
+  img.onerror = () => toast('这张图读不了'); img.src = URL.createObjectURL(f);
+}
 
 // ── 顶部/工具条 ──────────────────────────────────────
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
@@ -317,7 +365,7 @@ window.addEventListener('keydown', e => {
   else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); $('#btnRedo').click(); }
   else { const m = { b: 'brush', r: 'rect', f: 'fill', i: 'pick' }[e.key.toLowerCase()]; if (m && !e.ctrlKey) document.querySelector(`[data-tool=${m}]`).click(); }
 });
-for (const [id, k] of [['ovRoute', 'route'], ['ovDead', 'dead'], ['ovWorst', 'worst'], ['ovNotes', 'notes']]) $('#' + id).onchange = e => { S.ov[k] = e.target.checked; draw(); };
+for (const [id, k] of [['ovRoute', 'route'], ['ovDead', 'dead'], ['ovWorst', 'worst'], ['ovNotes', 'notes'], ['ovJump', 'jump'], ['ovUnreach', 'unreach']]) $('#' + id).onchange = e => { S.ov[k] = e.target.checked; draw(); };
 $('#zoom').oninput = e => { S.zoom = +e.target.value; draw(); };
 $('#palSearch').oninput = renderPalette;
 $('#showAll').onchange = e => { S.showAll = e.target.checked; renderPalette(); };

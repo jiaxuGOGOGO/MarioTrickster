@@ -11,6 +11,11 @@
 6. **重建网页**：`python3 tools/LevelStudioWeb/build.py`（新元素自动出现在网页元素库），`index.html` 随升级包一起交付。
 7. 汇报：做了什么（按设计单条目对照）、哪些调整了及原因、用户下一步。
 
+## 用户用别的工具画的图
+- 网页设计台能直接导入：Tiled（.json 需层格式 CSV / .csv）、LDtk（.ldtk 或超简导出 .csv）、像素图 .png（1 像素 1 格，颜色见"导出调色板"）。让用户先在网页导入、检查、生成设计单再发来最省事。
+- 用户直接发 Excalidraw / 手绘 / 截图：用 `gsk understand_images` 读图，转成 ASCII 网格（外圈 W、底行 #、M/T/G/o 各一个），在回复里贴出网格请用户确认后再实现；拿不准的格子标出来问，不要猜。
+- 跳跃辅助的含义：绿 = LevelPathPlanner 一步（AI 真会走），黄 = L2 一步（物理可达但 AI 不稳，H8 临界区）。
+
 ## 网页维护
 - 数据唯一来源是 C# 源码（build.py 解析 `AsciiElementRegistry` / `ElementCatalog` / 样板）；**不要手改 index.html**。
 - 规则改动（跳跃、摆放规则、死局）要同步 `logic.js`（纯逻辑，可 node 测：vm 载入 data+logic 后 `check(makeWorld([]), grid, true)`），保证四个样板结果与 Unity 一致。

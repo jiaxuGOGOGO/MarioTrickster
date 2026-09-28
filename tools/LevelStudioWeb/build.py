@@ -29,6 +29,13 @@ wm = rd('Editor/LevelWorkshopModel.cs')
 names = {'PrisonSample': '两层监狱', 'LureSample': '诱捕走廊', 'HakoniwaSample': '箱庭监狱（四层）'}
 for f in re.findall(r'public static readonly string\[\] (\w+Sample) =', wm):
     samples[names.get(f, f)] = arr('Editor/LevelWorkshopModel.cs', f'public static readonly string[] {f} =')
+# 像素图导入/导出靠颜色区分元素：颜色完全相同的（如左右两门大炮）在网页里错开一点点
+seen = set()
+for e in els:
+    k = tuple(round(v * 255) for v in e['rgb'])
+    while k in seen:
+        e['rgb'] = [round(min(1, v + 0.04), 2) for v in e['rgb']]; k = tuple(round(v * 255) for v in e['rgb'])
+    seen.add(k)
 data = 'const ELEMENTS=' + json.dumps(els, ensure_ascii=False, separators=(',', ':')) + ';\nconst SAMPLES=' + json.dumps(samples, ensure_ascii=False, separators=(',', ':')) + ';\n'
 logic = open(os.path.join(HERE, 'logic.js'), encoding='utf-8').read()
 logic = re.sub(r"if \(typeof module[^\n]*\n?", '', logic)

@@ -70,8 +70,9 @@ h3:first-child{margin-top:4px}
 .stage{overflow:auto;position:relative;background:
   radial-gradient(circle at 1px 1px,#2a2440 1px,transparent 1.2px) 0 0/18px 18px,var(--ink);padding:24px}
 canvas{display:block;image-rendering:pixelated;cursor:crosshair;margin:auto;border-radius:6px;box-shadow:0 0 0 1px var(--line),0 20px 60px -20px #000}
-.status{display:flex;gap:14px;align-items:center;padding:6px 12px;border-top:1px solid var(--line);font:12px var(--mono);color:var(--dim)}
+.status{display:flex;gap:14px;align-items:center;white-space:nowrap;overflow:hidden;padding:6px 12px;border-top:1px solid var(--line);font:12px var(--mono);color:var(--dim)}
 .status .hover{color:var(--chalk)}
+.jumpkey{display:inline-flex;gap:10px;align-items:center}.jumpkey i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 /* 右侧 */
 .verdict{border-radius:var(--r);padding:12px 14px;margin-bottom:10px;border:1px solid var(--line);background:var(--slab)}
 .verdict .big{font:800 20px/1.2 var(--disp)}
@@ -132,9 +133,9 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
     <button class="tab" role="tab" aria-selected="false" data-page="handoff">交给 AI</button>
   </nav>
   <div class="spacer"></div>
-  <button class="btn small" id="btnImport">导入 .json</button>
+  <button class="btn small" id="btnImport" title="支持：本设计台 .json、Unity 工坊 .txt、Tiled 导出的 .json/.csv、LDtk 的 .ldtk/.csv、像素图 .png（1 像素 = 1 格）">导入（多种格式）</button>
   <button class="btn small" id="btnExport">保存项目 .json</button>
-  <input type="file" id="fileIn" accept=".json,.txt" hidden>
+  <input type="file" id="fileIn" accept=".json,.txt,.csv,.ldtk,.tmj,.png,.gif,.bmp" hidden>
 </header>
 
 <main id="pageDesign">
@@ -175,11 +176,13 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <label class="toggle"><input type="checkbox" id="ovDead" checked> 死局格</label>
       <label class="toggle"><input type="checkbox" id="ovWorst"> 最坏情况预览</label>
       <label class="toggle"><input type="checkbox" id="ovNotes" checked> 批注</label>
+      <label class="toggle" title="鼠标停在马里奥能站的格子上：绿色 = 跳一下能到（AI 会走），黄色 = 物理上够得着但 AI 不稳（别把必经路放这）"><input type="checkbox" id="ovJump" checked> 跳跃辅助</label>
+      <label class="toggle" title="紫色点 = 能站但马里奥永远上不去的格子"><input type="checkbox" id="ovUnreach" checked> 上不去的格</label>
       <span class="spacer"></span>
       <label class="toggle">缩放 <input type="range" id="zoom" min="10" max="36" value="20" aria-label="缩放"></label>
     </div>
     <div class="stage" id="stage"><canvas id="cv"></canvas></div>
-    <div class="status"><span class="hover" id="hoverInfo">把鼠标放到格子上</span><span class="spacer"></span><span>右键 = 擦除 · Alt+点击 = 写批注 · 坐标 x 从左 0、y 从下 0（和 Unity 工坊一致）</span></div>
+    <div class="status"><span class="hover" id="hoverInfo">把鼠标放到格子上</span><span class="jumpkey" id="jumpKey" hidden><span><i style="background:#5fd39a"></i>跳一下能到</span><span><i style="background:#ffb347"></i>够得着但 AI 不稳</span></span><span class="spacer"></span><span>右键 = 擦除 · Alt+点击 = 写批注 · 坐标 x 从左 0、y 从下 0（和 Unity 工坊一致）</span></div>
   </section>
 
   <aside class="side-right">
@@ -256,11 +259,20 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
     <button class="btn gold" id="hCopy">复制设计单</button>
     <button class="btn" id="hDownload">下载设计单 .md</button>
     <button class="btn" id="hTxt">只导出关卡 .txt（Unity 工坊可导入）</button>
+    <button class="btn" id="hPng" title="1 像素 = 1 格，用元素的颜色。拿去 Piskel / Aseprite / 画图 里改，改完再导入回来">导出像素图 .png（去别的画图工具改）</button>
+    <button class="btn" id="hPal" title="所有第 1 步元素的颜色表，画像素图时用吸管取色">导出调色板 .png</button>
   </div>
   <div class="handoff" id="handoffText"></div>
 </section>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<dialog id="mapDlg" style="background:var(--slab);color:var(--chalk);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:560px;width:92vw">
+  <h3 style="margin-top:0">把数字对应到元素</h3>
+  <p class="hint" id="mapFrom"></p>
+  <div id="mapRows" style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center"></div>
+  <label class="toggle" style="margin-top:10px"><input type="checkbox" id="mapFrame" checked> 外面自动补一圈墙和底层地面</label>
+  <div class="row" style="margin-top:14px"><button class="btn gold" id="mapOk">导入</button><button class="btn" id="mapCancel">取消</button></div>
+</dialog>
 <script>/*DATA*/</script>
 <script>/*LOGIC*/</script>
 <script>/*APP*/</script>

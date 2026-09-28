@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 204（网页关卡设计台 tools/LevelStudioWeb：画关卡 + 实时预检/死局/时间线 + 新机制提案（宪法提醒）+ 删改清单 + 一键设计单交给 AI；工坊可导入 .studio.json） |
+| **最新 Session** | Session 205（设计台：跳跃辅助（绿=AI能跳/黄=临界）、上不去的格、导入 Tiled/LDtk/CSV/像素图、导出像素图与调色板） |
+| **S204** | Session 204（网页关卡设计台 tools/LevelStudioWeb：画关卡 + 实时预检/死局/时间线 + 新机制提案（宪法提醒）+ 删改清单 + 一键设计单交给 AI；工坊可导入 .studio.json） |
 | **S203** | Session 203（马里奥性格：冲冲/谨慎（绕开被坑点、绕不开跳、再不行原路）/贪财（跨层必抢道具）；开局头顶亮性格；自动检查轮流测三种；诱捕走廊加高路） |
 | **S202** | Session 202（完美连锁慢动作回放；StrategySim 炸弹困人模拟 + 构建时自动加固承重格（铆钉）；陷阱试探菜单 + 检查轨迹热力图；马里奥躲炸弹/抢道具） |
 | **S201** | Session 201（接续包：`docs/AI_CONTINUE_PACK/`——SKILL.md 原则与红线 + 按功能分册 + 一键搭建/验证/打补丁脚本；新对话先读它；换账号也能用：自带未上传补丁、bat 可拖入项目文件夹） |
@@ -115,6 +116,11 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S205] 用户："人物能否跳上去设计时能辅助么；有什么好用的外部工具（Excalidraw、GitHub 工具），要最方便、能导入、换账号也能适配"
+
+- logic.js：jumpReach（LevelPathPlanner 保守一步 = AI 能走 / L2 一步 = 物理临界）、unreachableStands（塌桥等打开后也去不了的站位）、parseForeign（studio/Tiled JSON/LDtk .ldtk/数字 CSV/ASCII）、numbersToAscii + defaultMap（按 LDtk 值名猜）、imageToAscii（最近色）。build.py 让同色元素（K/k）错开。node：四样板 unreach=0、像素图往返 0 差异；jsdom 冒烟无报错。
+- 外部工具建议：LDtk（IntGrid + 超简导出 CSV）、Tiled（JSON/CSV，层格式选 CSV）、Piskel/Aseprite/画图（像素图）；Excalidraw 适合画楼层关系草图（发图给 AI 看，不能直接导入网格）。
 
 ### [S204] 用户："在网站上设计关卡、构思新机制/删减旧东西，规划清楚后再来提完整关卡意见更新"
 

@@ -18,6 +18,7 @@ for tf in glob.glob(root + 'Tests/EditMode/*.cs'):
             else: continue
             try: src = open(root + f, encoding='utf-8').read().replace('\r\n', '\n')
             except FileNotFoundError: print('MISSING FILE', f); bad += 1; continue
+            except IsADirectoryError: continue  # 路径不是简单字面量（Path.Combine 多段），跳过
             if c: src = code_only(src)
             n += 1
             lit2 = lit.replace('\\"', '"').replace('\\n', '\n').replace('\\\\', '\\')

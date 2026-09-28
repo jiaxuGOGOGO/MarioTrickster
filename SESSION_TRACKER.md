@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 203（马里奥性格：冲冲/谨慎（绕开被坑点、绕不开跳、再不行原路）/贪财（跨层必抢道具）；开局头顶亮性格；自动检查轮流测三种；诱捕走廊加高路） |
+| **最新 Session** | Session 204（网页关卡设计台 tools/LevelStudioWeb：画关卡 + 实时预检/死局/时间线 + 新机制提案（宪法提醒）+ 删改清单 + 一键设计单交给 AI；工坊可导入 .studio.json） |
+| **S203** | Session 203（马里奥性格：冲冲/谨慎（绕开被坑点、绕不开跳、再不行原路）/贪财（跨层必抢道具）；开局头顶亮性格；自动检查轮流测三种；诱捕走廊加高路） |
 | **S202** | Session 202（完美连锁慢动作回放；StrategySim 炸弹困人模拟 + 构建时自动加固承重格（铆钉）；陷阱试探菜单 + 检查轨迹热力图；马里奥躲炸弹/抢道具） |
 | **S201** | Session 201（接续包：`docs/AI_CONTINUE_PACK/`——SKILL.md 原则与红线 + 按功能分册 + 一键搭建/验证/打补丁脚本；新对话先读它；换账号也能用：自带未上传补丁、bat 可拖入项目文件夹） |
 | **S200** | Session 200（以身入局：F 连锁编排/Shift+F 一键布置 + 预判落点自动接力；T 挑衅；绊线 R；马里奥学习层；诱捕走廊样板） |
@@ -114,6 +115,11 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S204] 用户："在网站上设计关卡、构思新机制/删减旧东西，规划清楚后再来提完整关卡意见更新"
+
+- tools/LevelStudioWeb：shell.html（样式/结构）+ logic.js（移植 PlacementIssues / L2 可达 + 反向 BFS 死局 / 楼层寻路时间线）+ app.js（编辑器、提案、删改、设计单）+ build.py（从 C# 源码生成元素表与样板 → 单文件 index.html）。node 验证四样板与 Unity 一致、坑样板能报死局、加台阶后解除；jsdom 冒烟：提案→元素库→设计单无报错。
+- LevelWorkshopModel.GridFromStudioJson + 工坊导入 .json；测试 +1；接续包 check_string_asserts 跳过目录路径；新增分册 references/web-studio.md（收到设计单怎么处理）。
 
 ### [S203] 用户："马里奥的不同性格（谨慎型绕开被坑过的地方，贪财型一定去抢道具）"
 

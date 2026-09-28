@@ -1,0 +1,241 @@
+// ── 纯逻辑（与项目 C# 同规则的网页移植；最终以 Unity / 沙盒体检为准）──
+const RULES = { L2Up: 2, L2Side: 5, L2Fall: 30, JumpUp: 2, JumpSide: 4, JumpUpSide: 2, MaxFall: 30, SpringHeadroom: 4, MuzzleClear: 3, MaxPool: 3, RunSpeed: 4.95, StartDelay: 4 };
+const SLOT_CHARS = { '1': 'cb', '2': 'b.', '3': '~.' };
+const OPENERS = 'Cx|%';
+
+function makeWorld(proposals) {
+  const info = new Map();
+  for (const e of ELEMENTS) info.set(e.c, e);
+  for (const p of (proposals || [])) info.set(p.c, { c: p.c, k: p.key, zh: p.zh, en: p.en || p.key, r: p.role, w: p.effect, p: p.place || '', u: false, s: !!p.support, s1: true, m: 0, so: !!p.solid, hz: false, rgb: p.rgb, proposal: true });
+  const solid = new Set(), hazard = new Set();
+  for (const [c, e] of info) { if (e.so) solid.add(c); if (e.hz) hazard.add(c); }
+  return { info, solid, hazard };
+}
+
+
+// ── L2 可达性（移植 LevelReachabilityAnalyzer，死局检查用；collect=true 时启用"横向跳不能穿高墙"）──
+function l2Prep(W, g) {
+  if (g._p && g._p.W === W) return g._p;
+  const h = g.length, w = g[0].length, solid = new Uint8Array(w * h), haz = new Uint8Array(w * h), oneway = new Uint8Array(w * h), boost = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const c = g[h - 1 - y][x], i = y * w + x; solid[i] = W.solid.has(c) ? 1 : 0; haz[i] = W.hazard.has(c) ? 1 : 0; oneway[i] = c === '-' ? 1 : 0; const e = W.info.get(c); boost[i] = e && e.jb ? 1 : 0; }
+  return (g._p = { W, w, h, solid, haz, oneway, boost });
+}
+function l2Solid(W, g, x, y) { const P = l2Prep(W, g); if (x < 0 || x >= P.w || y < 0 || y >= P.h) return false; return P.solid[y * P.w + x] === 1; }
+function l2Stand(W, g, x, y) { const P = l2Prep(W, g); if (x < 0 || x >= P.w || y < 0 || y >= P.h) return false; const i = y * P.w + x; if (P.solid[i] || P.haz[i]) return false; if (y === 0) return true; return P.solid[i - P.w] === 1; }
+function l2Boost(W, g, x, y) { if (y <= 0) return false; const P = l2Prep(W, g), i = y * P.w + x; return P.boost[i - P.w] === 1 || P.boost[i] === 1; }
+function l2OneWay(W, g, x, y) { const P = l2Prep(W, g); return P.oneway[y * P.w + x] === 1; }
+function l2Feasible(dx, dy, up, side) { if (dy <= 0) return true; const r = dy / up; if (r > 1) return false; return dx <= side * (1 - r * 0.5); }
+function l2Blocked(W, g, fx, fy, tx, ty) { if (ty <= fy) return false; for (let y = fy + 1; y <= Math.min(ty, g.length - 1); y++) if (l2Solid(W, g, fx, y) && !l2OneWay(W, g, fx, y)) return true; return false; }
+function l2Arc(W, g, fx, fy, tx, ty, top) {
+  if (fx === tx) return true; const step = tx > fx ? 1 : -1, low = Math.max(fy, ty), high = Math.min(g.length - 1, Math.max(low, top));
+  for (let cx = fx + step; cx !== tx; cx += step) { let open = false; for (let cy = low; cy <= high && !open; cy++) open = !l2Solid(W, g, cx, cy) || l2OneWay(W, g, cx, cy); if (!open) return false; }
+  for (let cy = ty + 1; cy <= low; cy++) if (l2Solid(W, g, tx, cy) && !l2OneWay(W, g, tx, cy)) return false;
+  return true;
+}
+function l2Reach(W, g, sx, sy, collect) {
+  const w = g[0].length, h = g.length, seen = new Set(), cells = new Set(), q = [];
+  const push = (x, y, b) => { if (x < 0 || x >= w || y < 0 || y >= h) return; const k = x * 10000 + y * 10 + (b ? 1 : 0); if (seen.has(k)) return; seen.add(k); q.push([x, y, b]); };
+  push(sx, sy, l2Boost(W, g, sx, sy));
+  for (let fy = sy; fy >= 0; fy--) if (l2Stand(W, g, sx, fy)) { push(sx, fy, l2Boost(W, g, sx, fy)); break; }
+  let qi = 0;
+  while (qi < q.length) {
+    const [cx, cy, cb] = q[qi++]; cells.add(key(cx, cy));
+    const up = RULES.L2Up + (cb ? RULES.L2Up : 0), side = RULES.L2Side;
+    for (let nx = Math.max(0, cx - side); nx <= Math.min(w - 1, cx + side); nx++) {
+      const dx = Math.abs(nx - cx);
+      for (let ny = cy; ny <= Math.min(h - 1, cy + up); ny++) {
+        const dy = ny - cy;
+        if (collect && !l2Arc(W, g, cx, cy, nx, ny, cy + up)) continue;
+        if (dy > 0 && !l2Feasible(dx, dy, up, side)) continue;
+        if (l2Stand(W, g, nx, ny) && !l2Blocked(W, g, cx, cy, nx, ny)) push(nx, ny, l2Boost(W, g, nx, ny));
+      }
+      const blocked = collect && !l2Arc(W, g, cx, cy, nx, cy, cy + up);
+      for (let ny = cy - 1; ny >= Math.max(0, cy - RULES.L2Fall) && !blocked; ny--) {
+        if (l2Stand(W, g, nx, ny)) { push(nx, ny, l2Boost(W, g, nx, ny)); break; }
+        if (ny > 0 && l2Solid(W, g, nx, ny)) break;
+      }
+    }
+    for (const wdx of [-1, 1]) {
+      const wx = cx + wdx; if (wx < 0 || wx >= w) continue;
+      if (l2Stand(W, g, wx, cy) && !l2Solid(W, g, wx, cy)) push(wx, cy, l2Boost(W, g, wx, cy));
+      if (cy > 0 && !l2Solid(W, g, wx, cy) && l2Stand(W, g, wx, cy - 1)) push(wx, cy - 1, l2Boost(W, g, wx, cy - 1));
+    }
+  }
+  return cells;
+}
+
+function l2Step(W, g, cx, cy, cb, collect, out) {
+  const w = g[0].length, h = g.length, up = RULES.L2Up + (cb ? RULES.L2Up : 0), side = RULES.L2Side;
+  for (let nx = Math.max(0, cx - side); nx <= Math.min(w - 1, cx + side); nx++) {
+    const dx = Math.abs(nx - cx);
+    for (let ny = cy; ny <= Math.min(h - 1, cy + up); ny++) {
+      const dy = ny - cy;
+      if (collect && !l2Arc(W, g, cx, cy, nx, ny, cy + up)) continue;
+      if (dy > 0 && !l2Feasible(dx, dy, up, side)) continue;
+      if (l2Stand(W, g, nx, ny) && !l2Blocked(W, g, cx, cy, nx, ny)) out.push([nx, ny, l2Boost(W, g, nx, ny)]);
+    }
+    const blocked = collect && !l2Arc(W, g, cx, cy, nx, cy, cy + up);
+    for (let ny = cy - 1; ny >= Math.max(0, cy - RULES.L2Fall) && !blocked; ny--) {
+      if (l2Stand(W, g, nx, ny)) { out.push([nx, ny, l2Boost(W, g, nx, ny)]); break; }
+      if (ny > 0 && l2Solid(W, g, nx, ny)) break;
+    }
+  }
+  for (const wdx of [-1, 1]) {
+    const wx = cx + wdx; if (wx < 0 || wx >= w) continue;
+    if (l2Stand(W, g, wx, cy) && !l2Solid(W, g, wx, cy)) out.push([wx, cy, l2Boost(W, g, wx, cy)]);
+    if (cy > 0 && !l2Solid(W, g, wx, cy) && l2Stand(W, g, wx, cy - 1)) out.push([wx, cy - 1, l2Boost(W, g, wx, cy - 1)]);
+  }
+}
+/** 能回到出口的所有格（状态含弹跳位，结果按格合并）。 */
+function l2HomeSet(W, g, exitKey) {
+  const w = g[0].length, h = g.length, rev = new Map(), buf = [];
+  const sk = (x, y, b) => x * 10000 + y * 10 + (b ? 1 : 0);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!l2Stand(W, g, x, y)) continue;
+    for (const b of [false, true]) {
+      if (b !== !!l2Boost(W, g, x, y)) continue;
+      buf.length = 0; l2Step(W, g, x, y, b, true, buf);
+      const from = sk(x, y, b);
+      for (const [nx, ny, nb] of buf) { const t = sk(nx, ny, nb); if (!rev.has(t)) rev.set(t, []); rev.get(t).push(from); }
+    }
+  }
+  const ex = Math.floor(exitKey / 1000), ey = exitKey % 1000, seen = new Set(), q = [];
+  for (const b of [false, true]) { const s0 = sk(ex, ey, b); seen.add(s0); q.push(s0); }
+  let qi = 0; while (qi < q.length) { const c = q[qi++]; for (const n of (rev.get(c) || [])) if (!seen.has(n)) { seen.add(n); q.push(n); } }
+  const cells = new Set(); for (const s of seen) cells.add(key(Math.floor(s / 10000), Math.floor(s / 10) % 1000)); return cells;
+}
+function l2Standable(W, g) { const s = new Set(); for (let y = 0; y < g.length; y++) for (let x = 0; x < g[0].length; x++) if (l2Stand(W, g, x, y)) s.add(key(x, y)); return s; }
+
+function stripSlots(rows) { return rows.map(r => r.replace(/[123]/g, '.')); }
+function at(g, x, y) { const row = g.length - 1 - y; if (row < 0 || row >= g.length || x < 0 || x >= g[row].length) return 'W'; return g[row][x]; }
+function canStand(W, g, x, y) { const c = at(g, x, y); if (W.solid.has(c) || W.hazard.has(c)) return false; return y === 0 || W.solid.has(at(g, x, y - 1)); }
+function arcClear(W, g, x0, x1, apexY) { const a = Math.min(x0, x1), b = Math.max(x0, x1); for (let x = a; x <= b; x++) { const c = at(g, x, apexY); if (W.solid.has(c) && c !== '-') return false; } return true; }
+function key(x, y) { return x * 1000 + y; }
+
+function moves(W, g, cx, cy) {
+  const out = [], h = g.length, w = Math.max(...g.map(r => r.length));
+  for (const dx of [-1, 1]) {
+    const nx = cx + dx; if (nx < 0 || nx >= w || W.solid.has(at(g, nx, cy))) continue;
+    for (let y = cy; y >= Math.max(0, cy - RULES.MaxFall); y--) { if (W.solid.has(at(g, nx, y))) break; if (canStand(W, g, nx, y)) { out.push([nx, y]); break; } }
+  }
+  outer: for (let dy = 1; dy <= RULES.JumpUp; dy++) {
+    for (let k = 1; k <= dy; k++) { const a = at(g, cx, cy + k); if (W.solid.has(a) && a !== '-') break outer; }
+    for (let dx = -RULES.JumpUpSide; dx <= RULES.JumpUpSide; dx++) {
+      const nx = cx + dx, ny = cy + dy; if (nx < 0 || nx >= w || ny >= h) continue;
+      if (!canStand(W, g, nx, ny) || !arcClear(W, g, cx, nx, cy + dy)) continue;
+      out.push([nx, ny]);
+    }
+  }
+  for (let dx = -RULES.JumpSide; dx <= RULES.JumpSide; dx++) {
+    if (Math.abs(dx) < 2) continue; const nx = cx + dx;
+    if (nx < 0 || nx >= w || !arcClear(W, g, cx, nx, cy + 1)) continue;
+    for (let y = cy; y >= Math.max(0, cy - RULES.MaxFall); y--) { if (W.solid.has(at(g, nx, y))) break; if (canStand(W, g, nx, y)) { out.push([nx, y]); break; } }
+  }
+  return out;
+}
+
+function settle(W, g, x, y) { for (let yy = y; yy >= 0; yy--) if (canStand(W, g, x, yy)) return [x, yy]; return null; }
+
+function buildGraph(W, g) {
+  const fwd = new Map(), rev = new Map(), h = g.length, w = Math.max(...g.map(r => r.length));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!canStand(W, g, x, y)) continue; const k = key(x, y); const list = [];
+    for (const [nx, ny] of moves(W, g, x, y)) { const nk = key(nx, ny); list.push(nk); if (!rev.has(nk)) rev.set(nk, []); rev.get(nk).push(k); }
+    fwd.set(k, list);
+  }
+  return { fwd, rev };
+}
+function bfs(edges, start) { const seen = new Set([start]), q = [start]; while (q.length) { const c = q.shift(); for (const n of (edges.get(c) || [])) if (!seen.has(n)) { seen.add(n); q.push(n); } } return seen; }
+
+function path(W, g, from, to) {
+  const a = settle(W, g, from[0], from[1]), b = settle(W, g, to[0], to[1]); if (!a || !b) return null;
+  const prev = new Map([[key(a[0], a[1]), -1]]), q = [a];
+  while (q.length) {
+    const [x, y] = q.shift();
+    if (x === b[0] && y === b[1]) { const p = []; for (let k = key(x, y); k !== -1; k = prev.get(k)) p.push([Math.floor(k / 1000), k % 1000]); return p.reverse(); }
+    for (const [nx, ny] of moves(W, g, x, y)) { const k = key(nx, ny); if (!prev.has(k)) { prev.set(k, key(x, y)); q.push([nx, ny]); } }
+  }
+  return null;
+}
+
+function find(g, ch) { const out = []; for (let row = 0; row < g.length; row++) for (let x = 0; x < g[row].length; x++) if (g[row][x] === ch) out.push([x, g.length - 1 - row]); return out; }
+
+function placementIssues(W, g, step1) {
+  const issues = [], h = g.length, counts = {};
+  const err = (x, y, t) => issues.push({ x, y, t, sev: 'error' });
+  for (let row = 0; row < h; row++) {
+    const line = g[row], y = h - 1 - row;
+    for (let x = 0; x < line.length; x++) {
+      const c = line[x]; if (c === '.' || c === ' ' || SLOT_CHARS[c]) continue;
+      const e = W.info.get(c);
+      if (!e) { err(x, y, `'${c}' 不是已知元素，也不是你的新机制提案`); continue; }
+      counts[c] = (counts[c] || 0) + 1;
+      if (step1 && !e.s1) err(x, y, `${e.zh}：第 1 步房间不用这个元素`);
+      if (e.s) { const below = row + 1 < h ? g[row + 1][x] : '.'; if (!W.solid.has(below)) err(x, y, `${e.zh}：脚下不是实心（会悬空）`); }
+      if (c === 'w' && (x === 0 || line[x - 1] !== 'w')) { let run = 0; while (x + run < line.length && line[x + run] === 'w') run++; if (run > RULES.MaxPool) err(x, y, `毒池连续 ${run} 格太宽：最多 ${RULES.MaxPool} 格`); }
+      if (c === 'Y' || c === 'Q') for (let d = 1; d <= 2; d++) { if (row - d < 0) break; const a = g[row - d][x]; if (W.solid.has(a) && a !== '-') { err(x, y, `${e.zh}：正上方第 ${d} 格是实心，上方至少空 2 格`); break; } }
+      if (c === 'J') for (let d = 1; d <= RULES.SpringHeadroom; d++) { if (row - d < 0) break; if (W.solid.has(g[row - d][x])) { err(x, y, `弹簧板：正上方第 ${d} 格是实心，会撞天花板；上方至少空 ${RULES.SpringHeadroom} 格`); break; } }
+      if (e.m) for (let d = 1; d <= RULES.MuzzleClear; d++) { const fx = x + e.m * d; if (fx < 0 || fx >= line.length) break; if (W.solid.has(line[fx])) { err(x, y, `${e.zh}：炮口前第 ${d} 格是实心，炮弹会撞碎；前方至少空 ${RULES.MuzzleClear} 格`); break; } }
+    }
+  }
+  if ((counts['O'] || 0) % 2 === 1) issues.push({ x: -1, y: -1, t: `通风管 O 有 ${counts['O']} 个：要成对摆放`, sev: 'error' });
+  for (const [c, e] of W.info) if (e.u && (counts[c] || 0) > 1) issues.push({ x: -1, y: -1, t: `${e.zh} '${c}' 只能有 1 个（现在 ${counts[c]} 个）`, sev: 'error' });
+  return issues;
+}
+
+function check(W, rawGrid, step1) {
+  const g = stripSlots(rawGrid), res = { issues: [], deadlock: new Set(), route: null, seconds: 0, onRoute: [], offRoute: [], playable: false };
+  if (!g.length || !g[0].length) { res.issues.push({ x: -1, y: -1, t: '画布是空的', sev: 'error' }); return res; }
+  const widths = new Set(g.map(r => r.length)); if (widths.size > 1) res.issues.push({ x: -1, y: -1, t: '每一行长度要一样', sev: 'error' });
+  for (const c of ['M', 'T', 'G']) { const n = find(g, c).length; if (n !== 1) res.issues.push({ x: -1, y: -1, t: `需要且只能有一个 ${W.info.get(c).zh} ${c}（现在 ${n} 个）`, sev: 'error' }); }
+  if (step1 && find(g, 'o').length !== 1) res.issues.push({ x: -1, y: -1, t: '第 1 步房间需要且只能有一个宝物 o', sev: 'error' });
+  if (res.issues.length) return res;
+  const h = g.length, w = g[0].length;
+  for (let x = 0; x < w; x++) { if (!W.solid.has(g[0][x]) || !W.solid.has(g[h - 1][x])) { res.issues.push({ x: -1, y: -1, t: '最上面一行和最下面一行必须全是实心（墙 W / 地面 #）', sev: 'error' }); break; } }
+  for (let row = 0; row < h; row++) if (!W.solid.has(g[row][0]) || !W.solid.has(g[row][w - 1])) { res.issues.push({ x: -1, y: -1, t: '最左和最右一列必须全是墙 W', sev: 'error' }); break; }
+  res.issues.push(...placementIssues(W, g, step1));
+  const M = find(g, 'M')[0], G = find(g, 'G')[0], O = find(g, 'o')[0];
+  const a = path(W, g, M, O || G), b = O ? path(W, g, O, G) : [];
+  if (!a || !b) res.issues.push({ x: M[0], y: M[1], t: 'AI 马里奥按楼层寻路走不通（跳跃间距在临界区：往上 ≤2 格、左右 ≤2 格；平跳 ≤4 格）', sev: 'warn' });
+  if (a && b) {
+    res.route = a.concat(b.slice(1)); let len = 0; const times = [RULES.StartDelay];
+    for (let i = 1; i < res.route.length; i++) { const [px, py] = res.route[i - 1], [qx, qy] = res.route[i]; len += Math.hypot(qx - px, qy - py); times.push(RULES.StartDelay + len / RULES.RunSpeed); }
+    res.seconds = RULES.StartDelay + len / RULES.RunSpeed;
+    res.lootAt = O ? times[a.length - 1] : 0;
+    for (let row = 0; row < h; row++) for (let x = 0; x < w; x++) {
+      const c = g[row][x], e = W.info.get(c); if (!e || !(e.r === 'PlayerPrank' || c === 'R' || c === 'U' || e.proposal)) continue;
+      const y = h - 1 - row; let best = 1e9, bi = 0;
+      res.route.forEach(([rx, ry], i) => { const d = Math.hypot(rx - x, ry - y); if (d < best) { best = d; bi = i; } });
+      const near = 1.5 + (e.m ? 4 : 0);
+      if (best <= near) res.onRoute.push({ c, x, y, at: times[bi] }); else if (best > 3) res.offRoute.push({ c, x, y });
+    }
+    res.onRoute.sort((p, q) => p.at - q.at);
+  }
+  // 最坏情况（与 Unity LevelDeadlockAnalyzer 同规则）：塌桥/裂缝地板/捷径门/裂墙全部打开 → 马里奥可能站的每一格还能不能回出口
+  const L2base = l2Reach(W, g, M[0], M[1], false);
+  if (O && !L2base.has(key(O[0], O[1]))) res.issues.push({ x: O[0], y: O[1], t: '马里奥走不到宝物（按 Unity 可达性）', sev: 'error' });
+  else if (O && !l2Reach(W, g, O[0], O[1], false).has(key(G[0], G[1]))) res.issues.push({ x: O[0], y: O[1], t: '拿到宝物后回不到出口（按 Unity 可达性）', sev: 'error' });
+  if (g.some(r => /[Cx|%]/.test(r))) {
+    const worst = g.map(r => r.replace(/[Cx|%]/g, '.'));
+    const cand = new Set(L2base); if (O) for (const k of l2Reach(W, g, O[0], O[1], false)) cand.add(k);
+    const stand = l2Standable(W, worst);
+    for (let row = 0; row < h; row++) for (let x = 0; x < w; x++) if (OPENERS.includes(g[row][x])) { for (let y = h - 1 - row; y >= 0; y--) if (stand.has(key(x, y))) { cand.add(key(x, y)); break; } }
+    const exitKey = key(G[0], G[1]), cache = new Map(); let reported = 0, total = 0;
+    // 反向可达：先对每个可站格做一次单步展开，建反向边，再从出口反向 BFS（一次搞定，替代逐格 BFS）
+    const homeSet = l2HomeSet(W, worst, exitKey);
+    for (const k of cand) {
+      if (!stand.has(k)) continue;
+      let ok = cache.get(k);
+      if (ok === undefined) { ok = homeSet.has(k); cache.set(k, ok); }
+      if (ok) continue;
+      res.deadlock.add(k); total++;
+      if (reported++ < 5) res.issues.push({ x: Math.floor(k / 1000), y: k % 1000, t: '塌桥/裂缝地板/捷径门/裂墙打开后，站在这里的马里奥再也回不到出口（死局：给下面留一条回去的路，比如单向台面 -）', sev: 'error' });
+    }
+    if (total > 5) res.issues.push({ x: -1, y: -1, t: `还有 ${total - 5} 个死局格（画布上红色斜线）`, sev: 'error' });
+  }
+  if (res.offRoute.length) res.issues.push({ x: -1, y: -1, t: `${res.offRoute.length} 个机关离马里奥的路线超过 3 格：只能靠挑衅/诱饵把他引过去`, sev: 'info' });
+  res.playable = !res.issues.some(i => i.sev === 'error');
+  return res;
+}
+
+if (typeof module !== 'undefined') module.exports = { makeWorld, check, path, placementIssues, stripSlots, find };

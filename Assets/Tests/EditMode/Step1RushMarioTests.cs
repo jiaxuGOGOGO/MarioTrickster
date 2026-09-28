@@ -1716,6 +1716,23 @@ public class Step1RushMarioTests
         Assert.IsNotNull(LevelPathPlanner.Path(two, new LevelPathPlanner.Cell(2, 1), new LevelPathPlanner.Cell(12, 1), null), "不带禁区 = 原寻路");
     }
 
+    // ── S204：网页关卡设计台 ↔ Unity 工坊 ─────────
+    [Test]
+    public void WorkshopImportsWebStudioJson()
+    {
+        string json = "{\"v\":1,\"grid\":[\"WWWWWW\",\"W.GAMW\",\"W|.oTW\",\"W####W\"],\"name\":\"x\",\"notes\":[{\"x\":1,\"y\":1,\"text\":\"hi\"}]}";
+        var rows = LevelWorkshopModel.GridFromStudioJson(json, out string note);
+        Assert.IsNotNull(rows);
+        Assert.AreEqual(4, rows.Length);
+        Assert.AreEqual("W.G.MW", rows[1], "网页里的新机制提案（未登记字符 A）先换成空气");
+        StringAssert.Contains("A", note, "并告诉用户哪些提案还没实现");
+        Assert.AreEqual("W|.oTW", rows[2], "已登记字符原样保留");
+        Assert.IsNull(LevelWorkshopModel.GridFromStudioJson("{}", out _), "不是设计台文件 → 拒绝");
+        string build = File.ReadAllText(Path.Combine(Application.dataPath, "..", "tools", "LevelStudioWeb", "build.py"));
+        StringAssert.Contains("ElementCatalog.cs", build, "网页元素表从项目源码生成（单一来源）");
+        StringAssert.Contains("GridFromStudioJson", Read("Scripts/Editor/LevelWorkshopWindow.cs"));
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

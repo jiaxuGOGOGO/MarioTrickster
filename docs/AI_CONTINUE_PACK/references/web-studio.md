@@ -1,0 +1,17 @@
+# 分册：网页关卡设计台 & 收到"设计单"时怎么做
+
+用户在网页 `tools/LevelStudioWeb/index.html`（单文件，双击打开）里画关卡、写批注、提新机制、勾选删改，然后把**设计单**（markdown，开头是"# MarioTrickster 设计单（来自关卡设计台）"）发给你。也可能附 `.studio.json`。
+
+## 收到设计单的处理顺序
+1. **读全**：关卡 ASCII（```text 块）、设计意图、时间线、网页预检问题、格子批注（坐标 x 左 0、y 下 0）、新机制提案、删改项。
+2. **先复述计划**（一句话一项）：哪些照做、哪些需要调整及原因（违反宪法 / 物理做不到 / 和现有机制重复）。不要静默改掉用户的设计。
+3. **新机制提案** → 按 `new-element.md` 16 步实现。提案里"还需要说清"的条款（H3 预警 / A2 代价反制 / H9 控人时长 / H1 改地形）你来补上合理默认值，并在汇报里写出来让用户确认。技能类按 `trickster-skill.md`，马里奥行为类按 `mario-ai.md`（性格走特质表）。
+4. **关卡** → 加成 `LevelWorkshopModel.XxxSample`（名字用用户起的），按批注逐条落实；跑 `verify.sh`（含炸弹策略模拟、所有样板可玩）。网页预检的问题要么修掉，要么说明为什么不是问题。
+5. **删改项** → 先列影响（哪些样板/测试/连锁/文档在用），能改就改，真要删：Registry/Catalog/Theme/NotProbed/样板/测试/文档一起删，并说明。
+6. **重建网页**：`python3 tools/LevelStudioWeb/build.py`（新元素自动出现在网页元素库），`index.html` 随升级包一起交付。
+7. 汇报：做了什么（按设计单条目对照）、哪些调整了及原因、用户下一步。
+
+## 网页维护
+- 数据唯一来源是 C# 源码（build.py 解析 `AsciiElementRegistry` / `ElementCatalog` / 样板）；**不要手改 index.html**。
+- 规则改动（跳跃、摆放规则、死局）要同步 `logic.js`（纯逻辑，可 node 测：vm 载入 data+logic 后 `check(makeWorld([]), grid, true)`），保证四个样板结果与 Unity 一致。
+- 网页检查只是预检；最终以 verify.sh / Unity 为准，汇报里不要把"网页通过"说成"通过"。

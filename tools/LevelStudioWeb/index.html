@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarioTrickster 关卡设计台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16131f;        /* 地牢夜色：画布底 */
+  --slab:#221d2e;       /* 面板 */
+  --slab2:#2c2640;      /* 面板高亮 */
+  --chalk:#efe7d6;      /* 粉笔白：正文 */
+  --dim:#9d93b3;        /* 次要文字 */
+  --mario:#ff5a4e;      /* 马里奥红 */
+  --trick:#4f8cff;      /* 捣蛋者蓝 */
+  --loot:#ffc83d;       /* 宝物金：唯一强调色 */
+  --ok:#5fd39a; --bad:#ff5a4e; --warn:#ffb347;
+  --line:#3a3350;
+  --r:10px;
+  --mono:'JetBrains Mono',Consolas,ui-monospace,monospace;
+  --sans:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --disp:'Bricolage Grotesque','Noto Sans SC',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--ink);color:var(--chalk);font:14px/1.5 var(--sans)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--loot);outline-offset:2px}
+.app{display:grid;grid-template-rows:auto 1fr;height:100vh}
+header{display:flex;align-items:center;gap:18px;padding:10px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1d1829,#16131f)}
+.brand{display:flex;align-items:baseline;gap:10px;white-space:nowrap}
+.brand b{font:800 22px/1 var(--disp);letter-spacing:-.02em}
+.brand b i{font-style:normal;color:var(--mario)} .brand b u{text-decoration:none;color:var(--trick)}
+.brand span{color:var(--dim);font-size:12px}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.tab{background:none;border:1px solid transparent;border-radius:999px;padding:6px 14px;cursor:pointer;color:var(--dim)}
+.tab[aria-selected=true]{background:var(--slab2);color:var(--chalk);border-color:var(--line)}
+.spacer{flex:1}
+.btn{background:var(--slab2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--dim)}
+.btn.gold{background:var(--loot);color:#1b1407;border-color:var(--loot);font-weight:700}
+.btn.small{padding:4px 9px;font-size:12px}
+main{display:grid;grid-template-columns:260px 1fr 340px;min-height:0}
+aside,section.panel{min-height:0;overflow:auto}
+aside{border-right:1px solid var(--line);padding:12px}
+.side-right{border-left:1px solid var(--line);border-right:0}
+h3{font:700 12px/1 var(--sans);letter-spacing:.08em;color:var(--dim);margin:16px 0 8px;text-transform:uppercase}
+h3:first-child{margin-top:4px}
+.search{width:100%;background:var(--slab);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.pal{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.chip{display:flex;align-items:center;gap:8px;background:var(--slab);border:1px solid var(--line);border-radius:8px;padding:5px 7px;cursor:pointer;text-align:left;min-width:0}
+.chip:hover{border-color:var(--dim)}
+.chip[aria-pressed=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+.chip .sw{flex:0 0 22px;height:22px;border-radius:5px;display:grid;place-items:center;font:600 13px var(--mono)}
+.chip .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+.chip.prop .sw{outline:2px dashed var(--loot);outline-offset:-2px}
+.chip.off{opacity:.45}
+.info{background:var(--slab);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;font-size:12.5px;color:var(--dim)}
+.info b{color:var(--chalk)}
+/* 中间 */
+.center{display:grid;grid-template-rows:auto 1fr auto;min-width:0;min-height:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:var(--slab);border:0;padding:6px 10px;cursor:pointer;color:var(--dim)}
+.seg button[aria-pressed=true]{background:var(--slab2);color:var(--chalk)}
+.toggle{display:inline-flex;align-items:center;gap:6px;color:var(--dim);font-size:12.5px;cursor:pointer;padding:0 4px}
+.toggle input{accent-color:var(--loot)}
+.stage{overflow:auto;position:relative;background:
+  radial-gradient(circle at 1px 1px,#2a2440 1px,transparent 1.2px) 0 0/18px 18px,var(--ink);padding:24px}
+canvas{display:block;image-rendering:pixelated;cursor:crosshair;margin:auto;border-radius:6px;box-shadow:0 0 0 1px var(--line),0 20px 60px -20px #000}
+.status{display:flex;gap:14px;align-items:center;padding:6px 12px;border-top:1px solid var(--line);font:12px var(--mono);color:var(--dim)}
+.status .hover{color:var(--chalk)}
+/* 右侧 */
+.verdict{border-radius:var(--r);padding:12px 14px;margin-bottom:10px;border:1px solid var(--line);background:var(--slab)}
+.verdict .big{font:800 20px/1.2 var(--disp)}
+.verdict.ok .big{color:var(--ok)} .verdict.bad .big{color:var(--bad)}
+.issue{display:flex;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:12.5px}
+.issue:hover{background:var(--slab2)}
+.issue .dot{flex:0 0 8px;height:8px;border-radius:50%;margin-top:6px;background:var(--bad)}
+.issue.info .dot{background:var(--dim)} .issue.warn .dot{background:var(--warn)}
+.issue code{font:11px var(--mono);color:var(--dim)}
+/* 时间线：本页的招牌——马里奥的一趟路，按秒排开，你知道他几秒走到哪个机关 */
+.timeline{position:relative;height:96px;margin:6px 0 4px;border-radius:8px;background:var(--slab);border:1px solid var(--line);overflow:hidden}
+.timeline .track{position:absolute;left:10px;right:10px;top:28px;height:2px;background:repeating-linear-gradient(90deg,var(--dim) 0 4px,transparent 4px 8px)}
+.timeline .run{position:absolute;top:20px;width:10px;height:18px;border-radius:3px;background:var(--mario);box-shadow:0 0 12px var(--mario)}
+.timeline .stop{position:absolute;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}
+.timeline .stop::before{content:'';position:absolute;bottom:100%;left:50%;width:1px;height:26px;background:var(--line)}
+.timeline .stop .g{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;font:600 11px var(--mono)}
+.timeline .stop small{font:10px var(--mono);color:var(--dim)}
+.timeline .lootmark{position:absolute;top:18px;width:2px;height:22px;background:var(--loot)}
+.tl-legend{display:flex;justify-content:space-between;font:11px var(--mono);color:var(--dim)}
+/* 面板页（提案 / 交接） */
+.page{display:none;min-height:0;overflow:auto;padding:22px 28px;grid-column:1/-1}
+.page.on{display:block}
+.page h2{font:800 30px/1.1 var(--disp);letter-spacing:-.02em;margin:0 0 6px}
+.page .lead{color:var(--dim);max-width:720px;margin:0 0 20px}
+.grid2{display:grid;grid-template-columns:minmax(320px,440px) 1fr;gap:22px;align-items:start}
+.card{background:var(--slab);border:1px solid var(--line);border-radius:14px;padding:16px}
+label.f{display:block;font-size:12px;color:var(--dim);margin:10px 0 4px}
+.f input,.f select,.f textarea,input.f,select.f,textarea.f{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+textarea.f{min-height:70px;resize:vertical}
+input[type=color].f{height:38px;padding:3px;cursor:pointer}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.checks{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.proplist .p{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:start;padding:12px;border-bottom:1px solid var(--line)}
+.proplist .p .sw{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;font:700 18px var(--mono);outline:2px dashed var(--loot);outline-offset:-2px}
+.proplist .p h4{margin:0;font-size:15px}
+.proplist .p p{margin:2px 0;color:var(--dim);font-size:12.5px}
+.hint{font-size:12px;color:var(--dim)}
+.law{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.law span{font:11px var(--mono);border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--dim)}
+.law span.need{border-color:var(--warn);color:var(--warn)}
+.handoff{white-space:pre-wrap;font:12.5px/1.6 var(--mono);background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:60vh;overflow:auto}
+.cutlist label{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(30px);opacity:0;background:var(--loot);color:#1b1407;padding:10px 16px;border-radius:10px;font-weight:700;transition:.25s}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.empty{color:var(--dim);font-size:13px;padding:12px;border:1px dashed var(--line);border-radius:10px}
+@media (max-width:1100px){main{grid-template-columns:220px 1fr}.side-right{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}}
+@media (max-width:760px){main{grid-template-columns:1fr}aside{border-right:0}.grid2{grid-template-columns:1fr}.brand span{display:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="brand"><b><i>Mario</i><u>Trickster</u></b><span>关卡设计台 · 在这里想清楚，再交给 AI 实现</span></div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-page="design">画关卡</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="mech">新机制提案</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="handoff">交给 AI</button>
+  </nav>
+  <div class="spacer"></div>
+  <button class="btn small" id="btnImport">导入 .json</button>
+  <button class="btn small" id="btnExport">保存项目 .json</button>
+  <input type="file" id="fileIn" accept=".json,.txt" hidden>
+</header>
+
+<main id="pageDesign">
+  <aside>
+    <h3>起步</h3>
+    <div class="row" style="gap:6px">
+      <select class="f" id="sampleSel" aria-label="选择样板"></select>
+    </div>
+    <div class="row" style="gap:6px;margin-top:6px">
+      <button class="btn small" id="btnLoad">载入样板</button>
+      <button class="btn small" id="btnBlank">空白房间</button>
+    </div>
+    <div class="row" style="gap:6px;margin-top:6px">
+      <label class="f" style="margin:0">宽 <input class="f" id="inW" type="number" min="12" max="128" value="48"></label>
+      <label class="f" style="margin:0">高 <input class="f" id="inH" type="number" min="6" max="48" value="12"></label>
+    </div>
+    <button class="btn small" id="btnResize" style="margin-top:6px;width:100%">改尺寸（地面不动，往上加空间）</button>
+    <h3>元素 <span id="palCount"></span></h3>
+    <input class="search" id="palSearch" placeholder="搜索：火 / 弹簧 / J …" aria-label="搜索元素">
+    <label class="toggle" style="margin:6px 0"><input type="checkbox" id="showAll"> 显示第 1 步不用的元素</label>
+    <div id="palette"></div>
+    <h3>当前笔刷</h3>
+    <div class="info" id="brushInfo"></div>
+  </aside>
+
+  <section class="center">
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="工具">
+        <button aria-pressed="true" data-tool="brush" title="画笔（B）">画笔</button>
+        <button aria-pressed="false" data-tool="rect" title="矩形（R）">矩形</button>
+        <button aria-pressed="false" data-tool="fill" title="油漆桶（F）">填充</button>
+        <button aria-pressed="false" data-tool="pick" title="吸管（I）">吸管</button>
+      </div>
+      <button class="btn small" id="btnUndo" title="撤销 Ctrl+Z">撤销</button>
+      <button class="btn small" id="btnRedo" title="重做 Ctrl+Y">重做</button>
+      <span style="width:8px"></span>
+      <label class="toggle"><input type="checkbox" id="ovRoute" checked> 马里奥路线</label>
+      <label class="toggle"><input type="checkbox" id="ovDead" checked> 死局格</label>
+      <label class="toggle"><input type="checkbox" id="ovWorst"> 最坏情况预览</label>
+      <label class="toggle"><input type="checkbox" id="ovNotes" checked> 批注</label>
+      <span class="spacer"></span>
+      <label class="toggle">缩放 <input type="range" id="zoom" min="10" max="36" value="20" aria-label="缩放"></label>
+    </div>
+    <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+    <div class="status"><span class="hover" id="hoverInfo">把鼠标放到格子上</span><span class="spacer"></span><span>右键 = 擦除 · Alt+点击 = 写批注 · 坐标 x 从左 0、y 从下 0（和 Unity 工坊一致）</span></div>
+  </section>
+
+  <aside class="side-right">
+    <h3>检查结果</h3>
+    <div class="verdict" id="verdict"></div>
+    <h3>马里奥一趟 · 几秒走到哪个机关</h3>
+    <div class="timeline" id="timeline"></div>
+    <div class="tl-legend"><span>出发</span><span id="tlLoot"></span><span id="tlEnd"></span></div>
+    <h3>问题（点一下定位）</h3>
+    <div id="issues"></div>
+    <h3>这张图的设计意图</h3>
+    <label class="f">名字<input class="f" id="lvName" placeholder="例：诱捕走廊 2 · 高路版"></label>
+    <label class="f">想让玩家体验到什么<textarea class="f" id="lvGoal" placeholder="例：先布连锁，再挑衅把谨慎型引下高路"></textarea></label>
+    <label class="f">批注（Alt+点击格子添加）</label>
+    <div id="notesList"></div>
+  </aside>
+</main>
+
+<section class="page" id="pageMech">
+  <h2>新机制提案</h2>
+  <p class="lead">先在这里把一个新机关/新技能想清楚：它是什么、谁用、代价和对方怎么反制。提案会出现在"画关卡"的元素库里（金色虚线框），可以直接画进关卡试摆。项目有 10 条硬规则，下面会自动提醒哪几条要特别说明。</p>
+  <div class="grid2">
+    <div class="card">
+      <div class="row">
+        <label class="f">字符（1 个）<input class="f" id="mChar" maxlength="1" placeholder="例：A"></label>
+        <label class="f">英文名（主题键）<input class="f" id="mKey" placeholder="例：MagnetTrap"></label>
+      </div>
+      <label class="f">中文名<input class="f" id="mZh" placeholder="例：磁铁陷阱"></label>
+      <div class="row">
+        <label class="f">类型<select class="f" id="mRole">
+          <option value="PlayerPrank">机关（你按 L 触发）</option>
+          <option value="Special">特殊地形/被动物</option>
+          <option value="Terrain">地形</option>
+          <option value="Scenery">摆件（遮挡/藏身）</option>
+          <option value="Skill">捣蛋者技能（按键）</option>
+          <option value="MarioAI">马里奥行为/性格</option>
+        </select></label>
+        <label class="f">颜色<input class="f" id="mColor" type="color" value="#b08cff"></label>
+      </div>
+      <div class="checks">
+        <label class="toggle"><input type="checkbox" id="mSolid"> 实心（挡路）</label>
+        <label class="toggle"><input type="checkbox" id="mSupport" checked> 脚下要实心</label>
+        <label class="toggle"><input type="checkbox" id="mTerrain"> 会改变地形（炸/塌/开）</label>
+        <label class="toggle"><input type="checkbox" id="mControl"> 会控制人（晕/关/吊）</label>
+      </div>
+      <label class="f">它做什么（大白话）<textarea class="f" id="mEffect" placeholder="例：按 L 后 1 秒，把 3 格内的马里奥吸过来"></textarea></label>
+      <label class="f">预警：触发前让人看到什么（H3）<input class="f" id="mTele" placeholder="例：磁铁变红闪 0.8 秒"></label>
+      <label class="f">代价：你用它要付出什么<input class="f" id="mCost" placeholder="例：每局 2 次；你自己也会被吸"></label>
+      <label class="f">马里奥怎么反制/发现<input class="f" id="mCounter" placeholder="例：看见红光会后退；谨慎型绕开"></label>
+      <label class="f">放在哪<input class="f" id="mPlace" placeholder="例：通道中间，两边各留 2 格"></label>
+      <label class="f">和哪些现有机关连得起来<input class="f" id="mCombo" placeholder="例：吸到火前 → 火；吸下塌桥"></label>
+      <div class="law" id="mLaws"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn gold" id="mSave">保存提案</button>
+        <button class="btn" id="mClear">清空</button>
+      </div>
+      <p class="hint" id="mMsg"></p>
+    </div>
+    <div>
+      <div class="card proplist" id="propList"></div>
+      <h3 style="margin-top:22px">想删掉 / 改掉的旧东西</h3>
+      <div class="card">
+        <p class="hint" style="margin-top:0">勾选你觉得多余、难用或想改的现有元素，写一句原因，会一起交给 AI。</p>
+        <div class="cutlist" id="cutList"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="pageHandoff">
+  <h2>交给 AI</h2>
+  <p class="lead">把这里生成的"设计单"整段复制，发给 Genspark 里的 AI（说一句"按这份设计单更新 MarioTrickster"）。它会：把关卡加成工坊样板、把新机制按项目规则实现、处理删改，最后跑完整检查并给你升级包。也可以下载成文件发过去。</p>
+  <div class="row" style="flex-wrap:wrap;gap:8px;max-width:880px;margin-bottom:14px">
+    <button class="btn gold" id="hCopy">复制设计单</button>
+    <button class="btn" id="hDownload">下载设计单 .md</button>
+    <button class="btn" id="hTxt">只导出关卡 .txt（Unity 工坊可导入）</button>
+  </div>
+  <div class="handoff" id="handoffText"></div>
+</section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>const ELEMENTS=[{"c":"#","k":"Ground","zh":"地面","en":"Ground","r":"Terrain","w":"实心地面，自动合并成大块。","p":"放在最底层；角色站在它上面。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.55,0.55,0.55]},{"c":"=","k":"Platform","zh":"平台","en":"Platform","r":"Terrain","w":"实心平台（四面都挡）。","p":"悬空或贴墙。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.7,0.7,0.7]},{"c":"W","k":"Wall","zh":"墙","en":"Wall","r":"Terrain","w":"实心墙，挡路也挡视线。","p":"房间边界、分区高墙。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.4,0.4,0.4]},{"c":"-","k":"OneWayPlatform","zh":"单向台面","en":"One-way ledge","r":"Terrain","w":"从下面能跳上去，站得住；不挡视线。","p":"悬空，给上下两层路线。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.5,0.75,0.9]},{"c":"c","k":"Crate","zh":"箱子","en":"Crate","r":"Scenery","w":"实心箱子：挡路、挡视线，马里奥会跳过去。可在它后面躲。","p":"放在地面上（脚下要实心）。","u":false,"s":true,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.62,0.44,0.24]},{"c":"b","k":"Bush","zh":"草丛","en":"Bush","r":"Scenery","w":"能穿过；挡视线（马里奥走进同一丛才看得见你）。会晃——有时只是风。","p":"放在地面上。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.22,0.55,0.25]},{"c":"d","k":"Decor","zh":"装饰","en":"Decor","r":"Scenery","w":"纯装饰，不挡路不挡视线。换主题时换成旋转木马、路灯、树等。","p":"任意位置。","u":false,"s":false,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.85,0.75,0.95]},{"c":"C","k":"CollapsingPlatform","zh":"塌桥","en":"Collapse bridge","r":"PlayerPrank","w":"捣蛋者按 L 让它塌；桥下有人时不会重新长出来。","p":"横跨在坑上；坑里要留出跳出来的路。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.8,0.65,0.3]},{"c":"[","k":"ControllableBlocker","zh":"封路墙","en":"Blocker wall","r":"PlayerPrank","w":"捣蛋者按 L 升起一堵墙，挡住路 3.5 秒，不伤人。","p":"放在必经的门洞/窄道（脚下要实心）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.55,0.75,1.0]},{"c":"~","k":"FireTrap","zh":"火","en":"Fire","r":"PlayerPrank","w":"平时安全；捣蛋者按 L 喷火，烧到马里奥会晕。","p":"放在地面上（脚下要实心）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":true,"jb":false,"rgb":[1.0,0.5,0.1]},{"c":"J","k":"SpringPad","zh":"弹簧板","en":"Spring pad","r":"PlayerPrank","w":"平时是普通地面；捣蛋者按 L 把站在上面的马里奥弹上天（空中不能动）→ 在落点摆好火/塌桥 = 浮空连招。","p":"放在地面层；正上方至少空 4 格（别弹到天花板）。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.3,0.9,0.55]},{"c":"x","k":"CrackFloor","zh":"裂缝地板","en":"Crack floor","r":"PlayerPrank","w":"平时是实心地面；捣蛋者按 L 打碎，站在上面的人掉到下一层（本回合不复原）。多层楼/地下监狱的'凿地板'。","p":"铺在楼层之间；碎后下面那层必须能走回出口（死局检查会查）。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.7,0.58,0.42]},{"c":"n","k":"BananaPeel","zh":"香蕉皮","en":"Banana peel","r":"PlayerPrank","w":"平时是地上的装饰（可穿过）；捣蛋者按 L 后，踩上去的马里奥会朝前滑出约 3–4 格（打乱落点）→ 滑进火/裂缝前。","p":"放在地面上，前方留出滑行空间。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[1.0,0.9,0.25]},{"c":"|","k":"OneWayDoor","zh":"捷径门","en":"Shortcut door","r":"Special","w":"只能从一侧（默认右侧）贴近推开，开了本回合一直开着。魂系'从另一边打开的门'：先绕远路，再回头打通捷径。","p":"放在两个区域之间的墙洞里；关着时整张图也必须能通关（死局检查按关着算）。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.55,0.35,0.2]},{"c":"%","k":"CrackedWall","zh":"裂墙","en":"Cracked wall","r":"Special","w":"看起来有裂纹的墙：捣蛋者现形按 B 砸开（马里奥听得见）、炮弹打开、被弹飞的人撞开。本回合不复原。","p":"藏秘密通路/捷径；不破也必须能通关（死局检查按墙算）。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.62,0.55,0.5]},{"c":"O","k":"Vent","zh":"通风管","en":"Vent","r":"Special","w":"捣蛋者站在管口按 ↓ 钻到配对的管口（按上→下、左→右编号 1↔2、3↔4）。马里奥进不去，但离得近听得见。","p":"成对摆放，放在地面上；一个在楼上一个在楼下最有用。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.45,0.5,0.58]},{"c":"w","k":"PoisonPool","zh":"毒池","en":"Poison pool","r":"Terrain","w":"能走但减速，每隔一会儿让人晕一下（不扣命）。马里奥会被拖慢——你的伏击窗口。","p":"铺在地面上，宽不超过 3 格（保证能走出来）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.55,0.85,0.25]},{"c":"g","k":"Glue","zh":"黏胶","en":"Glue","r":"Terrain","w":"踩上去移动变慢、跳不高，离开就恢复。放在楼梯口前最狠。","p":"铺在地面上；别放在必须跳高的台阶前（会跳不上去）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.85,0.55,0.95]},{"c":"Y","k":"SnareTrap","zh":"绳套","en":"Snare","r":"PlayerPrank","w":"踩到就被绳子倒吊 10 秒再掉下来——马里奥中了是你的机会，你自己踩到也会中。伪装在旁按 L = 重新装好 / 放人。","p":"放在地面上；正上方至少空 2 格（吊起来不能卡墙）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.8,0.7,0.45]},{"c":"?","k":"PickupSpot","zh":"道具箱","en":"Pickup","r":"Special","w":"每局随机亮起几个：谁先碰到归谁，同一个箱子给你和给马里奥效果不同（反转变数）。","p":"放在路线附近的地面上；多放几个，每局只亮一部分。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[1.0,0.8,0.2]},{"c":"U","k":"OilBarrel","zh":"油桶","en":"Oil barrel","r":"Special","w":"实心障碍：被喷火、炸弹、炮弹或另一个油桶爆炸点燃，0.8 秒后爆炸（炸毁周围、伤双方、引爆旁边的油桶 → 连锁）。","p":"放在火旁、裂墙旁、马里奥路线旁；不炸也必须能通关（死局检查按实心算）。","u":false,"s":true,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.75,0.25,0.15]},{"c":"Q","k":"IronCage","zh":"铁笼","en":"Iron cage","r":"PlayerPrank","w":"悬在头顶的笼子：伪装在旁按 L 落下，关住正下方的人 3 秒后自动打开（每局一次）。炸弹能把笼子炸开。","p":"放在马里奥必经的地面上；头顶要空 2 格（笼子挂在上面）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.55,0.6,0.68]},{"c":"R","k":"Tripwire","zh":"绊线","en":"Tripwire","r":"Special","w":"地上一根细线：马里奥踩到绊一下（0.4 秒），并启动你用 F 布置好的连锁。每局一次；你自己踩不触发。","p":"放在连锁第一环前 1–3 格，马里奥必经的地面上。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.85,0.85,0.8]},{"c":"K","k":"Cannon","zh":"大炮（朝右）","en":"Cannon (→)","r":"PlayerPrank","w":"伪装在旁按 L 开一炮（每局 1 发）；打完后站进炮口把自己打飞逃跑。","p":"地面上，炮口前方至少空 3 格。","u":false,"s":true,"s1":true,"m":1,"so":false,"hz":false,"jb":false,"rgb":[0.2,0.22,0.28]},{"c":"k","k":"Cannon","zh":"大炮（朝左）","en":"Cannon (←)","r":"PlayerPrank","w":"同上，炮口朝左。","p":"地面上，炮口前方至少空 3 格。","u":false,"s":true,"s1":true,"m":-1,"so":false,"hz":false,"jb":false,"rgb":[0.2,0.22,0.28]},{"c":"o","k":"Collectible","zh":"宝物","en":"Loot","r":"Objective","w":"马里奥要拿的宝物（实战房里自动变成 LootObjective）。","p":"放在离出口远的一端，只能有 1 个。","u":true,"s":false,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[1.0,0.85,0.2]},{"c":"G","k":"GoalZone","zh":"出口","en":"Exit","r":"Objective","w":"马里奥拿宝后要回到这里。","p":"放在起点附近，只能有 1 个。","u":true,"s":false,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.98,0.8,0.25]},{"c":"M","k":"MarioSpawn","zh":"马里奥出生点","en":"Mario spawn","r":"Spawn","w":"马里奥从这里出发。","p":"脚下要实心，只能有 1 个。","u":true,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.9,0.2,0.2]},{"c":"T","k":"TricksterSpawn","zh":"捣蛋者出生点","en":"Trickster spawn","r":"Spawn","w":"你（捣蛋者）从这里出发。","p":"脚下要实心，只能有 1 个。","u":true,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.2,0.4,0.9]},{"c":".","k":"Air","zh":"空气","en":"Air","r":"Terrain","w":"什么都没有。","p":"—","u":false,"s":false,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.11,0.1,0.17]},{"c":"^","k":"SpikeTrap","zh":"地刺","en":"Spikes","r":"AutoHazard","w":"周期伸缩自动伤人。","p":"第 1 步房间不用（平时必须安全）。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":true,"jb":false,"rgb":[0.85,0.25,0.25]},{"c":"P","k":"PendulumTrap","zh":"摆锤","en":"Pendulum","r":"AutoHazard","w":"自动摆动的锤子。","p":"锚点在上方，第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":true,"jb":false,"rgb":[0.7,0.45,0.2]},{"c":"@","k":"SawBlade","zh":"锯片","en":"Saw","r":"AutoHazard","w":"旋转锯片，碰到就伤。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":true,"jb":false,"rgb":[0.7,0.7,0.7]},{"c":"]","k":"StateQueueTrap","zh":"队列机关","en":"Queue trap","r":"Special","w":"公开显示当前/下一状态的机关。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":true,"jb":false,"rgb":[1.0,0.45,0.25]},{"c":"B","k":"BouncyPlatform","zh":"弹跳台","en":"Bouncer","r":"Movement","w":"踩上去弹飞。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":true,"rgb":[0.3,0.85,0.3]},{"c":">","k":"MovingPlatform","zh":"移动平台","en":"Moving platform","r":"Movement","w":"来回移动的平台。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.5,0.5,0.9]},{"c":"<","k":"ConveyorBelt","zh":"传送带","en":"Conveyor","r":"Movement","w":"站上去会被带着走。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.6,0.6,0.4]},{"c":"X","k":"BreakableBlock","zh":"可破坏方块","en":"Breakable","r":"Special","w":"从下面顶破。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.75,0.55,0.3]},{"c":"F","k":"FakeWall","zh":"假墙","en":"Fake wall","r":"Special","w":"看起来是墙，其实能穿过。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.55,0.55,0.65]},{"c":"H","k":"HiddenPassage","zh":"暗道入口","en":"Hidden passage","r":"Special","w":"按 S 进入暗道传送。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.4,0.7,0.55]},{"c":"S","k":"Checkpoint","zh":"检查点","en":"Checkpoint","r":"Special","w":"更新重生点。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.2,0.8,0.9]},{"c":"E","k":"BouncingEnemy","zh":"弹跳怪","en":"Bouncing enemy","r":"Enemy","w":"踩头弹起，侧碰受伤。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":true,"rgb":[0.9,0.2,0.6]},{"c":"e","k":"SimpleEnemy","zh":"小怪","en":"Simple enemy","r":"Enemy","w":"来回走的小怪。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.9,0.2,0.6]},{"c":"f","k":"FlyingEnemy","zh":"飞行怪","en":"Flying enemy","r":"Enemy","w":"空中飞行的怪。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.85,0.4,0.85]}];
+const SAMPLES={"默认恶作剧房间":["WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","W...............W..............W...............W","W...............W..............W...............W","W...............W..............W...............W","W...............W..............W...............W","W...............W..............W...............W","W...............W..............W...............W","W.....----......W.---.....----.W...----........W","W.G.M..2.~..1.R.[.K.T...n..b3..[..1..~2...k.o..W","W############J#######CCCC-#############xxx#####W","W####################..~..#############.-.#####W","W##############################################W"],"两层监狱":["WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","W..............................................W","W..............................................W","W.G.M....b..n..~..[....T.....c..~..............W","W#########xxxx####################.....########W","W..................................--..........W","W..............................................W","W..................................--..........W","W.........~...n.........~.[....b......J....o...W","W##############################################W"],"诱捕走廊":["WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","W..............................................W","W..............................................W","W..............................................W","W.........------------------------.............W","W......--......................................W","W.G.M....b.....R.n...~U.............[...T...o..W","W########################CCC##########..#######W","W..............................................W","W.....................................--.......W","W..................................--..........W","W..............................................W","W...............................--.............W","W.....................J.......~.U......b.......W","W##############################################W"],"箱庭监狱（四层）":["WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","W..............W...............................W","W..............W...............................W","W.G.M......b...|....[...?R.~.U...c....[...O....W","W#######..####################%%############..#W","W..............................................W","W.......--..................................--.W","W..........--..................................W","W.........................................--...W","W............--.........................--.....W","W....c.....O.....Q.R..J.T.n..Y....J..b..?......W","W###############xxxx##########..############..#W","W.....................................W........W","W.............................--......W.....--.W","W.......R.~.U.b.....?.........O...c...|.g......W","W####..###############CCCC################..###W","W...........W..................................W","W....--.....W.............................--...W","W..c....O...%...K...?...ww...U.~....k...b...o..W","W##############################################W"]};
+</script>
+<script>// ── 纯逻辑（与项目 C# 同规则的网页移植；最终以 Unity / 沙盒体检为准）──
+const RULES = { L2Up: 2, L2Side: 5, L2Fall: 30, JumpUp: 2, JumpSide: 4, JumpUpSide: 2, MaxFall: 30, SpringHeadroom: 4, MuzzleClear: 3, MaxPool: 3, RunSpeed: 4.95, StartDelay: 4 };
+const SLOT_CHARS = { '1': 'cb', '2': 'b.', '3': '~.' };
+const OPENERS = 'Cx|%';
+
+function makeWorld(proposals) {
+  const info = new Map();
+  for (const e of ELEMENTS) info.set(e.c, e);
+  for (const p of (proposals || [])) info.set(p.c, { c: p.c, k: p.key, zh: p.zh, en: p.en || p.key, r: p.role, w: p.effect, p: p.place || '', u: false, s: !!p.support, s1: true, m: 0, so: !!p.solid, hz: false, rgb: p.rgb, proposal: true });
+  const solid = new Set(), hazard = new Set();
+  for (const [c, e] of info) { if (e.so) solid.add(c); if (e.hz) hazard.add(c); }
+  return { info, solid, hazard };
+}
+
+
+// ── L2 可达性（移植 LevelReachabilityAnalyzer，死局检查用；collect=true 时启用"横向跳不能穿高墙"）──
+function l2Prep(W, g) {
+  if (g._p && g._p.W === W) return g._p;
+  const h = g.length, w = g[0].length, solid = new Uint8Array(w * h), haz = new Uint8Array(w * h), oneway = new Uint8Array(w * h), boost = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const c = g[h - 1 - y][x], i = y * w + x; solid[i] = W.solid.has(c) ? 1 : 0; haz[i] = W.hazard.has(c) ? 1 : 0; oneway[i] = c === '-' ? 1 : 0; const e = W.info.get(c); boost[i] = e && e.jb ? 1 : 0; }
+  return (g._p = { W, w, h, solid, haz, oneway, boost });
+}
+function l2Solid(W, g, x, y) { const P = l2Prep(W, g); if (x < 0 || x >= P.w || y < 0 || y >= P.h) return false; return P.solid[y * P.w + x] === 1; }
+function l2Stand(W, g, x, y) { const P = l2Prep(W, g); if (x < 0 || x >= P.w || y < 0 || y >= P.h) return false; const i = y * P.w + x; if (P.solid[i] || P.haz[i]) return false; if (y === 0) return true; return P.solid[i - P.w] === 1; }
+function l2Boost(W, g, x, y) { if (y <= 0) return false; const P = l2Prep(W, g), i = y * P.w + x; return P.boost[i - P.w] === 1 || P.boost[i] === 1; }
+function l2OneWay(W, g, x, y) { const P = l2Prep(W, g); return P.oneway[y * P.w + x] === 1; }
+function l2Feasible(dx, dy, up, side) { if (dy <= 0) return true; const r = dy / up; if (r > 1) return false; return dx <= side * (1 - r * 0.5); }
+function l2Blocked(W, g, fx, fy, tx, ty) { if (ty <= fy) return false; for (let y = fy + 1; y <= Math.min(ty, g.length - 1); y++) if (l2Solid(W, g, fx, y) && !l2OneWay(W, g, fx, y)) return true; return false; }
+function l2Arc(W, g, fx, fy, tx, ty, top) {
+  if (fx === tx) return true; const step = tx > fx ? 1 : -1, low = Math.max(fy, ty), high = Math.min(g.length - 1, Math.max(low, top));
+  for (let cx = fx + step; cx !== tx; cx += step) { let open = false; for (let cy = low; cy <= high && !open; cy++) open = !l2Solid(W, g, cx, cy) || l2OneWay(W, g, cx, cy); if (!open) return false; }
+  for (let cy = ty + 1; cy <= low; cy++) if (l2Solid(W, g, tx, cy) && !l2OneWay(W, g, tx, cy)) return false;
+  return true;
+}
+function l2Reach(W, g, sx, sy, collect) {
+  const w = g[0].length, h = g.length, seen = new Set(), cells = new Set(), q = [];
+  const push = (x, y, b) => { if (x < 0 || x >= w || y < 0 || y >= h) return; const k = x * 10000 + y * 10 + (b ? 1 : 0); if (seen.has(k)) return; seen.add(k); q.push([x, y, b]); };
+  push(sx, sy, l2Boost(W, g, sx, sy));
+  for (let fy = sy; fy >= 0; fy--) if (l2Stand(W, g, sx, fy)) { push(sx, fy, l2Boost(W, g, sx, fy)); break; }
+  let qi = 0;
+  while (qi < q.length) {
+    const [cx, cy, cb] = q[qi++]; cells.add(key(cx, cy));
+    const up = RULES.L2Up + (cb ? RULES.L2Up : 0), side = RULES.L2Side;
+    for (let nx = Math.max(0, cx - side); nx <= Math.min(w - 1, cx + side); nx++) {
+      const dx = Math.abs(nx - cx);
+      for (let ny = cy; ny <= Math.min(h - 1, cy + up); ny++) {
+        const dy = ny - cy;
+        if (collect && !l2Arc(W, g, cx, cy, nx, ny, cy + up)) continue;
+        if (dy > 0 && !l2Feasible(dx, dy, up, side)) continue;
+        if (l2Stand(W, g, nx, ny) && !l2Blocked(W, g, cx, cy, nx, ny)) push(nx, ny, l2Boost(W, g, nx, ny));
+      }
+      const blocked = collect && !l2Arc(W, g, cx, cy, nx, cy, cy + up);
+      for (let ny = cy - 1; ny >= Math.max(0, cy - RULES.L2Fall) && !blocked; ny--) {
+        if (l2Stand(W, g, nx, ny)) { push(nx, ny, l2Boost(W, g, nx, ny)); break; }
+        if (ny > 0 && l2Solid(W, g, nx, ny)) break;
+      }
+    }
+    for (const wdx of [-1, 1]) {
+      const wx = cx + wdx; if (wx < 0 || wx >= w) continue;
+      if (l2Stand(W, g, wx, cy) && !l2Solid(W, g, wx, cy)) push(wx, cy, l2Boost(W, g, wx, cy));
+      if (cy > 0 && !l2Solid(W, g, wx, cy) && l2Stand(W, g, wx, cy - 1)) push(wx, cy - 1, l2Boost(W, g, wx, cy - 1));
+    }
+  }
+  return cells;
+}
+
+function l2Step(W, g, cx, cy, cb, collect, out) {
+  const w = g[0].length, h = g.length, up = RULES.L2Up + (cb ? RULES.L2Up : 0), side = RULES.L2Side;
+  for (let nx = Math.max(0, cx - side); nx <= Math.min(w - 1, cx + side); nx++) {
+    const dx = Math.abs(nx - cx);
+    for (let ny = cy; ny <= Math.min(h - 1, cy + up); ny++) {
+      const dy = ny - cy;
+      if (collect && !l2Arc(W, g, cx, cy, nx, ny, cy + up)) continue;
+      if (dy > 0 && !l2Feasible(dx, dy, up, side)) continue;
+      if (l2Stand(W, g, nx, ny) && !l2Blocked(W, g, cx, cy, nx, ny)) out.push([nx, ny, l2Boost(W, g, nx, ny)]);
+    }
+    const blocked = collect && !l2Arc(W, g, cx, cy, nx, cy, cy + up);
+    for (let ny = cy - 1; ny >= Math.max(0, cy - RULES.L2Fall) && !blocked; ny--) {
+      if (l2Stand(W, g, nx, ny)) { out.push([nx, ny, l2Boost(W, g, nx, ny)]); break; }
+      if (ny > 0 && l2Solid(W, g, nx, ny)) break;
+    }
+  }
+  for (const wdx of [-1, 1]) {
+    const wx = cx + wdx; if (wx < 0 || wx >= w) continue;
+    if (l2Stand(W, g, wx, cy) && !l2Solid(W, g, wx, cy)) out.push([wx, cy, l2Boost(W, g, wx, cy)]);
+    if (cy > 0 && !l2Solid(W, g, wx, cy) && l2Stand(W, g, wx, cy - 1)) out.push([wx, cy - 1, l2Boost(W, g, wx, cy - 1)]);
+  }
+}
+/** 能回到出口的所有格（状态含弹跳位，结果按格合并）。 */
+function l2HomeSet(W, g, exitKey) {
+  const w = g[0].length, h = g.length, rev = new Map(), buf = [];
+  const sk = (x, y, b) => x * 10000 + y * 10 + (b ? 1 : 0);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!l2Stand(W, g, x, y)) continue;
+    for (const b of [false, true]) {
+      if (b !== !!l2Boost(W, g, x, y)) continue;
+      buf.length = 0; l2Step(W, g, x, y, b, true, buf);
+      const from = sk(x, y, b);
+      for (const [nx, ny, nb] of buf) { const t = sk(nx, ny, nb); if (!rev.has(t)) rev.set(t, []); rev.get(t).push(from); }
+    }
+  }
+  const ex = Math.floor(exitKey / 1000), ey = exitKey % 1000, seen = new Set(), q = [];
+  for (const b of [false, true]) { const s0 = sk(ex, ey, b); seen.add(s0); q.push(s0); }
+  let qi = 0; while (qi < q.length) { const c = q[qi++]; for (const n of (rev.get(c) || [])) if (!seen.has(n)) { seen.add(n); q.push(n); } }
+  const cells = new Set(); for (const s of seen) cells.add(key(Math.floor(s / 10000), Math.floor(s / 10) % 1000)); return cells;
+}
+function l2Standable(W, g) { const s = new Set(); for (let y = 0; y < g.length; y++) for (let x = 0; x < g[0].length; x++) if (l2Stand(W, g, x, y)) s.add(key(x, y)); return s; }
+
+function stripSlots(rows) { return rows.map(r => r.replace(/[123]/g, '.')); }
+function at(g, x, y) { const row = g.length - 1 - y; if (row < 0 || row >= g.length || x < 0 || x >= g[row].length) return 'W'; return g[row][x]; }
+function canStand(W, g, x, y) { const c = at(g, x, y); if (W.solid.has(c) || W.hazard.has(c)) return false; return y === 0 || W.solid.has(at(g, x, y - 1)); }
+function arcClear(W, g, x0, x1, apexY) { const a = Math.min(x0, x1), b = Math.max(x0, x1); for (let x = a; x <= b; x++) { const c = at(g, x, apexY); if (W.solid.has(c) && c !== '-') return false; } return true; }
+function key(x, y) { return x * 1000 + y; }
+
+function moves(W, g, cx, cy) {
+  const out = [], h = g.length, w = Math.max(...g.map(r => r.length));
+  for (const dx of [-1, 1]) {
+    const nx = cx + dx; if (nx < 0 || nx >= w || W.solid.has(at(g, nx, cy))) continue;
+    for (let y = cy; y >= Math.max(0, cy - RULES.MaxFall); y--) { if (W.solid.has(at(g, nx, y))) break; if (canStand(W, g, nx, y)) { out.push([nx, y]); break; } }
+  }
+  outer: for (let dy = 1; dy <= RULES.JumpUp; dy++) {
+    for (let k = 1; k <= dy; k++) { const a = at(g, cx, cy + k); if (W.solid.has(a) && a !== '-') break outer; }
+    for (let dx = -RULES.JumpUpSide; dx <= RULES.JumpUpSide; dx++) {
+      const nx = cx + dx, ny = cy + dy; if (nx < 0 || nx >= w || ny >= h) continue;
+      if (!canStand(W, g, nx, ny) || !arcClear(W, g, cx, nx, cy + dy)) continue;
+      out.push([nx, ny]);
+    }
+  }
+  for (let dx = -RULES.JumpSide; dx <= RULES.JumpSide; dx++) {
+    if (Math.abs(dx) < 2) continue; const nx = cx + dx;
+    if (nx < 0 || nx >= w || !arcClear(W, g, cx, nx, cy + 1)) continue;
+    for (let y = cy; y >= Math.max(0, cy - RULES.MaxFall); y--) { if (W.solid.has(at(g, nx, y))) break; if (canStand(W, g, nx, y)) { out.push([nx, y]); break; } }
+  }
+  return out;
+}
+
+function settle(W, g, x, y) { for (let yy = y; yy >= 0; yy--) if (canStand(W, g, x, yy)) return [x, yy]; return null; }
+
+function buildGraph(W, g) {
+  const fwd = new Map(), rev = new Map(), h = g.length, w = Math.max(...g.map(r => r.length));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!canStand(W, g, x, y)) continue; const k = key(x, y); const list = [];
+    for (const [nx, ny] of moves(W, g, x, y)) { const nk = key(nx, ny); list.push(nk); if (!rev.has(nk)) rev.set(nk, []); rev.get(nk).push(k); }
+    fwd.set(k, list);
+  }
+  return { fwd, rev };
+}
+function bfs(edges, start) { const seen = new Set([start]), q = [start]; while (q.length) { const c = q.shift(); for (const n of (edges.get(c) || [])) if (!seen.has(n)) { seen.add(n); q.push(n); } } return seen; }
+
+function path(W, g, from, to) {
+  const a = settle(W, g, from[0], from[1]), b = settle(W, g, to[0], to[1]); if (!a || !b) return null;
+  const prev = new Map([[key(a[0], a[1]), -1]]), q = [a];
+  while (q.length) {
+    const [x, y] = q.shift();
+    if (x === b[0] && y === b[1]) { const p = []; for (let k = key(x, y); k !== -1; k = prev.get(k)) p.push([Math.floor(k / 1000), k % 1000]); return p.reverse(); }
+    for (const [nx, ny] of moves(W, g, x, y)) { const k = key(nx, ny); if (!prev.has(k)) { prev.set(k, key(x, y)); q.push([nx, ny]); } }
+  }
+  return null;
+}
+
+function find(g, ch) { const out = []; for (let row = 0; row < g.length; row++) for (let x = 0; x < g[row].length; x++) if (g[row][x] === ch) out.push([x, g.length - 1 - row]); return out; }
+
+function placementIssues(W, g, step1) {
+  const issues = [], h = g.length, counts = {};
+  const err = (x, y, t) => issues.push({ x, y, t, sev: 'error' });
+  for (let row = 0; row < h; row++) {
+    const line = g[row], y = h - 1 - row;
+    for (let x = 0; x < line.length; x++) {
+      const c = line[x]; if (c === '.' || c === ' ' || SLOT_CHARS[c]) continue;
+      const e = W.info.get(c);
+      if (!e) { err(x, y, `'${c}' 不是已知元素，也不是你的新机制提案`); continue; }
+      counts[c] = (counts[c] || 0) + 1;
+      if (step1 && !e.s1) err(x, y, `${e.zh}：第 1 步房间不用这个元素`);
+      if (e.s) { const below = row + 1 < h ? g[row + 1][x] : '.'; if (!W.solid.has(below)) err(x, y, `${e.zh}：脚下不是实心（会悬空）`); }
+      if (c === 'w' && (x === 0 || line[x - 1] !== 'w')) { let run = 0; while (x + run < line.length && line[x + run] === 'w') run++; if (run > RULES.MaxPool) err(x, y, `毒池连续 ${run} 格太宽：最多 ${RULES.MaxPool} 格`); }
+      if (c === 'Y' || c === 'Q') for (let d = 1; d <= 2; d++) { if (row - d < 0) break; const a = g[row - d][x]; if (W.solid.has(a) && a !== '-') { err(x, y, `${e.zh}：正上方第 ${d} 格是实心，上方至少空 2 格`); break; } }
+      if (c === 'J') for (let d = 1; d <= RULES.SpringHeadroom; d++) { if (row - d < 0) break; if (W.solid.has(g[row - d][x])) { err(x, y, `弹簧板：正上方第 ${d} 格是实心，会撞天花板；上方至少空 ${RULES.SpringHeadroom} 格`); break; } }
+      if (e.m) for (let d = 1; d <= RULES.MuzzleClear; d++) { const fx = x + e.m * d; if (fx < 0 || fx >= line.length) break; if (W.solid.has(line[fx])) { err(x, y, `${e.zh}：炮口前第 ${d} 格是实心，炮弹会撞碎；前方至少空 ${RULES.MuzzleClear} 格`); break; } }
+    }
+  }
+  if ((counts['O'] || 0) % 2 === 1) issues.push({ x: -1, y: -1, t: `通风管 O 有 ${counts['O']} 个：要成对摆放`, sev: 'error' });
+  for (const [c, e] of W.info) if (e.u && (counts[c] || 0) > 1) issues.push({ x: -1, y: -1, t: `${e.zh} '${c}' 只能有 1 个（现在 ${counts[c]} 个）`, sev: 'error' });
+  return issues;
+}
+
+function check(W, rawGrid, step1) {
+  const g = stripSlots(rawGrid), res = { issues: [], deadlock: new Set(), route: null, seconds: 0, onRoute: [], offRoute: [], playable: false };
+  if (!g.length || !g[0].length) { res.issues.push({ x: -1, y: -1, t: '画布是空的', sev: 'error' }); return res; }
+  const widths = new Set(g.map(r => r.length)); if (widths.size > 1) res.issues.push({ x: -1, y: -1, t: '每一行长度要一样', sev: 'error' });
+  for (const c of ['M', 'T', 'G']) { const n = find(g, c).length; if (n !== 1) res.issues.push({ x: -1, y: -1, t: `需要且只能有一个 ${W.info.get(c).zh} ${c}（现在 ${n} 个）`, sev: 'error' }); }
+  if (step1 && find(g, 'o').length !== 1) res.issues.push({ x: -1, y: -1, t: '第 1 步房间需要且只能有一个宝物 o', sev: 'error' });
+  if (res.issues.length) return res;
+  const h = g.length, w = g[0].length;
+  for (let x = 0; x < w; x++) { if (!W.solid.has(g[0][x]) || !W.solid.has(g[h - 1][x])) { res.issues.push({ x: -1, y: -1, t: '最上面一行和最下面一行必须全是实心（墙 W / 地面 #）', sev: 'error' }); break; } }
+  for (let row = 0; row < h; row++) if (!W.solid.has(g[row][0]) || !W.solid.has(g[row][w - 1])) { res.issues.push({ x: -1, y: -1, t: '最左和最右一列必须全是墙 W', sev: 'error' }); break; }
+  res.issues.push(...placementIssues(W, g, step1));
+  const M = find(g, 'M')[0], G = find(g, 'G')[0], O = find(g, 'o')[0];
+  const a = path(W, g, M, O || G), b = O ? path(W, g, O, G) : [];
+  if (!a || !b) res.issues.push({ x: M[0], y: M[1], t: 'AI 马里奥按楼层寻路走不通（跳跃间距在临界区：往上 ≤2 格、左右 ≤2 格；平跳 ≤4 格）', sev: 'warn' });
+  if (a && b) {
+    res.route = a.concat(b.slice(1)); let len = 0; const times = [RULES.StartDelay];
+    for (let i = 1; i < res.route.length; i++) { const [px, py] = res.route[i - 1], [qx, qy] = res.route[i]; len += Math.hypot(qx - px, qy - py); times.push(RULES.StartDelay + len / RULES.RunSpeed); }
+    res.seconds = RULES.StartDelay + len / RULES.RunSpeed;
+    res.lootAt = O ? times[a.length - 1] : 0;
+    for (let row = 0; row < h; row++) for (let x = 0; x < w; x++) {
+      const c = g[row][x], e = W.info.get(c); if (!e || !(e.r === 'PlayerPrank' || c === 'R' || c === 'U' || e.proposal)) continue;
+      const y = h - 1 - row; let best = 1e9, bi = 0;
+      res.route.forEach(([rx, ry], i) => { const d = Math.hypot(rx - x, ry - y); if (d < best) { best = d; bi = i; } });
+      const near = 1.5 + (e.m ? 4 : 0);
+      if (best <= near) res.onRoute.push({ c, x, y, at: times[bi] }); else if (best > 3) res.offRoute.push({ c, x, y });
+    }
+    res.onRoute.sort((p, q) => p.at - q.at);
+  }
+  // 最坏情况（与 Unity LevelDeadlockAnalyzer 同规则）：塌桥/裂缝地板/捷径门/裂墙全部打开 → 马里奥可能站的每一格还能不能回出口
+  const L2base = l2Reach(W, g, M[0], M[1], false);
+  if (O && !L2base.has(key(O[0], O[1]))) res.issues.push({ x: O[0], y: O[1], t: '马里奥走不到宝物（按 Unity 可达性）', sev: 'error' });
+  else if (O && !l2Reach(W, g, O[0], O[1], false).has(key(G[0], G[1]))) res.issues.push({ x: O[0], y: O[1], t: '拿到宝物后回不到出口（按 Unity 可达性）', sev: 'error' });
+  if (g.some(r => /[Cx|%]/.test(r))) {
+    const worst = g.map(r => r.replace(/[Cx|%]/g, '.'));
+    const cand = new Set(L2base); if (O) for (const k of l2Reach(W, g, O[0], O[1], false)) cand.add(k);
+    const stand = l2Standable(W, worst);
+    for (let row = 0; row < h; row++) for (let x = 0; x < w; x++) if (OPENERS.includes(g[row][x])) { for (let y = h - 1 - row; y >= 0; y--) if (stand.has(key(x, y))) { cand.add(key(x, y)); break; } }
+    const exitKey = key(G[0], G[1]), cache = new Map(); let reported = 0, total = 0;
+    // 反向可达：先对每个可站格做一次单步展开，建反向边，再从出口反向 BFS（一次搞定，替代逐格 BFS）
+    const homeSet = l2HomeSet(W, worst, exitKey);
+    for (const k of cand) {
+      if (!stand.has(k)) continue;
+      let ok = cache.get(k);
+      if (ok === undefined) { ok = homeSet.has(k); cache.set(k, ok); }
+      if (ok) continue;
+      res.deadlock.add(k); total++;
+      if (reported++ < 5) res.issues.push({ x: Math.floor(k / 1000), y: k % 1000, t: '塌桥/裂缝地板/捷径门/裂墙打开后，站在这里的马里奥再也回不到出口（死局：给下面留一条回去的路，比如单向台面 -）', sev: 'error' });
+    }
+    if (total > 5) res.issues.push({ x: -1, y: -1, t: `还有 ${total - 5} 个死局格（画布上红色斜线）`, sev: 'error' });
+  }
+  if (res.offRoute.length) res.issues.push({ x: -1, y: -1, t: `${res.offRoute.length} 个机关离马里奥的路线超过 3 格：只能靠挑衅/诱饵把他引过去`, sev: 'info' });
+  res.playable = !res.issues.some(i => i.sev === 'error');
+  return res;
+}
+
+</script>
+<script>// ── 状态 ──────────────────────────────────────────────
+const LS = 'mariotrickster.studio.v1';
+const S = {
+  grid: [], name: '', goal: '', notes: [], proposals: [], cuts: {},
+  brush: '#', tool: 'brush', zoom: 20, showAll: false,
+  ov: { route: true, dead: true, worst: false, notes: true }
+};
+let W = makeWorld([]), R = null, undo = [], redo = [], hover = null, dragStart = null, painting = false, dirtyTimer = 0;
+const $ = s => document.querySelector(s);
+const rgbCss = (rgb, a = 1) => `rgba(${Math.round(rgb[0] * 255)},${Math.round(rgb[1] * 255)},${Math.round(rgb[2] * 255)},${a})`;
+const hexToRgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16) / 255);
+const rgbToHex = rgb => '#' + rgb.map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+const lum = rgb => { const f = v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); return 0.2126 * f(rgb[0]) + 0.7152 * f(rgb[1]) + 0.0722 * f(rgb[2]); };
+const textOn = rgb => lum(rgb) > 0.22 ? '#17131f' : '#f5efe2';
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), 1800); }
+const ROLE_ZH = { Terrain: '地形', Scenery: '摆件', PlayerPrank: '机关（按 L）', AutoHazard: '自动危险', Objective: '目标', Spawn: '出生点', Movement: '移动', Enemy: '敌人', Special: '特殊', Skill: '捣蛋者技能', MarioAI: '马里奥行为' };
+const ROLE_ORDER = ['Spawn', 'Objective', 'Terrain', 'PlayerPrank', 'Special', 'Scenery', 'Movement', 'AutoHazard', 'Enemy'];
+
+function save() { try { localStorage.setItem(LS, JSON.stringify({ grid: S.grid, name: S.name, goal: S.goal, notes: S.notes, proposals: S.proposals, cuts: S.cuts })); } catch (e) { } }
+function load() { try { const d = JSON.parse(localStorage.getItem(LS) || 'null'); if (d && d.grid && d.grid.length) Object.assign(S, d); } catch (e) { } }
+
+// ── 网格编辑 ──────────────────────────────────────────
+const H = () => S.grid.length, Wd = () => S.grid[0].length;
+const cellAt = (x, y) => S.grid[H() - 1 - y][x];
+function setCell(x, y, c) {
+  if (x < 0 || y < 0 || x >= Wd() || y >= H()) return false;
+  const row = H() - 1 - y; if (S.grid[row][x] === c) return false;
+  const e = W.info.get(c);
+  if ('MTG'.includes(c) || (e && e.u)) S.grid = S.grid.map(r => r.split(c).join('.'));
+  S.grid[row] = S.grid[row].substr(0, x) + c + S.grid[row].substr(x + 1); return true;
+}
+function snapshot() { undo.push(JSON.stringify(S.grid)); if (undo.length > 200) undo.shift(); redo = []; }
+function blank(w, h) {
+  const g = []; for (let r = 0; r < h; r++) g.push(r === 0 || r === h - 1 ? 'W'.repeat(w) : 'W' + '.'.repeat(w - 2) + 'W');
+  const row = h - 2; g[row] = 'W.G.M' + '.'.repeat(w - 12) + 'T..o..W'.slice(0) ; g[row] = g[row].substr(0, w - 1) + 'W';
+  return g;
+}
+function resize(w, h) {
+  const old = S.grid, oh = old.length, ow = old[0].length, g = [];
+  for (let r = 0; r < h; r++) {
+    const src = oh - h + r; let line = '';
+    for (let x = 0; x < w; x++) {
+      let c = src >= 0 && x < ow ? old[src][x] : '.';
+      if (r === 0 || x === 0 || x === w - 1) c = 'W';
+      if (x >= ow - 1 && x < w - 1 && r !== 0 && src >= 0 && old[src][ow - 1] === 'W' && x !== w - 1) c = src === oh - 1 ? old[src][ow - 1] === 'W' ? '#' : c : '.';
+      line += c;
+    }
+    g.push(line);
+  }
+  if (g[h - 1].replace(/W/g, '').length === 0) g[h - 1] = 'W' + '#'.repeat(w - 2) + 'W';
+  S.grid = g;
+}
+function floodFill(x, y, c) {
+  const from = cellAt(x, y); if (from === c) return;
+  const q = [[x, y]], seen = new Set();
+  while (q.length) { const [cx, cy] = q.pop(); const k = cx * 1000 + cy; if (seen.has(k) || cx < 0 || cy < 0 || cx >= Wd() || cy >= H() || cellAt(cx, cy) !== from) continue; seen.add(k); setCell(cx, cy, c); q.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]); }
+}
+
+// ── 检查（停笔后跑） ─────────────────────────────────
+function recheck(now) {
+  clearTimeout(dirtyTimer);
+  const run = () => { W = makeWorld(S.proposals); R = check(W, S.grid, true); renderSide(); draw(); save(); };
+  if (now) run(); else dirtyTimer = setTimeout(run, 180);
+}
+
+// ── 画布 ─────────────────────────────────────────────
+const cv = $('#cv'), ctx = cv.getContext('2d');
+function colorOf(c) { if (c === '.') return [0.11, 0.1, 0.17]; if (SLOT_CHARS[c]) return [0.45, 0.4, 0.6]; const e = W.info.get(c); return e ? e.rgb : [0.8, 0.1, 0.8]; }
+function draw() {
+  const z = S.zoom, w = Wd(), h = H(), dpr = window.devicePixelRatio || 1;
+  cv.width = w * z * dpr; cv.height = h * z * dpr; cv.style.width = w * z + 'px'; cv.style.height = h * z + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const grid = S.ov.worst ? S.grid.map(r => r.replace(/[Cx|%]/g, '.')) : S.grid;
+  ctx.font = `600 ${Math.max(9, z * 0.55)}px JetBrains Mono, monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let row = 0; row < h; row++) for (let x = 0; x < w; x++) {
+    const c = grid[row][x], rgb = colorOf(c), px = x * z, py = row * z;
+    ctx.fillStyle = rgbCss(rgb); ctx.fillRect(px, py, z - (c === '.' ? 0 : 1), z - (c === '.' ? 0 : 1));
+    if (c === '.') { ctx.fillStyle = 'rgba(255,255,255,.035)'; ctx.fillRect(px + z / 2 - 1, py + z / 2 - 1, 2, 2); continue; }
+    const e = W.info.get(c);
+    if (e && e.proposal) { ctx.strokeStyle = '#ffc83d'; ctx.setLineDash([3, 2]); ctx.strokeRect(px + 1.5, py + 1.5, z - 4, z - 4); ctx.setLineDash([]); }
+    if (!'#W='.includes(c) && z >= 12) { ctx.fillStyle = textOn(rgb); ctx.fillText(c, px + z / 2, py + z / 2 + 1); }
+  }
+  if (R && S.ov.dead) {
+    ctx.strokeStyle = 'rgba(255,90,78,.85)'; ctx.lineWidth = 1.5;
+    for (const k of R.deadlock) { const x = Math.floor(k / 1000), y = k % 1000, px = x * z, py = (h - 1 - y) * z; ctx.beginPath(); for (let d = -z; d < z; d += 5) { ctx.moveTo(px + Math.max(0, d), py + Math.max(0, -d)); ctx.lineTo(px + Math.min(z, z + d), py + Math.min(z, z - d)); } ctx.stroke(); }
+    ctx.lineWidth = 1;
+  }
+  if (R && S.ov.route && R.route) {
+    ctx.strokeStyle = 'rgba(255,90,78,.9)'; ctx.lineWidth = Math.max(2, z / 8); ctx.lineJoin = 'round'; ctx.setLineDash([z / 3, z / 5]);
+    ctx.beginPath(); R.route.forEach(([x, y], i) => { const px = x * z + z / 2, py = (h - 1 - y) * z + z / 2; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
+    ctx.font = `600 ${Math.max(9, z * 0.45)}px JetBrains Mono, monospace`;
+    for (const s of R.onRoute) { const px = s.x * z + z / 2, py = (h - 1 - s.y) * z - z * 0.35; ctx.fillStyle = 'rgba(22,19,31,.85)'; const t = s.at.toFixed(0) + 's'; const tw = ctx.measureText(t).width + 6; ctx.fillRect(px - tw / 2, py - z * 0.3, tw, z * 0.6); ctx.fillStyle = '#ffc83d'; ctx.fillText(t, px, py); }
+    for (const s of R.offRoute) { ctx.strokeStyle = 'rgba(157,147,179,.9)'; ctx.setLineDash([2, 2]); ctx.strokeRect(s.x * z + 1, (h - 1 - s.y) * z + 1, z - 2, z - 2); ctx.setLineDash([]); }
+  }
+  if (R) for (const i of R.issues) if (i.x >= 0 && i.sev === 'error') { ctx.strokeStyle = '#ff5a4e'; ctx.lineWidth = 2; ctx.strokeRect(i.x * z + 1, (h - 1 - i.y) * z + 1, z - 2, z - 2); ctx.lineWidth = 1; }
+  if (S.ov.notes) for (const n of S.notes) { const px = n.x * z, py = (h - 1 - n.y) * z; ctx.fillStyle = '#ffc83d'; ctx.beginPath(); ctx.moveTo(px + z, py); ctx.lineTo(px + z, py + z * 0.5); ctx.lineTo(px + z * 0.5, py); ctx.fill(); }
+  if (focusCell) { ctx.strokeStyle = '#ffc83d'; ctx.lineWidth = 3; ctx.strokeRect(focusCell[0] * z - 2, (h - 1 - focusCell[1]) * z - 2, z + 4, z + 4); ctx.lineWidth = 1; }
+  if (dragStart && hover && S.tool === 'rect') { const [a, b] = rectOf(dragStart, hover); ctx.strokeStyle = '#fff'; ctx.setLineDash([4, 3]); ctx.strokeRect(a[0] * z, (h - 1 - b[1]) * z, (b[0] - a[0] + 1) * z, (b[1] - a[1] + 1) * z); ctx.setLineDash([]); }
+  else if (hover) { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.strokeRect(hover[0] * z + .5, (h - 1 - hover[1]) * z + .5, z - 1, z - 1); }
+}
+let focusCell = null;
+function rectOf(a, b) { return [[Math.min(a[0], b[0]), Math.min(a[1], b[1])], [Math.max(a[0], b[0]), Math.max(a[1], b[1])]]; }
+function cellFromEvent(e) { const r = cv.getBoundingClientRect(); const x = Math.floor((e.clientX - r.left) / S.zoom), row = Math.floor((e.clientY - r.top) / S.zoom); if (x < 0 || row < 0 || x >= Wd() || row >= H()) return null; return [x, H() - 1 - row]; }
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('mousedown', e => {
+  const c = cellFromEvent(e); if (!c) return;
+  if (e.altKey) { addNote(c); return; }
+  const erase = e.button === 2, ch = erase ? '.' : S.brush;
+  if (S.tool === 'pick' && !erase) { setBrush(cellAt(c[0], c[1])); return; }
+  snapshot();
+  if (S.tool === 'fill' && !erase) { floodFill(c[0], c[1], ch); recheck(); draw(); return; }
+  if (S.tool === 'rect' && !erase) { dragStart = c; painting = true; return; }
+  painting = ch; setCell(c[0], c[1], ch); draw(); recheck();
+});
+window.addEventListener('mouseup', () => {
+  if (dragStart && hover) { const [a, b] = rectOf(dragStart, hover); for (let x = a[0]; x <= b[0]; x++) for (let y = a[1]; y <= b[1]; y++) setCell(x, y, S.brush); recheck(); }
+  dragStart = null; painting = false; draw();
+});
+cv.addEventListener('mousemove', e => {
+  const c = cellFromEvent(e); const changed = !hover || !c || hover[0] !== c[0] || hover[1] !== c[1]; hover = c;
+  if (c) { const ch = cellAt(c[0], c[1]), en = W.info.get(ch); const n = S.notes.find(n => n.x === c[0] && n.y === c[1]); $('#hoverInfo').textContent = `(${c[0]},${c[1]})  '${ch}'  ${en ? en.zh : ch === '.' ? '空气' : SLOT_CHARS[ch] ? '随机槽位' : '?'}${n ? '  📝 ' + n.text : ''}`; }
+  if (painting && typeof painting === 'string' && c && setCell(c[0], c[1], painting)) recheck();
+  if (changed) draw();
+});
+cv.addEventListener('mouseleave', () => { hover = null; draw(); });
+function addNote(c) {
+  const old = S.notes.find(n => n.x === c[0] && n.y === c[1]);
+  const t = prompt(`给 (${c[0]},${c[1]}) 写一句批注（想法 / 这里要什么效果 / 问题）。留空 = 删除`, old ? old.text : '');
+  if (t === null) return;
+  S.notes = S.notes.filter(n => n !== old); if (t.trim()) S.notes.push({ x: c[0], y: c[1], text: t.trim() });
+  renderNotes(); draw(); save();
+}
+
+// ── 左侧：元素库 ─────────────────────────────────────
+function setBrush(c) { S.brush = c; renderPalette(); renderBrush(); }
+function renderPalette() {
+  const q = $('#palSearch').value.trim().toLowerCase(); const box = $('#palette'); box.innerHTML = '';
+  const all = [...W.info.values()].filter(e => e.c !== ' ');
+  const groups = {};
+  for (const e of all) { if (!S.showAll && !e.s1 && !e.proposal) continue; if (q && !(e.zh + e.en + e.c + e.k).toLowerCase().includes(q)) continue; const r = e.proposal ? 'Proposal' : e.r; (groups[r] = groups[r] || []).push(e); }
+  const order = ['Proposal', ...ROLE_ORDER];
+  let n = 0;
+  for (const r of order) {
+    if (!groups[r]) continue;
+    const h = document.createElement('h3'); h.textContent = r === 'Proposal' ? '你的新机制提案' : ROLE_ZH[r] || r; box.appendChild(h);
+    const pal = document.createElement('div'); pal.className = 'pal';
+    for (const e of groups[r]) {
+      n++;
+      const b = document.createElement('button'); b.className = 'chip' + (e.proposal ? ' prop' : '') + (S.cuts[e.c] ? ' off' : '');
+      b.setAttribute('aria-pressed', S.brush === e.c); b.title = `${e.zh} ${e.en}\n${e.w}`;
+      b.innerHTML = `<span class="sw" style="background:${rgbCss(e.rgb)};color:${textOn(e.rgb)}">${e.c === '.' ? '·' : e.c}</span><span class="nm">${e.zh}</span>`;
+      b.onclick = () => setBrush(e.c); pal.appendChild(b);
+    }
+    box.appendChild(pal);
+  }
+  $('#palCount').textContent = `· ${n}`;
+}
+function renderBrush() {
+  const e = W.info.get(S.brush);
+  $('#brushInfo').innerHTML = e ? `<b>${e.c === '.' ? '·' : e.c} ${e.zh}</b> ${e.en}<br>${e.w}<br><span style="color:var(--chalk)">怎么放：</span>${e.p || '—'}${e.s ? '<br>⚠ 脚下要实心' : ''}${e.u ? '<br>⚠ 整张图只能有 1 个' : ''}` : '—';
+}
+
+// ── 右侧：结果 ───────────────────────────────────────
+function renderSide() {
+  if (!R) return;
+  const errs = R.issues.filter(i => i.sev === 'error').length, warns = R.issues.filter(i => i.sev === 'warn').length;
+  const v = $('#verdict'); v.className = 'verdict ' + (R.playable ? 'ok' : 'bad');
+  v.innerHTML = `<div class="big">${R.playable ? '可以交给 AI 试玩' : `还有 ${errs} 个问题要改`}</div><div class="hint">${R.route ? `马里奥走一趟约 ${R.seconds.toFixed(0)} 秒 · 路上 ${R.onRoute.length} 个机关` : '马里奥的路线还没算出来'}${warns ? ` · ${warns} 个提醒` : ''}</div><div class="hint" style="margin-top:4px">网页检查是快速预检；最终以 Unity 工坊和 AI 的完整体检为准（炸弹困人、自动检查等只在那边跑）。</div>`;
+  const tl = $('#timeline'); tl.innerHTML = '<div class="track"></div>';
+  if (R.route && R.seconds > 0) {
+    const pos = t => `calc(10px + (100% - 30px) * ${Math.min(1, t / R.seconds)})`;
+    const run = document.createElement('div'); run.className = 'run'; run.style.left = pos(0); tl.appendChild(run);
+    if (R.lootAt) { const lm = document.createElement('div'); lm.className = 'lootmark'; lm.style.left = pos(R.lootAt); tl.appendChild(lm); }
+    const lanes = [], gap = 22 / Math.max(120, tl.clientWidth - 30) * R.seconds; let maxLane = 0;
+    for (const s of R.onRoute) {
+      let lane = 0; while (lane < lanes.length && s.at - lanes[lane] < gap) lane++; lanes[lane] = s.at; maxLane = Math.max(maxLane, lane);
+      const d = document.createElement('div'); d.className = 'stop'; d.style.left = pos(s.at); d.style.top = (54 + lane * 34) + 'px';
+      const e = W.info.get(s.c); d.title = `${e ? e.zh : s.c} · ${s.at.toFixed(1)} 秒 · (${s.x},${s.y})`;
+      d.innerHTML = `<span class="g" style="background:${rgbCss(e ? e.rgb : [1, 1, 1])};color:${textOn(e ? e.rgb : [1, 1, 1])}">${s.c}</span><small>${s.at.toFixed(0)}</small>`;
+      d.onclick = () => focusOn(s.x, s.y); tl.appendChild(d);
+    }
+    tl.style.height = (96 + maxLane * 34) + 'px';
+    let t = 0; const tick = () => { if (!document.body.contains(run)) return; t = (t + 0.016 * 4) % (R.seconds + 2); run.style.left = pos(Math.min(t, R.seconds)); requestAnimationFrame(tick); };
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(tick);
+    $('#tlLoot').textContent = R.lootAt ? `拿宝 ${R.lootAt.toFixed(0)}s` : ''; $('#tlEnd').textContent = `出口 ${R.seconds.toFixed(0)}s`;
+  } else { tl.innerHTML += '<div class="hint" style="padding:12px">路线算不出来时不显示时间线</div>'; $('#tlLoot').textContent = $('#tlEnd').textContent = ''; }
+  const box = $('#issues'); box.innerHTML = '';
+  if (!R.issues.length) box.innerHTML = '<div class="empty">没有发现问题。去"新机制提案"想点新东西，或者直接"交给 AI"。</div>';
+  for (const i of R.issues) {
+    const d = document.createElement('div'); d.className = 'issue ' + i.sev;
+    d.innerHTML = `<span class="dot"></span><span>${i.x >= 0 ? `<code>(${i.x},${i.y})</code> ` : ''}${i.t}</span>`;
+    if (i.x >= 0) d.onclick = () => focusOn(i.x, i.y); box.appendChild(d);
+  }
+}
+function focusOn(x, y) {
+  focusCell = [x, y]; draw();
+  const st = $('#stage'); st.scrollTo({ left: x * S.zoom - st.clientWidth / 2 + 24, top: (H() - 1 - y) * S.zoom - st.clientHeight / 2 + 24, behavior: 'smooth' });
+  setTimeout(() => { focusCell = null; draw(); }, 1500);
+}
+function renderNotes() {
+  const box = $('#notesList'); box.innerHTML = '';
+  if (!S.notes.length) { box.innerHTML = '<div class="empty">按住 Alt 点格子，写下"这里想要什么效果"。AI 会逐条照着改。</div>'; return; }
+  for (const n of S.notes) { const d = document.createElement('div'); d.className = 'issue info'; d.innerHTML = `<span class="dot" style="background:var(--loot)"></span><span><code>(${n.x},${n.y})</code> ${n.text}</span>`; d.onclick = () => focusOn(n.x, n.y); box.appendChild(d); }
+}
+
+// ── 提案 ─────────────────────────────────────────────
+const LAWS = [
+  ['H3', '触发前要有预警', f => f.role !== 'Terrain' && f.role !== 'Scenery' && !f.tele],
+  ['H4', '马里奥只能看/听/记，不读你的信息', f => f.role === 'MarioAI'],
+  ['H6', '静音也看得懂（画面提示）', f => !f.tele],
+  ['H9', '控人要有时长、必然结束', f => f.control],
+  ['H1', '改地形：最坏情况下仍有路（死局/炸弹模拟）', f => f.terrain],
+  ['A2', '每种优势都要有代价和反制', f => !f.cost || !f.counter],
+];
+function readForm() { return { c: $('#mChar').value, key: $('#mKey').value.trim(), zh: $('#mZh').value.trim(), role: $('#mRole').value, color: $('#mColor').value, solid: $('#mSolid').checked, support: $('#mSupport').checked, terrain: $('#mTerrain').checked, control: $('#mControl').checked, effect: $('#mEffect').value.trim(), tele: $('#mTele').value.trim(), cost: $('#mCost').value.trim(), counter: $('#mCounter').value.trim(), place: $('#mPlace').value.trim(), combo: $('#mCombo').value.trim() }; }
+function fillForm(p) { $('#mChar').value = p.c || ''; $('#mKey').value = p.key || ''; $('#mZh').value = p.zh || ''; $('#mRole').value = p.role || 'PlayerPrank'; $('#mColor').value = p.color || '#b08cff'; $('#mSolid').checked = !!p.solid; $('#mSupport').checked = p.support !== false; $('#mTerrain').checked = !!p.terrain; $('#mControl').checked = !!p.control;['Effect', 'Tele', 'Cost', 'Counter', 'Place', 'Combo'].forEach(k => $('#m' + k).value = p[k.toLowerCase()] || ''); renderLaws(); }
+function renderLaws() { const f = readForm(); $('#mLaws').innerHTML = LAWS.map(([id, t, need]) => `<span class="${need(f) ? 'need' : ''}" title="${t}">${id} ${t}${need(f) ? ' ← 请写清' : ''}</span>`).join(''); }
+document.querySelectorAll('#pageMech input,#pageMech select,#pageMech textarea').forEach(el => el.addEventListener('input', renderLaws));
+$('#mSave').onclick = () => {
+  const f = readForm(), msg = $('#mMsg');
+  const isCell = !['Skill', 'MarioAI'].includes(f.role);
+  if (!f.zh || !f.effect) { msg.textContent = '至少写中文名和"它做什么"。'; return; }
+  if (isCell) {
+    if (f.c.length !== 1 || '.123 '.includes(f.c)) { msg.textContent = '画在格子里的机制需要 1 个字符（不能用 . 1 2 3 空格）。'; return; }
+    const existing = ELEMENTS.find(e => e.c === f.c); if (existing) { msg.textContent = `字符 ${f.c} 已经是"${existing.zh}"了。可用：A D N V Z a h i j l m p q r s t u v y z 0 4-9 等`; return; }
+  } else f.c = '';
+  f.rgb = hexToRgb(f.color); f.en = f.key || f.zh;
+  S.proposals = S.proposals.filter(p => (f.c ? p.c !== f.c : p.zh !== f.zh)); S.proposals.push(f);
+  msg.textContent = isCell ? `已保存。回"画关卡"，元素库最上面就有 ${f.c} ${f.zh}。` : '已保存（技能/行为类不画在格子里，会写进设计单）。';
+  W = makeWorld(S.proposals); renderPropList(); renderPalette(); recheck(true);
+};
+$('#mClear').onclick = () => { fillForm({}); $('#mMsg').textContent = ''; };
+function renderPropList() {
+  const box = $('#propList');
+  if (!S.proposals.length) { box.innerHTML = '<div class="empty">还没有提案。左边填一个试试：比如"磁铁陷阱：把马里奥吸过来"。</div>'; return; }
+  box.innerHTML = '<h3 style="margin:0 0 6px">已有提案</h3>';
+  for (const p of S.proposals) {
+    const d = document.createElement('div'); d.className = 'p';
+    const rgb = p.rgb || [0.7, 0.55, 1];
+    d.innerHTML = `<div class="sw" style="background:${rgbCss(rgb)};color:${textOn(rgb)}">${p.c || '★'}</div><div><h4>${p.zh} <span class="hint">${ROLE_ZH[p.role] || p.role}</span></h4><p>${p.effect}</p><p>代价：${p.cost || '<span style="color:var(--warn)">没写</span>'} · 反制：${p.counter || '<span style="color:var(--warn)">没写</span>'}</p></div><div style="display:flex;flex-direction:column;gap:4px"><button class="btn small">编辑</button><button class="btn small">删除</button></div>`;
+    const [eb, db] = d.querySelectorAll('button'); eb.onclick = () => fillForm(p);
+    db.onclick = () => { if (!confirm(`删除提案"${p.zh}"？画布上用到的格子会变成空气。`)) return; S.proposals = S.proposals.filter(x => x !== p); if (p.c) S.grid = S.grid.map(r => r.split(p.c).join('.')); W = makeWorld(S.proposals); renderPropList(); renderPalette(); recheck(true); };
+    box.appendChild(d);
+  }
+}
+function renderCuts() {
+  const box = $('#cutList'); box.innerHTML = '';
+  for (const e of ELEMENTS.filter(e => e.s1 && !'MTGo.#W'.includes(e.c))) {
+    const l = document.createElement('label'); const on = !!S.cuts[e.c];
+    l.innerHTML = `<input type="checkbox" ${on ? 'checked' : ''}> <span class="sw" style="display:inline-grid;place-items:center;width:20px;height:20px;border-radius:4px;background:${rgbCss(e.rgb)};color:${textOn(e.rgb)};font:600 11px var(--mono)">${e.c}</span> ${e.zh} <input class="f" style="flex:1;padding:4px 8px;${on ? '' : 'display:none'}" placeholder="原因 / 想怎么改" value="${(S.cuts[e.c] || '').replace(/"/g, '&quot;')}">`;
+    const [cb, why] = l.querySelectorAll('input');
+    cb.onchange = () => { if (cb.checked) { S.cuts[e.c] = S.cuts[e.c] || '（没写原因）'; why.style.display = ''; why.focus(); } else { delete S.cuts[e.c]; why.style.display = 'none'; } save(); renderPalette(); };
+    why.oninput = () => { S.cuts[e.c] = why.value || '（没写原因）'; save(); };
+    box.appendChild(l);
+  }
+}
+
+// ── 交接单 ───────────────────────────────────────────
+function handoff() {
+  const r = R || check(W, S.grid, true), L = [];
+  L.push('# MarioTrickster 设计单（来自关卡设计台）', '');
+  L.push('> 给 AI：请加载接续包（mariotrickster-continue），按这份设计单更新项目。关卡加成工坊样板并跑完整体检（含炸弹策略模拟、三种性格自动检查）；新机制按"新机关"分册 16 步清单实现；删改项先说明影响再动手。完成后交付升级包 + 更新接续包。', '');
+  L.push(`## 关卡：${S.name || '（未命名）'}`);
+  if (S.goal) L.push('', `**设计意图**：${S.goal}`);
+  L.push('', `尺寸 ${Wd()}×${H()}；网页预检：${r.playable ? '✓ 可以试玩' : `✗ ${r.issues.filter(i => i.sev === 'error').length} 个问题`}；马里奥一趟约 ${r.seconds ? r.seconds.toFixed(0) : '?'} 秒，路上 ${r.onRoute.length} 个机关。`);
+  if (r.onRoute.length) L.push('', '**马里奥时间线**：' + r.onRoute.map(s => `${s.at.toFixed(0)}s ${W.info.get(s.c) ? W.info.get(s.c).zh : s.c}(${s.x},${s.y})`).join(' → '));
+  const errs = r.issues.filter(i => i.sev !== 'info');
+  if (errs.length) { L.push('', '**网页预检发现的问题**（请修掉或说明）：'); errs.forEach(i => L.push(`- ${i.x >= 0 ? `(${i.x},${i.y}) ` : ''}${i.t}`)); }
+  L.push('', '```text', ...S.grid, '```');
+  if (S.notes.length) { L.push('', '**格子批注**（坐标 x 从左 0、y 从下 0）：'); S.notes.forEach(n => L.push(`- (${n.x},${n.y}) '${cellAt(n.x, n.y)}'：${n.text}`)); }
+  const used = new Set(S.grid.join('')); const props = S.proposals;
+  if (props.length) {
+    L.push('', '## 新机制提案');
+    for (const p of props) {
+      L.push('', `### ${p.zh}${p.c ? `（字符 \`${p.c}\`，主题键 ${p.key || '待定'}）` : ''} — ${ROLE_ZH[p.role] || p.role}${p.c && used.has(p.c) ? ' · 已画进关卡' : ''}`);
+      L.push(`- 做什么：${p.effect}`, `- 预警（H3/H6）：${p.tele || '**未写**'}`, `- 代价（A2）：${p.cost || '**未写**'}`, `- 马里奥怎么反制/发现（H4）：${p.counter || '**未写**'}`);
+      if (p.place) L.push(`- 放在哪：${p.place}`); if (p.combo) L.push(`- 能连的机关：${p.combo}`);
+      L.push(`- 属性：${p.solid ? '实心' : '可穿过'}${p.support ? '、脚下要实心' : ''}${p.terrain ? '、**会改变地形 → 要进死局/炸弹策略模拟（H1/H9）**' : ''}${p.control ? '、**会控制人 → 必须有时长、必然结束（H9）**' : ''}`);
+      const need = LAWS.filter(([, , f]) => f(p)).map(([id, t]) => `${id} ${t}`); if (need.length) L.push(`- 还需要说清：${need.join('；')}`);
+    }
+  }
+  const cuts = Object.entries(S.cuts);
+  if (cuts.length) { L.push('', '## 想删掉 / 改掉的旧东西'); cuts.forEach(([c, why]) => { const e = W.info.get(c); L.push(`- \`${c}\` ${e ? e.zh : c}：${why}`); }); L.push('', '（删之前请告诉我影响：哪些样板/测试/连锁在用它。）'); }
+  L.push('', '---', `导出时间：${new Date().toLocaleString('zh-CN')} · 设计台规则版本：S203（跳高 2 格、平跳 4 格、弹簧头顶 4 格、炮口前 3 格、毒池 ≤3 格）`);
+  return L.join('\n');
+}
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+$('#hCopy').onclick = async () => { const t = handoff(); try { await navigator.clipboard.writeText(t); toast('设计单已复制'); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('设计单已复制'); } };
+$('#hDownload').onclick = () => download(`设计单_${(S.name || 'level').replace(/[\\/:*?"<>|]/g, '')}.md`, handoff(), 'text/markdown');
+$('#hTxt').onclick = () => download(`${(S.name || 'my_level').replace(/[\\/:*?"<>|]/g, '')}.txt`, S.grid.join('\n') + '\n', 'text/plain');
+$('#btnExport').onclick = () => download(`${(S.name || 'mariotrickster').replace(/[\\/:*?"<>|]/g, '')}.studio.json`, JSON.stringify({ v: 1, grid: S.grid, name: S.name, goal: S.goal, notes: S.notes, proposals: S.proposals, cuts: S.cuts }, null, 1), 'application/json');
+$('#btnImport').onclick = () => $('#fileIn').click();
+$('#fileIn').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return; const t = await f.text();
+  try {
+    if (f.name.endsWith('.json')) { const d = JSON.parse(t); Object.assign(S, { grid: d.grid, name: d.name || '', goal: d.goal || '', notes: d.notes || [], proposals: d.proposals || [], cuts: d.cuts || {} }); }
+    else { const rows = t.replace(/\r/g, '').split('\n').map(l => l.trimEnd()).filter(l => l && !l.startsWith('#')); const w = Math.max(...rows.map(r => r.length)); S.grid = rows.map(r => r.replace(/ /g, '.').padEnd(w, '.')); }
+    snapshot(); syncInputs(); fitZoom(); W = makeWorld(S.proposals); renderAll(); toast('已导入');
+  } catch (err) { toast('导入失败：' + err.message); }
+  e.target.value = '';
+};
+
+// ── 顶部/工具条 ──────────────────────────────────────
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
+  const p = t.dataset.page; $('#pageDesign').style.display = p === 'design' ? '' : 'none';
+  $('#pageMech').classList.toggle('on', p === 'mech'); $('#pageHandoff').classList.toggle('on', p === 'handoff');
+  if (p === 'handoff') $('#handoffText').textContent = handoff();
+  if (p === 'mech') { renderPropList(); renderCuts(); renderLaws(); }
+});
+document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { S.tool = b.dataset.tool; document.querySelectorAll('[data-tool]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+$('#btnUndo').onclick = () => { if (!undo.length) return; redo.push(JSON.stringify(S.grid)); S.grid = JSON.parse(undo.pop()); syncInputs(); recheck(true); };
+$('#btnRedo').onclick = () => { if (!redo.length) return; undo.push(JSON.stringify(S.grid)); S.grid = JSON.parse(redo.pop()); syncInputs(); recheck(true); };
+window.addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea,select')) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('#btnUndo').click(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); $('#btnRedo').click(); }
+  else { const m = { b: 'brush', r: 'rect', f: 'fill', i: 'pick' }[e.key.toLowerCase()]; if (m && !e.ctrlKey) document.querySelector(`[data-tool=${m}]`).click(); }
+});
+for (const [id, k] of [['ovRoute', 'route'], ['ovDead', 'dead'], ['ovWorst', 'worst'], ['ovNotes', 'notes']]) $('#' + id).onchange = e => { S.ov[k] = e.target.checked; draw(); };
+$('#zoom').oninput = e => { S.zoom = +e.target.value; draw(); };
+$('#palSearch').oninput = renderPalette;
+$('#showAll').onchange = e => { S.showAll = e.target.checked; renderPalette(); };
+const sel = $('#sampleSel'); for (const n of Object.keys(SAMPLES)) sel.add(new Option(n, n));
+$('#btnLoad').onclick = () => { if (!confirm(`载入"${sel.value}"会替换当前画布（批注也清空）。继续？`)) return; snapshot(); S.grid = SAMPLES[sel.value].slice(); S.notes = []; S.name = sel.value + '（改）'; syncInputs(); fitZoom(); recheck(true); renderNotes(); };
+$('#btnBlank').onclick = () => { if (!confirm('新建空白房间会替换当前画布。继续？')) return; snapshot(); S.grid = blank(+$('#inW').value || 48, +$('#inH').value || 12); S.notes = []; S.name = ''; syncInputs(); recheck(true); renderNotes(); };
+$('#btnResize').onclick = () => { const w = Math.max(12, Math.min(128, +$('#inW').value)), h = Math.max(6, Math.min(48, +$('#inH').value)); snapshot(); resize(w, h); recheck(true); };
+$('#lvName').oninput = e => { S.name = e.target.value; save(); };
+$('#lvGoal').oninput = e => { S.goal = e.target.value; save(); };
+function fitZoom() { const st = $('#stage'); const z = Math.floor(Math.min((st.clientWidth - 48) / Wd(), (st.clientHeight - 48) / H())); S.zoom = Math.max(10, Math.min(36, z)); $('#zoom').value = S.zoom; }
+function syncInputs() { $('#inW').value = Wd(); $('#inH').value = H(); $('#lvName').value = S.name; $('#lvGoal').value = S.goal; }
+function renderAll() { renderPalette(); renderBrush(); renderNotes(); recheck(true); }
+
+load();
+if (!S.grid.length) { S.grid = SAMPLES['诱捕走廊'].slice(); S.name = '诱捕走廊（改）'; }
+W = makeWorld(S.proposals); syncInputs(); fitZoom(); renderAll();
+</script>
+</body>
+</html>

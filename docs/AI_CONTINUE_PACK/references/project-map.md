@@ -27,10 +27,11 @@
 | 机关 | `LevelElements/Pranks/*.cs`、`LevelElements/Traps/*.cs`（FireTrap、PranksterCannon、CannonBall…）、`LevelElements/Platforms/CollapsingPlatform.cs` |
 | 机关基类 | `Ability/ControllablePropBase.cs`、`LevelElements/ControllableLevelElement.cs`、`LevelElements/LevelElementBase.cs` |
 | 测试 | `Assets/Tests/EditMode/Step1RushMarioTests.cs`（helpers：`Read`、`CodeOnly`、`Tuning()`、`reg()`、`Dt`） |
+| 网页关卡设计台 | 仓库根 `tools/LevelStudioWeb/`（build.py 生成 index.html；logic.js 纯逻辑；app.js 界面） |
 | 文档 | `SESSION_TRACKER.md`、`docs/DESIGN_CONSTITUTION_v1.0.md`、`docs/ELEMENT_LEGEND.md`、`docs/step1/S1xx–S200_*.md` |
 
 ## 已实现玩法清单（避免重复造）
-连招计数/顿帧/震屏/伤害递减（S185/S193）· 弹簧/裂缝地板/香蕉皮（S193–194）· 楼层寻路/监狱塔/自动镜头（S195）· 单向捷径门/裂墙/箱庭总览（S196）· 炸弹/缩小/通风管/时间静止/毒池黏胶/图例（S197）· 可破坏地形/炸弹伤双方/大炮瞄准与人肉发射/绳套/随机道具箱（S198）· 油桶连锁/铁笼/诱饵/警报/马里奥踢门（S199）· 连锁编排 F/一键布置/预判接力/挑衅 T/绊线 R/马里奥学习层/诱捕走廊（S200）· 完美连锁回放/炸弹策略加固（铆钉）/陷阱试探菜单/检查轨迹热力图/马里奥躲炸弹与抢道具（S202）· 马里奥性格 冲冲/谨慎/贪财（S203）。
+连招计数/顿帧/震屏/伤害递减（S185/S193）· 弹簧/裂缝地板/香蕉皮（S193–194）· 楼层寻路/监狱塔/自动镜头（S195）· 单向捷径门/裂墙/箱庭总览（S196）· 炸弹/缩小/通风管/时间静止/毒池黏胶/图例（S197）· 可破坏地形/炸弹伤双方/大炮瞄准与人肉发射/绳套/随机道具箱（S198）· 油桶连锁/铁笼/诱饵/警报/马里奥踢门（S199）· 连锁编排 F/一键布置/预判接力/挑衅 T/绊线 R/马里奥学习层/诱捕走廊（S200）· 完美连锁回放/炸弹策略加固（铆钉）/陷阱试探菜单/检查轨迹热力图/马里奥躲炸弹与抢道具（S202）· 马里奥性格 冲冲/谨慎/贪财（S203）· 网页关卡设计台 + 设计单工作流（S204）。
 
 ## 待办候选（上次推荐）
 可推动的油桶（推到路线上当一环）· 陷阱试探多策略对手（埋伏型/引诱型）· 更多性格（胆小型/记仇型）· 多座楼串联"地下一百层" · 马里奥性格（谨慎型/贪财型，宪法第 2 步）。

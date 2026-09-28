@@ -80,6 +80,35 @@ public static class LevelWorkshopModel
         return result;
     }
 
+    /// <summary>
+    /// S204：读网页"关卡设计台"导出的 .studio.json 里的网格（纯逻辑，不依赖 JSON 库：只解析 "grid":[ "...", ... ]）。
+    /// 未登记的字符（网页里的新机制提案）换成空气，并在 note 里说明——提案要先按设计单实现登记才能生成。
+    /// </summary>
+    public static string[] GridFromStudioJson(string json, out string note)
+    {
+        note = "";
+        if (string.IsNullOrEmpty(json)) { note = "文件是空的"; return null; }
+        int i = json.IndexOf("\"grid\"", System.StringComparison.Ordinal);
+        if (i < 0) { note = "不是设计台导出的 .json（找不到 grid）"; return null; }
+        int a = json.IndexOf('[', i), b = json.IndexOf(']', a + 1);
+        if (a < 0 || b < 0) { note = "grid 格式不对"; return null; }
+        var rows = new List<string>();
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(json.Substring(a, b - a), "\"((?:[^\"\\\\]|\\\\.)*)\""))
+            rows.Add(System.Text.RegularExpressions.Regex.Unescape(m.Groups[1].Value));
+        if (rows.Count == 0) { note = "grid 是空的"; return null; }
+        var reg = AsciiElementRegistry.GetDefault();
+        var unknown = new HashSet<char>();
+        for (int r = 0; r < rows.Count; r++)
+        {
+            var ch = rows[r].ToCharArray();
+            for (int x = 0; x < ch.Length; x++)
+                if (ch[x] != '.' && reg.GetEntry(ch[x]) == null && !Step1Layout.Slots.ContainsKey(ch[x])) { unknown.Add(ch[x]); ch[x] = '.'; }
+            rows[r] = new string(ch);
+        }
+        if (unknown.Count > 0) note = $"网页里的新机制提案 {string.Join(" ", unknown)} 还没实现，已先换成空气。把设计单交给 AI 实现后再导入即可。";
+        return rows.ToArray();
+    }
+
     public static CheckResult Check(IList<string> grid, bool step1Rules, System.Func<char, bool> isSolid)
     {
         var result = new CheckResult();

@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""关卡设计台（网页）构建脚本：从项目 C# 源码读元素表与样板，生成单文件 index.html。
+元素/样板/规则改了就重跑：python3 tools/LevelStudioWeb/build.py  → tools/LevelStudioWeb/index.html"""
+import json, os, re
+HERE = os.path.dirname(os.path.abspath(__file__))
+S = os.path.join(HERE, '..', '..', 'Assets', 'Scripts')
+rd = lambda p: open(os.path.join(S, p), encoding='utf-8').read()
+reg, cat = rd('LevelDesign/AsciiElementRegistry.cs'), rd('LevelDesign/ElementCatalog.cs')
+phys = {}
+for m in re.finditer(r"asciiChar = '(.)', elementName = \"(\w+)\", isSolid = (\w+), isHazard = (\w+), jumpBoost = ([\d.]+)f.*?visualColor = new Color\(([\d.f, ]+)\)", reg, re.S):
+    rgb = [float(v.strip().rstrip('f')) for v in m.group(6).split(',')][:3]
+    phys[m.group(1)] = dict(so=m.group(3) == 'true', hz=m.group(4) == 'true', jb=float(m.group(5)) > 0, rgb=rgb)
+fixed = {'M': [0.9, 0.2, 0.2], 'T': [0.2, 0.4, 0.9], 'G': [0.98, 0.8, 0.25], '.': [0.11, 0.1, 0.17]}
+els = []
+for m in re.finditer(r"I\('(.)', \"(\w+)\", \"([^\"]+)\", \"([^\"]+)\", Role\.(\w+), \"((?:[^\"\\]|\\.)*)\", \"((?:[^\"\\]|\\.)*)\"([^)]*)\)", cat):
+    c, rest = m.group(1), m.group(8)
+    if c == ' ': continue
+    p = phys.get(c, {})
+    els.append(dict(c=c, k=m.group(2), zh=m.group(3), en=m.group(4), r=m.group(5), w=m.group(6).replace('**', ''), p=m.group(7),
+                    u='unique: true' in rest, s='needsSupport: true' in rest, s1='step1: true' in rest,
+                    m=1 if 'muzzle: 1' in rest else -1 if 'muzzle: -1' in rest else 0,
+                    so=p.get('so', False), hz=p.get('hz', False), jb=p.get('jb', False),
+                    rgb=[round(v, 2) for v in fixed.get(c, p.get('rgb', [0.5, 0.5, 0.5]))]))
+def arr(path, name):
+    s = rd(path); i = s.index(name); j = s.index('};', i)
+    return re.findall(r'"([^"]+)"', s[i:j])
+samples = {'默认恶作剧房间': arr('Editor/Step1PrankRoomBuilder.cs', 'public static readonly string[] Room =')}
+wm = rd('Editor/LevelWorkshopModel.cs')
+names = {'PrisonSample': '两层监狱', 'LureSample': '诱捕走廊', 'HakoniwaSample': '箱庭监狱（四层）'}
+for f in re.findall(r'public static readonly string\[\] (\w+Sample) =', wm):
+    samples[names.get(f, f)] = arr('Editor/LevelWorkshopModel.cs', f'public static readonly string[] {f} =')
+data = 'const ELEMENTS=' + json.dumps(els, ensure_ascii=False, separators=(',', ':')) + ';\nconst SAMPLES=' + json.dumps(samples, ensure_ascii=False, separators=(',', ':')) + ';\n'
+logic = open(os.path.join(HERE, 'logic.js'), encoding='utf-8').read()
+logic = re.sub(r"if \(typeof module[^\n]*\n?", '', logic)
+html = open(os.path.join(HERE, 'shell.html'), encoding='utf-8').read()
+html = html.replace('/*DATA*/', data).replace('/*LOGIC*/', logic).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read())
+open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(html)
+print(f'index.html: {len(els)} 个元素, {len(samples)} 个样板, {len(html)//1024} KB')

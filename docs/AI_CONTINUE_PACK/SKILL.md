@@ -28,6 +28,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 | 修 bug / 用户截图报错 / "没反应" | `references/bugfix.md` |
 | 调研玩法再升级 | `references/research.md` |
 | 文件在哪、关键数值、字符表 | `references/project-map.md` |
+| 用户发来"设计单"/网页设计台 / 改网页 | `references/web-studio.md` |
 | 打包交付给用户 | `references/delivery.md` |
 
 ## 0.5 换账号 / 全新对话也能接上（不依赖任何账号记忆）
@@ -77,7 +78,8 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 9. **样板/房间改了要跑 verify.sh**：体检会报具体格子问题（悬空、炮口被挡、弹簧头顶、死局）——按提示挪格子，别关检查。
 10. **策略死局**：任何"会破坏地形/改变地形"的新机制，都要进 `StrategySim`（或说明为什么不影响），verify 的"炸弹仍能困住"=失败。
 11. **沙盒没有 Unity**：永远不要说"测试通过"，只能说"编译通过 + 字符串断言 N 条 + 纯逻辑体检通过，Unity 里 EditMode 测试请你跑"。
-12. **交付前必须 `verify.sh` 全绿 + `make_patch.sh` 显示 TREE IDENTICAL**。
+12. **网页设计台跟着项目走**：元素/样板/规则有变 → `python3 tools/LevelStudioWeb/build.py` 重建，`index.html` 随升级包交付（用户在网页里画的图要和 Unity 一致）。
+13. **交付前必须 `verify.sh` 全绿 + `make_patch.sh` 显示 TREE IDENTICAL**。
 
 ## 3. 标准工作循环
 

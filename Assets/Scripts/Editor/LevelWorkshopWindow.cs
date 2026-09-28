@@ -641,9 +641,17 @@ public class LevelWorkshopWindow : EditorWindow
 
     private void Import()
     {
-        string path = EditorUtility.OpenFilePanel("导入关卡 .txt", Application.dataPath, "txt");
+        string path = EditorUtility.OpenFilePanel("导入关卡（.txt 或 网页设计台 .json）", Application.dataPath, "txt,json");
         if (string.IsNullOrEmpty(path)) return;
         string text = File.ReadAllText(path);
+        // S204：网页关卡设计台导出的 .studio.json → 取出网格（批注/提案交给 AI 按设计单处理）
+        if (path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            var rows = LevelWorkshopModel.GridFromStudioJson(text, out string why);
+            if (rows == null) { EditorUtility.DisplayDialog("导入失败", why, "OK"); return; }
+            text = string.Join("\n", rows);
+            if (why.Length > 0) EditorUtility.DisplayDialog("提示", why, "OK");
+        }
         if (!LevelStudioDocument.TryParse(text, out _, out string err)) { EditorUtility.DisplayDialog("导入失败", err, "OK"); return; }
         SetSource(text, "Import");
     }

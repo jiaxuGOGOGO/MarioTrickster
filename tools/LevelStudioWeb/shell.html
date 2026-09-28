@@ -76,6 +76,13 @@ h3:first-child{margin-top:4px}
 .seg button[aria-pressed=true]{background:var(--slab2);color:var(--chalk)}
 .toggle{display:inline-flex;align-items:center;gap:6px;color:var(--dim);font-size:12.5px;cursor:pointer;padding:0 4px}
 .toggle input{accent-color:var(--loot)}
+.ovgroup{display:inline-flex;align-items:center;flex-wrap:wrap;gap:2px 4px;color:var(--dim);font-size:12px;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:3px 6px}
+.ovgroup small{opacity:.7;margin-right:2px}
+.ovsw{display:inline-block;width:10px;height:10px;border-radius:2px}
+.ovsw.hatch{background:repeating-linear-gradient(45deg,#ff5a4e 0 2px,transparent 2px 4px)}
+.ovsw.dot{background:radial-gradient(circle,#b08cff 40%,transparent 45%)}
+.worstbar{background:#3a2a10;color:#ffc83d;font-size:12.5px;padding:6px 12px;border-bottom:1px solid #6b4f1d}
+.toolhint{color:var(--loot);margin-left:12px;font-size:12px}
 .stage{overflow:auto;position:relative;background:
   radial-gradient(circle at 1px 1px,#2a2440 1px,transparent 1.2px) 0 0/18px 18px,var(--ink);padding:24px}
 canvas{display:block;image-rendering:pixelated;cursor:crosshair;margin:auto;border-radius:6px;box-shadow:0 0 0 1px var(--line),0 20px 60px -20px #000}
@@ -184,22 +191,27 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
         <button aria-pressed="true" data-tool="brush" title="画笔（B）">画笔</button>
         <button aria-pressed="false" data-tool="rect" title="矩形（R）">矩形</button>
         <button aria-pressed="false" data-tool="fill" title="油漆桶（F）">填充</button>
-        <button aria-pressed="false" data-tool="pick" title="吸管（I）">吸管</button>
+        <button aria-pressed="false" data-tool="pick" title="吸管（I）：点一个已放的东西，画笔就变成它，然后自动回到原来的工具。随时也可以 Ctrl+点击 直接吸">吸管</button>
+        <button aria-pressed="false" data-tool="move" title="移动（V）：点住已放的东西拖走；空白处拖 = 框选多个；方向键微调；Del 删除；Ctrl+C / Ctrl+V 复制">移动</button>
       </div>
       <button class="btn small" id="btnUndo" title="撤销 Ctrl+Z">撤销</button>
       <button class="btn small" id="btnRedo" title="重做 Ctrl+Y">重做</button>
       <span style="width:8px"></span>
-      <label class="toggle"><input type="checkbox" id="ovRoute" checked> 马里奥路线</label>
-      <label class="toggle"><input type="checkbox" id="ovDead" checked> 死局格</label>
-      <label class="toggle"><input type="checkbox" id="ovWorst"> 最坏情况预览</label>
-      <label class="toggle"><input type="checkbox" id="ovNotes" checked> 批注</label>
-      <label class="toggle" title="鼠标停在马里奥能站的格子上：绿色 = 跳一下能到（AI 会走），黄色 = 物理上够得着但 AI 不稳（别把必经路放这）"><input type="checkbox" id="ovJump" checked> 跳跃辅助</label>
-      <label class="toggle" title="紫色点 = 能站但马里奥永远上不去的格子"><input type="checkbox" id="ovUnreach" checked> 上不去的格</label>
+      <span class="ovgroup" title="这一组勾选框只改变画面上显示什么，不会改关卡、不影响检查结果、不影响导出">显示<small>（只改画面）</small>：
+      <label class="toggle" title="红色虚线 = 马里奥 AI 预计走的路（出生 → 宝物 → 出口），黄字 = 走到那里大约第几秒"><input type="checkbox" id="ovRoute" checked><i class="ovsw" style="background:#ff5a4e"></i>马里奥路线</label>
+      <label class="toggle" title="红色斜线格 = 马里奥站到这里后，最坏情况下再也回不到出口（死局）。有斜线就要改"><input type="checkbox" id="ovDead" checked><i class="ovsw hatch"></i>死局格</label>
+      <label class="toggle" title="假装塌桥 / 裂缝地板 / 捷径门 / 裂墙全都已经触发，看看地形变成什么样。只是看，勾着时不能画"><input type="checkbox" id="ovWorst"><i class="ovsw" style="background:#1c1a2b;border:1px dashed #9d93b3"></i>最坏情况预览</label>
+      <label class="toggle" title="黄色小三角 = 你写的批注（Alt+点击格子写）"><input type="checkbox" id="ovNotes" checked><i class="ovsw" style="background:#ffc83d"></i>批注</label>
+      <label class="toggle" title="鼠标停在马里奥能站的格子上：绿色 = 跳一下能到（AI 会走），黄色 = 物理上够得着但 AI 不稳（别把必经路放这）"><input type="checkbox" id="ovJump" checked><i class="ovsw" style="background:#5fd39a"></i>跳跃辅助</label>
+      <label class="toggle" title="紫色点 = 能站但马里奥永远上不去的格子（放宝物/机关在这里没意义）"><input type="checkbox" id="ovUnreach" checked><i class="ovsw dot"></i>上不去的格</label>
+      <label class="toggle" title="蓝色虚线框 = 游戏里镜头一次能看到的范围（跟着鼠标走）。大房间（宽 >64 或高 >16）游戏里镜头会跟着人移动，像死亡细胞"><input type="checkbox" id="ovView"><i class="ovsw" style="background:#6fc3ff"></i>游戏一屏</label>
+      </span>
       <span class="spacer"></span>
       <label class="toggle">缩放 <input type="range" id="zoom" min="10" max="36" value="20" aria-label="缩放"></label>
     </div>
+    <div class="worstbar" id="worstBanner" hidden>正在看"最坏情况"：塌桥 / 裂缝地板 / 捷径门 / 裂墙都假装已打开。这只是预览，不能画 —— 取消勾选"最坏情况预览"回到编辑</div>
     <div class="stage" id="stage"><canvas id="cv"></canvas></div>
-    <div class="status"><span class="hover" id="hoverInfo">把鼠标放到格子上</span><span class="jumpkey" id="jumpKey" hidden><span><i style="background:#5fd39a"></i>跳一下能到</span><span><i style="background:#ffb347"></i>够得着但 AI 不稳</span></span><span class="spacer"></span><span>右键 = 擦除 · Alt+点击 = 写批注 · 坐标 x 从左 0、y 从下 0（和 Unity 工坊一致）</span></div>
+    <div class="status"><span class="hover" id="hoverInfo">把鼠标放到格子上</span><span class="jumpkey" id="jumpKey" hidden><span><i style="background:#5fd39a"></i>跳一下能到</span><span><i style="background:#ffb347"></i>够得着但 AI 不稳</span></span><span class="toolhint" id="toolHint"></span><span class="spacer"></span><span>右键 = 擦除 · Ctrl+点击 = 吸管 · Alt+点击 = 写批注 · 坐标 x 从左 0、y 从下 0（和 Unity 工坊一致）</span></div>
   </section>
 
   <aside class="side-right">

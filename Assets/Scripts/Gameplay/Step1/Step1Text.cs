@@ -72,7 +72,7 @@ public static class Step1Text
         }
     }
 
-    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   F 连锁   T 挑衅   ↓ 通风管   |   V 这是什么 Labels   H 帮助 Help   Esc 暂停";
+    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   F 连锁   T 挑衅   ↓ 通风管   |   V 这是什么 Labels   C 镜头 Camera   H 帮助 Help   Esc 暂停";
 
     public const string Help =
         "<b>怎么玩  HOW TO PLAY</b>\n\n" +
@@ -109,6 +109,7 @@ public static class Step1Text
         "每局<b>藏身处和火会随机变化</b>。   Hiding spots and some fires change every round.\n" +
         "马里奥头顶  Above Mario:   <b>?</b> 起疑   <b>!</b> 来查看   <b>!!</b> 看见你在追   <b>?!</b> 追丢了\n" +
         "白色扇形 = 他的视野，墙会挡住。   White cone = his view (walls block it).\n\n" +
+        "<b>大房间</b>：镜头会跟着你走（死亡细胞式）；马里奥不在屏幕里时，屏幕边缘的<color=#FF6B6B><b>红箭头</b></color>指着他（带 ? ! 和距离），右上角有<b>小地图</b>。  Big rooms: camera follows you; red edge arrow = Mario off-screen.\n\n" +
         "<color=#BBBBBB>V 显示每个东西是什么 labels    H 关闭帮助 help    C 换镜头 camera</color>";
 
     public const string BombNeedUndisguise = "要先<b>现形</b>（P 取消伪装）才能放炸弹  Undisguise to place a bomb";
@@ -163,6 +164,19 @@ public static class Step1Text
     public const string HeardSmash = "哐！<size=20>（马里奥听见了）</size>  CRASH! (Mario heard it)";
 
     public const string PreCollapsedWall = "这一局有一面<b>裂墙已经塌了</b>——多了一条秘密路线！  A cracked wall has already collapsed this round!";
+
+    public const string CameraSwitched = "镜头：{0}  Camera";
+    /// <summary>S207：镜头模式的中文名（C 键切换时的提示）。</summary>
+    public static string CameraModeName(Step1CameraMode m)
+    {
+        switch (m)
+        {
+            case Step1CameraMode.FrameBoth: return "框住两人 Both";
+            case Step1CameraMode.FollowTrickster: return "只跟你 Follow you";
+            case Step1CameraMode.SmartFollow: return "智能跟随（死亡细胞式） Smart follow";
+            default: return "整个房间 Whole room";
+        }
+    }
 
     public const string Paused = "已暂停  Paused\n<size=22>Esc 继续 Resume</size>";
     public const string AfterSurvey = "✓ 已保存 Saved\n\n<b>N</b> = 下一局 Next round        <b>R</b> = 从头开始 Restart";

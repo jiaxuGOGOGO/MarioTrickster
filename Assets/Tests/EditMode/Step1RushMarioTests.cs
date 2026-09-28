@@ -1773,6 +1773,120 @@ public class Step1RushMarioTests
         Assert.AreEqual(128, LevelStudioDocument.MaxWidth); Assert.AreEqual(48, LevelStudioDocument.MaxHeight);
     }
 
+    // ── S207：大房间镜头（死亡细胞式）+ 屏外箭头 + 小地图 + 按路线放宽时间 ─────────
+    [Test]
+    public void BigRoomCameraPicksSmartFollowOnlyWhenNeeded()
+    {
+        var t = Tuning();
+        Assert.AreEqual(Step1CameraMode.SmartFollow, t.bigRoomCamera, "大房间默认智能跟随");
+        Assert.AreEqual(Step1CameraMode.SmartFollow, Step1RoomCamera.AutoMode(Step1CameraMode.WholeRoom, new Rect(0, 0, 94, 15), t.maxWholeRoomHeight, t.maxWholeRoomWidth, t.bigRoomCamera), "宽房间 → 智能跟随（不再缩成小框）");
+        Assert.AreEqual(Step1CameraMode.SmartFollow, Step1RoomCamera.AutoMode(Step1CameraMode.WholeRoom, new Rect(0, 0, 48, 45), t.maxWholeRoomHeight, t.maxWholeRoomWidth, t.bigRoomCamera), "高楼 → 智能跟随");
+        Assert.AreEqual(Step1CameraMode.WholeRoom, Step1RoomCamera.AutoMode(Step1CameraMode.WholeRoom, new Rect(0, 0, 48, 15), t.maxWholeRoomHeight, t.maxWholeRoomWidth, t.bigRoomCamera), "默认房间照旧看整屏");
+        Assert.AreEqual(Step1CameraMode.FollowTrickster, Step1RoomCamera.AutoMode(Step1CameraMode.FollowTrickster, new Rect(0, 0, 94, 15), t.maxWholeRoomHeight, t.maxWholeRoomWidth, t.bigRoomCamera), "你手动选的模式不被改");
+        Assert.AreEqual((Step1CameraMode)3, Step1CameraMode.SmartFollow, "新枚举只加在末尾（旧存档不串）");
+    }
+
+    [Test]
+    public void SmartViewFollowsYouFramesMarioWhenCloseAndStaysInRoom()
+    {
+        var room = new Rect(-0.5f, -0.5f, 94, 15);
+        Step1RoomCamera.SmartView(room, 16f / 9f, 0.5f, new Vector2(47, 5), null, 12, 18, 16, 3, out var c, out float size, out bool both);
+        Assert.AreEqual(6f, size, 0.01f, "一屏 12 格高"); Assert.IsFalse(both);
+        Assert.AreEqual(50f, c.x, 0.01f, "朝前多看 3 格");
+        Step1RoomCamera.SmartView(room, 16f / 9f, 0.5f, new Vector2(47, 5), new Vector2(57, 5), 12, 18, 16, 3, out c, out size, out both);
+        Assert.IsTrue(both, "马里奥靠近 → 两人都框进来"); Assert.AreEqual(52f, c.x, 0.01f);
+        Step1RoomCamera.SmartView(room, 16f / 9f, 0.5f, new Vector2(47, 5), new Vector2(90, 5), 12, 18, 16, 3, out c, out size, out both);
+        Assert.IsFalse(both, "离得远 → 只跟你（屏外箭头指他）"); Assert.AreEqual(6f, size, 0.01f);
+        Step1RoomCamera.SmartView(room, 16f / 9f, 0.5f, new Vector2(1, 1), null, 12, 18, 16, 3, out c, out size, out _);
+        Assert.GreaterOrEqual(c.x - size * 16f / 9f, room.xMin - 0.5f - 0.01f, "左边不看出房间外");
+        Assert.GreaterOrEqual(c.y - size, room.yMin - 0.5f - 0.01f, "下边不看出房间外");
+        Assert.AreEqual(5f, Step1RoomCamera.DeadZoneFollow(5f, 6f, 1.5f), "小跳不动镜头");
+        Assert.AreEqual(7.5f, Step1RoomCamera.DeadZoneFollow(5f, 9f, 1.5f), 0.001f, "离开死区只跟超出的部分");
+        Assert.AreEqual(9f, Step1RoomCamera.DeadZoneFollow(float.NaN, 9f, 1.5f), "第一帧直接对准");
+    }
+
+    [Test]
+    public void OffscreenArrowAndMiniMapMath()
+    {
+        Assert.IsTrue(Step1OffscreenMarkers.Offscreen(new Vector3(1.3f, 0.5f, 1f)));
+        Assert.IsFalse(Step1OffscreenMarkers.Offscreen(new Vector3(0.5f, 0.5f, 1f)));
+        Assert.IsTrue(Step1OffscreenMarkers.Offscreen(new Vector3(0.5f, 0.5f, -1f)), "在镜头后面也算屏外");
+        var p = Step1OffscreenMarkers.EdgePoint(new Vector2(3f, 0.5f), 0.05f);
+        Assert.AreEqual(0.95f, p.x, 0.001f); Assert.AreEqual(0.5f, p.y, 0.001f);
+        p = Step1OffscreenMarkers.EdgePoint(new Vector2(0.5f, -2f), 0.05f); Assert.AreEqual(0.05f, p.y, 0.001f);
+        Assert.AreEqual("?", Step1OffscreenMarkers.MarkOf(MarioMindState.Curious), "H6：和头顶符号同一含义");
+        Assert.AreEqual("!", Step1OffscreenMarkers.MarkOf(MarioMindState.Investigating));
+        var map = Step1MiniMap.Layout(1920, 94, 15, 300, 120, 10);
+        Assert.AreEqual(1920 - 10, map.xMax, 0.01f, "贴右上角"); Assert.LessOrEqual(map.width, 300.01f); Assert.LessOrEqual(map.height, 120.01f);
+        Assert.AreEqual(map.width / map.height, 94f / 15f, 0.01f, "按房间比例");
+        var pt = Step1MiniMap.ToMap(map, 94, 15, new Vector2(0, 0)); Assert.Less(pt.x, map.x + 5); Assert.Greater(pt.y, map.yMax - 5);
+        Assert.AreEqual(new Vector2(90, 8), Step1MiniMap.CellOf(LevelWorkshopModel.LongHallSample, 'o'));
+        string cam = Read("Scripts/Gameplay/Step1/Step1RoomCamera.cs");
+        StringAssert.Contains("Step1Keys.Down(KeyCode.C)", cam, "C 换镜头走统一按键表");
+        foreach (var f in new[] { "Scripts/Gameplay/Step1/Step1OffscreenMarkers.cs", "Scripts/Gameplay/Step1/Step1MiniMap.cs" })
+        {
+            string src = Read(f);
+            StringAssert.Contains("Step1HandsOffCheck.IsRunning", src, "自动检查时不画");
+        }
+        foreach (var f in new[] { "Scripts/Gameplay/Step1/RushMarioMind.cs", "Scripts/Gameplay/Step1/MarioMindDriver.cs", "Scripts/Gameplay/Step1/MarioEyes.cs" })
+        {
+            string src = Read(f);
+            StringAssert.DoesNotContain("Step1MiniMap", src, "H4：小地图是给玩家看的，马里奥不读");
+            StringAssert.DoesNotContain("Step1OffscreenMarkers", src, "H4：屏外箭头是给玩家看的，马里奥不读");
+        }
+        string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
+        StringAssert.Contains("AddComponent<Step1OffscreenMarkers>()", builder); StringAssert.Contains("AddComponent<Step1MiniMap>()", builder);
+        Assert.AreEqual(18, Step1PrankRoomBuilder.BuilderVersion, "新场景组件 → 构建器版本 +1");
+    }
+
+    [Test]
+    public void LongLevelsGetMoreTimeButDefaultRoomUnchanged()
+    {
+        var t = Tuning();
+        Assert.AreEqual(150f, StrategySim.RoundTimeLimit(t.roundTimeLimit, 20f, t.roundTimePerRouteSecond), "默认房间（一趟 ≈20 秒）不变");
+        Assert.AreEqual(70f, StrategySim.HandsOffTimeout(t.autoCheckRoundTimeoutSeconds, 20f, t.handsOffTimePerRouteSecond, t.handsOffTimeMargin), "默认房间自动检查超时不变");
+        Assert.AreEqual(180f, StrategySim.RoundTimeLimit(150f, 60f, 3f), "长关卡放宽");
+        Assert.AreEqual(140f, StrategySim.HandsOffTimeout(70f, 60f, 2f, 20f), "长关卡自动检查不误判卡住");
+        Assert.AreEqual(150f, StrategySim.RoundTimeLimit(150f, 0f, 3f), "走不通 → 按基础时间");
+        Assert.Greater(Step1PrankRoomBuilder.RouteSeconds(LevelWorkshopModel.LongHallSample, t), Step1PrankRoomBuilder.RouteSeconds(LevelWorkshopModel.LureSample, t), "长廊比诱捕走廊路线长");
+        Assert.AreEqual(15, MarioMindTuningSO.CurrentDataVersion, "新调参字段 → 数据版本 +1（旧资产自动补默认值）");
+    }
+
+    [Test]
+    public void LongHallSampleIsPlayableAndInScope()
+    {
+        System.Func<char, bool> s = reg().IsSolid;
+        var g = LevelWorkshopModel.LongHallSample;
+        Assert.AreEqual(94, g[0].Length); Assert.AreEqual(15, g.Length);
+        Assert.IsTrue(LevelWorkshopModel.Check(g, true, s).Playable, LevelWorkshopModel.Check(g, true, s).Headline);
+        CollectionAssert.IsEmpty(LevelWorkshopModel.BoundsIssues(g, s));
+        StringAssert.Contains("LongHallSample", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "工坊有按钮");
+    }
+
+    // ── S207：工坊/网页的移动工具（已放的东西能点住拖走）──
+    [Test]
+    public void MoveToolSelectsDragsCopiesAndKeepsFrame()
+    {
+        var g = new[] { "WWWWWWW", "W.....W", "W.^^..W", "W#####W", "WWWWWWW" };
+        var sel = LevelWorkshopModel.SelectAt(g, 2, 2).Value;
+        Assert.AreEqual(2, sel.x0); Assert.AreEqual(3, sel.x1, "相连的同种一起选");
+        Assert.IsNull(LevelWorkshopModel.SelectAt(g, 0, 0), "外圈选不中"); Assert.IsNull(LevelWorkshopModel.SelectAt(g, 1, 3), "空气选不中");
+        Assert.AreEqual(2, LevelWorkshopModel.SelectAt(g, 2, 1).Value.x1, "地面只选一格");
+        CollectionAssert.AreEqual(new[] { "WWWWWWW", "W..^^.W", "W.....W", "W#####W", "WWWWWWW" }, LevelWorkshopModel.MoveBlock(g, sel, 1, 1));
+        var cl = LevelWorkshopModel.ClampMove(7, 5, sel, 9, 9); Assert.AreEqual(2, cl.dx); Assert.AreEqual(1, cl.dy, "不会推进外圈");
+        CollectionAssert.AreEqual(new[] { "WWWWWWW", "W.....W", "W.^^..W", "W##^^#W", "WWWWWWW" }, LevelWorkshopModel.PasteBlock(g, LevelWorkshopModel.CopyBlock(g, sel), 3, 1));
+        var u = new[] { "WWWWWWW", "W.....W", "W.M.o.W", "W#####W", "WWWWWWW" };
+        var all = new LevelWorkshopModel.Sel(1, 1, 5, 3);
+        Assert.AreEqual(0, LevelWorkshopModel.CopyBlock(u, new LevelWorkshopModel.Sel(1, 2, 5, 2)).Count, "马里奥/宝物不复制（只能有一个）");
+        StringAssert.Contains("M", LevelWorkshopModel.ClearBlock(u, all)[2], "清空不删唯一元素");
+        StringAssert.Contains("移动", LevelWorkshopModel.ToolHint(LevelWorkshopModel.Tool.Move, false));
+        string web = File.ReadAllText(Path.Combine(Application.dataPath, "..", "tools", "LevelStudioWeb", "logic.js"));
+        foreach (var fn in new[] { "function selectAt", "function moveBlock", "function clampMove", "function copyBlock", "function pasteBlock", "function clearBlock", "function cameraPlan" })
+            StringAssert.Contains(fn, web, "网页与 Unity 同规则：" + fn);
+        string app = File.ReadAllText(Path.Combine(Application.dataPath, "..", "tools", "LevelStudioWeb", "app.js"));
+        StringAssert.Contains("rules: 'S207'", app);
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

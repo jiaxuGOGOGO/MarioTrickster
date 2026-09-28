@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
+| **最新 Session** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
+| **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
 | **S205** | Session 205（设计台：跳跃辅助（绿=AI能跳/黄=临界）、上不去的格、导入 Tiled/LDtk/CSV/像素图、导出像素图与调色板） |
 | **S204** | Session 204（网页关卡设计台 tools/LevelStudioWeb：画关卡 + 实时预检/死局/时间线 + 新机制提案（宪法提醒）+ 删改清单 + 一键设计单交给 AI；工坊可导入 .studio.json） |
 | **S203** | Session 203（马里奥性格：冲冲/谨慎（绕开被坑点、绕不开跳、再不行原路）/贪财（跨层必抢道具）；开局头顶亮性格；自动检查轮流测三种；诱捕走廊加高路） |
@@ -117,6 +118,15 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S207] 用户："摆放的道具不能点击移动；吸管不明确；勾选框看不懂影响；关卡向前延伸能否像死亡细胞那样不局限在小框里（别破坏规则和连锁）；基于还没推送的 203–206 继续升级，完整交付"
+
+- 根因：AutoMode 只看高度，宽房间整屏缩成小框。新增 Step1CameraMode.SmartFollow（枚举末尾）+ 5 参 AutoMode（宽 >maxWholeRoomWidth 64 或高 >16 → bigRoomCamera）；SmartView/ClampToRoom/DeadZoneFollow 纯函数；C 键 4 种模式 + 提示。
+- Step1OffscreenMarkers（屏外红箭头 + ? ! !! ?!）、Step1MiniMap（右上角小地图）：玩家侧 HUD，H4 测试守住马里奥代码不读；自动检查/回放/帮助时不画。
+- StrategySim.RoundTimeLimit / HandsOffTimeout：构建时按路线秒数放宽（默认 20s → 150/70 不变）；HandsOffCheck.roomTimeoutSeconds。调参 dataVersion 15；BuilderVersion 18。
+- 128×48 上限保留：实测 186 宽模拟 31s 且加固失败 → 更长旅程以后做多房间连廊。
+- LongHallSample 94×15（一趟 ≈39s，可玩、加固通过）；工坊按钮 + build.py 名称。
+- 工坊/网页移动工具（SelectAt/MoveBlock/ClampMove/CopyBlock/PasteBlock/ClearBlock，网页 logic.js 同规则）；吸管回原工具 + 提示 + Ctrl+点击；"显示（只改画面）"分组 + 色块 + 说明；最坏情况横条且禁画；游戏一屏框（cameraPlan）；关卡包 rules S207。测试 +7。文档 docs/step1/S207_BIG_ROOMS_AND_MOVE_TOOL.md。
 
 ### [S206] 用户："自己搭的图可能有上不去的格；搭建范围要界定清楚；搭很多关要能按名字保存、适配将来导入；新机制怎么确认新增、新增后怎么导入；给一个 S202 之后全部改动的完整 ZIP 和说明"
 

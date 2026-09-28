@@ -307,6 +307,14 @@ public static class StrategySim
         return rep;
     }
 
+    /// <summary>S207：回合时间（秒）= max(基础时间, 马里奥一趟估算秒数 × 倍数)。默认房间 20s×3=60 &lt; 150 → 不变；长关卡自动放宽，防止"还没走到就超时"。</summary>
+    public static float RoundTimeLimit(float baseLimit, float routeSeconds, float perRouteSecond) =>
+        System.Math.Max(baseLimit, routeSeconds * System.Math.Max(0f, perRouteSecond));
+
+    /// <summary>S207：自动检查超时（秒）= max(基础, 估算秒数 × 倍数 + 余量)。长关卡不会被误判"卡住"。</summary>
+    public static float HandsOffTimeout(float baseTimeout, float routeSeconds, float perRouteSecond, float margin) =>
+        System.Math.Max(baseTimeout, routeSeconds * System.Math.Max(0f, perRouteSecond) + margin);
+
     /// <summary>马里奥赶路速度（格/秒）估算 = 物理最高速 × 调参倍率。</summary>
     public static float RunSpeed(float maxSpeed, float speedScale) => System.Math.Max(0.5f, maxSpeed * speedScale);
 

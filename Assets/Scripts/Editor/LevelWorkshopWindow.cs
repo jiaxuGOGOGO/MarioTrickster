@@ -35,6 +35,11 @@ public class LevelWorkshopWindow : EditorWindow
     private bool painting, rectDragging, strokeStarted;
     private Vector2Int lastCell, rectStart, hoverCell = new Vector2Int(-1, -1);
     private int undoGroup;
+    // S207：移动工具（点一个东西/框一块 → 拖过去；方向键微调；Ctrl+C/V 复制粘贴；Delete 清空）
+    private LevelWorkshopModel.Sel? moveSel;
+    private bool moveDragging, moveBoxing;
+    private Vector2Int moveFrom;
+    private List<(int dx, int dy, char c)> clipboard;
     private GUIStyle cellLabel, tileLabel;
     // S193：连招路线（缓存：只在网格变化时重算）
     private bool comboRoutes;
@@ -186,6 +191,13 @@ public class LevelWorkshopWindow : EditorWindow
             nameSelected = new GUIStyle(tileLabel) { normal = { textColor = new Color(0.1f, 0.1f, 0.1f) } };
         }
         Parse();
+        // S207：工具快捷键（和网页设计台一致）：B 画笔 R 矩形 E 橡皮 I 吸管 M 移动
+        var ke = Event.current;
+        if (ke.type == EventType.KeyDown && !ke.control && !ke.command && !ke.alt && !EditorGUIUtility.editingTextField)
+        {
+            var map = new Dictionary<KeyCode, LevelWorkshopModel.Tool> { { KeyCode.B, LevelWorkshopModel.Tool.Brush }, { KeyCode.R, LevelWorkshopModel.Tool.Rect }, { KeyCode.E, LevelWorkshopModel.Tool.Erase }, { KeyCode.I, LevelWorkshopModel.Tool.Pick }, { KeyCode.M, LevelWorkshopModel.Tool.Move } };
+            if (map.TryGetValue(ke.keyCode, out var t)) { tool = t; moveSel = null; ke.Use(); }
+        }
         DrawToolbar();
         if (doc == null)
         {
@@ -219,6 +231,8 @@ public class LevelWorkshopWindow : EditorWindow
         { SetSource(string.Join("\n", LevelWorkshopModel.HakoniwaSample), "Load hakoniwa sample"); overview = true; }
         if (GUILayout.Button(new GUIContent("样板：诱捕走廊", "练习'以身入局'：一条排好的连锁（绊线→香蕉皮→火+油桶→塌桥→弹簧→封路墙）。试玩时 Shift+F 一键编号，再按 T 挑衅把他引过来"), EditorStyles.toolbarButton, GUILayout.Width(96)))
         { SetSource(string.Join("\n", LevelWorkshopModel.LureSample), "Load lure sample"); comboRoutes = true; }
+        if (GUILayout.Button(new GUIContent("样板：长廊远征", "S207 大房间示范（94×15）：两段诱捕走廊连起来。游戏里镜头跟着你走（死亡细胞式），马里奥在屏外时边缘有红箭头 + 右上角小地图"), EditorStyles.toolbarButton, GUILayout.Width(96)))
+            SetSource(string.Join("\n", LevelWorkshopModel.LongHallSample), "Load long hall sample");
         if (GUILayout.Button(new GUIContent("监狱塔…", "按层数自动拼一座监狱塔：每层是手工楼层模板，楼梯口左右交替；宝物在最底层，出口在顶层。拼完自动做死局检查"), EditorStyles.toolbarButton, GUILayout.Width(60)))
         {
             var menu = new GenericMenu();
@@ -241,7 +255,14 @@ public class LevelWorkshopWindow : EditorWindow
         if (GUILayout.Button("导入", EditorStyles.toolbarButton, GUILayout.Width(44))) Import();
         if (GUILayout.Button("导出", EditorStyles.toolbarButton, GUILayout.Width(44))) Export();
         GUILayout.Space(10);
-        tool = (LevelWorkshopModel.Tool)GUILayout.Toolbar((int)tool, new[] { "✎ 画笔", "▭ 矩形", "⌫ 橡皮", "⊙ 吸管" }, EditorStyles.toolbarButton, GUILayout.Width(260));
+        var newTool = (LevelWorkshopModel.Tool)GUILayout.Toolbar((int)tool, new[]
+        {
+            new GUIContent("✎ 画笔", "点/拖着画当前选中的元素（B）"), new GUIContent("▭ 矩形", "拖出一个矩形，整块填满（R）"),
+            new GUIContent("⌫ 橡皮", "擦成空气（E）；任何工具下右键也是擦"),
+            new GUIContent("⊙ 吸管", "点画布上的格子 = 把它设成画笔，然后自动回到画笔（I；任何时候 Alt+点 也一样）"),
+            new GUIContent("✥ 移动", "点一个东西（塌桥/台面这类连成一片的会整段选中）或在空处拖出框 → 拖过去；方向键微调、Ctrl+C/V 复制粘贴、Delete 清空（M）"),
+        }, EditorStyles.toolbarButton, GUILayout.Width(330));
+        if (newTool != tool) { tool = newTool; moveSel = null; }
         GUILayout.Space(10);
         step1Mode = GUILayout.Toggle(step1Mode, new GUIContent("第 1 步规则", "只显示/允许第 1 步恶作剧房间能用的元素，并按第 1 步规则检查"), EditorStyles.toolbarButton, GUILayout.Width(80));
         overview = GUILayout.Toggle(overview, new GUIContent("箱庭总览", "左侧显示每层的身份（主机关/藏身处）、层间连接（楼梯/捷径/秘密）、环路与捷径省下的步数，并在画布上标出楼层分隔与连接点；同时自动缩放到能看见整张图"), EditorStyles.toolbarButton, GUILayout.Width(66));
@@ -303,7 +324,7 @@ public class LevelWorkshopWindow : EditorWindow
                 // 名称永远写在深色底上（不随元素颜色变），任何颜色都看得清
                 GUI.Label(new Rect(r.x, r.y + 23, r.width, 22), new GUIContent(t.name, t.tip), selected ? nameSelected : nameNormal);
                 if (GUI.Button(r, new GUIContent("", t.tip), GUIStyle.none))
-                { brush = t.ch; if (tool == LevelWorkshopModel.Tool.Erase || tool == LevelWorkshopModel.Tool.Pick) tool = LevelWorkshopModel.Tool.Brush; }
+                { brush = t.ch; if (tool == LevelWorkshopModel.Tool.Erase || tool == LevelWorkshopModel.Tool.Pick || tool == LevelWorkshopModel.Tool.Move) { tool = LevelWorkshopModel.Tool.Brush; moveSel = null; } }
             }
             EditorGUILayout.EndHorizontal();
         }
@@ -391,6 +412,13 @@ public class LevelWorkshopWindow : EditorWindow
             if (strategy) DrawStrategy(canvas, size);
             if (showTrack) DrawTrack(canvas, size);
             if (overview) DrawHakoniwa(canvas, size);
+            if (tool == LevelWorkshopModel.Tool.Move && moveSel.HasValue)
+            {
+                var ms = moveSel.Value; var off = moveDragging && hoverCell.x >= 0 ? MoveOffset() : Vector2Int.zero;
+                DrawOutline(RectOf(canvas, new Vector2Int(ms.x0, ms.y0), new Vector2Int(ms.x1, ms.y1), size), new Color(1f, 0.85f, 0.2f), 2f);
+                if (off != Vector2Int.zero) DrawOutline(RectOf(canvas, new Vector2Int(ms.x0 + off.x, ms.y0 + off.y), new Vector2Int(ms.x1 + off.x, ms.y1 + off.y), size), new Color(0.4f, 1f, 0.6f), 2f);
+            }
+            if (moveBoxing && hoverCell.x >= 0) DrawOutline(RectOf(canvas, moveFrom, hoverCell, size), new Color(1f, 0.85f, 0.2f, 0.9f), 1f);
             if (rectDragging) DrawOutline(RectOf(canvas, rectStart, hoverCell, size), new Color(1f, 1f, 1f, 0.9f), 2f);
             else if (hoverCell.x >= 0) DrawOutline(CellRect(canvas, hoverCell.x, hoverCell.y, size), new Color(1f, 1f, 1f, 0.5f), 1f);
         }
@@ -403,9 +431,14 @@ public class LevelWorkshopWindow : EditorWindow
             if (next != hoverCell) { hoverCell = next; Repaint(); } // 只在换格子时重画
         }
 
-        if (inside && e.type == EventType.MouseDown && (e.button == 0 || e.button == 1))
+        if (tool == LevelWorkshopModel.Tool.Move && !e.alt && HandleMove(e, point, inside, control)) { }
+        else if (inside && e.type == EventType.MouseDown && (e.button == 0 || e.button == 1))
         {
-            if (e.alt || tool == LevelWorkshopModel.Tool.Pick) { brush = doc.Cell(point.x, point.y); if (brush == '.') brush = '#'; tool = LevelWorkshopModel.Tool.Brush; e.Use(); }
+            if (e.alt || tool == LevelWorkshopModel.Tool.Pick)
+            {
+                char picked = doc.Cell(point.x, point.y); brush = picked == '.' ? '#' : picked; tool = LevelWorkshopModel.Tool.Brush; moveSel = null;
+                ShowNotification(new GUIContent($"吸管：画笔换成 {ElementCatalog.Get(brush)?.zh ?? brush.ToString()}，已回到画笔")); e.Use();
+            }
             else
             {
                 Undo.IncrementCurrentGroup(); undoGroup = Undo.GetCurrentGroup(); Undo.SetCurrentGroupName("Workshop stroke");
@@ -432,6 +465,64 @@ public class LevelWorkshopWindow : EditorWindow
             e.Use();
         }
         EditorGUILayout.EndScrollView();
+    }
+
+    private Vector2Int MoveOffset()
+    {
+        if (!moveSel.HasValue) return Vector2Int.zero;
+        var (dx, dy) = LevelWorkshopModel.ClampMove(doc.Width, doc.Height, moveSel.Value, hoverCell.x - moveFrom.x, hoverCell.y - moveFrom.y);
+        return new Vector2Int(dx, dy);
+    }
+
+    private void ApplyMove(int dx, int dy)
+    {
+        if (!moveSel.HasValue || (dx == 0 && dy == 0)) return;
+        var s0 = moveSel.Value; var (cx, cy) = LevelWorkshopModel.ClampMove(doc.Width, doc.Height, s0, dx, dy);
+        if (cx == 0 && cy == 0) return;
+        SetSource(string.Join("\n", LevelWorkshopModel.MoveBlock(Rows(), s0, cx, cy)), "Move");
+        moveSel = new LevelWorkshopModel.Sel(s0.x0 + cx, s0.y0 + cy, s0.x1 + cx, s0.y1 + cy);
+        fullCheckAt = EditorApplication.timeSinceStartup + FullCheckDelay;
+    }
+
+    /// <summary>S207：移动工具的鼠标/键盘处理。返回 true = 事件已处理。</summary>
+    private bool HandleMove(Event e, Vector2Int point, bool inside, int control)
+    {
+        if (e.type == EventType.KeyDown && moveSel.HasValue)
+        {
+            int dx = e.keyCode == KeyCode.LeftArrow ? -1 : e.keyCode == KeyCode.RightArrow ? 1 : 0, dy = e.keyCode == KeyCode.DownArrow ? -1 : e.keyCode == KeyCode.UpArrow ? 1 : 0;
+            if (dx != 0 || dy != 0) { ApplyMove(dx, dy); e.Use(); return true; }
+            if (e.keyCode == KeyCode.Delete || e.keyCode == KeyCode.Backspace) { SetSource(string.Join("\n", LevelWorkshopModel.ClearBlock(Rows(), moveSel.Value)), "Clear"); fullCheckAt = EditorApplication.timeSinceStartup + FullCheckDelay; e.Use(); return true; }
+            if ((e.control || e.command) && e.keyCode == KeyCode.C) { clipboard = LevelWorkshopModel.CopyBlock(Rows(), moveSel.Value); ShowNotification(new GUIContent($"已复制 {clipboard.Count} 格（M/T/G/宝物不复制）；鼠标指到落点按 Ctrl+V")); e.Use(); return true; }
+            if (e.keyCode == KeyCode.Escape) { moveSel = null; Repaint(); e.Use(); return true; }
+        }
+        if (e.type == EventType.KeyDown && (e.control || e.command) && e.keyCode == KeyCode.V && clipboard != null && hoverCell.x >= 0)
+        {
+            SetSource(string.Join("\n", LevelWorkshopModel.PasteBlock(Rows(), clipboard, hoverCell.x, hoverCell.y)), "Paste");
+            fullCheckAt = EditorApplication.timeSinceStartup + FullCheckDelay; e.Use(); return true;
+        }
+        if (inside && e.type == EventType.MouseDown && e.button == 0)
+        {
+            GUIUtility.hotControl = control; moveFrom = point;
+            if (moveSel.HasValue && moveSel.Value.Contains(point.x, point.y)) moveDragging = true;
+            else
+            {
+                moveSel = LevelWorkshopModel.SelectAt(Rows(), point.x, point.y);
+                if (moveSel.HasValue) moveDragging = true; else moveBoxing = true;
+            }
+            e.Use(); Repaint(); return true;
+        }
+        if ((moveDragging || moveBoxing) && e.type == EventType.MouseDrag) { e.Use(); Repaint(); return true; }
+        if ((moveDragging || moveBoxing) && e.rawType == EventType.MouseUp)
+        {
+            if (moveBoxing && hoverCell.x >= 0)
+            {
+                var box = new LevelWorkshopModel.Sel(moveFrom.x, moveFrom.y, hoverCell.x, hoverCell.y);
+                moveSel = box.x0 == box.x1 && box.y0 == box.y1 ? (LevelWorkshopModel.Sel?)null : box;
+            }
+            else if (moveDragging && hoverCell.x >= 0) { var off = MoveOffset(); ApplyMove(off.x, off.y); }
+            moveDragging = moveBoxing = false; GUIUtility.hotControl = 0; e.Use(); Repaint(); Save(); return true;
+        }
+        return false;
     }
 
     private void PaintLine(Vector2Int p, bool erase)
@@ -596,7 +687,7 @@ public class LevelWorkshopWindow : EditorWindow
             var here = check?.cells.Where(c => c.x == hoverCell.x && c.y == hoverCell.y).Select(c => c.text).ToArray();
             if (here != null && here.Length > 0) hover += "\n⚠ " + string.Join("\n⚠ ", here);
         }
-        EditorGUILayout.LabelField($"{doc.Width} × {doc.Height} 格   画笔：{ElementCatalog.Get(brush)?.zh ?? brush.ToString()}", GUILayout.Width(220));
+        EditorGUILayout.LabelField($"{doc.Width} × {doc.Height} 格   画笔：{ElementCatalog.Get(brush)?.zh ?? brush.ToString()}\n{LevelWorkshopModel.ToolHint(tool, moveSel.HasValue)}", EditorStyles.wordWrappedMiniLabel, GUILayout.Width(260));
         if (GUILayout.Button("右 +8", EditorStyles.miniButton, GUILayout.Width(44))) SetSource(doc.Resize(Math.Min(LevelStudioDocument.MaxWidth, doc.Width + 8), doc.Height).Text, "Expand");
         if (GUILayout.Button("右 -8", EditorStyles.miniButton, GUILayout.Width(44)) && doc.Width > 24) SetSource(doc.Resize(doc.Width - 8, doc.Height).Text, "Shrink");
         if (GUILayout.Button("上 +2", EditorStyles.miniButton, GUILayout.Width(44))) SetSource(doc.Resize(doc.Width, Math.Min(LevelStudioDocument.MaxHeight, doc.Height + 2)).Text, "Expand");

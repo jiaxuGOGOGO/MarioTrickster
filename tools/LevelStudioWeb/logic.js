@@ -189,7 +189,7 @@ function check(W, rawGrid, step1) {
   const widths = new Set(g.map(r => r.length)); if (widths.size > 1) res.issues.push({ x: -1, y: -1, t: '每一行长度要一样', sev: 'error' });
   if (g[0].length < 12 || g.length < 6) res.issues.push({ x: -1, y: -1, t: `房间太小：至少 12 宽 × 6 高（现在 ${g[0].length}×${g.length}）`, sev: 'error' });
   if (g[0].length > 128 || g.length > 48) res.issues.push({ x: -1, y: -1, t: `房间太大：最多 128 宽 × 48 高（现在 ${g[0].length}×${g.length}）`, sev: 'error' });
-  if (g.length > 16) res.issues.push({ x: -1, y: -1, t: `高 ${g.length} 格：超过 16 格一屏装不下，游戏里镜头会跟着人走（能玩，只是看不到全图）`, sev: 'info' });
+  if (g.length > 16 || g[0].length > 64) res.issues.push({ x: -1, y: -1, t: `${g[0].length}×${g.length}：大房间（宽 >64 或高 >16）→ 游戏里用「智能跟随」镜头（死亡细胞式：跟着你走、马里奥靠近自动拉远；屏外红箭头 + 右上角小地图）。打开「游戏一屏」可看一屏有多大`, sev: 'info' });
   for (const c of ['M', 'T', 'G']) { const n = find(g, c).length; if (n !== 1) res.issues.push({ x: -1, y: -1, t: `需要且只能有一个 ${W.info.get(c).zh} ${c}（现在 ${n} 个）`, sev: 'error' }); }
   if (step1 && find(g, 'o').length !== 1) res.issues.push({ x: -1, y: -1, t: '第 1 步房间需要且只能有一个宝物 o', sev: 'error' });
   if (res.issues.some(i => i.sev === 'error')) return res;
@@ -246,7 +246,64 @@ function check(W, rawGrid, step1) {
   return res;
 }
 
-if (typeof module !== 'undefined') module.exports = { makeWorld, check, path, placementIssues, stripSlots, find };
+// ── S207：移动工具（与 Unity LevelWorkshopModel.SelectAt/MoveBlock/ClampMove/CopyBlock/PasteBlock/ClearBlock 同规则）──
+// 选区 sel = {x0,y0,x1,y1}（x 从左 0、y 从下 0）。外圈永远不动也不被覆盖；M/T/G/o 只能搬、不复制、不被覆盖/清掉。
+const UNIQUE = 'MTGo';
+const isFrame = (x, y, w, h) => x <= 0 || y <= 0 || x >= w - 1 || y >= h - 1;
+const groupsWithNeighbours = c => c !== '.' && c !== ' ' && c !== '#' && c !== 'W' && c !== '=';
+function selectAt(g, x, y) {
+  const h = g.length, w = h ? g[0].length : 0;
+  if (x < 0 || y < 0 || x >= w || y >= h || isFrame(x, y, w, h)) return null;
+  const c = at(g, x, y); if (c === '.' || c === ' ') return null;
+  const s = { x0: x, y0: y, x1: x, y1: y }; if (!groupsWithNeighbours(c)) return s;
+  const seen = new Set(), q = [[x, y]];
+  while (q.length) {
+    const [cx, cy] = q.pop();
+    if (cx < 0 || cy < 0 || cx >= w || cy >= h || isFrame(cx, cy, w, h) || at(g, cx, cy) !== c || seen.has(key(cx, cy))) continue;
+    seen.add(key(cx, cy)); s.x0 = Math.min(s.x0, cx); s.y0 = Math.min(s.y0, cy); s.x1 = Math.max(s.x1, cx); s.y1 = Math.max(s.y1, cy);
+    q.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+  }
+  return s;
+}
+const selBox = (ax, ay, bx, by) => ({ x0: Math.min(ax, bx), y0: Math.min(ay, by), x1: Math.max(ax, bx), y1: Math.max(ay, by) });
+function clampMove(w, h, s, dx, dy) { return [Math.max(1 - s.x0, Math.min(w - 2 - s.x1, dx)), Math.max(1 - s.y0, Math.min(h - 2 - s.y1, dy))]; }
+function moveBlock(g, s, dx, dy) {
+  const h = g.length, w = g[0].length, rows = g.map(r => r.split('')), lifted = [];
+  for (let y = s.y0; y <= s.y1; y++) for (let x = s.x0; x <= s.x1; x++) {
+    if (x < 0 || y < 0 || x >= w || y >= h || isFrame(x, y, w, h)) continue;
+    const c = rows[h - 1 - y][x]; if (c === '.' || c === ' ') continue; lifted.push([x, y, c]); rows[h - 1 - y][x] = '.';
+  }
+  for (const [x, y, c] of lifted) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= w || ny >= h || isFrame(nx, ny, w, h)) continue; rows[h - 1 - ny][nx] = c; }
+  return rows.map(r => r.join(''));
+}
+function copyBlock(g, s) {
+  const h = g.length, w = g[0].length, out = [];
+  for (let y = s.y0; y <= s.y1; y++) for (let x = s.x0; x <= s.x1; x++) {
+    if (x < 0 || y < 0 || x >= w || y >= h || isFrame(x, y, w, h)) continue;
+    const c = at(g, x, y); if (c === '.' || c === ' ' || UNIQUE.includes(c)) continue; out.push([x - s.x0, y - s.y0, c]);
+  }
+  return out;
+}
+function pasteBlock(g, block, x, y) {
+  const h = g.length, w = g[0].length, rows = g.map(r => r.split(''));
+  for (const [bx, by, c] of block) { const nx = x + bx, ny = y + by; if (nx < 0 || ny < 0 || nx >= w || ny >= h || isFrame(nx, ny, w, h) || UNIQUE.includes(rows[h - 1 - ny][nx])) continue; rows[h - 1 - ny][nx] = c; }
+  return rows.map(r => r.join(''));
+}
+function clearBlock(g, s) {
+  const h = g.length, w = g[0].length, rows = g.map(r => r.split(''));
+  for (let y = s.y0; y <= s.y1; y++) for (let x = s.x0; x <= s.x1; x++) if (x >= 0 && y >= 0 && x < w && y < h && !isFrame(x, y, w, h) && !UNIQUE.includes(rows[h - 1 - y][x])) rows[h - 1 - y][x] = '.';
+  return rows.map(r => r.join(''));
+}
+/** S207：游戏镜头（与 Unity Step1RoomCamera 同规则）：宽 > 64 或高 > 16 → 智能跟随（一屏约 12 格高 × 16:9）。 */
+const CAMERA = { maxWholeWidth: 64, maxWholeHeight: 16, followViewHeight: 12, aspect: 16 / 9 };
+function cameraPlan(w, h) {
+  const big = w > CAMERA.maxWholeWidth || h > CAMERA.maxWholeHeight;
+  const vh = big ? CAMERA.followViewHeight : h, vw = big ? Math.round(CAMERA.followViewHeight * CAMERA.aspect) : w;
+  return { big, viewW: Math.min(w, vw), viewH: Math.min(h, vh) };
+}
+
+if (typeof module !== 'undefined') module.exports = { makeWorld, check, path, placementIssues, stripSlots, find, selectAt, selBox, clampMove, moveBlock, copyBlock, pasteBlock, clearBlock, cameraPlan };
+
 
 // ── S205：跳跃辅助 ────────────────────────────────────
 /** 从 (x,y) 站着起跳，一步能到哪：ai = AI 马里奥实际会走的（保守：往上 ≤2 格、左右 ≤2 格；平跳 ≤4 格），

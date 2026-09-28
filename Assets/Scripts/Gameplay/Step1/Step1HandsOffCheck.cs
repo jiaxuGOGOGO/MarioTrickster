@@ -24,6 +24,9 @@ public class Step1HandsOffCheck : MonoBehaviour
     public static bool ProbeMode { get; private set; }
 
     [SerializeField] private MarioMindTuningSO tuning;
+    [Tooltip("S207：构建时按这张图的路线长度算出的超时（秒，0 = 用调参里的 autoCheckRoundTimeoutSeconds）")]
+    [SerializeField] private float roomTimeoutSeconds;
+    public float RoundTimeout => Mathf.Max(tuning != null ? tuning.autoCheckRoundTimeoutSeconds : 70f, roomTimeoutSeconds);
 
     public struct RoundResult { public string winner, reason; public float seconds; public Vector2 marioPos; public bool hadLoot; public int rescues; public int hurts; public string personality; }
 
@@ -150,7 +153,7 @@ public class Step1HandsOffCheck : MonoBehaviour
         {
             Time.timeScale = Mathf.Max(0.1f, tuning.autoCheckTimeScale);
             // S182：马里奥卡住时不要一直干等到 150 秒倒计时，超时即记为卡住。
-            if (Time.time - roundStartedAt > tuning.autoCheckRoundTimeoutSeconds)
+            if (Time.time - roundStartedAt > RoundTimeout)
                 manager.EndRound("Trickster", Step1Text.HandsOffTimeoutReason);
         }
         if (nextRoundAt > 0f && Time.unscaledTime >= nextRoundAt)

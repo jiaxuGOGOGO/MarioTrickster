@@ -10,7 +10,7 @@ using System.Linq;
 /// </summary>
 public static class LevelWorkshopModel
 {
-    public enum Tool { Brush, Rect, Erase, Pick }
+    public enum Tool { Brush, Rect, Erase, Pick, Move } // S207：Move 追加在末尾（窗口按数字存）
 
     public sealed class Group
     {
@@ -254,6 +254,125 @@ public static class LevelWorkshopModel
         for (int y = ay; y <= by; y++) for (int x = ax; x <= bx; x++) doc.Paint(x, y, value);
     }
 
+    // ── S207：移动工具（纯逻辑，网页 logic.js 同规则）──────────────────
+    // 用户："摆放的关卡道具都不能点击移动"。点一个东西 = 选中它（塌桥/单向台面/毒池等连成一片的同种元素一起选），拖动 = 搬过去；
+    // 在空处拖 = 框选一整块。规则：
+    //   - 搬走后原地变空气；落点只覆盖"搬过来的实物"，选区里的空气是透明的（不会把目标处的东西擦掉）；
+    //   - 外圈（最左/最右列、顶行、底行）永远不动也不会被覆盖——保证搭建范围规则不被搬坏；
+    //   - M/T/G/o 是"搬"不是"复制"：粘贴时跳过，整张图始终各 1 个。
+    public struct Sel { public int x0, y0, x1, y1; public Sel(int ax, int ay, int bx, int by) { x0 = System.Math.Min(ax, bx); y0 = System.Math.Min(ay, by); x1 = System.Math.Max(ax, bx); y1 = System.Math.Max(ay, by); } public bool Contains(int x, int y) => x >= x0 && x <= x1 && y >= y0 && y <= y1; }
+
+    /// <summary>S207：状态栏一句话告诉你"现在点画布会发生什么"（用户反馈吸管不明确）。网页设计台同一套文字。</summary>
+    public static string ToolHint(Tool t, bool hasSelection)
+    {
+        switch (t)
+        {
+            case Tool.Rect: return "矩形：按住拖出一块，松手填满";
+            case Tool.Erase: return "橡皮：点/拖擦成空气";
+            case Tool.Pick: return "吸管：点画布上一个格子 → 画笔变成它，自动回到画笔";
+            case Tool.Move: return hasSelection ? "移动：拖黄框里的东西到新位置；方向键挪 1 格；Ctrl+C/V 复制；Delete 清空；Esc 取消" : "移动：点一个东西选中（连成一片的整段选），或在空处拖出框选一块";
+            default: return "画笔：点/拖着画；右键擦；Alt+点 = 吸取";
+        }
+    }
+
+    public static bool IsFrame(int x, int y, int w, int h) => x <= 0 || y <= 0 || x >= w - 1 || y >= h - 1;
+    static char At(IList<string> g, int x, int y) => g[g.Count - 1 - y][x];
+    /// <summary>大块地形（地面/墙/平台）点一下只选一格；其它元素选连成一片的同种（整座塌桥、一排单向台面）。</summary>
+    public static bool GroupsWithNeighbours(char c) => c != '.' && c != ' ' && c != '#' && c != 'W' && c != '=';
+
+    /// <summary>点 (x,y)：返回要选中的范围（空气/外圈 → null）。</summary>
+    public static Sel? SelectAt(IList<string> g, int x, int y)
+    {
+        int h = g.Count, w = h > 0 ? g[0].Length : 0;
+        if (x < 0 || y < 0 || x >= w || y >= h || IsFrame(x, y, w, h)) return null;
+        char c = At(g, x, y);
+        if (c == '.' || c == ' ') return null;
+        var sel = new Sel(x, y, x, y);
+        if (!GroupsWithNeighbours(c)) return sel;
+        var seen = new HashSet<int>(); var q = new Stack<(int, int)>(); q.Push((x, y));
+        while (q.Count > 0)
+        {
+            var (cx, cy) = q.Pop();
+            if (cx < 0 || cy < 0 || cx >= w || cy >= h || IsFrame(cx, cy, w, h) || At(g, cx, cy) != c || !seen.Add(cx * 1000 + cy)) continue;
+            sel = new Sel(System.Math.Min(sel.x0, cx), System.Math.Min(sel.y0, cy), System.Math.Max(sel.x1, cx), System.Math.Max(sel.y1, cy));
+            q.Push((cx + 1, cy)); q.Push((cx - 1, cy)); q.Push((cx, cy + 1)); q.Push((cx, cy - 1));
+        }
+        return sel;
+    }
+
+    /// <summary>把选区里的实物整体挪 (dx,dy)。外圈不动；挪出房间内圈的部分丢弃（调用方一般先用 ClampMove 限制）。</summary>
+    public static string[] MoveBlock(IList<string> g, Sel s, int dx, int dy)
+    {
+        int h = g.Count, w = g[0].Length;
+        var rows = g.Select(r => r.ToCharArray()).ToArray();
+        var lifted = new List<(int x, int y, char c)>();
+        for (int y = s.y0; y <= s.y1; y++)
+            for (int x = s.x0; x <= s.x1; x++)
+            {
+                if (x < 0 || y < 0 || x >= w || y >= h || IsFrame(x, y, w, h)) continue;
+                char c = rows[h - 1 - y][x];
+                if (c == '.' || c == ' ') continue;
+                lifted.Add((x, y, c)); rows[h - 1 - y][x] = '.';
+            }
+        foreach (var (x, y, c) in lifted)
+        {
+            int nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h || IsFrame(nx, ny, w, h)) continue;
+            rows[h - 1 - ny][nx] = c;
+        }
+        return rows.Select(r => new string(r)).ToArray();
+    }
+
+    /// <summary>限制挪动量：选区不能挪进外圈（挪到头就停住，不会把东西挤没）。</summary>
+    public static (int dx, int dy) ClampMove(int w, int h, Sel s, int dx, int dy)
+    {
+        dx = System.Math.Max(1 - s.x0, System.Math.Min(w - 2 - s.x1, dx));
+        dy = System.Math.Max(1 - s.y0, System.Math.Min(h - 2 - s.y1, dy));
+        return (dx, dy);
+    }
+
+    /// <summary>复制选区（给粘贴用）：只记实物；M/T/G/o 等唯一元素不复制。</summary>
+    public static List<(int dx, int dy, char c)> CopyBlock(IList<string> g, Sel s)
+    {
+        int h = g.Count, w = g[0].Length; var list = new List<(int, int, char)>();
+        for (int y = s.y0; y <= s.y1; y++)
+            for (int x = s.x0; x <= s.x1; x++)
+            {
+                if (x < 0 || y < 0 || x >= w || y >= h || IsFrame(x, y, w, h)) continue;
+                char c = At(g, x, y);
+                if (c == '.' || c == ' ' || IsUniqueChar(c)) continue;
+                list.Add((x - s.x0, y - s.y0, c));
+            }
+        return list;
+    }
+
+    public static bool IsUniqueChar(char c) { var i = ElementCatalog.Get(c); return c == 'M' || c == 'T' || c == 'G' || (i != null && i.unique); }
+
+    /// <summary>把复制的块贴到 (x,y)（左下角对齐）；外圈、唯一元素（M/T/G/o）所在格不覆盖。</summary>
+    public static string[] PasteBlock(IList<string> g, IList<(int dx, int dy, char c)> block, int x, int y)
+    {
+        int h = g.Count, w = g[0].Length;
+        var rows = g.Select(r => r.ToCharArray()).ToArray();
+        foreach (var (bx, by, c) in block)
+        {
+            int nx = x + bx, ny = y + by;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h || IsFrame(nx, ny, w, h) || IsUniqueChar(rows[h - 1 - ny][nx])) continue;
+            rows[h - 1 - ny][nx] = c;
+        }
+        return rows.Select(r => new string(r)).ToArray();
+    }
+
+    /// <summary>清空选区里的实物（外圈、M/T/G/o 保留——删掉会让关卡不能玩）。</summary>
+    public static string[] ClearBlock(IList<string> g, Sel s)
+    {
+        int h = g.Count, w = g[0].Length;
+        var rows = g.Select(r => r.ToCharArray()).ToArray();
+        for (int y = s.y0; y <= s.y1; y++)
+            for (int x = s.x0; x <= s.x1; x++)
+                if (x >= 0 && y >= 0 && x < w && y < h && !IsFrame(x, y, w, h) && !IsUniqueChar(rows[h - 1 - y][x])) rows[h - 1 - y][x] = '.';
+        return rows.Select(r => new string(r)).ToArray();
+    }
+
     /// <summary>新建空房间：四周墙 + 三层地面 + M T G o，保证"一打开就能试玩"。</summary>
     /// <summary>
     /// S193：样板房"两层监狱"——演示纵向逃脱：马里奥在地下层拿宝，要爬回地面出口。
@@ -297,6 +416,30 @@ public static class LevelWorkshopModel
         "W...............................--.............W",
         "W.....................J.......~.U......b.......W",
         "W##############################################W",
+    };
+
+    /// <summary>
+    /// S207：样板"长廊远征"（94×15）——大房间镜头示范：两段诱捕走廊连起来，出生在最左、宝物在最右。
+    ///   宽度超过 64 → 游戏里自动用"智能跟随"镜头（死亡细胞式），马里奥在屏幕外时边缘有红箭头，右上角小地图。
+    ///   后半段把香蕉皮换成黏胶 g，连锁节奏不同；回合时间按路线长度自动放宽（不会"还没走到就超时"）。
+    /// </summary>
+    public static readonly string[] LongHallSample =
+    {
+        "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+        "W............................................................................................W",
+        "W............................................................................................W",
+        "W............................................................................................W",
+        "W.........------------------------......................------------------------.............W",
+        "W......--............................................--......................................W",
+        "W.G.M....b.....R.n...~U.............[...T..............b.....R.g...~U.............[.......o..W",
+        "W########################CCC##########..###############################CCC##########..#######W",
+        "W............................................................................................W",
+        "W.....................................--............................................--.......W",
+        "W..................................--............................................--..........W",
+        "W............................................................................................W",
+        "W...............................--............................................--.............W",
+        "W.....................J.......~.U......b............................J.......~.U......b.......W",
+        "W############################################################################################W",
     };
 
     /// <summary>

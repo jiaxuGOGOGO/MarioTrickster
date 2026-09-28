@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 14;
+    public const int CurrentDataVersion = 15;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -400,9 +400,36 @@ public class MarioMindTuningSO : ScriptableObject
     public bool showHelpOnStart = true;
 
     [Header("Camera")]
+    [Tooltip("开局镜头（C 键循环切换）：整屏 / 框住两人 / 跟随你 / 死亡细胞式智能跟随")]
     public Step1CameraMode cameraMode = Step1CameraMode.WholeRoom;
     public float cameraPadding = 0.6f;
     public float frameBothMinHeight = 9f;
+
+    [Header("Big rooms (S207: Dead Cells-style follow camera)")]
+    [Tooltip("S207：房间宽于这么多格时，开局镜头自动改为'大房间镜头'（默认房间 48 宽不受影响）")]
+    public float maxWholeRoomWidth = 64f;
+    [Tooltip("S207：房间太宽/太高时用哪种镜头（默认 智能跟随 = 跟着你走，马里奥靠近时自动拉远框住两人）")]
+    public Step1CameraMode bigRoomCamera = Step1CameraMode.SmartFollow;
+    [Tooltip("智能跟随：平时一屏看多少格高（12 = 和默认房间同样大小的角色）")]
+    public float followViewHeight = 12f;
+    [Tooltip("智能跟随：马里奥靠近时最多拉远到多少格高")]
+    public float followMaxViewHeight = 18f;
+    [Tooltip("智能跟随：马里奥离你多少格以内时镜头把他也框进来")]
+    public float followIncludeMarioCells = 16f;
+    [Tooltip("智能跟随：朝移动方向多看几格（死亡细胞式前瞻）")]
+    public float followLookAhead = 3f;
+    [Tooltip("智能跟随：上下死区（格）——小跳不晃镜头，跳上/掉下一层才跟")]
+    public float followVerticalDeadZone = 1.5f;
+    [Tooltip("马里奥在屏幕外时，屏幕边缘显示红箭头（带他头顶的 ? ! !! 和距离）")]
+    public bool offscreenMarkers = true;
+    [Tooltip("镜头看不到整个房间时，右上角显示小地图（你/马里奥/宝物/出口 + 当前镜头框）")]
+    public bool miniMap = true;
+    [Tooltip("回合时间下限 = 马里奥走完一趟的估算秒数 × 这个倍数（默认房间 20 秒 × 3 = 60 < 150，不变；长关卡自动放宽）")]
+    public float roundTimePerRouteSecond = 3f;
+    [Tooltip("自动检查超时下限 = 估算秒数 × 这个倍数 + 余量（防止长关卡被误判为'卡住'）")]
+    public float handsOffTimePerRouteSecond = 2f;
+    [Tooltip("自动检查超时余量（秒）")]
+    public float handsOffTimeMargin = 20f;
 
     /// <summary>把 S183 校准值写入旧资产（只在 dataVersion 较旧时执行一次）。返回是否有改动。</summary>
     public bool UpgradeData()
@@ -415,6 +442,12 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 15)
+        {
+            maxWholeRoomWidth = 64f; bigRoomCamera = Step1CameraMode.SmartFollow; followViewHeight = 12f; followMaxViewHeight = 18f;
+            followIncludeMarioCells = 16f; followLookAhead = 3f; followVerticalDeadZone = 1.5f; offscreenMarkers = true; miniMap = true;
+            roundTimePerRouteSecond = 3f; handsOffTimePerRouteSecond = 2f; handsOffTimeMargin = 20f;
         }
         if (dataVersion < 14)
         {
@@ -500,5 +533,6 @@ public class MarioMindTuningSO : ScriptableObject
     }
 }
 
-/// <summary>第 1 步摄像机：单房间默认整屏（《地狱邻居》式），玩家同时看得到自己和马里奥。</summary>
-public enum Step1CameraMode { WholeRoom, FrameBoth, FollowTrickster }
+/// <summary>第 1 步摄像机：单房间默认整屏（《地狱邻居》式），玩家同时看得到自己和马里奥。
+/// S207：SmartFollow = 死亡细胞式跟随（前瞻 + 上下死区，马里奥靠近时自动拉远框住两人）；宽/高房间自动使用。新值只能加在末尾（资产按数字存）。</summary>
+public enum Step1CameraMode { WholeRoom, FrameBoth, FollowTrickster, SmartFollow }

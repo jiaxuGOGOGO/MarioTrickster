@@ -3,8 +3,10 @@ const LS = 'mariotrickster.studio.v1', LS2 = 'mariotrickster.studio.v2';
 const S = {
   grid: [], name: '', goal: '', notes: [], proposals: [], cuts: {},
   brush: '#', tool: 'brush', zoom: 20, showAll: false,
-  ov: { route: true, dead: true, worst: false, notes: true, jump: true, unreach: true }
+  ov: { route: true, dead: true, worst: false, notes: true, jump: true, unreach: true, view: false }
 };
+// S207 移动工具：moveSel = 选中的块 {x0,y0,x1,y1}；moveFrom = 拖动起点；moveBox = 框选起点；clip = 复制的块
+let moveSel = null, moveFrom = null, moveBox = null, clip = null, prevTool = 'brush';
 let W = makeWorld([]), R = null, undo = [], redo = [], hover = null, dragStart = null, painting = false, dirtyTimer = 0;
 const $ = s => document.querySelector(s);
 const rgbCss = (rgb, a = 1) => `rgba(${Math.round(rgb[0] * 255)},${Math.round(rgb[1] * 255)},${Math.round(rgb[2] * 255)},${a})`;
@@ -138,6 +140,23 @@ function draw() {
     }
   } else if ($('#jumpKey')) $('#jumpKey').hidden = true;
   if (S.ov.notes) for (const n of S.notes) { const px = n.x * z, py = (h - 1 - n.y) * z; ctx.fillStyle = '#ffc83d'; ctx.beginPath(); ctx.moveTo(px + z, py); ctx.lineTo(px + z, py + z * 0.5); ctx.lineTo(px + z * 0.5, py); ctx.fill(); }
+  // S207 游戏一屏：大房间里游戏镜头一次能看到多大（以鼠标 / 捣蛋者为中心）
+  if (S.ov.view) {
+    const cp = cameraPlan(w, h), t = find(S.grid, 'T')[0], c = hover || t;
+    if (c) {
+      const x0 = Math.max(0, Math.min(w - cp.viewW, c[0] - Math.floor(cp.viewW / 2))), y0 = Math.max(0, Math.min(h - cp.viewH, c[1] - Math.floor(cp.viewH / 2)));
+      ctx.strokeStyle = '#6fc3ff'; ctx.lineWidth = 2; ctx.setLineDash([8, 4]); ctx.strokeRect(x0 * z, (h - y0 - cp.viewH) * z, cp.viewW * z, cp.viewH * z); ctx.setLineDash([]); ctx.lineWidth = 1;
+      ctx.fillStyle = 'rgba(22,19,31,.85)'; ctx.fillRect(x0 * z + 2, (h - y0 - cp.viewH) * z + 2, 150, 18); ctx.fillStyle = '#6fc3ff'; ctx.textAlign = 'left';
+      ctx.font = '600 11px JetBrains Mono, monospace'; ctx.fillText(cp.big ? `游戏一屏 ≈ ${cp.viewW}×${cp.viewH}` : '整间房一屏装下', x0 * z + 6, (h - y0 - cp.viewH) * z + 11); ctx.textAlign = 'center';
+    }
+  }
+  // S207 移动工具：选中框（黄）+ 拖动预览（白虚线）
+  if (S.tool === 'move' && moveSel) {
+    const box = (s, col, dash) => { ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash(dash); ctx.strokeRect(s.x0 * z, (h - 1 - s.y1) * z, (s.x1 - s.x0 + 1) * z, (s.y1 - s.y0 + 1) * z); ctx.setLineDash([]); ctx.lineWidth = 1; };
+    box(moveSel, '#ffc83d', []);
+    if (moveFrom && hover) { const [dx, dy] = moveOffset(); if (dx || dy) box({ x0: moveSel.x0 + dx, y0: moveSel.y0 + dy, x1: moveSel.x1 + dx, y1: moveSel.y1 + dy }, '#fff', [4, 3]); }
+  }
+  if (S.tool === 'move' && moveBox && hover) { const b = selBox(moveBox[0], moveBox[1], hover[0], hover[1]); ctx.strokeStyle = '#ffc83d'; ctx.setLineDash([4, 3]); ctx.strokeRect(b.x0 * z, (h - 1 - b.y1) * z, (b.x1 - b.x0 + 1) * z, (b.y1 - b.y0 + 1) * z); ctx.setLineDash([]); }
   if (focusCell) { ctx.strokeStyle = '#ffc83d'; ctx.lineWidth = 3; ctx.strokeRect(focusCell[0] * z - 2, (h - 1 - focusCell[1]) * z - 2, z + 4, z + 4); ctx.lineWidth = 1; }
   if (dragStart && hover && S.tool === 'rect') { const [a, b] = rectOf(dragStart, hover); ctx.strokeStyle = '#fff'; ctx.setLineDash([4, 3]); ctx.strokeRect(a[0] * z, (h - 1 - b[1]) * z, (b[0] - a[0] + 1) * z, (b[1] - a[1] + 1) * z); ctx.setLineDash([]); }
   else if (hover) { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.strokeRect(hover[0] * z + .5, (h - 1 - hover[1]) * z + .5, z - 1, z - 1); }
@@ -149,24 +168,80 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('mousedown', e => {
   const c = cellFromEvent(e); if (!c) return;
   if (e.altKey) { addNote(c); return; }
+  // S207：Ctrl+点击 / 鼠标中键 = 随时吸一下（不用切工具）
+  if (e.ctrlKey || e.metaKey || e.button === 1) { e.preventDefault(); pickAt(c, false); return; }
   const erase = e.button === 2, ch = erase ? '.' : S.brush;
-  if (S.tool === 'pick' && !erase) { setBrush(cellAt(c[0], c[1])); return; }
+  if (S.tool === 'pick' && !erase) { pickAt(c, true); return; }
+  if (S.tool === 'move') { moveDown(c, erase); return; }
+  if (S.ov.worst) { toast('正在"最坏情况预览"（只是看，不能画）→ 先取消勾选它'); return; }
   snapshot();
   if (S.tool === 'fill' && !erase) { floodFill(c[0], c[1], ch); recheck(); draw(); return; }
   if (S.tool === 'rect' && !erase) { dragStart = c; painting = true; return; }
   painting = ch; setCell(c[0], c[1], ch); draw(); recheck();
 });
 window.addEventListener('mouseup', () => {
+  if (S.tool === 'move') { moveUp(); return; }
   if (dragStart && hover) { const [a, b] = rectOf(dragStart, hover); for (let x = a[0]; x <= b[0]; x++) for (let y = a[1]; y <= b[1]; y++) setCell(x, y, S.brush); recheck(); }
   dragStart = null; painting = false; draw();
 });
 cv.addEventListener('mousemove', e => {
   const c = cellFromEvent(e); const changed = !hover || !c || hover[0] !== c[0] || hover[1] !== c[1]; hover = c;
   if (c) { const ch = cellAt(c[0], c[1]), en = W.info.get(ch); const n = S.notes.find(n => n.x === c[0] && n.y === c[1]); $('#hoverInfo').textContent = `(${c[0]},${c[1]})  '${ch}'  ${en ? en.zh : ch === '.' ? '空气' : SLOT_CHARS[ch] ? '随机槽位' : '?'}${n ? '  📝 ' + n.text : ''}`; }
-  if (painting && typeof painting === 'string' && c && setCell(c[0], c[1], painting)) recheck();
+  if (painting && typeof painting === 'string' && c && !S.ov.worst && setCell(c[0], c[1], painting)) recheck();
   if (changed) draw();
 });
 cv.addEventListener('mouseleave', () => { hover = null; draw(); });
+// ── S207 吸管 & 移动工具 ─────────────────────────────
+function pickAt(c, fromTool) {
+  const ch = cellAt(c[0], c[1]);
+  if (ch === 'W') { toast('外圈墙不能吸（它固定不动）'); return; }
+  setBrush(ch); const en = W.info.get(ch);
+  if (fromTool) setTool(prevTool === 'pick' || prevTool === 'move' ? 'brush' : prevTool);
+  toast(`吸管：画笔换成「${en ? en.zh : ch === '.' ? '空气（= 橡皮）' : ch}」→ 已回到${TOOL_ZH[S.tool]}，直接画`);
+}
+const TOOL_ZH = { brush: '画笔', rect: '矩形', fill: '填充', pick: '吸管', move: '移动' };
+function setTool(t) {
+  if (t !== S.tool && S.tool !== 'pick') prevTool = S.tool;
+  S.tool = t; if (t !== 'move') { moveSel = null; moveFrom = null; moveBox = null; }
+  document.querySelectorAll('[data-tool]').forEach(x => x.setAttribute('aria-pressed', x.dataset.tool === t));
+  $('#toolHint').textContent = TOOL_HINT[t] || ''; draw();
+}
+const TOOL_HINT = {
+  brush: '画笔：左键画、右键擦。Ctrl+点击 = 吸取格子里的东西',
+  rect: '矩形：按住拖出一块，松手填满',
+  fill: '填充：把连在一起的同种格子一次换掉',
+  pick: '吸管：点一个已放的东西 → 画笔变成它，自动回到上一个工具',
+  move: '移动：点住东西拖走（相连的同种一起走）· 空白处拖 = 框选 · 方向键微调 · Del 删除 · Ctrl+C / Ctrl+V 复制到鼠标处 · Esc 取消',
+};
+function moveOffset() { if (!moveFrom || !hover || !moveSel) return [0, 0]; return clampMove(Wd(), H(), moveSel, hover[0] - moveFrom[0], hover[1] - moveFrom[1]); }
+const inSel = (s, c) => s && c[0] >= s.x0 && c[0] <= s.x1 && c[1] >= s.y0 && c[1] <= s.y1;
+function moveDown(c, right) {
+  if (right) { moveSel = null; draw(); return; }
+  if (!inSel(moveSel, c)) moveSel = selectAt(S.grid, c[0], c[1]);
+  if (moveSel) moveFrom = c; else moveBox = c;
+  draw();
+}
+function moveUp() {
+  if (moveFrom && moveSel) { const [dx, dy] = moveOffset(); if (dx || dy) applyMove(dx, dy); }
+  else if (moveBox && hover) { moveSel = selBox(moveBox[0], moveBox[1], hover[0], hover[1]); }
+  moveFrom = null; moveBox = null; draw();
+}
+function applyMove(dx, dy) {
+  [dx, dy] = clampMove(Wd(), H(), moveSel, dx, dy); if (!dx && !dy) return;
+  snapshot(); S.grid = moveBlock(S.grid, moveSel, dx, dy);
+  moveSel = { x0: moveSel.x0 + dx, y0: moveSel.y0 + dy, x1: moveSel.x1 + dx, y1: moveSel.y1 + dy }; recheck();
+}
+function moveKey(e) {
+  const k = e.key, ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && k.toLowerCase() === 'c') { if (!moveSel) return false; clip = copyBlock(S.grid, moveSel); toast(clip.length ? `复制了 ${clip.length} 格（马里奥/捣蛋者/宝物/出口不复制）→ 鼠标放到目标处按 Ctrl+V` : '选区里没有能复制的东西'); return true; }
+  if (ctrl && k.toLowerCase() === 'v') { if (!clip || !clip.length || !hover) return false; snapshot(); S.grid = pasteBlock(S.grid, clip, hover[0], hover[1]); recheck(); return true; }
+  if (k === 'Escape') { moveSel = null; draw(); return true; }
+  if (!moveSel) return false;
+  if (k === 'Delete' || k === 'Backspace') { snapshot(); S.grid = clearBlock(S.grid, moveSel); moveSel = null; recheck(); return true; }
+  const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[k];
+  if (d) { applyMove(d[0], d[1]); return true; }
+  return false;
+}
 function addNote(c) {
   const old = S.notes.find(n => n.x === c[0] && n.y === c[1]);
   const t = prompt(`给 (${c[0]},${c[1]}) 写一句批注（想法 / 这里要什么效果 / 问题）。留空 = 删除`, old ? old.text : '');
@@ -176,7 +251,7 @@ function addNote(c) {
 }
 
 // ── 左侧：元素库 ─────────────────────────────────────
-function setBrush(c) { S.brush = c; renderPalette(); renderBrush(); }
+function setBrush(c) { S.brush = c; if (S.tool === 'move') setTool('brush'); renderPalette(); renderBrush(); }
 function renderPalette() {
   const q = $('#palSearch').value.trim().toLowerCase(); const box = $('#palette'); box.innerHTML = '';
   const all = [...W.info.values()].filter(e => e.c !== ' ');
@@ -338,7 +413,7 @@ function handoff() {
   }
   const cuts = Object.entries(S.cuts);
   if (cuts.length) { L.push('', '## 想删掉 / 改掉的旧东西'); cuts.forEach(([c, why]) => { const e = W.info.get(c); L.push(`- \`${c}\` ${e ? e.zh : c}：${why}`); }); L.push('', '（删之前请告诉我影响：哪些样板/测试/连锁在用它。）'); }
-  L.push('', '---', `导出时间：${new Date().toLocaleString('zh-CN')} · 设计台规则版本：S206（搭建范围 12–128 × 6–48、外圈实心；跳高 2 格、平跳 4 格；弹簧头顶 4 格、炮口前 3 格、毒池 ≤3 格）`);
+  L.push('', '---', `导出时间：${new Date().toLocaleString('zh-CN')} · 设计台规则版本：S207（搭建范围 12–128 × 6–48；宽 >64 或高 >16 = 大房间，游戏里镜头智能跟随、外圈实心；跳高 2 格、平跳 4 格；弹簧头顶 4 格、炮口前 3 格、毒池 ≤3 格）`);
   return L.join('\n');
 }
 
@@ -359,7 +434,7 @@ $('#hPal').onclick = () => {
   els.forEach((e, i) => { const px = (i % cols) * 170 + 8, py = Math.floor(i / cols) * (cell + 8) + 8; x.fillStyle = rgbCss(e.rgb); x.fillRect(px, py, cell, cell); x.fillStyle = '#efe7d6'; x.fillText(`${e.c} ${e.zh}`, px + cell + 8, py + cell / 2); });
   c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'MarioTrickster_调色板.png'; a.click(); });
 };
-function levelPack() { storeCurrent(); return { type: 'mariotrickster-levelpack', v: 1, rules: 'S206', exported: new Date().toISOString(), levels: LIB.map(l => ({ id: l.id, name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] })), proposals: S.proposals, cuts: S.cuts }; }
+function levelPack() { storeCurrent(); return { type: 'mariotrickster-levelpack', v: 1, rules: 'S207', exported: new Date().toISOString(), levels: LIB.map(l => ({ id: l.id, name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] })), proposals: S.proposals, cuts: S.cuts }; }
 const exportPack = () => { const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; download(`MarioTrickster关卡包_${LIB.length}关_${stamp}.levelpack.json`, JSON.stringify(levelPack(), null, 1), 'application/json'); };
 $('#btnExport').onclick = exportPack;
 $('#hPack').onclick = exportPack;
@@ -411,16 +486,17 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   if (p === 'handoff') $('#handoffText').textContent = handoff();
   if (p === 'mech') { renderPropList(); renderCuts(); renderLaws(); }
 });
-document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { S.tool = b.dataset.tool; document.querySelectorAll('[data-tool]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => setTool(b.dataset.tool));
 $('#btnUndo').onclick = () => { if (!undo.length) return; redo.push(JSON.stringify(S.grid)); S.grid = JSON.parse(undo.pop()); syncInputs(); recheck(true); };
 $('#btnRedo').onclick = () => { if (!redo.length) return; undo.push(JSON.stringify(S.grid)); S.grid = JSON.parse(redo.pop()); syncInputs(); recheck(true); };
 window.addEventListener('keydown', e => {
   if (e.target.matches('input,textarea,select')) return;
+  if (S.tool === 'move' && moveKey(e)) { e.preventDefault(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('#btnUndo').click(); }
   else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); $('#btnRedo').click(); }
-  else { const m = { b: 'brush', r: 'rect', f: 'fill', i: 'pick' }[e.key.toLowerCase()]; if (m && !e.ctrlKey) document.querySelector(`[data-tool=${m}]`).click(); }
+  else { const m = { b: 'brush', r: 'rect', f: 'fill', i: 'pick', v: 'move' }[e.key.toLowerCase()]; if (m && !e.ctrlKey) document.querySelector(`[data-tool=${m}]`).click(); }
 });
-for (const [id, k] of [['ovRoute', 'route'], ['ovDead', 'dead'], ['ovWorst', 'worst'], ['ovNotes', 'notes'], ['ovJump', 'jump'], ['ovUnreach', 'unreach']]) $('#' + id).onchange = e => { S.ov[k] = e.target.checked; draw(); };
+for (const [id, k] of [['ovRoute', 'route'], ['ovDead', 'dead'], ['ovWorst', 'worst'], ['ovNotes', 'notes'], ['ovJump', 'jump'], ['ovUnreach', 'unreach'], ['ovView', 'view']]) $('#' + id).onchange = e => { S.ov[k] = e.target.checked; if (k === 'worst') $('#worstBanner').hidden = !e.target.checked; draw(); };
 $('#zoom').oninput = e => { S.zoom = +e.target.value; draw(); };
 $('#palSearch').oninput = renderPalette;
 $('#showAll').onchange = e => { S.showAll = e.target.checked; renderPalette(); };
@@ -442,4 +518,4 @@ function renderAll() { renderPalette(); renderBrush(); renderNotes(); recheck(tr
 
 load();
 if (!S.grid.length) { CUR = newId(); S.grid = SAMPLES['诱捕走廊'].slice(); S.name = '诱捕走廊（改）'; LIB = [{ id: CUR, name: S.name, goal: '', grid: S.grid.slice(), notes: [] }]; }
-W = makeWorld(S.proposals); syncInputs(); fitZoom(); renderAll();
+W = makeWorld(S.proposals); syncInputs(); fitZoom(); renderAll(); setTool('brush');

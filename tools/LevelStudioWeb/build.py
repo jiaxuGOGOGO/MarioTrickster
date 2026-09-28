@@ -26,7 +26,7 @@ def arr(path, name):
     return re.findall(r'"([^"]+)"', s[i:j])
 samples = {'默认恶作剧房间': arr('Editor/Step1PrankRoomBuilder.cs', 'public static readonly string[] Room =')}
 wm = rd('Editor/LevelWorkshopModel.cs')
-names = {'PrisonSample': '两层监狱', 'LureSample': '诱捕走廊', 'HakoniwaSample': '箱庭监狱（四层）'}
+names = {'PrisonSample': '两层监狱', 'LureSample': '诱捕走廊', 'HakoniwaSample': '箱庭监狱（四层）', 'LongHallSample': '长廊远征（大房间）'}
 for f in re.findall(r'public static readonly string\[\] (\w+Sample) =', wm):
     samples[names.get(f, f)] = arr('Editor/LevelWorkshopModel.cs', f'public static readonly string[] {f} =')
 # 像素图导入/导出靠颜色区分元素：颜色完全相同的（如左右两门大炮）在网页里错开一点点

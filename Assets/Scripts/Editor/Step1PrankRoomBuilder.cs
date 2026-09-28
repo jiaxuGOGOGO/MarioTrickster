@@ -45,7 +45,8 @@ public static class Step1PrankRoomBuilder
     /// S199 = 15：油桶 U（连锁爆炸）、铁笼 Q、诱饵 G、警报事件、马里奥踢门。
     /// S198 = 14：普通地形可炸（Destructible）、炸弹伤双方、整座塌桥、大炮瞄准 + 马里奥也能钻炮（冷却 30s）、墙上通风口、绳套、道具箱、修来回跳/贴墙。
     /// </summary>
-    public const int BuilderVersion = 17;
+    /// S207 = 18：大房间镜头（智能跟随 + 屏外箭头 + 小地图）；回合时间/自动检查超时按路线长度自动放宽。
+    public const int BuilderVersion = 18;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -373,7 +374,8 @@ public static class Step1PrankRoomBuilder
         var level = Object.FindObjectOfType<LevelManager>();
         if (mario == null || trickster == null || gm == null) throw new InvalidOperationException("Playable environment incomplete");
 
-        ConfigureRules(gm, tuning);
+        float routeSeconds = RouteSeconds(room, tuning);
+        ConfigureRules(gm, tuning, routeSeconds);
         ConfigureFireTraps(root);
         ConfigureBridge(root, tuning);
         ConfigureBlockers(root, tuning);
@@ -397,6 +399,7 @@ public static class Step1PrankRoomBuilder
         var handsOff = gm.gameObject.AddComponent<Step1HandsOffCheck>();
         var handsOffSo = new SerializedObject(handsOff);
         handsOffSo.FindProperty("tuning").objectReferenceValue = tuning;
+        handsOffSo.FindProperty("roomTimeoutSeconds").floatValue = StrategySim.HandsOffTimeout(tuning.autoCheckRoundTimeoutSeconds, routeSeconds, tuning.handsOffTimePerRouteSecond, tuning.handsOffTimeMargin);
         handsOffSo.ApplyModifiedPropertiesWithoutUndo();
         gm.gameObject.AddComponent<Step1ElementLabels>();
         StripUnusedLegacy(gm.gameObject);
@@ -405,6 +408,8 @@ public static class Step1PrankRoomBuilder
         trickster.gameObject.AddComponent<TricksterKit>().SetTuning(tuning);          // S197：B 炸弹 / Z 缩小
         gm.gameObject.AddComponent<MarioTimeStop>().SetTuning(tuning);                 // S197：马里奥时间静止
         gm.gameObject.AddComponent<Step1MapLegend>();                                  // S197：M/Tab 图例
+        gm.gameObject.AddComponent<Step1OffscreenMarkers>().SetTuning(tuning);         // S207：大房间屏外箭头
+        gm.gameObject.AddComponent<Step1MiniMap>().SetTuning(tuning);                  // S207：大房间小地图
         gm.gameObject.AddComponent<RandomPickups>().SetTuning(tuning);                 // S198：随机道具箱
         trickster.gameObject.AddComponent<DecoyAbility>().SetTuning(tuning);            // S199：G 诱饵
         trickster.gameObject.AddComponent<ChainPlan>().SetTuning(tuning);               // S200：F 连锁编排
@@ -425,11 +430,19 @@ public static class Step1PrankRoomBuilder
         return root;
     }
 
-    private static void ConfigureRules(GameManager gm, MarioMindTuningSO tuning)
+    /// <summary>S207：马里奥走一趟（出生 → 宝物 → 出口）的估算秒数；走不通时返回 0（按基础时间）。不跑炸弹模拟（快）。</summary>
+    public static float RouteSeconds(string[] room, MarioMindTuningSO tuning)
+    {
+        var rep = StrategySim.Analyze(room.Select(Step1Layout.StripSlots).ToList(), StrategySim.RunSpeed(9f, tuning.marioSpeedScale), tuning.startDelaySeconds, 0, 0f);
+        return rep.route != null ? rep.routeSeconds : 0f;
+    }
+
+    private static void ConfigureRules(GameManager gm, MarioMindTuningSO tuning, float routeSeconds)
     {
         var so = new SerializedObject(gm);
         so.FindProperty("useTimer").boolValue = true;
-        so.FindProperty("levelTimeLimit").floatValue = tuning.roundTimeLimit;
+        // S207：长关卡自动放宽回合时间（默认房间 ≈20 秒一趟 × 3 = 60 < 150，不变）
+        so.FindProperty("levelTimeLimit").floatValue = StrategySim.RoundTimeLimit(tuning.roundTimeLimit, routeSeconds, tuning.roundTimePerRouteSecond);
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 

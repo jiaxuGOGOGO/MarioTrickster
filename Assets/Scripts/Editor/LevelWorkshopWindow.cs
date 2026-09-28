@@ -40,6 +40,14 @@ public class LevelWorkshopWindow : EditorWindow
     private bool moveDragging, moveBoxing;
     private Vector2Int moveFrom;
     private List<(int dx, int dy, char c)> clipboard;
+    // S208：起承转合分段框 / 模式印章 / 节奏 / 转移点（与网页设计台同规则：LevelBlueprint）
+    [SerializeField] private bool showBeats = true;
+    [SerializeField] private int[] beats;                 // 向导建的关卡用向导的分段；为空 = 按 M → 宝物平均切
+    private LevelBlueprint.Pattern stampPattern;          // 非空 = 印章模式：点画布盖一次
+    [NonSerialized] private string blueprintKey;
+    private List<string> rhythmWarn = new List<string>();
+    private List<(char c, int x, int y)> coverHints = new List<(char, int, int)>();
+    private string rhythmSummary = "";
     private GUIStyle cellLabel, tileLabel;
     // S193：连招路线（缓存：只在网格变化时重算）
     private bool comboRoutes;
@@ -174,6 +182,9 @@ public class LevelWorkshopWindow : EditorWindow
     {
         if (text == source) return;
         Undo.RecordObject(this, op);
+        // S208：换了一张图（新建/载入/导入/监狱塔）→ 起承转合分段回到"按 M → 宝物平均切"；盖章/移动/改尺寸不动
+        if (op.StartsWith("Load") || op.StartsWith("Import") || op == "New room" || op == "Prison tower" || op == "Add floor") beats = null;
+        blueprintKey = null;
         source = text;
         parsedSource = null;
         Save();
@@ -223,6 +234,8 @@ public class LevelWorkshopWindow : EditorWindow
         if (GUILayout.Button("新建", EditorStyles.toolbarButton, GUILayout.Width(44)) &&
             EditorUtility.DisplayDialog("新建房间", "替换当前画布？（Ctrl+Z 可撤销）", "新建", "取消"))
             SetSource(LevelWorkshopModel.NewRoom(48, 12), "New room");
+        if (GUILayout.Button(new GUIContent("向导…", "S208 新建关卡向导：选主角机关和时长 → 自动铺好起承转合 4 段（生成后已经能玩），和网页设计台一样"), EditorStyles.toolbarDropDown, GUILayout.Width(56))) WizardMenu();
+        if (GUILayout.Button(new GUIContent("印章 ▾", "S208 模式印章：选一个，再点画布（马里奥站的那格）盖上一组现成的机关；右键 / Esc 退出"), EditorStyles.toolbarDropDown, GUILayout.Width(56))) StampMenu();
         if (GUILayout.Button("载入恶作剧房间", EditorStyles.toolbarButton, GUILayout.Width(96)))
             SetSource(string.Join("\n", Step1PrankRoomBuilder.Room), "Load prank room");
         if (GUILayout.Button(new GUIContent("样板：两层监狱", "纵向逃脱示例：地下拿宝、爬回地面；裂缝地板 x + 弹簧板 J"), EditorStyles.toolbarButton, GUILayout.Width(96)))
@@ -271,6 +284,7 @@ public class LevelWorkshopWindow : EditorWindow
         if (newTrack && !showTrack) LoadTrack();
         showTrack = newTrack;
         comboRoutes = GUILayout.Toggle(comboRoutes, new GUIContent("连招路线", "把离得够近、能在连招窗口内依次坑到马里奥的机关连成线；一组线 = 一套连招。种类越多越好"), EditorStyles.toolbarButton, GUILayout.Width(66));
+        showBeats = GUILayout.Toggle(showBeats, new GUIContent("起承转合", "金色分段 = 起（教）→ 承（加深）→ 转（意外）→ 合（收尾）；橙框 = 转移点提示（机关 5 格内没有草丛/箱子，你走过去会被看见）"), EditorStyles.toolbarButton, GUILayout.Width(62));
         worstCase = GUILayout.Toggle(worstCase, new GUIContent("最坏情况预览", "所有塌桥塌掉、裂缝地板碎掉、封路墙升起时：红 = 死局（出不去），黄 = 暂时出不去"), EditorStyles.toolbarButton, GUILayout.Width(90));
         GUILayout.FlexibleSpace();
         zoom = GUILayout.HorizontalSlider(zoom, 12f, 36f, GUILayout.Width(90));
@@ -412,6 +426,8 @@ public class LevelWorkshopWindow : EditorWindow
             if (strategy) DrawStrategy(canvas, size);
             if (showTrack) DrawTrack(canvas, size);
             if (overview) DrawHakoniwa(canvas, size);
+            if (showBeats) DrawBlueprint(canvas, size);
+            if (stampPattern != null && hoverCell.x >= 0) DrawStampPreview(canvas, size);
             if (tool == LevelWorkshopModel.Tool.Move && moveSel.HasValue)
             {
                 var ms = moveSel.Value; var off = moveDragging && hoverCell.x >= 0 ? MoveOffset() : Vector2Int.zero;
@@ -431,7 +447,14 @@ public class LevelWorkshopWindow : EditorWindow
             if (next != hoverCell) { hoverCell = next; Repaint(); } // 只在换格子时重画
         }
 
-        if (tool == LevelWorkshopModel.Tool.Move && !e.alt && HandleMove(e, point, inside, control)) { }
+        if (stampPattern != null && ((e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape) || (inside && e.type == EventType.MouseDown && e.button == 1))) { stampPattern = null; e.Use(); Repaint(); }
+        else if (stampPattern != null && inside && e.type == EventType.MouseDown && e.button == 0 && !e.alt)
+        {
+            SetSource(string.Join("\n", LevelBlueprint.Stamp(Rows(), stampPattern, point.x, point.y)), "Stamp " + stampPattern.id);
+            ShowNotification(new GUIContent($"盖上了「{stampPattern.zh}」→ 看下面检查结果，不对就 Ctrl+Z"));
+            e.Use();
+        }
+        else if (tool == LevelWorkshopModel.Tool.Move && !e.alt && HandleMove(e, point, inside, control)) { }
         else if (inside && e.type == EventType.MouseDown && (e.button == 0 || e.button == 1))
         {
             if (e.alt || tool == LevelWorkshopModel.Tool.Pick)
@@ -647,6 +670,93 @@ public class LevelWorkshopWindow : EditorWindow
         }
     }
 
+    // ── S208：向导 / 印章 / 起承转合 / 节奏 / 转移点 ────────────
+    private void WizardMenu()
+    {
+        var menu = new GenericMenu();
+        foreach (char star in LevelBlueprint.WizardStars)
+            foreach (int sec in new[] { 20, 30, 40 })
+            {
+                char s0 = star; int t0 = sec; var rec = LevelBlueprint.Recipe(star);
+                string label = $"{ElementCatalog.Get(star)?.zh ?? star.ToString()} 为主角/约 {sec} 秒（{LevelBlueprint.WidthFor(sec)} 格宽）· " + string.Join(" → ", rec.Select((r, i) => LevelBlueprint.BeatZh[i] + LevelBlueprint.Get(r.id).zh));
+                menu.AddItem(new GUIContent(label), false, () =>
+                {
+                    if (!EditorUtility.DisplayDialog("新建关卡向导", "用向导草稿替换当前画布？（Ctrl+Z 可撤销）\n\n生成后已经能玩：金色分段是起承转合 4 段。先试玩一局，再改最别扭的一处。", "生成", "取消")) return;
+                    var d = LevelBlueprint.Wizard(s0, t0, "");
+                    var text = string.Join("\n", d.grid) + "\n# Goal: " + d.goal + string.Concat(d.notes.Select(n => $"\n# Note: ({n.x},{n.y}) {n.text}"));
+                    SetSource(text, "Wizard"); beats = d.beats; showBeats = true; blueprintKey = null;
+                });
+            }
+        menu.ShowAsContext();
+    }
+
+    private void StampMenu()
+    {
+        var menu = new GenericMenu();
+        foreach (var p in LevelBlueprint.Patterns) { var p0 = p; menu.AddItem(new GUIContent($"{p.zh}　{string.Join(" / ", p.rows).Replace('_', ' ').Replace('*', p.def)}"), stampPattern == p, () => { stampPattern = p0; ShowNotification(new GUIContent($"印章「{p0.zh}」：{p0.tip}")); }); }
+        menu.AddSeparator("");
+        menu.AddItem(new GUIContent("退出印章"), false, () => stampPattern = null);
+        menu.ShowAsContext();
+    }
+
+    private int[] CurrentBeats()
+    {
+        var rows = Rows();
+        if (beats != null && beats.Length == 5 && beats[4] < doc.Width) return beats;
+        return LevelBlueprint.BeatBounds(rows);
+    }
+
+    /// <summary>节奏 + 转移点（只在网格变化时重算；复用策略模拟的路线时间线）。</summary>
+    private void UpdateBlueprint()
+    {
+        string key = doc.Grid;
+        if (blueprintKey == key || fullCheckStale) return; // 画的过程中不算，停笔后再算（和策略模拟一样）
+        blueprintKey = key;
+        var r = Strategy();
+        var tune = AssetDatabase.LoadAssetAtPath<MarioMindTuningSO>(Step1PrankRoomBuilder.TuningAssetPath);
+        float start = tune != null ? tune.startDelaySeconds : 4f, speed = StrategySim.RunSpeed(9f, tune != null ? tune.marioSpeedScale : 0.55f);
+        rhythmWarn.Clear(); coverHints.Clear(); rhythmSummary = "马里奥路线算不出来";
+        if (r.route == null) return;
+        var route = r.route.Select(c => (c.x, c.y)).ToList();
+        var times = new List<float> { start }; float len = 0;
+        for (int i = 1; i < route.Count; i++) { len += Mathf.Sqrt((route[i].x - route[i - 1].x) * (route[i].x - route[i - 1].x) + (route[i].y - route[i - 1].y) * (route[i].y - route[i - 1].y)); times.Add(start + len / speed); }
+        var passes = LevelBlueprint.Passes(route, times, r.onRoute.Select(s => (s.x, s.y)));
+        var (segs, warn) = LevelBlueprint.Rhythm(passes, r.routeSeconds);
+        rhythmWarn.AddRange(warn);
+        float busy = segs.Where(g => g.busy).Sum(g => g.b - g.a);
+        rhythmSummary = $"紧张 {Mathf.RoundToInt(busy / Mathf.Max(0.1f, r.routeSeconds) * 100)}% · {passes.Count} 次经过机关（红绿交替最好：连续紧张 ≥8 秒太挤，连续没事 ≥10 秒太空）";
+        coverHints.AddRange(LevelBlueprint.CoverHints(Rows(), r.onRoute.Select(s => (s.ch, s.x, s.y))));
+    }
+
+    private void DrawBlueprint(Rect canvas, float size)
+    {
+        var bb = CurrentBeats();
+        if (bb != null)
+        {
+            var gold = new Color(1f, 0.78f, 0.24f, 0.8f);
+            for (int i = 0; i < 4; i++)
+            {
+                float x0 = canvas.x + bb[i] * size, x1 = canvas.x + bb[i + 1] * size;
+                if (i % 2 == 0) EditorGUI.DrawRect(new Rect(x0, canvas.y + size, x1 - x0, (doc.Height - 2) * size), new Color(1f, 0.78f, 0.24f, 0.06f));
+                EditorGUI.DrawRect(new Rect(x0, canvas.y + size, 1.5f, (doc.Height - 2) * size), gold);
+                GUI.Label(new Rect(x0 + 3, canvas.y + size, 80, 18), $"<color=#FFC83D><b>{LevelBlueprint.BeatZh[i]}</b></color> <color=#C8A040>{new[] { "教", "加深", "意外", "收尾" }[i]}</color>", new GUIStyle(EditorStyles.label) { richText = true });
+            }
+            EditorGUI.DrawRect(new Rect(canvas.x + bb[4] * size, canvas.y + size, 1.5f, (doc.Height - 2) * size), gold);
+        }
+        UpdateBlueprint();
+        foreach (var c in coverHints) DrawOutline(CellRect(canvas, c.x, c.y, size), new Color(1f, 0.7f, 0.28f), 3f);
+    }
+
+    private void DrawStampPreview(Rect canvas, float size)
+    {
+        var rows = Rows(); var prev = LevelBlueprint.Stamp(rows, stampPattern, hoverCell.x, hoverCell.y);
+        for (int r = 0; r < prev.Length; r++)
+            for (int x = 0; x < prev[r].Length; x++)
+                if (prev[r][x] != rows[r][x]) { var cr = CellRect(canvas, x, doc.Height - 1 - r, size); var col = CellColor(prev[r][x]); col.a = 0.75f; EditorGUI.DrawRect(cr, col); if (size >= 14 && prev[r][x] != '.') GlyphFor(cr, prev[r][x], col); }
+        int top = hoverCell.y + stampPattern.stand;
+        DrawOutline(RectOf(canvas, new Vector2Int(hoverCell.x, top - stampPattern.rows.Length + 1), new Vector2Int(hoverCell.x + stampPattern.Width - 1, top), size), new Color(1f, 0.78f, 0.24f), 2f);
+    }
+
     private void DrawTrack(Rect canvas, float size)
     {
         if (trackVisits == null) return;
@@ -700,6 +810,8 @@ public class LevelWorkshopWindow : EditorWindow
             if (comboRoutes) head += "\n连招路线：" + ComboResult().Summary;
             if (strategy) { var sr = Strategy(); head += "\n策略模拟：" + sr.Summary(); foreach (var wn in sr.warnings) head += "\n  · " + wn; }
             if (showTrack) head += "\n" + trackNote;
+            if (showBeats) { UpdateBlueprint(); head += "\n节奏：" + rhythmSummary; foreach (var w in rhythmWarn) head += "\n  · " + w; if (coverHints.Count > 0) head += $"\n转移点：{coverHints.Count} 个机关 5 格内没有草丛/箱子可以躲（橙框）——你走过去时会被看见。提前伪装好等他来，或旁边放一丛草 b"; }
+            if (stampPattern != null) head += $"\n印章「{stampPattern.zh}」：点画布上马里奥站的那格盖章（右键 / Esc 退出）· {stampPattern.tip}";
             EditorGUILayout.HelpBox(head + (check.cells.Count > 0 ? "（鼠标停在红/黄框格子上看原因）" : ""), check.Playable ? MessageType.Info : MessageType.Error);
             if (check.general.Count + check.cells.Count > 0)
             {

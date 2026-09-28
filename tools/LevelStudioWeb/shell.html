@@ -133,6 +133,28 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 .cutlist label{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(30px);opacity:0;background:var(--loot);color:#1b1407;padding:10px 16px;border-radius:10px;font-weight:700;transition:.25s}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.wiz{background:var(--slab);color:var(--chalk);border:1px solid var(--line);border-radius:16px;padding:22px 24px;max-width:640px;width:94vw}
+.wiz::backdrop{background:rgba(10,8,16,.72)}
+.wiz h2{font:800 24px/1.15 var(--disp);margin:0 0 4px}
+.wiz .step{display:grid;grid-template-columns:28px 1fr;gap:10px;margin-top:16px}
+.wiz .num{width:28px;height:28px;border-radius:50%;background:var(--loot);color:#1b1407;display:grid;place-items:center;font:800 14px var(--disp)}
+.wiz .stars{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.wiz .stars button,.wiz .lens button{background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px;cursor:pointer;text-align:left;color:var(--chalk)}
+.wiz .stars button[aria-pressed=true],.wiz .lens button[aria-pressed=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+.wiz .stars b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:5px;font:600 12px var(--mono);margin-right:6px;vertical-align:-4px}
+.wiz .lens{display:flex;gap:6px;margin-top:6px}.wiz .lens button{flex:1}
+.wiz .lens small,.wiz .stars small{display:block;color:var(--dim);font-size:11px;margin-top:2px}
+.wiz .beatrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:14px}
+.wiz .beatrow div{border:1px dashed var(--line);border-radius:10px;padding:7px 8px;font-size:11.5px;color:var(--dim)}
+.wiz .beatrow b{display:block;color:var(--loot);font:800 16px var(--disp)}
+.stamps{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.stamps button{background:var(--slab);border:1px solid var(--line);border-radius:8px;padding:6px 7px;cursor:pointer;text-align:left;color:var(--chalk);font-size:12px}
+.stamps button[aria-pressed=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+.stamps pre{margin:3px 0 0;font:9.5px/1.05 var(--mono);color:var(--dim);white-space:pre;overflow:hidden}
+.rhythm{position:relative;height:14px;border-radius:7px;overflow:hidden;background:var(--slab);border:1px solid var(--line);margin:4px 0 2px}
+.rhythm i{position:absolute;top:0;bottom:0}
+.rhythm i.busy{background:var(--mario)} .rhythm i.rest{background:#2f5c49}
+.rh-legend{display:flex;gap:12px;font:11px var(--mono);color:var(--dim)}.rh-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .empty{color:var(--dim);font-size:13px;padding:12px;border:1px dashed var(--line);border-radius:10px}
 @media (max-width:1100px){main{grid-template-columns:220px 1fr}.side-right{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}}
 @media (max-width:760px){main{grid-template-columns:1fr}aside{border-right:0}.grid2{grid-template-columns:1fr}.brand span{display:none}}
@@ -159,7 +181,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
     <h3>我的关卡 <span id="libCount"></span></h3>
     <div id="libList" class="lib"></div>
     <div class="row" style="gap:6px;margin-top:6px">
-      <button class="btn small gold" id="libNew" title="新建一关（空白房间）">＋ 新关卡</button>
+      <button class="btn small gold" id="libNew" title="新建关卡向导：先想一句话点子、选主角机关和时长，自动铺好起承转合 4 段（已经能玩）">＋ 新关卡（向导）</button>
       <button class="btn small" id="libDup" title="复制当前这关">复制</button>
       <button class="btn small" id="libDel" title="删除当前这关">删除</button>
     </div>
@@ -177,6 +199,8 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
     </div>
     <button class="btn small" id="btnResize" style="margin-top:6px;width:100%">改尺寸（地面不动，往上加空间）</button>
     <div class="scope" id="scopeBox">搭建范围：宽 12–128 格、高 6–48 格<br>外圈必须是实心：最左/最右列 W，顶行、底行全实心<br>必须各 1 个：M 马里奥 · T 你 · G 出口 · o 宝物<br>马里奥：往上跳 ≤2 格，平跳 ≤4 格宽的坑<br>一屏装得下：高 ≤16 格整屏看，更高自动跟随</div>
+    <h3>模式印章 <span class="hint">点一个，再点画布盖上去</span></h3>
+    <div class="stamps" id="stamps"></div>
     <h3>元素 <span id="palCount"></span></h3>
     <input class="search" id="palSearch" placeholder="搜索：火 / 弹簧 / J …" aria-label="搜索元素">
     <label class="toggle" style="margin:6px 0"><input type="checkbox" id="showAll"> 显示第 1 步不用的元素</label>
@@ -192,6 +216,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
         <button aria-pressed="false" data-tool="rect" title="矩形（R）">矩形</button>
         <button aria-pressed="false" data-tool="fill" title="油漆桶（F）">填充</button>
         <button aria-pressed="false" data-tool="pick" title="吸管（I）：点一个已放的东西，画笔就变成它，然后自动回到原来的工具。随时也可以 Ctrl+点击 直接吸">吸管</button>
+        <button aria-pressed="false" data-tool="stamp" title="印章（S）：在左边'模式印章'里选一个，点画布 = 以马里奥站的那格为左下角盖上一组现成的机关；空白处右键取消">印章</button>
         <button aria-pressed="false" data-tool="move" title="移动（V）：点住已放的东西拖走；空白处拖 = 框选多个；方向键微调；Del 删除；Ctrl+C / Ctrl+V 复制">移动</button>
       </div>
       <button class="btn small" id="btnUndo" title="撤销 Ctrl+Z">撤销</button>
@@ -205,6 +230,8 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <label class="toggle" title="鼠标停在马里奥能站的格子上：绿色 = 跳一下能到（AI 会走），黄色 = 物理上够得着但 AI 不稳（别把必经路放这）"><input type="checkbox" id="ovJump" checked><i class="ovsw" style="background:#5fd39a"></i>跳跃辅助</label>
       <label class="toggle" title="紫色点 = 能站但马里奥永远上不去的格子（放宝物/机关在这里没意义）"><input type="checkbox" id="ovUnreach" checked><i class="ovsw dot"></i>上不去的格</label>
       <label class="toggle" title="蓝色虚线框 = 游戏里镜头一次能看到的范围（跟着鼠标走）。大房间（宽 >64 或高 >16）游戏里镜头会跟着人移动，像死亡细胞"><input type="checkbox" id="ovView"><i class="ovsw" style="background:#6fc3ff"></i>游戏一屏</label>
+      <label class="toggle" title="金色虚线分段 = 起承转合 4 段（起：教 → 承：加深 → 转：意外 → 合：收尾）。按马里奥出生点到宝物平均切；向导建的关卡按向导的分段"><input type="checkbox" id="ovBeats" checked><i class="ovsw" style="background:transparent;border:1px dashed #ffc83d"></i>起承转合</label>
+      <label class="toggle" title="橙色圈 = 马里奥会路过的机关，5 格内没有草丛/箱子/隔墙可以躲：你伪装着站着不动不会被怀疑，但走过去的路上会被看见 → 提前伪装好等他来，或旁边放一丛草"><input type="checkbox" id="ovCover" checked><i class="ovsw" style="background:transparent;border:2px solid #ffb347;border-radius:50%"></i>转移点提示</label>
       </span>
       <span class="spacer"></span>
       <label class="toggle">缩放 <input type="range" id="zoom" min="10" max="36" value="20" aria-label="缩放"></label>
@@ -220,6 +247,9 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
     <h3>马里奥一趟 · 几秒走到哪个机关</h3>
     <div class="timeline" id="timeline"></div>
     <div class="tl-legend"><span>出发</span><span id="tlLoot"></span><span id="tlEnd"></span></div>
+    <h3>节奏 · 紧张和喘气</h3>
+    <div class="rhythm" id="rhythm" title="红 = 马里奥正经过机关（前后 1 秒，去程和回程都算）；绿 = 喘气。好节奏是红绿交替：连续红 ≥8 秒太挤，连续绿 ≥10 秒太空"></div>
+    <div class="rh-legend"><span><i style="background:var(--mario)"></i>经过机关</span><span><i style="background:#2f5c49"></i>喘气</span><span id="rhSum"></span></div>
     <h3>问题（点一下定位）</h3>
     <div id="issues"></div>
     <h3>这张图的设计意图</h3>
@@ -302,6 +332,17 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 </section>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<dialog id="wizDlg" class="wiz" aria-labelledby="wizTitle">
+  <h2 id="wizTitle">新建关卡：三步起一个能玩的草稿</h2>
+  <p class="hint" style="margin:0">做法来自任天堂的"起承转合"：一关只练一个点子，分 4 段摆。生成后已经能玩，你只改最别扭的地方。</p>
+  <div class="step"><span class="num">1</span><div><label class="f" style="margin-top:2px">一句话点子（可以先空着）</label>
+    <input class="f" id="wizIdea" placeholder="这关让马里奥被 ___ 坑，因为他以为 ___。例：被塌桥坑，因为他以为那是安全的近路"></div></div>
+  <div class="step"><span class="num">2</span><div><div class="hint">主角机关（这关主要练哪个）</div><div class="stars" id="wizStars"></div></div></div>
+  <div class="step"><span class="num">3</span><div><div class="hint">马里奥走一趟大约多久</div><div class="lens" id="wizLens"></div></div></div>
+  <div class="beatrow" id="wizBeats"></div>
+  <label class="f">名字<input class="f" id="wizName"></label>
+  <div class="row" style="margin-top:14px"><button class="btn gold" id="wizOk">生成草稿</button><button class="btn" id="wizBlank" title="不用向导：只有外墙、地面和 M T G o">空白房间</button><button class="btn" id="wizCancel">取消</button></div>
+</dialog>
 <dialog id="mapDlg" style="background:var(--slab);color:var(--chalk);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:560px;width:92vw">
   <h3 style="margin-top:0">把数字对应到元素</h3>
   <p class="hint" id="mapFrom"></p>

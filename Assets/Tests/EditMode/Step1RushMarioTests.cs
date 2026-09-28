@@ -1884,7 +1884,63 @@ public class Step1RushMarioTests
         foreach (var fn in new[] { "function selectAt", "function moveBlock", "function clampMove", "function copyBlock", "function pasteBlock", "function clearBlock", "function cameraPlan" })
             StringAssert.Contains(fn, web, "网页与 Unity 同规则：" + fn);
         string app = File.ReadAllText(Path.Combine(Application.dataPath, "..", "tools", "LevelStudioWeb", "app.js"));
-        StringAssert.Contains("rules: 'S207'", app);
+        StringAssert.Contains("rules: 'S208'", app);
+    }
+
+    // ── S208：新建关卡向导 / 模式印章 / 节奏条 / 转移点提示（网页与 Unity 同规则 LevelBlueprint）──
+    [Test]
+    public void WizardDraftsArePlayableCleanAndDeterministic()
+    {
+        foreach (char star in LevelBlueprint.WizardStars)
+            foreach (int sec in new[] { 20, 30, 40 })
+            {
+                var d = LevelBlueprint.Wizard(star, sec, "");
+                Assert.AreEqual(LevelBlueprint.WidthFor(sec), d.grid[0].Length);
+                Assert.IsTrue(LevelWorkshopModel.Check(d.grid, true, reg().IsSolid).Playable, $"向导 {star} {sec}s 生成后就能玩");
+                Assert.AreEqual(5, d.beats.Length); Assert.AreEqual(4, d.notes.Count, "每段一条批注");
+                CollectionAssert.AreEqual(d.grid, LevelBlueprint.Wizard(star, sec, "").grid, "同样的选择 → 同样的草稿");
+                var st = StrategySim.Analyze(d.grid, 5f, 4f, 3, 1.6f, 1.5f, 3f, 1.8f);
+                Assert.IsNotNull(st.route); Assert.IsFalse(st.trapAfterReinforce, "炸弹困不住（H1/H9）");
+                var route = st.route.Select(c => (c.x, c.y)).ToList(); var times = new List<float> { 4f }; float len = 0;
+                for (int i = 1; i < route.Count; i++) { len += (float)System.Math.Sqrt((route[i].x - route[i - 1].x) * (route[i].x - route[i - 1].x) + (route[i].y - route[i - 1].y) * (route[i].y - route[i - 1].y)); times.Add(4f + len / 5f); }
+                var passes = LevelBlueprint.Passes(route, times, st.onRoute.Select(s => (s.x, s.y)));
+                Assert.Greater(passes.Count, st.onRoute.Count - 1, "回程也算经过");
+                Assert.AreEqual(0, LevelBlueprint.CoverHints(d.grid, st.onRoute.Select(s => (s.ch, s.x, s.y))).Count, $"向导 {star} {sec}s：每个机关旁都有地方躲");
+            }
+        StringAssert.Contains("被塌桥坑", LevelBlueprint.Wizard('C', 20, "被塌桥坑").goal, "一句话点子写进设计意图");
+    }
+
+    [Test]
+    public void PatternStampsRhythmAndCoverFollowRules()
+    {
+        var baseRoom = LevelBlueprint.Wizard('~', 20, "").grid.ToArray();
+        int row = baseRoom.Length - 1 - 3;
+        baseRoom[row] = new string(baseRoom[row].Select((ch, i) => i > 5 && i < baseRoom[row].Length - 5 && "MGoT".IndexOf(ch) < 0 ? '.' : ch).ToArray());
+        for (int r = baseRoom.Length - 3; r < baseRoom.Length - 1; r++) baseRoom[r] = "W" + new string('#', baseRoom[r].Length - 2) + "W";
+        Assert.AreEqual(8, LevelBlueprint.Patterns.Length);
+        foreach (var p in LevelBlueprint.Patterns)
+            Assert.IsTrue(LevelWorkshopModel.Check(LevelBlueprint.Stamp(baseRoom, p, 12, 3), true, reg().IsSolid).Playable, "印章单独盖在空房间里可玩：" + p.zh);
+        var g = new[] { "WWWWWWWW", "W......W", "W.M..o.W", "W######W" };
+        var stamped = LevelBlueprint.Stamp(g, LevelBlueprint.Get("ambush"), 2, 1);
+        Assert.AreEqual('M', stamped[2][2], "印章不覆盖 M/T/G/o"); Assert.AreEqual('W', LevelBlueprint.Stamp(g, LevelBlueprint.Get("slide"), 1, 1)[2][7], "印章不动外圈");
+        var (segs, warn) = LevelBlueprint.Rhythm(new[] { 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f, 13f }, 30f);
+        Assert.IsTrue(segs.Any(s => s.busy && s.b - s.a >= 8f)); Assert.AreEqual(2, warn.Count, "连续紧张 ≥8 秒 + 后面 16 秒没事 → 两条提醒");
+        Assert.AreEqual(0, LevelBlueprint.Rhythm(new[] { 6f, 12f, 18f }, 22f).warn.Count, "红绿交替 → 没有提醒");
+        var open = new[] { "WWWWWWWWWWWWWWW", "W.............W", "W......~......W", "W#############W" };
+        Assert.AreEqual(1, LevelBlueprint.CoverHints(open, new[] { ('~', 7, 1) }).Count, "5 格内没有草丛/箱子 → 提示");
+        Assert.AreEqual(0, LevelBlueprint.CoverHints(new[] { open[0], open[1], "W...b..~......W", open[3] }, new[] { ('~', 7, 1) }).Count, "旁边有草丛 → 不提示");
+        // 网页与 Unity 同规则（同名函数 + 同一份印章数据）
+        string web = File.ReadAllText(Path.Combine(Application.dataPath, "..", "tools", "LevelStudioWeb", "logic.js"));
+        foreach (var fn in new[] { "function stampPattern", "function wizardLevel", "function beatBounds", "function routePasses", "function rhythm", "function coverHints" })
+            StringAssert.Contains(fn, web, "网页与 Unity 同规则：" + fn);
+        foreach (var p in LevelBlueprint.Patterns)
+            StringAssert.Contains($"id: '{p.id}', zh: '{p.zh}', def: '{p.def}', stand: {p.stand}, rows: [{string.Join(", ", p.rows.Select(r => "'" + r + "'"))}]", web, "印章数据两边一致：" + p.zh);
+        StringAssert.Contains($"RHYTHM = {{ busyHalf: {LevelBlueprint.BusyHalf}, maxBusy: {LevelBlueprint.MaxBusy}, maxIdle: {LevelBlueprint.MaxIdle}, startGrace: {LevelBlueprint.StartGrace} }}", web);
+        StringAssert.Contains($"COVER_CHARS = '{LevelBlueprint.CoverChars}'", web);
+        string win = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts", "Editor", "LevelWorkshopWindow.cs"));
+        StringAssert.Contains("WizardMenu()", win); StringAssert.Contains("StampMenu()", win); StringAssert.Contains("DrawBlueprint(canvas, size)", win);
+        string app = File.ReadAllText(Path.Combine(Application.dataPath, "..", "tools", "LevelStudioWeb", "app.js"));
+        StringAssert.Contains("if (S.firstRun) setTimeout(openWizard", app, "第一次打开网页直接弹向导");
     }
 
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)

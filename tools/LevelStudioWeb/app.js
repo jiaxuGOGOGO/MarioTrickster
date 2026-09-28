@@ -3,7 +3,7 @@ const LS = 'mariotrickster.studio.v1', LS2 = 'mariotrickster.studio.v2';
 const S = {
   grid: [], name: '', goal: '', notes: [], proposals: [], cuts: {},
   brush: '#', tool: 'brush', zoom: 20, showAll: false,
-  ov: { route: true, dead: true, worst: false, notes: true, jump: true, unreach: true, view: false }
+  ov: { route: true, dead: true, worst: false, notes: true, jump: true, unreach: true, view: false, beats: true, cover: true }, beats: null, stamp: 'ambush'
 };
 // S207 移动工具：moveSel = 选中的块 {x0,y0,x1,y1}；moveFrom = 拖动起点；moveBox = 框选起点；clip = 复制的块
 let moveSel = null, moveFrom = null, moveBox = null, clip = null, prevTool = 'brush';
@@ -21,7 +21,7 @@ const ROLE_ORDER = ['Spawn', 'Objective', 'Terrain', 'PlayerPrank', 'Special', '
 // S206 多关卡：LIB = [{id,name,goal,grid,notes}]，S.* 是当前打开的那一关
 let LIB = [], CUR = '';
 const newId = () => 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-function storeCurrent() { const i = LIB.findIndex(l => l.id === CUR); const rec = { id: CUR, name: S.name, goal: S.goal, grid: S.grid.slice(), notes: S.notes.slice() }; if (i >= 0) LIB[i] = rec; else LIB.push(rec); }
+function storeCurrent() { const i = LIB.findIndex(l => l.id === CUR); const rec = { id: CUR, name: S.name, goal: S.goal, grid: S.grid.slice(), notes: S.notes.slice(), beats: S.beats || undefined }; if (i >= 0) LIB[i] = rec; else LIB.push(rec); }
 function save() { try { storeCurrent(); localStorage.setItem(LS2, JSON.stringify({ lib: LIB, cur: CUR, proposals: S.proposals, cuts: S.cuts })); } catch (e) { } renderLib(); }
 function load() {
   try {
@@ -34,7 +34,7 @@ function load() {
 function openLevel(id, quiet) {
   if (!quiet && CUR) storeCurrent();
   const l = LIB.find(x => x.id === id) || LIB[0]; if (!l) return;
-  CUR = l.id; S.name = l.name; S.goal = l.goal || ''; S.grid = l.grid.slice(); S.notes = (l.notes || []).slice(); undo = []; redo = [];
+  CUR = l.id; S.name = l.name; S.goal = l.goal || ''; S.grid = l.grid.slice(); S.notes = (l.notes || []).slice(); S.beats = l.beats && l.beats.length === 5 ? l.beats.slice() : null; undo = []; redo = [];
   if (!quiet) { syncInputs(); fitZoom(); recheck(true); renderNotes(); }
 }
 const levelStatus = new Map();
@@ -93,7 +93,7 @@ function floodFill(x, y, c) {
 // ── 检查（停笔后跑） ─────────────────────────────────
 function recheck(now) {
   clearTimeout(dirtyTimer);
-  const run = () => { W = makeWorld(S.proposals); R = check(W, S.grid, true); renderSide(); draw(); save(); };
+  const run = () => { W = makeWorld(S.proposals); R = check(W, S.grid, true); R.passes = routePasses(R.route, R.times, R.onRoute); R.rhythm = rhythm(R.passes, R.seconds); R.cover = coverHints(S.grid, R.onRoute); renderSide(); draw(); save(); };
   if (now) run(); else dirtyTimer = setTimeout(run, 180);
 }
 
@@ -157,6 +157,38 @@ function draw() {
     if (moveFrom && hover) { const [dx, dy] = moveOffset(); if (dx || dy) box({ x0: moveSel.x0 + dx, y0: moveSel.y0 + dy, x1: moveSel.x1 + dx, y1: moveSel.y1 + dy }, '#fff', [4, 3]); }
   }
   if (S.tool === 'move' && moveBox && hover) { const b = selBox(moveBox[0], moveBox[1], hover[0], hover[1]); ctx.strokeStyle = '#ffc83d'; ctx.setLineDash([4, 3]); ctx.strokeRect(b.x0 * z, (h - 1 - b.y1) * z, (b.x1 - b.x0 + 1) * z, (b.y1 - b.y0 + 1) * z); ctx.setLineDash([]); }
+  // S208 起承转合分段框
+  const bb = S.ov.beats ? beatBounds(S.grid, S.beats) : null;
+  if (bb) {
+    ctx.save(); ctx.strokeStyle = 'rgba(255,200,61,.55)'; ctx.setLineDash([6, 5]); ctx.lineWidth = 1.5; ctx.textAlign = 'left';
+    ctx.font = `800 ${Math.max(11, z * 0.7)}px 'Bricolage Grotesque','Noto Sans SC',sans-serif`;
+    for (let i = 0; i < 4; i++) {
+      const x0 = bb[i] * z, x1 = bb[i + 1] * z;
+      ctx.fillStyle = i % 2 ? 'rgba(255,200,61,.035)' : 'rgba(255,200,61,.07)'; ctx.fillRect(x0, z, x1 - x0, (h - 2) * z);
+      ctx.beginPath(); ctx.moveTo(x0, z); ctx.lineTo(x0, (h - 1) * z); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,200,61,.9)'; ctx.fillText(BEAT_ZH[i], x0 + 5, z + Math.max(11, z * 0.7));
+      ctx.fillStyle = 'rgba(255,200,61,.55)'; ctx.font = `600 ${Math.max(9, z * 0.42)}px 'Noto Sans SC',sans-serif`;
+      ctx.fillText(['教', '加深', '意外', '收尾'][i], x0 + 5 + Math.max(14, z * 0.9), z + Math.max(11, z * 0.7)); ctx.font = `800 ${Math.max(11, z * 0.7)}px 'Bricolage Grotesque','Noto Sans SC',sans-serif`;
+    }
+    ctx.beginPath(); ctx.moveTo(bb[4] * z, z); ctx.lineTo(bb[4] * z, (h - 1) * z); ctx.stroke(); ctx.restore();
+  }
+  // S208 转移点提示：机关 5 格内没有草丛/箱子/隔墙
+  if (R && R.cover && S.ov.cover) {
+    ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 2;
+    for (const s of R.cover) { ctx.beginPath(); ctx.arc(s.x * z + z / 2, (h - 1 - s.y) * z + z / 2, z * 0.72, 0, 7); ctx.stroke(); }
+    ctx.lineWidth = 1;
+  }
+  // S208 印章预览
+  if (S.tool === 'stamp' && hover && !S.ov.worst) {
+    const p = patternById(S.stamp), prev = stampPattern(S.grid, p, hover[0], hover[1], S.stampStar || null);
+    ctx.globalAlpha = 0.75;
+    for (let row = 0; row < h; row++) for (let x = 0; x < w; x++) if (prev[row][x] !== S.grid[row][x]) {
+      const c = prev[row][x], rgb = colorOf(c); ctx.fillStyle = rgbCss(rgb); ctx.fillRect(x * z, row * z, z - 1, z - 1);
+      if (!'#W=.'.includes(c) && z >= 12) { ctx.fillStyle = textOn(rgb); ctx.fillText(c, x * z + z / 2, row * z + z / 2 + 1); }
+    }
+    ctx.globalAlpha = 1; const pw = p.rows[0].length, top = hover[1] + p.stand;
+    ctx.strokeStyle = '#ffc83d'; ctx.setLineDash([4, 3]); ctx.lineWidth = 2; ctx.strokeRect(hover[0] * z, (h - 1 - top) * z, pw * z, p.rows.length * z); ctx.setLineDash([]); ctx.lineWidth = 1;
+  }
   if (focusCell) { ctx.strokeStyle = '#ffc83d'; ctx.lineWidth = 3; ctx.strokeRect(focusCell[0] * z - 2, (h - 1 - focusCell[1]) * z - 2, z + 4, z + 4); ctx.lineWidth = 1; }
   if (dragStart && hover && S.tool === 'rect') { const [a, b] = rectOf(dragStart, hover); ctx.strokeStyle = '#fff'; ctx.setLineDash([4, 3]); ctx.strokeRect(a[0] * z, (h - 1 - b[1]) * z, (b[0] - a[0] + 1) * z, (b[1] - a[1] + 1) * z); ctx.setLineDash([]); }
   else if (hover) { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.strokeRect(hover[0] * z + .5, (h - 1 - hover[1]) * z + .5, z - 1, z - 1); }
@@ -173,6 +205,7 @@ cv.addEventListener('mousedown', e => {
   const erase = e.button === 2, ch = erase ? '.' : S.brush;
   if (S.tool === 'pick' && !erase) { pickAt(c, true); return; }
   if (S.tool === 'move') { moveDown(c, erase); return; }
+  if (S.tool === 'stamp') { if (erase) { setTool(prevTool === 'stamp' ? 'brush' : prevTool); return; } if (S.ov.worst) { toast('正在"最坏情况预览"（只是看，不能画）→ 先取消勾选它'); return; } snapshot(); S.grid = stampPattern(S.grid, patternById(S.stamp), c[0], c[1], S.stampStar || null); recheck(true); toast(`盖上了「${patternById(S.stamp).zh}」→ 看右边检查结果，不对就 Ctrl+Z`); return; }
   if (S.ov.worst) { toast('正在"最坏情况预览"（只是看，不能画）→ 先取消勾选它'); return; }
   snapshot();
   if (S.tool === 'fill' && !erase) { floodFill(c[0], c[1], ch); recheck(); draw(); return; }
@@ -199,18 +232,19 @@ function pickAt(c, fromTool) {
   if (fromTool) setTool(prevTool === 'pick' || prevTool === 'move' ? 'brush' : prevTool);
   toast(`吸管：画笔换成「${en ? en.zh : ch === '.' ? '空气（= 橡皮）' : ch}」→ 已回到${TOOL_ZH[S.tool]}，直接画`);
 }
-const TOOL_ZH = { brush: '画笔', rect: '矩形', fill: '填充', pick: '吸管', move: '移动' };
+const TOOL_ZH = { brush: '画笔', rect: '矩形', fill: '填充', pick: '吸管', move: '移动', stamp: '印章' };
 function setTool(t) {
   if (t !== S.tool && S.tool !== 'pick') prevTool = S.tool;
   S.tool = t; if (t !== 'move') { moveSel = null; moveFrom = null; moveBox = null; }
   document.querySelectorAll('[data-tool]').forEach(x => x.setAttribute('aria-pressed', x.dataset.tool === t));
-  $('#toolHint').textContent = TOOL_HINT[t] || ''; draw();
+  $('#toolHint').textContent = TOOL_HINT[t] || ''; if ($('#stamps')) renderStamps(); draw();
 }
 const TOOL_HINT = {
   brush: '画笔：左键画、右键擦。Ctrl+点击 = 吸取格子里的东西',
   rect: '矩形：按住拖出一块，松手填满',
   fill: '填充：把连在一起的同种格子一次换掉',
   pick: '吸管：点一个已放的东西 → 画笔变成它，自动回到上一个工具',
+  stamp: '印章：鼠标放在马里奥站的那一格（地面上一格）点一下，盖上左边选中的模式 · 右键 = 退出印章 · 盖错了 Ctrl+Z',
   move: '移动：点住东西拖走（相连的同种一起走）· 空白处拖 = 框选 · 方向键微调 · Del 删除 · Ctrl+C / Ctrl+V 复制到鼠标处 · Esc 取消',
 };
 function moveOffset() { if (!moveFrom || !hover || !moveSel) return [0, 0]; return clampMove(Wd(), H(), moveSel, hover[0] - moveFrom[0], hover[1] - moveFrom[1]); }
@@ -303,9 +337,18 @@ function renderSide() {
     if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(tick);
     $('#tlLoot').textContent = R.lootAt ? `拿宝 ${R.lootAt.toFixed(0)}s` : ''; $('#tlEnd').textContent = `出口 ${R.seconds.toFixed(0)}s`;
   } else { tl.innerHTML += '<div class="hint" style="padding:12px">路线算不出来时不显示时间线</div>'; $('#tlLoot').textContent = $('#tlEnd').textContent = ''; }
+  const rb = $('#rhythm'); rb.innerHTML = ''; $('#rhSum').textContent = '';
+  if (R.rhythm && R.seconds > 0) {
+    for (const g of R.rhythm.segs) { const i = document.createElement('i'); i.className = g.busy ? 'busy' : 'rest'; i.style.left = (g.a / R.seconds * 100) + '%'; i.style.width = Math.max(0.6, (g.b - g.a) / R.seconds * 100) + '%'; i.title = `${g.a.toFixed(1)}–${g.b.toFixed(1)} 秒 · ${g.busy ? '经过机关' : '喘气'}`; rb.appendChild(i); }
+    const busy = R.rhythm.segs.filter(g => g.busy).reduce((a, g) => a + g.b - g.a, 0);
+    $('#rhSum').textContent = `紧张 ${Math.round(busy / R.seconds * 100)}% · ${R.passes.length} 次经过机关`;
+  }
+  const extra = [...(R.rhythm ? R.rhythm.warn.map(w => ({ x: -1, y: -1, t: '节奏：' + w.t, sev: 'warn' })) : []),
+    ...(R.cover && R.cover.length ? [{ x: R.cover[0].x, y: R.cover[0].y, t: `转移点：${R.cover.length} 个机关 5 格内没有草丛/箱子可以躲（橙色圈）——你走过去时会被看见。提前伪装好等他来，或旁边放一丛草 b`, sev: 'info' }] : [])];
   const box = $('#issues'); box.innerHTML = '';
-  if (!R.issues.length) box.innerHTML = '<div class="empty">没有发现问题。去"新机制提案"想点新东西，或者直接"交给 AI"。</div>';
-  for (const i of R.issues) {
+  const allIssues = R.issues.concat(extra);
+  if (!allIssues.length) box.innerHTML = '<div class="empty">没有发现问题。去"新机制提案"想点新东西，或者直接"交给 AI"。</div>';
+  for (const i of allIssues) {
     const d = document.createElement('div'); d.className = 'issue ' + i.sev;
     d.innerHTML = `<span class="dot"></span><span>${i.x >= 0 ? `<code>(${i.x},${i.y})</code> ` : ''}${i.t}</span>`;
     if (i.x >= 0) d.onclick = () => focusOn(i.x, i.y); box.appendChild(d);
@@ -434,7 +477,7 @@ $('#hPal').onclick = () => {
   els.forEach((e, i) => { const px = (i % cols) * 170 + 8, py = Math.floor(i / cols) * (cell + 8) + 8; x.fillStyle = rgbCss(e.rgb); x.fillRect(px, py, cell, cell); x.fillStyle = '#efe7d6'; x.fillText(`${e.c} ${e.zh}`, px + cell + 8, py + cell / 2); });
   c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'MarioTrickster_调色板.png'; a.click(); });
 };
-function levelPack() { storeCurrent(); return { type: 'mariotrickster-levelpack', v: 1, rules: 'S207', exported: new Date().toISOString(), levels: LIB.map(l => ({ id: l.id, name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] })), proposals: S.proposals, cuts: S.cuts }; }
+function levelPack() { storeCurrent(); return { type: 'mariotrickster-levelpack', v: 1, rules: 'S208', exported: new Date().toISOString(), levels: LIB.map(l => Object.assign({ id: l.id, name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] }, l.beats ? { beats: l.beats } : {})), proposals: S.proposals, cuts: S.cuts }; }
 const exportPack = () => { const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; download(`MarioTrickster关卡包_${LIB.length}关_${stamp}.levelpack.json`, JSON.stringify(levelPack(), null, 1), 'application/json'); };
 $('#btnExport').onclick = exportPack;
 $('#hPack').onclick = exportPack;
@@ -452,7 +495,7 @@ $('#fileIn').onchange = async e => {
 };
 function mergeProposals(list) { for (const p of (list || [])) { S.proposals = S.proposals.filter(x => (p.c ? x.c !== p.c : x.zh !== p.zh)); S.proposals.push(p); } W = makeWorld(S.proposals); }
 function addImported(name, grid, goal, notes) { storeCurrent(); const existing = LIB.find(l => l.name === name); if (existing && confirm(`已有同名关卡"${name}"，覆盖它吗？（取消 = 另存为新关卡）`)) { Object.assign(existing, { grid, goal: goal || '', notes: notes || [] }); CUR = existing.id; } else { CUR = newId(); LIB.push({ id: CUR, name: existing ? uniqueName(name) : name, goal: goal || '', grid, notes: notes || [] }); } openLevel(CUR, true); applyImport(`已导入"${S.name}"`); }
-function importPackData(pk) { mergeProposals(pk.proposals); S.cuts = Object.assign(S.cuts, pk.cuts || {}); storeCurrent(); let n = 0, over = 0; for (const l of pk.levels || []) { const ex = LIB.find(x => x.id === l.id || x.name === l.name); if (ex) { Object.assign(ex, { name: l.name, goal: l.goal || '', grid: l.grid, notes: l.notes || [] }); over++; } else LIB.push({ id: l.id || newId(), name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] }); n++; } CUR = (LIB.find(x => pk.levels[0] && (x.id === pk.levels[0].id || x.name === pk.levels[0].name)) || LIB[0]).id; openLevel(CUR, true); applyImport(`导入关卡包：${n} 关（其中 ${over} 关同名覆盖）`); }
+function importPackData(pk) { mergeProposals(pk.proposals); S.cuts = Object.assign(S.cuts, pk.cuts || {}); storeCurrent(); let n = 0, over = 0; for (const l of pk.levels || []) { const ex = LIB.find(x => x.id === l.id || x.name === l.name); if (ex) { Object.assign(ex, { name: l.name, goal: l.goal || '', grid: l.grid, notes: l.notes || [], beats: l.beats }); over++; } else LIB.push({ id: l.id || newId(), name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [], beats: l.beats }); n++; } CUR = (LIB.find(x => pk.levels[0] && (x.id === pk.levels[0].id || x.name === pk.levels[0].name)) || LIB[0]).id; openLevel(CUR, true); applyImport(`导入关卡包：${n} 关（其中 ${over} 关同名覆盖）`); }
 const nameFromTxt = (rows, fn) => { const m = rows.find(r => r.startsWith('# Name: ')); return m ? m.slice(8).trim() : fn.replace(/\..*$/, ''); };
 const goalFromTxt = rows => { const m = rows.find(r => r.startsWith('# Goal: ')); return m ? m.slice(8).trim() : ''; };
 function applyImport(msg) { snapshot(); syncInputs(); fitZoom(); W = makeWorld(S.proposals); renderAll(); save(); toast(msg); }
@@ -494,18 +537,43 @@ window.addEventListener('keydown', e => {
   if (S.tool === 'move' && moveKey(e)) { e.preventDefault(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('#btnUndo').click(); }
   else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); $('#btnRedo').click(); }
-  else { const m = { b: 'brush', r: 'rect', f: 'fill', i: 'pick', v: 'move' }[e.key.toLowerCase()]; if (m && !e.ctrlKey) document.querySelector(`[data-tool=${m}]`).click(); }
+  else { const m = { b: 'brush', r: 'rect', f: 'fill', i: 'pick', v: 'move', s: 'stamp' }[e.key.toLowerCase()]; if (m && !e.ctrlKey) document.querySelector(`[data-tool=${m}]`).click(); }
 });
-for (const [id, k] of [['ovRoute', 'route'], ['ovDead', 'dead'], ['ovWorst', 'worst'], ['ovNotes', 'notes'], ['ovJump', 'jump'], ['ovUnreach', 'unreach'], ['ovView', 'view']]) $('#' + id).onchange = e => { S.ov[k] = e.target.checked; if (k === 'worst') $('#worstBanner').hidden = !e.target.checked; draw(); };
+for (const [id, k] of [['ovRoute', 'route'], ['ovDead', 'dead'], ['ovWorst', 'worst'], ['ovNotes', 'notes'], ['ovJump', 'jump'], ['ovUnreach', 'unreach'], ['ovView', 'view'], ['ovBeats', 'beats'], ['ovCover', 'cover']]) $('#' + id).onchange = e => { S.ov[k] = e.target.checked; if (k === 'worst') $('#worstBanner').hidden = !e.target.checked; draw(); };
 $('#zoom').oninput = e => { S.zoom = +e.target.value; draw(); };
 $('#palSearch').oninput = renderPalette;
 $('#showAll').onchange = e => { S.showAll = e.target.checked; renderPalette(); };
 const sel = $('#sampleSel'); for (const n of Object.keys(SAMPLES)) sel.add(new Option(n, n));
-function addLevel(name, grid) { storeCurrent(); CUR = newId(); LIB.push({ id: CUR, name, goal: '', grid, notes: [] }); openLevel(CUR, true); syncInputs(); fitZoom(); recheck(true); renderNotes(); }
+function addLevel(name, grid) { storeCurrent(); CUR = newId(); LIB.push({ id: CUR, name, goal: '', grid, notes: [] }); S.beats = null; openLevel(CUR, true); syncInputs(); fitZoom(); recheck(true); renderNotes(); }
 function uniqueName(base) { let n = base, i = 2; while (LIB.some(l => l.name === n)) n = `${base} ${i++}`; return n; }
 $('#btnLoad').onclick = () => addLevel(uniqueName(sel.value + '（改）'), SAMPLES[sel.value].slice());
 $('#btnBlank').onclick = () => addLevel(uniqueName('新关卡'), blank(+$('#inW').value || 48, +$('#inH').value || 12));
-$('#libNew').onclick = () => { const n = prompt('新关卡的名字（以后导入 Unity 也用这个名字）', uniqueName('新关卡')); if (n === null) return; addLevel(uniqueName(n.trim() || '新关卡'), blank(48, 12)); };
+// ── S208 新建关卡向导 ─────────────────────────────────
+const WZ = { star: '~', sec: 20 };
+const WIZ_STAR_TIP = { '~': '最基础：躲着按准时机', n: '滑一下打乱落点', '[': '挡路 3.5 秒', J: '弹上天，空中不能动', Y: '倒吊 10 秒', Q: '关住 3 秒', K: '远距离，每局 1 发', C: '掉下去换一层玩' };
+function renderWizard() {
+  $('#wizStars').innerHTML = WIZ_STARS.map(c => { const e = W.info.get(c); return `<button type="button" data-c="${c}" aria-pressed="${WZ.star === c}"><b style="background:${rgbCss(e.rgb)};color:${textOn(e.rgb)}">${c}</b>${e.zh}<small>${WIZ_STAR_TIP[c]}</small></button>`; }).join('');
+  $('#wizLens').innerHTML = [[20, '约 20 秒', '48 格宽 · 一屏'], [30, '约 30 秒', '64 格宽 · 一屏'], [40, '约 40 秒', '94 格宽 · 镜头跟着走']].map(([s, a, b]) => `<button type="button" data-s="${s}" aria-pressed="${WZ.sec === s}">${a}<small>${b}</small></button>`).join('');
+  const rec = wizardRecipe(WZ.star);
+  $('#wizBeats').innerHTML = rec.map(([pid, st], i) => { const p = patternById(pid), e = W.info.get(st); return `<div><b>${BEAT_ZH[i]}</b>${p.zh}（${e ? e.zh : st}）</div>`; }).join('');
+  $('#wizStars').querySelectorAll('button').forEach(b => b.onclick = () => { WZ.star = b.dataset.c; renderWizard(); });
+  $('#wizLens').querySelectorAll('button').forEach(b => b.onclick = () => { WZ.sec = +b.dataset.s; renderWizard(); });
+}
+function openWizard() { $('#wizName').value = uniqueName('新关卡'); $('#wizIdea').value = ''; renderWizard(); $('#wizDlg').showModal(); $('#wizIdea').focus(); }
+$('#wizCancel').onclick = () => $('#wizDlg').close();
+$('#wizBlank').onclick = () => { $('#wizDlg').close(); addLevel(uniqueName($('#wizName').value.trim() || '新关卡'), blank(48, 12)); };
+$('#wizOk').onclick = () => {
+  const d = wizardLevel(WZ.star, WZ.sec, $('#wizIdea').value); $('#wizDlg').close();
+  storeCurrent(); CUR = newId(); LIB.push({ id: CUR, name: uniqueName($('#wizName').value.trim() || '新关卡'), goal: d.goal, grid: d.grid, notes: d.notes, beats: d.beats });
+  openLevel(CUR, true); syncInputs(); fitZoom(); recheck(true); renderNotes();
+  toast('草稿生成好了：金色虚线是起承转合 4 段，黄三角批注写了每段怎么玩。先导进 Unity 玩一局，再改最别扭的一处');
+};
+$('#libNew').onclick = openWizard;
+// ── S208 模式印章 ─────────────────────────────────────
+function renderStamps() {
+  $('#stamps').innerHTML = PATTERNS.map(p => `<button type="button" data-id="${p.id}" aria-pressed="${S.tool === 'stamp' && S.stamp === p.id}" title="${p.tip}"><b>${p.zh}</b><pre>${p.rows.map(r => r.replace(/_/g, ' ').replace(/\*/g, p.def)).join('\n')}</pre></button>`).join('');
+  $('#stamps').querySelectorAll('button').forEach(b => b.onclick = () => { S.stamp = b.dataset.id; setTool('stamp'); toast(`印章「${patternById(S.stamp).zh}」：${patternById(S.stamp).tip}`); });
+}
 $('#libDup').onclick = () => { storeCurrent(); addLevel(uniqueName(S.name + ' 副本'), S.grid.slice()); };
 $('#libDel').onclick = () => { if (LIB.length <= 1) { toast('至少留一关'); return; } if (!confirm(`删除"${S.name}"？（导出过的关卡包不受影响）`)) return; LIB = LIB.filter(l => l.id !== CUR); CUR = ''; openLevel(LIB[0].id, true); syncInputs(); fitZoom(); recheck(true); renderNotes(); };
 $('#btnResize').onclick = () => { const w = Math.max(12, Math.min(128, +$('#inW').value)), h = Math.max(6, Math.min(48, +$('#inH').value)); snapshot(); resize(w, h); recheck(true); };
@@ -517,5 +585,7 @@ function syncInputs() { $('#inW').value = Wd(); $('#inH').value = H(); $('#lvNam
 function renderAll() { renderPalette(); renderBrush(); renderNotes(); recheck(true); }
 
 load();
-if (!S.grid.length) { CUR = newId(); S.grid = SAMPLES['诱捕走廊'].slice(); S.name = '诱捕走廊（改）'; LIB = [{ id: CUR, name: S.name, goal: '', grid: S.grid.slice(), notes: [] }]; }
-W = makeWorld(S.proposals); syncInputs(); fitZoom(); renderAll(); setTool('brush');
+if (!S.grid.length) { CUR = newId(); S.grid = SAMPLES['诱捕走廊'].slice(); S.name = '诱捕走廊（改）'; LIB = [{ id: CUR, name: S.name, goal: '', grid: S.grid.slice(), notes: [] }]; S.firstRun = true; }
+W = makeWorld(S.proposals); syncInputs(); fitZoom(); renderAll(); setTool('brush'); renderStamps();
+// S208：第一次打开（浏览器里还没有任何关卡）→ 直接弹出向导，不让人对着空白画布发呆
+if (S.firstRun) setTimeout(openWizard, 300);

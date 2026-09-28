@@ -204,7 +204,7 @@ function check(W, rawGrid, step1) {
     res.route = a.concat(b.slice(1)); let len = 0; const times = [RULES.StartDelay];
     for (let i = 1; i < res.route.length; i++) { const [px, py] = res.route[i - 1], [qx, qy] = res.route[i]; len += Math.hypot(qx - px, qy - py); times.push(RULES.StartDelay + len / RULES.RunSpeed); }
     res.seconds = RULES.StartDelay + len / RULES.RunSpeed;
-    res.lootAt = O ? times[a.length - 1] : 0;
+    res.lootAt = O ? times[a.length - 1] : 0; res.times = times;
     for (let row = 0; row < h; row++) for (let x = 0; x < w; x++) {
       const c = g[row][x], e = W.info.get(c); if (!e || !(e.r === 'PlayerPrank' || c === 'R' || c === 'U' || e.proposal)) continue;
       const y = h - 1 - row; let best = 1e9, bi = 0;
@@ -302,7 +302,133 @@ function cameraPlan(w, h) {
   return { big, viewW: Math.min(w, vw), viewH: Math.min(h, vh) };
 }
 
-if (typeof module !== 'undefined') module.exports = { makeWorld, check, path, placementIssues, stripSlots, find, selectAt, selBox, clampMove, moveBlock, copyBlock, pasteBlock, clearBlock, cameraPlan };
+// ── S208：新建关卡向导 / 模式印章 / 节奏条 / 转移点提示（与 Unity LevelBlueprint 同规则，改一边必须改另一边）──
+// 印章格式：rows 从上到下；stand = 哪一行是"马里奥站的那一行"；'_' = 不动原来的格；'*' = 主角机关（没指定就用 def）。
+const PATTERNS = [
+  { id: 'ambush', zh: '伏击点', def: '~', stand: 0, rows: ['b..*'], tip: '草丛隔两格放机关：你躲着、按准时机（最基础）' },
+  { id: 'slide', zh: '滑铲送火', def: '~', stand: 0, rows: ['b.R.n..b*U'], tip: '绊线启动 → 香蕉皮滑过去 → 火点燃油桶（连锁入门）' },
+  { id: 'highlow', zh: '高低两路', def: '~', stand: 2, rows: ['...--------', '--.........', '...*...*...', '___________'], tip: '地面有机关，头顶一条单向台面高路：谨慎型会走高路' },
+  { id: 'pit', zh: '陷坑回廊', def: '~', stand: 0, rows: ['b.......', '__CCC___', '__.*.___'], tip: '塌桥下挖一格深的坑（坑里放火），掉下去能跳出来——地面要 ≥3 格厚' },
+  { id: 'spring', zh: '弹射落点', def: '~', stand: 0, rows: ['b.J..b*'], tip: '弹簧把他弹上天（空中不能动），落点放机关；弹簧头顶要空 4 格' },
+  { id: 'gate', zh: '关门打狗', def: '~', stand: 0, rows: ['b.*['], tip: '封路墙挡他 3.5 秒，让他停在机关上' },
+  { id: 'snare', zh: '回马枪', def: 'Y', stand: 0, rows: ['b..*.'], tip: '放在宝物旁：他拿宝后急着回去，回程第一个坑' },
+  { id: 'cannon', zh: '炮台走廊', def: 'K', stand: 0, rows: ['c.*....'], tip: '箱子挡在炮后，炮口前空 3 格（每局 1 发，要选准时机）' },
+];
+/** 盖章：左下角对齐 (x, standY)（standY = 马里奥站的那格的 y，y 从下 0）。外圈、M/T/G/o 所在格不动。返回新网格。 */
+function stampPattern(g, p, x, standY, star) {
+  const h = g.length, w = g[0].length, rows = g.map(r => r.split('')), uniq = 'MTGo';
+  p.rows.forEach((line, i) => {
+    const y = standY + (p.stand - i);
+    for (let dx = 0; dx < line.length; dx++) {
+      let c = line[dx]; if (c === '_') continue; if (c === '*') c = star || p.def;
+      const nx = x + dx; if (nx <= 0 || y <= 0 || nx >= w - 1 || y >= h - 1) continue;
+      const row = h - 1 - y; if (uniq.includes(rows[row][nx])) continue; rows[row][nx] = c;
+    }
+  });
+  return rows.map(r => r.join(''));
+}
+const patternById = id => PATTERNS.find(p => p.id === id);
+/** 向导能选的主角机关（都能在一层地面上教）。 */
+const WIZ_STARS = ['~', 'n', '[', 'J', 'Y', 'Q', 'K', 'C'];
+const WIZ_LENGTH = { 20: 48, 30: 64, 40: 94 };
+/** 每个主角机关的"起承转合"四段（印章 id + 这段里的主角）。转 = 让地形变一变（陷坑）；塌桥本身就是地形 → 转换成弹簧。 */
+const WIZ_RECIPES = {
+  '~': [['ambush', '~'], ['slide', '~'], ['pit', '~'], ['gate', '~']],
+  n: [['ambush', 'n'], ['slide', 'n'], ['pit', '~'], ['gate', 'n']],
+  '[': [['ambush', '['], ['slide', '~'], ['pit', '~'], ['gate', '~']],
+  J: [['spring', '~'], ['ambush', 'n'], ['pit', '~'], ['gate', '~']],
+  Y: [['ambush', 'Y'], ['slide', 'Y'], ['pit', '~'], ['gate', 'Y']],
+  Q: [['ambush', 'Q'], ['slide', 'Q'], ['pit', '~'], ['gate', 'Q']],
+  K: [['cannon', 'K'], ['cannon', 'K'], ['pit', '~'], ['gate', '~']],
+  C: [['pit', '~'], ['ambush', '~'], ['spring', '~'], ['pit', '~']],
+};
+const wizardRecipe = star => WIZ_RECIPES[star] || WIZ_RECIPES['~'];
+const BEAT_ZH = ['起', '承', '转', '合'];
+const BEAT_TIP = ['起 · 教：主角机关单独出现，旁边有草丛。先摸清他走多快、什么时候按', '承 · 加深：同一个机关接上别的，连成一套', '转 · 意外：让地形变一变（塌桥掉坑 / 弹簧弹飞），打乱他的路线', '合 · 收尾：宝物旁最后一道——他拿宝后回程第一个就是这里'];
+/** 新建关卡向导：返回 { grid, beats:[x0..x4], notes, goal }。确定性（同样的选择永远同样的结果）。 */
+function wizardLevel(star, seconds, idea) {
+  const w = WIZ_LENGTH[seconds] || 48, h = 12, rows = [];
+  for (let r = 0; r < h; r++) rows.push(r === 0 ? 'W'.repeat(w) : r >= h - 3 ? 'W' + '#'.repeat(w - 2) + 'W' : 'W' + '.'.repeat(w - 2) + 'W');
+  let g = rows; const sy = 3; // 站的那一行 y=3（下面 3 层地面，挖坑也不会挖穿）
+  const put = (x, c) => { const r = g[h - 1 - sy].split(''); r[x] = c; g[h - 1 - sy] = r.join(''); };
+  put(2, 'G'); put(4, 'M'); put(w - 4, 'o');
+  const x0 = 7, x4 = w - 6, beats = [0, 1, 2, 3, 4].map(i => Math.round(x0 + (x4 - x0) * i / 4));
+  const recipe = wizardRecipe(star), notes = [];
+  recipe.forEach(([pid, s], i) => {
+    const p = patternById(pid), pw = p.rows[0].length, span = beats[i + 1] - beats[i];
+    // 长关卡（这段 ≥ 17 格）：主模式放前面，后面再补一个伏击点，避免 10 秒以上什么都没发生
+    const extra = span >= 17, px = beats[i] + (extra ? 2 : Math.max(0, Math.floor((span - pw) / 2)));
+    g = stampPattern(g, p, px, sy, s);
+    if (extra) g = stampPattern(g, patternById('ambush'), beats[i] + Math.floor(span * 0.62), sy, i === 2 || s === 'K' ? '~' : s);
+    notes.push({ x: px, y: sy, text: BEAT_TIP[i] + `（模式：${p.zh}）` });
+  });
+  // 捣蛋者出生点：中间附近第一块空地（脚下实心、左右各空 1 格）
+  const mid = Math.floor(w / 2), row = h - 1 - sy;
+  for (let d = 0; d < w; d++) for (const x of [mid - d, mid + d]) {
+    if (x < 6 || x > w - 7) continue;
+    if (g[row][x] === '.' && g[row][x - 1] === '.' && g[row][x + 1] === '.' && g[row + 1][x] === '#') { put(x, 'T'); d = w; break; }
+  }
+  const zh = (ELEMENTS.find(e => e.c === star) || { zh: star }).zh;
+  const goal = (idea && idea.trim()) || `这关让马里奥被${zh}坑：起（教）→ 承（连起来）→ 转（地形变了）→ 合（回程第一个坑）`;
+  return { grid: g, beats, notes, goal };
+}
+/** 起承转合分段：有存的就用存的；没有就按 马里奥出生点 → 宝物 之间平均切 4 段。 */
+function beatBounds(g, beats) {
+  if (beats && beats.length === 5) return beats;
+  const M = find(g, 'M')[0], O = find(g, 'o')[0] || find(g, 'G')[0];
+  if (!M || !O) return null;
+  const a = Math.min(M[0], O[0]) + 2, b = Math.max(M[0], O[0]) - 1;
+  if (b - a < 8) return null;
+  return [0, 1, 2, 3, 4].map(i => Math.round(a + (b - a) * i / 4));
+}
+/** 马里奥每次经过机关的时刻（去程 + 回程都算：回程你还能再用一次）。stops = check().onRoute，route/times = check() 的路线与每点时刻。 */
+function routePasses(route, times, stops) {
+  const out = [];
+  if (!route || !times) return out;
+  for (const s of stops) {
+    let inPass = false, best = 1e9, bt = 0;
+    for (let i = 0; i < route.length; i++) {
+      const d = Math.hypot(route[i][0] - s.x, route[i][1] - s.y), near = d <= 1.5;
+      if (near) { if (!inPass || d < best) { best = d; bt = times[i]; } inPass = true; }
+      else if (inPass) { out.push(bt); inPass = false; best = 1e9; }
+    }
+    if (inPass) out.push(bt);
+  }
+  return out.sort((a, b) => a - b);
+}
+/** 节奏：机关前后 1 秒算"紧张"，其余是"喘气"。连续紧张 ≥ 8 秒 → 提醒加空地；连续 ≥ 10 秒没事 → 提醒太空。 */
+const RHYTHM = { busyHalf: 1, maxBusy: 8, maxIdle: 10, startGrace: 4 };
+function rhythm(stops, total) {
+  const segs = [], warn = [];
+  if (!(total > 0)) return { segs, warn };
+  const iv = stops.map(t => [Math.max(0, t - RHYTHM.busyHalf), Math.min(total, t + RHYTHM.busyHalf)]).sort((a, b) => a[0] - b[0]);
+  const busy = []; for (const s of iv) { const l = busy[busy.length - 1]; if (l && s[0] <= l[1]) l[1] = Math.max(l[1], s[1]); else busy.push(s.slice()); }
+  let t = 0;
+  for (const [a, b] of busy) { if (a > t) segs.push({ a: t, b: a, busy: false }); segs.push({ a, b, busy: true }); t = b; }
+  if (t < total) segs.push({ a: t, b: total, busy: false });
+  for (const s of segs) {
+    const len = s.b - s.a;
+    if (s.busy && len >= RHYTHM.maxBusy) warn.push({ at: s.a, t: `${s.a.toFixed(0)}–${s.b.toFixed(0)} 秒连续 ${len.toFixed(0)} 秒都在机关里，没有喘气的地方：中间空出 3–5 格` });
+    if (!s.busy && len >= RHYTHM.maxIdle && s.b > RHYTHM.startGrace + 0.01) warn.push({ at: s.a, t: `${s.a.toFixed(0)}–${s.b.toFixed(0)} 秒连续 ${len.toFixed(0)} 秒什么都没发生：这里可以加一个机关（或者是故意留的长休息）` });
+  }
+  return { segs, warn };
+}
+/** 转移点：伪装着站着不动他不会怀疑，但你"走过去"的路上被看见会起疑。机关 5 格（你的操控范围）内没有草丛/箱子/墙挡着 → 提示"先伪装好等他来"。 */
+const COVER_CHARS = 'bcU12'; // 草丛、箱子、油桶；随机槽位 1（箱子或草丛）/ 2（草丛或空）也算
+function coverHints(g, stops) {
+  const h = g.length, out = [];
+  for (const s of stops) {
+    const row = h - 1 - s.y; let ok = false;
+    for (let dy = -1; dy <= 2 && !ok; dy++) for (let dx = -5; dx <= 5 && !ok; dx++) {
+      if (!dx && !dy) continue; const r = row - dy, x = s.x + dx; if (r < 0 || r >= h || x <= 0 || x >= g[0].length - 1) continue;
+      if (COVER_CHARS.includes(g[r][x]) || (g[r][x] === 'W' && r > 0 && r < h - 1)) ok = true; // 房间里的隔墙也能挡视线
+    }
+    if (!ok && !out.some(o => o.c === s.c && Math.abs(o.x - s.x) <= 1 && o.y === s.y)) out.push(s); // 一整段塌桥/裂缝地板只提示一次
+  }
+  return out;
+}
+
+if (typeof module !== 'undefined') module.exports = { makeWorld, check, path, placementIssues, stripSlots, find, selectAt, selBox, clampMove, moveBlock, copyBlock, pasteBlock, clearBlock, cameraPlan, PATTERNS, stampPattern, wizardLevel, wizardRecipe, beatBounds, rhythm, routePasses, coverHints, WIZ_STARS, WIZ_LENGTH };
 
 
 // ── S205：跳跃辅助 ────────────────────────────────────

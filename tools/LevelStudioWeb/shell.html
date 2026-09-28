@@ -57,6 +57,15 @@ h3:first-child{margin-top:4px}
 .chip .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
 .chip.prop .sw{outline:2px dashed var(--loot);outline-offset:-2px}
 .chip.off{opacity:.45}
+.lib{display:flex;flex-direction:column;gap:4px;max-height:210px;overflow:auto}
+.lib button{display:flex;gap:8px;align-items:center;text-align:left;background:var(--slab);border:1px solid var(--line);border-radius:8px;padding:6px 8px;cursor:pointer}
+.lib button[aria-current=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+.lib .st{flex:0 0 8px;height:8px;border-radius:50%}
+.lib .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+.lib small{color:var(--dim);font:10.5px var(--mono)}
+.scope{font:11.5px/1.5 var(--mono);color:var(--dim);background:var(--slab);border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin-top:6px}
+.badge{display:inline-block;font:11px var(--mono);border-radius:999px;padding:1px 8px;border:1px solid var(--line)}
+.badge.idea{color:var(--warn);border-color:var(--warn)} .badge.ok{color:var(--ok);border-color:var(--ok)} .badge.go{color:var(--loot);border-color:var(--loot)}
 .info{background:var(--slab);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;font-size:12.5px;color:var(--dim)}
 .info b{color:var(--chalk)}
 /* 中间 */
@@ -134,12 +143,19 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
   </nav>
   <div class="spacer"></div>
   <button class="btn small" id="btnImport" title="支持：本设计台 .json、Unity 工坊 .txt、Tiled 导出的 .json/.csv、LDtk 的 .ldtk/.csv、像素图 .png（1 像素 = 1 格）">导入（多种格式）</button>
-  <button class="btn small" id="btnExport">保存项目 .json</button>
+  <button class="btn small" id="btnExport" title="所有关卡 + 所有提案，一个文件。Unity 工坊：关卡库 ▾ → 导入网页关卡包">导出关卡包 .json</button>
   <input type="file" id="fileIn" accept=".json,.txt,.csv,.ldtk,.tmj,.png,.gif,.bmp" hidden>
 </header>
 
 <main id="pageDesign">
   <aside>
+    <h3>我的关卡 <span id="libCount"></span></h3>
+    <div id="libList" class="lib"></div>
+    <div class="row" style="gap:6px;margin-top:6px">
+      <button class="btn small gold" id="libNew" title="新建一关（空白房间）">＋ 新关卡</button>
+      <button class="btn small" id="libDup" title="复制当前这关">复制</button>
+      <button class="btn small" id="libDel" title="删除当前这关">删除</button>
+    </div>
     <h3>起步</h3>
     <div class="row" style="gap:6px">
       <select class="f" id="sampleSel" aria-label="选择样板"></select>
@@ -153,6 +169,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <label class="f" style="margin:0">高 <input class="f" id="inH" type="number" min="6" max="48" value="12"></label>
     </div>
     <button class="btn small" id="btnResize" style="margin-top:6px;width:100%">改尺寸（地面不动，往上加空间）</button>
+    <div class="scope" id="scopeBox">搭建范围：宽 12–128 格、高 6–48 格<br>外圈必须是实心：最左/最右列 W，顶行、底行全实心<br>必须各 1 个：M 马里奥 · T 你 · G 出口 · o 宝物<br>马里奥：往上跳 ≤2 格，平跳 ≤4 格宽的坑<br>一屏装得下：高 ≤16 格整屏看，更高自动跟随</div>
     <h3>元素 <span id="palCount"></span></h3>
     <input class="search" id="palSearch" placeholder="搜索：火 / 弹簧 / J …" aria-label="搜索元素">
     <label class="toggle" style="margin:6px 0"><input type="checkbox" id="showAll"> 显示第 1 步不用的元素</label>
@@ -203,7 +220,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 
 <section class="page" id="pageMech">
   <h2>新机制提案</h2>
-  <p class="lead">先在这里把一个新机关/新技能想清楚：它是什么、谁用、代价和对方怎么反制。提案会出现在"画关卡"的元素库里（金色虚线框），可以直接画进关卡试摆。项目有 10 条硬规则，下面会自动提醒哪几条要特别说明。</p>
+  <p class="lead"><b style="color:var(--chalk)">新增流程：</b>① 写提案（💡想法）→ ② 画进关卡试摆 → ③ 想清楚后改成 ✅确认要做 → ④ 导出关卡包 + 设计单交给 AI → ⑤ AI 实现后，新版设计台里它会变成正式元素（✔），再导出关卡包导入 Unity，之前画的格子自动还原。<br>先在这里把一个新机关/新技能想清楚：它是什么、谁用、代价和对方怎么反制。提案会出现在"画关卡"的元素库里（金色虚线框），可以直接画进关卡试摆。项目有 10 条硬规则，下面会自动提醒哪几条要特别说明。</p>
   <div class="grid2">
     <div class="card">
       <div class="row">
@@ -236,6 +253,11 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <label class="f">和哪些现有机关连得起来<input class="f" id="mCombo" placeholder="例：吸到火前 → 火；吸下塌桥"></label>
       <div class="law" id="mLaws"></div>
       <div class="row" style="margin-top:14px">
+        <label class="f" style="margin:0;flex:0 0 190px">状态<select class="f" id="mStatus">
+          <option value="idea">💡 想法（还在想）</option>
+          <option value="go">✅ 确认要做（交给 AI 实现）</option>
+          <option value="done">✔ 已实现（项目里有了）</option>
+        </select></label>
         <button class="btn gold" id="mSave">保存提案</button>
         <button class="btn" id="mClear">清空</button>
       </div>
@@ -254,9 +276,11 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 
 <section class="page" id="pageHandoff">
   <h2>交给 AI</h2>
-  <p class="lead">把这里生成的"设计单"整段复制，发给 Genspark 里的 AI（说一句"按这份设计单更新 MarioTrickster"）。它会：把关卡加成工坊样板、把新机制按项目规则实现、处理删改，最后跑完整检查并给你升级包。也可以下载成文件发过去。</p>
+  <p class="lead"><b style="color:var(--chalk)">两样东西一起给 AI：</b>设计单（文字，说清要做什么）+ 关卡包 .json（所有关卡数据）。新账号也一样：把接续包 .skill、设计单、关卡包三个一起发过去。<br>把这里生成的"设计单"整段复制，发给 Genspark 里的 AI（说一句"按这份设计单更新 MarioTrickster"）。它会：把关卡加成工坊样板、把新机制按项目规则实现、处理删改，最后跑完整检查并给你升级包。也可以下载成文件发过去。</p>
   <div class="row" style="flex-wrap:wrap;gap:8px;max-width:880px;margin-bottom:14px">
+    <label class="toggle" style="flex:0 0 auto"><input type="checkbox" id="hAll" checked> 包含所有关卡</label>
     <button class="btn gold" id="hCopy">复制设计单</button>
+    <button class="btn" id="hPack">导出关卡包 .json（Unity 导入用）</button>
     <button class="btn" id="hDownload">下载设计单 .md</button>
     <button class="btn" id="hTxt">只导出关卡 .txt（Unity 工坊可导入）</button>
     <button class="btn" id="hPng" title="1 像素 = 1 格，用元素的颜色。拿去 Piskel / Aseprite / 画图 里改，改完再导入回来">导出像素图 .png（去别的画图工具改）</button>

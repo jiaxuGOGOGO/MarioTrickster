@@ -1733,6 +1733,46 @@ public class Step1RushMarioTests
         StringAssert.Contains("GridFromStudioJson", Read("Scripts/Editor/LevelWorkshopWindow.cs"));
     }
 
+    // ── S206：关卡库 / 关卡包 / 搭建范围 ─────────
+    [Test]
+    public void LevelPackRoundTripKeepsNamesNotesAndPendingMechanics()
+    {
+        string json = "{\"type\":\"mariotrickster-levelpack\",\"v\":1,\"levels\":[{\"id\":\"a1\",\"name\":\"我的第一关\",\"goal\":\"先挑衅\",\"grid\":[\"WWWWWWWWWWWW\",\"W..........W\",\"W..........W\",\"W..........W\",\"W.G.MA..oT.W\",\"W##########W\"],\"notes\":[{\"x\":5,\"y\":1,\"text\":\"磁铁放这\"}]},{\"name\":\"第二关\",\"grid\":[\"WWWWWWWWWWWW\",\"W..........W\",\"W..........W\",\"W..........W\",\"W.G.M...oT.W\",\"W##########W\"]}],\"proposals\":[{\"c\":\"A\",\"zh\":\"磁铁陷阱\",\"status\":\"go\"}]}";
+        var levels = LevelPack.Parse(json, c => reg().GetEntry(c) != null, out string err);
+        Assert.IsNotNull(levels, err);
+        Assert.AreEqual(2, levels.Count, "一个关卡包多关");
+        var a = levels[0];
+        Assert.AreEqual("我的第一关", a.name);
+        Assert.AreEqual("W.G.M...oT.W", a.rows[4], "还没实现的新机制先当空气");
+        CollectionAssert.AreEqual(new[] { (5, 1) }, a.pending['A'], "但记住位置，实现后能还原");
+        Assert.AreEqual("磁铁陷阱", a.pendingNames['A']);
+        string text = LevelPack.ToText(a);
+        Assert.AreEqual("我的第一关", LevelPack.NameOf(text), "名字写进文件");
+        CollectionAssert.AreEqual(new[] { 'A' }, LevelPack.PendingOf(text));
+        StringAssert.Contains("# Note: (5,1) 磁铁放这", text, "批注跟着关卡走");
+        Assert.IsTrue(LevelStudioDocument.TryParse(text, out var doc, out string perr), perr);
+        Assert.AreEqual(6, doc.Height, "元数据行不会被当成网格");
+        Assert.IsTrue(LevelWorkshopModel.Check(a.rows, true, reg().IsSolid).Playable);
+        Assert.AreEqual("a_b_c", LevelPack.SafeFileName("a/b:c"), "文件名去掉非法字符");
+        Assert.IsNull(LevelPack.Parse("{\"x\":1}", c => true, out _), "不是关卡包 → 拒绝");
+        Assert.IsNull(MiniJson.Parse("[1,2", out string jerr)); StringAssert.Contains("JSON", jerr);
+        StringAssert.Contains("Assets/Levels/Library", Read("Scripts/Editor/LevelLibrary.cs"), "关卡库在项目里（进 git，换账号也在）");
+        StringAssert.Contains("ImportPack", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "工坊：关卡库 ▾ → 导入网页关卡包");
+    }
+
+    [Test]
+    public void BuildScopeIsExplicit()
+    {
+        System.Func<char, bool> s = reg().IsSolid;
+        foreach (var g in new[] { LevelWorkshopModel.PrisonSample, LevelWorkshopModel.LureSample, LevelWorkshopModel.HakoniwaSample, Step1PrankRoomBuilder.ResolvedRoom(0) })
+            CollectionAssert.IsEmpty(LevelWorkshopModel.BoundsIssues(g, s), "样板都在搭建范围内");
+        for (int f = 2; f <= FloorStacker.MaxFloors; f++) CollectionAssert.IsEmpty(LevelWorkshopModel.BoundsIssues(FloorStacker.Build(f, 0), s));
+        Assert.IsTrue(LevelWorkshopModel.BoundsIssues(new[] { "WWWWWWWWWWWW", "W..........W", "W..........W", "W..........W", "W.G.M...oT..", "W##########W" }, s).Exists(m => m.Contains("最左和最右")), "右边开口 → 报错");
+        Assert.IsTrue(LevelWorkshopModel.BoundsIssues(new[] { "WWWW", "W.MW", "WWWW" }, s).Exists(m => m.Contains("太小")), "太小 → 报错");
+        Assert.AreEqual(12, LevelWorkshopModel.MinWidth); Assert.AreEqual(6, LevelWorkshopModel.MinHeight);
+        Assert.AreEqual(128, LevelStudioDocument.MaxWidth); Assert.AreEqual(48, LevelStudioDocument.MaxHeight);
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

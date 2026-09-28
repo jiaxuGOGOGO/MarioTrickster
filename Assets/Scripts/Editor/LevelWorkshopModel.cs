@@ -84,6 +84,23 @@ public static class LevelWorkshopModel
     /// S204：读网页"关卡设计台"导出的 .studio.json 里的网格（纯逻辑，不依赖 JSON 库：只解析 "grid":[ "...", ... ]）。
     /// 未登记的字符（网页里的新机制提案）换成空气，并在 note 里说明——提案要先按设计单实现登记才能生成。
     /// </summary>
+    public const int MinWidth = 12, MinHeight = 6;
+
+    /// <summary>S206：搭建范围规则（纯逻辑）。</summary>
+    public static List<string> BoundsIssues(IList<string> grid, System.Func<char, bool> isSolid)
+    {
+        var list = new List<string>();
+        int h = grid.Count, w = grid.Count > 0 ? grid.Max(r => r.Length) : 0;
+        if (w < MinWidth || h < MinHeight) list.Add($"房间太小：至少 {MinWidth} 宽 × {MinHeight} 高（现在 {w}×{h}）");
+        if (w > LevelStudioDocument.MaxWidth || h > LevelStudioDocument.MaxHeight) list.Add($"房间太大：最多 {LevelStudioDocument.MaxWidth} 宽 × {LevelStudioDocument.MaxHeight} 高（现在 {w}×{h}）");
+        if (grid.Any(r => r.Length != w)) list.Add("每一行长度要一样");
+        if (list.Count > 0 || h == 0) return list;
+        bool Solid(char c) => isSolid(c);
+        if (!grid[0].All(Solid) || !grid[h - 1].All(Solid)) list.Add("最上面一行和最下面一行必须全是实心（墙 W / 地面 #），马里奥不能掉出地图");
+        if (!grid.All(r => Solid(r[0]) && Solid(r[w - 1]))) list.Add("最左和最右一列必须全是墙 W");
+        return list;
+    }
+
     public static string[] GridFromStudioJson(string json, out string note)
     {
         note = "";
@@ -119,6 +136,9 @@ public static class LevelWorkshopModel
             if (n != 1) { result.general.Add($"需要且只能有一个 {ElementCatalog.Get(c)?.zh ?? c.ToString()}（现在 {n} 个）"); result.errors++; }
         }
         if (step1Rules && grid.Sum(r => r.Count(ch => ch == 'o')) != 1) { result.general.Add("第 1 步房间需要且只能有一个宝物 o"); result.errors++; }
+        if (result.errors > 0) return result;
+        // S206：搭建范围（和网页设计台一致）：宽 12–128、高 6–48；外圈一圈必须是实心（最外列 W，顶/底行实心）
+        foreach (var msg in BoundsIssues(grid, isSolid)) { result.general.Add(msg); result.errors++; }
         if (result.errors > 0) return result;
 
         var seenPhysics = new HashSet<string>();

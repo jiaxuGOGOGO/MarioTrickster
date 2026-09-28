@@ -187,6 +187,9 @@ function check(W, rawGrid, step1) {
   const g = stripSlots(rawGrid), res = { issues: [], deadlock: new Set(), route: null, seconds: 0, onRoute: [], offRoute: [], playable: false };
   if (!g.length || !g[0].length) { res.issues.push({ x: -1, y: -1, t: '画布是空的', sev: 'error' }); return res; }
   const widths = new Set(g.map(r => r.length)); if (widths.size > 1) res.issues.push({ x: -1, y: -1, t: '每一行长度要一样', sev: 'error' });
+  if (g[0].length < 12 || g.length < 6) res.issues.push({ x: -1, y: -1, t: `房间太小：至少 12 宽 × 6 高（现在 ${g[0].length}×${g.length}）`, sev: 'error' });
+  if (g[0].length > 128 || g.length > 48) res.issues.push({ x: -1, y: -1, t: `房间太大：最多 128 宽 × 48 高（现在 ${g[0].length}×${g.length}）`, sev: 'error' });
+  if (g.length > 16) res.issues.push({ x: -1, y: -1, t: `高 ${g.length} 格：超过 16 格一屏装不下，游戏里镜头会跟着人走（能玩，只是看不到全图）`, sev: 'info' });
   for (const c of ['M', 'T', 'G']) { const n = find(g, c).length; if (n !== 1) res.issues.push({ x: -1, y: -1, t: `需要且只能有一个 ${W.info.get(c).zh} ${c}（现在 ${n} 个）`, sev: 'error' }); }
   if (step1 && find(g, 'o').length !== 1) res.issues.push({ x: -1, y: -1, t: '第 1 步房间需要且只能有一个宝物 o', sev: 'error' });
   if (res.issues.length) return res;
@@ -275,6 +278,7 @@ function parseForeign(text, name) {
   const t = text.replace(/^\uFEFF/, '').trim(); name = (name || '').toLowerCase();
   if (t[0] === '{') {
     const d = JSON.parse(t);
+    if (d.type === 'mariotrickster-levelpack' || Array.isArray(d.levels) && d.levels.length && d.levels[0].grid) return { kind: 'pack', pack: d };
     if (d.grid) return { kind: 'studio', studio: d };
     if (Array.isArray(d.layers) && d.width && d.height && d.tiledversion !== undefined || (Array.isArray(d.layers) && d.layers.some(l => l.type === 'tilelayer'))) {
       const layers = d.layers.filter(l => l.type === 'tilelayer' && Array.isArray(l.data));
@@ -299,9 +303,10 @@ function parseForeign(text, name) {
     const nums = lines.map(l => l.split(',').map(s => s.trim()).filter(s => s.length).map(Number));
     return { kind: 'numbers', from: name.endsWith('.csv') ? 'CSV（LDtk 超简导出 / Tiled CSV）' : '数字网格', nums };
   }
-  const rows = lines.filter(l => !l.startsWith('#') || /^#+$/.test(l.replace(/[^#]/g, '')) && l.length > 3);
+  // ASCII：元数据行是 "# Key: 值"；以 # 开头但全是 #（地面行）的仍是网格
+  const meta = lines.filter(l => /^# ?[A-Za-z_]+:/.test(l)), rows = lines.filter(l => !/^# ?[A-Za-z_]+:/.test(l) && !/^# [^#]/.test(l));
   const w = Math.max(...rows.map(r => r.length));
-  return { kind: 'ascii', rows: rows.map(r => r.replace(/ /g, '.').padEnd(w, '.')) };
+  return { kind: 'ascii', rows: meta.concat(rows.map(r => r.replace(/ /g, '.').padEnd(w, '.'))) };
 }
 /** 数字网格 + 映射（数字 → 字符）→ ASCII 行；0 或没映射 = 空气。外圈自动补墙、底行补地面（可选）。 */
 function numbersToAscii(nums, map, frame) {

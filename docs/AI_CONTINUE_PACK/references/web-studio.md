@@ -1,5 +1,10 @@
 # 分册：网页关卡设计台 & 收到"设计单"时怎么做
 
+用户通常会一起发：**设计单**（.md 或粘贴的文字）+ **关卡包**（`*.levelpack.json`，所有关卡 + 提案）。完整流程见 `docs/step1/S206_LEVEL_LIBRARY_AND_WORKFLOW.md`。
+- 提案状态：💡 想法 = 只讨论给建议、不实现；✅ 确认要做 = 实现；✔ 已实现 = 不动。
+- 关卡包导入 Unity：`LevelLibrary.ImportPack` → `Assets/Levels/Library/名字.txt`；未实现字符记 `# Pending:`，实现后让用户**重新导入同一个关卡包**还原。
+- 你实现完机制后：在沙盒里自己跑一遍 `LevelPack.Parse` + `LevelWorkshopModel.Check` 验证用户的每一关（用关卡包文件），把结果（✓/✗ 及原因）写进汇报；需要的关卡还可以放进 `Assets/Levels/Library/` 一起随补丁交付。
+
 用户在网页 `tools/LevelStudioWeb/index.html`（单文件，双击打开）里画关卡、写批注、提新机制、勾选删改，然后把**设计单**（markdown，开头是"# MarioTrickster 设计单（来自关卡设计台）"）发给你。也可能附 `.studio.json`。
 
 ## 收到设计单的处理顺序

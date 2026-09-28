@@ -91,7 +91,8 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 205（设计台：跳跃辅助（绿=AI能跳/黄=临界）、上不去的格、导入 Tiled/LDtk/CSV/像素图、导出像素图与调色板） |
+| **最新 Session** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
+| **S205** | Session 205（设计台：跳跃辅助（绿=AI能跳/黄=临界）、上不去的格、导入 Tiled/LDtk/CSV/像素图、导出像素图与调色板） |
 | **S204** | Session 204（网页关卡设计台 tools/LevelStudioWeb：画关卡 + 实时预检/死局/时间线 + 新机制提案（宪法提醒）+ 删改清单 + 一键设计单交给 AI；工坊可导入 .studio.json） |
 | **S203** | Session 203（马里奥性格：冲冲/谨慎（绕开被坑点、绕不开跳、再不行原路）/贪财（跨层必抢道具）；开局头顶亮性格；自动检查轮流测三种；诱捕走廊加高路） |
 | **S202** | Session 202（完美连锁慢动作回放；StrategySim 炸弹困人模拟 + 构建时自动加固承重格（铆钉）；陷阱试探菜单 + 检查轨迹热力图；马里奥躲炸弹/抢道具） |
@@ -116,6 +117,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S206] 用户："自己搭的图可能有上不去的格；搭建范围要界定清楚；搭很多关要能按名字保存、适配将来导入；新机制怎么确认新增、新增后怎么导入；给一个 S202 之后全部改动的完整 ZIP 和说明"
+
+- LevelDesign/MiniJson（极小 JSON 解析）+ LevelPack（Parse 关卡包/单关 studio.json，未登记字符 → '.' + pending 位置；ToText 元数据 # Name/Goal/Source/Note/Pending；NameOf/PendingOf/SafeFileName）。
+- Editor/LevelLibrary（Assets/Levels/Library/*.txt；ImportPack 报告 ✓/✗/⏳）+ LevelNameDialog（输入框）；工坊"关卡库 ▾"菜单；LevelStudioDocument 元数据白名单加 Name/Goal/Note/Pending/Source。
+- LevelWorkshopModel.BoundsIssues（12–128×6–48、外圈实心）接入 Check。
+- 网页：多关卡库（v2 存储、旧版迁移）、导出/导入关卡包（同名覆盖）、搭建范围提示、提案状态、设计单含全部关卡与状态排序；node/jsdom 验证 + C# 解析网页真实导出的关卡包。测试 +2。
+- 完整包：S202 之后全部改动（S203–S206）一个 ZIP。
 
 ### [S205] 用户："人物能否跳上去设计时能辅助么；有什么好用的外部工具（Excalidraw、GitHub 工具），要最方便、能导入、换账号也能适配"
 

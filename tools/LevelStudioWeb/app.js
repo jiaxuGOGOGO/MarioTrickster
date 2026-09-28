@@ -1,5 +1,5 @@
 // ── 状态 ──────────────────────────────────────────────
-const LS = 'mariotrickster.studio.v1';
+const LS = 'mariotrickster.studio.v1', LS2 = 'mariotrickster.studio.v2';
 const S = {
   grid: [], name: '', goal: '', notes: [], proposals: [], cuts: {},
   brush: '#', tool: 'brush', zoom: 20, showAll: false,
@@ -16,8 +16,40 @@ function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add
 const ROLE_ZH = { Terrain: '地形', Scenery: '摆件', PlayerPrank: '机关（按 L）', AutoHazard: '自动危险', Objective: '目标', Spawn: '出生点', Movement: '移动', Enemy: '敌人', Special: '特殊', Skill: '捣蛋者技能', MarioAI: '马里奥行为' };
 const ROLE_ORDER = ['Spawn', 'Objective', 'Terrain', 'PlayerPrank', 'Special', 'Scenery', 'Movement', 'AutoHazard', 'Enemy'];
 
-function save() { try { localStorage.setItem(LS, JSON.stringify({ grid: S.grid, name: S.name, goal: S.goal, notes: S.notes, proposals: S.proposals, cuts: S.cuts })); } catch (e) { } }
-function load() { try { const d = JSON.parse(localStorage.getItem(LS) || 'null'); if (d && d.grid && d.grid.length) Object.assign(S, d); } catch (e) { } }
+// S206 多关卡：LIB = [{id,name,goal,grid,notes}]，S.* 是当前打开的那一关
+let LIB = [], CUR = '';
+const newId = () => 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+function storeCurrent() { const i = LIB.findIndex(l => l.id === CUR); const rec = { id: CUR, name: S.name, goal: S.goal, grid: S.grid.slice(), notes: S.notes.slice() }; if (i >= 0) LIB[i] = rec; else LIB.push(rec); }
+function save() { try { storeCurrent(); localStorage.setItem(LS2, JSON.stringify({ lib: LIB, cur: CUR, proposals: S.proposals, cuts: S.cuts })); } catch (e) { } renderLib(); }
+function load() {
+  try {
+    const d2 = JSON.parse(localStorage.getItem(LS2) || 'null');
+    if (d2 && d2.lib && d2.lib.length) { LIB = d2.lib; CUR = d2.cur || LIB[0].id; S.proposals = d2.proposals || []; S.cuts = d2.cuts || {}; openLevel(CUR, true); return; }
+    const d = JSON.parse(localStorage.getItem(LS) || 'null'); // 旧版（单关卡）自动迁移
+    if (d && d.grid && d.grid.length) { S.proposals = d.proposals || []; S.cuts = d.cuts || {}; CUR = newId(); LIB = [{ id: CUR, name: d.name || '我的关卡', goal: d.goal || '', grid: d.grid, notes: d.notes || [] }]; openLevel(CUR, true); }
+  } catch (e) { }
+}
+function openLevel(id, quiet) {
+  if (!quiet && CUR) storeCurrent();
+  const l = LIB.find(x => x.id === id) || LIB[0]; if (!l) return;
+  CUR = l.id; S.name = l.name; S.goal = l.goal || ''; S.grid = l.grid.slice(); S.notes = (l.notes || []).slice(); undo = []; redo = [];
+  if (!quiet) { syncInputs(); fitZoom(); recheck(true); renderNotes(); }
+}
+const levelStatus = new Map();
+function statusOf(l) { const k = l.grid.join('\n') + '|' + S.proposals.map(p => p.c).join(''); const c = levelStatus.get(l.id); if (c && c.k === k) return c.v; const r = check(makeWorld(S.proposals), l.grid, true); const v = r.playable ? 'ok' : 'bad'; levelStatus.set(l.id, { k, v }); return v; }
+function renderLib() {
+  const box = $('#libList'); if (!box) return; box.innerHTML = '';
+  LIB.forEach(l => {
+    const b = document.createElement('button'); b.setAttribute('aria-current', l.id === CUR);
+    const st = l.id === CUR && R ? (R.playable ? 'ok' : 'bad') : statusOf(l);
+    const props = [...new Set(l.grid.join(''))].filter(c => S.proposals.some(p => p.c === c)).join('');
+    b.innerHTML = `<span class="st" style="background:${st === 'ok' ? 'var(--ok)' : 'var(--bad)'}"></span><span class="nm">${(l.name || '未命名').replace(/</g, '&lt;')}</span><small>${l.grid[0].length}×${l.grid.length}${props ? ' ⏳' + props : ''}</small>`;
+    b.title = (st === 'ok' ? '✓ 预检通过' : '✗ 有问题') + (props ? `\n用到还没实现的提案：${props}` : '');
+    b.onclick = () => { if (l.id !== CUR) openLevel(l.id); };
+    box.appendChild(b);
+  });
+  $('#libCount').textContent = `· ${LIB.length}`;
+}
 
 // ── 网格编辑 ──────────────────────────────────────────
 const H = () => S.grid.length, Wd = () => S.grid[0].length;
@@ -224,8 +256,8 @@ const LAWS = [
   ['H1', '改地形：最坏情况下仍有路（死局/炸弹模拟）', f => f.terrain],
   ['A2', '每种优势都要有代价和反制', f => !f.cost || !f.counter],
 ];
-function readForm() { return { c: $('#mChar').value, key: $('#mKey').value.trim(), zh: $('#mZh').value.trim(), role: $('#mRole').value, color: $('#mColor').value, solid: $('#mSolid').checked, support: $('#mSupport').checked, terrain: $('#mTerrain').checked, control: $('#mControl').checked, effect: $('#mEffect').value.trim(), tele: $('#mTele').value.trim(), cost: $('#mCost').value.trim(), counter: $('#mCounter').value.trim(), place: $('#mPlace').value.trim(), combo: $('#mCombo').value.trim() }; }
-function fillForm(p) { $('#mChar').value = p.c || ''; $('#mKey').value = p.key || ''; $('#mZh').value = p.zh || ''; $('#mRole').value = p.role || 'PlayerPrank'; $('#mColor').value = p.color || '#b08cff'; $('#mSolid').checked = !!p.solid; $('#mSupport').checked = p.support !== false; $('#mTerrain').checked = !!p.terrain; $('#mControl').checked = !!p.control;['Effect', 'Tele', 'Cost', 'Counter', 'Place', 'Combo'].forEach(k => $('#m' + k).value = p[k.toLowerCase()] || ''); renderLaws(); }
+function readForm() { return { status: $('#mStatus').value, c: $('#mChar').value, key: $('#mKey').value.trim(), zh: $('#mZh').value.trim(), role: $('#mRole').value, color: $('#mColor').value, solid: $('#mSolid').checked, support: $('#mSupport').checked, terrain: $('#mTerrain').checked, control: $('#mControl').checked, effect: $('#mEffect').value.trim(), tele: $('#mTele').value.trim(), cost: $('#mCost').value.trim(), counter: $('#mCounter').value.trim(), place: $('#mPlace').value.trim(), combo: $('#mCombo').value.trim() }; }
+function fillForm(p) { $('#mStatus').value = p.status || 'idea'; $('#mChar').value = p.c || ''; $('#mKey').value = p.key || ''; $('#mZh').value = p.zh || ''; $('#mRole').value = p.role || 'PlayerPrank'; $('#mColor').value = p.color || '#b08cff'; $('#mSolid').checked = !!p.solid; $('#mSupport').checked = p.support !== false; $('#mTerrain').checked = !!p.terrain; $('#mControl').checked = !!p.control;['Effect', 'Tele', 'Cost', 'Counter', 'Place', 'Combo'].forEach(k => $('#m' + k).value = p[k.toLowerCase()] || ''); renderLaws(); }
 function renderLaws() { const f = readForm(); $('#mLaws').innerHTML = LAWS.map(([id, t, need]) => `<span class="${need(f) ? 'need' : ''}" title="${t}">${id} ${t}${need(f) ? ' ← 请写清' : ''}</span>`).join(''); }
 document.querySelectorAll('#pageMech input,#pageMech select,#pageMech textarea').forEach(el => el.addEventListener('input', renderLaws));
 $('#mSave').onclick = () => {
@@ -249,7 +281,9 @@ function renderPropList() {
   for (const p of S.proposals) {
     const d = document.createElement('div'); d.className = 'p';
     const rgb = p.rgb || [0.7, 0.55, 1];
-    d.innerHTML = `<div class="sw" style="background:${rgbCss(rgb)};color:${textOn(rgb)}">${p.c || '★'}</div><div><h4>${p.zh} <span class="hint">${ROLE_ZH[p.role] || p.role}</span></h4><p>${p.effect}</p><p>代价：${p.cost || '<span style="color:var(--warn)">没写</span>'} · 反制：${p.counter || '<span style="color:var(--warn)">没写</span>'}</p></div><div style="display:flex;flex-direction:column;gap:4px"><button class="btn small">编辑</button><button class="btn small">删除</button></div>`;
+    const stt = { idea: ['idea', '💡 想法'], go: ['go', '✅ 确认要做'], done: ['ok', '✔ 已实现'] }[p.status || 'idea'];
+    const usedIn = p.c ? LIB.filter(l => l.grid.join('').includes(p.c)).map(l => l.name) : [];
+    d.innerHTML = `<div class="sw" style="background:${rgbCss(rgb)};color:${textOn(rgb)}">${p.c || '★'}</div><div><h4>${p.zh} <span class="badge ${stt[0]}">${stt[1]}</span> <span class="hint">${ROLE_ZH[p.role] || p.role}</span></h4>${usedIn.length ? `<p>用在：${usedIn.join('、')}</p>` : ''}<p>${p.effect}</p><p>代价：${p.cost || '<span style="color:var(--warn)">没写</span>'} · 反制：${p.counter || '<span style="color:var(--warn)">没写</span>'}</p></div><div style="display:flex;flex-direction:column;gap:4px"><button class="btn small">编辑</button><button class="btn small">删除</button></div>`;
     const [eb, db] = d.querySelectorAll('button'); eb.onclick = () => fillForm(p);
     db.onclick = () => { if (!confirm(`删除提案"${p.zh}"？画布上用到的格子会变成空气。`)) return; S.proposals = S.proposals.filter(x => x !== p); if (p.c) S.grid = S.grid.map(r => r.split(p.c).join('.')); W = makeWorld(S.proposals); renderPropList(); renderPalette(); recheck(true); };
     box.appendChild(d);
@@ -268,23 +302,34 @@ function renderCuts() {
 }
 
 // ── 交接单 ───────────────────────────────────────────
-function handoff() {
-  const r = R || check(W, S.grid, true), L = [];
-  L.push('# MarioTrickster 设计单（来自关卡设计台）', '');
-  L.push('> 给 AI：请加载接续包（mariotrickster-continue），按这份设计单更新项目。关卡加成工坊样板并跑完整体检（含炸弹策略模拟、三种性格自动检查）；新机制按"新机关"分册 16 步清单实现；删改项先说明影响再动手。完成后交付升级包 + 更新接续包。', '');
-  L.push(`## 关卡：${S.name || '（未命名）'}`);
-  if (S.goal) L.push('', `**设计意图**：${S.goal}`);
-  L.push('', `尺寸 ${Wd()}×${H()}；网页预检：${r.playable ? '✓ 可以试玩' : `✗ ${r.issues.filter(i => i.sev === 'error').length} 个问题`}；马里奥一趟约 ${r.seconds ? r.seconds.toFixed(0) : '?'} 秒，路上 ${r.onRoute.length} 个机关。`);
-  if (r.onRoute.length) L.push('', '**马里奥时间线**：' + r.onRoute.map(s => `${s.at.toFixed(0)}s ${W.info.get(s.c) ? W.info.get(s.c).zh : s.c}(${s.x},${s.y})`).join(' → '));
+function levelSection(L, name, goal, grid, notes, W2) {
+  const r = check(W2, grid, true), cell = (x, y) => grid[grid.length - 1 - y][x];
+  L.push('', `## 关卡：${name || '（未命名）'}`);
+  if (goal) L.push('', `**设计意图**：${goal}`);
+  L.push('', `尺寸 ${grid[0].length}×${grid.length}；网页预检：${r.playable ? '✓ 可以试玩' : `✗ ${r.issues.filter(i => i.sev === 'error').length} 个问题`}；马里奥一趟约 ${r.seconds ? r.seconds.toFixed(0) : '?'} 秒，路上 ${r.onRoute.length} 个机关${r.unreach && r.unreach.size ? `；${r.unreach.size} 个能站但上不去的格` : ''}。`);
+  if (r.onRoute.length) L.push('', '**马里奥时间线**：' + r.onRoute.map(s => `${s.at.toFixed(0)}s ${W2.info.get(s.c) ? W2.info.get(s.c).zh : s.c}(${s.x},${s.y})`).join(' → '));
   const errs = r.issues.filter(i => i.sev !== 'info');
   if (errs.length) { L.push('', '**网页预检发现的问题**（请修掉或说明）：'); errs.forEach(i => L.push(`- ${i.x >= 0 ? `(${i.x},${i.y}) ` : ''}${i.t}`)); }
-  L.push('', '```text', ...S.grid, '```');
-  if (S.notes.length) { L.push('', '**格子批注**（坐标 x 从左 0、y 从下 0）：'); S.notes.forEach(n => L.push(`- (${n.x},${n.y}) '${cellAt(n.x, n.y)}'：${n.text}`)); }
-  const used = new Set(S.grid.join('')); const props = S.proposals;
+  const pend = [...new Set(grid.join(''))].filter(c => S.proposals.some(p => p.c === c && p.status !== 'done'));
+  if (pend.length) L.push('', `**用到还没实现的新机制**：${pend.map(c => `\`${c}\` ${S.proposals.find(p => p.c === c).zh}`).join('、')}（Unity 导入时先当空气，实现后重新导入关卡包自动还原）`);
+  L.push('', '```text', ...grid, '```');
+  if (notes && notes.length) { L.push('', '**格子批注**（坐标 x 从左 0、y 从下 0）：'); notes.forEach(n => L.push(`- (${n.x},${n.y}) '${cell(n.x, n.y)}'：${n.text}`)); }
+}
+function handoff() {
+  storeCurrent();
+  const L = [], all = $('#hAll') ? $('#hAll').checked : true, levels = all ? LIB : LIB.filter(l => l.id === CUR);
+  L.push('# MarioTrickster 设计单（来自关卡设计台）', '');
+  L.push('> 给 AI：请加载接续包（mariotrickster-continue），按这份设计单更新项目（references/web-studio.md）。同时附了关卡包 .levelpack.json（所有关卡数据）。', '> 顺序：① 复述计划 ② 实现"✅ 确认要做"的新机制（new-element 16 步）③ 关卡导入关卡库 / 需要的加成样板，跑完整体检 ④ 处理删改项（先说影响）⑤ 重建网页设计台 ⑥ 交付升级包 + 新接续包 + 新网页。"💡 想法"的提案只讨论、给建议，不实现。', '');
+  L.push(`共 ${levels.length} 关：${levels.map(l => l.name || '未命名').join('、')}`);
+  for (const l of levels) levelSection(L, l.name, l.goal, l.grid, l.notes, W);
+  const props = S.proposals;
   if (props.length) {
     L.push('', '## 新机制提案');
-    for (const p of props) {
-      L.push('', `### ${p.zh}${p.c ? `（字符 \`${p.c}\`，主题键 ${p.key || '待定'}）` : ''} — ${ROLE_ZH[p.role] || p.role}${p.c && used.has(p.c) ? ' · 已画进关卡' : ''}`);
+    const order = { go: 0, idea: 1, done: 2 };
+    for (const p of props.slice().sort((a, b) => (order[a.status || 'idea'] - order[b.status || 'idea']))) {
+      const st = { idea: '💡 想法（先讨论，不实现）', go: '✅ 确认要做', done: '✔ 已实现' }[p.status || 'idea'];
+      const usedIn = p.c ? LIB.filter(l => l.grid.join('').includes(p.c)).map(l => l.name) : [];
+      L.push('', `### ${p.zh}${p.c ? `（字符 \`${p.c}\`，主题键 ${p.key || '待定'}）` : ''} — ${ROLE_ZH[p.role] || p.role} — **${st}**${usedIn.length ? ` · 用在：${usedIn.join('、')}` : ''}`);
       L.push(`- 做什么：${p.effect}`, `- 预警（H3/H6）：${p.tele || '**未写**'}`, `- 代价（A2）：${p.cost || '**未写**'}`, `- 马里奥怎么反制/发现（H4）：${p.counter || '**未写**'}`);
       if (p.place) L.push(`- 放在哪：${p.place}`); if (p.combo) L.push(`- 能连的机关：${p.combo}`);
       L.push(`- 属性：${p.solid ? '实心' : '可穿过'}${p.support ? '、脚下要实心' : ''}${p.terrain ? '、**会改变地形 → 要进死局/炸弹策略模拟（H1/H9）**' : ''}${p.control ? '、**会控制人 → 必须有时长、必然结束（H9）**' : ''}`);
@@ -293,12 +338,13 @@ function handoff() {
   }
   const cuts = Object.entries(S.cuts);
   if (cuts.length) { L.push('', '## 想删掉 / 改掉的旧东西'); cuts.forEach(([c, why]) => { const e = W.info.get(c); L.push(`- \`${c}\` ${e ? e.zh : c}：${why}`); }); L.push('', '（删之前请告诉我影响：哪些样板/测试/连锁在用它。）'); }
-  L.push('', '---', `导出时间：${new Date().toLocaleString('zh-CN')} · 设计台规则版本：S203（跳高 2 格、平跳 4 格、弹簧头顶 4 格、炮口前 3 格、毒池 ≤3 格）`);
+  L.push('', '---', `导出时间：${new Date().toLocaleString('zh-CN')} · 设计台规则版本：S206（搭建范围 12–128 × 6–48、外圈实心；跳高 2 格、平跳 4 格；弹簧头顶 4 格、炮口前 3 格、毒池 ≤3 格）`);
   return L.join('\n');
 }
+
 function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
 $('#hCopy').onclick = async () => { const t = handoff(); try { await navigator.clipboard.writeText(t); toast('设计单已复制'); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); toast('设计单已复制'); } };
-$('#hDownload').onclick = () => download(`设计单_${(S.name || 'level').replace(/[\\/:*?"<>|]/g, '')}.md`, handoff(), 'text/markdown');
+$('#hDownload').onclick = () => download(`设计单_${($('#hAll').checked ? LIB.length + '关' : S.name || 'level').replace(/[\\/:*?"<>|]/g, '')}.md`, handoff(), 'text/markdown');
 $('#hTxt').onclick = () => download(`${(S.name || 'my_level').replace(/[\\/:*?"<>|]/g, '')}.txt`, S.grid.join('\n') + '\n', 'text/plain');
 function gridToPng(grid, scale) {
   const h = grid.length, w = grid[0].length, c = document.createElement('canvas'); c.width = w * scale; c.height = h * scale; const x = c.getContext('2d');
@@ -313,19 +359,28 @@ $('#hPal').onclick = () => {
   els.forEach((e, i) => { const px = (i % cols) * 170 + 8, py = Math.floor(i / cols) * (cell + 8) + 8; x.fillStyle = rgbCss(e.rgb); x.fillRect(px, py, cell, cell); x.fillStyle = '#efe7d6'; x.fillText(`${e.c} ${e.zh}`, px + cell + 8, py + cell / 2); });
   c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'MarioTrickster_调色板.png'; a.click(); });
 };
-$('#btnExport').onclick = () => download(`${(S.name || 'mariotrickster').replace(/[\\/:*?"<>|]/g, '')}.studio.json`, JSON.stringify({ v: 1, grid: S.grid, name: S.name, goal: S.goal, notes: S.notes, proposals: S.proposals, cuts: S.cuts }, null, 1), 'application/json');
+function levelPack() { storeCurrent(); return { type: 'mariotrickster-levelpack', v: 1, rules: 'S206', exported: new Date().toISOString(), levels: LIB.map(l => ({ id: l.id, name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] })), proposals: S.proposals, cuts: S.cuts }; }
+const exportPack = () => { const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; download(`MarioTrickster关卡包_${LIB.length}关_${stamp}.levelpack.json`, JSON.stringify(levelPack(), null, 1), 'application/json'); };
+$('#btnExport').onclick = exportPack;
+$('#hPack').onclick = exportPack;
 $('#btnImport').onclick = () => $('#fileIn').click();
 $('#fileIn').onchange = async e => {
   const f = e.target.files[0]; if (!f) return; e.target.value = '';
   try {
     if (/\.(png|gif|bmp)$/i.test(f.name)) return importImage(f);
     const p = parseForeign(await f.text(), f.name);
-    if (p.kind === 'studio') { const d = p.studio; Object.assign(S, { grid: d.grid, name: d.name || '', goal: d.goal || '', notes: d.notes || [], proposals: d.proposals || [], cuts: d.cuts || {} }); applyImport('已导入设计台项目'); }
-    else if (p.kind === 'ascii') { S.grid = p.rows; applyImport('已导入 ASCII 关卡'); }
+    if (p.kind === 'pack') { importPackData(p.pack); return; }
+    if (p.kind === 'studio') { const d = p.studio; mergeProposals(d.proposals); S.cuts = Object.assign(S.cuts, d.cuts || {}); addImported(d.name || f.name.replace(/\..*$/, ''), d.grid, d.goal, d.notes); return; }
+    else if (p.kind === 'ascii') { addImported(nameFromTxt(p.rows, f.name), p.rows.filter(r => !r.startsWith('#')), goalFromTxt(p.rows), []); return; }
     else askMapping(p);
   } catch (err) { toast('导入失败：' + err.message); }
 };
-function applyImport(msg) { snapshot(); syncInputs(); fitZoom(); W = makeWorld(S.proposals); renderAll(); toast(msg); }
+function mergeProposals(list) { for (const p of (list || [])) { S.proposals = S.proposals.filter(x => (p.c ? x.c !== p.c : x.zh !== p.zh)); S.proposals.push(p); } W = makeWorld(S.proposals); }
+function addImported(name, grid, goal, notes) { storeCurrent(); const existing = LIB.find(l => l.name === name); if (existing && confirm(`已有同名关卡"${name}"，覆盖它吗？（取消 = 另存为新关卡）`)) { Object.assign(existing, { grid, goal: goal || '', notes: notes || [] }); CUR = existing.id; } else { CUR = newId(); LIB.push({ id: CUR, name: existing ? uniqueName(name) : name, goal: goal || '', grid, notes: notes || [] }); } openLevel(CUR, true); applyImport(`已导入"${S.name}"`); }
+function importPackData(pk) { mergeProposals(pk.proposals); S.cuts = Object.assign(S.cuts, pk.cuts || {}); storeCurrent(); let n = 0, over = 0; for (const l of pk.levels || []) { const ex = LIB.find(x => x.id === l.id || x.name === l.name); if (ex) { Object.assign(ex, { name: l.name, goal: l.goal || '', grid: l.grid, notes: l.notes || [] }); over++; } else LIB.push({ id: l.id || newId(), name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] }); n++; } CUR = (LIB.find(x => pk.levels[0] && (x.id === pk.levels[0].id || x.name === pk.levels[0].name)) || LIB[0]).id; openLevel(CUR, true); applyImport(`导入关卡包：${n} 关（其中 ${over} 关同名覆盖）`); }
+const nameFromTxt = (rows, fn) => { const m = rows.find(r => r.startsWith('# Name: ')); return m ? m.slice(8).trim() : fn.replace(/\..*$/, ''); };
+const goalFromTxt = rows => { const m = rows.find(r => r.startsWith('# Goal: ')); return m ? m.slice(8).trim() : ''; };
+function applyImport(msg) { snapshot(); syncInputs(); fitZoom(); W = makeWorld(S.proposals); renderAll(); save(); toast(msg); }
 function askMapping(p) {
   const values = [...new Set(p.nums.flat())].filter(v => v).sort((a, b) => a - b), m = defaultMap(values, p.names);
   $('#mapFrom').textContent = `来自 ${p.from}：${p.nums[0].length}×${p.nums.length} 格，出现了 ${values.length} 种数字（0 = 空气）。给每种数字选一个元素：`;
@@ -334,7 +389,7 @@ function askMapping(p) {
   for (const v of values) { const l = document.createElement('span'); l.textContent = `数字 ${v}${p.names && p.names[v] ? `（${p.names[v]}）` : ''}`; const s = document.createElement('select'); s.className = 'f'; s.innerHTML = opts; s.value = m[v] || ''; s.dataset.v = v; box.append(l, s); }
   const dlg = $('#mapDlg'); dlg.showModal();
   $('#mapCancel').onclick = () => dlg.close();
-  $('#mapOk').onclick = () => { const map = {}; box.querySelectorAll('select').forEach(s => map[s.dataset.v] = s.value); dlg.close(); S.grid = numbersToAscii(p.nums, map, $('#mapFrame').checked); S.name = S.name || '导入的关卡'; applyImport(`已从 ${p.from} 导入`); };
+  $('#mapOk').onclick = () => { const map = {}; box.querySelectorAll('select').forEach(s => map[s.dataset.v] = s.value); dlg.close(); addImported(uniqueName(`从 ${p.from} 导入`), numbersToAscii(p.nums, map, $('#mapFrame').checked), '', []); };
 }
 function importImage(f) {
   const img = new Image(); img.onload = () => {
@@ -342,8 +397,8 @@ function importImage(f) {
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const x = c.getContext('2d'); x.drawImage(img, 0, 0);
     const els = [...W.info.values()].filter(e => e.s1 && e.c !== ' ');
     const r = imageToAscii(x.getImageData(0, 0, img.width, img.height).data, img.width, img.height, els);
-    S.grid = r.rows; S.name = S.name || f.name.replace(/\.[^.]+$/, '');
-    applyImport(`已从像素图导入：${Object.entries(r.used).map(([k, n]) => k + '×' + n).join(' ')}`);
+    addImported(f.name.replace(/\.[^.]+$/, ''), r.rows, '', []);
+    toast(`已从像素图导入：${Object.entries(r.used).map(([k, n]) => k + '×' + n).join(' ')}`);
   };
   img.onerror = () => toast('这张图读不了'); img.src = URL.createObjectURL(f);
 }
@@ -370,15 +425,21 @@ $('#zoom').oninput = e => { S.zoom = +e.target.value; draw(); };
 $('#palSearch').oninput = renderPalette;
 $('#showAll').onchange = e => { S.showAll = e.target.checked; renderPalette(); };
 const sel = $('#sampleSel'); for (const n of Object.keys(SAMPLES)) sel.add(new Option(n, n));
-$('#btnLoad').onclick = () => { if (!confirm(`载入"${sel.value}"会替换当前画布（批注也清空）。继续？`)) return; snapshot(); S.grid = SAMPLES[sel.value].slice(); S.notes = []; S.name = sel.value + '（改）'; syncInputs(); fitZoom(); recheck(true); renderNotes(); };
-$('#btnBlank').onclick = () => { if (!confirm('新建空白房间会替换当前画布。继续？')) return; snapshot(); S.grid = blank(+$('#inW').value || 48, +$('#inH').value || 12); S.notes = []; S.name = ''; syncInputs(); recheck(true); renderNotes(); };
+function addLevel(name, grid) { storeCurrent(); CUR = newId(); LIB.push({ id: CUR, name, goal: '', grid, notes: [] }); openLevel(CUR, true); syncInputs(); fitZoom(); recheck(true); renderNotes(); }
+function uniqueName(base) { let n = base, i = 2; while (LIB.some(l => l.name === n)) n = `${base} ${i++}`; return n; }
+$('#btnLoad').onclick = () => addLevel(uniqueName(sel.value + '（改）'), SAMPLES[sel.value].slice());
+$('#btnBlank').onclick = () => addLevel(uniqueName('新关卡'), blank(+$('#inW').value || 48, +$('#inH').value || 12));
+$('#libNew').onclick = () => { const n = prompt('新关卡的名字（以后导入 Unity 也用这个名字）', uniqueName('新关卡')); if (n === null) return; addLevel(uniqueName(n.trim() || '新关卡'), blank(48, 12)); };
+$('#libDup').onclick = () => { storeCurrent(); addLevel(uniqueName(S.name + ' 副本'), S.grid.slice()); };
+$('#libDel').onclick = () => { if (LIB.length <= 1) { toast('至少留一关'); return; } if (!confirm(`删除"${S.name}"？（导出过的关卡包不受影响）`)) return; LIB = LIB.filter(l => l.id !== CUR); CUR = ''; openLevel(LIB[0].id, true); syncInputs(); fitZoom(); recheck(true); renderNotes(); };
 $('#btnResize').onclick = () => { const w = Math.max(12, Math.min(128, +$('#inW').value)), h = Math.max(6, Math.min(48, +$('#inH').value)); snapshot(); resize(w, h); recheck(true); };
 $('#lvName').oninput = e => { S.name = e.target.value; save(); };
+$('#lvName').onchange = e => { const n = e.target.value.trim() || '未命名'; if (LIB.some(l => l.id !== CUR && l.name === n)) { toast('已有同名关卡，自动加了编号（导入 Unity 时同名会覆盖）'); S.name = uniqueName(n); e.target.value = S.name; } save(); };
 $('#lvGoal').oninput = e => { S.goal = e.target.value; save(); };
 function fitZoom() { const st = $('#stage'); const z = Math.floor(Math.min((st.clientWidth - 48) / Wd(), (st.clientHeight - 48) / H())); S.zoom = Math.max(10, Math.min(36, z)); $('#zoom').value = S.zoom; }
 function syncInputs() { $('#inW').value = Wd(); $('#inH').value = H(); $('#lvName').value = S.name; $('#lvGoal').value = S.goal; }
 function renderAll() { renderPalette(); renderBrush(); renderNotes(); recheck(true); }
 
 load();
-if (!S.grid.length) { S.grid = SAMPLES['诱捕走廊'].slice(); S.name = '诱捕走廊（改）'; }
+if (!S.grid.length) { CUR = newId(); S.grid = SAMPLES['诱捕走廊'].slice(); S.name = '诱捕走廊（改）'; LIB = [{ id: CUR, name: S.name, goal: '', grid: S.grid.slice(), notes: [] }]; }
 W = makeWorld(S.proposals); syncInputs(); fitZoom(); renderAll();

@@ -56,7 +56,7 @@ public sealed class LevelStudioDocument
     public static bool IsMetadata(string line)
     {
         return line.StartsWith("# Override_", StringComparison.Ordinal) ||
-            new[] { "MainRoute", "ShadowRoute", "TrapRoles", "Budget", "TestGoal" }
+            new[] { "MainRoute", "ShadowRoute", "TrapRoles", "Budget", "TestGoal", "Name", "Goal", "Note", "Pending", "Source" }
                 .Any(key => line.StartsWith("# " + key + ":", StringComparison.Ordinal));
     }
 

@@ -237,6 +237,7 @@ public class LevelWorkshopWindow : EditorWindow
             menu.AddItem(new GUIContent("在当前房间上面加一层"), false, () => SetSource(string.Join("\n", FloorStacker.AddFloorOnTop(Rows())), "Add floor"));
             menu.ShowAsContext();
         }
+        if (GUILayout.Button(new GUIContent("关卡库 ▾", "你存下来的所有关卡（Assets/Levels/Library）：打开 / 存入 / 导入网页关卡包"), EditorStyles.toolbarDropDown, GUILayout.Width(66))) LibraryMenu();
         if (GUILayout.Button("导入", EditorStyles.toolbarButton, GUILayout.Width(44))) Import();
         if (GUILayout.Button("导出", EditorStyles.toolbarButton, GUILayout.Width(44))) Export();
         GUILayout.Space(10);
@@ -637,6 +638,48 @@ public class LevelWorkshopWindow : EditorWindow
         Step1PrankRoomBuilder.SaveCustomRoom(rows);
         Step1PrankRoomBuilder.UseCustomRoom = true;
         Step1PrankRoomBuilder.PlayMenu();
+    }
+
+    private void LibraryMenu()
+    {
+        var menu = new GenericMenu();
+        menu.AddItem(new GUIContent("存入关卡库（当前画布）…"), false, SaveToLibrary);
+        menu.AddItem(new GUIContent("导入网页关卡包（.levelpack.json，可多关）…"), false, ImportPack);
+        menu.AddSeparator("");
+        var list = LevelLibrary.List();
+        if (list.Count == 0) menu.AddDisabledItem(new GUIContent("（关卡库还是空的）"));
+        foreach (var (name, path, pending) in list)
+        {
+            string label = "打开/" + name.Replace("/", "_") + (pending.Count > 0 ? $"  ⏳{string.Join("", pending)}" : "");
+            menu.AddItem(new GUIContent(label), false, () => { SetSource(File.ReadAllText(path), "Open " + name); libraryName = name; });
+        }
+        menu.ShowAsContext();
+    }
+
+    [NonSerialized] private string libraryName = "";
+    private void SaveToLibrary()
+    {
+        string name = LevelNameDialog.Ask("存入关卡库", "给这一关起个名字（同名会覆盖）：", string.IsNullOrEmpty(libraryName) ? "我的关卡" : libraryName);
+        if (string.IsNullOrEmpty(name)) return;
+        var level = new LevelPack.Level { name = name, rows = Rows() };
+        foreach (var line in (source ?? "").Replace("\r", "").Split('\n'))
+        {
+            if (line.StartsWith("# Goal: ")) level.goal = line.Substring(8);
+            if (line.StartsWith("# Note: ")) { var m = System.Text.RegularExpressions.Regex.Match(line, @"^# Note: \((\d+),(\d+)\) (.*)$"); if (m.Success) level.notes.Add(new LevelPack.Note { x = int.Parse(m.Groups[1].Value), y = int.Parse(m.Groups[2].Value), text = m.Groups[3].Value }); }
+        }
+        string path = LevelLibrary.Save(level);
+        libraryName = name;
+        ShowNotification(new GUIContent("已存入 " + path));
+    }
+
+    private void ImportPack()
+    {
+        string path = EditorUtility.OpenFilePanel("导入网页关卡包", Application.dataPath, "json");
+        if (string.IsNullOrEmpty(path)) return;
+        var (count, report) = LevelLibrary.ImportPack(File.ReadAllText(path));
+        EditorUtility.DisplayDialog(count > 0 ? "导入完成" : "导入失败", report, "OK");
+        var list = LevelLibrary.List();
+        if (count > 0 && list.Count > 0) { var first = list.Find(l => report.Contains(l.path)); if (first.path != null) { SetSource(File.ReadAllText(first.path), "Import pack"); libraryName = first.name; } }
     }
 
     private void Import()

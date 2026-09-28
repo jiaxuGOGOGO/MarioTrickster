@@ -192,7 +192,7 @@ function check(W, rawGrid, step1) {
   if (g.length > 16) res.issues.push({ x: -1, y: -1, t: `高 ${g.length} 格：超过 16 格一屏装不下，游戏里镜头会跟着人走（能玩，只是看不到全图）`, sev: 'info' });
   for (const c of ['M', 'T', 'G']) { const n = find(g, c).length; if (n !== 1) res.issues.push({ x: -1, y: -1, t: `需要且只能有一个 ${W.info.get(c).zh} ${c}（现在 ${n} 个）`, sev: 'error' }); }
   if (step1 && find(g, 'o').length !== 1) res.issues.push({ x: -1, y: -1, t: '第 1 步房间需要且只能有一个宝物 o', sev: 'error' });
-  if (res.issues.length) return res;
+  if (res.issues.some(i => i.sev === 'error')) return res;
   const h = g.length, w = g[0].length;
   for (let x = 0; x < w; x++) { if (!W.solid.has(g[0][x]) || !W.solid.has(g[h - 1][x])) { res.issues.push({ x: -1, y: -1, t: '最上面一行和最下面一行必须全是实心（墙 W / 地面 #）', sev: 'error' }); break; } }
   for (let row = 0; row < h; row++) if (!W.solid.has(g[row][0]) || !W.solid.has(g[row][w - 1])) { res.issues.push({ x: -1, y: -1, t: '最左和最右一列必须全是墙 W', sev: 'error' }); break; }

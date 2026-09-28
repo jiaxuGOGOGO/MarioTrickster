@@ -31,3 +31,9 @@
 
 ## 改完必做
 `bash scripts/verify.sh` → 第 4 步会逐个样板报 `✓ 可以试玩` 或具体红格原因。用 Python 改样板时**按行列精确替换并断言原字符是 '.'**，行长度必须保持 48。
+
+## S207 大房间
+- 宽 >64（`maxWholeRoomWidth`）或高 >16 → 开局自动 `bigRoomCamera`（默认 SmartFollow）。C 键 4 种镜头。屏外红箭头 `Step1OffscreenMarkers`、小地图 `Step1MiniMap` 只给玩家看（H4）。
+- 回合时间 / 自动检查超时由构建器按 `StrategySim` 路线秒数放宽（`RoundTimeLimit` / `HandsOffTimeout`），默认房间数值不变。
+- 上限仍 128×48（186 宽实测模拟 31s 且加固失败）。要更长旅程 → 多房间连廊，不要放大单图。
+- 样板 `LongHallSample`（94×15）。

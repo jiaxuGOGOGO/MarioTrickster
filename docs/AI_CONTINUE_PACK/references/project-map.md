@@ -73,3 +73,8 @@
 | `空格` | Space | 空格 | Terrain | ✓ |
 
 未用可选字符（S200）：A D N V Z u q a r z（选前再 grep 确认）
+
+## S207 新文件
+- `Assets/Scripts/Gameplay/Step1/Step1OffscreenMarkers.cs`：大房间屏外红箭头（马里奥/宝物/出口）。
+- `Assets/Scripts/Gameplay/Step1/Step1MiniMap.cs`：大房间右上角小地图。
+- 镜头逻辑在 `Step1RoomCamera.cs`（SmartFollow / SmartView / DeadZoneFollow）。

@@ -5,6 +5,13 @@
 set -e
 unset version   # 沙盒里 version=N/A 会让 dotnet 报错
 WS=${WS:-/home/user/workspace}
+export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
+# S207：有的沙盒没有 dotnet → 自动装 .NET 8 SDK（约 1 分钟）
+if ! command -v dotnet >/dev/null 2>&1; then
+  echo "没有 dotnet，正在安装 .NET 8 SDK…"
+  curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh && bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet" >/dev/null
+  sudo ln -sf "$HOME/.dotnet/dotnet" /usr/local/bin/dotnet 2>/dev/null || export PATH="$HOME/.dotnet:$PATH"
+fi
 PACK=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$WS" && cd "$WS"
 if [ ! -d repo/.git ]; then git clone -q -b genspark_ai_developer https://github.com/jiaxuGOGOGO/MarioTrickster.git repo; else git -C repo fetch -q origin && git -C repo checkout -q genspark_ai_developer && git -C repo pull -q --ff-only || true; fi

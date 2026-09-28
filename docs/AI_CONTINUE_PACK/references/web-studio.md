@@ -25,3 +25,9 @@
 - 数据唯一来源是 C# 源码（build.py 解析 `AsciiElementRegistry` / `ElementCatalog` / 样板）；**不要手改 index.html**。
 - 规则改动（跳跃、摆放规则、死局）要同步 `logic.js`（纯逻辑，可 node 测：vm 载入 data+logic 后 `check(makeWorld([]), grid, true)`），保证四个样板结果与 Unity 一致。
 - 网页检查只是预检；最终以 verify.sh / Unity 为准，汇报里不要把"网页通过"说成"通过"。
+
+## S207
+- 宽 >64 或高 >16 = 大房间 → 游戏里智能跟随镜头（死亡细胞式）+ 屏外红箭头 + 小地图；回合时间按路线自动放宽。上限仍 128×48。
+- 工具：画笔 B / 矩形 R / 填充 F / 吸管 I（吸完自动回原工具；Ctrl+点击随时吸）/ 移动 V（拖动、框选、方向键、Del、Ctrl+C/V；外圈与 M/T/G/o 受保护）。logic.js 的 selectAt/moveBlock/clampMove/copyBlock/pasteBlock/clearBlock 与 LevelWorkshopModel 同名函数同规则——改一边必须改另一边。
+- "显示（只改画面）"勾选框不改关卡/检查/导出；"最坏情况预览"勾着时禁止绘制；"游戏一屏"= cameraPlan（与 Step1RoomCamera 同阈值）。
+- 关卡包 `rules: 'S207'`。

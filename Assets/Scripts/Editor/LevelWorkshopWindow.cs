@@ -265,6 +265,7 @@ public class LevelWorkshopWindow : EditorWindow
             menu.ShowAsContext();
         }
         if (GUILayout.Button(new GUIContent("关卡库 ▾", "你存下来的所有关卡（Assets/Levels/Library）：打开 / 存入 / 导入网页关卡包"), EditorStyles.toolbarDropDown, GUILayout.Width(66))) LibraryMenu();
+        if (GUILayout.Button(new GUIContent("🏘 小镇", "S210：打开小镇工坊（星露谷视角大地图，门连到这里做的房间）"), EditorStyles.toolbarButton, GUILayout.Width(54))) OverworldWorkshopWindow.Open();
         if (GUILayout.Button("导入", EditorStyles.toolbarButton, GUILayout.Width(44))) Import();
         if (GUILayout.Button("导出", EditorStyles.toolbarButton, GUILayout.Width(44))) Export();
         GUILayout.Space(10);

@@ -1,6 +1,6 @@
 ---
 name: mariotrickster-continue
-description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间 / 关卡工坊 / 捣蛋者 vs 冲冲型马里奥 AI）时必用。用户提到 MarioTrickster、马里奥捣蛋、恶作剧房间、关卡工坊、箱庭、连锁陷阱、马里奥 AI、S2xx 补丁、apply_Sxxx.bat、"继续"上次的游戏开发，或上传该项目的截图/报错时加载。内含设计宪法硬规则、质量红线、沙盒无 Unity 验证环境一键搭建、补丁交付流程，并按功能（新机关/AI/关卡/技能/修 bug/调研）分册给出做法。
+description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间 / 关卡工坊 / 捣蛋者 vs 冲冲型马里奥 AI）时必用。用户提到 MarioTrickster、马里奥捣蛋、恶作剧房间、关卡工坊、箱庭、连锁陷阱、马里奥 AI、S2xx 补丁、大地图/小镇/星露谷视角、apply_Sxxx.bat、"继续"上次的游戏开发，或上传该项目的截图/报错时加载。内含设计宪法硬规则、质量红线、沙盒无 Unity 验证环境一键搭建、补丁交付流程，并按功能（新机关/AI/关卡/技能/修 bug/调研）分册给出做法。
 ---
 
 # MarioTrickster 接续包（S200 起）
@@ -24,7 +24,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 | 加新机关/元素（ASCII 字符、陷阱、场景物） | `references/new-element.md` |
 | 改马里奥 AI（感知、起疑、追逐、学习、卡住） | `references/mario-ai.md` |
 | 捣蛋者技能/按键（炸弹、诱饵、连锁、挑衅…） | `references/trickster-skill.md` |
-| 关卡/样板/工坊/箱庭/监狱塔 | `references/level-design.md` |
+| 关卡/样板/工坊/箱庭/监狱塔/小镇大地图（S210 星露谷视角） | `references/level-design.md` |
 | 修 bug / 用户截图报错 / "没反应" | `references/bugfix.md` |
 | 调研玩法再升级 | `references/research.md` |
 | 文件在哪、关键数值、字符表 | `references/project-map.md` |

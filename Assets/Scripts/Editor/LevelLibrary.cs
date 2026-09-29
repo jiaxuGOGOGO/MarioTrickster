@@ -51,6 +51,13 @@ public static class LevelLibrary
             string pending = l.pending.Count > 0 ? "  ⏳ 等新机制：" + string.Join(" ", l.pending.Keys.Select(k => $"{k}={l.pendingNames[k]}")) : "";
             lines.Add($"{(check.Playable ? "✓" : "✗")} {l.name} → {path}{pending}");
         }
+        // S210：关卡包里的小镇大地图 → Assets/Levels/Overworld
+        foreach (var m in OverworldPack.Parse(json))
+        {
+            string p = OverworldBuilder.Save(m);
+            var r = OverworldMap.Check(m, OverworldBuilder.RulesFromTuning(), OverworldBuilder.RoomProblem);
+            lines.Add($"{(r.Playable ? "✓" : "✗")} 小镇 {m.name} → {p}（在小镇工坊打开）");
+        }
         AssetDatabase.Refresh();
         return (levels.Count, $"导入了 {levels.Count} 关到关卡库：\n" + string.Join("\n", lines) + "\n\n✓ = 检查通过，✗ = 打开后看红格；⏳ = 用到还没实现的新机制（先当空气），把设计单交给 AI 实现后再导入同一个关卡包即可。");
     }

@@ -461,7 +461,7 @@ function parseForeign(text, name) {
   const t = text.replace(/^\uFEFF/, '').trim(); name = (name || '').toLowerCase();
   if (t[0] === '{') {
     const d = JSON.parse(t);
-    if (d.type === 'mariotrickster-levelpack' || Array.isArray(d.levels) && d.levels.length && d.levels[0].grid) return { kind: 'pack', pack: d };
+    if (d.type === 'mariotrickster-levelpack' || Array.isArray(d.levels) && d.levels.length && d.levels[0].grid || Array.isArray(d.overworlds)) return { kind: 'pack', pack: d };
     if (d.grid) return { kind: 'studio', studio: d };
     if (Array.isArray(d.layers) && d.width && d.height && d.tiledversion !== undefined || (Array.isArray(d.layers) && d.layers.some(l => l.type === 'tilelayer'))) {
       const layers = d.layers.filter(l => l.type === 'tilelayer' && Array.isArray(l.data));

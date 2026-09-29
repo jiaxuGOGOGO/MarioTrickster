@@ -9,7 +9,7 @@ namespace UnityEngine.InputSystem {
   public class KeyControl : ButtonControl {}
   public class Keyboard { public static Keyboard current;
     public KeyControl aKey,bKey,cKey,dKey,eKey,fKey,gKey,hKey,iKey,jKey,kKey,lKey,mKey,nKey,oKey,pKey,qKey,rKey,sKey,tKey,uKey,vKey,wKey,xKey,yKey,zKey,
-      tabKey,spaceKey,shiftKey,downArrowKey,upArrowKey,leftArrowKey,rightArrowKey,escapeKey; }
+      tabKey,spaceKey,shiftKey,downArrowKey,upArrowKey,leftArrowKey,rightArrowKey,escapeKey,enterKey,numpadEnterKey; }
 }
 namespace UnityEngine.UI {
   public class Graphic : MonoBehaviour { public Color color; public bool raycastTarget; public RectTransform rectTransform => null; }

@@ -55,7 +55,7 @@ public class Step1Screen : MonoBehaviour
         if (firstFrame)
         {
             firstFrame = false;
-            if (tuning.showHelpOnStart && !Step1HandsOffCheck.IsRunning) HelpOpen = true;
+            if (tuning.showHelpOnStart && !Step1HandsOffCheck.IsRunning && !(OverworldSession.Active && OverworldSession.Results.Count > 0)) HelpOpen = true; // S210：小镇一天里第 2 个房间起不再弹说明
         }
         if (Step1HandsOffCheck.IsRunning) { HelpOpen = false; return; }
 

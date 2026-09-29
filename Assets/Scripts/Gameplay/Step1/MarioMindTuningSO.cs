@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 15;
+    public const int CurrentDataVersion = 16;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -431,6 +431,42 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("自动检查超时余量（秒）")]
     public float handsOffTimeMargin = 20f;
 
+    [Header("Overworld (S210: Stardew-style top-down town)")]
+    [Tooltip("S210 大地图：马里奥走路速度（格/秒）。默认 3.4，比你慢一些——你能抄近路先到门口埋伏")]
+    public float overworldMarioSpeed = 3.4f;
+    [Tooltip("S210 大地图：你（捣蛋者）走路速度（格/秒）")]
+    public float overworldTricksterSpeed = 5f;
+    [Tooltip("S210 大地图：追你时马里奥的速度（格/秒）。比你慢一点点，能甩掉但要跑")]
+    public float overworldChaseSpeed = 4.6f;
+    [Tooltip("S210 大地图：现实 1 秒 = 游戏里几分钟（星露谷是 0.7 秒 1 分钟；这里 4 = 一天 06:00–22:00 约 4 分钟现实时间）")]
+    public float overworldMinutesPerSecond = 4f;
+    [Tooltip("S210 大地图：马里奥进一个房间算用掉多少游戏分钟（房间里打完回到大地图，钟跳过这么久）")]
+    public float overworldVisitMinutes = 60f;
+    [Tooltip("S210 大地图：他先进门后，你在这么多秒（现实秒）内跟进去算'迟到'（照样开打，但他没有开局等待）；超过 = 这扇门算他赢")]
+    public float overworldLateWindowSeconds = 6f;
+    [Tooltip("S210 大地图：视野距离（格）")]
+    public float overworldVisionRange = 7f;
+    [Tooltip("S210 大地图：晚上（19:00 后）视野距离（格）——路灯 3 格内照样看得远")]
+    public float overworldNightVisionRange = 3.5f;
+    [Tooltip("S210 大地图：视锥半角（度）")]
+    [Range(20f, 90f)] public float overworldVisionHalfAngle = 55f;
+    [Tooltip("S210 大地图：贴身这么近不看朝向也能察觉（仍需无遮挡）")]
+    public float overworldNearSense = 1.2f;
+    [Tooltip("S210 大地图：站在高草里，这么近才看得见")]
+    public float overworldGrassSeeRadius = 1.5f;
+    [Tooltip("S210 大地图：路灯照亮半径（格）")]
+    public float overworldLampRadius = 3f;
+    [Tooltip("S210 大地图：追人最长多少秒（H9：追不到就放弃，回到日程）")]
+    public float overworldMaxChaseSeconds = 8f;
+    [Tooltip("S210 大地图：踩到香蕉皮晕多久（秒，不超过 maxStunSeconds）")]
+    public float overworldSlipStunSeconds = 1.5f;
+    [Tooltip("S210 大地图：香蕉皮按 L 的距离（格）")]
+    public float overworldPrankRange = 3f;
+    [Tooltip("S210 大地图：被抓到后你在出生点定身几秒（代价：错过埋伏时机）")]
+    public float overworldCaughtPenaltySeconds = 3f;
+    [Tooltip("S210 大地图：挑衅 T 每天几次")]
+    public int overworldTaunts = 3;
+
     /// <summary>把 S183 校准值写入旧资产（只在 dataVersion 较旧时执行一次）。返回是否有改动。</summary>
     public bool UpgradeData()
     {
@@ -442,6 +478,13 @@ public class MarioMindTuningSO : ScriptableObject
             marioSpeedScale = 0.55f;
             hurtStunSeconds = 1.2f;
             blockerActiveSeconds = 3.5f;
+        }
+        if (dataVersion < 16)
+        {
+            overworldMarioSpeed = 3.4f; overworldTricksterSpeed = 5f; overworldChaseSpeed = 4.6f; overworldMinutesPerSecond = 4f; overworldVisitMinutes = 60f;
+            overworldLateWindowSeconds = 6f; overworldVisionRange = 7f; overworldNightVisionRange = 3.5f; overworldVisionHalfAngle = 55f; overworldNearSense = 1.2f;
+            overworldGrassSeeRadius = 1.5f; overworldLampRadius = 3f; overworldMaxChaseSeconds = 8f; overworldSlipStunSeconds = 1.5f; overworldPrankRange = 3f;
+            overworldCaughtPenaltySeconds = 3f; overworldTaunts = 3;
         }
         if (dataVersion < 15)
         {

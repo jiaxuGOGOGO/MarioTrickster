@@ -485,6 +485,16 @@ public static class LevelWorkshopModel
         "W##############################################W",
     };
 
+    /// <summary>S210：大地图的门可以连的内置房间（名字 → 网格）。关卡库里的同名关卡优先。网页工作室读同一张表（build.py）。</summary>
+    public const string DefaultRoomName = "默认恶作剧房间";
+    public static readonly (string name, string[] rows)[] SampleRooms =
+    {
+        ("两层监狱", PrisonSample),
+        ("诱捕走廊", LureSample),
+        ("长廊远征", LongHallSample),
+        ("地下监狱·四层", HakoniwaSample),
+    };
+
     public static string NewRoom(int width, int height)
     {
         width = System.Math.Max(16, System.Math.Min(LevelStudioDocument.MaxWidth, width));

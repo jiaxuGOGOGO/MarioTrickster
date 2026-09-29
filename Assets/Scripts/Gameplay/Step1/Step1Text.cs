@@ -1,7 +1,7 @@
 /// <summary>
 /// S182：第 1 步所有玩家可见文字（中英对照）集中在这里，便于统一修改；纯逻辑，可测试。
 /// </summary>
-public static class Step1Text
+public static partial class Step1Text
 {
     public enum Outcome { MarioEscaped, TricksterCaughtOut, TimeUp, MarioKnockedOut, HandsOffTimeout, Other }
 

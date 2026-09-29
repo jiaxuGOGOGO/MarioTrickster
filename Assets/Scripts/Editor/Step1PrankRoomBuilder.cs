@@ -86,10 +86,14 @@ public static class Step1PrankRoomBuilder
     }
 
     /// <summary>当前要构建的房间：启用了自定义房间且文件存在 → 自定义；否则默认 Room。</summary>
+    /// <summary>S210：大地图构建器临时指定要构建的房间（构建完置回 null）。</summary>
+    public static string[] RoomOverride;
+
     public static string[] Current
     {
         get
         {
+            if (RoomOverride != null && RoomOverride.Length > 0) return RoomOverride;
             if (!UseCustomRoom) return Room;
             var rows = File.ReadAllText(CustomRoomPath).Replace("\r", "").Split('\n')
                 .Where(l => l.Length > 0 && !l.StartsWith("#")).ToArray();

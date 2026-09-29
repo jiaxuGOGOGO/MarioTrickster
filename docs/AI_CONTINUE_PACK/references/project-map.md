@@ -78,3 +78,10 @@
 - `Assets/Scripts/Gameplay/Step1/Step1OffscreenMarkers.cs`：大房间屏外红箭头（马里奥/宝物/出口）。
 - `Assets/Scripts/Gameplay/Step1/Step1MiniMap.cs`：大房间右上角小地图。
 - 镜头逻辑在 `Step1RoomCamera.cs`（SmartFollow / SmartView / DeadZoneFollow）。
+
+## S210 小镇大地图
+- 纯逻辑 `Assets/Scripts/Overworld/`：OverworldCatalog / OverworldMap / OverworldWalker / OverworldPack（进 sim）；OverworldMind / OverworldSession（依赖 Unity 类型，不进 sim）。
+- 运行时 `Overworld/Runtime/`：OverworldGame（小镇场景）、OverworldRoomLink（房间场景 → 回小镇）。
+- 编辑器：OverworldBuilder（菜单 MarioTrickster/Overworld）、OverworldWorkshopWindow（Ctrl+Alt+O）。
+- 钩子：Step1PrankRoomBuilder.RoomOverride、MarioMindDriver.SkipStartDelay、Step1PlaytestLog（session 时不弹问卷）、Step1Screen（第 2 个房间起不弹说明）、LevelPack 跳过 kind=overworld、LevelLibrary.ImportPack 也导入小镇、Step1Keys.Held/P/L/E/Return/Escape、Step1Text 改 partial（Step1Text.Overworld.cs）。
+- 调参 dataVersion 16：overworld* 17 项。

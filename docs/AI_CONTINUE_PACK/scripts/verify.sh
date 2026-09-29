@@ -22,5 +22,13 @@ const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html',
 const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
 const c={};vm.createContext(c);vm.runInContext(src.slice(src.indexOf('const ELEMENTS='),src.indexOf('// ── 状态'))+';this.X={wizardLevel,WIZ_STARS};',c);
 const o={};for(const s of c.X.WIZ_STARS)for(const t of [20,30,40])o['wiz_'+s+'_'+t]=c.X.wizardLevel(s,t,'').grid;fs.writeFileSync('$WS/sim/wiz_web.json',JSON.stringify(o));") || rm -f "$WS/sim/wiz_web.json"
+# S210：网页 owCheck 跑样板小镇 + 拆桥反例，交给 C# 逐字对照
+command -v node >/dev/null && (cd "$WS/repo/tools/LevelStudioWeb" && node -e "
+const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html','utf8');
+const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ── 状态'))+';this.X={owParse,owCheck,owToText,owClock,owIssueText,OW_SAMPLE};',c);const X=c.X;
+const dump=m=>{const r=X.owCheck(m);const o=r.issues.map(i=>i.sev+' '+X.owIssueText(i));if(r.schedule){for(const s of r.schedule.stops)o.push('stop '+s.door.n+' '+X.owClock(s.arrive)+' '+X.owClock(s.leave)+' '+s.path.map(p=>'('+p[0]+','+p[1]+')').join(';'));o.push('home '+X.owClock(r.schedule.homeArrive));}return o;};
+const m=X.owParse(X.OW_SAMPLE);const b=X.owParse(X.owToText(m));for(const y of [14,19]){const r=b.rows.length-1-y;b.rows[r]=b.rows[r].slice(0,21)+'ww'+b.rows[r].slice(23);}
+fs.writeFileSync('$WS/sim/ow_web.json',JSON.stringify({sample:dump(m),broken:dump(b)}));") || rm -f "$WS/sim/ow_web.json"
 (cd "$WS/sim" && rm -rf obj bin && dotnet build -c Release -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error " | head -10; dotnet bin/Release/net8.0/sim.dll) || ok=0
 [ $ok = 1 ] && echo "VERIFY ALL GREEN（提醒：Unity 里的 EditMode 测试仍需用户跑）" || { echo "VERIFY FAILED"; exit 1; }

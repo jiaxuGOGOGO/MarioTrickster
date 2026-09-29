@@ -42,3 +42,10 @@
 - 网页"＋ 新关卡（向导）"/ 工坊"向导…"：点子 + 主角机关（~ n [ J Y Q K C）+ 20/30/40 秒 → 起承转合 4 段可玩草稿。
 - 8 个模式印章（伏击点/滑铲送火/高低两路/陷坑回廊/弹射落点/关门打狗/回马枪/炮台走廊）；用户想加自己的印章 → 两边 Patterns 一起加 + verify。
 - 节奏：紧张 = 经过机关 ±1s；连续紧张 ≥8s / 连续没事 ≥10s 提醒。转移点：机关 5 格内无 b c U 1 2 / 隔墙 → 提示（不是硬错误）。
+
+## S210 小镇大地图（星露谷视角）
+- 文件：`Assets/Levels/Overworld/名字.txt`；`# Overworld:` `# Goal:` `# Door: n | HH:MM | 房间名` `# Note: (x,y) 文字` + 网格（第一行 = 最上，y=0 在底）。
+- 格子只能用 OverworldCatalog 的 15 种（和房间字符表**分开**）。门 1–9 画在房子墙面下方一格；房间名先找关卡库同名，再找 `LevelWorkshopModel.SampleRooms` / 默认房间。
+- 检查 `OverworldMap.Check`（网页 `owCheck` 同文字）；无人捣乱一天 `OverworldWalker.SimulateDay`。改检查文字要两边一起改，verify 会逐字对照。
+- 新样板小镇：写进 `OverworldPack`，build.py 自动读。
+- 一键试玩 `OverworldBuilder.BuildAll`：每门一个 `Assets/Scenes/Overworld/Room_N.unity`（带 OverworldRoomLink）+ `Town.unity`，登记 Build Settings。

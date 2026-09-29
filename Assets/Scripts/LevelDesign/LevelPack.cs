@@ -48,6 +48,7 @@ public static class LevelPack
         {
             n++;
             if (!(o is Dictionary<string, object> d) || !(d.TryGetValue("grid", out var g) && g is List<object> gl) || gl.Count == 0) continue;
+            if (Str(d, "kind") == "overworld") continue; // S210：小镇大地图由 OverworldPack 读取
             var lvl = new Level { id = Str(d, "id"), name = Str(d, "name"), goal = Str(d, "goal") };
             if (lvl.name.Length == 0) lvl.name = "关卡" + n;
             var rows = gl.Select(x => (x as string ?? "").Replace(' ', '.')).ToArray();
@@ -73,7 +74,7 @@ public static class LevelPack
                         lvl.notes.Add(new Note { x = (int)Num(nd, "x"), y = (int)Num(nd, "y"), text = Str(nd, "text") });
             result.Add(lvl);
         }
-        if (result.Count == 0) { error = "关卡包里没有能用的关卡"; return null; }
+        if (result.Count == 0) { error = OverworldPack.Parse(json).Count > 0 ? "" : "关卡包里没有能用的关卡"; return error.Length == 0 ? result : null; }
         return result;
     }
 

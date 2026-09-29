@@ -36,10 +36,24 @@ for e in els:
     while k in seen:
         e['rgb'] = [round(min(1, v + 0.04), 2) for v in e['rgb']]; k = tuple(round(v * 255) for v in e['rgb'])
     seen.add(k)
-data = 'const ELEMENTS=' + json.dumps(els, ensure_ascii=False, separators=(',', ':')) + ';\nconst SAMPLES=' + json.dumps(samples, ensure_ascii=False, separators=(',', ':')) + ';\n'
+# S210：大地图格子表（OverworldCatalog.cs）+ 样板小镇（OverworldPack.cs）+ 门可连的房间名（LevelWorkshopModel.SampleRooms）
+owc = rd('Overworld/OverworldCatalog.cs')
+ow_tiles = []
+for m in re.finditer(r"T\('(.)', \"(\w+)\", \"([^\"]+)\", \"([^\"]+)\", \"(\w+)\", (\w+), (\w+), (\w+), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, \"((?:[^\"\\]|\\.)*)\", \"((?:[^\"\\]|\\.)*)\"\)", owc):
+    c = m.group(1)
+    ow_tiles.append(dict(c=c, k=m.group(2), zh=m.group(3), en=m.group(4), r=m.group(5), solid=m.group(6) == 'true', sight=m.group(7) == 'true', hides=m.group(8) == 'true', cost=int(m.group(9)),
+                         rgb=[float(m.group(10)), float(m.group(11)), float(m.group(12))], w=m.group(13).replace('\\"', '"'), p=m.group(14).replace('\\"', '"')))
+owp = rd('Overworld/OverworldPack.cs'); i = owp.index('SampleText = string.Join'); j = owp.index('}) + ', i)
+ow_sample = '\n'.join(bytes(x, 'utf-8').decode('unicode_escape').encode('latin-1').decode('utf-8') for x in re.findall(r'^        "((?:[^"\\]|\\.)*)",$', owp[i:j], re.M)) + '\n'
+room_names = [re.search(r'DefaultRoomName = "([^"]+)"', wm).group(1)] + re.findall(r'\("([^"]+)", \w+Sample\)', wm)
+sample_room = {n: names.get(f, f) for n, f in re.findall(r'\("([^"]+)", (\w+Sample)\)', wm)}
+sample_room[room_names[0]] = '默认恶作剧房间'
+data = 'const OW_TILES=' + json.dumps(ow_tiles, ensure_ascii=False, separators=(',', ':')) + ';\nconst OW_SAMPLE=' + json.dumps(ow_sample, ensure_ascii=False) + ';\nconst OW_ROOMS=' + json.dumps(sample_room, ensure_ascii=False, separators=(',', ':')) + ';\n'
+data += 'const ELEMENTS=' + json.dumps(els, ensure_ascii=False, separators=(',', ':')) + ';\nconst SAMPLES=' + json.dumps(samples, ensure_ascii=False, separators=(',', ':')) + ';\n'
 logic = open(os.path.join(HERE, 'logic.js'), encoding='utf-8').read()
 logic = re.sub(r"if \(typeof module[^\n]*\n?", '', logic)
 html = open(os.path.join(HERE, 'shell.html'), encoding='utf-8').read()
-html = html.replace('/*DATA*/', data).replace('/*LOGIC*/', logic).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read())
+ow = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'overworld.js'), encoding='utf-8').read())
+html = html.replace('/*DATA*/', data).replace('/*LOGIC*/', logic + '\n' + ow).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read())
 open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(html)
-print(f'index.html: {len(els)} 个元素, {len(samples)} 个样板, {len(html)//1024} KB')
+print(f'index.html: {len(els)} 个元素, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(html)//1024} KB')

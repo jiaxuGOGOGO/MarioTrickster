@@ -157,6 +157,19 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 .rh-legend{display:flex;gap:12px;font:11px var(--mono);color:var(--dim)}.rh-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .empty{color:var(--dim);font-size:13px;padding:12px;border:1px dashed var(--line);border-radius:10px}
 @media (max-width:1100px){main{grid-template-columns:220px 1fr}.side-right{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}}
+/* S210 大地图 */
+.ow{display:grid;grid-template-columns:230px 1fr 360px;gap:16px;align-items:start}
+.ow .pal{grid-template-columns:1fr}
+.owwrap{overflow:auto;max-height:74vh;border:1px solid var(--line);border-radius:10px;background:#0f1a10}
+#owCanvas{display:block;image-rendering:pixelated;cursor:crosshair}
+.owdoor{display:grid;grid-template-columns:44px 72px 1fr;gap:6px;align-items:center;margin:4px 0}
+.owdoor input,.owdoor select{background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;min-width:0}
+.owiss{font-size:12.5px;margin:3px 0;padding:5px 8px;border-radius:6px;background:var(--ink);border-left:3px solid var(--dim)}
+.owiss.Error{border-color:var(--bad)}.owiss.Warn{border-color:var(--warn)}.owiss.Info{border-color:var(--trick)}
+.owbar>*{flex:0 0 auto}.owbar .spacer{flex:1}
+.owsched{font:12px/1.6 var(--mono);color:var(--dim)}
+.owdoors{display:flex;flex-wrap:wrap;gap:3px}.owdoors button{width:26px;padding:3px 0}
+@media (max-width:1100px){.ow{grid-template-columns:1fr}}
 @media (max-width:760px){main{grid-template-columns:1fr}aside{border-right:0}.grid2{grid-template-columns:1fr}.brand span{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -167,6 +180,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
   <div class="brand"><b><i>Mario</i><u>Trickster</u></b><span>关卡设计台 · 在这里想清楚，再交给 AI 实现</span></div>
   <nav class="tabs" role="tablist">
     <button class="tab" role="tab" aria-selected="true" data-page="design">画关卡</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="overworld" title="S210：星露谷视角的小镇，门连到横版房间">大地图</button>
     <button class="tab" role="tab" aria-selected="false" data-page="mech">新机制提案</button>
     <button class="tab" role="tab" aria-selected="false" data-page="handoff">交给 AI</button>
   </nav>
@@ -259,6 +273,52 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
     <div id="notesList"></div>
   </aside>
 </main>
+
+<section class="page" id="pageOverworld">
+  <h2>大地图 · 星露谷视角小镇</h2>
+  <p class="lead"><b style="color:var(--chalk)">玩法：</b>马里奥每天按时间表去几户人家（门 1–9），门里面就是你在"画关卡"里做的横版房间。你抄近路先到门口按 E = 埋伏开打；躲进高草、树后、木箱后他就看不见。红点 = 他没人捣乱时的路线。做好后导出关卡包，Unity：小镇工坊 → 导入。</p>
+  <div class="ow">
+    <aside class="card" style="padding:12px">
+      <h3>格子</h3>
+      <div class="pal" id="owPal"></div>
+      <h3>房间门</h3>
+      <div class="owdoors" id="owDoorPal"></div>
+      <p class="hint" id="owTip" style="margin-top:10px"></p>
+    </aside>
+    <div>
+      <div class="row owbar" style="flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center">
+        <select class="f" id="owPick" style="flex:0 0 180px" title="你的所有小镇"></select>
+        <button class="btn small" id="owNew">新建</button>
+        <button class="btn small" id="owSample" title="内置样板：星露小镇">载入样板</button>
+        <button class="btn small" id="owDel">删除</button>
+        <span class="spacer"></span>
+        <button class="btn small" data-owtool="brush">✎ 画笔</button>
+        <button class="btn small" data-owtool="rect">▭ 矩形</button>
+        <button class="btn small" data-owtool="fill">▦ 填充</button>
+        <button class="btn small" id="owUndo">撤销</button>
+        <label class="toggle"><input type="checkbox" id="owRoute" checked> 路线</label>
+        <label class="toggle"><input type="checkbox" id="owNight"> 夜晚视野</label>
+        <input type="range" id="owZoom" min="8" max="28" value="16" style="width:80px">
+      </div>
+      <div class="owwrap"><canvas id="owCanvas"></canvas></div>
+      <p class="hint">左键画，右键擦成草地。M = 马里奥的家，T = 你的出生点，1–9 = 门（画在房子最下面一排的下方一格）。</p>
+    </div>
+    <div class="card">
+      <label class="f">名字<input class="f" id="owName"></label>
+      <label class="f">玩法说明<input class="f" id="owGoal"></label>
+      <h3>门（马里奥按时间顺序去）</h3>
+      <div id="owDoors"></div>
+      <h3 id="owHead">检查</h3>
+      <div id="owIssues"></div>
+      <h3>马里奥的一天</h3>
+      <div class="owsched" id="owSched"></div>
+      <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:6px">
+        <button class="btn gold" id="owPack" title="所有横版关卡 + 所有小镇，一个文件。Unity：小镇工坊 → 导入">导出关卡包 .json</button>
+        <button class="btn" id="owTxt" title="只导出当前小镇（Unity 小镇工坊可导入）">导出小镇 .txt</button>
+      </div>
+    </div>
+  </div>
+</section>
 
 <section class="page" id="pageMech">
   <h2>新机制提案</h2>

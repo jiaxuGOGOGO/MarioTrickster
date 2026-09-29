@@ -38,3 +38,8 @@
 - 生成的草稿要求"干净"：无节奏提醒、无转移点提示（EditMode 测试 WizardDraftsArePlayableCleanAndDeterministic）。
 - 设计原则（Morai Maker 研究）：AI 起草只在用户点"新建/盖章"时发生，从不自动往图里塞；同样选择 = 同样结果。
 - 关卡包 levels[].beats（5 个 x）可选；rules 'S208'。
+
+## S210 大地图页
+- `tools/LevelStudioWeb/overworld.js`：逐行移植 `Assets/Scripts/Overworld/OverworldMap.cs`（Dijkstra 同样平手规则，检查文字一致）。build.py 生成 `OW_TILES`（OverworldCatalog）、`OW_SAMPLE`（OverworldPack）、`OW_ROOMS`（SampleRooms → SAMPLES 键）。
+- 存储 localStorage `mariotrickster.studio.overworld.v1`；关卡包多一个 `overworlds:[{kind:"overworld",name,goal,grid,doors:[{n,time,room}],notes}]`。
+- verify.sh 用 node 生成 `sim/ow_web.json`（样板 + 拆桥反例），Check.cs 对照。

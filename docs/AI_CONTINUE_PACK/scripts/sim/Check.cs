@@ -44,6 +44,33 @@ static class CHECK {
     foreach(var (n,g) in all){ rt++; var w=LevelRouteFollower.Run(g); if(!w.ok){ rbad++; Console.WriteLine($"     [FAIL] {n}：{w.Summary}"); } }
     bool repro=!LevelRouteFollower.Run(LevelWorkshopModel.HakoniwaSample,true).ok;
     Console.WriteLine($"[{(rbad==0&&repro?"OK":"FAIL")}] S209 按马里奥走法走一遍 {rt} 关：走不完 {rbad}（旧规则复现截图卡住：{(repro?"是":"否")}）"); fail+=rbad+(repro?0:1); }
+  // S210：小镇大地图。样板能玩 + 无人捣乱时一天走得完（按真实身体/速度走）+ .txt/JSON 往返一致 + 一组调参都走得完 + 反例能被检查出来 + 与网页 owCheck 逐字一致（ow_web.json 由 verify.sh 用 node 生成）
+  { int obad=0; var samp=OverworldPack.Parse(OverworldPack.SampleText); var m=samp.Count==1?samp[0]:null;
+    if(m==null){ obad++; Console.WriteLine("     [FAIL] 样板小镇解析失败"); }
+    else {
+      var r=OverworldMap.Rules.Default; var rep=OverworldMap.Check(m,r);
+      if(!rep.Playable){ obad++; foreach(var i in rep.issues) Console.WriteLine("     [FAIL] 样板小镇："+i); }
+      var day=OverworldWalker.SimulateDay(m,r); if(!day.ok){ obad++; Console.WriteLine("     [FAIL] 样板小镇一天没走完："+day.summary); }
+      for(int k=0;k<rep.schedule.stops.Count;k++) if(OverworldMap.AmbushLead(rep.schedule,k,r.minutesPerSecond)<5){ obad++; Console.WriteLine($"     [FAIL] 样板门 {rep.schedule.stops[k].door.n} 你来不及埋伏"); }
+      if(OverworldMap.ToText(OverworldMap.Parse(OverworldMap.ToText(m)))!=OverworldMap.ToText(m)){ obad++; Console.WriteLine("     [FAIL] 小镇 .txt 往返不一致"); }
+      var pk=OverworldPack.Parse("{\"levels\":[],\"overworlds\":["+OverworldMap.ToJson(m)+"]}"); if(pk.Count!=1||OverworldMap.ToText(pk[0])!=OverworldMap.ToText(m)){ obad++; Console.WriteLine("     [FAIL] 小镇 JSON 往返不一致"); }
+      if(LevelPack.Parse("{\"levels\":["+OverworldMap.ToJson(m)+"]}",c=>true,out _)?.Count>0){ obad++; Console.WriteLine("     [FAIL] 横版关卡包误把小镇当成房间"); }
+      foreach(var ms in new[]{2.8,3.4,4.0}) foreach(var mp in new[]{3.0,4.0,6.0}){ var rr=r; rr.marioSpeed=ms; rr.minutesPerSecond=mp; var dd=OverworldWalker.SimulateDay(m,rr); if(!dd.ok){ obad++; Console.WriteLine($"     [FAIL] 调参 速度{ms} 每秒{mp}分钟：{dd.summary}"); } }
+      // 反例：把桥变成水 → 右半边走不到，必须报错
+      var broken=OverworldMap.Parse(OverworldMap.ToText(m)); int row=broken.H-1-14; broken.rows[row]=broken.rows[row].Substring(0,21)+"ww"+broken.rows[row].Substring(23); int row2=broken.H-1-19; broken.rows[row2]=broken.rows[row2].Substring(0,21)+"ww"+broken.rows[row2].Substring(23);
+      if(OverworldMap.Check(broken,r).Playable){ obad++; Console.WriteLine("     [FAIL] 拆了桥检查却没报错"); }
+      // 网页对照
+      var web=File.Exists("ow_web.json")? (MiniJson.Parse(File.ReadAllText("ow_web.json"),out _) as Dictionary<string,object>) : null; int wd=0;
+      if(web!=null){
+        var cases=new List<(string,OverworldMap.Map)>{("sample",m),("broken",broken)};
+        foreach(var (k,mm) in cases){ var cr=OverworldMap.Check(mm,r); var mine=cr.issues.Select(i=>i.sev+" "+i).ToList(); if(cr.schedule!=null){ mine.AddRange(cr.schedule.stops.Select(s=>$"stop {s.door.n} {OverworldMap.Clock(s.arrive)} {OverworldMap.Clock(s.leave)} {string.Join(";",s.path)}")); mine.Add("home "+OverworldMap.Clock(cr.schedule.homeArrive)); }
+          var theirs=web.TryGetValue(k,out var o)? ((List<object>)o).Select(x=>(string)x).ToList():null;
+          if(theirs==null||!theirs.SequenceEqual(mine)){ wd++; Console.WriteLine($"     [FAIL] 小镇检查 {k}：网页≠Unity"); if(theirs!=null) foreach(var x in mine.Except(theirs).Take(3)) Console.WriteLine("       Unity: "+x); if(theirs!=null) foreach(var x in theirs.Except(mine).Take(3)) Console.WriteLine("       网页: "+x); } }
+      }
+      obad+=wd;
+      Console.WriteLine($"[{(obad==0?"OK":"FAIL")}] S210 小镇 {m.name}：{rep.Headline}｜{day.summary}｜网页对照{(web==null?"跳过（没找到 ow_web.json）":wd==0?"一致":"不一致")}");
+    }
+    fail+=obad; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
  }}

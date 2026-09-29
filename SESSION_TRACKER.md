@@ -121,6 +121,16 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
 
+### [S210] 用户："增加一种类似星露谷物语视角的关卡编辑；目前的关卡作为进入某个房间或地牢后的关卡；延续道具人物技能、需要新增的也做好；适配关卡编辑网页和 Unity 关卡编辑并有导入功能"
+
+- 调研：星露谷地图分层（Back/Buildings/Paths/Front/AlwaysFront，树冠在 Front 层会盖住走到它北边的人）+ Warp 门 + 一天 6:00–2:00；塞尔达 II（俯视大地图 + 横版区域）；潜行设计（视锥、掩体、警戒分级）。结论：大地图不做成第二套战斗，而是"抢时间 + 选埋伏点"的前奏——门里还是原来的横版房间，规则（H1–H10）不变。
+- 纯逻辑 Assets/Scripts/Overworld/：OverworldCatalog（15 种格子：草 . 路 = 房屋 W 树 t 水 w 栅栏 f 高草 " 木箱 c 泥 g 路灯 i 香蕉皮 n 道具箱 ? 门 1–9 家 M 出生 T）、OverworldMap（解析/导出/JSON、Dijkstra 寻路、视线、碰撞、日程 DaySchedule、检查 Check、AmbushLead）、OverworldWalker（真实身体 0.3 半径按路线走 + SimulateDay）、OverworldMind（和房间共用 SuspicionMeter：? → ! → !! → ?! → 回日程；追最多 8 秒；香蕉皮晕 1.5 秒）、OverworldSession（跨场景的一天）、OverworldPack（关卡包 overworlds + 内置样板"星露小镇"）。
+- 运行时：OverworldGame（运行时按文字生成小镇，y 排序、高草盖在人物上、视锥网格、夜晚 19:00 后视野 3.5 格、路灯 3 格内照亮、HUD 时钟/门状态/下一站；E 在门口：先到 = 埋伏 +1 炸弹，他进门后 6 秒内 = 迟到（他不等你），再晚 = 被偷）；OverworldRoomLink（房间结果写回、Enter/8 秒回小镇、迟到跳过开局等待、道具箱炸弹、起疑带进房间上限 '?'）。房间里不弹问卷、第二个房间起不再弹说明。
+- 编辑器：OverworldBuilder（菜单 MarioTrickster/Overworld/▶ Play Town：每扇门的房间先找关卡库同名、再找内置样板 → 各建一个场景加 OverworldRoomLink，按哈希缓存；小镇场景；登记 Build Settings）、OverworldWorkshopWindow（Ctrl+Alt+O；画笔/矩形/填充/橡皮、门时间+房间下拉、检查、马里奥的一天、红点路线、导入 .txt/.json 关卡包、导出）；关卡工坊工具条"🏘 小镇"；关卡库导入关卡包时小镇一起导入。Step1PrankRoomBuilder.RoomOverride。
+- 网页：新页"大地图"（overworld.js 逐行移植 C#；build.py 从 OverworldCatalog/OverworldPack/SampleRooms 生成数据；导出关卡包带 overworlds；导入小镇 .txt / 关卡包 / 大地图页下的 CSV 数字；夜晚视野预览；设计单附小镇）。verify 用 node 跑网页 owCheck（样板 + 拆桥反例）与 C# 逐字对照：一致。
+- 调参 dataVersion 15→16：overworld* 17 项（速度 3.4/5/追 4.6、4 分钟/秒、进屋 60 分钟、迟到窗 6 秒、视野 7/夜 3.5/55°、贴身 1.2、草 1.5、路灯 3、追 8 秒、滑倒 1.5 秒、香蕉皮距离 3、被抓定身 3 秒、挑衅 3 次）。
+- 测试 +10（OverworldTests）。沙盒：样板一天 18:51 到家、每扇门都能提前 22–25 秒埋伏，9 组速度/时钟组合都走完。未验证：Unity 里的场景切换、画面、手感。
+
 ### [S209] 用户："捣蛋者为什么能跳到这粘在上面没落下来；马里奥到这里左右徘徊拿不到金币也去不了别的地方——通过这次测试发现的问题全方位优化升级"（截图：地下监狱·四层样板，最底层右端）
 
 - 根因 1（马里奥徘徊）：宝物 o(44,1) 在单向台面 --(42–43,2) **右边缘正下方**。AI 转向规则"离目标水平 ≤0.3 格就停"→ 他在台边对准了就停，身体（宽 0.8）还有一半在台上 → 掉不下去、原地抖；6 秒后卡住救援把他放到"最近的安全格"= 台面旁边 → 又走回来，循环。死局检查只看"理论上走得到"，所以没发现。

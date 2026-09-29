@@ -131,6 +131,8 @@ public class Step1PlaytestLog : MonoBehaviour
         lastReason = manager != null ? manager.LastRoundReason : "";
         // 自动无干预检查（H10）时没人答题，由 Step1HandsOffCheck 记录。
         if (Step1HandsOffCheck.IsRunning) return;
+        // S210：大地图一天里的房间不弹问卷（打完直接回小镇；问卷在单独试玩房间时照旧）
+        if (OverworldSession.Active) return;
         awaitingRating = true;
         survey = new Step1RoundSurvey(CaughtThisRound > 0);
         noteDraft = "";

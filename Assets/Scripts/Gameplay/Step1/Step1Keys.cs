@@ -39,6 +39,33 @@ public static class Step1Keys
             case KeyCode.H: return kb.hKey.wasPressedThisFrame;
             case KeyCode.M: return kb.mKey.wasPressedThisFrame;
             case KeyCode.Tab: return kb.tabKey.wasPressedThisFrame;
+            case KeyCode.P: return kb.pKey.wasPressedThisFrame;
+            case KeyCode.L: return kb.lKey.wasPressedThisFrame;
+            case KeyCode.E: return kb.eKey.wasPressedThisFrame;
+            case KeyCode.Return: return kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame;
+            case KeyCode.Escape: return kb.escapeKey.wasPressedThisFrame;
+            default: return false;
+        }
+    }
+
+    /// <summary>S210：按住（大地图走路用方向键 / WASD，两套输入系统都读）。</summary>
+    public static bool Held(KeyCode key)
+    {
+        bool legacy = false;
+        try { legacy = Input.GetKey(key); } catch (System.InvalidOperationException) { }
+        if (legacy) return true;
+        var kb = UnityEngine.InputSystem.Keyboard.current;
+        if (kb == null) return false;
+        switch (key)
+        {
+            case KeyCode.LeftArrow: return kb.leftArrowKey.isPressed;
+            case KeyCode.RightArrow: return kb.rightArrowKey.isPressed;
+            case KeyCode.UpArrow: return kb.upArrowKey.isPressed;
+            case KeyCode.DownArrow: return kb.downArrowKey.isPressed;
+            case KeyCode.A: return kb.aKey.isPressed;
+            case KeyCode.D: return kb.dKey.isPressed;
+            case KeyCode.W: return kb.wKey.isPressed;
+            case KeyCode.S: return kb.sKey.isPressed;
             default: return false;
         }
     }

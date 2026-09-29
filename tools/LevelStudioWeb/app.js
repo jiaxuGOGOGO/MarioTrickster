@@ -433,6 +433,12 @@ function levelSection(L, name, goal, grid, notes, W2) {
   L.push('', '```text', ...grid, '```');
   if (notes && notes.length) { L.push('', '**格子批注**（坐标 x 从左 0、y 从下 0）：'); notes.forEach(n => L.push(`- (${n.x},${n.y}) '${cell(n.x, n.y)}'：${n.text}`)); }
 }
+function handoffOverworld() {
+  if (!OWLIB.length) return '';
+  const L = ['', '## 大地图（小镇）'];
+  for (const m of OWLIB) { const r = owCheck(m, OW.Rules, owRoomOk); L.push('', `### ${m.name}  ${r.headline}`); if (m.goal) L.push(m.goal); for (const d of m.doors) L.push(`- 门 ${d.n}  ${owClock(d.minute)} → 房间「${d.room}」`); for (const i of r.issues) L.push(`- [${i.sev}] ${owIssueText(i)}`); L.push('```', owToText(m).trimEnd(), '```'); }
+  return L.join('\n');
+}
 function handoff() {
   storeCurrent();
   const L = [], all = $('#hAll') ? $('#hAll').checked : true, levels = all ? LIB : LIB.filter(l => l.id === CUR);
@@ -457,7 +463,7 @@ function handoff() {
   const cuts = Object.entries(S.cuts);
   if (cuts.length) { L.push('', '## 想删掉 / 改掉的旧东西'); cuts.forEach(([c, why]) => { const e = W.info.get(c); L.push(`- \`${c}\` ${e ? e.zh : c}：${why}`); }); L.push('', '（删之前请告诉我影响：哪些样板/测试/连锁在用它。）'); }
   L.push('', '---', `导出时间：${new Date().toLocaleString('zh-CN')} · 设计台规则版本：S207（搭建范围 12–128 × 6–48；宽 >64 或高 >16 = 大房间，游戏里镜头智能跟随、外圈实心；跳高 2 格、平跳 4 格；弹簧头顶 4 格、炮口前 3 格、毒池 ≤3 格）`);
-  return L.join('\n');
+  return L.join('\n') + handoffOverworld();
 }
 
 function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
@@ -477,7 +483,7 @@ $('#hPal').onclick = () => {
   els.forEach((e, i) => { const px = (i % cols) * 170 + 8, py = Math.floor(i / cols) * (cell + 8) + 8; x.fillStyle = rgbCss(e.rgb); x.fillRect(px, py, cell, cell); x.fillStyle = '#efe7d6'; x.fillText(`${e.c} ${e.zh}`, px + cell + 8, py + cell / 2); });
   c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'MarioTrickster_调色板.png'; a.click(); });
 };
-function levelPack() { storeCurrent(); return { type: 'mariotrickster-levelpack', v: 1, rules: 'S208', exported: new Date().toISOString(), levels: LIB.map(l => Object.assign({ id: l.id, name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] }, l.beats ? { beats: l.beats } : {})), proposals: S.proposals, cuts: S.cuts }; }
+function levelPack() { storeCurrent(); return { type: 'mariotrickster-levelpack', v: 1, rules: 'S208', exported: new Date().toISOString(), levels: LIB.map(l => Object.assign({ id: l.id, name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] }, l.beats ? { beats: l.beats } : {})), overworlds: OWLIB.map(owToJson), proposals: S.proposals, cuts: S.cuts }; }
 const exportPack = () => { const d = new Date(), stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`; download(`MarioTrickster关卡包_${LIB.length}关_${stamp}.levelpack.json`, JSON.stringify(levelPack(), null, 1), 'application/json'); };
 $('#btnExport').onclick = exportPack;
 $('#hPack').onclick = exportPack;
@@ -486,8 +492,11 @@ $('#fileIn').onchange = async e => {
   const f = e.target.files[0]; if (!f) return; e.target.value = '';
   try {
     if (/\.(png|gif|bmp)$/i.test(f.name)) return importImage(f);
-    const p = parseForeign(await f.text(), f.name);
-    if (p.kind === 'pack') { importPackData(p.pack); return; }
+    const p = /^# Overworld:/m.test(await f.text()) ? { kind: 'owtxt' } : parseForeign(await f.text(), f.name);
+    const txt = await f.text();
+    if (/^# Overworld:/m.test(txt)) { owAdd(owParse(txt), true); return; }
+    if (/\.(csv)$/i.test(f.name) && $('#pageOverworld').classList.contains('on')) { const nums = txt.trim().split(/\r?\n/).map(r => r.split(/[,;\t]/).map(v => parseInt(v, 10) || 0)); owAdd({ kind: 'overworld', name: f.name.replace(/\..*$/, ''), goal: '', id: '', rows: owFromNumbers(nums), doors: [], notes: [] }, true); return; }
+    if (p.kind === 'pack') { importPackData(p.pack); owImportPack(p.pack); return; }
     if (p.kind === 'studio') { const d = p.studio; mergeProposals(d.proposals); S.cuts = Object.assign(S.cuts, d.cuts || {}); addImported(d.name || f.name.replace(/\..*$/, ''), d.grid, d.goal, d.notes); return; }
     else if (p.kind === 'ascii') { addImported(nameFromTxt(p.rows, f.name), p.rows.filter(r => !r.startsWith('#')), goalFromTxt(p.rows), []); return; }
     else askMapping(p);
@@ -495,7 +504,7 @@ $('#fileIn').onchange = async e => {
 };
 function mergeProposals(list) { for (const p of (list || [])) { S.proposals = S.proposals.filter(x => (p.c ? x.c !== p.c : x.zh !== p.zh)); S.proposals.push(p); } W = makeWorld(S.proposals); }
 function addImported(name, grid, goal, notes) { storeCurrent(); const existing = LIB.find(l => l.name === name); if (existing && confirm(`已有同名关卡"${name}"，覆盖它吗？（取消 = 另存为新关卡）`)) { Object.assign(existing, { grid, goal: goal || '', notes: notes || [] }); CUR = existing.id; } else { CUR = newId(); LIB.push({ id: CUR, name: existing ? uniqueName(name) : name, goal: goal || '', grid, notes: notes || [] }); } openLevel(CUR, true); applyImport(`已导入"${S.name}"`); }
-function importPackData(pk) { mergeProposals(pk.proposals); S.cuts = Object.assign(S.cuts, pk.cuts || {}); storeCurrent(); let n = 0, over = 0; for (const l of pk.levels || []) { const ex = LIB.find(x => x.id === l.id || x.name === l.name); if (ex) { Object.assign(ex, { name: l.name, goal: l.goal || '', grid: l.grid, notes: l.notes || [], beats: l.beats }); over++; } else LIB.push({ id: l.id || newId(), name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [], beats: l.beats }); n++; } CUR = (LIB.find(x => pk.levels[0] && (x.id === pk.levels[0].id || x.name === pk.levels[0].name)) || LIB[0]).id; openLevel(CUR, true); applyImport(`导入关卡包：${n} 关（其中 ${over} 关同名覆盖）`); }
+function importPackData(pk) { mergeProposals(pk.proposals); S.cuts = Object.assign(S.cuts, pk.cuts || {}); storeCurrent(); let n = 0, over = 0; for (const l of (pk.levels || []).filter(l => l.kind !== 'overworld')) { const ex = LIB.find(x => x.id === l.id || x.name === l.name); if (ex) { Object.assign(ex, { name: l.name, goal: l.goal || '', grid: l.grid, notes: l.notes || [], beats: l.beats }); over++; } else LIB.push({ id: l.id || newId(), name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [], beats: l.beats }); n++; } CUR = (LIB.find(x => pk.levels[0] && (x.id === pk.levels[0].id || x.name === pk.levels[0].name)) || LIB[0]).id; openLevel(CUR, true); applyImport(`导入关卡包：${n} 关（其中 ${over} 关同名覆盖）`); }
 const nameFromTxt = (rows, fn) => { const m = rows.find(r => r.startsWith('# Name: ')); return m ? m.slice(8).trim() : fn.replace(/\..*$/, ''); };
 const goalFromTxt = rows => { const m = rows.find(r => r.startsWith('# Goal: ')); return m ? m.slice(8).trim() : ''; };
 function applyImport(msg) { snapshot(); syncInputs(); fitZoom(); W = makeWorld(S.proposals); renderAll(); save(); toast(msg); }
@@ -525,7 +534,8 @@ function importImage(f) {
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
   const p = t.dataset.page; $('#pageDesign').style.display = p === 'design' ? '' : 'none';
-  $('#pageMech').classList.toggle('on', p === 'mech'); $('#pageHandoff').classList.toggle('on', p === 'handoff');
+  $('#pageMech').classList.toggle('on', p === 'mech'); $('#pageHandoff').classList.toggle('on', p === 'handoff'); $('#pageOverworld').classList.toggle('on', p === 'overworld');
+  if (p === 'overworld') owRender();
   if (p === 'handoff') $('#handoffText').textContent = handoff();
   if (p === 'mech') { renderPropList(); renderCuts(); renderLaws(); }
 });
@@ -589,3 +599,125 @@ if (!S.grid.length) { CUR = newId(); S.grid = SAMPLES['诱捕走廊'].slice(); S
 W = makeWorld(S.proposals); syncInputs(); fitZoom(); renderAll(); setTool('brush'); renderStamps();
 // S208：第一次打开（浏览器里还没有任何关卡）→ 直接弹出向导，不让人对着空白画布发呆
 if (S.firstRun) setTimeout(openWizard, 300);
+
+// ── S210 大地图（星露谷视角小镇）─────────────────────────
+const LSOW = 'mariotrickster.studio.overworld.v1';
+let OWLIB = [], OWCUR = 0, OWT = { brush: '=', tool: 'brush', zoom: 16, drag: null, undo: [], rep: null };
+try { const d = JSON.parse(localStorage.getItem(LSOW) || 'null'); if (d && d.lib && d.lib.length) { OWLIB = d.lib.map(owFromJson); OWCUR = Math.min(d.cur | 0, OWLIB.length - 1); } } catch (e) { }
+if (!OWLIB.length) OWLIB = [owParse(OW_SAMPLE)];
+const owM = () => OWLIB[OWCUR];
+function owSave() { try { localStorage.setItem(LSOW, JSON.stringify({ lib: OWLIB.map(owToJson), cur: OWCUR })); } catch (e) { } }
+/** 门能连的房间：内置样板 + 你在"画关卡"里的所有关卡。关卡库里同名的优先（和 Unity 一样）。 */
+function owRoomNames() { const s = new Set(Object.keys(OW_ROOMS)); for (const l of LIB) s.add(l.name); return [...s]; }
+function owRoomGrid(name) { const l = LIB.find(x => x.name === name); if (l) return l.grid; const k = OW_ROOMS[name]; return k && SAMPLES[k] ? SAMPLES[k] : null; }
+function owRoomOk(name) { const g = owRoomGrid(name); if (!g) return '找不到这个房间（关卡库里没有，也不是内置样板）'; return !check(W, g, true).playable ? '房间本身检查没通过（在关卡工坊里打开它看红格）' : null; }
+function owSyncDoors(m) {
+  const present = new Set(); for (const r of m.rows) for (const c of r) if (c >= '1' && c <= '9') present.add(+c);
+  m.doors = m.doors.filter(d => present.has(d.n));
+  for (const n of [...present].sort()) if (!m.doors.some(d => d.n === n)) { const last = m.doors.length ? Math.max(...m.doors.map(d => d.minute)) : 420; m.doors.push({ n, minute: Math.min(OW.LatestDoor, last + 150), room: '默认恶作剧房间' }); }
+  m.doors.sort((a, b) => a.n - b.n);
+}
+function owAdd(m, fromImport) {
+  if (!m.rows.length) { toast('这个文件里没有小镇网格'); return; }
+  const ex = OWLIB.findIndex(x => x.name === m.name);
+  if (ex >= 0 && (!fromImport || confirm(`已有同名小镇"${m.name}"，覆盖它吗？（取消 = 另存）`))) { OWLIB[ex] = m; OWCUR = ex; }
+  else { if (ex >= 0) m.name += ' 2'; OWLIB.push(m); OWCUR = OWLIB.length - 1; }
+  owSave(); document.querySelector('[data-page=overworld]').click(); toast(`已导入小镇"${m.name}"`);
+}
+function owImportPack(pk) {
+  const list = (pk.overworlds || []).concat((pk.levels || []).filter(l => l.kind === 'overworld'));
+  for (const d of list) { const m = owFromJson(d); const ex = OWLIB.findIndex(x => x.name === m.name); if (ex >= 0) OWLIB[ex] = m; else OWLIB.push(m); }
+  if (list.length) { owSave(); toast(`导入了 ${list.length} 个小镇（在"大地图"页）`); }
+}
+function owSet(m, x, y, c) {
+  const put = (xx, yy, cc) => { const r = m.rows.length - 1 - yy; m.rows[r] = m.rows[r].slice(0, xx) + cc + m.rows[r].slice(xx + 1); };
+  if (c === 'M' || c === 'T' || (c >= '1' && c <= '9')) for (const [ox, oy] of owFind(m, c)) put(ox, oy, '.');
+  put(x, y, c);
+}
+function owFlood(m, x, y, c) {
+  const from = owAt(m, x, y); if (from === c || 'MT123456789'.includes(c)) { owSet(m, x, y, c); return; }
+  const q = [[x, y]]; let g = 0; const w = owW(m), h = m.rows.length;
+  while (q.length && g++ < 10000) { const [a, b] = q.shift(); if (a < 0 || b < 0 || a >= w || b >= h || owAt(m, a, b) !== from) continue; owSet(m, a, b, c); q.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]); }
+}
+const owCss = t => `rgb(${t.rgb.map(v => Math.round(v * 255)).join(',')})`;
+function owPalette() {
+  $('#owPal').innerHTML = ''; $('#owDoorPal').innerHTML = '';
+  for (const t of OW_TILES) {
+    if (t.c === '1') { for (let n = 1; n <= 9; n++) { const b = document.createElement('button'); b.className = 'btn small'; b.textContent = n; b.style.background = owCss(t); b.setAttribute('aria-pressed', OWT.brush === String(n)); if (OWT.brush === String(n)) b.style.outline = '2px solid var(--loot)'; b.onclick = () => { OWT.brush = String(n); owPalette(); }; $('#owDoorPal').appendChild(b); } continue; }
+    const b = document.createElement('button'); b.className = 'chip'; b.setAttribute('aria-pressed', OWT.brush === t.c); b.title = t.w + '\n\n' + t.p;
+    b.innerHTML = `<span class="sw" style="background:${owCss(t)};color:#111">${t.c === '.' ? '' : t.c.replace('"', '&quot;')}</span><span class="nm">${t.zh}</span>`;
+    b.onclick = () => { OWT.brush = t.c; owPalette(); }; $('#owPal').appendChild(b);
+  }
+  const cur = owTile(OWT.brush); $('#owTip').textContent = cur ? `${cur.zh}：${cur.w} ${cur.p}` : '';
+  document.querySelectorAll('[data-owtool]').forEach(b => b.classList.toggle('gold', b.dataset.owtool === OWT.tool));
+}
+function owRender() {
+  const m = owM(); owSyncDoors(m);
+  const pick = $('#owPick'); pick.innerHTML = OWLIB.map((x, i) => `<option value="${i}"${i === OWCUR ? ' selected' : ''}>${(x.name || '未命名小镇').replace(/</g, '&lt;')}</option>`).join('');
+  $('#owName').value = m.name; $('#owGoal').value = m.goal;
+  const rooms = owRoomNames();
+  $('#owDoors').innerHTML = m.doors.length ? '' : '<p class="hint">在画布上用 1–9 画门。</p>';
+  for (const d of m.doors) {
+    const row = document.createElement('div'); row.className = 'owdoor';
+    const opts = (rooms.includes(d.room) ? rooms : rooms.concat([d.room])).map(r => `<option${r === d.room ? ' selected' : ''}>${r.replace(/</g, '&lt;')}</option>`).join('');
+    row.innerHTML = `<b>门 ${d.n}</b><input value="${owClock(d.minute)}" aria-label="门 ${d.n} 时间"><select aria-label="门 ${d.n} 房间">${opts}</select>`;
+    row.querySelector('input').onchange = e => { const v = owParseClock(e.target.value); if (v === null) { toast('时间格式：08:30'); e.target.value = owClock(d.minute); return; } owPush(); d.minute = v; owRender(); };
+    row.querySelector('select').onchange = e => { owPush(); d.room = e.target.value; owRender(); };
+    $('#owDoors').appendChild(row);
+  }
+  const rep = OWT.rep = owCheck(m, OW.Rules, owRoomOk);
+  $('#owHead').textContent = '检查　' + rep.headline; $('#owHead').style.color = rep.playable ? 'var(--ok)' : 'var(--bad)';
+  $('#owIssues').innerHTML = rep.issues.map(i => `<div class="owiss ${i.sev}">${owIssueText(i).replace(/</g, '&lt;')}</div>`).join('') || '<p class="hint">没有问题。</p>';
+  const sc = rep.schedule;
+  $('#owSched').innerHTML = sc ? sc.stops.map((s, k) => `门 ${s.door.n}：${owClock(s.depart)} 出发 → ${owClock(s.arrive)} 到 → ${owClock(s.leave)} 出来　你能提前 ${Math.round(owLead(sc, k, OW.Rules.minutesPerSecond))} 秒`).join('<br>') + `<br>${owClock(sc.homeArrive)} 到家` : '（先把检查里的红色问题改掉）';
+  owPalette(); owDraw(); owSave();
+}
+function owPush() { OWT.undo.push(JSON.stringify(owToJson(owM()))); if (OWT.undo.length > 60) OWT.undo.shift(); }
+function owDraw() {
+  const m = owM(), z = OWT.zoom, w = owW(m), h = m.rows.length, cv = $('#owCanvas'), g = cv.getContext('2d');
+  cv.width = w * z; cv.height = h * z;
+  const err = new Set((OWT.rep ? OWT.rep.issues : []).filter(i => i.sev === 'Error' && i.x >= 0).map(i => i.x + ',' + i.y));
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const c = owAt(m, x, y), t = owTile(c), px = x * z, py = (h - 1 - y) * z;
+    g.fillStyle = t ? owCss(t) : '#f0f'; g.fillRect(px, py, z - 1, z - 1);
+    if (c === 'W' && owAt(m, x, y - 1) !== 'W') { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(px, py + z * 0.45, z - 1, z * 0.55); }
+    if (c === 't') { g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(px + z / 2, py + z / 2, z * 0.42, 0, 7); g.fill(); }
+    if ('MT?ni'.includes(c) || (c >= '1' && c <= '9')) { g.fillStyle = '#111'; g.font = `700 ${Math.round(z * 0.62)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c, px + z / 2, py + z / 2 + 1); }
+    if (err.has(x + ',' + y)) { g.strokeStyle = '#ff5a4e'; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, z - 3, z - 3); }
+  }
+  const sc = OWT.rep && OWT.rep.schedule;
+  if (sc && $('#owRoute').checked) {
+    g.fillStyle = 'rgba(255,60,50,.85)';
+    for (const p of sc.stops.map(s => s.path).concat(sc.homePath ? [sc.homePath] : [])) for (const [x, y] of p) g.fillRect(x * z + z * 0.36, (h - 1 - y) * z + z * 0.36, z * 0.28, z * 0.28);
+  }
+  if ($('#owNight').checked) { // 夜晚：路灯 3 格内亮，其余暗（他晚上只看得见 3.5 格）
+    const lamps = owFind(m, 'i');
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!lamps.some(([lx, ly]) => (lx - x) ** 2 + (ly - y) ** 2 <= 9)) { g.fillStyle = 'rgba(10,15,50,.5)'; g.fillRect(x * z, (h - 1 - y) * z, z, z); }
+  }
+  for (const n of m.notes) { g.fillStyle = '#ffc83d'; g.fillText('✎', n.x * z + z / 2, (h - 1 - n.y) * z + z / 2); }
+}
+function owCell(e) { const cv = $('#owCanvas'), r = cv.getBoundingClientRect(), m = owM(), z = OWT.zoom; const x = Math.floor((e.clientX - r.left) / z), y = m.rows.length - 1 - Math.floor((e.clientY - r.top) / z); return x >= 0 && y >= 0 && x < owW(m) && y < m.rows.length ? [x, y] : null; }
+$('#owCanvas').oncontextmenu = e => e.preventDefault();
+$('#owCanvas').onmousedown = e => {
+  const c = owCell(e); if (!c) return; const paint = e.button === 2 ? '.' : OWT.brush; owPush();
+  if (OWT.tool === 'rect' && e.button === 0) { OWT.drag = c; return; }
+  if (OWT.tool === 'fill' && e.button === 0) { owFlood(owM(), c[0], c[1], paint); owRender(); return; }
+  owSet(owM(), c[0], c[1], paint); OWT.painting = paint; owRender();
+};
+$('#owCanvas').onmousemove = e => { if (!OWT.painting || OWT.tool !== 'brush' && OWT.painting !== '.') return; const c = owCell(e); if (c && owAt(owM(), c[0], c[1]) !== OWT.painting) { owSet(owM(), c[0], c[1], OWT.painting); owRender(); } };
+window.addEventListener('mouseup', e => {
+  if (OWT.drag) { const c = owCell(e) || OWT.drag, a = OWT.drag; OWT.drag = null; for (let x = Math.min(a[0], c[0]); x <= Math.max(a[0], c[0]); x++) for (let y = Math.min(a[1], c[1]); y <= Math.max(a[1], c[1]); y++) owSet(owM(), x, y, OWT.brush); owRender(); }
+  OWT.painting = null;
+});
+document.querySelectorAll('[data-owtool]').forEach(b => b.onclick = () => { OWT.tool = b.dataset.owtool; owPalette(); });
+$('#owUndo').onclick = () => { if (!OWT.undo.length) return; OWLIB[OWCUR] = owFromJson(JSON.parse(OWT.undo.pop())); owRender(); };
+$('#owZoom').oninput = e => { OWT.zoom = +e.target.value; owDraw(); };
+$('#owRoute').onchange = owDraw; $('#owNight').onchange = owDraw;
+$('#owPick').onchange = e => { OWCUR = +e.target.value; OWT.undo = []; owRender(); };
+$('#owName').onchange = e => { owM().name = e.target.value.trim() || '未命名小镇'; owRender(); };
+$('#owGoal').onchange = e => { owM().goal = e.target.value.trim(); owSave(); };
+$('#owNew').onclick = () => { OWLIB.push({ kind: 'overworld', name: '新小镇 ' + (OWLIB.length + 1), goal: '', id: '', rows: owNewMap(40, 24), doors: [], notes: [] }); OWCUR = OWLIB.length - 1; OWT.undo = []; owRender(); toast('新建 40×24：先画家 M、出生点 T、至少一扇门'); };
+$('#owSample').onclick = () => { const s = owParse(OW_SAMPLE); const i = OWLIB.findIndex(x => x.name === s.name); if (i >= 0) { owPush(); OWLIB[i] = s; OWCUR = i; } else { OWLIB.push(s); OWCUR = OWLIB.length - 1; } owRender(); };
+$('#owDel').onclick = () => { if (OWLIB.length <= 1) { toast('至少留一个小镇'); return; } if (!confirm(`删除小镇"${owM().name}"？`)) return; OWLIB.splice(OWCUR, 1); OWCUR = 0; owRender(); };
+$('#owPack').onclick = exportPack;
+$('#owTxt').onclick = () => download(`${(owM().name || '小镇').replace(/[\\/:*?"<>|]/g, '')}.txt`, owToText(owM()), 'text/plain');

@@ -71,6 +71,13 @@ static class CHECK {
       Console.WriteLine($"[{(obad==0?"OK":"FAIL")}] S210 小镇 {m.name}：{rep.Headline}｜{day.summary}｜网页对照{(web==null?"跳过（没找到 ow_web.json）":wd==0?"一致":"不一致")}");
     }
     fail+=obad; }
+  // S211：小镇↔房间切换节奏：黑屏里加载、加载好才激活且只激活一次、加载卡住也不会永远黑屏、重复按不叠加
+  { int tb=0; var p=new SceneTransitPlan(); if(!p.Begin("a")||p.Begin("b")) tb++;
+    float tt=0; int acts=0; bool readyAt(float x)=>x>=1.5f; while(p.Busy&&tt<30){ float dt=1f/60; tt+=dt; if(p.Tick(dt,readyAt(tt))){ acts++; if(tt<1.5f) tb++; p.Activated(); } }
+    if(acts!=1||p.Busy) tb++;
+    var q=new SceneTransitPlan(); q.Begin("c"); float t2=0; bool a2=false; while(!a2&&t2<30){ t2+=0.05f; a2=q.Tick(0.05f,false);} if(!a2||t2>q.fadeOutSeconds+q.maxLoadSeconds+0.2f) tb++;
+    var r=new SceneTransitPlan(); r.Begin("d"); float t3=0; bool a3=false; while(!a3){ t3+=1f/60; a3=r.Tick(1f/60,true);} r.Activated(); while(r.Busy){ t3+=1f/60; r.Tick(1f/60,true);} 
+    Console.WriteLine($"[{(tb==0?"OK":"FAIL")}] S211 场景切换节奏：加载瞬间完成时一次切换 {t3:0.00} 秒；加载卡住 {t2:0.0} 秒后仍会揭幕"); fail+=tb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
  }}

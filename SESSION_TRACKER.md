@@ -121,6 +121,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
 
+### [S211] 用户："是否也对项目地图切换做了升级优化 参考github的优秀方案 我只要做好地图就能流畅切换载入地图"
+
+- 结论：S210 只用了同步 LoadScene（卡顿硬切、改房间要记得重建、按名字加载、旧场景残留）。参考 mygamedevtools/scene-loader（TransitionAsync）、Advanced Scene Manager（Loading Screen/Transitions）、vimsos/unity-scene-handling（异步+明确激活）、Eflatun.SceneReference（登记校验/路径引用）。
+- 纯逻辑 Overworld/SceneTransitPlan（淡出 0.25 → 黑屏 ≥0.35 且加载好才激活、最多等 10 秒 → 淡入 0.3；只激活一次；Busy 时拒绝新切换）。运行时 Overworld/Runtime/SceneTransit（DontDestroyOnLoad、LoadSceneAsync + allowSceneActivation=false、unscaled 计时、OnGUI 黑幕+标题卡）。OverworldGame/OverworldRoomLink 改用 SceneTransit.Go，切换中不吃按键；场景用完整路径。
+- OverworldBuilder [InitializeOnLoad]：TownFingerprint（小镇+每个房间哈希+BuilderVersion+主题）/IsStale；在 Town 场景按 ▶ 过期 → 停下、BuildAll（只重建变了的房间）、自动开始；删多余 Room_N；房间哈希含主题。小镇工坊显示场景状态。
+- 测试 +3，sim 加 S211 节奏检查。未验证：Unity 里黑幕观感、异步加载实际表现。
+
 ### [S210] 用户："增加一种类似星露谷物语视角的关卡编辑；目前的关卡作为进入某个房间或地牢后的关卡；延续道具人物技能、需要新增的也做好；适配关卡编辑网页和 Unity 关卡编辑并有导入功能"
 
 - 调研：星露谷地图分层（Back/Buildings/Paths/Front/AlwaysFront，树冠在 Front 层会盖住走到它北边的人）+ Warp 门 + 一天 6:00–2:00；塞尔达 II（俯视大地图 + 横版区域）；潜行设计（视锥、掩体、警戒分级）。结论：大地图不做成第二套战斗，而是"抢时间 + 选埋伏点"的前奏——门里还是原来的横版房间，规则（H1–H10）不变。

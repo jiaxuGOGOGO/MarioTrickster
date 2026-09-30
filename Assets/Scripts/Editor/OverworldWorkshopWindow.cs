@@ -18,6 +18,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
     private float cell = 16f;
     private Vector2Int? dragStart;
     private OverworldMap.Report report;
+    private bool scenesStale = true; // S211：只在检查时算（读文件），不在每次重绘算
     private string status = "";
     private readonly Stack<string> undo = new Stack<string>();
 
@@ -38,7 +39,8 @@ public sealed class OverworldWorkshopWindow : EditorWindow
     }
 
     private void Snapshot() { undo.Push(OverworldMap.ToText(map)); if (undo.Count > 60) { var a = undo.ToArray().Take(60).Reverse(); undo.Clear(); foreach (var s in a) undo.Push(s); } }
-    private void Recheck() { report = OverworldMap.Check(map, OverworldBuilder.RulesFromTuning(), OverworldBuilder.RoomProblem); SyncDoors(); Repaint(); }
+    private void Recheck() { report = OverworldMap.Check(map, OverworldBuilder.RulesFromTuning(), OverworldBuilder.RoomProblem); SyncDoors(); scenesStale = OverworldBuilder.IsStale(OverworldMap.ToText(map)); Repaint(); }
+    private void OnFocus() { if (map != null) Recheck(); } // 从关卡工坊改完房间回来 → 状态刷新
 
     /// <summary>画上的门数字 ↔ 门列表：新画的门自动加一行（默认时间往后排），擦掉的门移除。</summary>
     private void SyncDoors()
@@ -255,6 +257,11 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         }
         if (map.doors.Count == 0) EditorGUILayout.HelpBox("在画布上用 1–9 画门（画在房子最下面一排的下方一格）。", MessageType.Info);
 
+        EditorGUILayout.Space();
+        // S211：场景状态——你只管画，▶ 时自动只重建变了的房间
+        bool stale = scenesStale;
+        EditorGUILayout.HelpBox(stale ? "场景：需要更新（点 ▶ 试玩小镇，或在 Town 场景直接按 Unity 的 ▶，都会自动只重建变了的房间）"
+                                      : "场景：已是最新 ✓ 进门 / 回小镇都是淡出 → 后台加载 → 淡入", stale ? MessageType.Warning : MessageType.Info);
         EditorGUILayout.Space();
         if (report != null)
         {

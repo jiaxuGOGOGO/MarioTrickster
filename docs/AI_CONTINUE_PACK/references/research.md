@@ -27,3 +27,10 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - 塞尔达 II 俯视大地图 + 横版区域：https://zelda.fandom.com/wiki/Zelda_II:_The_Adventure_of_Link
 - 潜行：视锥、掩体、分级警戒：https://gamedesignskills.com/game-design/stealth/ 、https://www.gamedeveloper.com/design/stealth-game-design
 - 结论：小镇 = 抢时间 + 选埋伏点的前奏，不是第二套战斗；房间规则不变。
+
+## S211 场景切换调研
+- https://github.com/mygamedevtools/scene-loader （TransitionAsync：先盖住再加载）
+- https://github.com/Lazy-Solutions/AdvancedSceneManager （Loading Screen / Transitions / 常驻场景）
+- https://github.com/vimsos/unity-scene-handling （同步 LoadScene 掉帧；异步 + 明确激活）
+- https://github.com/starikcetin/Eflatun.SceneReference （场景要登记且勾选；路径引用）
+- https://docs.unity3d.com/ScriptReference/AsyncOperation-allowSceneActivation.html

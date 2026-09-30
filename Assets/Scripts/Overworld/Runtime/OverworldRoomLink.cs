@@ -13,6 +13,7 @@ public sealed class OverworldRoomLink : MonoBehaviour
     private bool over, applied;
     private float overTime;
     private string headline = "";
+    public const float AutoBackSeconds = 8f;
 
     private void Start()
     {
@@ -58,8 +59,8 @@ public sealed class OverworldRoomLink : MonoBehaviour
 
     private void Update()
     {
-        if (!over) return;
-        if (Step1Keys.Down(KeyCode.Return) || Time.unscaledTime - overTime > 8f) Back();
+        if (!over || SceneTransit.Busy) return;
+        if (Step1Keys.Down(KeyCode.Return) || Time.unscaledTime - overTime > AutoBackSeconds) Back();
     }
 
     private void Back()
@@ -67,12 +68,15 @@ public sealed class OverworldRoomLink : MonoBehaviour
         enabled = false;
         GameManager.BlockRoundOverKeys = null;
         Time.timeScale = 1f;
-        if (!string.IsNullOrEmpty(OverworldSession.TownScene)) SceneManager.LoadScene(OverworldSession.TownScene);
+        string town = OverworldSession.TownScene;
+        if (string.IsNullOrEmpty(town)) return;
+        // S211：平滑回小镇；万一没登记到 Build Settings，退回直接加载（至少不会卡在房间里）
+        if (!SceneTransit.Go(town, Step1Text.OverworldTransitToTown(OverworldMap.Clock(OverworldSession.Minute)))) SceneManager.LoadScene(town);
     }
 
     private void OnGUI()
     {
-        if (!over) return;
+        if (!over || SceneTransit.Busy) return;
         var st = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, wordWrap = true };
         GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height - 150, 520, 120), headline + "\n" + Step1Text.OverworldBackToTown, st);
     }

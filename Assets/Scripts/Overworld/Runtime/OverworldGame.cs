@@ -55,7 +55,7 @@ public sealed class OverworldGame : MonoBehaviour
         tuning = MarioMindTuningSO.LoadOrDefault();
         map = OverworldMap.Parse(mapText);
         if (map.W == 0) { enabled = false; Debug.LogError("[Overworld] mapText 为空"); return; }
-        string town = SceneManager.GetActiveScene().name;
+        string town = SceneManager.GetActiveScene().path; // S211：完整路径（切换用）
         if (!OverworldSession.Active || OverworldSession.MapName != map.name || OverworldSession.TownScene != town) OverworldSession.NewDay(map.name, town);
         OverworldSession.Active = true;
         for (int i = 0; i < doorNumbers.Length && i < doorScenes.Length; i++) OverworldSession.RoomScenes[doorNumbers[i]] = doorScenes[i];
@@ -84,10 +84,15 @@ public sealed class OverworldGame : MonoBehaviour
     // ═════════════════════ 每帧 ═════════════════════
     private void Update()
     {
+        if (SceneTransit.Busy) { UpdateVisuals(); return; } // S211：切换中（黑幕）不走时间、不吃按键
         if (Step1Keys.Down(KeyCode.H)) helpOpen = !helpOpen;
         if (dayOver)
         {
-            if (Step1Keys.Down(KeyCode.R)) { OverworldSession.NewDay(map.name, OverworldSession.TownScene); SceneManager.LoadScene(OverworldSession.TownScene); }
+            if (Step1Keys.Down(KeyCode.R))
+            {
+                OverworldSession.NewDay(map.name, OverworldSession.TownScene);
+                if (!SceneTransit.Go(OverworldSession.TownScene, Step1Text.OverworldTransitNewDay(map.name))) SceneManager.LoadScene(OverworldSession.TownScene);
+            }
             UpdateVisuals(); return;
         }
         if (helpOpen) { UpdateVisuals(); return; }
@@ -178,7 +183,8 @@ public sealed class OverworldGame : MonoBehaviour
 
     private void EnterRoom(OverworldMap.Door d, OverworldMind.DoorOutcome outcome)
     {
-        if (!OverworldSession.RoomScenes.TryGetValue(d.n, out var scene) || string.IsNullOrEmpty(scene) || !Application.CanStreamedLevelBeLoaded(scene))
+        if (SceneTransit.Busy) return;
+        if (!OverworldSession.RoomScenes.TryGetValue(d.n, out var scene) || !SceneTransit.CanLoad(scene))
         { Hint(Step1Text.OverworldRoomMissing); return; }
         var c = doorCells[d.n];
         OverworldSession.PendingDoor = d.n;
@@ -193,7 +199,8 @@ public sealed class OverworldGame : MonoBehaviour
         OverworldSession.MarioX = c.x + 0.5; OverworldSession.MarioY = c.y + 0.5;
         OverworldSession.TricksterX = below.x + 0.5; OverworldSession.TricksterY = below.y + 0.5;
         OverworldSession.HasPositions = true;
-        SceneManager.LoadScene(scene);
+        // S211：淡出 → 标题卡 → 后台加载 → 淡入（SceneTransit）
+        SceneTransit.Go(scene, Step1Text.OverworldTransitToRoom(d.n, d.room, outcome));
     }
 
     private void MarioUpdate(float dt)

@@ -85,3 +85,8 @@
 - 编辑器：OverworldBuilder（菜单 MarioTrickster/Overworld）、OverworldWorkshopWindow（Ctrl+Alt+O）。
 - 钩子：Step1PrankRoomBuilder.RoomOverride、MarioMindDriver.SkipStartDelay、Step1PlaytestLog（session 时不弹问卷）、Step1Screen（第 2 个房间起不弹说明）、LevelPack 跳过 kind=overworld、LevelLibrary.ImportPack 也导入小镇、Step1Keys.Held/P/L/E/Return/Escape、Step1Text 改 partial（Step1Text.Overworld.cs）。
 - 调参 dataVersion 16：overworld* 17 项。
+
+## S211 场景切换
+- `Overworld/SceneTransitPlan.cs`（纯逻辑，进 sim）+ `Overworld/Runtime/SceneTransit.cs`：所有小镇↔房间切换走 `SceneTransit.Go(场景路径, 标题)`，不要再直接 `SceneManager.LoadScene`（失败时才兜底）。
+- 不要预加载（allowSceneActivation=false 会堵住后续异步加载）。
+- `OverworldBuilder.IsStale/TownFingerprint`：新增会影响房间场景的东西（新主题字段等）要加进指纹。

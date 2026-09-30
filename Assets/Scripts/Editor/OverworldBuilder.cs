@@ -9,7 +9,12 @@ using UnityEngine;
 /// S210：一键把小镇大地图 + 它连着的每个横版房间做成场景，登记到 Build Settings，然后 Play。
 /// 房间：先找关卡库（Assets/Levels/Library）里同名的关卡，找不到再用内置样板/默认房间。
 /// 每个房间场景里自动加 OverworldRoomLink（打完回小镇）。房间文字没变就不重建（按哈希缓存）。
+/// S211：你只管画地图——
+///   · 直接在 Town 场景按 Unity 的 ▶，或改了关卡库里的房间 / 调参主题，进 Play 前自动发现"场景过期"并只重建变了的那几个；
+///   · 场景用完整路径登记和加载（不怕项目里别处也有叫 Town 的场景）；门变少时多余的 Room_N 场景自动删除；
+///   · 切换走 SceneTransit（淡出 → 后台加载 → 淡入）。
 /// </summary>
+[InitializeOnLoad]
 public static class OverworldBuilder
 {
     public const string Folder = "Assets/Levels/Overworld";
@@ -17,6 +22,46 @@ public static class OverworldBuilder
     public const string CurrentKey = "MarioTrickster.Overworld.Current";
     public static string TownScenePath => SceneFolder + "/Town.unity";
     public static string RoomScenePath(int n) => SceneFolder + "/Room_" + n + ".unity";
+
+    public const string TownHashKey = "MarioTrickster.Overworld.TownHash";
+
+    static OverworldBuilder() { EditorApplication.playModeStateChanged += OnPlayMode; }
+
+    /// <summary>S211：在小镇场景里直接按 ▶ 时，场景过期 → 先停下、静默重建、再自动开始（只重建变了的房间）。</summary>
+    private static void OnPlayMode(PlayModeStateChange st)
+    {
+        if (st != PlayModeStateChange.ExitingEditMode) return;
+        if (EditorSceneManager.GetActiveScene().path != TownScenePath) return;
+        string text = CurrentText;
+        if (!IsStale(text)) return;
+        EditorApplication.isPlaying = false;
+        EditorApplication.delayCall += () =>
+        {
+            if (BuildAll(text, out string rep)) { Debug.Log("[Overworld] 场景过期，已自动重建后开始试玩。"); EditorApplication.isPlaying = true; }
+            else EditorUtility.DisplayDialog("小镇", rep, "好");
+        };
+    }
+
+    /// <summary>这张小镇 + 它连的所有房间 + 构建器版本 + 主题 的指纹。任何一样变了，场景就要重建。</summary>
+    public static string TownFingerprint(string text)
+    {
+        var m = OverworldMap.Parse(text);
+        var sb = new System.Text.StringBuilder(OverworldMap.ToText(m));
+        sb.Append('|').Append(Step1PrankRoomBuilder.BuilderVersion).Append('|').Append(Step1PrankRoomBuilder.EnsureTuningAsset().themePreset);
+        foreach (var d in m.doors) { var rows = ResolveRoom(d.room); sb.Append('|').Append(d.n).Append('=').Append(rows == null ? "?" : Step1PrankRoomBuilder.RoomHash(rows)); }
+        return Hash128.Compute(sb.ToString()).ToString();
+    }
+
+    /// <summary>场景文件缺失 / 没登记 / 指纹不同 → 过期。</summary>
+    public static bool IsStale(string text)
+    {
+        if (!File.Exists(TownScenePath)) return true;
+        var m = OverworldMap.Parse(text);
+        var inBuild = new HashSet<string>(EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path));
+        if (!inBuild.Contains(TownScenePath)) return true;
+        foreach (var d in m.doors) if (!File.Exists(RoomScenePath(d.n)) || !inBuild.Contains(RoomScenePath(d.n))) return true;
+        return EditorPrefs.GetString(TownHashKey, "") != TownFingerprint(text);
+    }
 
     public static string PathFor(string name) => Folder + "/" + LevelPack.SafeFileName(name) + ".txt";
 
@@ -138,7 +183,7 @@ public static class OverworldBuilder
             {
                 var rows = ResolveRoom(d.room);
                 string path = RoomScenePath(d.n);
-                string hash = Step1PrankRoomBuilder.RoomHash(rows) + "|" + Step1PrankRoomBuilder.BuilderVersion + "|" + d.n;
+                string hash = Step1PrankRoomBuilder.RoomHash(rows) + "|" + Step1PrankRoomBuilder.BuilderVersion + "|" + d.n + "|" + Step1PrankRoomBuilder.EnsureTuningAsset().themePreset;
                 if (!(File.Exists(path) && EditorPrefs.GetString("MarioTrickster.Overworld.RoomHash." + d.n, "") == hash))
                 {
                     Step1PrankRoomBuilder.RoomOverride = rows;
@@ -148,10 +193,17 @@ public static class OverworldBuilder
                     EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene(), path);
                     EditorPrefs.SetString("MarioTrickster.Overworld.RoomHash." + d.n, hash);
                 }
-                scenes.Add(path); nums.Add(d.n); names.Add(Path.GetFileNameWithoutExtension(path));
+                scenes.Add(path); nums.Add(d.n); names.Add(path); // S211：完整路径（不怕重名）
             }
         }
         finally { Step1PrankRoomBuilder.RoomOverride = null; }
+
+        // S211：门变少了 → 删掉多余的旧房间场景（不然 Build Settings 里越积越多）
+        foreach (var f in Directory.GetFiles(SceneFolder, "Room_*.unity"))
+        {
+            string fp = f.Replace('\\', '/');
+            if (!scenes.Contains(fp)) { AssetDatabase.DeleteAsset(fp); EditorPrefs.DeleteKey("MarioTrickster.Overworld.RoomHash." + Path.GetFileNameWithoutExtension(fp).Substring(5)); }
+        }
 
         EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
         var go = new GameObject("OverworldGame");
@@ -166,6 +218,7 @@ public static class OverworldBuilder
         list.AddRange(scenes.Select(s => new EditorBuildSettingsScene(s, true)));
         EditorBuildSettings.scenes = list.ToArray();
         AssetDatabase.SaveAssets();
+        EditorPrefs.SetString(TownHashKey, TownFingerprint(text));
         report = $"小镇 {m.name}：{m.doors.Count} 个房间场景 + 小镇场景已登记到 Build Settings。";
         Debug.Log("[Overworld] " + report);
         return true;

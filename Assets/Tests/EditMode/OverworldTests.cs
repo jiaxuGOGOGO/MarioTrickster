@@ -136,7 +136,7 @@ public class OverworldTests
     [Test]
     public void Wiring_RoomsReturnToTown()
     {
-        StringAssert.Contains("SceneManager.LoadScene(OverworldSession.TownScene)", Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs"));
+        StringAssert.Contains("SceneTransit.Go(town,", Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs"));
         StringAssert.Contains("OverworldSession.RecordRoom(door, won)", Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs"));
         StringAssert.Contains("driver.SkipStartDelay()", Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs"));
         StringAssert.Contains("if (OverworldSession.Active) return;", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs"));
@@ -144,5 +144,50 @@ public class OverworldTests
         StringAssert.Contains("AddComponent<OverworldRoomLink>()", Read("Scripts/Editor/OverworldBuilder.cs"));
         StringAssert.Contains("EditorBuildSettings.scenes = list.ToArray()", Read("Scripts/Editor/OverworldBuilder.cs"));
         StringAssert.Contains("OverworldPack.Parse(json)", Read("Scripts/Editor/LevelLibrary.cs"));
+    }
+
+    // ── S211：平滑切换 + 自动重建 ──────────────────────
+    [Test]
+    public void Transit_FadeHoldsUntilLoaded_ThenFadesIn()
+    {
+        var p = new SceneTransitPlan();
+        Assert.IsTrue(p.Begin("门 1"));
+        Assert.IsFalse(p.Begin("again"), "切换中再按不会叠加");
+        Assert.IsFalse(p.Tick(0.1f, true)); Assert.Greater(p.Alpha, 0f); Assert.Less(p.Alpha, 1f);
+        Assert.IsFalse(p.Tick(0.2f, true)); Assert.AreEqual(SceneTransitPlan.Phase.Loading, p.phase); Assert.AreEqual(1f, p.Alpha);
+        for (int i = 0; i < 20; i++) Assert.IsFalse(p.Tick(0.1f, false), "没加载完不激活");
+        Assert.IsTrue(p.Tick(0.1f, true), "加载好了 → 激活一次");
+        Assert.IsFalse(p.Tick(0.1f, true), "只激活一次");
+        p.Activated(); Assert.AreEqual(SceneTransitPlan.Phase.FadeIn, p.phase);
+        p.Tick(1f, true); Assert.IsFalse(p.Busy); Assert.AreEqual(0f, p.Alpha);
+    }
+
+    [Test]
+    public void Transit_NeverStuckBlack()
+    {
+        var p = new SceneTransitPlan(); p.Begin("x");
+        bool act = false; for (int i = 0; i < 200 && !act; i++) act = p.Tick(0.1f, false);
+        Assert.IsTrue(act, "加载一直没好也会在 maxLoadSeconds 后激活");
+        var q = new SceneTransitPlan(); q.Begin("y"); q.Tick(0.3f, false); q.Abort(); Assert.IsFalse(q.Busy); Assert.AreEqual(0f, q.Alpha);
+        var r = new SceneTransitPlan(); r.Begin("z"); r.Tick(0.3f, true); Assert.IsFalse(r.Tick(0.1f, true), "最短黑屏：标题卡读得清"); 
+        Assert.Less(new SceneTransitPlan().MinTotalSeconds, 1.2f, "一次切换不拖沓");
+    }
+
+    [Test]
+    public void Wiring_SmoothSwitch_AndAutoRebuild()
+    {
+        string game = Read("Scripts/Overworld/Runtime/OverworldGame.cs"), link = Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs");
+        string tr = Read("Scripts/Overworld/Runtime/SceneTransit.cs"), b = Read("Scripts/Editor/OverworldBuilder.cs");
+        StringAssert.Contains("SceneTransit.Go(scene,", game);
+        StringAssert.Contains("if (SceneTransit.Busy) { UpdateVisuals(); return; }", game);
+        StringAssert.Contains("SceneManager.GetActiveScene().path", game);
+        StringAssert.Contains("if (!over || SceneTransit.Busy) return;", link);
+        StringAssert.Contains("op.allowSceneActivation = false;", tr);
+        StringAssert.Contains("DontDestroyOnLoad(go);", tr);
+        StringAssert.Contains("Time.unscaledDeltaTime", tr);
+        StringAssert.Contains("EditorApplication.playModeStateChanged += OnPlayMode;", b);
+        StringAssert.Contains("EditorPrefs.SetString(TownHashKey, TownFingerprint(text));", b);
+        StringAssert.Contains("names.Add(path);", b);
+        StringAssert.Contains("AssetDatabase.DeleteAsset(fp);", b);
     }
 }

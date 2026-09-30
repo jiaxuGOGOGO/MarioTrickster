@@ -62,6 +62,7 @@ public class Step1Combo : MonoBehaviour
     private void Start()
     {
         if (tuning == null) tuning = MarioMindTuningSO.LoadOrDefault();
+        LaunchFeel.Apply(tuning); // S216：手感参数（被弹飞的重力、受伤小跳、特效开关）
         Counter = new Step1ComboCounter(tuning.comboWindowSeconds);
         driver = FindObjectOfType<MarioMindDriver>();
         mario = driver != null ? driver.GetComponent<MarioController>() : null;

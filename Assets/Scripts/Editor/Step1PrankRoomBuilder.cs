@@ -47,7 +47,8 @@ public static class Step1PrankRoomBuilder
     /// </summary>
     /// S207 = 18：大房间镜头（智能跟随 + 屏外箭头 + 小地图）；回合时间/自动检查超时按路线长度自动放宽。
     /// S215 = 19：小镇房间按"最多带进来的炸弹"加固（ExtraBombs），以前按 3 颗算，带满 6 颗能把马里奥困死（H1/H9）。
-    public const int BuilderVersion = 19;
+    /// S216 = 20：弹簧板弹速按新调参（15，被弹飞全程有重力）写进场景 → 旧房间自动重建。
+    public const int BuilderVersion = 20;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。

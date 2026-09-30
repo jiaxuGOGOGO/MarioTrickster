@@ -15,8 +15,8 @@ using UnityEngine;
 public class SpringPad : ControllableLevelElement
 {
     [Header("=== 弹簧 ===")]
-    [Tooltip("弹起速度（格/秒）。默认 16 ≈ 弹高 5–6 格")]
-    [SerializeField] private float launchSpeed = 16f;
+    [Tooltip("弹起速度（格/秒）。S216：被弹飞全程有重力（LaunchFeel.gravity=40），15 ≈ 弹高 2.8 格")]
+    [SerializeField] private float launchSpeed = 15f;
     [Tooltip("水平推送（格/秒，正数 = 朝马里奥当前朝向）")]
     [SerializeField] private float forwardPush = 2.5f;
     [Tooltip("空中不受控的时间（秒）")]
@@ -57,9 +57,21 @@ public class SpringPad : ControllableLevelElement
         TryLaunch();
     }
 
+    private float bounceAt = -10f;
+    private Transform padVisual;
+    private Vector3 padHome;
+
     protected override void Update()
     {
         base.Update();
+        // S216：板子自己"压下 → 弹出 → 回弹"（只动画面子节点，不动碰撞体）
+        if (padVisual == null) { padVisual = transform.Find("Visual"); if (padVisual != null) padHome = padVisual.localScale; }
+        if (padVisual != null)
+        {
+            float t = Time.time - bounceAt;
+            float sy = t < 1f ? Step1Feel.SpringPadScaleY(t) : 1f;
+            padVisual.localScale = new Vector3(padHome.x * (1f + (1f - sy) * 0.3f), padHome.y * sy, padHome.z);
+        }
         if (currentState == PropControlState.Active && !firedThisActivation) TryLaunch();
     }
 
@@ -76,7 +88,10 @@ public class SpringPad : ControllableLevelElement
             var rb = mario.GetComponent<Rigidbody2D>();
             if (rb == null) continue;
             rb.velocity = LaunchVelocity(mario.IsFacingRight, launchSpeed, forwardPush);
-            mario.ApplyKnockbackStun(airStunSeconds);
+            mario.ApplyKnockbackStun(airStunSeconds, true, false); // S216：落地前都不能动（空中轨迹 = 抛物线，落点可预判）
+            bounceAt = Time.time;
+            Step1Fx.Dust(new Vector2(b.center.x, b.max.y), 1.3f);
+            Step1Fx.Ring(new Vector2(b.center.x, b.max.y), 0.9f, new Color(0.45f, 1f, 0.6f, 1f));
             firedThisActivation = true;
             Launched?.Invoke(mario);
             SpringPadEvents.RaiseLaunched();
@@ -88,6 +103,6 @@ public class SpringPad : ControllableLevelElement
     public static Vector2 LaunchVelocity(bool facingRight, float speed, float push) =>
         new Vector2((facingRight ? 1f : -1f) * push, Mathf.Max(0f, speed));
 
-    /// <summary>纯计算：弹射最高点（格），g 为重力加速度（正数）。</summary>
+    /// <summary>纯计算：弹射最高点（格），g 为重力加速度（正数）。S216 起被弹飞全程受 LaunchFeel.gravity 影响。</summary>
     public static float ApexHeight(float speed, float g) => g <= 0f ? 0f : speed * speed / (2f * g);
 }

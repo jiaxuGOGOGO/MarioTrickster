@@ -177,6 +177,7 @@ public class MarioController : MonoBehaviour
     // ── 击退 stun 状态 (Session 16: B023) ─────────────────
     private bool _isKnockbackStunned;
     private float _knockbackStunTimer;
+    private bool _stunUntilLanded, _stunSlide; // S216
 
     // ── Session 22: 两段式弹射状态机 ──────────────────────
     // [AI防坑警告] 这是两段式弹射的核心状态机，绝对不要改回 bounceStunTimer 单计时器方案！
@@ -211,6 +212,7 @@ public class MarioController : MonoBehaviour
 
     // ── 公共属性 ──────────────────────────────────────────
     public bool IsGrounded    => _grounded;
+    public bool IsStunned     => _isKnockbackStunned; // S216
     public bool IsMoving      => Mathf.Abs(_frameVelocity.x) > 0.1f;
     public bool IsFacingRight => isFacingRight;
     public Vector2 Velocity   => _frameVelocity;
@@ -310,13 +312,13 @@ public class MarioController : MonoBehaviour
     {
         _time += Time.deltaTime;
 
-        // 击退 stun 倒计时
+        // 击退 stun 倒计时（S216：被弹上天的要等落地才恢复控制，最多多等 LaunchFeel.landGrace 秒）
         if (_isKnockbackStunned)
         {
             _knockbackStunTimer -= Time.deltaTime;
-            if (_knockbackStunTimer <= 0f)
+            if (Step1Feel.StunOver(_knockbackStunTimer, _stunUntilLanded, _grounded, LaunchFeel.landGrace))
             {
-                _isKnockbackStunned = false;
+                _isKnockbackStunned = false; _stunUntilLanded = false; _stunSlide = false;
             }
         }
 
@@ -356,7 +358,9 @@ public class MarioController : MonoBehaviour
             }
             jumpPressedThisFrame = false;
         }
-        // ── 击退 stun 分支：不覆盖 rb.velocity，让 AddForce 击退力自然衰减 ──
+        // ── 击退 stun 分支：不覆盖 rb.velocity，让击退速度按抛物线自然走完 ──
+        // S216：以前只有往下掉才有重力 → 被弹簧/炸弹/大炮弄飞时匀速往上飘（弹簧 11 格撞天花板、炸弹推 8 格）。
+        // 现在全程有重力（LaunchFeel.gravity）+ 空中阻力 + 落地摩擦，并检测落地/撞头（落地会压扁、出尘土）。
         if (_isKnockbackStunned)
         {
             _lastPlatformVelocity = Vector2.zero;
@@ -364,12 +368,10 @@ public class MarioController : MonoBehaviour
             _platformVelocity = Vector2.zero;
 
             _frameVelocity = rb.velocity;
-
-            if (_frameVelocity.y <= 0f)
-            {
-                _frameVelocity.y = Mathf.MoveTowards(
-                    _frameVelocity.y, -MaxFallSpeed, FallAcceleration * Time.fixedDeltaTime);
-            }
+            if (!rb.isKinematic) CheckCollisions();
+            _frameVelocity = Step1Feel.StunStep(_frameVelocity, _grounded, Time.fixedDeltaTime,
+                LaunchFeel.gravity, MaxFallSpeed, LaunchFeel.airDrag, LaunchFeel.groundFriction, _stunSlide);
+            if (_grounded && _frameVelocity.y <= 0f) _frameVelocity.y = GroundingForce;
 
             rb.velocity = _frameVelocity;
             return;
@@ -462,6 +464,7 @@ public class MarioController : MonoBehaviour
             _isBouncing = false;
 
             // S36: 落地压扁形变（仅当下落速度超过阈值时触发，避免小跳也压扁）
+            if (Mathf.Abs(_frameVelocity.y) > 8f) Step1Fx.Dust((Vector2)transform.position + Vector2.down * 0.5f, Mathf.Clamp(Mathf.Abs(_frameVelocity.y) / 16f, 0.6f, 1.6f)); // S216：重落地扬尘
             if (Mathf.Abs(_frameVelocity.y) > 3f)
             {
                 _landSquashActive = true;
@@ -655,8 +658,13 @@ public class MarioController : MonoBehaviour
     /// 外部调用：触发击退 stun，暂停控制器速度覆盖。
     /// DamageDealer 在 AddForce 之后调用此方法，确保击退力不被覆盖。
     /// </summary>
-    public void ApplyKnockbackStun(float duration = -1f)
+    public void ApplyKnockbackStun(float duration = -1f) => ApplyKnockbackStun(duration, false, false);
+
+    /// <summary>S216：untilLanded = 被弹上天的（弹簧/炸飞/人肉炮），计时到了还在空中就等落地；slide = 落地不刹车（香蕉皮）。</summary>
+    public void ApplyKnockbackStun(float duration, bool untilLanded, bool slide)
     {
+        _stunUntilLanded = untilLanded; _stunSlide = slide;
+        if (untilLanded) _grounded = false;
         // 击退优先级最高：解除弹射状态
         _isPreparingBounce = false;
         _isBouncing = false;
@@ -994,6 +1002,7 @@ public class MarioController : MonoBehaviour
         // 4. 重置击退状态
         _isKnockbackStunned = false;
         _knockbackStunTimer = 0f;
+        _stunUntilLanded = false; _stunSlide = false;
 
         // 5. 重置跳跃状态
         _timeJumpWasPressed = float.NegativeInfinity;

@@ -1121,9 +1121,9 @@ public class Step1RushMarioTests
         var t = Tuning();
         Assert.Greater(t.springTelegraphSeconds, 0f, "H3：有预警");
         Assert.Greater(t.crackTelegraphSeconds, 0f, "H3：有预警");
-        // 弹高：约 5–6 格，房间 12 行放得下
-        float apex = SpringPad.ApexHeight(t.springLaunchSpeed, 24f);
-        Assert.Greater(apex, 3f); Assert.Less(apex, 8f);
+        // 弹高（S216：被弹飞全程有重力 launchGravity）：约 2–3 格，头顶空 4 格放得下
+        float apex = SpringPad.ApexHeight(t.springLaunchSpeed, t.launchGravity);
+        Assert.Greater(apex, 2f); Assert.Less(apex, ElementCatalog.SpringHeadroomCells - 0.9f);
         System.Func<char, bool> solid = reg.IsSolid;
         Assert.IsTrue(ElementCatalog.PlacementIssues(new[] { "W..W..W", "W..J..W", "W#####W" }, true, solid).Exists(i => i.Contains("弹簧板")), "弹簧板头顶贴天花板要报");
         // 裂缝沿同一行蔓延
@@ -1849,7 +1849,7 @@ public class Step1RushMarioTests
         Assert.AreEqual(140f, StrategySim.HandsOffTimeout(70f, 60f, 2f, 20f), "长关卡自动检查不误判卡住");
         Assert.AreEqual(150f, StrategySim.RoundTimeLimit(150f, 0f, 3f), "走不通 → 按基础时间");
         Assert.Greater(Step1PrankRoomBuilder.RouteSeconds(LevelWorkshopModel.LongHallSample, t), Step1PrankRoomBuilder.RouteSeconds(LevelWorkshopModel.LureSample, t), "长廊比诱捕走廊路线长");
-        Assert.AreEqual(15, MarioMindTuningSO.CurrentDataVersion, "新调参字段 → 数据版本 +1（旧资产自动补默认值）");
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 15, "新调参字段 → 数据版本 +1（旧资产自动补默认值）");
     }
 
     [Test]
@@ -1993,6 +1993,72 @@ public class Step1RushMarioTests
         int fixedStep = tc.IndexOf("private void FixedUpdate()");
         Assert.Greater(tc.IndexOf("HitsWall(_frameVelocity.x > 0f", fixedStep), tc.IndexOf("HandleDirection();", fixedStep), "贴墙判定在方向键之后（原来在之前 → 方向键又把朝墙速度加回去 = 粘墙）");
         StringAssert.Contains("BodyUnstick.Resolve(rb, boxCollider, groundLayer)", Read("Scripts/Player/MarioController.cs"));
+    }
+
+    // ── S216：手感 / 视觉 ─────────────────────────────────
+    [Test]
+    public void S216_LaunchArcsHaveGravityAndFitRooms()
+    {
+        var t = Tuning();
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 18);
+        // 旧 bug：硬直期往上飞没有重力。现在每一步都在减速
+        var v = Step1Feel.StunStep(new Vector2(0f, 15f), false, 0.02f, t.launchGravity, 40f, 0f, 0f, false);
+        Assert.Less(v.y, 15f, "往上飞也受重力");
+        var spring = Step1Feel.Simulate(new Vector2(t.springForwardPush, t.springLaunchSpeed), t.launchGravity, 40f, t.launchAirDrag, t.launchGroundFriction);
+        Assert.Greater(spring.apex, 2f); Assert.Less(spring.apex, ElementCatalog.SpringHeadroomCells - 0.9f, "弹簧弹高 + 身高 < 头顶空格（以前 0.6 秒匀速飘 9 格撞天花板）");
+        var blast = Step1Feel.Simulate(TricksterBomb.BlastVelocity(Vector2.zero, new Vector2(0.1f, 0f), t.bombRadius, t.bombKnockback, t.blastLift), t.launchGravity, 40f, t.launchAirDrag, t.launchGroundFriction);
+        Assert.Greater(blast.apex, 0.4f, "炸飞看得出往上掀"); Assert.Less(blast.range + blast.slideAfter, 4f, "以前被横着推 8 格");
+        Assert.Greater(TricksterBomb.BlastVelocity(Vector2.zero, new Vector2(0.1f, 0f), 2f, 6f, 8f).x, TricksterBomb.BlastVelocity(Vector2.zero, new Vector2(1.9f, 0f), 2f, 6f, 8f).x, "离爆心越近越猛");
+        var hurt = Step1Feel.Simulate(new Vector2(5f, KnockbackHelper.HurtLift(2f, t.hurtLift)), t.launchGravity, 40f, t.launchAirDrag, t.launchGroundFriction);
+        Assert.Greater(hurt.apex, 0.2f, "受伤有'哎哟'小跳"); Assert.Less(hurt.range + hurt.slideAfter, 3f);
+        // 落地才恢复控制；H9：最多多等 landGrace 秒
+        Assert.IsFalse(Step1Feel.StunOver(-0.1f, true, false, 1.5f));
+        Assert.IsTrue(Step1Feel.StunOver(-0.1f, true, true, 1.5f));
+        Assert.IsTrue(Step1Feel.StunOver(-1.6f, true, false, 1.5f), "H9：半空卡住也会结束");
+        Assert.IsTrue(Step1Feel.StunOver(0f, false, false, 1.5f), "普通受伤到时间就好");
+        // 香蕉皮：落地不刹车
+        var slide = Step1Feel.StunStep(new Vector2(7f, 0f), true, 0.1f, 40f, 40f, 2f, 40f, true);
+        Assert.AreEqual(7f, slide.x, 1e-3f);
+        Assert.Less(Step1Feel.StunStep(new Vector2(7f, 0f), true, 0.1f, 40f, 40f, 2f, 40f, false).x, 7f, "别的落地会刹停");
+    }
+
+    [Test]
+    public void S216_VisualCurvesAreSmoothAndReadable()
+    {
+        Assert.Greater(Step1Feel.TelegraphRate(8f, 1f), Step1Feel.TelegraphRate(8f, 0f), "预警越接近发动越急");
+        Vector2 a = Step1Feel.TelegraphShake(1f, 0.5f, 0.05f), b = Step1Feel.TelegraphShake(1.016f, 0.5f, 0.05f);
+        Assert.Less((a - b).magnitude, 0.05f, "预警抖动是平滑的（以前每帧随机跳）");
+        Assert.Less(Step1Feel.SpringPadScaleY(0f), 1f, "弹簧先压下"); Assert.Greater(Step1Feel.SpringPadScaleY(0.08f), 1f, "再弹出");
+        Assert.AreEqual(1f, Step1Feel.SpringPadScaleY(0.9f), 1e-3f, "最后回到原样");
+        Step1Feel.Ring(0f, 0.25f, out float s0, out float a0); Step1Feel.Ring(1f, 0.25f, out float s1, out float a1);
+        Assert.AreEqual(0.25f, s0, 1e-3f); Assert.AreEqual(1f, s1, 1e-3f); Assert.AreEqual(1f, a0, 1e-3f); Assert.AreEqual(0f, a1, 1e-3f);
+        Assert.AreEqual(1f, Step1Feel.HurtTint(0.01f, 0.18f)); Assert.AreEqual(0f, Step1Feel.HurtTint(0.5f, 0.18f));
+        Vector2 s = Step1Feel.ShakeOffset(3f, 0.3f, 1f), s2 = Step1Feel.ShakeOffset(3.01f, 0.3f, 1f);
+        Assert.LessOrEqual(s.magnitude, 0.3f * 1.5f); Assert.Less((s - s2).magnitude, 0.12f, "震屏平滑");
+        Assert.AreEqual(Vector2.zero, Step1Feel.ShakeOffset(3f, 0.3f, 0f), "结束干净");
+        Assert.AreEqual(0f, Step1Feel.DropProgress(0f, 0.12f)); Assert.AreEqual(1f, Step1Feel.DropProgress(0.12f, 0.12f));
+    }
+
+    [Test]
+    public void S216_Wiring()
+    {
+        string mc = CodeOnly(Read("Scripts/Player/MarioController.cs")), tc = CodeOnly(Read("Scripts/Enemy/TricksterController.cs"));
+        StringAssert.Contains("Step1Feel.StunStep(", mc); StringAssert.Contains("Step1Feel.StunStep(", tc);
+        StringAssert.Contains("Step1Feel.StunOver(", mc); StringAssert.Contains("Step1Feel.StunOver(", tc);
+        StringAssert.Contains("ApplyKnockbackStun(airStunSeconds, true, false)", Read("Scripts/LevelElements/Pranks/SpringPad.cs"));
+        StringAssert.Contains("ApplyKnockbackStun(slipSeconds, false, true)", Read("Scripts/LevelElements/Pranks/BananaPeel.cs"));
+        StringAssert.Contains("ApplyKnockbackStun(stun, true, false)", Read("Scripts/Gameplay/Step1/TricksterKit.cs"));
+        StringAssert.Contains("Step1Fx.Link(", Read("Scripts/Gameplay/Step1/ChainPlan.cs"), "连锁看得见导火线");
+        StringAssert.Contains("Step1Feel.ShakeOffset(", Read("Scripts/Gameplay/Step1/Step1RoomCamera.cs"));
+        StringAssert.Contains("Step1Feel.HurtTint(", Read("Scripts/Player/PlayerHealth.cs"));
+        StringAssert.Contains("LaunchFeel.Apply(tuning)", Read("Scripts/Gameplay/Step1/Step1Combo.cs"));
+        StringAssert.Contains("Step1Feel.TelegraphRate(", Read("Scripts/Ability/ControllablePropBase.cs"));
+        // 特效不碰物理（H4：马里奥不读特效）
+        string fx = CodeOnly(Read("Scripts/Gameplay/Step1/Step1Fx.cs"));
+        StringAssert.DoesNotContain("Collider2D", fx); StringAssert.DoesNotContain("Rigidbody2D", fx);
+        foreach (var f in new[] { "RushMarioMind", "MarioMindDriver", "MarioEyes", "MarioVision" })
+            StringAssert.DoesNotContain("Step1Fx", CodeOnly(Read("Scripts/Gameplay/Step1/" + f + ".cs")), "H4：马里奥不看特效");
+        Assert.LessOrEqual(Step1Fx.MaxAlive, 120, "同屏特效上限");
     }
 
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)

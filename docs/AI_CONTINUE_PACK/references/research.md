@@ -13,6 +13,7 @@
 - Spelunky 元素互相作用 = 涌现（https://critical-gaming.com/blog/2009/2/17/spelunky-a-game-design-gold-mine.html ，https://www.gamedeveloper.com/design/a-spelunky-game-design-analysis-pt-2）
 - 格斗游戏连招/顿帧/伤害递减（https://critpoints.net/2016/08/14/stunning-detail/）
 - Hitman 关卡设计（https://www.unsupervisednerds.com/reads-full/2020/8/19/level-design-in-hitman）
+- 手感（S216）：Smash 击飞 https://www.ssbwiki.com/Knockback 、Vlambeer screenshake https://www.youtube.com/watch?v=AJdEqssNZ-U 、Juice it or lose it https://www.youtube.com/watch?v=Fy0aCDmgnxg 、Eiserloh 相机 https://gdcvault.com/play/1023146/Math-for-Game-Programmers-Juicing
 - 魂系箱庭（https://book.leveldesignbook.com/studies/sp/undead-burg ，https://www.pcgamer.com/how-to-design-a-great-metroidvania-map/）
 
 S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入门练习关 `入门练习_起承转合4关.levelpack.json` 已用 C# 检查器验证通过）：

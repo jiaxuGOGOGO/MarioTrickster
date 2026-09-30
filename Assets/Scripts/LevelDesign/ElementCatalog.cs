@@ -99,7 +99,7 @@ public static class ElementCatalog
         I('C', "CollapsingPlatform", "塌桥", "Collapse bridge", Role.PlayerPrank, "捣蛋者按 L 让它塌；桥下有人时不会重新长出来。", "横跨在坑上；坑里要留出跳出来的路。", step1: true),
         I('[', "ControllableBlocker", "封路墙", "Blocker wall", Role.PlayerPrank, "捣蛋者按 L 升起一堵墙，挡住路 3.5 秒，不伤人。", "放在必经的门洞/窄道（脚下要实心）。", needsSupport: true, step1: true),
         I('~', "FireTrap", "火", "Fire", Role.PlayerPrank, "平时安全；捣蛋者按 L 喷火，烧到马里奥会晕。", "放在地面上（脚下要实心）。", needsSupport: true, step1: true),
-        I('J', "SpringPad", "弹簧板", "Spring pad", Role.PlayerPrank, "平时是普通地面；捣蛋者按 L 把站在上面的马里奥弹上天（空中不能动）→ 在落点摆好火/塌桥 = 浮空连招。", "放在地面层；正上方至少空 4 格（别弹到天花板）。", step1: true),
+        I('J', "SpringPad", "弹簧板", "Spring pad", Role.PlayerPrank, "平时是普通地面；捣蛋者按 L 把站在上面的马里奥弹上天（空中不能动）→ 在落点摆好火/塌桥 = 浮空连招。", "放在地面层；正上方至少空 4 格（弹起约 3 格高，别弹到天花板）。", step1: true),
         I('x', "CrackFloor", "裂缝地板", "Crack floor", Role.PlayerPrank, "平时是实心地面；捣蛋者按 L 打碎，站在上面的人掉到下一层（本回合不复原）。多层楼/地下监狱的'凿地板'。", "铺在楼层之间；碎后下面那层必须能走回出口（死局检查会查）。", step1: true),
         I('n', "BananaPeel", "香蕉皮", "Banana peel", Role.PlayerPrank, "平时是地上的装饰（可穿过）；捣蛋者按 L 后，踩上去的马里奥会朝前滑出约 3–4 格（打乱落点）→ 滑进火/裂缝前。", "放在地面上，前方留出滑行空间。", needsSupport: true, step1: true),
         I('|', "OneWayDoor", "捷径门", "Shortcut door", Role.Special, "只能从一侧（默认右侧）贴近推开，开了本回合一直开着。魂系'从另一边打开的门'：先绕远路，再回头打通捷径。", "放在两个区域之间的墙洞里；关着时整张图也必须能通关（死局检查按关着算）。", step1: true),

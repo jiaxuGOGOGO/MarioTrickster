@@ -30,3 +30,8 @@
 - 视觉子物体叫 `Visual`（视碰分离架构 S37），用 `transform.Find("Visual")`。
 - 碰撞体不能大于视觉（H3）。
 - 你自己（捣蛋者）是否也会中招要明确（公平原则：多数陷阱双方都会中）。
+
+## S216 手感清单（新机关必做）
+- 发动瞬间要有冲击画面（Step1Fx.Ring/Burst/Dust），范围型效果的冲击环 = 真实范围（H3 可读）。
+- 会把人弄飞的：用 ApplyKnockbackStun(秒, true, false)，在 sim S216 的 cases 里加一行（高度要 < 房间头顶空格）。
+- 状态变化不要瞬移（落下/吊起用 Step1Feel.DropProgress / SmoothStep01 缓动 0.1–0.3 秒）。

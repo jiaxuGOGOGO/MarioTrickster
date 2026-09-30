@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 17;
+    public const int CurrentDataVersion = 18;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -127,8 +127,8 @@ public class MarioMindTuningSO : ScriptableObject
     public float shakeSeconds = 0.25f;
 
     [Header("New pranks (S193)")]
-    [Tooltip("弹簧板弹起速度（格/秒）")]
-    public float springLaunchSpeed = 16f;
+    [Tooltip("弹簧板弹起速度（格/秒）。S216 起全程有重力 launchGravity=40：15 → 最高约 2.8 格，头顶空 4 格正好够")]
+    public float springLaunchSpeed = 15f;
     [Tooltip("弹簧板水平推送（格/秒）")]
     public float springForwardPush = 2.5f;
     [Tooltip("被弹起后空中不能动的时间（秒）")]
@@ -471,6 +471,24 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("S213 大地图：他离门还有几格路时你才能按 E 埋伏。以前任何时候按 E 都算埋伏（玩家模拟：直奔门口按 E 就全胜，躲藏/伪装/香蕉皮都没用）。太大 = 太容易，太小 = 他离你太近容易被看见")]
     public int overworldAmbushSteps = 8;
 
+    [Header("S216: 手感 / 被弹飞的抛物线 / 特效")]
+    [Tooltip("S216 被弹飞/打飞时的重力（格/秒²）。以前硬直期间往上飞没有重力 → 弹簧弹 11 格撞天花板、炸弹推 8 格像在月球。平时跳跃重力 80；这里略轻 → 有滞空感但仍是抛物线")]
+    public float launchGravity = 40f;
+    [Tooltip("S216 被弹飞时空中水平阻力（格/秒²）：飞得越久越慢，落点更好预判")]
+    public float launchAirDrag = 2f;
+    [Tooltip("S216 被打飞落地后的地面摩擦（格/秒²）：落地一小段就停，不会一直滑（香蕉皮除外）")]
+    public float launchGroundFriction = 40f;
+    [Tooltip("S216 被弹上天的人：计时到了还在空中就等落地再恢复控制，最多再等几秒（H9）")]
+    public float launchLandGraceSeconds = 1.5f;
+    [Tooltip("S216 受伤小跳（格/秒）：被火/刺/炮弹打中时至少往上弹这么快 → 约 0.45 格高、后退 1–2 格的'哎哟'小跳（马里奥系列的受伤反馈）")]
+    public float hurtLift = 6f;
+    [Tooltip("S216 炸弹/油桶把人往上掀的速度（格/秒）：有重力后约 0.8 格高的小跳，看得出'被炸飞'")]
+    public float blastLift = 8f;
+    [Tooltip("S216 受伤一瞬间红白闪的时长（秒），之后是原来的无敌闪烁")]
+    public float hurtHitFlashSeconds = 0.18f;
+    [Tooltip("S216 特效（冲击环、尘土、连锁火花线）开关。关掉只剩机关本身的闪烁（性能差的电脑用）")]
+    public bool juiceFx = true;
+
     /// <summary>把 S183 校准值写入旧资产（只在 dataVersion 较旧时执行一次）。返回是否有改动。</summary>
     public bool UpgradeData()
     {
@@ -569,6 +587,12 @@ public class MarioMindTuningSO : ScriptableObject
         if (dataVersion < 2)
         {
             autoCheckRoundTimeoutSeconds = 70f; // S184 房间变大，单局更长
+        }
+        // S216 放最后：比它旧的块会写旧的 springLaunchSpeed，这里要最后覆盖
+        if (dataVersion < 18)
+        {
+            launchGravity = 40f; launchAirDrag = 2f; launchGroundFriction = 40f; launchLandGraceSeconds = 1.5f;
+            springLaunchSpeed = 15f; hurtLift = 6f; blastLift = 8f; hurtHitFlashSeconds = 0.18f; juiceFx = true;
         }
         dataVersion = CurrentDataVersion;
         return true;

@@ -89,6 +89,7 @@ public class CrackFloor : ControllableLevelElement
                 if (s_hits[i] != null && s_hits[i].GetComponentInParent<MarioController>() != null) { if (!s_fellFrame.Equals(Time.frameCount)) { s_fellFrame = Time.frameCount; CrackFloorEvents.RaiseMarioFell(); } break; }
         }
         broken = true;
+        Step1Fx.Burst(transform.position, 5, new Color(0.55f, 0.45f, 0.35f, 1f), 3f, Vector2.down, 120f, 20f, 0.2f, 0.55f); // S216：碎块往下掉
         if (body != null) body.enabled = false;
         if (visual != null) visual.gameObject.SetActive(false);
         else if (spriteRenderer != null) spriteRenderer.enabled = false;

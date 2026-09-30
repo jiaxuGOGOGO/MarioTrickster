@@ -119,6 +119,7 @@ public class TricksterController : MonoBehaviour
     // ── 击退 stun 状态 (Session 16: B023) ─────────────────
     private bool _isKnockbackStunned;
     private float _knockbackStunTimer;
+    private bool _stunUntilLanded; // S216：被发射/炸飞 → 落地才恢复控制
 
     // ── 朝向 ──────────────────────────────────────────────
     private bool isFacingRight = true;
@@ -224,9 +225,9 @@ public class TricksterController : MonoBehaviour
         if (_isKnockbackStunned)
         {
             _knockbackStunTimer -= Time.deltaTime;
-            if (_knockbackStunTimer <= 0f)
+            if (Step1Feel.StunOver(_knockbackStunTimer, _stunUntilLanded, _grounded, LaunchFeel.landGrace))
             {
-                _isKnockbackStunned = false;
+                _isKnockbackStunned = false; _stunUntilLanded = false;
             }
         }
 
@@ -262,12 +263,11 @@ public class TricksterController : MonoBehaviour
             _platformVelocity = Vector2.zero;
 
             _frameVelocity = rb.velocity;
-
-            if (_frameVelocity.y <= 0f)
-            {
-                _frameVelocity.y = Mathf.MoveTowards(
-                    _frameVelocity.y, -maxFallSpeed, fallAcceleration * Time.fixedDeltaTime);
-            }
+            // S216：与马里奥同一条规则——全程重力（抛物线）+ 空中阻力 + 落地摩擦
+            if (!rb.isKinematic) CheckCollisions();
+            _frameVelocity = Step1Feel.StunStep(_frameVelocity, _grounded, Time.fixedDeltaTime,
+                LaunchFeel.gravity, maxFallSpeed, LaunchFeel.airDrag, LaunchFeel.groundFriction, false);
+            if (_grounded && _frameVelocity.y <= 0f) _frameVelocity.y = groundingForce;
 
             rb.velocity = _frameVelocity;
             return;
@@ -456,6 +456,7 @@ public class TricksterController : MonoBehaviour
     /// </summary>
     public void ApplyKnockbackStun(float duration = -1f)
     {
+        _stunUntilLanded = false;
         _isKnockbackStunned = true;
         _knockbackStunTimer = duration > 0f ? duration : knockbackStunDuration;
     }
@@ -472,6 +473,7 @@ public class TricksterController : MonoBehaviour
         _frameVelocity = velocity;
         rb.velocity = velocity;
         ApplyKnockbackStun(Mathf.Max(0.05f, stunSeconds));
+        _stunUntilLanded = velocity.y > 0.5f; // S216：往上飞的要等落地
     }
 
     #endregion

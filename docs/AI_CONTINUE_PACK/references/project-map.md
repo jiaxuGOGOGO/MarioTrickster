@@ -111,3 +111,9 @@
 - `Overworld/CampaignLedger.cs`：按门顺序汇总房间（主角机关 / 第一次出现 / 道具 / 提醒）。小镇工坊侧栏 LedgerPanel、网页 `owLedger`/`owLedgerLines`（overworld.js 末尾）+ `owLedgerRender`（app.js）。改规则两边一起改，verify 逐字对照（ow_ledger.json）。
 - 炸弹预算：小镇房间按 `bombsPerRound + OverworldTown.MaxBonusBombs` 加固（`Step1PrankRoomBuilder.ExtraBombs`，OverworldBuilder 建房前设、finally 归零）。改 MaxBonusBombs 要升 BuilderVersion。
 - 旧工具菜单在 `MarioTrickster/旧工具 (Legacy)/`；`Run Tests/`、`Art Pipeline/` 路径别改（TestConsoleWindow 用 ExecuteMenuItem 调）。窗口之间跳转直接调 `XxxWindow.Open()`，不要用菜单字符串。
+
+## S216 手感
+- `Gameplay/Step1/Step1Feel.cs`：所有手感曲线纯函数（StunStep 硬直期物理、Simulate 弹飞轨迹、StunOver 落地才恢复、TelegraphRate/Shake、SpringPadScaleY、Ring、HurtTint、ShakeOffset 平滑噪声）+ `LaunchFeel` 运行时参数（Step1Combo.Start 从调参写入）。
+- `Gameplay/Step1/Step1Fx.cs`：冲击环/颗粒/尘土/连锁火花线，纯画面，不许加碰撞体（H4）；同屏上限 MaxAlive。
+- 让人"飞起来"的新机关：设速度后调 `mario.ApplyKnockbackStun(秒, untilLanded: true, slide: false)`；别再写"硬直期没重力"的代码。sim S216 会检查弹高 < 头顶空格。
+- 震屏用 `Step1RoomCamera.Current.Shake(幅度, 秒)`，不要 FindObjectOfType。

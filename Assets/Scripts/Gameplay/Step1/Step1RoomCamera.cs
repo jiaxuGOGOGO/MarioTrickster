@@ -11,6 +11,10 @@ using UnityEngine;
 [RequireComponent(typeof(Camera))]
 public class Step1RoomCamera : MonoBehaviour
 {
+    /// <summary>S216：当前房间摄像机（陷阱震屏用，免得每次 FindObjectOfType）。</summary>
+    public static Step1RoomCamera Current { get; private set; }
+    private void OnEnable() { Current = this; }
+    private void OnDisable() { if (Current == this) Current = null; }
     [SerializeField] private MarioMindTuningSO tuning;
     [SerializeField] private Rect roomBounds = new Rect(0f, 0f, 36f, 10f);
     [SerializeField] private Transform mario;
@@ -93,8 +97,9 @@ public class Step1RoomCamera : MonoBehaviour
         basePos = Vector3.Lerp(basePos, target, k);
         // S193：连招震屏（真实时间计时，顿帧期间也在抖）
         float left = shakeUntil - Time.unscaledTime;
+        // S216：平滑噪声震屏、强度按剩余比例平方收尾（Eiserloh《Juicing Your Cameras With Math》），不再每帧随机跳
         shakeOffset = left > 0f && shakeDuration > 0f
-            ? (Vector3)(Random.insideUnitCircle * shakeAmp * (left / shakeDuration))
+            ? (Vector3)Step1Feel.ShakeOffset(Time.unscaledTime, shakeAmp, left / shakeDuration)
             : Vector3.zero;
         transform.position = basePos + shakeOffset;
         cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, size, k);

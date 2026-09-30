@@ -17,6 +17,9 @@ public class PlayerHealth : MonoBehaviour
     private bool isInvincible;
     private float invincibleTimer;
     private SpriteRenderer spriteRenderer;
+    private float hitAt = -10f;           // S216
+    private bool tinting;                 // S216
+    private Color baseColor = Color.white; // S216：闪完回到原来的颜色（伪装/主题色不丢）
 
     // ── Test Console 调试开关（仅 Editor/Development Build 可用）──
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -40,6 +43,7 @@ public class PlayerHealth : MonoBehaviour
     {
         // S37: 视碰分离 — SpriteRenderer 可能在子物体 Visual 上
         spriteRenderer = GetComponentInChildren<SpriteRenderer>();
+        if (spriteRenderer != null) baseColor = spriteRenderer.color;
         currentHealth = maxHealth;
     }
 
@@ -49,12 +53,19 @@ public class PlayerHealth : MonoBehaviour
         {
             invincibleTimer -= Time.deltaTime;
 
-            // 闪烁效果
+            // 闪烁效果（S216：被打中的前 LaunchFeel.hurtFlash 秒先整个人红白闪一下 = "哎哟"的冲击点，之后才是无敌半透明闪烁）
             float alpha = Mathf.PingPong(Time.time / blinkInterval, 1f) > 0.5f ? 1f : 0.3f;
+            float tint = Step1Feel.HurtTint(Time.time - hitAt, LaunchFeel.hurtFlash);
             if (spriteRenderer != null)
             {
-                Color c = spriteRenderer.color;
-                c.a = alpha;
+                Color c;
+                if (tint > 0f) { tinting = true; c = Color.Lerp(baseColor, (Mathf.FloorToInt((Time.time - hitAt) / 0.045f) % 2 == 0) ? Color.white : new Color(1f, 0.25f, 0.2f), tint); c.a = 1f; }
+                else
+                {
+                    // 闪完只恢复一次原色，之后和以前一样只改透明度（不覆盖别的系统的颜色效果）
+                    if (tinting) { tinting = false; c = baseColor; } else c = spriteRenderer.color;
+                    c.a = alpha;
+                }
                 spriteRenderer.color = c;
             }
 
@@ -63,7 +74,8 @@ public class PlayerHealth : MonoBehaviour
                 isInvincible = false;
                 if (spriteRenderer != null)
                 {
-                    Color c = spriteRenderer.color;
+                    Color c = tinting ? baseColor : spriteRenderer.color;
+                    tinting = false;
                     c.a = 1f;
                     spriteRenderer.color = c;
                 }
@@ -81,6 +93,9 @@ public class PlayerHealth : MonoBehaviour
         if (isInvincible || currentHealth <= 0) return;
 
         currentHealth = Mathf.Max(0, currentHealth - damage);
+        hitAt = Time.time;
+        if (spriteRenderer != null && !isInvincible) baseColor = new Color(spriteRenderer.color.r, spriteRenderer.color.g, spriteRenderer.color.b, 1f);
+        Step1Fx.Burst((Vector2)transform.position + Vector2.up * 0.5f, 6, new Color(1f, 0.95f, 0.5f, 1f), 5f, Vector2.up, 200f, 10f, 0.12f, 0.3f); // S216：受击星星
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
 
         if (currentHealth <= 0)
@@ -108,6 +123,9 @@ public class PlayerHealth : MonoBehaviour
     {
         currentHealth = maxHealth;
         isInvincible = false;
+        hitAt = -10f;
+        if (spriteRenderer != null && tinting) { var c = baseColor; c.a = 1f; spriteRenderer.color = c; }
+        tinting = false;
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 }

@@ -161,6 +161,7 @@ public class ChainPlan : MonoBehaviour
         var p = prop as ControllablePropBase;
         if (p == null || !links.Contains(p)) return;
         fired.Add(p); GoLive(); Announce();
+        lastLinkAt = p.transform.position;
     }
 
     private void HandleTripped(Vector2 at)
@@ -168,14 +169,19 @@ public class ChainPlan : MonoBehaviour
         if (links.Count == 0) return;
         GoLive();
         flash = Step1Text.ChainStarted; flashUntil = Time.time + 1.2f;
+        lastLinkAt = at;
     }
 
     private void GoLive() { if (!Live) step = 0; liveUntil = Time.time + tuning.chainLiveSeconds; }
 
+    private Vector2? lastLinkAt;
     private void Fire(ControllablePropBase l, bool auto)
     {
+        // S216：连锁"导火线"——上一环 → 这一环一道火花，玩家看得见是谁引发了谁（不再是远处突然自己动了）
+        if (lastLinkAt.HasValue) Step1Fx.Link(lastLinkAt.Value + Vector2.up * 0.5f, (Vector2)l.transform.position + Vector2.up * 0.5f, new Color(1f, 0.6f, 0.25f, 1f));
         l.OnTricksterActivate(mario != null && mario.position.x < l.transform.position.x ? Vector2.left : Vector2.right);
         fired.Add(l);
+        lastLinkAt = l.transform.position;
         LinkFired?.Invoke(l);
         liveUntil = Time.time + tuning.chainLiveSeconds;
         Announce();
@@ -193,7 +199,7 @@ public class ChainPlan : MonoBehaviour
     {
         if (step >= 3) { flash = Step1Text.ChainPerfect; flashUntil = Time.time + 1.6f; PerfectChain?.Invoke(step); }
         links.RemoveAll(l => fired.Contains(l));
-        fired.Clear(); liveUntil = -1f;
+        fired.Clear(); liveUntil = -1f; lastLinkAt = null;
     }
 
     private void OnGUI()

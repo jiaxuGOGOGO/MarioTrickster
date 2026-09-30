@@ -54,7 +54,9 @@ public class BananaPeel : ControllableLevelElement
         if (rb == null) return;
         slippedThisActivation = true;
         rb.velocity = SlideVelocity(mario.IsFacingRight, slideSpeed);
-        mario.ApplyKnockbackStun(slipSeconds);
+        mario.ApplyKnockbackStun(slipSeconds, false, true); // S216：地面不刹车（就是要滑出去）
+        Step1Fx.Burst(transform.position, 5, new Color(1f, 0.9f, 0.3f, 1f), 4f, mario.IsFacingRight ? Vector2.left : Vector2.right, 70f, 14f, 0.13f, 0.35f);
+        Step1Fx.Dust(transform.position, 0.8f);
         Slipped?.Invoke(mario);
         BananaPeelEvents.RaiseSlipped();
     }

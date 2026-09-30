@@ -68,6 +68,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     protected SpriteRenderer spriteRenderer;
     protected Color originalColor;
     private Vector3 originalLocalPosition;
+    private float _telegraphPhase; // S216
     protected MarioSuspicionTracker suspicionTracker;
 
     // Session 20: 高亮状态
@@ -207,16 +208,20 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         // 预警视觉效果：闪烁
         if (spriteRenderer != null)
         {
-            float flash = Mathf.Sin(Time.time * telegraphFlashRate * Mathf.PI * 2f);
+            // S216：越接近发动闪得越急（anticipation）；用累积相位，变频时不会跳帧
+            float progress = telegraphDuration > 0f ? 1f - Mathf.Clamp01(stateTimer / telegraphDuration) : 1f;
+            _telegraphPhase += Time.deltaTime * Step1Feel.TelegraphRate(telegraphFlashRate, progress) * Mathf.PI * 2f;
+            float flash = Mathf.Sin(_telegraphPhase);
             spriteRenderer.color = Color.Lerp(originalColor, telegraphColor, (flash + 1f) * 0.5f);
         }
 
         // 预警视觉效果：震动
         if (telegraphShake)
         {
-            float shakeX = Random.Range(-telegraphShakeIntensity, telegraphShakeIntensity);
-            float shakeY = Random.Range(-telegraphShakeIntensity, telegraphShakeIntensity);
-            transform.localPosition = originalLocalPosition + new Vector3(shakeX, shakeY, 0f);
+            // S216：平滑抖动、幅度随进度变大（以前每帧随机跳 = 看着"抽搐"）
+            float progress = telegraphDuration > 0f ? 1f - Mathf.Clamp01(stateTimer / telegraphDuration) : 1f;
+            Vector2 sh = Step1Feel.TelegraphShake(Time.time, progress, telegraphShakeIntensity);
+            transform.localPosition = originalLocalPosition + new Vector3(sh.x, sh.y, 0f);
         }
 
         // 预警结束 → 进入激活

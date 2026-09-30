@@ -168,6 +168,9 @@ public class TricksterBomb : MonoBehaviour
         {
             float rate = Mathf.Lerp(12f, 3f, fuse / total);
             sr.color = Mathf.Sin(Time.time * rate * Mathf.PI) > 0f ? new Color(1f, 0.25f, 0.15f) : new Color(0.1f, 0.1f, 0.1f);
+            // S216：最后 0.3 秒鼓起来（预备动作），告诉你"马上炸"
+            float swell = fuse < 0.3f ? 1f + 0.35f * (1f - fuse / 0.3f) : 1f;
+            sr.transform.localScale = Vector3.one * 0.45f * swell;
         }
         if (fuse <= 0f) Explode();
     }
@@ -206,34 +209,47 @@ public class TricksterBomb : MonoBehaviour
             var prop = h.GetComponentInParent<SceneryProp>(); if (prop != null) { prop.BlowUp(); continue; }
             var cage = h.GetComponentInParent<IronCage>(); if (cage != null) { cage.BreakOpen(); continue; }
             var mario = h.GetComponentInParent<MarioController>();
-            if (mario != null && !hitMario) { hitMario = true; HurtMario(mario, c, stun, knock, damageMario); continue; }
+            if (mario != null && !hitMario) { hitMario = true; HurtMario(mario, c, radius, stun, knock, damageMario); continue; }
             var figure = h.GetComponentInParent<TricksterController>();
-            if (figure != null && !hitFigure) { hitFigure = true; HurtFigure(figure, c, stun, knock, damageSelf); continue; }
+            if (figure != null && !hitFigure) { hitFigure = true; HurtFigure(figure, c, radius, stun, knock, damageSelf); continue; }
         }
         foreach (var d in new System.Collections.Generic.List<Destructible>(Destructible.All)) if (d != null) d.Blast(c, radius);
         Exploded?.Invoke(c);
+        // S216：爆炸画面 = 半径一样大的冲击环（H3：看得见范围）+ 火星 + 黑烟
+        Step1Fx.Ring(c, radius, source != null ? new Color(1f, 0.55f, 0.15f, 1f) : new Color(1f, 0.8f, 0.35f, 1f));
+        Step1Fx.Burst(c, 10, new Color(1f, 0.6f, 0.2f, 1f), 7f, Vector2.zero, 360f, 12f, 0.16f, 0.45f);
+        Step1Fx.Burst(c, 6, new Color(0.2f, 0.2f, 0.2f, 0.85f), 2.5f, Vector2.up, 120f, -3f, 0.3f, 0.7f);
         Step1Hint.Show(source != null ? Step1Text.BarrelBoom : Step1Text.BombBoom);
-        var cam = Object.FindObjectOfType<Step1RoomCamera>();
+        var cam = Step1RoomCamera.Current;
         if (cam != null) cam.Shake(source != null ? 0.45f : 0.35f, 0.35f);
     }
 
     /// <summary>纯逻辑：爆炸击退方向（左右取决于相对位置；正中间朝右）。</summary>
     public static Vector2 KnockDir(Vector2 center, Vector2 target) => new Vector2(target.x >= center.x ? 1f : -1f, 0.6f);
 
-    private static void HurtMario(MarioController mario, Vector2 c, float stun, float knock, int damageMario)
+    /// <summary>S216 纯逻辑：爆炸击飞速度 = 横向 knock + 向上 max(knock×0.6, lift)，离中心越近越猛（边缘 60%）。</summary>
+    public static Vector2 BlastVelocity(Vector2 center, Vector2 target, float radius, float knock, float lift)
+    {
+        float d = radius > 0f ? Mathf.Clamp01((target - center).magnitude / radius) : 0f;
+        float k = Mathf.Lerp(1f, 0.6f, d);
+        var dir = KnockDir(center, target);
+        return new Vector2(dir.x * knock * k, Mathf.Max(dir.y * knock, lift) * k);
+    }
+
+    private static void HurtMario(MarioController mario, Vector2 c, float radius, float stun, float knock, int damageMario)
     {
         var rb = mario.GetComponent<Rigidbody2D>();
-        if (rb != null) rb.velocity = KnockDir(c, mario.transform.position) * knock;
-        mario.ApplyKnockbackStun(stun);
+        if (rb != null) rb.velocity = BlastVelocity(c, mario.transform.position, radius, knock, LaunchFeel.blastLift);
+        mario.ApplyKnockbackStun(stun, true, false); // S216：炸飞 → 抛物线落地后才晕完
         var health = mario.GetComponent<PlayerHealth>();
         if (health != null && damageMario > 0) health.TakeDamage(damageMario); // S198：炸到马里奥掉血
         BombEvents.RaiseMarioBlasted();
     }
 
-    private static void HurtFigure(TricksterController figure, Vector2 c, float stun, float knock, int damageSelf)
+    private static void HurtFigure(TricksterController figure, Vector2 c, float radius, float stun, float knock, int damageSelf)
     {
         // S198：炸到自己也掉命（公平 + 风险）；无敌期内不掉
-        figure.Launch(KnockDir(c, figure.transform.position) * knock, stun);
+        figure.Launch(BlastVelocity(c, figure.transform.position, radius, knock, LaunchFeel.blastLift), stun);
         var lives = Object.FindObjectOfType<TricksterLives>();
         if (lives != null && damageSelf > 0) lives.HitBySelf(damageSelf);
     }

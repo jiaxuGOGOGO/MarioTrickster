@@ -132,7 +132,25 @@ static class CHECK {
     var web=File.Exists("ow_ledger.json")?(MiniJson.Parse(File.ReadAllText("ow_ledger.json"),out _) as List<object>)?.Select(x=>(string)x).ToList():null;
     bool same=web!=null&&web.SequenceEqual(mine); if(web!=null&&!same){ lb++; foreach(var x in mine.Except(web).Take(3)) Console.WriteLine("       Unity: "+x); foreach(var x in web.Except(mine).Take(3)) Console.WriteLine("       网页: "+x); }
     Console.WriteLine($"[{(lb==0?"OK":"FAIL")}] S215 一天总览：{string.Join("｜",rep.rooms.Select(r=>$"门{r.door} 主角{r.star} 新{r.firstTime.Count}"))}｜提醒 {rep.warnings.Count} 条{(web==null?"（网页对照跳过）":same?"，网页一致":"，网页不一致")}"); fail+=lb; }
+  // S216：被弹飞/打飞的抛物线（用游戏同一份 Step1Feel.StunStep 模拟）——高度要装得进房间、距离要读得懂
+  { int fb=0; var t=MarioMindTuningSO.LoadOrDefault(); float g=t.launchGravity, dr=t.launchAirDrag, gf=t.launchGroundFriction;
+    var cases=new (string zh, UnityEngine.Vector2 v, float minApex, float maxApex, float maxRange)[]{
+      ("弹簧板", new UnityEngine.Vector2(t.springForwardPush, t.springLaunchSpeed), 2f, ElementCatalog.SpringHeadroomCells-1f, 3f),
+      ("炸弹(中心)", new UnityEngine.Vector2(t.bombKnockback, Math.Max(t.bombKnockback*0.6f, t.blastLift)), 0.4f, 2f, 4f),
+      ("人肉大炮", new UnityEngine.Vector2(18.5f*0.766f, 18.5f*0.643f), 1f, 3.5f, 12f),
+      ("炮弹命中", new UnityEngine.Vector2(7f, KnockbackHelperLift(3f,t.hurtLift)), 0.2f, 1f, 3f),
+      ("火/刺受伤", new UnityEngine.Vector2(5f, KnockbackHelperLift(2f,t.hurtLift)), 0.2f, 1f, 3f) };
+    var parts=new List<string>();
+    foreach(var cs in cases){ var arc=Step1Feel.Simulate(cs.v,g,40f,dr,gf); float total=arc.range+arc.slideAfter;
+      bool ok=arc.apex>=cs.minApex&&arc.apex<=cs.maxApex&&total<=cs.maxRange; if(!ok){fb++; Console.WriteLine($"     [FAIL] {cs.zh}: 高 {arc.apex:0.0} 格（要 {cs.minApex}–{cs.maxApex}），远 {total:0.0} 格（≤{cs.maxRange}）");}
+      parts.Add($"{cs.zh} 高{arc.apex:0.0}远{total:0.0}"); }
+    // 旧 bug 的对照：没有重力往上飞（只为报告）
+    float oldSpring=t.springLaunchSpeed*t.springAirStunSeconds;
+    if(Step1Feel.StunOver(0.1f,true,false,1.5f)||!Step1Feel.StunOver(-0.1f,true,true,1.5f)||!Step1Feel.StunOver(-1.6f,true,false,1.5f)){fb++;Console.WriteLine("     [FAIL] 落地才恢复控制 / 最多多等 1.5 秒");}
+    if(Step1Feel.TelegraphRate(8f,1f)<=Step1Feel.TelegraphRate(8f,0f)){fb++;Console.WriteLine("     [FAIL] 预警越来越急");}
+    Console.WriteLine($"[{(fb==0?"OK":"FAIL")}] S216 抛物线：{string.Join("｜",parts)}（以前弹簧硬直期没重力：0.6 秒匀速上飘 {oldSpring:0.0} 格）"); fail+=fb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
+  static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);
   static string[] Step1PrankRoomBuilderRoom()=>File.ReadAllText("room_template.txt").Replace("\r","").Split('\n').Where(l=>l.Length>0).ToArray();
  }}

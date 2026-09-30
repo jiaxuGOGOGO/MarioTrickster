@@ -22,6 +22,7 @@ public class OilBarrel : LevelElementBase
     private Transform visual;
     private SpriteRenderer sr;
     private Color baseColor;
+    private Vector3 visualHome;
     private static readonly List<OilBarrel> all = new List<OilBarrel>();
     public static IReadOnlyList<OilBarrel> All => all;
     public bool Lit => fuse >= 0f;
@@ -66,6 +67,8 @@ public class OilBarrel : LevelElementBase
         if (fuse < 0f) return;
         fuse -= Time.deltaTime;
         if (sr != null) sr.color = Mathf.Sin(Time.time * 30f) > 0f ? new Color(1f, 0.35f, 0.1f) : baseColor;
+        if (visual != null) { if (visualHome == Vector3.zero) visualHome = visual.localScale; float k = 1f + 0.18f * (1f - Mathf.Clamp01(fuse / fuseSeconds)); visual.localScale = visualHome * k; } // S216：鼓起来
+        if (fuse > 0f && Random.value < 0.25f) Step1Fx.Burst((Vector2)transform.position + Vector2.up * 0.5f, 1, new Color(1f, 0.6f, 0.2f, 1f), 2f, Vector2.up, 60f, -1f, 0.1f, 0.3f);
         if (fuse <= 0f) Explode();
     }
 
@@ -84,7 +87,7 @@ public class OilBarrel : LevelElementBase
     {
         exploded = false; fuse = -1f;
         if (body != null) body.enabled = true;
-        if (visual != null) visual.gameObject.SetActive(true);
+        if (visual != null) { visual.gameObject.SetActive(true); if (visualHome != Vector3.zero) visual.localScale = visualHome; }
         if (sr != null) sr.color = baseColor;
     }
 }

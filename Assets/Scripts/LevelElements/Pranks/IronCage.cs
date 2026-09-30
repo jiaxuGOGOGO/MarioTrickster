@@ -45,7 +45,7 @@ public class IronCage : ControllableLevelElement
     {
         if (used) return;
         used = true;
-        if (visual != null) visual.localPosition = Vector3.zero;
+        dropT = 0f; // S216：笼子加速落下（0.12 秒），不是瞬移
         int n = Physics2D.OverlapBoxNonAlloc(transform.position, new Vector2(0.9f, 1f), 0f, s_hits);
         for (int i = 0; i < n; i++)
         {
@@ -59,6 +59,22 @@ public class IronCage : ControllableLevelElement
             if (mario != null) { mario.ApplyKnockbackStun(holdSeconds); MarioCaged?.Invoke(mario); Step1Hint.Show(Step1Text.CageMario, 2f); }
             else { figure.ApplyKnockbackStun(holdSeconds); Step1Hint.Show(Step1Text.CageYou, 2f); }
             break;
+        }
+    }
+
+    private float dropT = -1f;
+    private const float DropTime = 0.12f;
+    protected override void Update()
+    {
+        base.Update();
+        if (dropT < 0f || visual == null) return;
+        dropT += Time.deltaTime;
+        visual.localPosition = Vector3.Lerp(visualHome, Vector3.zero, Step1Feel.DropProgress(dropT, DropTime));
+        if (dropT >= DropTime)
+        {
+            dropT = -1f;
+            Step1Fx.Dust((Vector2)transform.position + Vector2.down * 0.5f, 1.2f);
+            var cam = Step1RoomCamera.Current; if (cam != null) cam.Shake(0.12f, 0.15f);
         }
     }
 
@@ -79,7 +95,7 @@ public class IronCage : ControllableLevelElement
     public override void OnLevelReset()
     {
         base.OnLevelReset();
-        prisoner = null; used = false;
+        prisoner = null; used = false; dropT = -1f;
         if (visual != null) { visual.gameObject.SetActive(true); visual.localPosition = visualHome; }
     }
 }

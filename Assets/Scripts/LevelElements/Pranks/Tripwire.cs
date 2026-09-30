@@ -36,6 +36,7 @@ public class Tripwire : LevelElementBase
         mario.ApplyKnockbackStun(stumbleSeconds);
         var rb = mario.GetComponent<Rigidbody2D>(); if (rb != null) rb.velocity = new Vector2(rb.velocity.x * 0.3f, rb.velocity.y);
         if (visual != null) visual.gameObject.SetActive(false);
+        Step1Fx.Burst(transform.position, 4, new Color(0.9f, 0.9f, 0.8f, 1f), 3f, Vector2.up, 150f, 14f, 0.1f, 0.3f); // S216：线崩断
         Tripped?.Invoke(transform.position);
         Step1Hint.Show(Step1Text.TripwireHit, 1.5f);
     }

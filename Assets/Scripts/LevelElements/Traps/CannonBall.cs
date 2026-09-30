@@ -56,10 +56,11 @@ public class CannonBall : MonoBehaviour
                 var rb = other.attachedRigidbody;
                 if (rb != null)
                 {
-                    Vector2 push = new Vector2(Mathf.Sign(velocity.x) * knockback, knockbackUp);
+                    Vector2 push = new Vector2(Mathf.Sign(velocity.x) * knockback, KnockbackHelper.HurtLift(knockbackUp, LaunchFeel.hurtLift));
                     rb.velocity = Vector2.zero;
                     rb.AddForce(push, ForceMode2D.Impulse);
                     KnockbackHelper.NotifyKnockbackStun(other);
+                    var cam = Step1RoomCamera.Current; if (cam != null) cam.Shake(0.18f, 0.2f);
                 }
             }
             Pop();
@@ -72,7 +73,11 @@ public class CannonBall : MonoBehaviour
 
     private void Pop()
     {
+        if (spent) return;
         spent = true;
+        // S216：碎裂冲击点（看得见"打中了哪里"），碎片顺着炮弹飞行方向散开
+        Step1Fx.Ring(transform.position, 0.8f, new Color(1f, 0.85f, 0.4f, 1f));
+        Step1Fx.Burst(transform.position, 6, new Color(0.25f, 0.25f, 0.25f, 1f), 5f, -velocity.normalized, 140f, 16f, 0.14f, 0.4f);
         Destroy(gameObject);
     }
 }

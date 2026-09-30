@@ -51,6 +51,7 @@ public class PranksterCannon : ControllableLevelElement
     [SerializeField] private float launchCooldown = 30f;
 
     private int shotsLeft;
+    private float recoilAt = -10f;
     private float loadTimer = -1f;
     private float launchCooldownTimer;
     private Transform loading;           // 正在装填的人（马里奥或捣蛋者）
@@ -159,7 +160,8 @@ public class PranksterCannon : ControllableLevelElement
         {
             float a = loading != null ? loadingAim : aimAngle;
             Vector2 d = AimDirection(facingRight, a);
-            barrel.localPosition = (Vector3)(d * 0.45f);
+            float rk = Time.time - recoilAt; float recoil = rk < 0.25f ? 0.2f * (1f - rk / 0.25f) : 0f; // S216 后坐
+            barrel.localPosition = (Vector3)(d * (0.45f - recoil));
             barrel.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
         }
         if (loading != null)
@@ -209,6 +211,10 @@ public class PranksterCannon : ControllableLevelElement
         var ball = go.AddComponent<CannonBall>();
         ball.Launch(transform, dir * ballSpeed, ballLifetime, ballDamage, ballKnockback, ballKnockbackUp);
         Fired?.Invoke(ball);
+        // S216：炮口火光 + 烟 + 炮管后坐（画面）
+        Step1Fx.Ring((Vector2)transform.position + dir * 0.8f, 0.6f, new Color(1f, 0.75f, 0.3f, 1f));
+        Step1Fx.Burst((Vector2)transform.position + dir * 0.8f, 5, new Color(0.8f, 0.8f, 0.8f, 0.8f), 3f, dir, 60f, -2f, 0.2f, 0.45f);
+        recoilAt = Time.time;
     }
 
     // ── 人肉炮弹（捣蛋者与马里奥都能用）──────────────────
@@ -277,10 +283,13 @@ public class PranksterCannon : ControllableLevelElement
             {
                 var rb = mario.GetComponent<Rigidbody2D>();
                 if (rb != null) rb.velocity = v;
-                mario.ApplyKnockbackStun(launchStunSeconds + 0.35f);
+                mario.ApplyKnockbackStun(launchStunSeconds + 0.35f, true, false); // S216：飞到落地为止
                 MarioLaunched?.Invoke(mario);
             }
         }
         launchCooldownTimer = launchCooldown;
+        Step1Fx.Ring((Vector2)transform.position + v.normalized * 0.8f, 0.8f, new Color(1f, 0.75f, 0.3f, 1f));
+        Step1Fx.Burst((Vector2)transform.position + v.normalized * 0.8f, 6, new Color(0.8f, 0.8f, 0.8f, 0.8f), 3f, v, 60f, -2f, 0.2f, 0.45f);
+        recoilAt = Time.time;
     }
 }

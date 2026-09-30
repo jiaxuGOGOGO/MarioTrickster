@@ -22,6 +22,7 @@ public class SnareTrap : ControllableLevelElement
     private Rigidbody2D victimBody;
     private float timer;
     private bool armed = true, hoisted;
+    private float hoistT;
     private Vector3 hangPos;
     public bool Armed => armed;
     public bool Holding => victim != null;
@@ -73,10 +74,15 @@ public class SnareTrap : ControllableLevelElement
         if (!hoisted)
         {
             if (timer > 0f) return;
-            hoisted = true; timer = holdSeconds;
+            hoisted = true; timer = holdSeconds; hoistT = 0f;
+            Step1Fx.Burst(transform.position, 4, new Color(0.8f, 0.65f, 0.4f, 1f), 3f, Vector2.up, 90f, 10f, 0.12f, 0.35f);
         }
         // 吊着：固定在绳套上方（H9：位置是地图里的空气格，不会卡墙——摆放规则要求上方 2 格空）
-        victim.position = hangPos;
+        // S216：前 0.25 秒缓动拉上去（以前一帧瞬移 1.5 格），之后轻轻晃
+        hoistT += Time.fixedDeltaTime;
+        float up = Step1Feel.SmoothStep01(hoistT / 0.25f);
+        Vector3 from = new Vector3(hangPos.x, hangPos.y - hoistHeight, hangPos.z);
+        victim.position = Vector3.Lerp(from, hangPos, up) + Vector3.right * (up >= 1f ? Mathf.Sin(hoistT * 3f) * 0.06f : 0f);
         if (victimBody != null) victimBody.velocity = Vector2.zero;
         var m = victim.GetComponent<MarioController>(); if (m != null) m.ApplyKnockbackStun(Mathf.Max(0.1f, timer));
         var f = victim.GetComponent<TricksterController>(); if (f != null) f.ApplyKnockbackStun(Mathf.Max(0.1f, timer));

@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 18;
+    public const int CurrentDataVersion = 19;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -471,6 +471,26 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("S213 大地图：他离门还有几格路时你才能按 E 埋伏。以前任何时候按 E 都算埋伏（玩家模拟：直奔门口按 E 就全胜，躲藏/伪装/香蕉皮都没用）。太大 = 太容易，太小 = 他离你太近容易被看见")]
     public int overworldAmbushSteps = 8;
 
+    [Header("S218 小镇大机关 / 天气 / 小镇↔房间联动")]
+    [Tooltip("S218：巨炮 / 滚石 / 水塔 按 L 后预警多久才发动（秒）。马里奥看得见预警（炮口闪、石头晃、水塔吱呀）")]
+    public float overworldBigFuseSeconds = 1.2f;
+    [Tooltip("S218：被巨炮轰飞落地 / 被滚石碾到 晕多久（秒，不超过 maxStunSeconds）")]
+    public float overworldBigStunSeconds = 2f;
+    [Tooltip("S218：滚石每秒滚几格")]
+    public float overworldRollSpeed = 9f;
+    [Tooltip("S218：炮声 / 滚石声 多远听得见（格）。听见 = 起疑一下（?），只知道声音在哪（H4）")]
+    public float overworldNoiseRange = 14f;
+    [Tooltip("S218：听见大机关的动静加多少起疑（35 = 刚好 '?' 停一下看）")]
+    public float overworldNoiseSuspicion = 35f;
+    [Tooltip("S218：被大机关砸中后这么多游戏分钟内进门 → 房间开局他还晕着")]
+    public float overworldDazeCarryMinutes = 40f;
+    [Tooltip("S218：带进房间的晕（开局多等几秒）")]
+    public float overworldDazeCarrySeconds = 2f;
+    [Tooltip("S218：雾天视野倍率")]
+    [Range(0.3f, 1f)] public float overworldFogSight = 0.6f;
+    [Tooltip("S218：他看见吃过亏的大机关在预警时，最多往旁边躲几格")]
+    public int overworldDodgeSteps = 4;
+
     [Header("S216: 手感 / 被弹飞的抛物线 / 特效")]
     [Tooltip("S216 被弹飞/打飞时的重力（格/秒²）。以前硬直期间往上飞没有重力 → 弹簧弹 11 格撞天花板、炸弹推 8 格像在月球。平时跳跃重力 80；这里略轻 → 有滞空感但仍是抛物线")]
     public float launchGravity = 40f;
@@ -593,6 +613,11 @@ public class MarioMindTuningSO : ScriptableObject
         {
             launchGravity = 40f; launchAirDrag = 2f; launchGroundFriction = 40f; launchLandGraceSeconds = 1.5f;
             springLaunchSpeed = 15f; hurtLift = 6f; blastLift = 8f; hurtHitFlashSeconds = 0.18f; juiceFx = true;
+        }
+        if (dataVersion < 19)
+        {
+            overworldBigFuseSeconds = 1.2f; overworldBigStunSeconds = 2f; overworldRollSpeed = 9f; overworldNoiseRange = 14f; overworldNoiseSuspicion = 35f;
+            overworldDazeCarryMinutes = 40f; overworldDazeCarrySeconds = 2f; overworldFogSight = 0.6f; overworldDodgeSteps = 4;
         }
         dataVersion = CurrentDataVersion;
         return true;

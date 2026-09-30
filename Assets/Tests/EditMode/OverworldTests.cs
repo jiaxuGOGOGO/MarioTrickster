@@ -458,4 +458,86 @@ public class OverworldTests
         Assert.AreEqual(0x50, bytes[0]); Assert.AreEqual(0x4B, bytes[1], "PK 头");
         Assert.AreEqual(0xCBF43926u, TinyZip.Crc(System.Text.Encoding.ASCII.GetBytes("123456789")), "CRC32 标准校验值");
     }
+
+    // ── S218：小镇大机关（巨炮 / 滚石 / 水塔）+ 连锁 + 天气 + 小镇↔房间联动 ──
+    static OverworldMap.Map Big() => OverworldPack.Parse(OverworldPack.BigSampleText)[0];
+
+    [Test]
+    public void BigSample_PlayableWithThreeChain_AndStillPlayableAfterEverythingFires()
+    {
+        var m = Big(); var r = OverworldMap.Rules.Default;
+        Assert.IsTrue(OverworldMap.Check(m, r).Playable, "星露大镇可玩");
+        Assert.IsTrue(OverworldWalker.SimulateDay(m, r).ok, "H10：没人捣乱一天走得完");
+        Assert.GreaterOrEqual(OverworldProps.LongestChain(m).Count, 3, "样板里有 3 连锁");
+        // 最坏情况：所有滚石都滚、所有水塔都淹 → 地形只会"打开"（撞碎 / 变泥地都还能走），H1 不会被关死
+        foreach (var c in OverworldProps.All(m))
+        {
+            char k = m.At(c.x, c.y);
+            if (k == 'O') { for (int d = 0; d < 4; d++) foreach (var q in OverworldProps.Lane(m, c, d)) if (OverworldProps.Smashable(m.At(q.x, q.y))) OverworldMap.Set(m, q.x, q.y, '.'); OverworldMap.Set(m, c.x, c.y, '.'); }
+            else if (k == 'U') foreach (var q in OverworldProps.Flood(m, c, OverworldProps.FloodRadius + 1)) OverworldMap.Set(m, q.x, q.y, 'g');
+        }
+        Assert.IsTrue(OverworldMap.Check(m, r).Playable);
+        Assert.IsTrue(OverworldWalker.SimulateDay(m, r).ok);
+    }
+
+    [Test]
+    public void BigProps_CheckCatchesTraps_H1()
+    {
+        var r = OverworldMap.Rules.Default;
+        var a = Sample(); OverworldMap.Set(a, 26, 16, 'K');
+        Assert.IsTrue(OverworldMap.Check(a, r).issues.Exists(i => i.text.Contains("找不到靶心")), "巨炮没有靶心");
+        var b = Sample(); OverworldMap.Set(b, 2, 20, 'K'); OverworldMap.Set(b, 2, 1, 'X');
+        for (int x = 1; x <= 6; x++) for (int y = 1; y <= 6; y++) if ((x == 1 || y == 6 || x == 6) && (b.At(x, y) == '.' || b.At(x, y) == '"')) OverworldMap.Set(b, x, y, 'f');
+        Assert.IsTrue(OverworldMap.Check(b, r).issues.Exists(i => i.text.Contains("走不回马里奥的家")), "靶心在围栏里 = 被轰过去就困住");
+        var lane = OverworldProps.Lane(Sample(), new OverworldMap.Cell(1, 20), 0);
+        Assert.IsFalse(lane.Exists(c => c.x <= 0 || c.y <= 0), "滚石永远不碰最外圈");
+    }
+
+    [Test]
+    public void BigProps_ChainInTown_TelegraphFirst_MarioLearnsFromExperience()
+    {
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露大镇", "Town"); OverworldSession.Active = true;
+        var t = Tuning(); var town = new OverworldTown(Big(), t); var k = new OverworldMap.Cell(26, 16);
+        OverworldProps.Aim(town.map, k, out _, out int dir, out _); var mz = OverworldProps.MuzzleCells(town.map, k, dir)[1];
+        town.mario.x = mz.x + 0.5; town.mario.y = mz.y + 0.5; town.mario.Clear(); town.tx = k.x - 1.5; town.ty = k.y + 0.5;
+        Assert.IsTrue(town.Arm(k, 1, town.tx, town.ty));
+        Assert.IsFalse(town.Arm(k, 1, town.tx, town.ty), "每天一次");
+        var none = new OverworldTown.Input(); town.Tick(t.overworldBigFuseSeconds * 0.5f, none);
+        Assert.IsFalse(town.marioFlying, "H3：预警期间不伤人");
+        bool flew = false; int depth = 0;
+        for (int i = 0; i < 360 && (i < 3 || town.BigBusy); i++) { town.Tick(1f / 30, none); flew |= town.marioFlying; foreach (var b in town.active) depth = Mathf.Max(depth, b.depth); }
+        Assert.IsTrue(flew, "站在炮口 → 被轰飞");
+        Assert.GreaterOrEqual(depth, 3, "炮弹落地 → 滚石 → 水塔（3 连）");
+        Assert.IsTrue(OverworldSession.MarioWary.Contains('K'), "他记住了巨炮（自己的经历，H4）");
+        Assert.Greater(OverworldSession.Changed.Count, 0, "地形被改了（当天有效）");
+        OverworldSession.ResetStatics();
+    }
+
+    [Test]
+    public void Weather_IsInputRandom_FirstDayClear_Reproducible()
+    {
+        Assert.AreEqual(OverworldEvents.Kind.Clear, OverworldEvents.Of("星露大镇", 1).kind, "第 1 天先学规则");
+        var seen = new System.Collections.Generic.HashSet<OverworldEvents.Kind>();
+        for (int d = 1; d <= 60; d++) { var a = OverworldEvents.Of("星露大镇", d); Assert.AreEqual(a.kind, OverworldEvents.Of("星露大镇", d).kind); seen.Add(a.kind); }
+        Assert.AreEqual(5, seen.Count, "5 种天气都会出现");
+        var m = Big(); OverworldEvents.ApplyTo(m, new OverworldEvents.Day { kind = OverworldEvents.Kind.Market, h = 0xFFFFFFFFu });
+        int prev = -99; foreach (var d in m.doors.OrderBy(x => x.minute).ThenBy(x => x.n)) { Assert.GreaterOrEqual(d.minute, prev + 15); Assert.LessOrEqual(d.minute, OverworldMap.LatestDoor); prev = d.minute; }
+    }
+
+    [Test]
+    public void Wiring_S218_TownRoomLinks_H4_Tuning()
+    {
+        string town = Read("Scripts/Overworld/OverworldTown.cs"), mind = Read("Scripts/Overworld/OverworldMind.cs"), link = Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs"), game = Read("Scripts/Overworld/Runtime/OverworldGame.cs");
+        StringAssert.Contains("driver.AddStartDelay(OverworldSession.CarriedDaze)", link);          // 小镇砸晕 → 房间开局还晕着
+        StringAssert.Contains("if (playerWon) ReloadDoor = door;", Read("Scripts/Overworld/OverworldSession.cs")); // 房间守住 → 小镇大机关重新装填
+        StringAssert.Contains("OverworldSession.Changed", town);                                     // 改掉的地形跨场景保留（当天）
+        StringAssert.Contains("if (p.heardNoise) { Meter.Add(p.noiseSuspicion);", mind);             // H2：声音只加起疑
+        StringAssert.Contains("OverworldSession.MarioWary.Contains(b.kind)", town);                  // H4：只凭经历躲
+        StringAssert.Contains("BigFx();", game); StringAssert.Contains("Step1Fx.Ring(", game);
+        foreach (var bad in new[] { "FindObjectOfType", "UnityEngine.Input", "Step1Text", "UnityEngine.Random" }) StringAssert.DoesNotContain(bad, town);
+        StringAssert.DoesNotContain("System.Random", Read("Scripts/Overworld/OverworldProps.cs"));   // 天气用自己的哈希（网页逐字一样）
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 19);
+        var t = Tuning(); Assert.LessOrEqual(t.overworldBigStunSeconds, t.maxStunSeconds, "H9");
+        Assert.Greater(t.overworldBigFuseSeconds, 0.5f, "H3：预警够看清");
+    }
 }

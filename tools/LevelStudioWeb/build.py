@@ -45,10 +45,12 @@ for m in re.finditer(r"T\('(.)', \"(\w+)\", \"([^\"]+)\", \"([^\"]+)\", \"(\w+)\
                          rgb=[float(m.group(10)), float(m.group(11)), float(m.group(12))], w=m.group(13).replace('\\"', '"'), p=m.group(14).replace('\\"', '"')))
 owp = rd('Overworld/OverworldPack.cs'); i = owp.index('SampleText = string.Join'); j = owp.index('}) + ', i)
 ow_sample = '\n'.join(bytes(x, 'utf-8').decode('unicode_escape').encode('latin-1').decode('utf-8') for x in re.findall(r'^        "((?:[^"\\]|\\.)*)",$', owp[i:j], re.M)) + '\n'
+i2 = owp.index('BigSampleText = string.Join'); j2 = owp.index('}) + ', i2)
+ow_big = '\n'.join(bytes(x, 'utf-8').decode('unicode_escape').encode('latin-1').decode('utf-8') for x in re.findall(r'^        "((?:[^"\\]|\\.)*)",$', owp[i2:j2], re.M)) + '\n'
 room_names = [re.search(r'DefaultRoomName = "([^"]+)"', wm).group(1)] + re.findall(r'\("([^"]+)", \w+Sample\)', wm)
 sample_room = {n: names.get(f, f) for n, f in re.findall(r'\("([^"]+)", (\w+Sample)\)', wm)}
 sample_room[room_names[0]] = '默认恶作剧房间'
-data = 'const OW_TILES=' + json.dumps(ow_tiles, ensure_ascii=False, separators=(',', ':')) + ';\nconst OW_SAMPLE=' + json.dumps(ow_sample, ensure_ascii=False) + ';\nconst OW_ROOMS=' + json.dumps(sample_room, ensure_ascii=False, separators=(',', ':')) + ';\n'
+data = 'const OW_TILES=' + json.dumps(ow_tiles, ensure_ascii=False, separators=(',', ':')) + ';\nconst OW_SAMPLE=' + json.dumps(ow_sample, ensure_ascii=False) + ';\nconst OW_BIG_SAMPLE=' + json.dumps(ow_big, ensure_ascii=False) + ';\nconst OW_ROOMS=' + json.dumps(sample_room, ensure_ascii=False, separators=(',', ':')) + ';\n'
 data += 'const ELEMENTS=' + json.dumps(els, ensure_ascii=False, separators=(',', ':')) + ';\nconst SAMPLES=' + json.dumps(samples, ensure_ascii=False, separators=(',', ':')) + ';\n'
 logic = open(os.path.join(HERE, 'logic.js'), encoding='utf-8').read()
 logic = re.sub(r"if \(typeof module[^\n]*\n?", '', logic)

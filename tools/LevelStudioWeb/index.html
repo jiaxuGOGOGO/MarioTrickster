@@ -295,7 +295,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <div class="row owbar" style="flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center">
         <select class="f" id="owPick" style="flex:0 0 180px" title="你的所有小镇"></select>
         <button class="btn small" id="owNew">新建</button>
-        <button class="btn small" id="owSample" title="内置样板：星露小镇">载入样板</button>
+        <select class="f" id="owSample" style="flex:0 0 150px" title="内置样板"><option value="">载入样板…</option><option value="small">星露小镇（44×28 入门）</option><option value="big">星露大镇（72×40 大机关 + 连锁）</option></select>
         <button class="btn small" id="owDel">删除</button>
         <select class="f" id="owGrow" style="flex:0 0 150px" title="把地图往外加大（新地是草地，最外圈自动种树）或裁掉一圈；和 Unity 小镇工坊 ↔ 扩展 同一套规则">
           <option value="">↔ 扩展地图…</option>
@@ -314,11 +314,12 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
         <button class="btn small" id="owRedo" title="Ctrl+Y">↷</button>
         <label class="toggle"><input type="checkbox" id="owRoute" checked> 路线</label>
         <label class="toggle"><input type="checkbox" id="owNight"> 夜晚视野</label>
+        <label class="toggle" title="巨炮 → 靶心（大风偏移虚框）、滚石滚道、水塔淹没范围、连锁（黄线）；悬停门 = 预览门里的房间"><input type="checkbox" id="owLinks" checked> ⚡ 关系线</label>
         <input type="range" id="owZoom" min="4" max="28" value="16" style="width:80px"><button class="btn small" id="owFit" title="缩放到整张地图都看得见">⤢</button>
       </div>
-      <div class="owwrap" id="owWrap"><canvas id="owCanvas"></canvas></div>
+      <div class="owwrap" id="owWrap" style="position:relative"><canvas id="owCanvas"></canvas><canvas id="owPeek" style="position:absolute;pointer-events:none;display:none;border:1px solid var(--line);border-radius:6px"></canvas></div>
       <p class="hint" id="owHover" style="font-family:var(--mono)"></p>
-      <p class="hint">左键画，右键擦成草地。M = 马里奥的家，T = 你的出生点，1–9 = 门（画在房子最下面一排的下方一格）。地图不够大：上面"↔ 扩展地图"（最大 192×128，老镇原样保留，新地铺草、外圈自动种树）。<br>
+      <p class="hint">左键画，右键擦成草地。M = 马里奥的家，T = 你的出生点，1–9 = 门（画在房子最下面一排的下方一格）。地图不够大：上面"↔ 扩展地图"（最大 192×128，老镇原样保留，新地铺草、外圈自动种树）。大机关：巨炮 K 要和靶心 X 同一行/列；滚石 O 放长直路一头；水塔 U 放路口旁；靶心或滚道尽头挨着另一个大机关 = 连锁。悬停一扇门 = 看门里的房间。<br>
       快捷键（和 Unity 小镇工坊一样）：B 画笔 R 矩形 F 填充 I 吸管（Alt+点）· 1–9 门 · Ctrl+Z/Y · Ctrl+滚轮缩放 · Ctrl+C 复制整张小镇 / Ctrl+V 贴入（Unity 小镇工坊里同样 Ctrl+C/V）· 文件直接拖进画布导入</p>
     </div>
     <div class="card">
@@ -330,6 +331,10 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <div id="owIssues"></div>
       <h3>📋 一天总览 <small class="hint">按马里奥的顺序：每扇门主打什么、哪扇门第一次教新机关</small></h3>
       <div id="owLedger" class="owsched"></div>
+      <h3>⚡ 大机关 · 连锁 <small class="hint">点一行 = 画布定位（和 Unity 小镇工坊同一套规则）</small></h3>
+      <div id="owProps" class="owsched"></div>
+      <h3>🌦 天气 <small class="hint">每天 06:00 公布，同一天永远一样</small> <button class="btn small" id="owWPrev">◀</button><button class="btn small" id="owWNext">▶</button></h3>
+      <div id="owWeather" class="owsched"></div>
       <h3>马里奥的一天</h3>
       <div class="owsched" id="owSched"></div>
       <label class="toggle" style="margin-top:8px"><input type="checkbox" id="owScrubOn"> ⏱ 时间滑条（看他几点在哪）</label>
@@ -433,8 +438,9 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
   <label class="toggle" style="margin-top:10px"><input type="checkbox" id="mapFrame" checked> 外面自动补一圈墙和底层地面</label>
   <div class="row" style="margin-top:14px"><button class="btn gold" id="mapOk">导入</button><button class="btn" id="mapCancel">取消</button></div>
 </dialog>
-<script>const OW_TILES=[{"c":".","k":"Grass","zh":"草地","en":"Grass","r":"Terrain","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.42,0.66,0.33],"w":"普通草地，谁都能走。","p":"铺满空地。"},{"c":"=","k":"Path","zh":"石子路","en":"Stone path","r":"Terrain","solid":false,"sight":false,"hides":false,"cost":1,"rgb":[0.8,0.72,0.54],"w":"马里奥最爱走的路（寻路代价最低）。他的日常路线会沿着路走——你能预判他从哪来。","p":"连起家和各个门；路边放高草就是埋伏点。"},{"c":"W","k":"Building","zh":"房屋","en":"Building","r":"Terrain","solid":true,"sight":true,"hides":false,"cost":0,"rgb":[0.62,0.38,0.26],"w":"房子/围墙：挡路、挡视线。底边一排画成墙面，上面画成屋顶（星露谷式 3/4 视角）。","p":"门 1–9 画在房子的最下面一排旁边（墙面前一格）。"},{"c":"t","k":"Tree","zh":"树","en":"Tree","r":"Terrain","solid":true,"sight":true,"hides":false,"cost":0,"rgb":[0.16,0.42,0.2],"w":"树：挡路、挡视线。你躲在树后面他看不见。","p":"外圈可以用树围起来；路边的树 = 天然掩体。"},{"c":"w","k":"Water","zh":"水","en":"Water","r":"Terrain","solid":true,"sight":false,"hides":false,"cost":0,"rgb":[0.27,0.52,0.86],"w":"水：过不去，但挡不住视线——隔着河他也能看见你。","p":"河、池塘。想让他绕远路就放一条河 + 一座桥（石子路）。"},{"c":"f","k":"Fence","zh":"栅栏","en":"Fence","r":"Terrain","solid":true,"sight":false,"hides":false,"cost":0,"rgb":[0.76,0.6,0.38],"w":"栅栏：过不去，看得穿。","p":"围菜地、围院子。"},{"c":"\"","k":"TallGrass","zh":"高草","en":"Tall grass","r":"Scenery","solid":false,"sight":false,"hides":true,"cost":3,"rgb":[0.26,0.5,0.2],"w":"站在高草里只有贴身（1.5 格内）才会被看见；但你在草里走动，草会晃——他看见晃就会起疑（?）。","p":"放在路边、门口 2–6 格内，当埋伏点。"},{"c":"c","k":"Crate","zh":"木箱","en":"Crate","r":"Scenery","solid":true,"sight":true,"hides":false,"cost":0,"rgb":[0.62,0.44,0.24],"w":"木箱：挡路、挡视线（掩体）。你按 P 伪装时也会变成一个木箱。","p":"门口、路口放一两个，给你躲。"},{"c":"g","k":"Mud","zh":"泥地","en":"Mud","r":"Terrain","solid":false,"sight":false,"hides":false,"cost":4,"rgb":[0.46,0.34,0.22],"w":"泥地：走得慢（你和马里奥都一样）。马里奥寻路会尽量绕开。","p":"堵住捷径，逼他绕路；或者放在你的逃跑路线外。"},{"c":"i","k":"Lamp","zh":"路灯","en":"Lamp","r":"Special","solid":true,"sight":false,"hides":false,"cost":0,"rgb":[1.0,0.86,0.42],"w":"路灯：晚上（19:00 后）马里奥看得近，但路灯周围 3 格照得亮——站在灯下会被远远看见。","p":"放在路口和门口，晚上决定哪里安全。"},{"c":"n","k":"BananaPeel","zh":"香蕉皮","en":"Banana peel","r":"PlayerPrank","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.98,0.88,0.2],"w":"你靠近（3 格内）按 L：闪 0.5 秒预警后生效 3 秒，马里奥踩上去滑倒晕 1.5 秒。被他看见你按 → 起疑。拖住他 = 你先到门口，进房间多几秒布置时间。","p":"放在他的日常路线上（石子路）。"},{"c":"?","k":"PickupBox","zh":"道具箱","en":"Pickup box","r":"Special","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.95,0.72,0.2],"w":"走过去捡：下一个房间多 1 个炸弹（每天每个箱子一次）。马里奥看得见箱子，但他不捡。","p":"放在绕远的地方，让你在'抢时间'和'拿道具'之间选。每张图最多 3 个。"},{"c":"1","k":"Door","zh":"房间门","en":"Room door","r":"Door","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.88,0.32,0.62],"w":"门 1–9：连到一个横版房间（关卡库里的关卡）。马里奥按日程去门口；你先到门口按 E = 埋伏，进入那个房间开打。","p":"画在房子墙面前一格；右边面板选它连哪个房间。每个数字只能用一次。"},{"c":"M","k":"MarioHome","zh":"马里奥的家","en":"Mario's home","r":"Spawn","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.9,0.2,0.2],"w":"马里奥每天从这里出发、最后回到这里。","p":"只能有一个。"},{"c":"T","k":"TricksterSpawn","zh":"捣蛋者出生点","en":"Trickster spawn","r":"Spawn","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.2,0.4,0.9],"w":"你每天从这里出发；被马里奥抓到也回到这里。","p":"只能有一个，离马里奥的家远一点。"}];
+<script>const OW_TILES=[{"c":".","k":"Grass","zh":"草地","en":"Grass","r":"Terrain","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.42,0.66,0.33],"w":"普通草地，谁都能走。","p":"铺满空地。"},{"c":"=","k":"Path","zh":"石子路","en":"Stone path","r":"Terrain","solid":false,"sight":false,"hides":false,"cost":1,"rgb":[0.8,0.72,0.54],"w":"马里奥最爱走的路（寻路代价最低）。他的日常路线会沿着路走——你能预判他从哪来。","p":"连起家和各个门；路边放高草就是埋伏点。"},{"c":"W","k":"Building","zh":"房屋","en":"Building","r":"Terrain","solid":true,"sight":true,"hides":false,"cost":0,"rgb":[0.62,0.38,0.26],"w":"房子/围墙：挡路、挡视线。底边一排画成墙面，上面画成屋顶（星露谷式 3/4 视角）。","p":"门 1–9 画在房子的最下面一排旁边（墙面前一格）。"},{"c":"t","k":"Tree","zh":"树","en":"Tree","r":"Terrain","solid":true,"sight":true,"hides":false,"cost":0,"rgb":[0.16,0.42,0.2],"w":"树：挡路、挡视线。你躲在树后面他看不见。","p":"外圈可以用树围起来；路边的树 = 天然掩体。"},{"c":"w","k":"Water","zh":"水","en":"Water","r":"Terrain","solid":true,"sight":false,"hides":false,"cost":0,"rgb":[0.27,0.52,0.86],"w":"水：过不去，但挡不住视线——隔着河他也能看见你。","p":"河、池塘。想让他绕远路就放一条河 + 一座桥（石子路）。"},{"c":"f","k":"Fence","zh":"栅栏","en":"Fence","r":"Terrain","solid":true,"sight":false,"hides":false,"cost":0,"rgb":[0.76,0.6,0.38],"w":"栅栏：过不去，看得穿。","p":"围菜地、围院子。"},{"c":"\"","k":"TallGrass","zh":"高草","en":"Tall grass","r":"Scenery","solid":false,"sight":false,"hides":true,"cost":3,"rgb":[0.26,0.5,0.2],"w":"站在高草里只有贴身（1.5 格内）才会被看见；但你在草里走动，草会晃——他看见晃就会起疑（?）。","p":"放在路边、门口 2–6 格内，当埋伏点。"},{"c":"c","k":"Crate","zh":"木箱","en":"Crate","r":"Scenery","solid":true,"sight":true,"hides":false,"cost":0,"rgb":[0.62,0.44,0.24],"w":"木箱：挡路、挡视线（掩体）。你按 P 伪装时也会变成一个木箱。","p":"门口、路口放一两个，给你躲。"},{"c":"g","k":"Mud","zh":"泥地","en":"Mud","r":"Terrain","solid":false,"sight":false,"hides":false,"cost":4,"rgb":[0.46,0.34,0.22],"w":"泥地：走得慢（你和马里奥都一样）。马里奥寻路会尽量绕开。","p":"堵住捷径，逼他绕路；或者放在你的逃跑路线外。"},{"c":"i","k":"Lamp","zh":"路灯","en":"Lamp","r":"Special","solid":true,"sight":false,"hides":false,"cost":0,"rgb":[1.0,0.86,0.42],"w":"路灯：晚上（19:00 后）马里奥看得近，但路灯周围 3 格照得亮——站在灯下会被远远看见。","p":"放在路口和门口，晚上决定哪里安全。"},{"c":"n","k":"BananaPeel","zh":"香蕉皮","en":"Banana peel","r":"PlayerPrank","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.98,0.88,0.2],"w":"你靠近（3 格内）按 L：闪 0.5 秒预警后生效 3 秒，马里奥踩上去滑倒晕 1.5 秒。被他看见你按 → 起疑。拖住他 = 你先到门口，进房间多几秒布置时间。","p":"放在他的日常路线上（石子路）。"},{"c":"?","k":"PickupBox","zh":"道具箱","en":"Pickup box","r":"Special","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.95,0.72,0.2],"w":"走过去捡：下一个房间多 1 个炸弹（每天每个箱子一次）。马里奥看得见箱子，但他不捡。","p":"放在绕远的地方，让你在'抢时间'和'拿道具'之间选。每张图最多 3 个。"},{"c":"K","k":"GiantCannon","zh":"巨炮","en":"Giant cannon","r":"PlayerPrank","solid":true,"sight":true,"hides":false,"cost":0,"rgb":[0.3,0.3,0.36],"w":"小镇巨炮：你在 3 格内按 L，炮口前 3 格闪 1.2 秒后开炮——站在炮口里的人被轰到同一行/列最近的靶心 X（大风天吹偏 3 格），落地晕 2 秒。轰隆声半个镇都听得见。你自己站进炮口 = 抄近路飞过去。他被轰过一次就记住：以后看见炮口在闪会先躲开。每天一次。","p":"同一行或同一列放一个靶心 X，炮口朝靶心那边空 3 格。靶心放在滚石/水塔/另一门巨炮旁 1 格内 = 连锁。"},{"c":"X","k":"CannonTarget","zh":"靶心","en":"Cannon target","r":"Special","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.93,0.36,0.3],"w":"巨炮落点（地上的红圈，谁都看得见）。炮弹落地的冲击会震响 1.5 格内的滚石/水塔/巨炮（连锁，同样先预警再发动）。","p":"和巨炮同一行或同一列；放在开阔处——落点必须走得回马里奥的家，检查会算。"},{"c":"O","k":"Boulder","zh":"滚石","en":"Boulder","r":"PlayerPrank","solid":true,"sight":true,"hides":false,"cost":0,"rgb":[0.56,0.53,0.49],"w":"巨石：你在 3 格内按 L，晃 1.2 秒后朝离开你的方向一路滚（每秒 9 格），撞碎木箱和栅栏，碾到的人晕 2 秒，滚到头碎掉，冲击震响 1.5 格内的大机关。撞碎的东西当天不复原。他被碾过一次就会躲。每天一次。","p":"放在长直路的一头（他的路线上）；滚到头正好停在另一个大机关旁 = 连锁。"},{"c":"U","k":"WaterTower","zh":"水塔","en":"Water tower","r":"PlayerPrank","solid":true,"sight":true,"hides":false,"cost":0,"rgb":[0.36,0.6,0.84],"w":"水塔：你在 3 格内按 L，吱呀 1.2 秒后倒水：3 格内的草地/石子路/高草变泥地（雨天 4 格），谁走都慢；泡到的香蕉皮自己变滑。代价：高草也冲没了（你的藏身处）。每天一次。","p":"放在他必经的路口旁；香蕉皮放在淹没范围里 = 连锁。"},{"c":"1","k":"Door","zh":"房间门","en":"Room door","r":"Door","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.88,0.32,0.62],"w":"门 1–9：连到一个横版房间（关卡库里的关卡）。马里奥按日程去门口；你先到门口按 E = 埋伏，进入那个房间开打。","p":"画在房子墙面前一格；右边面板选它连哪个房间。每个数字只能用一次。"},{"c":"M","k":"MarioHome","zh":"马里奥的家","en":"Mario's home","r":"Spawn","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.9,0.2,0.2],"w":"马里奥每天从这里出发、最后回到这里。","p":"只能有一个。"},{"c":"T","k":"TricksterSpawn","zh":"捣蛋者出生点","en":"Trickster spawn","r":"Spawn","solid":false,"sight":false,"hides":false,"cost":2,"rgb":[0.2,0.4,0.9],"w":"你每天从这里出发；被马里奥抓到也回到这里。","p":"只能有一个，离马里奥的家远一点。"}];
 const OW_SAMPLE="# Overworld: 星露小镇\n# Goal: 马里奥今天要去 4 户人家\"借宝贝\"。抄近路先到门口按 E 埋伏，躲在高草和木箱后面别被他看见。\n# Source: S210 sample\n# Door: 1 | 08:00 | 默认恶作剧房间\n# Door: 2 | 10:30 | 两层监狱\n# Door: 3 | 13:30 | 诱捕走廊\n# Door: 4 | 16:30 | 地下监狱·四层\n# Note: (22,14) 大桥：他必走这里，香蕉皮就在桥两头\n# Note: (21,19) 泥巴近道：他嫌慢不走，你可以抄\n# Note: (15,6) 菜园高草：绝佳藏身处\ntttttttttttttttttttttttttttttttttttttttttttt\nt....................ww....................t\nt............WWWWWW..ww....WWWWWWW.........t\nt..WWWWWW....WWWWWW..ww....WWWWWWW......?..t\nt..WWWWWW....WWWWWW..ww.tt.WWWWWWW.........t\nt..WWWWWW.tt.WWWWWW..ww....WWWWWWW....t....t\nt..WWWWWW....WWWWWW..ww....WWWWWWW.........t\nt..WWWWWW......1.c...ww.....c.2......wwww..t\nt....M.........=...gggggg.....=......wwww..t\nt....=......\"..=.\"\"..ww...\"\"..=...\"\".......t\nt....=......\"..=.....ww.......=n.......t...t\nt....=.........=.....ww.......=............t\nt....=.........=.....ww.......=...i........t\nt.========n===============n===============.t\nt...i.=.........i....ww......i...=.........t\nt.....=....t.........ww.....t....=.........t\nt.t...3.c............ww..........4..c...t..t\nt...WWWWWW...........ww.......WWWWWWWW.....t\nt...WWWWWW...ffffff..ww..tt...WWWWWWWW.....t\nt...WWWWWW...f\"\"\"\"f..ww.......WWWWWWWW.....t\nt...WWWWWW...f\"\"\"\"f..ww.......WWWWWWWW.....t\nt...WWWWWW...f\"\"\"\"...ww.......WWWWWWWW.....t\nt............f\"\"\"\"f..ww....................t\nt..\".........f\"\"\"\"f..ww.?..............\"...t\nt........\"\"..ffffff..ww.....\"\"........\"....t\nt.?..................ww.................T..t\nt....................ww....................t\ntttttttttttttttttttttttttttttttttttttttttttt\n";
+const OW_BIG_SAMPLE="# Overworld: 星露大镇\n# Goal: 小镇变大了：大路北边有巨炮、菜园南边有靶心和滚石、东边炮台山。L 发动大机关，冲击会连锁；他吃过一次亏就会躲。\n# Source: S218 sample\n# Door: 1 | 08:00 | 默认恶作剧房间\n# Door: 2 | 10:30 | 两层监狱\n# Door: 3 | 13:30 | 诱捕走廊\n# Door: 4 | 16:30 | 地下监狱·四层\n# Note: (22,14) 大桥：他必走这里，香蕉皮就在桥两头\n# Note: (26,16) 巨炮：炮口罩住大路 3 格，他走到桥东按 L——轰进南边菜园的靶心\n# Note: (27,3) 连锁：炮弹落地震响滚石 → 一路撞碎木箱滚到水塔 → 水塔淹掉那片（3 连）\n# Note: (32,17) 水塔：门 2 路口，淹成泥地他走得慢，旁边香蕉皮自己变滑\n# Note: (63,28) 炮台山：你自己站进炮口 = 飞到东路口，顺便震响滚石沿大路一路滚过去\ntttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\nt......................................................................t\nt......................................................................t\nt...........................................................t..........t\nt..............................................t.......................t\nt......................................................................t\nt...................................................................t..t\nt......................................................................t\nt...................................................t..................t\nt............................................tt........................t\nt...............................................................tt.....t\nt..............................................................K.......t\nt......................................................\"\"\".............t\nt....................ww...................======================.......t\nt............WWWWWW..ww....WWWWWWW........=.................\"\".........t\nt..WWWWWW....WWWWWW..ww....WWWWWWW......?.=.......................t....t\nt..WWWWWW....WWWWWW..ww.tt.WWWWWWW........=............................t\nt..WWWWWW.tt.WWWWWW..ww....WWWWWWW....t...=.....t......................t\nt..WWWWWW....WWWWWW..ww....WWWWWWW........=............................t\nt..WWWWWW......1.c...ww.....c.2......wwww.=.............t..............t\nt....M.........=...gggggg.....=......wwww.=............................t\nt....=......\"..=.\"\"..ww...\"\"..=...\"\"......=.\"\".........................t\nt....=......\"..=.....ww.......=nU......t..=............................t\nt....=.........=.....ww...K...=...........=............................t\nt....=.........=.....ww.......=...i.......=....................X.......t\nt.========n===============n===================================O........t\nt...i.=.........i....ww......i...=.....................................t\nt.....=....t.........ww.....t....=............................tt.......t\nt.t...3.c............ww..........4..c...t..............................t\nt...WWWWWW...........ww.......WWWWWWWW.................................t\nt...WWWWWW...ffffff..ww..tt...WWWWWWWW.................................t\nt...WWWWWW...f\"\"\"\"f..ww.......WWWWWWWW..............\"\"\"................t\nt...WWWWWW...f\"\"\"\"f..ww.......WWWWWWWW.................................t\nt...WWWWWW...f\"\"\"\"...ww.......WWWWWWWW.................................t\nt............f\"\"\"\"f..ww................................................t\nt..\".........f\"\"\"\"f..ww.?..............\"...............................t\nt........\"\"..ffffff..ww...XO\"\"....cc..\"...........U....................t\nt.?..................ww.................T..............................t\nt....................ww................................................t\ntttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\n";
 const OW_ROOMS={"两层监狱":"两层监狱","诱捕走廊":"诱捕走廊","长廊远征":"长廊远征（大房间）","地下监狱·四层":"箱庭监狱（四层）","默认恶作剧房间":"默认恶作剧房间"};
 const ELEMENTS=[{"c":"#","k":"Ground","zh":"地面","en":"Ground","r":"Terrain","w":"实心地面，自动合并成大块。","p":"放在最底层；角色站在它上面。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.55,0.55,0.55]},{"c":"=","k":"Platform","zh":"平台","en":"Platform","r":"Terrain","w":"实心平台（四面都挡）。","p":"悬空或贴墙。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.7,0.7,0.7]},{"c":"W","k":"Wall","zh":"墙","en":"Wall","r":"Terrain","w":"实心墙，挡路也挡视线。","p":"房间边界、分区高墙。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.4,0.4,0.4]},{"c":"-","k":"OneWayPlatform","zh":"单向台面","en":"One-way ledge","r":"Terrain","w":"从下面能跳上去，站得住；不挡视线。","p":"悬空，给上下两层路线。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.5,0.75,0.9]},{"c":"c","k":"Crate","zh":"箱子","en":"Crate","r":"Scenery","w":"实心箱子：挡路、挡视线，马里奥会跳过去。可在它后面躲。","p":"放在地面上（脚下要实心）。","u":false,"s":true,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.62,0.44,0.24]},{"c":"b","k":"Bush","zh":"草丛","en":"Bush","r":"Scenery","w":"能穿过；挡视线（马里奥走进同一丛才看得见你）。会晃——有时只是风。","p":"放在地面上。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.22,0.55,0.25]},{"c":"d","k":"Decor","zh":"装饰","en":"Decor","r":"Scenery","w":"纯装饰，不挡路不挡视线。换主题时换成旋转木马、路灯、树等。","p":"任意位置。","u":false,"s":false,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.85,0.75,0.95]},{"c":"C","k":"CollapsingPlatform","zh":"塌桥","en":"Collapse bridge","r":"PlayerPrank","w":"捣蛋者按 L 让它塌；桥下有人时不会重新长出来。","p":"横跨在坑上；坑里要留出跳出来的路。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.8,0.65,0.3]},{"c":"[","k":"ControllableBlocker","zh":"封路墙","en":"Blocker wall","r":"PlayerPrank","w":"捣蛋者按 L 升起一堵墙，挡住路 3.5 秒，不伤人。","p":"放在必经的门洞/窄道（脚下要实心）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.55,0.75,1.0]},{"c":"~","k":"FireTrap","zh":"火","en":"Fire","r":"PlayerPrank","w":"平时安全；捣蛋者按 L 喷火，烧到马里奥会晕。","p":"放在地面上（脚下要实心）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":true,"jb":false,"rgb":[1.0,0.5,0.1]},{"c":"J","k":"SpringPad","zh":"弹簧板","en":"Spring pad","r":"PlayerPrank","w":"平时是普通地面；捣蛋者按 L 把站在上面的马里奥弹上天（空中不能动）→ 在落点摆好火/塌桥 = 浮空连招。","p":"放在地面层；正上方至少空 4 格（弹起约 3 格高，别弹到天花板）。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.3,0.9,0.55]},{"c":"x","k":"CrackFloor","zh":"裂缝地板","en":"Crack floor","r":"PlayerPrank","w":"平时是实心地面；捣蛋者按 L 打碎，站在上面的人掉到下一层（本回合不复原）。多层楼/地下监狱的'凿地板'。","p":"铺在楼层之间；碎后下面那层必须能走回出口（死局检查会查）。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.7,0.58,0.42]},{"c":"n","k":"BananaPeel","zh":"香蕉皮","en":"Banana peel","r":"PlayerPrank","w":"平时是地上的装饰（可穿过）；捣蛋者按 L 后，踩上去的马里奥会朝前滑出约 3–4 格（打乱落点）→ 滑进火/裂缝前。","p":"放在地面上，前方留出滑行空间。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[1.0,0.9,0.25]},{"c":"|","k":"OneWayDoor","zh":"捷径门","en":"Shortcut door","r":"Special","w":"只能从一侧（默认右侧）贴近推开，开了本回合一直开着。魂系'从另一边打开的门'：先绕远路，再回头打通捷径。","p":"放在两个区域之间的墙洞里；关着时整张图也必须能通关（死局检查按关着算）。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.55,0.35,0.2]},{"c":"%","k":"CrackedWall","zh":"裂墙","en":"Cracked wall","r":"Special","w":"看起来有裂纹的墙：捣蛋者现形按 B 砸开（马里奥听得见）、炮弹打开、被弹飞的人撞开。本回合不复原。","p":"藏秘密通路/捷径；不破也必须能通关（死局检查按墙算）。","u":false,"s":false,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.62,0.55,0.5]},{"c":"O","k":"Vent","zh":"通风管","en":"Vent","r":"Special","w":"捣蛋者站在管口按 ↓ 钻到配对的管口（按上→下、左→右编号 1↔2、3↔4）。马里奥进不去，但离得近听得见。","p":"成对摆放，放在地面上；一个在楼上一个在楼下最有用。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.45,0.5,0.58]},{"c":"w","k":"PoisonPool","zh":"毒池","en":"Poison pool","r":"Terrain","w":"能走但减速，每隔一会儿让人晕一下（不扣命）。马里奥会被拖慢——你的伏击窗口。","p":"铺在地面上，宽不超过 3 格（保证能走出来）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.55,0.85,0.25]},{"c":"g","k":"Glue","zh":"黏胶","en":"Glue","r":"Terrain","w":"踩上去移动变慢、跳不高，离开就恢复。放在楼梯口前最狠。","p":"铺在地面上；别放在必须跳高的台阶前（会跳不上去）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.85,0.55,0.95]},{"c":"Y","k":"SnareTrap","zh":"绳套","en":"Snare","r":"PlayerPrank","w":"踩到就被绳子倒吊 10 秒再掉下来——马里奥中了是你的机会，你自己踩到也会中。伪装在旁按 L = 重新装好 / 放人。","p":"放在地面上；正上方至少空 2 格（吊起来不能卡墙）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.8,0.7,0.45]},{"c":"?","k":"PickupSpot","zh":"道具箱","en":"Pickup","r":"Special","w":"每局随机亮起几个：谁先碰到归谁，同一个箱子给你和给马里奥效果不同（反转变数）。","p":"放在路线附近的地面上；多放几个，每局只亮一部分。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[1.0,0.8,0.2]},{"c":"U","k":"OilBarrel","zh":"油桶","en":"Oil barrel","r":"Special","w":"实心障碍：被喷火、炸弹、炮弹或另一个油桶爆炸点燃，0.8 秒后爆炸（炸毁周围、伤双方、引爆旁边的油桶 → 连锁）。","p":"放在火旁、裂墙旁、马里奥路线旁；不炸也必须能通关（死局检查按实心算）。","u":false,"s":true,"s1":true,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.75,0.25,0.15]},{"c":"Q","k":"IronCage","zh":"铁笼","en":"Iron cage","r":"PlayerPrank","w":"悬在头顶的笼子：伪装在旁按 L 落下，关住正下方的人 3 秒后自动打开（每局一次）。炸弹能把笼子炸开。","p":"放在马里奥必经的地面上；头顶要空 2 格（笼子挂在上面）。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.55,0.6,0.68]},{"c":"R","k":"Tripwire","zh":"绊线","en":"Tripwire","r":"Special","w":"地上一根细线：马里奥踩到绊一下（0.4 秒），并启动你用 F 布置好的连锁。每局一次；你自己踩不触发。","p":"放在连锁第一环前 1–3 格，马里奥必经的地面上。","u":false,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.85,0.85,0.8]},{"c":"K","k":"Cannon","zh":"大炮（朝右）","en":"Cannon (→)","r":"PlayerPrank","w":"伪装在旁按 L 开一炮（每局 1 发）；打完后站进炮口把自己打飞逃跑。","p":"地面上，炮口前方至少空 3 格。","u":false,"s":true,"s1":true,"m":1,"so":false,"hz":false,"jb":false,"rgb":[0.2,0.22,0.28]},{"c":"k","k":"Cannon","zh":"大炮（朝左）","en":"Cannon (←)","r":"PlayerPrank","w":"同上，炮口朝左。","p":"地面上，炮口前方至少空 3 格。","u":false,"s":true,"s1":true,"m":-1,"so":false,"hz":false,"jb":false,"rgb":[0.24,0.26,0.32]},{"c":"o","k":"Collectible","zh":"宝物","en":"Loot","r":"Objective","w":"马里奥要拿的宝物（实战房里自动变成 LootObjective）。","p":"放在离出口远的一端，只能有 1 个。","u":true,"s":false,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[1.0,0.85,0.2]},{"c":"G","k":"GoalZone","zh":"出口","en":"Exit","r":"Objective","w":"马里奥拿宝后要回到这里。","p":"放在起点附近，只能有 1 个。","u":true,"s":false,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.98,0.8,0.25]},{"c":"M","k":"MarioSpawn","zh":"马里奥出生点","en":"Mario spawn","r":"Spawn","w":"马里奥从这里出发。","p":"脚下要实心，只能有 1 个。","u":true,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.9,0.2,0.2]},{"c":"T","k":"TricksterSpawn","zh":"捣蛋者出生点","en":"Trickster spawn","r":"Spawn","w":"你（捣蛋者）从这里出发。","p":"脚下要实心，只能有 1 个。","u":true,"s":true,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.2,0.4,0.9]},{"c":".","k":"Air","zh":"空气","en":"Air","r":"Terrain","w":"什么都没有。","p":"—","u":false,"s":false,"s1":true,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.11,0.1,0.17]},{"c":"^","k":"SpikeTrap","zh":"地刺","en":"Spikes","r":"AutoHazard","w":"周期伸缩自动伤人。","p":"第 1 步房间不用（平时必须安全）。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":true,"jb":false,"rgb":[0.85,0.25,0.25]},{"c":"P","k":"PendulumTrap","zh":"摆锤","en":"Pendulum","r":"AutoHazard","w":"自动摆动的锤子。","p":"锚点在上方，第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":true,"jb":false,"rgb":[0.7,0.45,0.2]},{"c":"@","k":"SawBlade","zh":"锯片","en":"Saw","r":"AutoHazard","w":"旋转锯片，碰到就伤。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":true,"jb":false,"rgb":[0.74,0.74,0.74]},{"c":"]","k":"StateQueueTrap","zh":"队列机关","en":"Queue trap","r":"Special","w":"公开显示当前/下一状态的机关。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":true,"jb":false,"rgb":[1.0,0.45,0.25]},{"c":"B","k":"BouncyPlatform","zh":"弹跳台","en":"Bouncer","r":"Movement","w":"踩上去弹飞。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":true,"rgb":[0.3,0.85,0.3]},{"c":">","k":"MovingPlatform","zh":"移动平台","en":"Moving platform","r":"Movement","w":"来回移动的平台。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.5,0.5,0.9]},{"c":"<","k":"ConveyorBelt","zh":"传送带","en":"Conveyor","r":"Movement","w":"站上去会被带着走。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.6,0.6,0.4]},{"c":"X","k":"BreakableBlock","zh":"可破坏方块","en":"Breakable","r":"Special","w":"从下面顶破。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.75,0.55,0.3]},{"c":"F","k":"FakeWall","zh":"假墙","en":"Fake wall","r":"Special","w":"看起来是墙，其实能穿过。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":true,"hz":false,"jb":false,"rgb":[0.55,0.55,0.65]},{"c":"H","k":"HiddenPassage","zh":"暗道入口","en":"Hidden passage","r":"Special","w":"按 S 进入暗道传送。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.4,0.7,0.55]},{"c":"S","k":"Checkpoint","zh":"检查点","en":"Checkpoint","r":"Special","w":"更新重生点。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.2,0.8,0.9]},{"c":"E","k":"BouncingEnemy","zh":"弹跳怪","en":"Bouncing enemy","r":"Enemy","w":"踩头弹起，侧碰受伤。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":true,"rgb":[0.9,0.2,0.6]},{"c":"e","k":"SimpleEnemy","zh":"小怪","en":"Simple enemy","r":"Enemy","w":"来回走的小怪。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.94,0.24,0.64]},{"c":"f","k":"FlyingEnemy","zh":"飞行怪","en":"Flying enemy","r":"Enemy","w":"空中飞行的怪。","p":"第 1 步不用。","u":false,"s":false,"s1":false,"m":0,"so":false,"hz":false,"jb":false,"rgb":[0.85,0.4,0.85]}];
 const SAMPLES={"默认恶作剧房间":["WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","W...............W..............W...............W","W...............W..............W...............W","W...............W..............W...............W","W...............W..............W...............W","W...............W..............W...............W","W...............W..............W...............W","W.....----......W.---.....----.W...----........W","W.G.M..2.~..1.R.[.K.T...n..b3..[..1..~2...k.o..W","W############J#######CCCC-#############xxx#####W","W####################..~..#############.-.#####W","W##############################################W"],"两层监狱":["WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","W..............................................W","W..............................................W","W.G.M....b..n..~..[....T.....c..~..............W","W#########xxxx####################.....########W","W..................................--..........W","W..............................................W","W..................................--..........W","W.........~...n.........~.[....b......J....o...W","W##############################################W"],"诱捕走廊":["WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","W..............................................W","W..............................................W","W..............................................W","W.........------------------------.............W","W......--......................................W","W.G.M....b.....R.n...~U.............[...T...o..W","W########################CCC##########..#######W","W..............................................W","W.....................................--.......W","W..................................--..........W","W..............................................W","W...............................--.............W","W.....................J.......~.U......b.......W","W##############################################W"],"长廊远征（大房间）":["WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","W............................................................................................W","W............................................................................................W","W............................................................................................W","W.........------------------------......................------------------------.............W","W......--............................................--......................................W","W.G.M....b.....R.n...~U.............[...T..............b.....R.g...~U.............[.......o..W","W########################CCC##########..###############################CCC##########..#######W","W............................................................................................W","W.....................................--............................................--.......W","W..................................--............................................--..........W","W............................................................................................W","W...............................--............................................--.............W","W.....................J.......~.U......b............................J.......~.U......b.......W","W############################################################################################W"],"箱庭监狱（四层）":["WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW","W..............W...............................W","W..............W...............................W","W.G.M......b...|....[...?R.~.U...c....[...O....W","W#######..####################%%############..#W","W..............................................W","W.......--..................................--.W","W..........--..................................W","W.........................................--...W","W............--.........................--.....W","W....c.....O.....Q.R..J.T.n..Y....J..b..?......W","W###############xxxx##########..############..#W","W.....................................W........W","W.............................--......W.....--.W","W.......R.~.U.b.....?.........O...c...|.g......W","W####..###############CCCC################..###W","W...........W..................................W","W....--.....W.............................--...W","W..c....O...%...K...?...ww...U.~....k...b...o..W","W##############################################W"]};
@@ -1118,6 +1124,7 @@ function owCheck(m, R, roomOk) {
   for (let n = 1; n <= 9; n++) { const cs = owFind(m, String(n)); if (cs.length > 1) E(`门 ${n} 画了 ${cs.length} 个：每个数字只能用一次`, cs[1][0], cs[1][1]); if (cs.length >= 1) doorCells.set(n, cs[0]); }
   if (!doorCells.size) E('至少要有一扇门（数字 1–9）：门连到横版房间，马里奥每天去门里拿宝');
   const pickups = owFind(m, '?').length; if (pickups > OW.MaxPickups) E(`道具箱最多 ${OW.MaxPickups} 个（现在 ${pickups} 个）`);
+  owPropsCheckCounts(m, E); // S218 大机关
   if (!playable()) return done();
   const home = owFind(m, 'M')[0], tsp = owFind(m, 'T')[0];
   for (const [n, c] of [...doorCells].sort((a, b) => a[0] - b[0])) {
@@ -1138,6 +1145,7 @@ function owCheck(m, R, roomOk) {
   const byT = new Map(); for (const d of m.doors) if (doorCells.has(d.n)) { if (!byT.has(d.minute)) byT.set(d.minute, []); byT.get(d.minute).push(d); }
   for (const [t, g] of byT) if (g.length > 1) E(`门 ${g.map(d => d.n).join('、')} 的时间都是 ${owClock(t)}：每扇门的时间要不一样（马里奥一次只去一扇）`);
   if (!owPath(m, home, tsp)) E('你的出生点和马里奥的家不连通');
+  owPropsCheckReach(m, home, E, Wn); // S218：落点走不回家 = 困住（H1）
   if (!playable()) return done();
   const sc = owSchedule(m, R);
   if (!sc.homePath) E('马里奥最后回不了家');
@@ -1204,6 +1212,135 @@ function owLedger(m, W, resolve, bombsPerRound, maxBonus) {
   return rep;
 }
 const owLedgerLines = rep => rep.rooms.map(r => r.missing ? `门${r.door} ?` : `门${r.door} ${r.room} 主角=${r.star} 共${r.total} 道具箱${r.pickups} 新=${r.firstTime.join('、')} [${r.kinds.map(k => k.zh + k.n).join(' ')}]`).concat(rep.warnings);
+// ── S218 小镇大机关（巨炮 K + 靶心 X / 滚石 O / 水塔 U）+ 天气：逐行移植 Assets/Scripts/Overworld/OverworldProps.cs（verify.sh 逐字对照）──
+const OWP = { Muzzle: 3, MaxShot: 96, WindShift: 3, FloodRadius: 3, MaxRoll: 64, MaxBig: 12, ChainRadius: 1.5, DX: [1, -1, 0, 0], DY: [0, 0, 1, -1], DirZh: ['右', '左', '上', '下'] };
+const owIsBig = c => c === 'K' || c === 'O' || c === 'U';
+const owCellS = c => `(${c[0]},${c[1]})`;
+const owLabel = (m, c) => { const ch = owAt(m, c[0], c[1]), t = owTile(ch); return `${t ? t.zh : '?'}${ch}(${c[0]},${c[1]})`; };
+const owSame = (a, b) => a[0] === b[0] && a[1] === b[1];
+function owBigAll(m) { const l = [], H = m.rows.length; for (let r = 0; r < H; r++) for (let x = 0; x < m.rows[r].length; x++) if (owIsBig(m.rows[r][x])) l.push([x, H - 1 - r]); return l; }
+function owAim(m, k) {
+  let target = k, dir = -1, dist = Infinity; const w = owW(m), h = m.rows.length;
+  for (let d = 0; d < 4; d++) for (let s = 1; s <= OWP.MaxShot; s++) {
+    const x = k[0] + OWP.DX[d] * s, y = k[1] + OWP.DY[d] * s; if (x < 0 || y < 0 || x >= w || y >= h) break;
+    if (owAt(m, x, y) === 'X') { if (s < dist) { dist = s; dir = d; target = [x, y]; } break; }
+  }
+  return dir >= 0 ? { target, dir, dist } : null;
+}
+function owMuzzle(m, k, dir) { const l = []; for (let s = 1; s <= OWP.Muzzle; s++) { const x = k[0] + OWP.DX[dir] * s, y = k[1] + OWP.DY[dir] * s; if (!owWalk(m, x, y)) break; l.push([x, y]); } return l; }
+function owLanding(m, tg, wind) {
+  let px = tg[0], py = tg[1]; if (wind >= 0) { px += OWP.DX[wind] * OWP.WindShift; py += OWP.DY[wind] * OWP.WindShift; }
+  px = Math.max(1, Math.min(owW(m) - 2, px)); py = Math.max(1, Math.min(m.rows.length - 2, py));
+  for (let r = 0; r <= 12; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; if (owWalk(m, px + dx, py + dy)) return [px + dx, py + dy]; }
+  return tg;
+}
+const owSmash = c => c === 'c' || c === 'f';
+function owLane(m, o, dir, smashed) {
+  const l = [], w = owW(m), h = m.rows.length;
+  for (let s = 1; s <= OWP.MaxRoll; s++) {
+    const x = o[0] + OWP.DX[dir] * s, y = o[1] + OWP.DY[dir] * s; if (x <= 0 || y <= 0 || x >= w - 1 || y >= h - 1) break;
+    const c = owAt(m, x, y); if (owWalk(m, x, y)) l.push([x, y]); else if (owSmash(c)) { l.push([x, y]); if (smashed) smashed.push([x, y]); } else break;
+  }
+  return l;
+}
+const owFloodable = c => c === '.' || c === '=' || c === '"';
+function owFloodCells(m, u, radius) { const l = [], w = owW(m), h = m.rows.length; for (let y = u[1] - radius; y <= u[1] + radius; y++) for (let x = u[0] - radius; x <= u[0] + radius; x++) { if ((x - u[0]) ** 2 + (y - u[1]) ** 2 > radius * radius) continue; if (x <= 0 || y <= 0 || x >= w - 1 || y >= h - 1) continue; if (owFloodable(owAt(m, x, y))) l.push([x, y]); } return l; }
+function owChainTargets(m, ix, iy, radius) { radius = radius === undefined ? OWP.ChainRadius : radius; const l = []; owBigAll(m).forEach((c, k) => { const dx = c[0] + 0.5 - ix, dy = c[1] + 0.5 - iy, d = dx * dx + dy * dy; if (d <= radius * radius + 1e-9) l.push({ d, k, c }); }); l.sort((a, b) => a.d - b.d || a.k - b.k); return l.map(t => t.c); }
+function owPropsCheckCounts(m, E) {
+  const all = owBigAll(m);
+  if (all.length > OWP.MaxBig) E(`大机关（巨炮 / 滚石 / 水塔）最多 ${OWP.MaxBig} 个（现在 ${all.length} 个）：太多了玩家记不住，也看不清谁连着谁`, -1, -1);
+  for (const c of all) {
+    if (owAt(m, c[0], c[1]) !== 'K') continue; const a = owAim(m, c);
+    if (!a) { E('巨炮 K 同一行 / 同一列找不到靶心 X：炮弹不知道往哪飞', c[0], c[1]); continue; }
+    if (!owMuzzle(m, c, a.dir).length) E('巨炮 K 朝靶心那边第一格就被挡住：炮口前要空地（最好 3 格）', c[0], c[1]);
+  }
+}
+function owPropsCheckReach(m, home, E, Wn) {
+  for (const c of owBigAll(m)) {
+    const ch = owAt(m, c[0], c[1]);
+    if (ch === 'K') { const a = owAim(m, c); if (!a) continue; for (let w = -1; w < 4; w++) { const l = owLanding(m, a.target, w); if (!owPath(m, l, home)) { E(`巨炮 K 的落点 ${owCellS(l)}${w < 0 ? '' : '（大风往' + OWP.DirZh[w] + '吹）'}走不回马里奥的家：被轰过去就困住了（把靶心 X 挪到开阔处）`, c[0], c[1]); break; } } }
+    else if (ch === 'O') { let best = 0; for (let d = 0; d < 4; d++) best = Math.max(best, owLane(m, c, d).length); if (best < 3) Wn(`滚石 O 四个方向最多只能滚 ${best} 格：放在长直路的一头才有用`, c[0], c[1]); }
+  }
+}
+function owTriggers(m, c) {
+  const res = [], ch = owAt(m, c[0], c[1]);
+  const add = (ix, iy) => { for (const t of owChainTargets(m, ix, iy)) if (!owSame(t, c) && !res.some(r => owSame(r, t))) res.push(t); };
+  if (ch === 'K') { const a = owAim(m, c); if (a) { const l = owLanding(m, a.target, -1); add(l[0] + 0.5, l[1] + 0.5); } }
+  else if (ch === 'O') for (let d = 0; d < 4; d++) { const lane = owLane(m, c, d); if (lane.length) { const e = lane[lane.length - 1]; add(e[0] + 0.5, e[1] + 0.5); } }
+  return res;
+}
+function owDoorsNear(m, c, r) { const l = []; for (let n = 1; n <= 9; n++) for (const d of owFind(m, String(n))) if (Math.abs(d[0] - c[0]) + Math.abs(d[1] - c[1]) <= r) l.push(d); return l; }
+function owLongestChain(m) {
+  const all = owBigAll(m), edges = new Map(all.map(c => [c + '', owTriggers(m, c)])); let best = [];
+  const dfs = path => { if (path.length > best.length) best = path.slice(); for (const n of edges.get(path[path.length - 1] + '')) if (!path.some(p => owSame(p, n))) { path.push(n); dfs(path); path.pop(); } };
+  for (const c of all) dfs([c]);
+  return best;
+}
+function owPropsDescribe(m) {
+  const lines = [], all = owBigAll(m);
+  if (!all.length) { lines.push({ text: '还没有大机关：巨炮 K + 靶心 X、滚石 O、水塔 U 是小镇专用的夸张机关（L 发动）', x: -1, y: -1 }); return lines; }
+  for (const c of all) {
+    const ch = owAt(m, c[0], c[1]); let s;
+    if (ch === 'K') {
+      const a = owAim(m, c);
+      if (!a) s = `${owLabel(m, c)}：同一行 / 列没有靶心 X（不能用）`;
+      else {
+        const l = owLanding(m, a.target, -1), near = [];
+        for (const dc of owDoorsNear(m, l, 3)) near.push('门 ' + owAt(m, dc[0], dc[1]));
+        for (const t of owTriggers(m, c)) near.push('震响 ' + owLabel(m, t));
+        let peels = 0; for (let yy = l[1] - 1; yy <= l[1] + 1; yy++) for (let xx = l[0] - 1; xx <= l[0] + 1; xx++) if (owAt(m, xx, yy) === 'n') peels++;
+        if (peels > 0) near.push(`香蕉皮 ${peels}`);
+        s = `${owLabel(m, c)} → 靶心 X(${a.target[0]},${a.target[1]})：往${OWP.DirZh[a.dir]}飞 ${a.dist} 格，炮口 ${owMuzzle(m, c, a.dir).length} 格；落点旁：${near.length ? near.join('、') : '空地'}`;
+      }
+    } else if (ch === 'O') {
+      const parts = [];
+      for (let d = 0; d < 4; d++) {
+        const sm = [], lane = owLane(m, c, d, sm); if (!lane.length) continue;
+        const e = lane[lane.length - 1], tr = owChainTargets(m, e[0] + 0.5, e[1] + 0.5).filter(t => !owSame(t, c)).map(t => owLabel(m, t));
+        parts.push(`往${OWP.DirZh[d]} ${lane.length} 格` + (sm.length ? `（撞碎 ${sm.length}）` : '') + (tr.length ? ' → 震响 ' + tr.join('、') : ''));
+      }
+      s = `${owLabel(m, c)}：` + (parts.length ? parts.join('；') : '四面堵死，推不动');
+    } else {
+      const f = owFloodCells(m, c, OWP.FloodRadius), f2 = owFloodCells(m, c, OWP.FloodRadius + 1), R = OWP.FloodRadius;
+      const grass = f.filter(p => owAt(m, p[0], p[1]) === '"').length, path = f.filter(p => owAt(m, p[0], p[1]) === '=').length; let peels = 0;
+      for (let yy = c[1] - R; yy <= c[1] + R; yy++) for (let xx = c[0] - R; xx <= c[0] + R; xx++) if ((xx - c[0]) ** 2 + (yy - c[1]) ** 2 <= R * R && owAt(m, xx, yy) === 'n') peels++;
+      s = `${owLabel(m, c)}：淹 ${f.length} 格变泥地（雨天 ${f2.length} 格），其中石子路 ${path}` + (grass > 0 ? `、高草 ${grass}（你的藏身处也没了）` : '') + (peels > 0 ? `；冲活香蕉皮 ${peels}` : '');
+    }
+    lines.push({ text: s, x: c[0], y: c[1] });
+  }
+  const chain = owLongestChain(m);
+  lines.push(chain.length >= 2 ? { text: `最长连锁：${chain.map(c => owLabel(m, c)).join(' → ')}（${chain.length} 连）`, x: chain[0][0], y: chain[0][1] }
+    : { text: '还没有连锁：把靶心 X 放在滚石 / 水塔 / 另一门巨炮旁 1 格内，或让滚石滚到头正好撞上它们', x: -1, y: -1 });
+  return lines;
+}
+// 天气（输入随机）：FNV-1a + xorshift，全部 uint32（和 C# 一样）
+function owHash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h = (h ^ s.charCodeAt(i)) >>> 0; h = Math.imul(h, 16777619) >>> 0; } return h; }
+function owDayOf(name, day) {
+  let h = owHash(name || ''); h = (h ^ (Math.imul(day, 2654435761 | 0) >>> 0)) >>> 0;
+  h = (h ^ (h << 13)) >>> 0; h = (h ^ (h >>> 17)) >>> 0; h = (h ^ (h << 5)) >>> 0;
+  return { day, h, kind: day <= 1 ? 0 : h % 5, wind: (h >>> 8) % 4 };
+}
+const OW_WEATHER = ['Clear', 'Wind', 'Rain', 'Fog', 'Market'];
+const owMarketDelay = (d, door) => ((d.h >>> (door * 3)) % 3) * 15;
+function owApplyDay(m, d) { if (d.kind !== 4) return; let prev = -9999; for (const door of m.doors.slice().sort((a, b) => a.minute - b.minute || a.n - b.n)) { let t = door.minute + owMarketDelay(d, door.n); t = Math.max(t, prev + 15); t = Math.min(t, OW.LatestDoor); door.minute = t; prev = t; } }
+function owWeatherZh(d) {
+  switch (d.kind) {
+    case 1: return `🌬 大风（往${OWP.DirZh[d.wind]}吹）：巨炮落点被吹偏 ${OWP.WindShift} 格`;
+    case 2: return `🌧 雨天：水塔淹得更大（半径 ${OWP.FloodRadius + 1}），香蕉皮滑得更久`;
+    case 3: return '🌫 雾天：他只看得见平时 6 成远（你也更好躲）';
+    case 4: return '🧺 赶集日：他每扇门晚 0–30 分钟出门（时间表已更新）';
+    default: return '☀ 晴天：一切照常';
+  }
+}
+function owWeatherPreview(m, from, n) {
+  const l = [];
+  for (let day = from; day < from + n; day++) {
+    const d = owDayOf(m.name, day); let s = `第 ${day} 天 ${owWeatherZh(d)}`;
+    if (d.kind === 4) { const c = owParse(owToText(m)); owApplyDay(c, d); s += '：' + c.doors.slice().sort((a, b) => a.minute - b.minute || a.n - b.n).map(x => `门${x.n} ${owClock(x.minute)}`).join(' '); }
+    l.push(s);
+  }
+  return l;
+}
 </script>
 <script>// ── 状态 ──────────────────────────────────────────────
 const LS = 'mariotrickster.studio.v1', LS2 = 'mariotrickster.studio.v2';
@@ -1882,7 +2019,7 @@ function owRender() {
   const sc = rep.schedule;
   $('#owSched').innerHTML = sc ? sc.stops.map((s, k) => `门 ${s.door.n}：${owClock(s.depart)} 出发 → ${owClock(s.arrive)} 到 → ${owClock(s.leave)} 出来　你能提前 ${Math.round(owLead(sc, k, OW.Rules.minutesPerSecond))} 秒`).join('<br>') + `<br>${owClock(sc.homeArrive)} 到家` : '（先把检查里的红色问题改掉）';
   $('#owSize').textContent = `${owW(m)}×${m.rows.length}`;
-  owLedgerRender(); owScrubText(); owPalette(); owDraw(); owSave();
+  owLedgerRender(); owPropsRender(); owScrubText(); owPalette(); owDraw(); owSave();
 }
 // S215：一天总览（和 Unity 小镇工坊同一套规则：CampaignLedger）
 function owLedgerRender() {
@@ -1891,6 +2028,37 @@ function owLedgerRender() {
     + `<p class="hint">💣 每个房间最多 ${rep.maxBombs} 颗（本回合 3 + 小镇带进来最多 3）；Unity 按这个数加固，炸不死马里奥</p>`
     + rep.warnings.map(w => `<div class="owiss Info">${esc(w)}</div>`).join('');
   $('#owLedger').querySelectorAll('[data-room]').forEach(b => b.onclick = () => owEditRoom(b.dataset.room));
+}
+// S218：大机关 · 连锁 + 天气预览（和 Unity 小镇工坊 PropsPanel 同文字）
+let OWWF = 1;
+function owPropsRender() {
+  const esc = t => String(t).replace(/</g, '&lt;'), m = owM();
+  $('#owProps').innerHTML = owPropsDescribe(m).map((l, k) => `<div class="owiss Info${l.x >= 0 ? ' loc' : ''}" data-x="${l.x}" data-y="${l.y}">${esc(l.text)}</div>`).join('');
+  $('#owProps').querySelectorAll('.loc').forEach(el => el.onclick = () => owLocate(+el.dataset.x, +el.dataset.y));
+  $('#owWeather').innerHTML = owWeatherPreview(m, OWWF, 7).map(esc).join('<br>');
+}
+$('#owWPrev').onclick = () => { OWWF = Math.max(1, OWWF - 7); owPropsRender(); };
+$('#owWNext').onclick = () => { OWWF += 7; owPropsRender(); };
+$('#owLinks').onchange = () => owDraw();
+function owPeek() {
+  const pk = $('#owPeek'), hv = OWT.hover, m = owM();
+  if (!hv || !owIsDoor(owAt(m, hv[0], hv[1]))) { pk.style.display = 'none'; return; }
+  const d = m.doors.find(x => x.n === +owAt(m, hv[0], hv[1])), g = d && owRoomGrid(d.room); if (!g) { pk.style.display = 'none'; return; }
+  const px = Math.max(2, Math.min(6, Math.floor(300 / g[0].length))), z = OWT.zoom, h = m.rows.length;
+  pk.width = g[0].length * px + 8; pk.height = g.length * px + 24; const c = pk.getContext('2d');
+  c.fillStyle = 'rgba(12,12,16,.95)'; c.fillRect(0, 0, pk.width, pk.height); c.fillStyle = '#fff'; c.font = '600 12px system-ui'; c.textAlign = 'left'; c.textBaseline = 'top'; c.fillText(`门 ${d.n} · ${owClock(d.minute)} · ${d.room}`, 4, 4);
+  for (let r = 0; r < g.length; r++) for (let x = 0; x < g[r].length; x++) { const ch = g[r][x]; if (ch === '.' || ch === ' ') continue; const e = W.info.get(ch); c.fillStyle = e ? rgbCss(e.rgb) : (ch === 'M' ? '#e63333' : ch === 'T' ? '#3366e6' : '#555'); c.fillRect(4 + x * px, 20 + r * px, px, px); }
+  pk.style.left = ((hv[0] + 1.5) * z) + 'px'; pk.style.top = ((h - hv[1] + 0.5) * z) + 'px'; pk.style.display = 'block';
+}
+function owLinksDraw(g, m, z, h) {
+  const C = c => [c[0] * z + z / 2, (h - 1 - c[1]) * z + z / 2], line = (a, b, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(...C(a)); g.lineTo(...C(b)); g.stroke(); };
+  for (const c of owBigAll(m)) {
+    const k = owAt(m, c[0], c[1]);
+    if (k === 'K') { const a = owAim(m, c); if (a) { for (const mz of owMuzzle(m, c, a.dir)) { g.fillStyle = 'rgba(255,50,25,.35)'; g.fillRect(mz[0] * z, (h - 1 - mz[1]) * z, z - 1, z - 1); } line(c, a.target, 'rgba(255,90,75,.9)', 3); for (let w = 0; w < 4; w++) { const l = owLanding(m, a.target, w); g.strokeStyle = 'rgba(255,150,130,.6)'; g.lineWidth = 1; g.strokeRect(l[0] * z + 2, (h - 1 - l[1]) * z + 2, z - 5, z - 5); } } }
+    else if (k === 'O') for (let d = 0; d < 4; d++) { const lane = owLane(m, c, d); if (lane.length >= 2) line(c, lane[lane.length - 1], 'rgba(215,205,180,.55)', 4); }
+    else for (const f of owFloodCells(m, c, OWP.FloodRadius)) { g.fillStyle = 'rgba(75,140,255,.55)'; g.fillRect(f[0] * z + z * .3, (h - 1 - f[1]) * z + z * .3, z * .4, z * .4); }
+    for (const t of owTriggers(m, c)) line(c, t, 'rgba(255,215,50,.95)', 2.5);
+  }
 }
 function owPush() { OWT.redo = []; OWT.undo.push(JSON.stringify(owToJson(owM()))); if (OWT.undo.length > 60) OWT.undo.shift(); }
 // ── S212：定位 / 编辑房间 / 时间滑条 / 撤销重做 ──
@@ -1935,7 +2103,7 @@ function owDraw() {
     g.fillStyle = t ? owCss(t) : '#f0f'; g.fillRect(px, py, z - 1, z - 1);
     if (c === 'W' && owAt(m, x, y - 1) !== 'W') { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(px, py + z * 0.45, z - 1, z * 0.55); }
     if (c === 't') { g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(px + z / 2, py + z / 2, z * 0.42, 0, 7); g.fill(); }
-    if ('MT?ni'.includes(c) || (c >= '1' && c <= '9')) { g.fillStyle = '#111'; g.font = `700 ${Math.round(z * 0.62)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c, px + z / 2, py + z / 2 + 1); }
+    if ('MT?niKOUX'.includes(c) || (c >= '1' && c <= '9')) { g.fillStyle = '#111'; g.font = `700 ${Math.round(z * 0.62)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c, px + z / 2, py + z / 2 + 1); }
     if (err.has(x + ',' + y)) { g.strokeStyle = '#ff5a4e'; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, z - 3, z - 3); }
   }
   const sc = OWT.rep && OWT.rep.schedule;
@@ -1947,6 +2115,7 @@ function owDraw() {
     const lamps = owFind(m, 'i');
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!lamps.some(([lx, ly]) => (lx - x) ** 2 + (ly - y) ** 2 <= 9)) { g.fillStyle = 'rgba(10,15,50,.5)'; g.fillRect(x * z, (h - 1 - y) * z, z, z); }
   }
+  if ($('#owLinks') && $('#owLinks').checked) owLinksDraw(g, m, z, h);
   for (const n of m.notes) { g.fillStyle = '#ffc83d'; g.fillText('✎', n.x * z + z / 2, (h - 1 - n.y) * z + z / 2); }
   const hv = OWT.hover;
   if (OWT.drag && hv) { const a = OWT.drag, x0 = Math.min(a[0], hv[0]), x1 = Math.max(a[0], hv[0]), y0 = Math.min(a[1], hv[1]), y1 = Math.max(a[1], hv[1]); const t = owTile(OWT.brush); g.globalAlpha = .55; g.fillStyle = t ? owCss(t) : '#fff'; g.fillRect(x0 * z, (h - 1 - y1) * z, (x1 - x0 + 1) * z, (y1 - y0 + 1) * z); g.globalAlpha = 1; g.fillStyle = '#fff'; g.font = `700 12px JetBrains Mono,monospace`; g.textAlign = 'left'; g.fillText(`${x1 - x0 + 1}×${y1 - y0 + 1}`, (x1 + 1) * z + 3, (h - y0) * z); }
@@ -1965,8 +2134,8 @@ $('#owCanvas').onmousedown = e => {
   if (OWT.tool === 'fill' && e.button === 0) { owFlood(owM(), c[0], c[1], paint); owRender(); return; }
   owSet(owM(), c[0], c[1], paint); OWT.painting = paint; owRender();
 };
-$('#owCanvas').onmouseleave = () => { OWT.hover = null; $('#owHover').textContent = owHoverText(); owDraw(); };
-$('#owCanvas').addEventListener('mousemove', e => { const c = owCell(e); if (String(c) !== String(OWT.hover)) { OWT.hover = c; $('#owHover').textContent = owHoverText(); if (!OWT.painting) owDraw(); } });
+$('#owCanvas').onmouseleave = () => { OWT.hover = null; $('#owHover').textContent = owHoverText(); owDraw(); owPeek(); };
+$('#owCanvas').addEventListener('mousemove', e => { const c = owCell(e); if (String(c) !== String(OWT.hover)) { OWT.hover = c; $('#owHover').textContent = owHoverText(); if (!OWT.painting) owDraw(); owPeek(); } });
 $('#owWrap').addEventListener('wheel', e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); OWT.zoom = Math.max(4, Math.min(40, Math.round(OWT.zoom * (e.deltaY > 0 ? 0.9 : 1.1)))); $('#owZoom').value = OWT.zoom; owDraw(); }, { passive: false });
 $('#owWrap').addEventListener('dragover', e => { e.preventDefault(); $('#owWrap').classList.add('drop'); });
 $('#owWrap').addEventListener('dragleave', () => $('#owWrap').classList.remove('drop'));
@@ -2000,7 +2169,7 @@ $('#owPick').onchange = e => { OWCUR = +e.target.value; OWT.undo = []; OWT.redo 
 $('#owName').onchange = e => { owM().name = e.target.value.trim() || '未命名小镇'; owRender(); };
 $('#owGoal').onchange = e => { owM().goal = e.target.value.trim(); owSave(); };
 $('#owNew').onclick = () => { OWLIB.push({ kind: 'overworld', name: '新小镇 ' + (OWLIB.length + 1), goal: '', id: '', rows: owNewMap(40, 24), doors: [], notes: [] }); OWCUR = OWLIB.length - 1; OWT.undo = []; owRender(); toast('新建 40×24：先画家 M、出生点 T、至少一扇门'); };
-$('#owSample').onclick = () => { const s = owParse(OW_SAMPLE); const i = OWLIB.findIndex(x => x.name === s.name); if (i >= 0) { owPush(); OWLIB[i] = s; OWCUR = i; } else { OWLIB.push(s); OWCUR = OWLIB.length - 1; } owRender(); };
+$('#owSample').onchange = e => { const v = e.target.value; e.target.value = ''; if (!v) return; const s = owParse(v === 'big' ? OW_BIG_SAMPLE : OW_SAMPLE); const i = OWLIB.findIndex(x => x.name === s.name); if (i >= 0) { owPush(); OWLIB[i] = s; OWCUR = i; } else { OWLIB.push(s); OWCUR = OWLIB.length - 1; } owRender(); };
 $('#owDel').onclick = () => { if (OWLIB.length <= 1) { toast('至少留一个小镇'); return; } if (!confirm(`删除小镇"${owM().name}"？`)) return; OWLIB.splice(OWCUR, 1); OWCUR = 0; owRender(); };
 $('#owPack').onclick = exportPack;
 $('#owTxt').onclick = () => download(`${(owM().name || '小镇').replace(/[\\/:*?"<>|]/g, '')}.txt`, owToText(owM()), 'text/plain');

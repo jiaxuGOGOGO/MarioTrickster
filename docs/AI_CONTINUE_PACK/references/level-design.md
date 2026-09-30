@@ -57,3 +57,15 @@
 ## S217 大世界
 - 小镇工坊 / 网页"↔ 扩展"：四周/单向 +8/+16、×2、裁 4；往哪边扩拆哪边围栏、外圈封树、老镇不变、批注平移；裁掉东西先问。上限 192×128，更大 → 拆多张小镇。
 - 游戏里地面是一张贴图、工坊只画可见格 → 大图不卡。`-`/`=` 镜头远近。
+
+## S218 小镇大机关（巨炮 K + 靶心 X / 滚石 O / 水塔 U）
+- 规则全在 `Assets/Scripts/Overworld/OverworldProps.cs`（纯几何）+ `OverworldTown` 的 Arm/Fire/Impact/TickBigs/DodgeCell；网页 overworld.js `owProps*` 逐行移植。改检查 / 总览文字 → 两边一起改（verify 对照 ow_props.json）。
+- 巨炮：同一行/列最近的靶心；炮口 = 朝靶心方向紧挨的 ≤3 个能走格；落点 = 靶心（大风偏 3 格）→ 最近能走格（环形扫描）。检查：没有靶心 / 炮口堵死 = 红；**任一风向的落点走不回家 = 红（H1）**。
+- 滚石：离开推的人的方向滚；撞碎 c f、碰到别的挡路就停；**永远不碰最外一圈**。四向最长 <3 格 = 黄。
+- 水塔：半径 3（雨天 4）内的 . = " 变泥地 g；冲活香蕉皮。
+- 连锁：冲击点（炮弹落点 / 滚道尽头）1.5 格内的大机关 → 深度 +1 同样预警再发动。总览 `Describe` + `LongestChain`（≤12 个大机关）。
+- 地形改变只"打开"（撞碎 / 变泥），记在 `OverworldSession.Changed`，当天有效；新一天清空。新大机关也必须满足"只打开不关死"，否则要进 CheckReach 的最坏情况检查。
+- 天气 `OverworldEvents.Of(地图名, 第几天)`：第 1 天晴；大风/雨/雾/赶集。赶集日 ApplyTo 改门时间（仍有序 ≥15 分钟、≤20:00）。
+- 联动：`OverworldSession.CarriedDaze` → `OverworldRoomLink` → `MarioMindDriver.AddStartDelay`；`ReloadDoor`（守住一户）→ `OverworldTown.Reload` 装填旁边最近的用过的巨炮/水塔。
+- 样板 `OverworldPack.BigSampleText`（星露大镇 72×40，最长 3 连）；build.py 读成 `OW_BIG_SAMPLE`。
+- 想加第 4 种大机关：OverworldCatalog 加 T(...) → OverworldProps.IsBig + 几何函数 + CheckCounts/CheckReach/Describe/Triggers → OverworldTown.Fire 分支 → OverworldGame 造型 → 网页同步 → sim S218 块加一行 → 测试。

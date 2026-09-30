@@ -16,6 +16,12 @@ public struct OverworldPercept
     public bool heardTaunt;
     public Vector2 tauntPos;
     public bool slipped;
+    /// <summary>S218：听见大机关的动静（炮声 / 滚石 / 落地）——只知道声音在哪（H4）。</summary>
+    public bool heardNoise;
+    public Vector2 noisePos;
+    public float noiseSuspicion;
+    /// <summary>S218：这一帧被大机关砸中（落地 / 被碾），晕几秒。</summary>
+    public float bigStun;
     /// <summary>日程：现在要去的地方（门口 / 家）。null = 时间没到，在原地等。</summary>
     public Vector2? scheduleTarget;
 }
@@ -63,6 +69,7 @@ public sealed class OverworldMind
         if (State == OverworldMarioState.InRoom || State == OverworldMarioState.Home) { o.state = State; return o; }
         stateTime += dt;
         if (p.slipped) dizzy = Mathf.Min(t.maxStunSeconds, Mathf.Max(dizzy, t.overworldSlipStunSeconds));
+        if (p.bigStun > 0f) dizzy = Mathf.Min(t.maxStunSeconds, Mathf.Max(dizzy, p.bigStun));
         dizzy = Mathf.Max(0f, dizzy - dt);
 
         bool seesYou = p.seesFigure && !p.figureLooksLikeProp;
@@ -72,6 +79,7 @@ public sealed class OverworldMind
         else if (seesOdd) { rise += t.seeDisguisedMovePerSecond; focus = p.figurePos; }
         if (p.sawRustle) { Meter.Add(t.rustleSuspicion * dt * 2f); if (!seesYou && !seesOdd) focus = p.rustlePos; }
         if (p.heardTaunt) { Meter.Add(t.tauntSuspicion); if (!seesYou) focus = p.tauntPos; }
+        if (p.heardNoise) { Meter.Add(p.noiseSuspicion); if (!seesYou) focus = p.noisePos; } // S218：只到 '?'（停下看一眼），不会一声就 '!'（H2）
         Meter.Tick(dt, rise);
 
         switch (State)

@@ -24,7 +24,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 | 加新机关/元素（ASCII 字符、陷阱、场景物） | `references/new-element.md` |
 | 改马里奥 AI（感知、起疑、追逐、学习、卡住） | `references/mario-ai.md` |
 | 捣蛋者技能/按键（炸弹、诱饵、连锁、挑衅…） | `references/trickster-skill.md` |
-| 关卡/样板/工坊/箱庭/监狱塔/小镇大地图（S210 星露谷视角） | `references/level-design.md` |
+| 关卡/样板/工坊/箱庭/监狱塔/小镇大地图（S210 星露谷视角）/小镇大机关·连锁·天气（S218） | `references/level-design.md` |
 | 修 bug / 用户截图报错 / "没反应" / 用户发来反馈包 zip | `references/bugfix.md` |
 | 调研玩法再升级 | `references/research.md` |
 | 文件在哪、关键数值、字符表 | `references/project-map.md` |
@@ -44,16 +44,17 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 
 ## 0.6 进度快照（打包时写入，以 SESSION_TRACKER 为准）
 
-- 最新交付：**S217**（大地图可扩展到 192×128 + 修"运行时画面不动/控制不了" + 测试中心 Ctrl+Alt+T）。`scripts/pending/` 里是还没上传到 GitHub 的补丁（setup 会自动补上；已上传的自动跳过）。
-- 数值版本 `MarioMindTuningSO.CurrentDataVersion = 18`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
+- 最新交付：**S218**（小镇大机关 巨炮 K+靶心 X / 滚石 O / 水塔 U + 连锁 + 每日天气 + 小镇↔房间联动 + 编辑器关系线/悬停门看房间；样板"星露大镇"）。上一版 S217：大地图扩展 192×128 + 测试中心。`scripts/pending/` 里是还没上传到 GitHub 的补丁（setup 会自动补上；已上传的自动跳过）。
+- 数值版本 `MarioMindTuningSO.CurrentDataVersion = 19`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
 - 近几次做了什么（详情看 `repo/docs/step1/S21x_*.md`）：
   - S210 星露谷视角小镇大地图（门 = 恶作剧房间）；S211 场景转场；S212 圆形转场 + 指引箭头 + 编辑器快捷键；
   - S213 小镇规则纯逻辑化 + 7 种机器人玩家模拟；S214 网页 ↔ Unity 自动同步（Inbox 文件夹、▶ 在 Unity 试玩、PageUp/PageDown 切关）；
   - S215 一天总览（CampaignLedger，Unity 小镇工坊 + 网页大地图逐字一致）、小镇房间按 3+3 颗炸弹加固、14 个旧菜单收进"旧工具 (Legacy)"；
   - S217 小镇"↔ 扩展"（C# Resize = 网页 owResize）、上限 192×128；说明面板任意键关、进 Play 自动切 Game 窗口、全局键两套输入、转场保险丝、等出门提示；测试中心（一键体检 / 快速测试模式 / F8 反馈 / 打包 zip）；
+  - S218 小镇大机关（OverworldProps + OverworldEvents；OverworldTown Arm/Fire/Impact；马里奥听见起疑、吃过亏会躲；砸晕带进房间、守住一户重新装填；天气第 1 天晴；网页逐字对照）；
   - S216 修复"硬直期往上飞没有重力"（Step1Feel.StunStep，全程重力 40、落地才恢复），受伤红白闪 + 小跳、Step1Fx 冲击环/尘土/连锁火花线、预警越来越急、平滑震屏。
 - 交付包固定结构（`out/D<N>/`）：`00_先看我_怎么用.md`、`01_安装到项目`（全部补丁 + `install_and_upload.bat`）、`02_接续包_换账号用`（本 .skill）、`03_说明文档`（S21x_*.md）、`04_关卡设计台网页/MarioTrickster关卡设计台.html`。
-- 上次汇报推荐的下一步（用户说"继续"时做）：① 用户发来测试中心的**反馈包 zip** → 按 HealthCheck.md + feedback.md + 截图逐条修；② 大世界分区域（区域主题 + 区域名提示）；③ 马里奥受伤/弹飞/落地专门姿势。
+- 上次汇报推荐的下一步（用户说"继续"时做）：① 用户试玩星露大镇后发来反馈包 → 调大机关手感（飞行、晕、滚速）；② 房间 → 小镇第二条联动（房间里被炮打出窗外，落到小镇某格）；③ 第 4 种大机关（钟楼：全镇 `?`）——前 3 种好玩再做。
 - 用户要求（S217 起长期有效）：**每次升级都按本技能做安装包**，装到 `E:\BaiduNetdiskDownload\MarioTricksterGensparkAI\MarioTrickster`，bat 里选 Y 自动推到 GitHub；**测试流程不能有反复操作的阻碍**（新功能默认不弹窗、有快速测试模式、反馈走 F8 + 测试中心打包）。
 
 ## 1. 设计宪法硬规则（违反 = 不许交付）

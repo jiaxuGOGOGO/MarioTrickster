@@ -26,13 +26,27 @@ public static class OverworldSession
     /// <summary>今天已经用掉的香蕉皮 / 捡过的道具箱（格子编号 y*W+x）。</summary>
     public static readonly HashSet<int> UsedCells = new HashSet<int>();
     public static bool DayOver;
+    // ── S218：大机关 / 天气 / 小镇 ↔ 房间联动 ──
+    /// <summary>第几天（同一张小镇按 R 开新的一天 +1；天气由 地图名 + 天数 决定，可复现）。</summary>
+    public static int Day = 1;
+    /// <summary>今天被大机关改掉的格子（格子编号 → 新字符）。回到小镇场景时重新套上；只活一天。</summary>
+    public static readonly Dictionary<int, char> Changed = new Dictionary<int, char>();
+    /// <summary>马里奥吃过亏的大机关种类（他自己的经历，H4）。跨天保留，重新进 Play 才忘。</summary>
+    public static readonly HashSet<char> MarioWary = new HashSet<char>();
+    /// <summary>他上一次被大机关砸中的游戏分钟（进门时还晕着 → 房间开局多等几秒）。</summary>
+    public static double LastBigHitMinute = -9999;
+    public static float CarriedDaze;
+    /// <summary>刚守住的门（回到小镇时，离它最近的一个用过的大机关重新装填）。</summary>
+    public static int ReloadDoor;
+    public static int BigHits, BestChain;
 
     /// <summary>每次进入 Play 都重置（Unity 关了域重载时静态值会留着）。</summary>
     [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
-    public static void ResetStatics() { Active = false; NewDay("", ""); }
+    public static void ResetStatics() { Active = false; MarioWary.Clear(); NewDay("", ""); }
 
-    public static void NewDay(string map, string town)
+    public static void NewDay(string map, string town, int day = 1)
     {
+        Day = System.Math.Max(1, day); Changed.Clear(); LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0;
         MapName = map ?? ""; TownScene = town ?? ""; Minute = OverworldMap.DayStart;
         Results.Clear(); UsedCells.Clear(); DayOver = false; HasPositions = false; NextStop = 0; PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f; Caught = 0; TauntsUsed = 0; DelayedSeconds = 0f;
     }
@@ -42,7 +56,8 @@ public static class OverworldSession
     {
         if (door <= 0) return;
         Results[door] = playerWon ? DoorResult.Defended : DoorResult.Looted;
-        PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f;
+        PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f; CarriedDaze = 0f;
+        if (playerWon) ReloadDoor = door; // S218：守住一户 → 回到小镇时那户旁边的大机关重新装填
     }
 
     public static void RecordMissed(int door) { if (door > 0) Results[door] = DoorResult.Missed; }

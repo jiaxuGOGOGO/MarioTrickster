@@ -37,6 +37,8 @@ public class MarioMindDriver : MonoBehaviour
     public bool IsWaitingToStart => startDelay > 0f;
     /// <summary>S210：从大地图'迟到'跟进房间 → 他不等你，直接开跑。</summary>
     public void SkipStartDelay() { startDelay = 0f; }
+    /// <summary>S218：从小镇带进来的"还晕着"——开局多等几秒（上限 maxStunSeconds，H9）。</summary>
+    public void AddStartDelay(float seconds) { if (seconds > 0f) startDelay = Mathf.Max(0f, startDelay) + Mathf.Min(seconds, tuning != null ? tuning.maxStunSeconds : 3f); }
     public float StartDelayRemaining => Mathf.Max(0f, startDelay);
     /// <summary>移动执行层（只读，供连招统计读"是否被机关挡停"）。</summary>
     public HeuristicBotInputProvider Bot => hybrid != null ? hybrid.Bot : null;

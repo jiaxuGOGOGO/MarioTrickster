@@ -10,10 +10,12 @@ public static partial class Step1Text
         "他先进门：6 秒内跟进去 = 迟到（照样打，但他不等你）；再晚 = 这户被偷\n" +
         "躲进高草/房子后面他就看不见；晚上 19:00 后他看得近，路灯下除外\n" +
         "? 木盒：捡到 +1 枚炸弹，带进下一个房间\n" +
+        "大机关（L 发动，每天一次，先闪 1.2 秒再动）：巨炮 K 把炮口里的人轰到靶心 X；滚石 O 一路撞碎木箱栅栏；水塔 U 把路口淹成泥地。冲击会震响 1.5 格内的下一个 = 连锁。他吃过一次亏就会躲\n" +
+        "每天早上公布天气：大风吹偏炮弹、雨天水更大、雾天他看得近、赶集日他晚出门\n" +
         "指引：屏幕边上的箭头 = 下一扇门；左上会算好\"你几秒 / 他几秒\"来不来得及；按住 Tab 看去门的路线，M 小地图   H 关闭/打开说明";
 
     // S217：测试不卡人——底部常驻按键、等他出门的提示、没点游戏窗口的提醒、快速测试、F8 反馈
-    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮   T 挑衅   E 门口埋伏   空格(按住) 快进   Tab 路线   M 小地图   - / = 镜头远近   H 说明   F8 记反馈";
+    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   E 门口埋伏   空格(按住) 快进   Tab 路线   M 小地图   - / = 镜头远近   H 说明   F8 记反馈";
     public const string OverworldHelpClose = "按任意键关闭说明（H 随时再打开）  Press any key";
     public static string OverworldWaitDepart(int door, string clock, double realSeconds) =>
         $"马里奥 {clock} 才出门去门 {door}（还有约 {realSeconds:0} 秒）\n先去门口躲好，或按住空格快进";
@@ -35,6 +37,16 @@ public static partial class Step1Text
     public const string OverworldTooEarly = "这扇门今天不是他下一站\nNot his next stop";
     public const string OverworldCaught = "被马里奥抓住了！送回出生点\nCaught! Back to start";
     public const string OverworldMissed = "他在里面安心偷完了——这户被偷\nToo late, that house got robbed";
+    // S218：大机关 / 天气 / 联动
+    public const string OverworldBigArmed = "大机关预警中……（1.2 秒后发动，红格 = 危险）\nBig prank armed";
+    public const string OverworldBigHit = "砸中了！他晕 2 秒——这时进门，房间开局他还晕着\nDirect hit!";
+    public const string OverworldBigChain = "连锁！冲击震响了下一个大机关\nChain reaction!";
+    public const string OverworldBigReloaded = "守住了一户：旁边的大机关重新装填好了\nBig prank reloaded";
+    public const string OverworldBigSelf = "被自己的滚石碾到了！晕 2 秒\nFlattened by your own boulder";
+    public const string OverworldBigStuck = "这个机关现在用不了（今天用过 / 四面堵死）\nCan't use that now";
+    public static string OverworldWeather(int day, string zh) => $"第 {day} 天  {zh}\nDay {day}";
+    public static string OverworldWeatherShort(int day, int kind) => $"D{day} " + (kind == 1 ? "🌬" : kind == 2 ? "🌧" : kind == 3 ? "🌫" : kind == 4 ? "🧺" : "☀");
+    public static string OverworldRoomDazed(float s) => $"他在小镇被砸晕了，进来还晕着（多等 {s:0} 秒）\nStill dazed from town";
     public const string OverworldPickup = "捡到炸弹 +1（下一个房间用）\n+1 bomb for next room";
     public const string OverworldPeel = "香蕉皮变滑了（3 秒）\nPeel armed (3s)";
     public const string OverworldPeelNo = "附近 3 格内没有能用的香蕉皮\nNo peel within 3";

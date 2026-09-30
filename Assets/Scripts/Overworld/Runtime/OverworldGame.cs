@@ -57,11 +57,15 @@ public sealed class OverworldGame : MonoBehaviour
         OverworldSession.Active = true;
         for (int i = 0; i < doorNumbers.Length && i < doorScenes.Length; i++) OverworldSession.RoomScenes[doorNumbers[i]] = doorScenes[i];
         town = new OverworldTown(map, tuning, n => OverworldSession.RoomScenes.TryGetValue(n, out var sc) && SceneTransit.CanLoad(sc));
+        map = town.map; // S218：小镇自己那份（今天被大机关改过的地形、赶集日的新时间都在里面）
         Time.timeScale = 1f; // S217：从暂停中的房间/测试回来也不会"画面不动"
         helpOpen = !helpSeenThisPlay && !Step1QuickTest.On; helpSeenThisPlay = true; // S217：快速测试模式不弹说明
         BuildVisuals();
         UpdateVisuals(); SnapCamera(); // S212：镜头直接就位（以前从默认位置滑过来，揭幕时画面在"飘"）
         SceneTransit.RevealAt(new Vector3((float)tx, (float)ty, 0), cam); // 转场的圆在你身上展开
+        // S218：早上公布今天的天气（输入随机：做决定之前就知道）；刚守住一户 → 旁边的大机关重新装填
+        if (OverworldSession.Minute <= OverworldMap.DayStart + 1) Hint(Step1Text.OverworldWeather(OverworldSession.Day, OverworldEvents.Zh(town.weather)), 5f);
+        else if (town.reloaded.HasValue) Hint(Step1Text.OverworldBigReloaded, 3f);
         Step1Feedback.Context = () => $"小镇 {map.name} {OverworldMap.Clock(OverworldSession.Minute)} 下一扇门 {(NextStop != null ? NextStop.n.ToString() : "-")} 你({tx:0.0},{ty:0.0}) 马里奥({mario.x:0.0},{mario.y:0.0}) {town.mind.State}";
     }
 
@@ -79,7 +83,7 @@ public sealed class OverworldGame : MonoBehaviour
         {
             if (Step1Keys.Down(KeyCode.R))
             {
-                OverworldSession.NewDay(map.name, OverworldSession.TownScene);
+                OverworldSession.NewDay(map.name, OverworldSession.TownScene, OverworldSession.Day + 1); // S218：第 N+1 天（天气换了）
                 if (!SceneTransit.Go(OverworldSession.TownScene, Step1Text.OverworldTransitNewDay(map.name))) SceneManager.LoadScene(OverworldSession.TownScene);
             }
             UpdateVisuals(); return;
@@ -94,6 +98,7 @@ public sealed class OverworldGame : MonoBehaviour
         };
         town.Tick(dt, input);
         if (town.hint != OverworldTown.Note.None) Hint(NoteText(town.hint), town.hintSeconds);
+        BigFx();
         if (town.wantsEnter)
         {
             var d = town.enterDoor; var c = doorCells[d.n];
@@ -119,6 +124,12 @@ public sealed class OverworldGame : MonoBehaviour
             case OverworldTown.Note.Caught: return Step1Text.OverworldCaught;
             case OverworldTown.Note.AmbushWait: return Step1Text.OverworldAmbushWait;
             case OverworldTown.Note.Spotted: return Step1Text.OverworldSpotted;
+            case OverworldTown.Note.BigArmed: return Step1Text.OverworldBigArmed;
+            case OverworldTown.Note.BigHit: return Step1Text.OverworldBigHit;
+            case OverworldTown.Note.BigChain: return Step1Text.OverworldBigChain;
+            case OverworldTown.Note.BigReloaded: return Step1Text.OverworldBigReloaded;
+            case OverworldTown.Note.BigSelf: return Step1Text.OverworldBigSelf;
+            case OverworldTown.Note.BigStuck: return Step1Text.OverworldBigStuck;
             default: return "";
         }
     }
@@ -149,7 +160,7 @@ public sealed class OverworldGame : MonoBehaviour
                 var gt = ground ? t : OverworldCatalog.Get(c == 'M' || c == 'T' || OverworldCatalog.IsDoor(c) ? '=' : '.');
                 var gc = new Color(gt.r, gt.g, gt.b); if ((x + y) % 2 == 0) gc *= 0.96f; // 棋盘微差，看得出格子
                 groundPx[y * map.W + x] = new Color(gc.r, gc.g, gc.b, 1f);
-                if (c == '"') { var tall = Quad(root, "grass", x + 0.5f, y + 0.6f, 1f, 1.1f, new Color(t.r, t.g, t.b, 0.88f), 3000); tall.name = "TallGrass"; }
+                if (c == '"') { var tall = Quad(root, "grass", x + 0.5f, y + 0.6f, 1f, 1.1f, new Color(t.r, t.g, t.b, 0.88f), 3000); tall.name = "TallGrass"; Keep(x, y, tall); }
                 else if (c == 'W')
                 {
                     bool wallFace = map.At(x, y - 1) != 'W'; // 最下面一排 = 墙面，上面 = 屋顶
@@ -160,8 +171,13 @@ public sealed class OverworldGame : MonoBehaviour
                     Quad(root, "trunk", x + 0.5f, y + 0.35f, 0.3f, 0.7f, new Color(0.4f, 0.26f, 0.14f), Order(y) - 1);
                     Quad(root, "crown", x + 0.5f, y + 1.0f, 1.2f, 1.1f, new Color(t.r, t.g, t.b), Order(y)); // 树冠越过上一格：你在它上方时被树冠盖住（星露谷 Front）
                 }
-                else if (c == 'c') Quad(root, "crate", x + 0.5f, y + 0.55f, 0.85f, 0.9f, new Color(t.r, t.g, t.b), Order(y));
-                else if (c == 'f') Quad(root, "fence", x + 0.5f, y + 0.45f, 1f, 0.5f, new Color(t.r, t.g, t.b), Order(y));
+                else if (c == 'c') Keep(x, y, Quad(root, "crate", x + 0.5f, y + 0.55f, 0.85f, 0.9f, new Color(t.r, t.g, t.b), Order(y)));
+                else if (c == 'f') Keep(x, y, Quad(root, "fence", x + 0.5f, y + 0.45f, 1f, 0.5f, new Color(t.r, t.g, t.b), Order(y)));
+                // S218 大机关：比房子矮一点、比木箱大一圈（一眼看出"这是小镇级的东西"）
+                else if (c == 'K') { Keep(x, y, Quad(root, "cannonBase", x + 0.5f, y + 0.4f, 1.3f, 0.8f, new Color(0.25f, 0.2f, 0.16f), Order(y))); if (OverworldProps.Aim(map, new OverworldMap.Cell(x, y), out _, out int kd, out _)) Keep(x, y, Quad(root, "barrel", x + 0.5f + OverworldProps.DX[kd] * 0.55f, y + 0.6f + OverworldProps.DY[kd] * 0.4f, OverworldProps.DX[kd] != 0 ? 1.2f : 0.55f, OverworldProps.DX[kd] != 0 ? 0.55f : 1.2f, new Color(t.r, t.g, t.b), Order(y) + 1)); }
+                else if (c == 'O') Keep(x, y, Quad(root, "boulder", x + 0.5f, y + 0.6f, 1.25f, 1.2f, new Color(t.r, t.g, t.b), Order(y)));
+                else if (c == 'U') { Keep(x, y, Quad(root, "towerLegs", x + 0.5f, y + 0.5f, 0.9f, 1f, new Color(0.45f, 0.32f, 0.2f), Order(y))); Keep(x, y, Quad(root, "tank", x + 0.5f, y + 1.35f, 1.4f, 1f, new Color(t.r, t.g, t.b), Order(y) + 1)); }
+                else if (c == 'X') tileSr[y * map.W + x] = Quad(root, "target", x + 0.5f, y + 0.5f, 0.8f, 0.8f, new Color(t.r, t.g, t.b, 0.8f), -1500);
                 else if (c == 'i')
                 {
                     Quad(root, "post", x + 0.5f, y + 0.6f, 0.2f, 1.2f, new Color(0.25f, 0.25f, 0.28f), Order(y));
@@ -172,8 +188,9 @@ public sealed class OverworldGame : MonoBehaviour
                 else if (c == 'M') Quad(root, "home", x + 0.5f, y + 0.75f, 0.7f, 0.5f, new Color(t.r, t.g, t.b), Order(y + 1) + 1);
             }
 
+        groundTex = null;
         var gtex = new Texture2D(map.W, map.H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
-        gtex.SetPixels(groundPx); gtex.Apply();
+        gtex.SetPixels(groundPx); gtex.Apply(); groundTex = gtex;
         var ggo = new GameObject("Ground"); ggo.transform.SetParent(root, false);
         var gsr = ggo.AddComponent<SpriteRenderer>();
         gsr.sprite = Sprite.Create(gtex, new Rect(0, 0, map.W, map.H), Vector2.zero, 1f); gsr.sortingOrder = -2000;
@@ -206,6 +223,78 @@ public sealed class OverworldGame : MonoBehaviour
     }
 
     private TextMesh youTag, marioTag;
+
+    // ═════════════════════ S218 大机关画面（纯画面：不加碰撞体、不影响他——H4）═════════════════════
+    private Texture2D groundTex;
+    private readonly Dictionary<int, List<GameObject>> cellGo = new Dictionary<int, List<GameObject>>();
+    private readonly List<SpriteRenderer> dangerSr = new List<SpriteRenderer>();
+    private SpriteRenderer boulderSr, shellSr;
+    private void Keep(int x, int y, SpriteRenderer sr) { int id = y * map.W + x; if (!cellGo.TryGetValue(id, out var l)) cellGo[id] = l = new List<GameObject>(); l.Add(sr.gameObject); }
+
+    private void BigFx()
+    {
+        foreach (int id in town.changedCells)
+        {
+            int x = id % map.W, y = id / map.W; char c = map.At(x, y);
+            if (cellGo.TryGetValue(id, out var l)) { foreach (var go in l) if (go != null) go.SetActive(false); cellGo.Remove(id); }
+            if (groundTex != null) { var t = OverworldCatalog.Get(c) ?? OverworldCatalog.Get('.'); var gc = new Color(t.r, t.g, t.b); if ((x + y) % 2 == 0) gc *= 0.96f; groundTex.SetPixel(x, y, new Color(gc.r, gc.g, gc.b, 1f)); }
+        }
+        if (town.changedCells.Count > 0) { if (groundTex != null) groundTex.Apply(); minimap = null; } // 小地图下次打开重画
+        foreach (var im in town.impacts)
+        {
+            Step1Fx.Ring(new Vector2(im.x, im.y), im.z, new Color(1f, 0.85f, 0.4f, 0.9f)); // 冲击环 = 真实的连锁范围（1.5 格）/ 淹没范围
+            Step1Fx.Burst(new Vector2(im.x, im.y), 10, new Color(0.7f, 0.6f, 0.45f), 5f, Vector2.zero);
+            if (cam != null && im.z >= 1f) shake = Mathf.Max(shake, 0.25f);
+        }
+    }
+
+    private float shake;
+    private readonly Dictionary<GameObject, Vector3> baseScale = new Dictionary<GameObject, Vector3>();
+
+    private void BigVisuals()
+    {
+        // 预警：危险格闪红（巨炮炮口 / 滚石滚道），机关本身抖
+        int n = 0;
+        foreach (var b in town.active)
+        {
+            if (b.fuse > 0f && cellGo.TryGetValue(b.c.y * map.W + b.c.x, out var gos))
+            {
+                float k = 1f - b.fuse / Mathf.Max(0.01f, b.fuseTotal), pulse = 1f + Mathf.Abs(Mathf.Sin(Time.time * (10f + 25f * k))) * 0.12f * (0.3f + k); // 越来越急（S216 预警规则）
+                foreach (var go in gos) if (go != null) { if (!baseScale.TryGetValue(go, out var bs)) baseScale[go] = bs = go.transform.localScale; go.transform.localScale = bs * pulse; }
+            }
+            if (b.kind == 'U' && b.fuse <= 0f) continue;
+            foreach (var c in town.Danger(b))
+            {
+                if (n >= dangerSr.Count) dangerSr.Add(Quad(null, "danger", 0, 0, 0.9f, 0.9f, Color.red, -1400));
+                var sr = dangerSr[n++]; sr.enabled = true; sr.transform.position = new Vector3(c.x + 0.5f, c.y + 0.5f, 0);
+                float blink = b.fuse > 0f ? Mathf.PingPong(Time.time * (6f + 10f * (1f - b.fuse / Mathf.Max(0.01f, b.fuseTotal))), 1f) : 0.6f;
+                sr.color = new Color(1f, 0.15f, 0.1f, 0.2f + 0.35f * blink);
+            }
+            if (b.kind == 'U' && b.fuse > 0f) foreach (var c in OverworldProps.Flood(map, b.c, OverworldProps.FloodRadius + (town.weather.kind == OverworldEvents.Kind.Rain ? 1 : 0)))
+            {
+                if (n >= dangerSr.Count) dangerSr.Add(Quad(null, "danger", 0, 0, 0.9f, 0.9f, Color.red, -1400));
+                var sr = dangerSr[n++]; sr.enabled = true; sr.transform.position = new Vector3(c.x + 0.5f, c.y + 0.5f, 0); sr.color = new Color(0.3f, 0.55f, 1f, 0.35f);
+            }
+        }
+        for (int i = n; i < dangerSr.Count; i++) dangerSr[i].enabled = false;
+        // 正在滚的石头
+        OverworldTown.Big roll = town.active.Find(b => b.rolling);
+        if (roll != null) { if (boulderSr == null) boulderSr = Quad(null, "rollingBoulder", 0, 0, 1.25f, 1.2f, new Color(0.56f, 0.53f, 0.49f), 0); boulderSr.enabled = true; boulderSr.transform.position = new Vector3((float)roll.rx, (float)roll.ry + 0.1f, 0); boulderSr.transform.Rotate(0, 0, -720f * Time.deltaTime); boulderSr.sortingOrder = Order(roll.ry) + 3; }
+        else if (boulderSr != null) boulderSr.enabled = false;
+        // 炮弹 / 被轰飞的人：抛物线（高度只是画面，落点是纯逻辑算好的）
+        OverworldTown.Flight shellF = town.flights.Find(f => f.shell);
+        if (shellF != null) { if (shellSr == null) shellSr = Quad(null, "shell", 0, 0, 0.5f, 0.5f, new Color(0.15f, 0.15f, 0.18f), 3900); shellSr.enabled = true; shellSr.transform.position = new Vector3((float)shellF.X, (float)shellF.Y + shellF.Arc * 4f, 0); }
+        else if (shellSr != null) shellSr.enabled = false;
+        foreach (var f in town.flights)
+        {
+            if (f.mario && marioSr != null) marioSr.transform.localPosition = new Vector3(0, 0.1f + f.Arc * 4f, 0);
+            if (f.you && trickSr != null) trickSr.transform.localPosition = new Vector3(0, 0.1f + f.Arc * 4f, 0);
+        }
+        if (!town.marioFlying && marioSr != null) marioSr.transform.localPosition = new Vector3(0, 0.1f, 0);
+        if (!town.youFlying && trickSr != null) trickSr.transform.localPosition = new Vector3(0, 0.1f, 0);
+        // 靶心：巨炮在预警时，它的靶心也闪
+        foreach (var b in town.active) if (b.kind == 'K' && b.fuse > 0f && OverworldProps.Aim(map, b.c, out var tg, out _, out _) && tileSr.TryGetValue(tg.y * map.W + tg.x, out var tsr)) tsr.color = Mathf.PingPong(Time.time * 8f, 1f) > 0.5f ? Color.white : new Color(0.93f, 0.36f, 0.3f);
+    }
     private static float zoom = 7.5f; // S217：- / = 缩放镜头（这次 Play 里记住）
     public const float MinZoom = 4f, MaxZoom = 20f;
 
@@ -230,7 +319,7 @@ public sealed class OverworldGame : MonoBehaviour
     private SpriteRenderer Quad(Transform parent, string name, float x, float y, float w, float h, Color c, int order)
     {
         var go = new GameObject(name);
-        go.transform.SetParent(parent, false);
+        if (parent != null) go.transform.SetParent(parent, false);
         go.transform.localPosition = new Vector3(x, y, 0);
         go.transform.localScale = new Vector3(w, h, 1);
         var sr = go.AddComponent<SpriteRenderer>();
@@ -274,11 +363,13 @@ public sealed class OverworldGame : MonoBehaviour
             }
         }
         UpdateCone();
+        BigVisuals();
 
         // 镜头跟你，夹在地图内。S212：按时间平滑（和帧率无关），切换中直接跟住
         var goal = CameraGoal();
         float k = SceneTransit.Busy ? 1f : 1f - Mathf.Exp(-12f * Time.unscaledDeltaTime);
         cam.transform.position = Vector3.Lerp(cam.transform.position, goal, k);
+        if (shake > 0f) { shake = Mathf.Max(0f, shake - Time.unscaledDeltaTime); cam.transform.position += (Vector3)(Random.insideUnitCircle * shake * 0.6f); } // 纯画面
         GuideTick();
     }
 
@@ -452,10 +543,10 @@ public sealed class OverworldGame : MonoBehaviour
         var big = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, wordWrap = true };
         // 右上：时钟 + 门列表
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine(Step1Text.OverworldClock(OverworldMap.Clock(OverworldSession.Minute), night));
+        sb.AppendLine(Step1Text.OverworldClock(OverworldMap.Clock(OverworldSession.Minute), night) + "  " + Step1Text.OverworldWeatherShort(OverworldSession.Day, (int)town.weather.kind));
         foreach (var d in stops) sb.AppendLine(Step1Text.OverworldDoorLabel(d.n, OverworldMap.Clock(d.minute), OverworldSession.ResultOf(d.n)));
         sb.Append($"💣 +{OverworldSession.BonusBombs}   T ×{Mathf.Max(0, tuning.overworldTaunts - OverworldSession.TauntsUsed)}");
-        GUI.Box(new Rect(Screen.width - 210, 10, 200, 40 + stops.Count * 22 + 22), sb.ToString(), box);
+        GUI.Box(new Rect(Screen.width - 230, 10, 220, 40 + stops.Count * 22 + 22), sb.ToString(), box);
         // 左上：下一站
         var next = NextStop;
         GUI.Box(new Rect(10, 10, 280, 52), next != null ? Step1Text.OverworldNextDoor(next.n, OverworldMap.Clock(next.minute)) : Step1Text.OverworldGoingHome, box);

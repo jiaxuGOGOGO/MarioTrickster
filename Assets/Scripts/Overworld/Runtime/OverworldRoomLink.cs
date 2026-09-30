@@ -13,6 +13,7 @@ public sealed class OverworldRoomLink : MonoBehaviour
     private bool over, applied;
     private float overTime;
     private string headline = "";
+    private float dazedNote;
     public const float AutoBackSeconds = 8f;
 
     private void Start()
@@ -64,6 +65,8 @@ public sealed class OverworldRoomLink : MonoBehaviour
         {
             if (OverworldSession.PendingOutcome == OverworldMind.DoorOutcome.Late) driver.SkipStartDelay();
             if (OverworldSession.CarriedSuspicion > 0f && driver.Mind != null) driver.Mind.Meter.Set(OverworldSession.CarriedSuspicion);
+            // S218 小镇 → 房间：刚在镇上被大机关砸晕 → 开局多等几秒（迟到也照样晕着：晕是他身上的状态，不是"等你"）
+            if (OverworldSession.CarriedDaze > 0f) { driver.AddStartDelay(OverworldSession.CarriedDaze); dazedNote = Time.unscaledTime + 3f; }
         }
     }
 
@@ -98,6 +101,7 @@ public sealed class OverworldRoomLink : MonoBehaviour
 
     private void OnGUI()
     {
+        if (!over && Time.unscaledTime < dazedNote && !SceneTransit.Busy) GUI.Box(new Rect(Screen.width / 2f - 240, 80, 480, 56), Step1Text.OverworldRoomDazed(OverworldSession.CarriedDaze), new GUIStyle(GUI.skin.box) { fontSize = 18, alignment = TextAnchor.MiddleCenter, wordWrap = true });
         if (!over || SceneTransit.Busy) return;
         var st = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, wordWrap = true };
         GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height - 150, 520, 120), headline + "\n" + Step1Text.OverworldBackToTown, st);

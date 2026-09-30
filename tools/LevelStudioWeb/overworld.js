@@ -145,6 +145,7 @@ function owCheck(m, R, roomOk) {
   for (let n = 1; n <= 9; n++) { const cs = owFind(m, String(n)); if (cs.length > 1) E(`门 ${n} 画了 ${cs.length} 个：每个数字只能用一次`, cs[1][0], cs[1][1]); if (cs.length >= 1) doorCells.set(n, cs[0]); }
   if (!doorCells.size) E('至少要有一扇门（数字 1–9）：门连到横版房间，马里奥每天去门里拿宝');
   const pickups = owFind(m, '?').length; if (pickups > OW.MaxPickups) E(`道具箱最多 ${OW.MaxPickups} 个（现在 ${pickups} 个）`);
+  owPropsCheckCounts(m, E); // S218 大机关
   if (!playable()) return done();
   const home = owFind(m, 'M')[0], tsp = owFind(m, 'T')[0];
   for (const [n, c] of [...doorCells].sort((a, b) => a[0] - b[0])) {
@@ -165,6 +166,7 @@ function owCheck(m, R, roomOk) {
   const byT = new Map(); for (const d of m.doors) if (doorCells.has(d.n)) { if (!byT.has(d.minute)) byT.set(d.minute, []); byT.get(d.minute).push(d); }
   for (const [t, g] of byT) if (g.length > 1) E(`门 ${g.map(d => d.n).join('、')} 的时间都是 ${owClock(t)}：每扇门的时间要不一样（马里奥一次只去一扇）`);
   if (!owPath(m, home, tsp)) E('你的出生点和马里奥的家不连通');
+  owPropsCheckReach(m, home, E, Wn); // S218：落点走不回家 = 困住（H1）
   if (!playable()) return done();
   const sc = owSchedule(m, R);
   if (!sc.homePath) E('马里奥最后回不了家');
@@ -232,3 +234,132 @@ function owLedger(m, W, resolve, bombsPerRound, maxBonus) {
   return rep;
 }
 const owLedgerLines = rep => rep.rooms.map(r => r.missing ? `门${r.door} ?` : `门${r.door} ${r.room} 主角=${r.star} 共${r.total} 道具箱${r.pickups} 新=${r.firstTime.join('、')} [${r.kinds.map(k => k.zh + k.n).join(' ')}]`).concat(rep.warnings);
+// ── S218 小镇大机关（巨炮 K + 靶心 X / 滚石 O / 水塔 U）+ 天气：逐行移植 Assets/Scripts/Overworld/OverworldProps.cs（verify.sh 逐字对照）──
+const OWP = { Muzzle: 3, MaxShot: 96, WindShift: 3, FloodRadius: 3, MaxRoll: 64, MaxBig: 12, ChainRadius: 1.5, DX: [1, -1, 0, 0], DY: [0, 0, 1, -1], DirZh: ['右', '左', '上', '下'] };
+const owIsBig = c => c === 'K' || c === 'O' || c === 'U';
+const owCellS = c => `(${c[0]},${c[1]})`;
+const owLabel = (m, c) => { const ch = owAt(m, c[0], c[1]), t = owTile(ch); return `${t ? t.zh : '?'}${ch}(${c[0]},${c[1]})`; };
+const owSame = (a, b) => a[0] === b[0] && a[1] === b[1];
+function owBigAll(m) { const l = [], H = m.rows.length; for (let r = 0; r < H; r++) for (let x = 0; x < m.rows[r].length; x++) if (owIsBig(m.rows[r][x])) l.push([x, H - 1 - r]); return l; }
+function owAim(m, k) {
+  let target = k, dir = -1, dist = Infinity; const w = owW(m), h = m.rows.length;
+  for (let d = 0; d < 4; d++) for (let s = 1; s <= OWP.MaxShot; s++) {
+    const x = k[0] + OWP.DX[d] * s, y = k[1] + OWP.DY[d] * s; if (x < 0 || y < 0 || x >= w || y >= h) break;
+    if (owAt(m, x, y) === 'X') { if (s < dist) { dist = s; dir = d; target = [x, y]; } break; }
+  }
+  return dir >= 0 ? { target, dir, dist } : null;
+}
+function owMuzzle(m, k, dir) { const l = []; for (let s = 1; s <= OWP.Muzzle; s++) { const x = k[0] + OWP.DX[dir] * s, y = k[1] + OWP.DY[dir] * s; if (!owWalk(m, x, y)) break; l.push([x, y]); } return l; }
+function owLanding(m, tg, wind) {
+  let px = tg[0], py = tg[1]; if (wind >= 0) { px += OWP.DX[wind] * OWP.WindShift; py += OWP.DY[wind] * OWP.WindShift; }
+  px = Math.max(1, Math.min(owW(m) - 2, px)); py = Math.max(1, Math.min(m.rows.length - 2, py));
+  for (let r = 0; r <= 12; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; if (owWalk(m, px + dx, py + dy)) return [px + dx, py + dy]; }
+  return tg;
+}
+const owSmash = c => c === 'c' || c === 'f';
+function owLane(m, o, dir, smashed) {
+  const l = [], w = owW(m), h = m.rows.length;
+  for (let s = 1; s <= OWP.MaxRoll; s++) {
+    const x = o[0] + OWP.DX[dir] * s, y = o[1] + OWP.DY[dir] * s; if (x <= 0 || y <= 0 || x >= w - 1 || y >= h - 1) break;
+    const c = owAt(m, x, y); if (owWalk(m, x, y)) l.push([x, y]); else if (owSmash(c)) { l.push([x, y]); if (smashed) smashed.push([x, y]); } else break;
+  }
+  return l;
+}
+const owFloodable = c => c === '.' || c === '=' || c === '"';
+function owFloodCells(m, u, radius) { const l = [], w = owW(m), h = m.rows.length; for (let y = u[1] - radius; y <= u[1] + radius; y++) for (let x = u[0] - radius; x <= u[0] + radius; x++) { if ((x - u[0]) ** 2 + (y - u[1]) ** 2 > radius * radius) continue; if (x <= 0 || y <= 0 || x >= w - 1 || y >= h - 1) continue; if (owFloodable(owAt(m, x, y))) l.push([x, y]); } return l; }
+function owChainTargets(m, ix, iy, radius) { radius = radius === undefined ? OWP.ChainRadius : radius; const l = []; owBigAll(m).forEach((c, k) => { const dx = c[0] + 0.5 - ix, dy = c[1] + 0.5 - iy, d = dx * dx + dy * dy; if (d <= radius * radius + 1e-9) l.push({ d, k, c }); }); l.sort((a, b) => a.d - b.d || a.k - b.k); return l.map(t => t.c); }
+function owPropsCheckCounts(m, E) {
+  const all = owBigAll(m);
+  if (all.length > OWP.MaxBig) E(`大机关（巨炮 / 滚石 / 水塔）最多 ${OWP.MaxBig} 个（现在 ${all.length} 个）：太多了玩家记不住，也看不清谁连着谁`, -1, -1);
+  for (const c of all) {
+    if (owAt(m, c[0], c[1]) !== 'K') continue; const a = owAim(m, c);
+    if (!a) { E('巨炮 K 同一行 / 同一列找不到靶心 X：炮弹不知道往哪飞', c[0], c[1]); continue; }
+    if (!owMuzzle(m, c, a.dir).length) E('巨炮 K 朝靶心那边第一格就被挡住：炮口前要空地（最好 3 格）', c[0], c[1]);
+  }
+}
+function owPropsCheckReach(m, home, E, Wn) {
+  for (const c of owBigAll(m)) {
+    const ch = owAt(m, c[0], c[1]);
+    if (ch === 'K') { const a = owAim(m, c); if (!a) continue; for (let w = -1; w < 4; w++) { const l = owLanding(m, a.target, w); if (!owPath(m, l, home)) { E(`巨炮 K 的落点 ${owCellS(l)}${w < 0 ? '' : '（大风往' + OWP.DirZh[w] + '吹）'}走不回马里奥的家：被轰过去就困住了（把靶心 X 挪到开阔处）`, c[0], c[1]); break; } } }
+    else if (ch === 'O') { let best = 0; for (let d = 0; d < 4; d++) best = Math.max(best, owLane(m, c, d).length); if (best < 3) Wn(`滚石 O 四个方向最多只能滚 ${best} 格：放在长直路的一头才有用`, c[0], c[1]); }
+  }
+}
+function owTriggers(m, c) {
+  const res = [], ch = owAt(m, c[0], c[1]);
+  const add = (ix, iy) => { for (const t of owChainTargets(m, ix, iy)) if (!owSame(t, c) && !res.some(r => owSame(r, t))) res.push(t); };
+  if (ch === 'K') { const a = owAim(m, c); if (a) { const l = owLanding(m, a.target, -1); add(l[0] + 0.5, l[1] + 0.5); } }
+  else if (ch === 'O') for (let d = 0; d < 4; d++) { const lane = owLane(m, c, d); if (lane.length) { const e = lane[lane.length - 1]; add(e[0] + 0.5, e[1] + 0.5); } }
+  return res;
+}
+function owDoorsNear(m, c, r) { const l = []; for (let n = 1; n <= 9; n++) for (const d of owFind(m, String(n))) if (Math.abs(d[0] - c[0]) + Math.abs(d[1] - c[1]) <= r) l.push(d); return l; }
+function owLongestChain(m) {
+  const all = owBigAll(m), edges = new Map(all.map(c => [c + '', owTriggers(m, c)])); let best = [];
+  const dfs = path => { if (path.length > best.length) best = path.slice(); for (const n of edges.get(path[path.length - 1] + '')) if (!path.some(p => owSame(p, n))) { path.push(n); dfs(path); path.pop(); } };
+  for (const c of all) dfs([c]);
+  return best;
+}
+function owPropsDescribe(m) {
+  const lines = [], all = owBigAll(m);
+  if (!all.length) { lines.push({ text: '还没有大机关：巨炮 K + 靶心 X、滚石 O、水塔 U 是小镇专用的夸张机关（L 发动）', x: -1, y: -1 }); return lines; }
+  for (const c of all) {
+    const ch = owAt(m, c[0], c[1]); let s;
+    if (ch === 'K') {
+      const a = owAim(m, c);
+      if (!a) s = `${owLabel(m, c)}：同一行 / 列没有靶心 X（不能用）`;
+      else {
+        const l = owLanding(m, a.target, -1), near = [];
+        for (const dc of owDoorsNear(m, l, 3)) near.push('门 ' + owAt(m, dc[0], dc[1]));
+        for (const t of owTriggers(m, c)) near.push('震响 ' + owLabel(m, t));
+        let peels = 0; for (let yy = l[1] - 1; yy <= l[1] + 1; yy++) for (let xx = l[0] - 1; xx <= l[0] + 1; xx++) if (owAt(m, xx, yy) === 'n') peels++;
+        if (peels > 0) near.push(`香蕉皮 ${peels}`);
+        s = `${owLabel(m, c)} → 靶心 X(${a.target[0]},${a.target[1]})：往${OWP.DirZh[a.dir]}飞 ${a.dist} 格，炮口 ${owMuzzle(m, c, a.dir).length} 格；落点旁：${near.length ? near.join('、') : '空地'}`;
+      }
+    } else if (ch === 'O') {
+      const parts = [];
+      for (let d = 0; d < 4; d++) {
+        const sm = [], lane = owLane(m, c, d, sm); if (!lane.length) continue;
+        const e = lane[lane.length - 1], tr = owChainTargets(m, e[0] + 0.5, e[1] + 0.5).filter(t => !owSame(t, c)).map(t => owLabel(m, t));
+        parts.push(`往${OWP.DirZh[d]} ${lane.length} 格` + (sm.length ? `（撞碎 ${sm.length}）` : '') + (tr.length ? ' → 震响 ' + tr.join('、') : ''));
+      }
+      s = `${owLabel(m, c)}：` + (parts.length ? parts.join('；') : '四面堵死，推不动');
+    } else {
+      const f = owFloodCells(m, c, OWP.FloodRadius), f2 = owFloodCells(m, c, OWP.FloodRadius + 1), R = OWP.FloodRadius;
+      const grass = f.filter(p => owAt(m, p[0], p[1]) === '"').length, path = f.filter(p => owAt(m, p[0], p[1]) === '=').length; let peels = 0;
+      for (let yy = c[1] - R; yy <= c[1] + R; yy++) for (let xx = c[0] - R; xx <= c[0] + R; xx++) if ((xx - c[0]) ** 2 + (yy - c[1]) ** 2 <= R * R && owAt(m, xx, yy) === 'n') peels++;
+      s = `${owLabel(m, c)}：淹 ${f.length} 格变泥地（雨天 ${f2.length} 格），其中石子路 ${path}` + (grass > 0 ? `、高草 ${grass}（你的藏身处也没了）` : '') + (peels > 0 ? `；冲活香蕉皮 ${peels}` : '');
+    }
+    lines.push({ text: s, x: c[0], y: c[1] });
+  }
+  const chain = owLongestChain(m);
+  lines.push(chain.length >= 2 ? { text: `最长连锁：${chain.map(c => owLabel(m, c)).join(' → ')}（${chain.length} 连）`, x: chain[0][0], y: chain[0][1] }
+    : { text: '还没有连锁：把靶心 X 放在滚石 / 水塔 / 另一门巨炮旁 1 格内，或让滚石滚到头正好撞上它们', x: -1, y: -1 });
+  return lines;
+}
+// 天气（输入随机）：FNV-1a + xorshift，全部 uint32（和 C# 一样）
+function owHash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h = (h ^ s.charCodeAt(i)) >>> 0; h = Math.imul(h, 16777619) >>> 0; } return h; }
+function owDayOf(name, day) {
+  let h = owHash(name || ''); h = (h ^ (Math.imul(day, 2654435761 | 0) >>> 0)) >>> 0;
+  h = (h ^ (h << 13)) >>> 0; h = (h ^ (h >>> 17)) >>> 0; h = (h ^ (h << 5)) >>> 0;
+  return { day, h, kind: day <= 1 ? 0 : h % 5, wind: (h >>> 8) % 4 };
+}
+const OW_WEATHER = ['Clear', 'Wind', 'Rain', 'Fog', 'Market'];
+const owMarketDelay = (d, door) => ((d.h >>> (door * 3)) % 3) * 15;
+function owApplyDay(m, d) { if (d.kind !== 4) return; let prev = -9999; for (const door of m.doors.slice().sort((a, b) => a.minute - b.minute || a.n - b.n)) { let t = door.minute + owMarketDelay(d, door.n); t = Math.max(t, prev + 15); t = Math.min(t, OW.LatestDoor); door.minute = t; prev = t; } }
+function owWeatherZh(d) {
+  switch (d.kind) {
+    case 1: return `🌬 大风（往${OWP.DirZh[d.wind]}吹）：巨炮落点被吹偏 ${OWP.WindShift} 格`;
+    case 2: return `🌧 雨天：水塔淹得更大（半径 ${OWP.FloodRadius + 1}），香蕉皮滑得更久`;
+    case 3: return '🌫 雾天：他只看得见平时 6 成远（你也更好躲）';
+    case 4: return '🧺 赶集日：他每扇门晚 0–30 分钟出门（时间表已更新）';
+    default: return '☀ 晴天：一切照常';
+  }
+}
+function owWeatherPreview(m, from, n) {
+  const l = [];
+  for (let day = from; day < from + n; day++) {
+    const d = owDayOf(m.name, day); let s = `第 ${day} 天 ${owWeatherZh(d)}`;
+    if (d.kind === 4) { const c = owParse(owToText(m)); owApplyDay(c, d); s += '：' + c.doors.slice().sort((a, b) => a.minute - b.minute || a.n - b.n).map(x => `门${x.n} ${owClock(x.minute)}`).join(' '); }
+    l.push(s);
+  }
+  return l;
+}

@@ -210,6 +210,13 @@ public static class OverworldMap
         return new ResizeResult { ok = true, lost = lost };
     }
 
+    /// <summary>S218：改一格（大机关撞碎 / 淹成泥地）。</summary>
+    public static void Set(Map m, int x, int y, char c)
+    {
+        int r = m.H - 1 - y; if (r < 0 || r >= m.H || x < 0 || x >= m.W) return;
+        var ch = m.rows[r].ToCharArray(); ch[x] = c; m.rows[r] = new string(ch);
+    }
+
     public static List<Cell> Find(Map m, char c)
     {
         var l = new List<Cell>();
@@ -465,6 +472,7 @@ public static class OverworldMap
         if (doorCells.Count == 0) E("至少要有一扇门（数字 1–9）：门连到横版房间，马里奥每天去门里拿宝");
         int pickups = Find(m, '?').Count;
         if (pickups > MaxPickups) E($"道具箱最多 {MaxPickups} 个（现在 {pickups} 个）");
+        OverworldProps.CheckCounts(m, (t, x, y) => E(t, x, y)); // S218 大机关
         if (!rep.Playable) return rep;
 
         var home = Find(m, 'M')[0]; var tsp = Find(m, 'T')[0];
@@ -488,6 +496,7 @@ public static class OverworldMap
         var times = m.doors.Where(d => doorCells.ContainsKey(d.n)).GroupBy(d => d.minute).Where(g => g.Count() > 1).ToList();
         foreach (var g in times) E($"门 {string.Join("、", g.Select(d => d.n))} 的时间都是 {Clock(g.Key)}：每扇门的时间要不一样（马里奥一次只去一扇）");
         if (Path(m, home, tsp) == null) E("你的出生点和马里奥的家不连通");
+        OverworldProps.CheckReach(m, home, (t, x, y) => E(t, x, y), (t, x, y) => Wn(t, x, y)); // S218：落点走不回家 = 困住（H1）
         if (!rep.Playable) return rep;
 
         var sc = DaySchedule(m, rules.marioSpeed, rules.tricksterSpeed, rules.minutesPerSecond, rules.visitMinutes);

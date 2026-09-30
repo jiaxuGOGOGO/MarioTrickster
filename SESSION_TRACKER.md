@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 217（大地图可往四周扩展到 192×128（C# Resize + 网页 owResize 逐字一致）；修"运行时画面不动/控制不了"：说明面板任意键关、进 Play 自动切 Game 窗口 + 无焦点提示、全局键两套输入都读、小镇强制 timeScale=1、转场 20 秒保险丝、等出门提示、头顶名字、按键条、镜头缩放；新增测试中心 Ctrl+Alt+T：一键体检 / 快速测试模式 / F8 反馈截图 + 自动记错误 / 打包反馈 zip） |
+| **最新 Session** | Session 218（小镇大机关：巨炮 K + 靶心 X / 滚石 O / 水塔 U，冲击 1.5 格内连锁，地形只会打开、只活一天；每天 06:00 公布天气（晴/大风/雨/雾/赶集，输入随机、可复现）；马里奥听见动静起疑、吃过亏会躲（H4 只凭经历）；小镇砸晕 → 进门还晕着、守住一户 → 旁边大机关重新装填；小镇工坊/网页画布关系线 + ⚡ 大机关·连锁面板 + 天气 7 天预览 + 悬停门看房间；样板"星露大镇" 72×40 三连锁；调参 v19） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,17 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S218] 用户："现在我想做大地图和房间内的关卡 我希望地图不是框选只有这么大 可以根据我的想法进行拓宽 但是方便我进行箱庭等思路设计 对于我新创建的道具和机关留足空间 同时大地图还有关卡内部的联动以及内部自身的联动都能有足够的联通……大炮 我希望可以比室内关卡做更加夸张变体适配 同时考虑更适合大地图的陷进机制增加 包括随机性确保涌现……必须参考足够多的gdc也好 github也好的成功失败经验规范进行制作 并且质疑的角度尊重第一性原理的"
+
+- 反馈包：体检 0 提醒、样板全可玩；没有 F8 截图、没写文字 → 本次按需求做新功能，没有 bug 要修。
+- 纯逻辑 `OverworldProps`（巨炮 Aim/MuzzleCells/Landing、滚石 Lane/PushDir、水塔 Flood、ChainTargets、CheckCounts/CheckReach、Describe、LongestChain）+ `OverworldEvents`（FNV+xorshift 天气，第 1 天晴，赶集日 ApplyTo）；网页 owProps*/owDayOf 逐行移植，verify 逐字对照 35 行。
+- `OverworldTown`：自己复制一份地图（套上 Session.Changed + 赶集日）；L = 最近的香蕉皮或大机关；Arm → fuse 1.2s → Fire（巨炮轰飞炮口里的人 + 炮弹飞行 0.9s，滚石 9 格/秒撞碎 c f，水塔淹 g）→ Impact 连锁（depth+1）+ 震活香蕉皮；Noise → percept.heardNoise（H2 只加 35）；DodgeCell（MarioWary + 看得见才躲，≤4 步）；Reload（Session.ReloadDoor）；雾天 Sight×0.6。
+- 联动：`OverworldSession` Day/Changed/MarioWary/CarriedDaze/ReloadDoor；`OverworldRoomLink` → `MarioMindDriver.AddStartDelay`（+字幕）。R = 第 N+1 天。
+- 画面：OverworldGame 大机关造型、预警脉冲 + 危险格闪红、滚石旋转、炮弹 / 人抛物线、冲击环 + 震屏、地面贴图即时改、天气公告 + 右上天气图标。
+- 编辑器：小镇工坊 样板 ▾（星露大镇）、⚡ 关系线、⚡ 大机关·连锁（点击定位）、🌦 天气 7 天预览、悬停门弹出房间缩略图；网页同款（owLinks / owProps / owWeather / owPeek）；测试中心体检含星露大镇。
+- 调参 v19（9 个 overworldBig*/Noise/Daze/Fog/Dodge 字段，默认块放在 UpgradeData 最后）；BuilderVersion 不变（房间结构未变）。
+- 没做：牛群 / 停电 / 钟楼（会撑破"一张表读懂"）；无真实物理；无隐藏保底随机。详见 docs/step1/S218_BIG_TOWN_PRANKS.md。
 
 ### [S217] 用户："大地图编辑器存在问题 一个是不能往大世界拓展 还有就是运行的时候画面固定不动 不能控制马里奥捣蛋者 优化后我现在需要快速测试完整项目情况然后给出完整的新增修改意见 我的诉求是不能对我的完整测试构成很多反复操作的阻碍造成测试失败无法反馈升级……确保网页编辑关卡和unity内清晰易懂明确方便"
 

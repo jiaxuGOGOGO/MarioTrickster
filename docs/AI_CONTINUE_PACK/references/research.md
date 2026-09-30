@@ -43,3 +43,15 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - https://www.reddit.com/r/Unity3D/comments/1u5tg2f/made_a_themed_loading_transition_is_it_cool_or/ （S 曲线）
 - https://www.reddit.com/r/gamedesign/comments/lh58im/other_ways_to_tell_the_player_where_to_go/ 、https://www.reddit.com/r/Games/comments/29shsy/rgames_mechanic_discussion_breadcrumb_trail/ （边缘箭头、按需面包屑）
 - https://github.com/jinincarnate/off-screen-indicator 、https://github.com/prime31/TransitionKit （圆形转场）、https://github.com/deepnight/ldtk （编辑器快捷键/吸管/悬停）
+
+## S218 小镇大机关 / 涌现 / 总管全局调研（报告：repo/docs/step1/S218_BIG_TOWN_PRANKS.md）
+- BotW 化学引擎三条规则 + 2D 原型验证乘法：https://www.thumbsticks.com/gdc-17-breath-of-the-wild-science-lies/ ，https://www.thumbsticks.com/gdc-17-breaking-conventions-breath-of-the-wild/
+- Into the Breach 完全可预判：https://media.gdcvault.com/gdc2019/presentations/Into%20the%20Breach%20Postmortem%20Final.pdf ，https://www.youtube.com/watch?v=s_I07Iq_2XM
+- 输入随机 vs 输出随机：https://www.gamedeveloper.com/design/randomness-and-game-design ；Sid Meier 随机心理：https://www.gamedeveloper.com/game-platforms/gdc-sid-meier-s-lessons-on-gamer-psychology ；XCOM 隐藏修正：https://xcom.fandom.com/wiki/Game_difficulty_(XCOM_2)
+- Noita 涌现两面 + 永久卡死：https://www.youtube.com/watch?v=prXuyMCgbTc ，https://www.gamedeveloper.com/game-platforms/road-to-the-igf-nolla-games-i-noita-i-
+- Untitled Goose Game（密集危险区 + 空地、单向门）：https://www.youtube.com/watch?v=tA-64QuWgLk ，https://untitledgoosegame.fandom.com/wiki/To-Do_List
+- Hitman：https://www.youtube.com/watch?v=sQ0LlNfr8ZI ，https://www.pentadact.com/2016-05-14-rewarding-creative-play-styles-in-hitman/
+- 箱庭：https://book.leveldesignbook.com/process/layout/typology/gates ，https://book.leveldesignbook.com/process/scripting/doors ，https://www.gamedeveloper.com/design/outer-wilds-critical-analysis ，https://zelda.fandom.com/wiki/Bombers%27_Notebook
+- 编辑器：https://doc.mapeditor.org/en/stable/manual/worlds/ ，https://ldtk.io/docs/general/world/ ，https://github.com/deepnight/ldtk/issues/1160 ，https://github.com/deepnight/ldtk/issues/712 ，http://blog.joelburgess.com/2013/04/skyrims-modular-level-design-gdc-2013.html
+- 反面：http://www.megabearsfan.net/post/2016/07/18/How-open-world-games-fail-to-use-space.aspx ，Mario Maker https://www.gamedeveloper.com/design/lessons-of-game-design-learned-from-super-mario-maker
+- 结论：夸张 = 放大作用范围，不另起规则；随机只在决定前公布；连锁 + 天气 + 马里奥学习相乘 = 涌现；地形只打开不关死、只活一天。质疑后没做：牛群 / 停电 / 钟楼 / 真物理 / 隐藏保底。

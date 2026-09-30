@@ -177,6 +177,67 @@ static class CHECK {
     if(web!=null) foreach(var kv in mine){ if(!web.TryGetValue(kv.Key,out var o)||(string)o!=kv.Value){ wd++; Console.WriteLine($"     [FAIL] 扩展 {kv.Key}：网页≠Unity"); } }
     rb+=wd;
     Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S217 小镇扩展：{string.Join("｜",parts)}｜网页对照{(web==null?"跳过":wd==0?"一致":"不一致")}"); fail+=rb; }
+  // S218：小镇大机关（巨炮 K + 靶心 X / 滚石 O / 水塔 U）+ 天气 + 连锁 + 马里奥吃亏会躲 + 网页逐字对照（ow_props.json 由 verify.sh 生成）
+  { int rb=0; var parts=new List<string>(); var r=OverworldMap.Rules.Default; var t=MarioMindTuningSO.LoadOrDefault();
+    var big=OverworldPack.Parse(OverworldPack.BigSampleText)[0];
+    var rep=OverworldMap.Check(big,r); if(!rep.Playable){ rb++; Console.WriteLine("     [FAIL] 星露大镇不可玩："+string.Join(" / ",rep.issues.Where(i=>i.sev==OverworldMap.Sev.Error).Take(3))); }
+    var day=OverworldWalker.SimulateDay(big,r); if(!day.ok){ rb++; Console.WriteLine("     [FAIL] 星露大镇一天走不完："+day.summary); }
+    var chain=OverworldProps.LongestChain(big); if(chain.Count<3){ rb++; Console.WriteLine($"     [FAIL] 星露大镇最长连锁只有 {chain.Count}"); }
+    parts.Add($"星露大镇 {big.W}×{big.H} {rep.Headline} 最长连锁 {chain.Count}");
+    // 反例：巨炮没有靶心 / 炮口堵死 / 靶心在封闭围栏里（落点走不回家）/ 大机关太多
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; OverworldMap.Set(m,26,16,'K'); var c=OverworldMap.Check(m,r); if(c.Playable||!c.issues.Any(i=>i.text.Contains("找不到靶心"))){ rb++; Console.WriteLine("     [FAIL] 没靶心的巨炮应报错"); } }
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; OverworldMap.Set(m,26,16,'K'); OverworldMap.Set(m,26,15,'c'); OverworldMap.Set(m,26,3,'X'); var c=OverworldMap.Check(m,r); if(!c.issues.Any(i=>i.text.Contains("第一格就被挡住"))){ rb++; Console.WriteLine("     [FAIL] 炮口堵死应报错"); } }
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; OverworldMap.Set(m,2,20,'K'); OverworldMap.Set(m,2,1,'X'); for(int x=1;x<=6;x++) for(int y=1;y<=6;y++) if(x==1||y==6||x==6) if(m.At(x,y)=='.'||m.At(x,y)=='"') OverworldMap.Set(m,x,y,'f');
+      var c=OverworldMap.Check(m,r); if(!c.issues.Any(i=>i.text.Contains("走不回马里奥的家"))){ rb++; Console.WriteLine("     [FAIL] 靶心在围栏里（被轰过去就困住）应报错 H1："+string.Join(" / ",c.issues.Take(3))); } }
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; int n=0; for(int x=2;x<42&&n<13;x+=3){ if(m.At(x,1)=='.'){ OverworldMap.Set(m,x,1,'U'); n++; } } var c=OverworldMap.Check(m,r); if(!c.issues.Any(i=>i.text.Contains("最多 12 个"))){ rb++; Console.WriteLine("     [FAIL] 13 个大机关应报错"); } }
+    // 滚石：撞碎木箱栅栏、不碰最外圈；水塔只淹草/路/高草
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; var sm=new List<OverworldMap.Cell>(); var lane=OverworldProps.Lane(m,new OverworldMap.Cell(1,20),0,sm); if(lane.Any(c=>c.x<=0||c.y<=0||c.x>=m.W-1||c.y>=m.H-1)){ rb++; Console.WriteLine("     [FAIL] 滚石滚进了最外圈"); } }
+    // 所有地形改变都只会"打开"：发动全部大机关后，检查依然可玩、马里奥一天仍走得完（H1）
+    { var m=OverworldPack.Parse(OverworldPack.BigSampleText)[0];
+      foreach(var c in OverworldProps.All(m)){ char k=m.At(c.x,c.y); if(k=='O'){ for(int d=0;d<4;d++) foreach(var q in OverworldProps.Lane(m,c,d)) if(OverworldProps.Smashable(m.At(q.x,q.y))) OverworldMap.Set(m,q.x,q.y,'.'); OverworldMap.Set(m,c.x,c.y,'.'); } else if(k=='U') foreach(var q in OverworldProps.Flood(m,c,OverworldProps.FloodRadius+1)) OverworldMap.Set(m,q.x,q.y,'g'); }
+      var c2=OverworldMap.Check(m,r); var d2=OverworldWalker.SimulateDay(m,r); if(!c2.Playable||!d2.ok){ rb++; Console.WriteLine($"     [FAIL] 最坏情况（所有大机关都发动）后不可玩：{c2.Headline} {d2.summary}"); } else parts.Add("全部发动后仍可玩+一天走完"); }
+    // 小镇里真的连锁：强制马里奥站在巨炮炮口 → 轰飞 → 落地晕 → 冲击震响滚石 → 滚石撞到水塔 → 淹地；他记住 'K'
+    { OverworldSession.ResetStatics(); OverworldSession.NewDay("星露大镇","Town"); OverworldSession.Active=true;
+      var town=new OverworldTown(OverworldPack.Parse(OverworldPack.BigSampleText)[0],t); var k=new OverworldMap.Cell(26,16);
+      OverworldProps.Aim(town.map,k,out _,out int dir,out _); var mz=OverworldProps.MuzzleCells(town.map,k,dir)[1];
+      town.mario.x=mz.x+0.5; town.mario.y=mz.y+0.5; town.mario.Clear(); town.tx=k.x-1.5; town.ty=k.y+0.5;
+      bool armed=town.Arm(k,1,town.tx,town.ty); bool flew=false,dizzy=false; int maxDepth=0; float tt=0; var inp=new OverworldTown.Input();
+      OverworldSession.Minute=OverworldMap.DayStart; // 06:00 他在等出门（站着不动）——测"站在炮口里会怎样"，不测时机
+      while(tt<12f){ town.Tick(1f/30,inp); tt+=1f/30; if(town.marioFlying) flew=true; if(town.lastOrder.state==OverworldMarioState.Dizzy) dizzy=true; foreach(var b in town.active) maxDepth=Math.Max(maxDepth,b.depth); if(tt>0.1f&&!town.BigBusy&&flew) break; }
+      int mud=OverworldSession.Changed.Count(kv=>kv.Value=='g'), smashed=OverworldSession.Changed.Count(kv=>kv.Value=='.');
+      if(!armed||!flew||!dizzy||maxDepth<3||mud==0||!OverworldSession.MarioWary.Contains('K')){ rb++; Console.WriteLine($"     [FAIL] 小镇连锁：发动={armed} 飞={flew} 晕={dizzy} 连锁深度={maxDepth} 淹={mud} 撞碎={smashed} 记住炮={OverworldSession.MarioWary.Contains('K')}"); }
+      else parts.Add($"实跑连锁 {maxDepth} 连（轰飞→晕→滚石撞碎 {smashed - 1}→淹 {mud} 格）");
+      // 他已经吃过亏：再站到炮口、看得见炮 → 预警期间躲出炮口（最多 4 步）
+      var town2=new OverworldTown(OverworldPack.Parse(OverworldPack.BigSampleText)[0],t); var k2=new OverworldMap.Cell(63,28);
+      OverworldProps.Aim(town2.map,k2,out _,out int d2r,out _); var mz2=OverworldProps.MuzzleCells(town2.map,k2,d2r)[2];
+      town2.mario.x=mz2.x+0.5; town2.mario.y=mz2.y+0.5; town2.mario.fx=0; town2.mario.fy=1; town2.mario.Clear(); town2.tx=k2.x+2.5; town2.ty=k2.y+0.5;
+      town2.Arm(k2,1,town2.tx,town2.ty); bool hit2=false; tt=0; while(tt<t.overworldBigFuseSeconds+0.2f){ town2.Tick(1f/30,inp); tt+=1f/30; if(town2.marioFlying) hit2=true; }
+      if(hit2){ rb++; Console.WriteLine("     [FAIL] 吃过亏的马里奥看见炮口在闪还站着被轰（学不会）"); } else parts.Add("吃过亏会躲");
+      // 没吃过亏的他（新 Play）不会躲 → H4：他不知道机关的规则，只凭经历
+      OverworldSession.MarioWary.Clear(); OverworldSession.UsedCells.Clear(); var town3=new OverworldTown(OverworldPack.Parse(OverworldPack.BigSampleText)[0],t);
+      town3.mario.x=mz2.x+0.5; town3.mario.y=mz2.y+0.5; town3.mario.fx=0; town3.mario.fy=1; town3.mario.Clear(); town3.Arm(k2,1,k2.x+2.5,k2.y+0.5); bool hit3=false; tt=0; while(tt<t.overworldBigFuseSeconds+0.3f){ town3.Tick(1f/30,inp); tt+=1f/30; if(town3.marioFlying) hit3=true; }
+      if(!hit3){ rb++; Console.WriteLine("     [FAIL] 第一次见巨炮的马里奥不该会躲（他没有经历）"); }
+      OverworldSession.ResetStatics(); }
+    // 天气：第 1 天必晴；同一天永远一样；5 种都出现；赶集日门的时间仍有序、≤20:00、每扇差 ≥15 分钟
+    { var kinds=new HashSet<OverworldEvents.Kind>(); bool same=true, order=true;
+      for(int d=1;d<=60;d++){ var a=OverworldEvents.Of("星露大镇",d); var b=OverworldEvents.Of("星露大镇",d); if(a.kind!=b.kind||a.wind!=b.wind) same=false; kinds.Add(a.kind);
+        if(a.kind==OverworldEvents.Kind.Market){ var m=OverworldPack.Parse(OverworldPack.BigSampleText)[0]; OverworldEvents.ApplyTo(m,a); int prev=-99; foreach(var x in m.doors.OrderBy2()){ if(x.minute<prev+15||x.minute>OverworldMap.LatestDoor) order=false; prev=x.minute; } if(!OverworldMap.Check(m,r).Playable) order=false; } }
+      if(OverworldEvents.Of("星露大镇",1).kind!=OverworldEvents.Kind.Clear||!same||kinds.Count<5||!order){ rb++; Console.WriteLine($"     [FAIL] 天气：第1天={OverworldEvents.Of("星露大镇",1).kind} 可复现={same} 种类={kinds.Count} 赶集日时间={order}"); }
+      else parts.Add($"天气 60 天 {kinds.Count} 种、可复现、赶集日仍可玩"); }
+    // 机器人玩家：星露大镇 4 种玩家 × 3 天（天气不同），一天都能结束、会躲的每扇门都埋伏上
+    { var sw=System.Diagnostics.Stopwatch.StartNew(); int hideAm=0, doors=0; bool ended=true;
+      for(int d=1;d<=3;d++) foreach(var kd in new[]{OverworldBots.Kind.Hider,OverworldBots.Kind.Prankster,OverworldBots.Kind.Idle,OverworldBots.Kind.Chaos}){
+        var m=OverworldPack.Parse(OverworldPack.BigSampleText)[0]; var br=OverworldBots.PlayDay(m,t,kd,true,d,d); if(!br.dayEnded) ended=false; if(kd==OverworldBots.Kind.Hider){ hideAm+=br.ambush; doors+=br.doors; } }
+      OverworldSession.ResetStatics(); sw.Stop();
+      if(!ended||hideAm<doors){ rb++; Console.WriteLine($"     [FAIL] 星露大镇机器人：一天都结束={ended} 会躲的埋伏 {hideAm}/{doors}"); } else parts.Add($"机器人 3 天×4 种 {sw.ElapsedMilliseconds}ms 会躲的埋伏 {hideAm}/{doors}"); }
+    // 网页对照：owCheck 星露大镇 + 总览文字 + 天气 20 天
+    var mine=new List<string>(); foreach(var i in rep.issues) mine.Add(i.sev+" "+i); foreach(var l in OverworldProps.Describe(big)) mine.Add("D "+l.text); for(int d=1;d<=20;d++){ var w=OverworldEvents.Of(big.name,d); mine.Add($"W {d} {(int)w.kind} {w.wind}"); }
+    mine.AddRange(OverworldEvents.Preview(big,1,8));
+    int wd=0; bool haveWeb=File.Exists("ow_props.json");
+    if(haveWeb){ var web=(MiniJson.Parse(File.ReadAllText("ow_props.json"),out _) as List<object>)?.Select(o=>(string)o).ToList()??new List<string>();
+      for(int i=0;i<Math.Max(web.Count,mine.Count);i++){ string a=i<mine.Count?mine[i]:"(无)", b=i<web.Count?web[i]:"(无)"; if(a!=b){ wd++; if(wd<=3) Console.WriteLine($"     [FAIL] 大机关 网页≠Unity 第{i}行：\n        Unity {a}\n        网页  {b}"); } } }
+    rb+=wd;
+    Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S218 小镇大机关：{string.Join("｜",parts)}｜网页对照{(!haveWeb?"跳过":wd==0?$"一致 {mine.Count} 行":"不一致")}"); fail+=rb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

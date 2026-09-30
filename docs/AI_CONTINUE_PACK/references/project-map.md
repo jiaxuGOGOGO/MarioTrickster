@@ -124,3 +124,9 @@
 - `Editor/TestHubWindow.cs`（Ctrl+Alt+T：一键体检 HealthCheck.md / 快速测试 / 试玩 / 打包反馈；`TinyZip` 不依赖 System.IO.Compression）、`Editor/PlayFocus.cs`（进 Play 切 Game 窗口）。
 - `Step1Keys.AnyDown()`；新键：R N Y Space 方向键 A D W S F5 F8 F9 Minus Equals。**以后任何"按任意键 / 结算键"都用 Step1Keys**，不要写 Input.anyKeyDown / Input.GetKeyDown。
 - SceneTransit 20 秒保险丝（WatchdogSeconds）。小镇开场 timeScale=1、计时用 unscaledDeltaTime。
+
+## S218 小镇大机关
+- 文件：`Overworld/OverworldProps.cs`（OverworldProps + OverworldEvents）、`OverworldTown.cs`（Big / Flight / Arm / Fire / Impact / DodgeCell / Reload）、`OverworldSession.cs`（Day、Changed、MarioWary、CarriedDaze、ReloadDoor、BigHits、BestChain）、`OverworldPack.BigSampleText`。
+- 调参 v19：overworldBigFuseSeconds 1.2、overworldBigStunSeconds 2、overworldRollSpeed 9、overworldNoiseRange 14、overworldNoiseSuspicion 35、overworldDazeCarryMinutes 40、overworldDazeCarrySeconds 2、overworldFogSight 0.6、overworldDodgeSteps 4。
+- 常量：Muzzle 3、MaxShot 96、WindShift 3、FloodRadius 3、MaxRoll 64、MaxBig 12、ChainRadius 1.5、FlightSeconds 0.9。
+- sim 块 "S218 小镇大机关"；verify 生成 ow_props.json（网页 owCheck + owPropsDescribe + owDayOf + owWeatherPreview）。

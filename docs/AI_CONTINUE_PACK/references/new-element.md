@@ -35,3 +35,6 @@
 - 发动瞬间要有冲击画面（Step1Fx.Ring/Burst/Dust），范围型效果的冲击环 = 真实范围（H3 可读）。
 - 会把人弄飞的：用 ApplyKnockbackStun(秒, true, false)，在 sim S216 的 cases 里加一行（高度要 < 房间头顶空格）。
 - 状态变化不要瞬移（落下/吊起用 Step1Feel.DropProgress / SmoothStep01 缓动 0.1–0.3 秒）。
+
+## S218 小镇格子 ≠ 房间字符
+小镇（OverworldCatalog）和房间（AsciiElementRegistry）是两套字符表。小镇大机关 K O U X 只在小镇里有意义（房间里的 K 仍是大炮朝右）。加小镇格子看 `level-design.md` 的"S218 小镇大机关"；网页 build.py 会自动从 OverworldCatalog.cs 读新格子（T(...) 那一行的格式要保持一致，正则解析）。

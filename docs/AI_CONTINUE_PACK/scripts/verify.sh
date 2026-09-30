@@ -61,5 +61,13 @@ const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ─�
 const cases={all8:[8,8,8,8],east16:[0,16,0,0],west16:[16,0,0,0],north16:[0,0,16,0],south16:[0,0,0,16],x2:[0,44,0,32],crop4:[-4,-4,-4,-4],crop1:[-1,-1,-1,-1]};const o={};
 for(const k in cases){const m=X.owParse(X.OW_SAMPLE);const r=X.owResize(m,...cases[k]);o[k]=r.ok?m.rows.join('\\n')+'|'+r.lost+'|'+m.notes.map(n=>n.x+','+n.y).join(';'):'x '+r.why;}
 fs.writeFileSync('$WS/sim/ow_resize.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_resize.json"
+# S218：网页 owCheck / owPropsDescribe / owDayOf / owWeatherPreview 跑星露大镇，交给 C# OverworldProps / OverworldEvents 逐字对照
+command -v node >/dev/null && (cd "$WS/repo/tools/LevelStudioWeb" && node -e "
+const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html','utf8');
+const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ── 状态'))+';this.X={owParse,owCheck,owIssueText,owPropsDescribe,owDayOf,owWeatherPreview,OW_BIG_SAMPLE};',c);const X=c.X;
+const m=X.owParse(X.OW_BIG_SAMPLE);const o=[];for(const i of X.owCheck(m).issues)o.push(i.sev+' '+X.owIssueText(i));for(const l of X.owPropsDescribe(m))o.push('D '+l.text);
+for(let d=1;d<=20;d++){const w=X.owDayOf(m.name,d);o.push('W '+d+' '+w.kind+' '+w.wind);}for(const l of X.owWeatherPreview(m,1,8))o.push(l);
+fs.writeFileSync('$WS/sim/ow_props.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_props.json"
 (cd "$WS/sim" && rm -rf obj bin && dotnet build -c Release -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error " | head -10; dotnet bin/Release/net8.0/sim.dll) || ok=0
 [ $ok = 1 ] && echo "VERIFY ALL GREEN（提醒：Unity 里的 EditMode 测试仍需用户跑）" || { echo "VERIFY FAILED"; exit 1; }

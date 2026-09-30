@@ -37,9 +37,9 @@ public static class OverworldBots
     }
 
     /// <summary>玩完一天。useFastForward = 机器人在"没事可干"时按住快进（S213 新功能）。房间里的时间不计入。</summary>
-    public static Report PlayDay(OverworldMap.Map m, MarioMindTuningSO t, Kind kind, bool useFastForward, int seed = 1)
+    public static Report PlayDay(OverworldMap.Map m, MarioMindTuningSO t, Kind kind, bool useFastForward, int seed = 1, int day = 1)
     {
-        OverworldSession.NewDay(m.name, "Town"); OverworldSession.Active = true;
+        OverworldSession.NewDay(m.name, "Town", day); OverworldSession.Active = true; // S218：day 决定天气
         var rep = new Report { kind = kind, doors = 0 };
         var town = new OverworldTown(m, t);
         rep.doors = town.stops.Count;
@@ -69,6 +69,12 @@ public static class OverworldBots
                         int id = pc.y * m.W + pc.x; if (OverworldSession.UsedCells.Contains(id) || town.peels.ContainsKey(id)) continue;
                         if (OverworldTown.Dist(pc.x + .5, pc.y + .5, town.mario.x, town.mario.y) < 6 && OverworldTown.Dist(pc.x + .5, pc.y + .5, town.tx, town.ty) < 2.5) { input.peel = true; break; }
                     }
+                    // S218：路过大机关、他在 8 格内 → 按 L（真人会这样乱试）
+                    foreach (var bc in OverworldProps.All(town.map))
+                    {
+                        if (OverworldSession.UsedCells.Contains(bc.y * town.map.W + bc.x)) continue;
+                        if (OverworldTown.Dist(bc.x + .5, bc.y + .5, town.tx, town.ty) < 2.5 && OverworldTown.Dist(bc.x + .5, bc.y + .5, town.mario.x, town.mario.y) < 8) { input.peel = true; break; }
+                    }
                 }
             }
             if (kind == Kind.Chaos)
@@ -80,7 +86,7 @@ public static class OverworldBots
             if (react > 0f) { react -= dt; goal = null; }
             if (goal.HasValue)
             {
-                var path = OverworldMap.Path(m, OverworldGuide.Near(m, town.tx, town.ty), goal.Value);
+                var path = OverworldMap.Path(town.map, OverworldGuide.Near(town.map, town.tx, town.ty), goal.Value); // S218：走今天的地形（撞碎 / 淹过的）
                 if (path != null && path.Count > 1)
                 {
                     var c = path[1]; double dx = c.x + 0.5 - town.tx, dy = c.y + 0.5 - town.ty, d = System.Math.Sqrt(dx * dx + dy * dy);

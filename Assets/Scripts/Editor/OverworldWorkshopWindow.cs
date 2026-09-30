@@ -234,7 +234,13 @@ public sealed class OverworldWorkshopWindow : EditorWindow
             var rows = OverworldMap.NewMap(40, 24);
             Load($"# Overworld: 新小镇\n# Goal: \n{string.Join("\n", rows)}\n", "新建 40×24（已放好家 M 和出生点 T）");
         }
-        if (GUILayout.Button(new GUIContent("样板", "内置样板：星露小镇（4 户人家）"), EditorStyles.toolbarButton, GUILayout.Width(40))) Load(OverworldPack.SampleText, "载入样板 星露小镇");
+        if (GUILayout.Button(new GUIContent("样板 ▾", "内置样板：星露小镇（4 户人家）/ 星露大镇（72×40，巨炮 滚石 水塔 + 3 连锁）"), EditorStyles.toolbarDropDown, GUILayout.Width(52)))
+        {
+            var sm = new GenericMenu();
+            sm.AddItem(new GUIContent("星露小镇（44×28，入门）"), false, () => Load(OverworldPack.SampleText, "载入样板 星露小镇"));
+            sm.AddItem(new GUIContent("星露大镇（72×40，大机关 + 连锁）"), false, () => Load(OverworldPack.BigSampleText, "载入样板 星露大镇：右边'大机关 · 连锁'点一行就定位"));
+            sm.ShowAsContext();
+        }
         // S217：往大世界扩展（四边都能加 / 裁），网页"↔ 扩展"同一套规则
         if (GUILayout.Button(new GUIContent($"↔ 扩展 {map.W}×{map.H} ▾", $"把地图往外加大（新地是草地，最外圈自动种树）或裁掉一圈。最大 {OverworldMap.MaxW}×{OverworldMap.MaxH}"), EditorStyles.toolbarDropDown, GUILayout.Width(118))) ResizeMenu();
         if (GUILayout.Button("打开 ▾", EditorStyles.toolbarDropDown, GUILayout.Width(54)))
@@ -270,6 +276,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         using (new EditorGUI.DisabledScope(redo.Count == 0)) if (GUILayout.Button(new GUIContent("↷", "重做 Ctrl+Y"), EditorStyles.toolbarButton, GUILayout.Width(24))) Redo();
         GUILayout.Space(8);
         tool = (Tool)GUILayout.Toolbar((int)tool, new[] { new GUIContent("✎ 画笔", "B"), new GUIContent("▭ 矩形", "R"), new GUIContent("▦ 填充", "F"), new GUIContent("⌫ 橡皮", "E"), new GUIContent("◉ 吸管", "I（或按住 Alt 点一下）") }, EditorStyles.toolbarButton, GUILayout.Width(300));
+        showLinks = GUILayout.Toggle(showLinks, new GUIContent("⚡ 关系线", "画布上画出：巨炮 → 靶心（大风偏移虚框）、滚石滚道、水塔淹没范围、连锁（黄线）。悬停一扇门 = 右边预览门里的房间"), EditorStyles.toolbarButton, GUILayout.Width(62));
         GUILayout.Space(8);
         cell = GUILayout.HorizontalSlider(cell, 4f, 28f, GUILayout.Width(80));
         if (GUILayout.Button(new GUIContent("⤢", "缩放到整张地图都看得见"), EditorStyles.toolbarButton, GUILayout.Width(22)))
@@ -373,7 +380,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
                 EditorGUI.DrawRect(r, t != null ? new Color(t.r, t.g, t.b) : Color.magenta);
                 if (route.Contains((x, y)) && !OverworldCatalog.Solid(c)) EditorGUI.DrawRect(new Rect(r.x + cell * 0.35f, r.y + cell * 0.35f, cell * 0.3f, cell * 0.3f), new Color(1f, 0.2f, 0.2f, 0.8f));
                 if (errCells.Contains((x, y))) { EditorGUI.DrawRect(new Rect(r.x, r.y, r.width, 2), Color.red); EditorGUI.DrawRect(new Rect(r.x, r.yMax - 2, r.width, 2), Color.red); }
-                if (OverworldCatalog.IsDoor(c) || c == 'M' || c == 'T' || c == '?' || c == 'n' || c == 'i') GUI.Label(r, c.ToString(), label);
+                if (OverworldCatalog.IsDoor(c) || "MT?niKOUX".IndexOf(c) >= 0) GUI.Label(r, c.ToString(), label);
             }
         // S212：矩形拖动预览
         if (dragStart.HasValue && hover.x >= 0)
@@ -403,9 +410,68 @@ public sealed class OverworldWorkshopWindow : EditorWindow
             var r = new Rect(area.x + n.x * cell, area.y + (map.H - 1 - n.y) * cell, cell, cell);
             GUI.Label(r, new GUIContent("✎", n.text), label);
         }
+        if (showLinks && ev.type == EventType.Repaint) Links(area);
         HandleMouse(area);
         EditorGUILayout.EndScrollView();
         if (ev.type == EventType.Repaint) canvasView = GUILayoutUtility.GetLastRect();
+    }
+
+    // ═════ S218：总管全局——关系线 + 大机关面板 + 天气预览 + 悬停门看房间 ═════
+    private bool showLinks = true, propsOpen = true;
+    private int weatherFrom = 1;
+    private Vector2 C(Rect area, int x, int y) => new Vector2(area.x + (x + 0.5f) * cell, area.y + (map.H - 1 - y + 0.5f) * cell);
+
+    private void Links(Rect area)
+    {
+        Handles.BeginGUI();
+        foreach (var c in OverworldProps.All(map))
+        {
+            char k = map.At(c.x, c.y);
+            if (k == 'K' && OverworldProps.Aim(map, c, out var tg, out int dir, out _))
+            {
+                foreach (var mz in OverworldProps.MuzzleCells(map, c, dir)) EditorGUI.DrawRect(new Rect(area.x + mz.x * cell, area.y + (map.H - 1 - mz.y) * cell, cell - 1, cell - 1), new Color(1f, 0.2f, 0.1f, 0.35f));
+                Handles.color = new Color(1f, 0.35f, 0.3f, 0.9f); Handles.DrawAAPolyLine(3f, C(area, c.x, c.y), C(area, tg.x, tg.y));
+                for (int w = 0; w < 4; w++) { var l = OverworldProps.Landing(map, tg, w); Outline(new Rect(area.x + l.x * cell + 2, area.y + (map.H - 1 - l.y) * cell + 2, cell - 5, cell - 5), new Color(1f, 0.6f, 0.5f, 0.6f), 1); } // 大风天可能的落点
+            }
+            else if (k == 'O')
+                for (int d = 0; d < 4; d++) { var lane = OverworldProps.Lane(map, c, d); if (lane.Count < 2) continue; var e = lane[lane.Count - 1]; Handles.color = new Color(0.85f, 0.8f, 0.7f, 0.55f); Handles.DrawAAPolyLine(4f, C(area, c.x, c.y), C(area, e.x, e.y)); }
+            else if (k == 'U') foreach (var f in OverworldProps.Flood(map, c, OverworldProps.FloodRadius)) EditorGUI.DrawRect(new Rect(area.x + f.x * cell + cell * 0.3f, area.y + (map.H - 1 - f.y) * cell + cell * 0.3f, cell * 0.4f, cell * 0.4f), new Color(0.3f, 0.55f, 1f, 0.55f));
+            foreach (var t in OverworldProps.Triggers(map, c)) { Handles.color = new Color(1f, 0.85f, 0.2f, 0.95f); Handles.DrawAAPolyLine(2.5f, C(area, c.x, c.y) + Vector2.one * 2, C(area, t.x, t.y) + Vector2.one * 2); }
+        }
+        Handles.EndGUI();
+        // 悬停门 → 画布旁边弹出门里房间的缩略图（不用切到关卡工坊）
+        if (hover.x >= 0 && OverworldCatalog.IsDoor(map.At(hover.x, hover.y)))
+        {
+            var d = map.DoorOf(map.At(hover.x, hover.y) - '0'); var rows = d != null ? OverworldBuilder.ResolveRoom(d.room) : null;
+            if (rows != null && rows.Length > 0)
+            {
+                float px = Mathf.Max(2f, Mathf.Min(6f, 300f / rows[0].Length)); var at = C(area, hover.x, hover.y) + new Vector2(cell, cell);
+                var box = new Rect(at.x, at.y, rows[0].Length * px + 8, rows.Length * px + 24);
+                EditorGUI.DrawRect(box, new Color(0.08f, 0.08f, 0.1f, 0.95f));
+                GUI.Label(new Rect(box.x + 4, box.y + 2, box.width, 18), $"门 {d.n} · {OverworldMap.Clock(d.minute)} · {d.room}", EditorStyles.whiteMiniLabel);
+                for (int r = 0; r < rows.Length; r++) for (int x = 0; x < rows[r].Length; x++) { char ch = rows[r][x]; if (ch == '.' || ch == ' ') continue; EditorGUI.DrawRect(new Rect(box.x + 4 + x * px, box.y + 20 + r * px, px, px), ElementCatalog.EditorColor(ch)); }
+            }
+        }
+    }
+
+    private void PropsPanel()
+    {
+        EditorGUILayout.Space();
+        propsOpen = EditorGUILayout.Foldout(propsOpen, "⚡ 大机关 · 连锁（点一行 = 画布定位）", true, EditorStyles.foldoutHeader);
+        if (!propsOpen) return;
+        foreach (var l in OverworldProps.Describe(map))
+        {
+            EditorGUILayout.LabelField(l.text, EditorStyles.wordWrappedMiniLabel);
+            var hr = GUILayoutUtility.GetLastRect();
+            if (l.x >= 0) { EditorGUIUtility.AddCursorRect(hr, MouseCursor.Link); if (Event.current.type == EventType.MouseDown && hr.Contains(Event.current.mousePosition)) { Locate(l.x, l.y); Event.current.Use(); } }
+        }
+        EditorGUILayout.Space();
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("🌦 天气（每天 06:00 公布，同一天永远一样）", EditorStyles.miniBoldLabel);
+        if (GUILayout.Button("◀", EditorStyles.miniButtonLeft, GUILayout.Width(22))) weatherFrom = Mathf.Max(1, weatherFrom - 7);
+        if (GUILayout.Button("▶", EditorStyles.miniButtonRight, GUILayout.Width(22))) weatherFrom += 7;
+        EditorGUILayout.EndHorizontal();
+        foreach (var w in OverworldEvents.Preview(map, weatherFrom, 7)) EditorGUILayout.LabelField(w, EditorStyles.wordWrappedMiniLabel);
     }
 
     private static void Outline(Rect r, Color c, float t)
@@ -511,6 +577,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         if (map.doors.Count == 0) EditorGUILayout.HelpBox("在画布上用 1–9 画门（画在房子最下面一排的下方一格）。", MessageType.Info);
 
         LedgerPanel();
+        PropsPanel();
         EditorGUILayout.Space();
         // S211：场景状态——你只管画，▶ 时自动只重建变了的房间
         bool stale = scenesStale;

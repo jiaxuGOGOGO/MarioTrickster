@@ -115,6 +115,7 @@ public sealed class TestHubWindow : EditorWindow
             sb.AppendLine("\n## 小镇大地图");
             var towns = OverworldBuilder.List().Select(x => (x.name, File.ReadAllText(x.path))).ToList();
             if (!towns.Any(x => x.name == OverworldPack.SampleName)) towns.Insert(0, (OverworldPack.SampleName + "（内置样板）", OverworldPack.SampleText));
+            if (!towns.Any(x => x.name == OverworldPack.BigSampleName)) towns.Insert(1, (OverworldPack.BigSampleName + "（内置样板）", OverworldPack.BigSampleText));
             var rules = OverworldBuilder.RulesFromTuning();
             foreach (var (name, text) in towns)
             {

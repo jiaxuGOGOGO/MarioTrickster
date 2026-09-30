@@ -50,3 +50,6 @@
 - 新样板小镇：写进 `OverworldPack`，build.py 自动读。
 - S212 小镇工坊快捷键（网页同）：B R F E I、Alt+点吸管、1–9 门、Ctrl+Z/Y、Ctrl+S、F5、Ctrl+滚轮、中键拖、Ctrl+C/V 与网页互通；门行 ◎ 定位 / ✎ 打开房间；⏱ 时间滑条。
 - 一键试玩 `OverworldBuilder.BuildAll`：每门一个 `Assets/Scenes/Overworld/Room_N.unity`（带 OverworldRoomLink）+ `Town.unity`，登记 Build Settings。
+
+## S215 一整天的节奏（一天总览会提醒）
+- 一扇门第一次出现的机关最好 1–2 种（≥3 种会提醒"一次教太多"）；连续两扇门主角机关别一样。参考 GMTK 4 Step Level Design：先教、再变化、再考、再收尾。

@@ -89,6 +89,35 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         e.Use(); Repaint();
     }
 
+    // ── S215：一天总览（全局：每扇门的房间主打什么、哪扇门第一次教新机关、重复 / 一次教太多、炸弹预算）──
+    private bool ledgerOpen = true;
+    private CampaignLedger.Report ledger; private string ledgerKey;
+
+    private void LedgerPanel()
+    {
+        EditorGUILayout.Space();
+        ledgerOpen = EditorGUILayout.Foldout(ledgerOpen, "📋 一天总览（按马里奥的顺序）", true, EditorStyles.foldoutHeader);
+        if (!ledgerOpen) return;
+        string key = OverworldMap.ToText(map) + "|" + string.Join(",", OverworldBuilder.RoomNames());
+        var t = MarioMindTuningSO.LoadOrDefault();
+        if (ledger == null || ledgerKey != key) { ledgerKey = key; ledger = CampaignLedger.Build(map, n => OverworldBuilder.ResolveRoom(n), t.bombsPerRound, OverworldTown.MaxBonusBombs); }
+        foreach (var r in ledger.rooms)
+        {
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField($"{r.clock} 门{r.door}", EditorStyles.miniBoldLabel, GUILayout.Width(78));
+            if (r.missing) EditorGUILayout.LabelField("找不到「" + r.room + "」", EditorStyles.miniLabel);
+            else
+            {
+                string kinds = string.Join(" ", r.kinds.Select(k => k.zh + (k.n > 1 ? "×" + k.n : "")));
+                EditorGUILayout.LabelField(new GUIContent($"{r.room} · 主角 {r.star}" + (r.firstTime.Count > 0 ? "  ✦新：" + string.Join("、", r.firstTime) : ""), kinds), EditorStyles.wordWrappedMiniLabel);
+            }
+            if (!r.missing && GUILayout.Button(new GUIContent("✎", "打开这个房间"), EditorStyles.miniButton, GUILayout.Width(22))) LevelWorkshopWindow.OpenRoom(r.room);
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUILayout.LabelField($"💣 每个房间最多 {ledger.maxBombs} 颗（本回合 {t.bombsPerRound} + 小镇带进来最多 {OverworldTown.MaxBonusBombs}）；房间按这个数加固，炸不死马里奥", EditorStyles.wordWrappedMiniLabel);
+        foreach (var w in ledger.warnings) EditorGUILayout.HelpBox(w, MessageType.Info);
+    }
+
     private List<string> botLines = new List<string>();
 
     /// <summary>纯逻辑跑机器人玩家（OverworldBots）。只在编辑模式跑（会临时占用 OverworldSession，跑完清掉）。</summary>
@@ -242,7 +271,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         GUILayout.Space(8);
         cell = GUILayout.HorizontalSlider(cell, 8f, 28f, GUILayout.Width(80));
         GUILayout.FlexibleSpace();
-        if (GUILayout.Button(new GUIContent("🏠 关卡工坊", "做门里面的横版房间"), EditorStyles.toolbarButton, GUILayout.Width(80))) EditorApplication.ExecuteMenuItem("MarioTrickster/Level Workshop (关卡工坊)");
+        if (GUILayout.Button(new GUIContent("🏠 关卡工坊", "做门里面的横版房间"), EditorStyles.toolbarButton, GUILayout.Width(80))) LevelWorkshopWindow.Open();
         GUI.backgroundColor = report != null && report.Playable ? new Color(0.5f, 1f, 0.5f) : Color.white;
         if (GUILayout.Button(new GUIContent("▶ 试玩小镇", "F5"), EditorStyles.toolbarButton, GUILayout.Width(80))) PlayTown();
         GUI.backgroundColor = Color.white;
@@ -442,6 +471,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         }
         if (map.doors.Count == 0) EditorGUILayout.HelpBox("在画布上用 1–9 画门（画在房子最下面一排的下方一格）。", MessageType.Info);
 
+        LedgerPanel();
         EditorGUILayout.Space();
         // S211：场景状态——你只管画，▶ 时自动只重建变了的房间
         bool stale = scenesStale;

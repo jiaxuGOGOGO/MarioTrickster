@@ -25,7 +25,7 @@ public class SnippetSaveWindow : EditorWindow
     // MenuItem 入口
     // ═══════════════════════════════════════════════════
 
-    [MenuItem("MarioTrickster/Level Builder/Save Scene to Snippet Library")]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Level Builder/Save Scene to Snippet Library")]
     public static void ShowWindow()
     {
         SnippetSaveWindow window = GetWindow<SnippetSaveWindow>("Save to Snippet Library");

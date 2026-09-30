@@ -174,3 +174,32 @@ function owMarioAt(m, sc, minute, speed, mps) {
   if (sc.homePath && minute < sc.homeArrive && minute >= homeDepart) { w.cell = owAlong(m, sc.homePath, (minute - homeDepart) / mps, speed); w.what = `回家路上（${owClock(sc.homeArrive)} 到家）`; return w; }
   w.cell = home.length ? home[0] : at; w.what = '到家了'; return w;
 }
+// ── S215 一天总览：逐行移植 Assets/Scripts/Overworld/CampaignLedger.cs（verify.sh 逐项对照）──
+const owShortZh = zh => { const i = zh.indexOf('（'); return i > 0 ? zh.slice(0, i) : zh; };
+function owLedger(m, W, resolve, bombsPerRound, maxBonus) {
+  const rep = { rooms: [], warnings: [], allKinds: [], maxBombs: bombsPerRound + maxBonus }, seen = new Set();
+  const counts = e => e && (e.r === 'PlayerPrank' || e.c === 'R' || e.c === 'U');
+  const order = []; for (const e of ELEMENTS) if (counts(e) && !order.includes(e.k)) order.push(e.k);
+  for (const d of m.doors.slice().sort((a, b) => a.minute - b.minute || a.n - b.n)) {
+    if (owFind(m, String(d.n)).length !== 1) continue;
+    const r = { door: d.n, clock: owClock(d.minute), room: d.room, missing: false, kinds: [], star: '', firstTime: [], pickups: 0, total: 0 };
+    const g = resolve(d.room); if (!g) { r.missing = true; rep.rooms.push(r); continue; }
+    const cnt = {}, zh = {};
+    for (const row of g) for (const c0 of row.replace(/[123]/g, '.')) {
+      if (c0 === '?') { r.pickups++; continue; }
+      const e = W.info.get(c0); if (!counts(e) || e.proposal) continue;
+      cnt[e.k] = (cnt[e.k] || 0) + 1; zh[e.k] = owShortZh(e.zh); r.total++;
+    }
+    let best = 0; for (const k of order) if (cnt[k]) { r.kinds.push({ key: k, zh: zh[k], n: cnt[k] }); if (cnt[k] > best) { best = cnt[k]; r.star = zh[k]; } }
+    for (const k of r.kinds) if (!seen.has(k.key)) { seen.add(k.key); r.firstTime.push(k.zh); rep.allKinds.push(k.zh); }
+    rep.rooms.push(r);
+  }
+  rep.rooms.forEach((r, i) => {
+    if (r.missing) { rep.warnings.push(`门 ${r.door}：找不到房间「${r.room}」`); return; }
+    if (r.total === 0) rep.warnings.push(`门 ${r.door}「${r.room}」里没有机关：进门只能躲，没有捣蛋的乐趣`);
+    if (r.firstTime.length >= 3) rep.warnings.push(`门 ${r.door}「${r.room}」一口气第一次出现 ${r.firstTime.length} 种机关（${r.firstTime.join('、')}）：一次教太多，玩家记不住。前面的门先放一两种`);
+    const p = rep.rooms[i - 1]; if (i > 0 && !p.missing && r.star && r.star === p.star) rep.warnings.push(`门 ${p.door} 和门 ${r.door} 主角都是${r.star}：连着两扇门像在重复。换一个房间，或在后一扇门加一种变化`);
+  });
+  return rep;
+}
+const owLedgerLines = rep => rep.rooms.map(r => r.missing ? `门${r.door} ?` : `门${r.door} ${r.room} 主角=${r.star} 共${r.total} 道具箱${r.pickups} 新=${r.firstTime.join('、')} [${r.kinds.map(k => k.zh + k.n).join(' ')}]`).concat(rep.warnings);

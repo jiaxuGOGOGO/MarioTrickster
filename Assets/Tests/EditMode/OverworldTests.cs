@@ -354,4 +354,35 @@ public class OverworldTests
         StringAssert.Contains("OverworldBots.PlayDay(m, t, k, true, s)", ow);
         StringAssert.Contains("/Assets/Levels/Inbox/", File.ReadAllText(Path.Combine(Application.dataPath, "../.gitignore")));
     }
+
+    // ── S215：全局总览 + 炸弹预算 + 菜单减法 ──────────────
+    [Test]
+    public void Ledger_FlagsTeachingOverloadAndRepeats()
+    {
+        var m = OverworldMap.Parse("# Overworld: t\n# Door: 1 | 08:00 | a\n# Door: 2 | 10:00 | b\n# Door: 3 | 12:00 | c\n" + string.Join("\n", OverworldMap.NewMap(20, 12)));
+        var rows = m.rows.Select(r => r.ToCharArray()).ToArray();
+        rows[3][3] = '1'; rows[3][6] = '2'; rows[3][9] = '3'; m.rows = rows.Select(r => new string(r)).ToArray();
+        var rooms = new System.Collections.Generic.Dictionary<string, string[]> { { "a", new[] { "W~~CW" } }, { "b", new[] { "W~~nW" } }, { "c", new[] { "WJ[xKW" } } };
+        var rep = CampaignLedger.Build(m, n => rooms.TryGetValue(n, out var g) ? g : null, 3, 3);
+        Assert.AreEqual(3, rep.rooms.Count);
+        Assert.AreEqual("火", rep.rooms[0].star); Assert.AreEqual(2, rep.rooms[0].firstTime.Count);
+        CollectionAssert.AreEqual(new[] { "香蕉皮" }, rep.rooms[1].firstTime, "第二扇门只新教香蕉皮");
+        Assert.IsTrue(rep.warnings.Exists(w => w.Contains("主角都是火")), "连着两扇门主角一样 → 提醒");
+        Assert.IsTrue(rep.warnings.Exists(w => w.Contains("一次教太多")), "一扇门第一次出现 ≥3 种 → 提醒");
+        Assert.AreEqual(6, rep.maxBombs);
+    }
+
+    [Test]
+    public void Wiring_S215_BombBudgetAndMenus()
+    {
+        string pb = Read("Scripts/Editor/Step1PrankRoomBuilder.cs"), ob = Read("Scripts/Editor/OverworldBuilder.cs"), ow = Read("Scripts/Editor/OverworldWorkshopWindow.cs");
+        StringAssert.Contains("tuning.bombsPerRound + Mathf.Max(0, ExtraBombs)", pb);
+        StringAssert.Contains("Step1PrankRoomBuilder.ExtraBombs = OverworldTown.MaxBonusBombs;", ob);
+        StringAssert.Contains("Step1PrankRoomBuilder.ExtraBombs = 0;", ob);
+        Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 19, "加固规则变了 → 房间场景要重建");
+        StringAssert.Contains("CampaignLedger.Build(map,", ow);
+        StringAssert.Contains("LevelWorkshopWindow.Open();", ow);
+        StringAssert.DoesNotContain("MarioTrickster/Overworld/Town Workshop", ob, "同一个窗口只留一个菜单入口");
+        StringAssert.Contains("MarioTrickster/旧工具 (Legacy)/Build Test Scene", Read("Scripts/Editor/TestSceneBuilder.cs"));
+    }
 }

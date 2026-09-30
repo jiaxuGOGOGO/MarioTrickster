@@ -171,6 +171,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 .owiss.Error{border-color:var(--bad)}.owiss.Warn{border-color:var(--warn)}.owiss.Info{border-color:var(--trick)}
 .owbar>*{flex:0 0 auto}.owbar .spacer{flex:1}
 .owsched{font:12px/1.6 var(--mono);color:var(--dim)}
+.owled{display:grid;grid-template-columns:88px 1fr 26px;gap:4px;align-items:start;margin:2px 0}.owled b{color:var(--chalk)}.owled .new{color:var(--loot)}
 .owdoors{display:flex;flex-wrap:wrap;gap:3px}.owdoors button{width:26px;padding:3px 0}
 @media (max-width:1100px){.ow{grid-template-columns:1fr}}
 @media (max-width:760px){main{grid-template-columns:1fr}aside{border-right:0}.grid2{grid-template-columns:1fr}.brand span{display:none}}
@@ -319,6 +320,8 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <div id="owDoors"></div>
       <h3 id="owHead">检查</h3>
       <div id="owIssues"></div>
+      <h3>📋 一天总览 <small class="hint">按马里奥的顺序：每扇门主打什么、哪扇门第一次教新机关</small></h3>
+      <div id="owLedger" class="owsched"></div>
       <h3>马里奥的一天</h3>
       <div class="owsched" id="owSched"></div>
       <label class="toggle" style="margin-top:8px"><input type="checkbox" id="owScrubOn"> ⏱ 时间滑条（看他几点在哪）</label>
@@ -1135,6 +1138,35 @@ function owMarioAt(m, sc, minute, speed, mps) {
   if (sc.homePath && minute < sc.homeArrive && minute >= homeDepart) { w.cell = owAlong(m, sc.homePath, (minute - homeDepart) / mps, speed); w.what = `回家路上（${owClock(sc.homeArrive)} 到家）`; return w; }
   w.cell = home.length ? home[0] : at; w.what = '到家了'; return w;
 }
+// ── S215 一天总览：逐行移植 Assets/Scripts/Overworld/CampaignLedger.cs（verify.sh 逐项对照）──
+const owShortZh = zh => { const i = zh.indexOf('（'); return i > 0 ? zh.slice(0, i) : zh; };
+function owLedger(m, W, resolve, bombsPerRound, maxBonus) {
+  const rep = { rooms: [], warnings: [], allKinds: [], maxBombs: bombsPerRound + maxBonus }, seen = new Set();
+  const counts = e => e && (e.r === 'PlayerPrank' || e.c === 'R' || e.c === 'U');
+  const order = []; for (const e of ELEMENTS) if (counts(e) && !order.includes(e.k)) order.push(e.k);
+  for (const d of m.doors.slice().sort((a, b) => a.minute - b.minute || a.n - b.n)) {
+    if (owFind(m, String(d.n)).length !== 1) continue;
+    const r = { door: d.n, clock: owClock(d.minute), room: d.room, missing: false, kinds: [], star: '', firstTime: [], pickups: 0, total: 0 };
+    const g = resolve(d.room); if (!g) { r.missing = true; rep.rooms.push(r); continue; }
+    const cnt = {}, zh = {};
+    for (const row of g) for (const c0 of row.replace(/[123]/g, '.')) {
+      if (c0 === '?') { r.pickups++; continue; }
+      const e = W.info.get(c0); if (!counts(e) || e.proposal) continue;
+      cnt[e.k] = (cnt[e.k] || 0) + 1; zh[e.k] = owShortZh(e.zh); r.total++;
+    }
+    let best = 0; for (const k of order) if (cnt[k]) { r.kinds.push({ key: k, zh: zh[k], n: cnt[k] }); if (cnt[k] > best) { best = cnt[k]; r.star = zh[k]; } }
+    for (const k of r.kinds) if (!seen.has(k.key)) { seen.add(k.key); r.firstTime.push(k.zh); rep.allKinds.push(k.zh); }
+    rep.rooms.push(r);
+  }
+  rep.rooms.forEach((r, i) => {
+    if (r.missing) { rep.warnings.push(`门 ${r.door}：找不到房间「${r.room}」`); return; }
+    if (r.total === 0) rep.warnings.push(`门 ${r.door}「${r.room}」里没有机关：进门只能躲，没有捣蛋的乐趣`);
+    if (r.firstTime.length >= 3) rep.warnings.push(`门 ${r.door}「${r.room}」一口气第一次出现 ${r.firstTime.length} 种机关（${r.firstTime.join('、')}）：一次教太多，玩家记不住。前面的门先放一两种`);
+    const p = rep.rooms[i - 1]; if (i > 0 && !p.missing && r.star && r.star === p.star) rep.warnings.push(`门 ${p.door} 和门 ${r.door} 主角都是${r.star}：连着两扇门像在重复。换一个房间，或在后一扇门加一种变化`);
+  });
+  return rep;
+}
+const owLedgerLines = rep => rep.rooms.map(r => r.missing ? `门${r.door} ?` : `门${r.door} ${r.room} 主角=${r.star} 共${r.total} 道具箱${r.pickups} 新=${r.firstTime.join('、')} [${r.kinds.map(k => k.zh + k.n).join(' ')}]`).concat(rep.warnings);
 </script>
 <script>// ── 状态 ──────────────────────────────────────────────
 const LS = 'mariotrickster.studio.v1', LS2 = 'mariotrickster.studio.v2';
@@ -1812,7 +1844,15 @@ function owRender() {
   $('#owIssues').querySelectorAll('.loc').forEach(el => el.onclick = () => { const i = rep.issues[+el.dataset.k]; owLocate(i.x, i.y); });
   const sc = rep.schedule;
   $('#owSched').innerHTML = sc ? sc.stops.map((s, k) => `门 ${s.door.n}：${owClock(s.depart)} 出发 → ${owClock(s.arrive)} 到 → ${owClock(s.leave)} 出来　你能提前 ${Math.round(owLead(sc, k, OW.Rules.minutesPerSecond))} 秒`).join('<br>') + `<br>${owClock(sc.homeArrive)} 到家` : '（先把检查里的红色问题改掉）';
-  owScrubText(); owPalette(); owDraw(); owSave();
+  owLedgerRender(); owScrubText(); owPalette(); owDraw(); owSave();
+}
+// S215：一天总览（和 Unity 小镇工坊同一套规则：CampaignLedger）
+function owLedgerRender() {
+  const rep = owLedger(owM(), W, owRoomGrid, 3, 3), esc = t => String(t).replace(/</g, '&lt;');
+  $('#owLedger').innerHTML = rep.rooms.map(r => `<div class="owled"><b>${r.clock} 门${r.door}</b><span title="${esc(r.kinds.map(k => k.zh + '×' + k.n).join(' '))}">${r.missing ? '找不到「' + esc(r.room) + '」' : `${esc(r.room)} · 主角 ${esc(r.star)}${r.firstTime.length ? ` <span class="new">✦新：${esc(r.firstTime.join('、'))}</span>` : ''}`}</span>${r.missing ? '<i></i>' : `<button class="btn small" data-room="${esc(r.room)}" title="打开这个房间">✎</button>`}</div>`).join('')
+    + `<p class="hint">💣 每个房间最多 ${rep.maxBombs} 颗（本回合 3 + 小镇带进来最多 3）；Unity 按这个数加固，炸不死马里奥</p>`
+    + rep.warnings.map(w => `<div class="owiss Info">${esc(w)}</div>`).join('');
+  $('#owLedger').querySelectorAll('[data-room]').forEach(b => b.onclick = () => owEditRoom(b.dataset.room));
 }
 function owPush() { OWT.redo = []; OWT.undo.push(JSON.stringify(owToJson(owM()))); if (OWT.undo.length > 60) OWT.undo.shift(); }
 // ── S212：定位 / 编辑房间 / 时间滑条 / 撤销重做 ──

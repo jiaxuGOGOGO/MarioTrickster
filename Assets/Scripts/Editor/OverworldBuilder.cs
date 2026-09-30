@@ -164,7 +164,6 @@ public static class OverworldBuilder
         EditorApplication.isPlaying = true;
     }
 
-    [MenuItem("MarioTrickster/Overworld/Town Workshop (小镇工坊)", false, 1)]
     public static void OpenWorkshop() => OverworldWorkshopWindow.Open();
 
     /// <summary>构建小镇 + 所有房间场景，登记 Build Settings，停在小镇场景。</summary>
@@ -189,6 +188,7 @@ public static class OverworldBuilder
                 if (!(File.Exists(path) && EditorPrefs.GetString("MarioTrickster.Overworld.RoomHash." + d.n, "") == hash))
                 {
                     Step1PrankRoomBuilder.RoomOverride = rows;
+                    Step1PrankRoomBuilder.ExtraBombs = OverworldTown.MaxBonusBombs; // S214：最坏情况 = 带满炸弹进门
                     Step1PrankRoomBuilder.Build();
                     var link = new GameObject("OverworldRoomLink").AddComponent<OverworldRoomLink>();
                     link.door = d.n;
@@ -198,7 +198,7 @@ public static class OverworldBuilder
                 scenes.Add(path); nums.Add(d.n); names.Add(path); // S211：完整路径（不怕重名）
             }
         }
-        finally { Step1PrankRoomBuilder.RoomOverride = null; }
+        finally { Step1PrankRoomBuilder.RoomOverride = null; Step1PrankRoomBuilder.ExtraBombs = 0; }
 
         // S211：门变少了 → 删掉多余的旧房间场景（不然 Build Settings 里越积越多）
         foreach (var f in Directory.GetFiles(SceneFolder, "Room_*.unity"))

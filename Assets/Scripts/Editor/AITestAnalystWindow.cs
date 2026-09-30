@@ -105,7 +105,7 @@ public class AITestAnalystWindow : EditorWindow
     // ═══════════════════════════════════════════════════
     // MenuItem 入口
     // ═══════════════════════════════════════════════════
-    [MenuItem("MarioTrickster/AI Arena/AI Test Analyst (LLM)")]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/AI Arena/AI Test Analyst (LLM)")]
     public static void ShowWindow()
     {
         var window = GetWindow<AITestAnalystWindow>("AI Test Analyst");

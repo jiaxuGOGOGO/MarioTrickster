@@ -45,5 +45,12 @@ const c={};vm.createContext(c);vm.runInContext(src.match(/function syLevelFromTx
 const u=c.f(fs.readFileSync('$WS/sim/sync_level.txt','utf8'),'x.txt');const g=JSON.parse(fs.readFileSync('$WS/sim/sync_grid.json','utf8'));
 const ok=u.name==='同步测试'&&u.goal==='目标'&&u.notes.length===1&&u.notes[0].text==='批注'&&JSON.stringify(u.grid)===JSON.stringify(g);
 fs.writeFileSync('$WS/sim/sync_back.json',ok?'ok':'name='+u.name+' goal='+u.goal+' notes='+u.notes.length+' grid='+(JSON.stringify(u.grid)===JSON.stringify(g)));") || rm -f "$WS/sim/sync_back.json"
+# S215：网页 owLedger 跑样板小镇（房间 = 内置样板），交给 C# CampaignLedger 逐字对照
+command -v node >/dev/null && (cd "$WS/repo/tools/LevelStudioWeb" && node -e "
+const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html','utf8');
+const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ── 状态'))+';this.X={owParse,owLedger,owLedgerLines,OW_SAMPLE,OW_ROOMS,SAMPLES,makeWorld};',c);const X=c.X;
+const m=X.owParse(X.OW_SAMPLE);const r=X.owLedger(m,X.makeWorld([]),n=>{const k=X.OW_ROOMS[n];return k&&X.SAMPLES[k]?X.SAMPLES[k]:null;},3,3);
+fs.writeFileSync('$WS/sim/ow_ledger.json',JSON.stringify(X.owLedgerLines(r)));") || rm -f "$WS/sim/ow_ledger.json"
 (cd "$WS/sim" && rm -rf obj bin && dotnet build -c Release -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error " | head -10; dotnet bin/Release/net8.0/sim.dll) || ok=0
 [ $ok = 1 ] && echo "VERIFY ALL GREEN（提醒：Unity 里的 EditMode 测试仍需用户跑）" || { echo "VERIFY FAILED"; exit 1; }

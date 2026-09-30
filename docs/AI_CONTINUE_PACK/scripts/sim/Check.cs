@@ -123,6 +123,16 @@ static class CHECK {
     string web=File.Exists("sync_back.json")?File.ReadAllText("sync_back.json").Trim():null; bool same=web!=null&&web=="ok";
     if(web!=null&&!same){ sb++; Console.WriteLine("     [FAIL] 网页读回 Unity 关卡库：" + web); }
     Console.WriteLine($"[{(sb==0?"OK":"FAIL")}] S214 网页↔Unity 同步往返：新机制字符、批注、目标都保留{(web==null?"（网页读回对照：下次 verify）":same?"，网页读回一模一样":"")}"); fail+=sb; }
+  // S215：一天总览（CampaignLedger）与网页 owLedger 逐字一致（ow_ledger.json 由 verify.sh 生成）；样板小镇该提醒的要提醒
+  { int lb=0; var m=OverworldPack.Parse(OverworldPack.SampleText)[0];
+    string[] Res(string n){ if(n==LevelWorkshopModel.DefaultRoomName) return Step1PrankRoomBuilderRoom(); foreach(var s in LevelWorkshopModel.SampleRooms) if(s.name==n) return s.rows; return null; }
+    var rep=CampaignLedger.Build(m,n=>Res(n),3,3); var mine=CampaignLedger.Lines(rep);
+    if(rep.rooms.Count!=4||rep.rooms.Any(r=>r.missing||r.total==0)){ lb++; Console.WriteLine("     [FAIL] 总览：房间没找全"); }
+    if(!rep.warnings.Any(w=>w.Contains("一次教太多"))){ lb++; Console.WriteLine("     [FAIL] 总览：第一扇门 8 种新机关应提醒"); }
+    var web=File.Exists("ow_ledger.json")?(MiniJson.Parse(File.ReadAllText("ow_ledger.json"),out _) as List<object>)?.Select(x=>(string)x).ToList():null;
+    bool same=web!=null&&web.SequenceEqual(mine); if(web!=null&&!same){ lb++; foreach(var x in mine.Except(web).Take(3)) Console.WriteLine("       Unity: "+x); foreach(var x in web.Except(mine).Take(3)) Console.WriteLine("       网页: "+x); }
+    Console.WriteLine($"[{(lb==0?"OK":"FAIL")}] S215 一天总览：{string.Join("｜",rep.rooms.Select(r=>$"门{r.door} 主角{r.star} 新{r.firstTime.Count}"))}｜提醒 {rep.warnings.Count} 条{(web==null?"（网页对照跳过）":same?"，网页一致":"，网页不一致")}"); fail+=lb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
+  static string[] Step1PrankRoomBuilderRoom()=>File.ReadAllText("room_template.txt").Replace("\r","").Split('\n').Where(l=>l.Length>0).ToArray();
  }}

@@ -46,7 +46,8 @@ public static class Step1PrankRoomBuilder
     /// S198 = 14：普通地形可炸（Destructible）、炸弹伤双方、整座塌桥、大炮瞄准 + 马里奥也能钻炮（冷却 30s）、墙上通风口、绳套、道具箱、修来回跳/贴墙。
     /// </summary>
     /// S207 = 18：大房间镜头（智能跟随 + 屏外箭头 + 小地图）；回合时间/自动检查超时按路线长度自动放宽。
-    public const int BuilderVersion = 18;
+    /// S215 = 19：小镇房间按"最多带进来的炸弹"加固（ExtraBombs），以前按 3 颗算，带满 6 颗能把马里奥困死（H1/H9）。
+    public const int BuilderVersion = 19;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -88,6 +89,8 @@ public static class Step1PrankRoomBuilder
     /// <summary>当前要构建的房间：启用了自定义房间且文件存在 → 自定义；否则默认 Room。</summary>
     /// <summary>S210：大地图构建器临时指定要构建的房间（构建完置回 null）。</summary>
     public static string[] RoomOverride;
+    /// <summary>S214：这个房间最多还会额外带进来几颗炸弹（小镇：埋伏 + 道具箱，上限 OverworldTown.MaxBonusBombs）。加固按 本回合炸弹 + 这个 算最坏情况。</summary>
+    public static int ExtraBombs;
 
     public static string[] Current
     {
@@ -516,7 +519,7 @@ public static class Step1PrankRoomBuilder
             EditorUtility.DisplayProgressBar("MarioTrickster", "策略模拟：检查炸弹能不能把马里奥困死…", 0.6f);
             try
             {
-                rivets = StrategySim.Reinforce(room.Select(Step1Layout.StripSlots).ToList(), tuning.bombsPerRound, tuning.bombRadius, out var trap, out bool still, 24, tuning.oilRadius);
+                rivets = StrategySim.Reinforce(room.Select(Step1Layout.StripSlots).ToList(), tuning.bombsPerRound + Mathf.Max(0, ExtraBombs), tuning.bombRadius, out var trap, out bool still, 24, tuning.oilRadius);
                 if (trap != null) Debug.Log($"[Step1 H9] 炸弹策略：{trap.Describe()} → 已加固 {rivets.Count} 个承重格（铆钉）" + (still ? "；⚠ 仍有风险，请给坑里留一条回去的路" : ""));
             }
             finally { EditorUtility.ClearProgressBar(); }

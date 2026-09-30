@@ -1836,7 +1836,7 @@ public class Step1RushMarioTests
         }
         string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
         StringAssert.Contains("AddComponent<Step1OffscreenMarkers>()", builder); StringAssert.Contains("AddComponent<Step1MiniMap>()", builder);
-        Assert.AreEqual(18, Step1PrankRoomBuilder.BuilderVersion, "新场景组件 → 构建器版本 +1");
+        Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 18, "新场景组件 → 构建器版本 +1");
     }
 
     [Test]

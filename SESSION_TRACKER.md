@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 214（网页 ↔ Unity 自动同步：网页"🔗 连接 Unity 项目"一次，之后改动自动写进 Assets/Levels/Inbox → Unity 自动导入、打开着的工坊自动换新；Unity Ctrl+S 存了切回网页自动拿到；覆盖前自动备份；网页"▶ 在 Unity 试玩"；两边 ◀ ▶ / PageUp PageDown 切关卡与小镇；小镇工坊"🤖 模拟玩家玩一天"） |
+| **最新 Session** | Session 215（全局把握：小镇工坊 / 网页大地图"📋 一天总览"按门顺序列每个房间主角机关、第一次出现的机关、重复/一次教太多提醒；修复小镇房间按 3 颗炸弹加固而实际可带 6 颗的困死 bug；14 个旧菜单收进"旧工具 (Legacy)"、删重复入口） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S215] 用户："因为涉及到关卡切换 以及整体资源调配道具机关 目前项目对全局把握或者方便设计的全局功能是否足够是否需要增加或者做减法"
+
+- 审计：缺"按马里奥顺序看一整天"的总览；真 bug：小镇房间最多 3+3=6 颗炸弹但只按 3 颗加固（地下监狱·四层 6 颗可困死）；菜单 42 项、小镇工坊两个入口。
+- 加：`Overworld/CampaignLedger`（C# + 网页 owLedger 逐字一致）→ 小镇工坊 / 网页大地图"📋 一天总览"；`Step1PrankRoomBuilder.ExtraBombs`（BuilderVersion 19）。
+- 减：14 项旧工具移到 `MarioTrickster/旧工具 (Legacy)/`（只搬不删）；删重复菜单；"🏠 关卡工坊"按钮改直接调用。
+- 没做：新总控台窗口、改样板小镇内容（只提醒：门 1 一次 8 种新机关、门 3/4 主角都是塌桥）。详见 docs/step1/S215_GLOBAL_LEDGER.md。
 
 ### [S214] 用户："继续从第一性原理出发……确保网页编辑和unity内部编辑同步流畅性 包括方便关卡切换制作的按钮或者别的更好的方案 进行质疑自我迭代 但不要把优秀的改成落后的……"
 

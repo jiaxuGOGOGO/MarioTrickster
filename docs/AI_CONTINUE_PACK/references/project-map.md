@@ -106,3 +106,8 @@
 ## S214 同步与切换
 - `Editor/WebSync.cs`：Inbox 自动导入 + `Imported` 事件 + 覆盖前备份 + 网页试玩请求。以后新增"会写关卡库/小镇文件"的地方，写之前调 `WebSync.BackupBeforeWrite`。
 - 关卡工坊 `StepLibrary / QuickSave / SaveAs`（保留 Pending：`LevelWorkshopModel.CarryPending`）；小镇工坊 `StepTown / RunBots`。
+
+## S215 全局总览
+- `Overworld/CampaignLedger.cs`：按门顺序汇总房间（主角机关 / 第一次出现 / 道具 / 提醒）。小镇工坊侧栏 LedgerPanel、网页 `owLedger`/`owLedgerLines`（overworld.js 末尾）+ `owLedgerRender`（app.js）。改规则两边一起改，verify 逐字对照（ow_ledger.json）。
+- 炸弹预算：小镇房间按 `bombsPerRound + OverworldTown.MaxBonusBombs` 加固（`Step1PrankRoomBuilder.ExtraBombs`，OverworldBuilder 建房前设、finally 归零）。改 MaxBonusBombs 要升 BuilderVersion。
+- 旧工具菜单在 `MarioTrickster/旧工具 (Legacy)/`；`Run Tests/`、`Art Pipeline/` 路径别改（TestConsoleWindow 用 ExecuteMenuItem 调）。窗口之间跳转直接调 `XxxWindow.Open()`，不要用菜单字符串。

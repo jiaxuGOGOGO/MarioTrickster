@@ -86,7 +86,7 @@ public class PlannerProductionAssistant : EditorWindow
         new ThemeSlotRule("BreakableBlock", "可破坏方块", "breakable", "break_block", "breakable_block", "crate"),
     };
 
-    [MenuItem("MarioTrickster/Planner Production Assistant %#p", false, 203)]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Planner Production Assistant %#p", false, 203)]
     public static void ShowWindow()
     {
         PlannerProductionAssistant window = GetWindow<PlannerProductionAssistant>("策划生产助手");

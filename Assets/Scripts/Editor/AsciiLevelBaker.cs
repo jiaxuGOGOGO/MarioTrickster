@@ -27,7 +27,7 @@ public static class AsciiLevelBaker
         '#', '=', '-'
     };
 
-    [MenuItem("MarioTrickster/Level Builder/Bake Scene to ASCII (Clipboard)")]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Level Builder/Bake Scene to ASCII (Clipboard)")]
     public static void BakeSceneToAscii()
     {
         GameObject root = GameObject.Find(GENERATED_ROOT_NAME);

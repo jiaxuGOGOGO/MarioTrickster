@@ -35,7 +35,7 @@ public class TestSceneBuilder : Editor
     private const float STAGE_GAP = 2f;
     private const float TOTAL_STAGE_UNIT = STAGE_WIDTH + STAGE_GAP; // 20
 
-    [MenuItem("MarioTrickster/Build Test Scene", false, 1)]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Build Test Scene", false, 1)]
     public static void BuildTestScene()
     {
         if (!EditorUtility.DisplayDialog(
@@ -802,7 +802,7 @@ public class TestSceneBuilder : Editor
     }
 
 
-    [MenuItem("MarioTrickster/Build Validation Scene", false, 2)]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Build Validation Scene", false, 2)]
     public static void BuildValidationScene()
     {
         if (!EditorUtility.DisplayDialog(
@@ -1037,19 +1037,19 @@ public class TestSceneBuilder : Editor
             "好的");
     }
 
-    [MenuItem("MarioTrickster/Build Validation Scene", true)]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Build Validation Scene", true)]
     public static bool ValidateBuildValidationScene()
     {
         return !EditorApplication.isPlaying;
     }
 
-    [MenuItem("MarioTrickster/Build Test Scene", true)]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Build Test Scene", true)]
     public static bool ValidateBuildTestScene()
     {
         return !EditorApplication.isPlaying;
     }
 
-    [MenuItem("MarioTrickster/Clear Test Scene", false, 3)]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Clear Test Scene", false, 3)]
     public static void ClearTestScene()
     {
         if (!EditorUtility.DisplayDialog(

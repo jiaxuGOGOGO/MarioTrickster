@@ -143,7 +143,7 @@ public partial class TestConsoleWindow : EditorWindow
     // ═══════════════════════════════════════════════════
     // 菜单入口
     // ═══════════════════════════════════════════════════
-    [MenuItem("MarioTrickster/Level Studio %t", false, 10)]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Level Studio (旧测试台) %t", false, 10)]
     public static void ShowWindow()
     {
         var window = GetWindow<TestConsoleWindow>("Level Studio");

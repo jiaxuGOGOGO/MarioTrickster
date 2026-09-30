@@ -31,7 +31,7 @@ public class FullLevelValidatorWindow : EditorWindow
     // MenuItem 入口
     // ═══════════════════════════════════════════════════
 
-    [MenuItem("MarioTrickster/AI Arena/Full Level Validator (QA)")]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/AI Arena/Full Level Validator (QA)")]
     public static void ShowWindow()
     {
         FullLevelValidatorWindow window = GetWindow<FullLevelValidatorWindow>("Full Level Validator");

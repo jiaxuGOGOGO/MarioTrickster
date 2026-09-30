@@ -171,6 +171,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 .owiss.Error{border-color:var(--bad)}.owiss.Warn{border-color:var(--warn)}.owiss.Info{border-color:var(--trick)}
 .owbar>*{flex:0 0 auto}.owbar .spacer{flex:1}
 .owsched{font:12px/1.6 var(--mono);color:var(--dim)}
+.owled{display:grid;grid-template-columns:88px 1fr 26px;gap:4px;align-items:start;margin:2px 0}.owled b{color:var(--chalk)}.owled .new{color:var(--loot)}
 .owdoors{display:flex;flex-wrap:wrap;gap:3px}.owdoors button{width:26px;padding:3px 0}
 @media (max-width:1100px){.ow{grid-template-columns:1fr}}
 @media (max-width:760px){main{grid-template-columns:1fr}aside{border-right:0}.grid2{grid-template-columns:1fr}.brand span{display:none}}
@@ -319,6 +320,8 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <div id="owDoors"></div>
       <h3 id="owHead">检查</h3>
       <div id="owIssues"></div>
+      <h3>📋 一天总览 <small class="hint">按马里奥的顺序：每扇门主打什么、哪扇门第一次教新机关</small></h3>
+      <div id="owLedger" class="owsched"></div>
       <h3>马里奥的一天</h3>
       <div class="owsched" id="owSched"></div>
       <label class="toggle" style="margin-top:8px"><input type="checkbox" id="owScrubOn"> ⏱ 时间滑条（看他几点在哪）</label>

@@ -674,7 +674,15 @@ function owRender() {
   $('#owIssues').querySelectorAll('.loc').forEach(el => el.onclick = () => { const i = rep.issues[+el.dataset.k]; owLocate(i.x, i.y); });
   const sc = rep.schedule;
   $('#owSched').innerHTML = sc ? sc.stops.map((s, k) => `门 ${s.door.n}：${owClock(s.depart)} 出发 → ${owClock(s.arrive)} 到 → ${owClock(s.leave)} 出来　你能提前 ${Math.round(owLead(sc, k, OW.Rules.minutesPerSecond))} 秒`).join('<br>') + `<br>${owClock(sc.homeArrive)} 到家` : '（先把检查里的红色问题改掉）';
-  owScrubText(); owPalette(); owDraw(); owSave();
+  owLedgerRender(); owScrubText(); owPalette(); owDraw(); owSave();
+}
+// S215：一天总览（和 Unity 小镇工坊同一套规则：CampaignLedger）
+function owLedgerRender() {
+  const rep = owLedger(owM(), W, owRoomGrid, 3, 3), esc = t => String(t).replace(/</g, '&lt;');
+  $('#owLedger').innerHTML = rep.rooms.map(r => `<div class="owled"><b>${r.clock} 门${r.door}</b><span title="${esc(r.kinds.map(k => k.zh + '×' + k.n).join(' '))}">${r.missing ? '找不到「' + esc(r.room) + '」' : `${esc(r.room)} · 主角 ${esc(r.star)}${r.firstTime.length ? ` <span class="new">✦新：${esc(r.firstTime.join('、'))}</span>` : ''}`}</span>${r.missing ? '<i></i>' : `<button class="btn small" data-room="${esc(r.room)}" title="打开这个房间">✎</button>`}</div>`).join('')
+    + `<p class="hint">💣 每个房间最多 ${rep.maxBombs} 颗（本回合 3 + 小镇带进来最多 3）；Unity 按这个数加固，炸不死马里奥</p>`
+    + rep.warnings.map(w => `<div class="owiss Info">${esc(w)}</div>`).join('');
+  $('#owLedger').querySelectorAll('[data-room]').forEach(b => b.onclick = () => owEditRoom(b.dataset.room));
 }
 function owPush() { OWT.redo = []; OWT.undo.push(JSON.stringify(owToJson(owM()))); if (OWT.undo.length > 60) OWT.undo.shift(); }
 // ── S212：定位 / 编辑房间 / 时间滑条 / 撤销重做 ──

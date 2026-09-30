@@ -19,3 +19,14 @@ cp -r "$SK/." /home/user/workspace/repo/docs/AI_CONTINUE_PACK/ && rm -rf /home/u
 cd "$(dirname "$SK")" && zip -qr /home/user/workspace/out/mariotrickster-continue.skill "$(basename "$SK")"
 ```
 规则、分册有改动时同样这样刷新，并把 `.skill` 一起交付。
+
+## S214 起的交付包（给用户的 zip）
+```bash
+cd /home/user/workspace/out && rm -rf D<N> && cp -r D<N-1> D<N> && rm D<N>/01_安装到项目/*
+cp SXXXpatch/*.patch D<N>/01_安装到项目/ && cp SXXXpatch/apply_SXXX.bat D<N>/01_安装到项目/install_and_upload.bat
+cp ../repo/docs/step1/SXXX_*.* D<N>/03_说明文档/ && cp ../repo/tools/LevelStudioWeb/index.html "D<N>/04_关卡设计台网页/MarioTrickster关卡设计台.html"
+cp mariotrickster-continue.skill D<N>/02_接续包_换账号用/   # 先按上面刷新 .skill
+# 重写 D<N>/00_先看我_怎么用.md（大白话：这次改了什么表格 + 你的三步 + 诚实说明）→ zip → deliver
+```
+- 沙盒里没有 D<N-1> 时：按 SKILL.md 0.6 的五个文件夹结构从头建。
+- 用户要求"同步到技能 / 存技能"：改完技能目录后跑 `gsk skills save ~/.opencode/skills/mariotrickster-continue`（返回 `"saved": true` 才算存好），并交付 `.skill` 文件给用户换账号用。

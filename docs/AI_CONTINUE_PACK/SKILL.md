@@ -1,6 +1,6 @@
 ---
 name: mariotrickster-continue
-description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间 / 关卡工坊 / 捣蛋者 vs 冲冲型马里奥 AI）时必用。用户提到 MarioTrickster、马里奥捣蛋、恶作剧房间、关卡工坊、箱庭、连锁陷阱、马里奥 AI、S2xx 补丁、大地图/小镇/星露谷视角、apply_Sxxx.bat、"继续"上次的游戏开发，或上传该项目的截图/报错时加载。内含设计宪法硬规则、质量红线、沙盒无 Unity 验证环境一键搭建、补丁交付流程，并按功能（新机关/AI/关卡/技能/修 bug/调研）分册给出做法。
+description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间 / 关卡工坊 / 捣蛋者 vs 冲冲型马里奥 AI）时必用。用户提到 MarioTrickster、马里奥捣蛋、恶作剧房间、关卡工坊、箱庭、连锁陷阱、马里奥 AI、S2xx 补丁、大地图/小镇/星露谷视角、一天总览、网页设计台同步、机关手感/弹飞/受伤/特效/震屏、apply_Sxxx.bat、"继续"上次的游戏开发，或上传该项目的截图/报错时加载。内含设计宪法硬规则、质量红线、沙盒无 Unity 验证环境一键搭建、补丁交付流程，并按功能（新机关/AI/关卡/技能/修 bug/调研）分册给出做法。
 ---
 
 # MarioTrickster 接续包（S200 起）
@@ -29,6 +29,8 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 | 调研玩法再升级 | `references/research.md` |
 | 文件在哪、关键数值、字符表 | `references/project-map.md` |
 | 用户发来"设计单"/网页设计台 / 改网页 | `references/web-studio.md` |
+| 机关/受伤/弹飞的手感与画面（"生硬、不自然"、特效、震屏） | `references/new-element.md` 末尾"S216 手感清单" + `references/project-map.md` "S216 手感" |
+| 全局总览/一天节奏/菜单整理 | `references/level-design.md` + `references/project-map.md` "S215" |
 | 打包交付给用户 | `references/delivery.md` |
 
 ## 0.5 换账号 / 全新对话也能接上（不依赖任何账号记忆）
@@ -39,6 +41,18 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 - 上传 GitHub 是用户**自己电脑上的 git 账号**在做（bat 里选 Y），和 Genspark 账号无关。如果用户换了 GitHub 账号、推不上去：让他在仓库设置里把新账号加为协作者，或 fork 后告诉你新地址（改 `setup_sandbox.sh` 与 `make_patch.sh` 里的仓库地址）。
 - bat 找不到项目文件夹时会让用户**把 MarioTrickster 文件夹拖进窗口**，换电脑/换路径也能用。
 - **每次交付后**都要刷新本包：`scripts/pending/` 换成最新未上传补丁（`make_patch.sh` 的输出里那些 .patch），并重新打 `.skill` 交给用户，让用户"随时都拿着最新的接续包"。
+
+## 0.6 进度快照（打包时写入，以 SESSION_TRACKER 为准）
+
+- 最新交付：**S216**（手感/视觉全面检查）。`scripts/pending/` 里是 S210–S216 共 7 个补丁（用户若没跑 bat 上传，setup 会自动补上）。
+- 数值版本 `MarioMindTuningSO.CurrentDataVersion = 18`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
+- 近几次做了什么（详情看 `repo/docs/step1/S21x_*.md`）：
+  - S210 星露谷视角小镇大地图（门 = 恶作剧房间）；S211 场景转场；S212 圆形转场 + 指引箭头 + 编辑器快捷键；
+  - S213 小镇规则纯逻辑化 + 7 种机器人玩家模拟；S214 网页 ↔ Unity 自动同步（Inbox 文件夹、▶ 在 Unity 试玩、PageUp/PageDown 切关）；
+  - S215 一天总览（CampaignLedger，Unity 小镇工坊 + 网页大地图逐字一致）、小镇房间按 3+3 颗炸弹加固、14 个旧菜单收进"旧工具 (Legacy)"；
+  - S216 修复"硬直期往上飞没有重力"（Step1Feel.StunStep，全程重力 40、落地才恢复），受伤红白闪 + 小跳、Step1Fx 冲击环/尘土/连锁火花线、预警越来越急、平滑震屏。
+- 交付包固定结构（`out/D<N>/`）：`00_先看我_怎么用.md`、`01_安装到项目`（全部补丁 + `install_and_upload.bat`）、`02_接续包_换账号用`（本 .skill）、`03_说明文档`（S21x_*.md）、`04_关卡设计台网页/MarioTrickster关卡设计台.html`。
+- 上次汇报推荐的下一步（用户说"继续"时做）：① 按用户试玩截图微调手感；② 给马里奥加受伤/被弹飞/落地的专门姿势（现在只有闪烁 + 形变）。
 
 ## 1. 设计宪法硬规则（违反 = 不许交付）
 
@@ -80,20 +94,23 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 11. **沙盒没有 Unity**：永远不要说"测试通过"，只能说"编译通过 + 字符串断言 N 条 + 纯逻辑体检通过，Unity 里 EditMode 测试请你跑"。
 12. **网页设计台跟着项目走**：元素/样板/规则有变 → `python3 tools/LevelStudioWeb/build.py` 重建，`index.html` 随升级包交付（用户在网页里画的图要和 Unity 一致）。
 13. **交付前必须 `verify.sh` 全绿 + `make_patch.sh` 显示 TREE IDENTICAL**。
+14. **手感（S216）**：会把人弄飞的机关，设速度后调 `ApplyKnockbackStun(秒, untilLanded: true, slide: false)`；**不许写"硬直期没有重力"的代码**；新弹飞在 sim S216 的 cases 里加一行（弹高 < 房间头顶空格）。发动要有冲击画面（`Step1Fx`，纯画面、不加碰撞体——H4），范围型效果的冲击环 = 真实范围；状态变化不瞬移（0.1–0.3 秒缓动）。震屏用 `Step1RoomCamera.Current.Shake`。
+15. **版本断言用 `GreaterOrEqual`**：测试里不要写 `AreEqual(N, CurrentDataVersion/BuilderVersion)`，否则下次升版本旧测试全红。新数值默认块若要**覆盖**旧块写过的字段（如 springLaunchSpeed），把新 `if (dataVersion < N)` 块放在 `UpgradeData` 最后（`dataVersion = CurrentDataVersion;` 之前）。
+16. **两份脚本要同步**：技能目录 `scripts/` 与仓库 `docs/AI_CONTINUE_PACK/scripts/`（sim/Check.cs、verify.sh、setup_sandbox.sh）改一处就两处都改；新纯逻辑文件要进 sim 时，两份 `setup_sandbox.sh` 的 SIMSRC 列表都加，并给当前 `sim/sim.csproj` 加一行。verify.sh 会先把技能里的 `sim/Check.cs` 复制到 `$WS/sim/`。sim 的 Check.cs 里元组类型要写 `UnityEngine.Vector2`。
 
 ## 3. 标准工作循环
 
 ```
 读分册 → 调研（需要时，见 research.md）→ 写纯逻辑 + 接线 + Tuning + Text + 测试
 → bash scripts/verify.sh（红了就修）→ 更新文档三处 → git commit（英文，末尾带 (SXXX)）
-→ bash scripts/make_patch.sh SXXX "提示" → genspark_deliver_files 交 zip + 说明文档 → 中文汇报
+→ bash scripts/make_patch.sh SXXX "提示" → 刷新接续包（delivery.md 末尾）→ 打 out/D<N> 包 → genspark_deliver_files → 中文汇报
 ```
 文档三处：`SESSION_TRACKER.md`（"最新 Session"行 + `### [SXXX] 用户：` 条目）、`docs/ELEMENT_LEGEND.md`（新字符插在 `| \`K\` |` 行前）、`docs/step1/SXXX_主题.md`（大白话说明 + 参数表 + 规则保障 + 下一步）。
 
 ## 4. 和用户沟通（非常重要）
 
 - 用户**不懂技术**：全中文、大白话；说"为什么坏了 / 怎么修的 / 你要点哪里"，不说类名。
-- 汇报结构：一句结论 → 新东西表格（名字 / 怎么用 / 代价·反制）→ 验证情况（诚实写哪些是 Unity 里才能确认的）→ **最少步骤**（① 解压双击 `apply_SXXX.bat` 选 Y ② Unity Test Runner → EditMode → Run All ③ 工坊 Ctrl+Alt+W → 样板 → 试玩）→ 1–2 个下一步选项。
+- 汇报结构（S21x 起固定）：一句结论 → 为什么 / 做了什么 / 已经查过的 / 刻意没做的（避免矫枉过正）→ "你的三/四步"；旧格式：一句结论 → 新东西表格（名字 / 怎么用 / 代价·反制）→ 验证情况（诚实写哪些是 Unity 里才能确认的）→ **最少步骤**（① 解压双击 `apply_SXXX.bat` 选 Y ② Unity Test Runner → EditMode → Run All ③ 工坊 Ctrl+Alt+W → 样板 → 试玩）→ 1–2 个下一步选项。
 - 用户说"继续"= 做上次汇报里推荐的下一步。用户给截图 = 先用 `gsk understand_images` 看清再判断。
 - 调研结论要**带来源链接**。
 - 用户本地项目路径：`E:\BaiduNetdiskDownload\MarioTricksterGensparkAI\MarioTrickster`；仓库 `https://github.com/jiaxuGOGOGO/MarioTrickster.git`，分支 `genspark_ai_developer`（用户用 bat 推送，AI 不直接推）。

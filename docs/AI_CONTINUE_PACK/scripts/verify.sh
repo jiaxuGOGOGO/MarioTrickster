@@ -9,6 +9,7 @@ echo "== 1/4 运行时编译 =="; (cd "$WS/cc" && dotnet build -nologo -v q -o o
 echo "== 2/4 编辑器+测试编译 =="; (cd "$WS/cc2/full" && dotnet build -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error |Build succeeded" | sed 's/\[.*//' | sort -u | head -20) | tee /tmp/b2.txt; grep -q "Build succeeded" /tmp/b2.txt || ok=0
 echo "== 3/4 字符串断言 =="; python3 "$PACK/check_string_asserts.py" "$WS/repo/Assets" || ok=0
 echo "== 4/4 纯逻辑体检 =="
+cp "$PACK/sim/Check.cs" "$PACK/sim/FakeUnity.cs" "$WS/sim/" 2>/dev/null  # S216：技能里的体检脚本才是最新的（以前只在 setup 时复制，改了不生效）
 python3 - "$WS" <<'PY'
 import re,sys
 ws=sys.argv[1]

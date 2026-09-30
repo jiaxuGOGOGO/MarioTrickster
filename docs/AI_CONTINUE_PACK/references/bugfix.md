@@ -28,3 +28,12 @@
 
 ## S209 教训
 死局检查（理论可达）≠ AI 真的会走过去。改 AI 移动/转向后，除了 verify 的死局检查，还要看 "S209 按马里奥走法走一遍" 那一行；用户报"徘徊/卡住"先用 `LevelRouteFollower.Run(grid)` 和 `Run(grid, true)`（旧规则）对照复现。
+
+## S215–S216 教训
+| 现象 | 原因 | 修法 |
+|---|---|---|
+| 被弹簧/炸弹/大炮弄飞"像在月球"、撞天花板、飞太远 | 硬直期只在往下掉时加重力 | `Step1Feel.StunStep` 全程重力（LaunchFeel.gravity）；新机关用 `ApplyKnockbackStun(秒, true, false)` |
+| 用户说"生硬、突兀" | 瞬移、每帧随机抖、没有冲击点 | 缓动（DropProgress/SmoothStep01）、平滑噪声（TelegraphShake/ShakeOffset）、Step1Fx 冲击环 |
+| 小镇里房间被炸弹困死但单房间检查通过 | 加固只按本回合 3 颗，小镇还能带进 3 颗 | `Step1PrankRoomBuilder.ExtraBombs = OverworldTown.MaxBonusBombs`（S215） |
+| 升版本后一堆旧测试红 | 测试写死 `AreEqual(N, 版本号)` | 一律 `GreaterOrEqual` |
+| 改了 sim/Check.cs 但 verify 没跑新检查 | 以前只在 setup 时复制 | verify.sh 第 4 步开头会复制（S216 已修） |

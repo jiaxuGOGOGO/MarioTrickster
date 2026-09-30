@@ -1,6 +1,6 @@
 // ── S210 大地图（星露谷视角小镇）纯逻辑：逐行移植 Assets/Scripts/Overworld/OverworldMap.cs（同样的检查文字、同样的寻路顺序；verify.sh 逐项对照）──
 // OW_TILES 由 build.py 从 OverworldCatalog.cs 生成。
-const OW = { MinW: 16, MinH: 12, MaxW: 96, MaxH: 64, DayStart: 360, DayEnd: 1320, LatestDoor: 1200, NightStart: 1140, MaxPickups: 3,
+const OW = { MinW: 16, MinH: 12, MaxW: 192, MaxH: 128, DayStart: 360, DayEnd: 1320, LatestDoor: 1200, NightStart: 1140, MaxPickups: 3,
   Rules: { marioSpeed: 3.4, tricksterSpeed: 5.0, minutesPerSecond: 4.0, visitMinutes: 60.0 } };
 const owTile = c => { if (c === ' ') c = '.'; if (c >= '1' && c <= '9') c = '1'; return OW_TILES.find(t => t.c === c) || null; };
 const owIsDoor = c => c >= '1' && c <= '9';
@@ -55,6 +55,35 @@ function owFromJson(d) {
 }
 const owToJson = m => ({ kind: 'overworld', id: m.id || '', name: m.name || '', goal: m.goal || '', grid: m.rows.slice(), doors: m.doors.slice().sort((a, b) => a.n - b.n).map(d => ({ n: d.n, time: owClock(d.minute), room: d.room || '' })), notes: m.notes.slice() });
 function owNewMap(w, h) { w = Math.max(OW.MinW, Math.min(OW.MaxW, w)); h = Math.max(OW.MinH, Math.min(OW.MaxH, h)); const rows = []; for (let r = 0; r < h; r++) rows.push(r === 0 || r === h - 1 ? 't'.repeat(w) : 't' + '.'.repeat(w - 2) + 't'); return rows; }
+
+// S217：往外扩展 / 裁掉（大世界）。逐行移植 C# OverworldMap.Resize（verify 逐字对照）。返回 {ok, why, lost}；ok 时就地改 m.rows / m.notes。
+function owResize(m, left, right, top, bottom) {
+  const w = owW(m), h = m.rows.length, nw = w + left + right, nh = h + top + bottom;
+  if (!w || !h) return { ok: false, why: '画布是空的', lost: 0 };
+  if (nw < OW.MinW || nh < OW.MinH) return { ok: false, why: `太小了：至少 ${OW.MinW} 宽 × ${OW.MinH} 高（改完会是 ${nw}×${nh}）`, lost: 0 };
+  if (nw > OW.MaxW || nh > OW.MaxH) return { ok: false, why: `太大了：最多 ${OW.MaxW} 宽 × ${OW.MaxH} 高（改完会是 ${nw}×${nh}）。更大的世界请拆成几张小镇`, lost: 0 };
+  const old = m.rows.map(r => r.split(''));
+  for (let r = 0; r < h; r++) for (let x = 0; x < w; x++) {
+    const onL = x === 0, onR = x === w - 1, onT = r === 0, onB = r === h - 1;
+    if (!(onL || onR || onT || onB) || old[r][x] !== 't') continue;
+    if ((!onL || left > 0) && (!onR || right > 0) && (!onT || top > 0) && (!onB || bottom > 0)) old[r][x] = '.';
+  }
+  let lost = 0;
+  for (let r = 0; r < h; r++) for (let x = 0; x < w; x++) { const nx = x + left, nr = r + top; if ((nx < 0 || nr < 0 || nx >= nw || nr >= nh) && old[r][x] !== '.' && old[r][x] !== 't') lost++; }
+  const g = [];
+  for (let r = 0; r < nh; r++) {
+    const row = [];
+    for (let x = 0; x < nw; x++) {
+      const ox = x - left, oy = r - top; let c = ox >= 0 && oy >= 0 && ox < w && oy < h ? old[oy][ox] : '.';
+      if ((x === 0 || r === 0 || x === nw - 1 || r === nh - 1) && !owSolid(c)) { if (c !== '.') lost++; c = 't'; }
+      row.push(c);
+    }
+    g.push(row.join(''));
+  }
+  m.rows = g;
+  m.notes = m.notes.map(n => ({ x: n.x + left, y: n.y + bottom, text: n.text })).filter(n => n.x >= 0 && n.y >= 0 && n.x < nw && n.y < nh);
+  return { ok: true, why: '', lost };
+}
 
 // Dijkstra，与 C# MinHeap 同样的平手规则（先比代价，再比格子编号）→ 路线逐格一致
 const ODX = [1, -1, 0, 0], ODY = [0, 0, 1, -1];
@@ -158,7 +187,7 @@ function owLos(m, ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, dist = Mat
 const OW_TILED_DEFAULT = { 0: '.', 1: '.', 2: '=', 3: 'W', 4: 't', 5: 'w', 6: 'f', 7: '"', 8: 'c', 9: 'g', 10: 'i', 11: 'n', 12: '?', 13: 'M', 14: 'T' };
 function owFromNumbers(nums, map) { map = map || OW_TILED_DEFAULT; return nums.map(r => r.map(v => map[v] !== undefined ? map[v] : '.').join('')); }
 
-if (typeof module !== 'undefined') module.exports = { OW, owParse, owToText, owFromJson, owToJson, owCheck, owSchedule, owPath, owLead, owClock, owNewMap, owIssueText, owFind, owAt, owTile };
+if (typeof module !== 'undefined') module.exports = { OW, owParse, owToText, owFromJson, owToJson, owCheck, owSchedule, owPath, owLead, owClock, owNewMap, owResize, owIssueText, owFind, owAt, owTile };
 // ── S212 时间滑条：某一分钟马里奥（无人捣乱时）在哪 —— 逐行移植 OverworldGuide.MarioAt / Along（verify.sh 逐项对照）──
 function owAlong(m, p, seconds, speed) { if (!p || !p.length) return [0, 0]; let t = 0; for (let i = 1; i < p.length; i++) { t += 1.0 / (speed * owSpeed(owAt(m, p[i][0], p[i][1]))); if (t > seconds + 1e-9) return p[i - 1]; } return p[p.length - 1]; }
 function owMarioAt(m, sc, minute, speed, mps) {

@@ -99,6 +99,20 @@ public sealed class SceneTransit : MonoBehaviour
 
     private void Volume() => AudioListener.volume = volumeBefore * (1f - plan.Alpha);
 
+    // S217：保险丝——万一切换卡住（加载报错、协程被打断），最多黑 WatchdogSeconds 秒就收起黑幕，不会"画面一直不动、按键全没反应"
+    public const float WatchdogSeconds = 20f;
+    private float busySince = -1f;
+    private void Update()
+    {
+        if (!plan.Busy) { busySince = -1f; return; }
+        if (busySince < 0f) busySince = Time.unscaledTime;
+        if (Time.unscaledTime - busySince > WatchdogSeconds)
+        {
+            Debug.LogError("[SceneTransit] 切换超过 " + WatchdogSeconds + " 秒没完成，已强制收起黑幕（目标：" + target + "）");
+            StopAllCoroutines(); plan.Abort(); AudioListener.volume = volumeBefore; Time.timeScale = 1f; busySince = -1f;
+        }
+    }
+
     private void OnDisable() { if (plan.Busy) AudioListener.volume = volumeBefore; }
 
     private void OnGUI()

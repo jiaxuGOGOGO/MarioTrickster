@@ -149,6 +149,34 @@ static class CHECK {
     if(Step1Feel.StunOver(0.1f,true,false,1.5f)||!Step1Feel.StunOver(-0.1f,true,true,1.5f)||!Step1Feel.StunOver(-1.6f,true,false,1.5f)){fb++;Console.WriteLine("     [FAIL] 落地才恢复控制 / 最多多等 1.5 秒");}
     if(Step1Feel.TelegraphRate(8f,1f)<=Step1Feel.TelegraphRate(8f,0f)){fb++;Console.WriteLine("     [FAIL] 预警越来越急");}
     Console.WriteLine($"[{(fb==0?"OK":"FAIL")}] S216 抛物线：{string.Join("｜",parts)}（以前弹簧硬直期没重力：0.6 秒匀速上飘 {oldSpring:0.0} 格）"); fail+=fb; }
+  // S217：大世界扩展（OverworldMap.Resize）——扩展后老镇原样、外圈是树、仍可玩且一天走得完；各方向 + 裁剪 + 上限；与网页 owResize 逐字一致（ow_resize.json 由 verify.sh 生成）
+  { int rb=0; var parts=new List<string>(); var r=OverworldMap.Rules.Default;
+    var cases=new (string k,int l,int rr,int t,int b)[]{("all8",8,8,8,8),("east16",0,16,0,0),("west16",16,0,0,0),("north16",0,0,16,0),("south16",0,0,0,16),("x2",0,44,0,32),("crop4",-4,-4,-4,-4),("crop1",-1,-1,-1,-1)};
+    var mine=new Dictionary<string,string>();
+    foreach(var cs in cases){ var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; int w0=m.W,h0=m.H; var old=m.rows.ToArray();
+      var res=OverworldMap.Resize(m,cs.l,cs.rr,cs.t,cs.b); mine[cs.k]=res.ok?string.Join("\n",m.rows)+"|"+res.lost+"|"+string.Join(";",m.notes.Select(n=>n.x+","+n.y)):"x "+res.why;
+      if(!res.ok){ rb++; Console.WriteLine($"     [FAIL] 扩展 {cs.k}：{res.why}"); continue; }
+      if(m.W!=w0+cs.l+cs.rr||m.H!=h0+cs.t+cs.b){ rb++; Console.WriteLine($"     [FAIL] 扩展 {cs.k}：尺寸不对 {m.W}×{m.H}"); }
+      bool frame=true; for(int x=0;x<m.W;x++) if(!OverworldCatalog.Solid(m.rows[0][x])||!OverworldCatalog.Solid(m.rows[m.H-1][x])) frame=false; for(int y=0;y<m.H;y++) if(!OverworldCatalog.Solid(m.rows[y][0])||!OverworldCatalog.Solid(m.rows[y][m.W-1])) frame=false;
+      if(!frame){ rb++; Console.WriteLine($"     [FAIL] 扩展 {cs.k}：外圈有缺口（会走出地图，H1）"); }
+      if(cs.l>=0&&cs.t>=0){ int diff=0; for(int y=1;y<h0-1;y++) for(int x=1;x<w0-1;x++) if(old[y][x]!=m.rows[y+cs.t][x+cs.l]) diff++; if(diff>0){ rb++; Console.WriteLine($"     [FAIL] 扩展 {cs.k}：老镇里面变了 {diff} 格"); } }
+      if(res.lost>0){ var cr=OverworldMap.Check(m,r); parts.Add($"{cs.k} {m.W}×{m.H} 裁掉{res.lost}格→{(cr.Playable?"仍可玩":"检查报红")}"); continue; } // 裁掉东西：编辑器会先问，检查会报红——不要求可玩
+      var rep=OverworldMap.Check(m,r); if(!rep.Playable){ rb++; Console.WriteLine($"     [FAIL] 扩展 {cs.k} 后不可玩：{string.Join(" / ",rep.issues.Where(i=>i.sev==OverworldMap.Sev.Error).Take(2))}"); continue; }
+      var day=OverworldWalker.SimulateDay(m,r); if(!day.ok){ rb++; Console.WriteLine($"     [FAIL] 扩展 {cs.k} 后一天走不完：{day.summary}"); }
+      if(cs.l>0){ var mapx=OverworldMap.Parse(OverworldMap.ToText(m)); bool open=OverworldMap.Walkable(mapx,cs.l,mapx.H/2)||!OverworldCatalog.Solid(mapx.rows[mapx.H/2][cs.l]); if(!open&&old[old.Length/2][0]=='t'){ rb++; Console.WriteLine($"     [FAIL] 扩展 {cs.k}：老围栏没拆，新地和老镇不连通"); } }
+      parts.Add($"{cs.k} {m.W}×{m.H}"); }
+    // 上限 / 下限 / 大世界：拼一张 192×128 仍能检查、机器人一天走完
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; var big=OverworldMap.Resize(m,0,OverworldMap.MaxW-m.W,0,OverworldMap.MaxH-m.H); var sw=System.Diagnostics.Stopwatch.StartNew(); var rep=OverworldMap.Check(m,r); var bot=OverworldBots.PlayDay(m,MarioMindTuningSO.LoadOrDefault(),OverworldBots.Kind.Hider,true,1); OverworldSession.ResetStatics(); sw.Stop();
+      if(!big.ok||!rep.Playable||!bot.dayEnded){ rb++; Console.WriteLine($"     [FAIL] 最大 {OverworldMap.MaxW}×{OverworldMap.MaxH}：{big.why} 可玩={rep.Playable} 一天结束={bot.dayEnded}"); }
+      if(OverworldMap.Resize(m,1,0,0,0).ok){ rb++; Console.WriteLine("     [FAIL] 超过上限应拒绝"); }
+      var sm=OverworldPack.Parse(OverworldPack.SampleText)[0]; if(OverworldMap.Resize(sm,-20,-20,0,0).ok){ rb++; Console.WriteLine("     [FAIL] 小于下限应拒绝"); }
+      parts.Add($"最大 {m.W}×{m.H} 检查+机器人一天 {sw.ElapsedMilliseconds}ms"); }
+    // 裁掉门 → 报 lost，并且检查会报"缺门/家"
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; var res=OverworldMap.Resize(m,-12,0,0,0); if(!res.ok||res.lost==0){ rb++; Console.WriteLine("     [FAIL] 裁掉有东西的地方应报告 lost"); } else parts.Add($"裁掉左 12 列丢 {res.lost} 格"); }
+    var web=File.Exists("ow_resize.json")?(MiniJson.Parse(File.ReadAllText("ow_resize.json"),out _) as Dictionary<string,object>):null; int wd=0;
+    if(web!=null) foreach(var kv in mine){ if(!web.TryGetValue(kv.Key,out var o)||(string)o!=kv.Value){ wd++; Console.WriteLine($"     [FAIL] 扩展 {kv.Key}：网页≠Unity"); } }
+    rb+=wd;
+    Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S217 小镇扩展：{string.Join("｜",parts)}｜网页对照{(web==null?"跳过":wd==0?"一致":"不一致")}"); fail+=rb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

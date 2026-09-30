@@ -16,7 +16,7 @@ using System.Text;
 /// </summary>
 public static class OverworldMap
 {
-    public const int MinW = 16, MinH = 12, MaxW = 96, MaxH = 64;
+    public const int MinW = 16, MinH = 12, MaxW = 192, MaxH = 128; // S217：96×64 → 192×128（大世界；再大就该拆成多张小镇）
     public const int DayStart = 6 * 60, DayEnd = 22 * 60, LatestDoor = 20 * 60;
     public const int MaxPickups = 3;
 
@@ -156,6 +156,58 @@ public static class OverworldMap
         var rows = new string[h];
         for (int r = 0; r < h; r++) rows[r] = r == 0 || r == h - 1 ? new string('t', w) : "t" + new string('.', w - 2) + "t";
         return rows;
+    }
+
+    // ── S217：往外扩展 / 裁掉（大世界）──────────────────────
+    public struct ResizeResult { public bool ok; public string why; public int lost; }
+
+    /// <summary>
+    /// 四边各加（正数）或裁掉（负数）几格。网页 owResize 同规则（verify 逐字对照）。
+    /// ① 往哪边扩，那边原来的围栏树 t 就拆成草地（其它边的角不动）→ 老镇和新地连成一片；
+    /// ② 新地铺草地；③ 新的最外一圈凡是能走的格子都种树 t（H1：不会走出地图）；
+    /// ④ 批注跟着平移，出界的丢掉；门/家/出生点是格子本身，自然跟着走。lost = 被裁掉或被新围栏盖掉的格子数（草地和树不算）。
+    /// </summary>
+    public static ResizeResult Resize(Map m, int left, int right, int top, int bottom)
+    {
+        int w = m.W, h = m.H, nw = w + left + right, nh = h + top + bottom;
+        if (w == 0 || h == 0) return new ResizeResult { why = "画布是空的" };
+        if (nw < MinW || nh < MinH) return new ResizeResult { why = $"太小了：至少 {MinW} 宽 × {MinH} 高（改完会是 {nw}×{nh}）" };
+        if (nw > MaxW || nh > MaxH) return new ResizeResult { why = $"太大了：最多 {MaxW} 宽 × {MaxH} 高（改完会是 {nw}×{nh}）。更大的世界请拆成几张小镇" };
+        var old = m.rows.Select(r => r.ToCharArray()).ToArray();
+        for (int r = 0; r < h; r++)
+            for (int x = 0; x < w; x++)
+            {
+                bool onL = x == 0, onR = x == w - 1, onT = r == 0, onB = r == h - 1;
+                if (!(onL || onR || onT || onB) || old[r][x] != 't') continue;
+                if ((!onL || left > 0) && (!onR || right > 0) && (!onT || top > 0) && (!onB || bottom > 0)) old[r][x] = '.';
+            }
+        int lost = 0;
+        for (int r = 0; r < h; r++)
+            for (int x = 0; x < w; x++)
+            {
+                int nx = x + left, nr = r + top;
+                if ((nx < 0 || nr < 0 || nx >= nw || nr >= nh) && old[r][x] != '.' && old[r][x] != 't') lost++;
+            }
+        var g = new char[nh][];
+        for (int r = 0; r < nh; r++)
+        {
+            g[r] = new char[nw];
+            for (int x = 0; x < nw; x++)
+            {
+                int ox = x - left, oy = r - top;
+                g[r][x] = ox >= 0 && oy >= 0 && ox < w && oy < h ? old[oy][ox] : '.';
+                if ((x == 0 || r == 0 || x == nw - 1 || r == nh - 1) && !OverworldCatalog.Solid(g[r][x]))
+                {
+                    if (g[r][x] != '.') lost++;
+                    g[r][x] = 't';
+                }
+            }
+        }
+        m.rows = g.Select(r => new string(r)).ToArray();
+        var keep = new List<Note>();
+        foreach (var n in m.notes) { n.x += left; n.y += bottom; if (n.x >= 0 && n.y >= 0 && n.x < nw && n.y < nh) keep.Add(n); }
+        m.notes.Clear(); m.notes.AddRange(keep);
+        return new ResizeResult { ok = true, lost = lost };
     }
 
     public static List<Cell> Find(Map m, char c)

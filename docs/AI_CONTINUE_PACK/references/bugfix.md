@@ -37,3 +37,12 @@
 | 小镇里房间被炸弹困死但单房间检查通过 | 加固只按本回合 3 颗，小镇还能带进 3 颗 | `Step1PrankRoomBuilder.ExtraBombs = OverworldTown.MaxBonusBombs`（S215） |
 | 升版本后一堆旧测试红 | 测试写死 `AreEqual(N, 版本号)` | 一律 `GreaterOrEqual` |
 | 改了 sim/Check.cs 但 verify 没跑新检查 | 以前只在 setup 时复制 | verify.sh 第 4 步开头会复制（S216 已修） |
+
+## S217 教训（用户："运行时画面固定不动、控制不了"）
+| 现象 | 原因 | 修法 |
+|---|---|---|
+| 小镇进去画面不动 | 说明面板只有 H 能关，开着时整个小镇停 | 面板任意键关（Step1Keys.AnyDown）+ 快速测试模式不弹 |
+| 按键全没反应 | 键盘焦点在工坊窗口 | PlayFocus 进 Play 切 Game 窗口；游戏里 `!Application.isFocused` 提示点画面 |
+| "按任意键开始" / R / N / Esc 没反应 | 只读旧 Input | 一律 Step1Keys（KeyboardInputProvider 全局键也改了） |
+| 早上马里奥不动像卡了 | 08:00 才出门，没提示 | 底部"几点出门、还有几秒、按住空格快进" |
+| 用户测试被问卷/弹窗打断、反馈丢 | 每局 5 道问卷 | 测试中心：快速测试模式 + F8 反馈 + 打包 zip；用户发来反馈包 → 先读 00_给AI的话.md、HealthCheck.md、feedback.md（错误行有位置），再看截图（gsk understand_images） |

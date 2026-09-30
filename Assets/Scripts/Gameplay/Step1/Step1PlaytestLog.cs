@@ -133,6 +133,8 @@ public class Step1PlaytestLog : MonoBehaviour
         if (Step1HandsOffCheck.IsRunning) return;
         // S210：大地图一天里的房间不弹问卷（打完直接回小镇；问卷在单独试玩房间时照旧）
         if (OverworldSession.Active) return;
+        // S217：快速测试模式不弹 5 道问卷（结算直接按 R / N）；反馈改用 F8 随手记
+        if (Step1QuickTest.On) return;
         awaitingRating = true;
         survey = new Step1RoundSurvey(CaughtThisRound > 0);
         noteDraft = "";
@@ -144,8 +146,8 @@ public class Step1PlaytestLog : MonoBehaviour
         IsTyping = survey.Current == Step1RoundSurvey.Step.Note;
         if (IsTyping) return; // 文本在 OnGUI 里收
         if (Step1Screen.HelpOpen) return;
-        if (Input.GetKeyDown(KeyCode.Y)) survey.AnswerYesNo(true);
-        else if (Input.GetKeyDown(KeyCode.N)) survey.AnswerYesNo(false);
+        if (Step1Keys.Down(KeyCode.Y)) survey.AnswerYesNo(true);
+        else if (Step1Keys.Down(KeyCode.N)) survey.AnswerYesNo(false);
         for (int i = 1; i <= 5; i++)
             if (Input.GetKeyDown(KeyCode.Alpha0 + i) || Input.GetKeyDown(KeyCode.Keypad0 + i)) { survey.AnswerNumber(i); break; }
     }
@@ -235,7 +237,7 @@ public class Step1PlaytestLog : MonoBehaviour
 
         if (savedThisRound || survey == null)
         {
-            GUI.Label(inner, Step1Text.AfterSurvey, Step1Gui.Text(30, TextAnchor.MiddleCenter));
+            GUI.Label(inner, savedThisRound || !Step1QuickTest.On ? Step1Text.AfterSurvey : Step1Text.QuickTestRoundOver, Step1Gui.Text(30, TextAnchor.MiddleCenter));
             return;
         }
 

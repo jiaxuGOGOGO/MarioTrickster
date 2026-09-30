@@ -18,7 +18,7 @@ public class Step1ElementLabels : MonoBehaviour
     private void Update()
     {
         if (Step1PlaytestLog.IsTyping || Step1Screen.HelpOpen) return;
-        if (Input.GetKeyDown(KeyCode.V)) { Visible = !Visible; rescan = 0f; }
+        if (Step1Keys.Down(KeyCode.V)) { Visible = !Visible; rescan = 0f; }
         if (!Visible) return;
         rescan -= Time.unscaledDeltaTime;
         if (rescan <= 0f) { Scan(); rescan = 1f; }

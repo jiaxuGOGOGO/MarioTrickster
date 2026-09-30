@@ -12,6 +12,16 @@ public static partial class Step1Text
         "? 木盒：捡到 +1 枚炸弹，带进下一个房间\n" +
         "指引：屏幕边上的箭头 = 下一扇门；左上会算好\"你几秒 / 他几秒\"来不来得及；按住 Tab 看去门的路线，M 小地图   H 关闭/打开说明";
 
+    // S217：测试不卡人——底部常驻按键、等他出门的提示、没点游戏窗口的提醒、快速测试、F8 反馈
+    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮   T 挑衅   E 门口埋伏   空格(按住) 快进   Tab 路线   M 小地图   - / = 镜头远近   H 说明   F8 记反馈";
+    public const string OverworldHelpClose = "按任意键关闭说明（H 随时再打开）  Press any key";
+    public static string OverworldWaitDepart(int door, string clock, double realSeconds) =>
+        $"马里奥 {clock} 才出门去门 {door}（还有约 {realSeconds:0} 秒）\n先去门口躲好，或按住空格快进";
+    public const string ClickGameWindow = "先用鼠标点一下游戏画面，键盘才有反应\nClick the Game view first";
+    public const string QuickTestRoundOver = "快速测试模式：不弹问卷（F8 随手记反馈）\n\n<b>N</b> = 下一局 Next round        <b>R</b> = 从头开始 Restart";
+    public static string FeedbackSaved(int n) => $"✓ 已记下第 {n} 条反馈（截图 + 当时情况）\n测试中心 → 打包反馈 发给 AI";
+    public const string FeedbackError = "⚠ 刚出了一个错误，已自动记进反馈（不用截图）";
+
     public static string OverworldClock(string clock, bool night) => night ? $"🌙 {clock}" : $"☀ {clock}";
     public static string OverworldNextDoor(int n, string clock) => $"下一站：门 {n}  {clock}\nNext: door {n}";
     public const string OverworldGoingHome = "他要回家了\nHeading home";

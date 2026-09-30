@@ -297,6 +297,14 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
         <button class="btn small" id="owNew">新建</button>
         <button class="btn small" id="owSample" title="内置样板：星露小镇">载入样板</button>
         <button class="btn small" id="owDel">删除</button>
+        <select class="f" id="owGrow" style="flex:0 0 150px" title="把地图往外加大（新地是草地，最外圈自动种树）或裁掉一圈；和 Unity 小镇工坊 ↔ 扩展 同一套规则">
+          <option value="">↔ 扩展地图…</option>
+          <option value="8,8,8,8">四周各 +8 格</option><option value="16,16,16,16">四周各 +16 格</option>
+          <option value="0,16,0,0">右边 +16（往东）</option><option value="16,0,0,0">左边 +16（往西）</option>
+          <option value="0,0,16,0">上边 +16（往北）</option><option value="0,0,0,16">下边 +16（往南）</option>
+          <option value="x2">加倍：宽高都 ×2</option><option value="-4,-4,-4,-4">裁掉四周各 4 格</option>
+        </select>
+        <b id="owSize" class="hint" style="font-family:var(--mono)"></b>
         <span class="spacer"></span>
         <button class="btn small" data-owtool="brush">✎ 画笔</button>
         <button class="btn small" data-owtool="rect">▭ 矩形</button>
@@ -306,11 +314,11 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
         <button class="btn small" id="owRedo" title="Ctrl+Y">↷</button>
         <label class="toggle"><input type="checkbox" id="owRoute" checked> 路线</label>
         <label class="toggle"><input type="checkbox" id="owNight"> 夜晚视野</label>
-        <input type="range" id="owZoom" min="8" max="28" value="16" style="width:80px">
+        <input type="range" id="owZoom" min="4" max="28" value="16" style="width:80px"><button class="btn small" id="owFit" title="缩放到整张地图都看得见">⤢</button>
       </div>
       <div class="owwrap" id="owWrap"><canvas id="owCanvas"></canvas></div>
       <p class="hint" id="owHover" style="font-family:var(--mono)"></p>
-      <p class="hint">左键画，右键擦成草地。M = 马里奥的家，T = 你的出生点，1–9 = 门（画在房子最下面一排的下方一格）。<br>
+      <p class="hint">左键画，右键擦成草地。M = 马里奥的家，T = 你的出生点，1–9 = 门（画在房子最下面一排的下方一格）。地图不够大：上面"↔ 扩展地图"（最大 192×128，老镇原样保留，新地铺草、外圈自动种树）。<br>
       快捷键（和 Unity 小镇工坊一样）：B 画笔 R 矩形 F 填充 I 吸管（Alt+点）· 1–9 门 · Ctrl+Z/Y · Ctrl+滚轮缩放 · Ctrl+C 复制整张小镇 / Ctrl+V 贴入（Unity 小镇工坊里同样 Ctrl+C/V）· 文件直接拖进画布导入</p>
     </div>
     <div class="card">

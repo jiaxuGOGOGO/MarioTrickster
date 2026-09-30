@@ -57,17 +57,24 @@ public sealed class OverworldGame : MonoBehaviour
         OverworldSession.Active = true;
         for (int i = 0; i < doorNumbers.Length && i < doorScenes.Length; i++) OverworldSession.RoomScenes[doorNumbers[i]] = doorScenes[i];
         town = new OverworldTown(map, tuning, n => OverworldSession.RoomScenes.TryGetValue(n, out var sc) && SceneTransit.CanLoad(sc));
-        helpOpen = !helpSeenThisPlay; helpSeenThisPlay = true;
+        Time.timeScale = 1f; // S217：从暂停中的房间/测试回来也不会"画面不动"
+        helpOpen = !helpSeenThisPlay && !Step1QuickTest.On; helpSeenThisPlay = true; // S217：快速测试模式不弹说明
         BuildVisuals();
         UpdateVisuals(); SnapCamera(); // S212：镜头直接就位（以前从默认位置滑过来，揭幕时画面在"飘"）
         SceneTransit.RevealAt(new Vector3((float)tx, (float)ty, 0), cam); // 转场的圆在你身上展开
+        Step1Feedback.Context = () => $"小镇 {map.name} {OverworldMap.Clock(OverworldSession.Minute)} 下一扇门 {(NextStop != null ? NextStop.n.ToString() : "-")} 你({tx:0.0},{ty:0.0}) 马里奥({mario.x:0.0},{mario.y:0.0}) {town.mind.State}";
     }
 
     // ═════════════════════ 每帧 ═════════════════════
+    private void OnDestroy() { Step1Feedback.Context = null; }
+
     private void Update()
     {
         if (SceneTransit.Busy) { UpdateVisuals(); return; } // S211：切换中（黑幕）不走时间、不吃按键
-        if (Step1Keys.Down(KeyCode.H)) helpOpen = !helpOpen;
+        // S217：说明面板按任意键关闭（以前只有 H 能关，而且说明开着时时间、走路全停 → "画面固定不动、控制不了"）
+        if (helpOpen) { if (Step1Keys.AnyDown()) helpOpen = false; UpdateVisuals(); return; }
+        if (Step1Keys.Down(KeyCode.H)) { helpOpen = true; UpdateVisuals(); return; }
+        ZoomKeys();
         if (dayOver)
         {
             if (Step1Keys.Down(KeyCode.R))
@@ -77,8 +84,7 @@ public sealed class OverworldGame : MonoBehaviour
             }
             UpdateVisuals(); return;
         }
-        if (helpOpen) { UpdateVisuals(); return; }
-        float dt = Mathf.Min(Time.deltaTime, 0.1f);
+        float dt = Mathf.Min(Time.unscaledDeltaTime, 0.1f); // S217：不受 timeScale 影响（小镇没有暂停）
         var input = new OverworldTown.Input
         {
             h = (Step1Keys.Held(KeyCode.RightArrow) || Step1Keys.Held(KeyCode.D) ? 1f : 0f) - (Step1Keys.Held(KeyCode.LeftArrow) || Step1Keys.Held(KeyCode.A) ? 1f : 0f),
@@ -130,6 +136,8 @@ public sealed class OverworldGame : MonoBehaviour
         var px = new Color[16]; for (int i = 0; i < 16; i++) px[i] = Color.white; tex.SetPixels(px); tex.Apply();
         square = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4f);
         var root = new GameObject("Town").transform;
+        // S217：地面整张一张贴图（1 像素 = 1 格）。以前每格一个物体，192×128 的大世界会有 2 万多个物体、进场景卡。
+        var groundPx = new Color[map.W * map.H];
 
         for (int y = 0; y < map.H; y++)
             for (int x = 0; x < map.W; x++)
@@ -139,8 +147,8 @@ public sealed class OverworldGame : MonoBehaviour
                 // 地面层（Back）：路/水/泥/草本身；其余一律铺草
                 bool ground = c == '.' || c == '=' || c == 'w' || c == 'g' || c == '"';
                 var gt = ground ? t : OverworldCatalog.Get(c == 'M' || c == 'T' || OverworldCatalog.IsDoor(c) ? '=' : '.');
-                var g = Quad(root, "g", x + 0.5f, y + 0.5f, 1f, 1f, new Color(gt.r, gt.g, gt.b), -2000);
-                if ((x + y) % 2 == 0) g.color *= 0.96f; // 棋盘微差，看得出格子
+                var gc = new Color(gt.r, gt.g, gt.b); if ((x + y) % 2 == 0) gc *= 0.96f; // 棋盘微差，看得出格子
+                groundPx[y * map.W + x] = new Color(gc.r, gc.g, gc.b, 1f);
                 if (c == '"') { var tall = Quad(root, "grass", x + 0.5f, y + 0.6f, 1f, 1.1f, new Color(t.r, t.g, t.b, 0.88f), 3000); tall.name = "TallGrass"; }
                 else if (c == 'W')
                 {
@@ -164,6 +172,12 @@ public sealed class OverworldGame : MonoBehaviour
                 else if (c == 'M') Quad(root, "home", x + 0.5f, y + 0.75f, 0.7f, 0.5f, new Color(t.r, t.g, t.b), Order(y + 1) + 1);
             }
 
+        var gtex = new Texture2D(map.W, map.H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        gtex.SetPixels(groundPx); gtex.Apply();
+        var ggo = new GameObject("Ground"); ggo.transform.SetParent(root, false);
+        var gsr = ggo.AddComponent<SpriteRenderer>();
+        gsr.sprite = Sprite.Create(gtex, new Rect(0, 0, map.W, map.H), Vector2.zero, 1f); gsr.sortingOrder = -2000;
+
         marioGo = new GameObject("OverworldMario").transform;
         marioSr = Quad(marioGo, "body", 0, 0.1f, 0.65f, 0.85f, new Color(0.9f, 0.18f, 0.16f), 0); marioSr.transform.localPosition = new Vector3(0, 0.1f, 0);
         trickGo = new GameObject("OverworldTrickster").transform;
@@ -171,6 +185,9 @@ public sealed class OverworldGame : MonoBehaviour
         var ct = OverworldCatalog.Get('c');
         crateSr = Quad(trickGo, "crate", 0, 0.05f, 0.85f, 0.9f, new Color(ct.r, ct.g, ct.b), 0); crateSr.transform.localPosition = new Vector3(0, 0.05f, 0);
         trickCrate = crateSr.transform;
+        // S217：头顶名字，一眼分清谁是你（蓝）谁是马里奥（红）
+        youTag = Tag(trickGo, "你 YOU", new Color(0.55f, 0.78f, 1f));
+        marioTag = Tag(marioGo, "马里奥", new Color(1f, 0.55f, 0.5f));
 
         var coneGo = new GameObject("VisionCone");
         coneMesh = new Mesh();
@@ -184,8 +201,30 @@ public sealed class OverworldGame : MonoBehaviour
 
         cam = Camera.main;
         if (cam == null) { var cg = new GameObject("Main Camera") { tag = "MainCamera" }; cam = cg.AddComponent<Camera>(); }
-        cam.orthographic = true; cam.orthographicSize = Mathf.Min(7.5f, map.H / 2f);
+        cam.orthographic = true; cam.orthographicSize = Mathf.Min(zoom, map.H / 2f);
         cam.backgroundColor = new Color(0.12f, 0.2f, 0.12f); cam.clearFlags = CameraClearFlags.SolidColor;
+    }
+
+    private TextMesh youTag, marioTag;
+    private static float zoom = 7.5f; // S217：- / = 缩放镜头（这次 Play 里记住）
+    public const float MinZoom = 4f, MaxZoom = 20f;
+
+    private TextMesh Tag(Transform parent, string text, Color c)
+    {
+        var go = new GameObject("Tag"); go.transform.SetParent(parent, false); go.transform.localPosition = new Vector3(0, 0.75f, 0);
+        var t = go.AddComponent<TextMesh>(); t.text = text; t.fontSize = 48; t.characterSize = 0.05f; t.anchor = TextAnchor.LowerCenter; t.alignment = TextAlignment.Center; t.color = c;
+        Step1Gui.ApplyFont(t);
+        var r = go.GetComponent<MeshRenderer>(); if (r != null) r.sortingOrder = 4000;
+        return t;
+    }
+
+    private void ZoomKeys()
+    {
+        float z = zoom;
+        if (Step1Keys.Held(KeyCode.Minus)) z += 8f * Time.unscaledDeltaTime;
+        if (Step1Keys.Held(KeyCode.Equals)) z -= 8f * Time.unscaledDeltaTime;
+        z = Mathf.Clamp(z, MinZoom, Mathf.Max(MinZoom, Mathf.Min(MaxZoom, map.H / 2f)));
+        if (!Mathf.Approximately(z, zoom) && cam != null) { zoom = z; cam.orthographicSize = z; }
     }
 
     private SpriteRenderer Quad(Transform parent, string name, float x, float y, float w, float h, Color c, int order)
@@ -205,6 +244,8 @@ public sealed class OverworldGame : MonoBehaviour
         marioGo.position = new Vector3((float)mario.x, (float)mario.y, 0);
         marioSr.sortingOrder = Order(mario.y) + 2;
         marioSr.enabled = !marioInside && !dayOver;
+        if (marioTag != null) marioTag.gameObject.SetActive(marioSr.enabled);
+        if (youTag != null) youTag.gameObject.SetActive(!disguised); // 伪装时不挂名字（名字是给你看的，不影响他——H4）
         trickGo.position = new Vector3((float)tx, (float)ty, 0);
         trickSr.enabled = !disguised; crateSr.enabled = disguised;
         trickSr.sortingOrder = crateSr.sortingOrder = Order(ty) + 2;
@@ -431,7 +472,15 @@ public sealed class OverworldGame : MonoBehaviour
             GUI.Box(new Rect(Screen.width / 2f - 180, Screen.height - 100, 360, 56), marioInside ? Step1Text.OverworldLateHint : town.AmbushReady ? Step1Text.OverworldAmbushHint : Step1Text.OverworldAmbushCountdown(town.MarioStepsToDoor, tuning.overworldAmbushSteps, disguised), big);
         GuideGUI(box);
         if (Time.unscaledTime < hintUntil) GUI.Box(new Rect(Screen.width / 2f - 220, 70, 440, 56), hint, big);
-        if (helpOpen) GUI.Box(new Rect(Screen.width / 2f - 330, Screen.height / 2f - 150, 660, 300), Step1Text.OverworldHelp, box);
+        // S217：底部常驻按键条 + 等他出门的提示 + 没点游戏窗口的提醒
+        if (!helpOpen && !dayOver) GUI.Box(new Rect(0, Screen.height - 30, Screen.width, 30), Step1Text.OverworldControlsBar, Step1Gui.Text(14, TextAnchor.MiddleCenter, false));
+        if (!helpOpen && !dayOver && next != null && OverworldSession.Minute < next.minute && !marioInside && !town.NearDoor(next.n))
+        {
+            double wait = (next.minute - OverworldSession.Minute) / Mathf.Max(0.01f, tuning.overworldMinutesPerSecond);
+            GUI.Box(new Rect(Screen.width / 2f - 230, Screen.height - 94, 460, 56), Step1Text.OverworldWaitDepart(next.n, OverworldMap.Clock(next.minute), wait), big);
+        }
+        if (helpOpen) GUI.Box(new Rect(Screen.width / 2f - 330, Screen.height / 2f - 160, 660, 320), Step1Text.OverworldHelp + "\n\n" + Step1Text.OverworldHelpClose, box);
+        if (!Application.isFocused) GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height / 2f - 40, 520, 80), Step1Text.ClickGameWindow, big);
         if (dayOver) GUI.Box(new Rect(Screen.width / 2f - 280, Screen.height / 2f - 90, 560, 180), OverworldSession.Summary(stops.Count), big);
     }
 }

@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 216（手感/视觉全面检查：修复"被弹飞时往上没有重力"根本 bug——弹簧不再飘 9 格撞天花板、炸弹不再横推 8 格；被弹上天落地才恢复控制；受伤红白闪 + 小跳；弹簧压弹回弹、炮口火光后坐、爆炸冲击环=范围、铁笼加速落下、绳套缓动吊起、连锁火花导火线；预警越来越急、震屏平滑；RushMarioTuning v18、BuilderVersion 20） |
+| **最新 Session** | Session 217（大地图可往四周扩展到 192×128（C# Resize + 网页 owResize 逐字一致）；修"运行时画面不动/控制不了"：说明面板任意键关、进 Play 自动切 Game 窗口 + 无焦点提示、全局键两套输入都读、小镇强制 timeScale=1、转场 20 秒保险丝、等出门提示、头顶名字、按键条、镜头缩放；新增测试中心 Ctrl+Alt+T：一键体检 / 快速测试模式 / F8 反馈截图 + 自动记错误 / 打包反馈 zip） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S217] 用户："大地图编辑器存在问题 一个是不能往大世界拓展 还有就是运行的时候画面固定不动 不能控制马里奥捣蛋者 优化后我现在需要快速测试完整项目情况然后给出完整的新增修改意见 我的诉求是不能对我的完整测试构成很多反复操作的阻碍造成测试失败无法反馈升级……确保网页编辑关卡和unity内清晰易懂明确方便"
+
+- 根因（画面不动）：小镇说明面板只有 H 能关，开着时整个小镇停；键盘焦点留在工坊窗口；Step1Screen"任意键开始"/结算 R N/Esc/F5 只读旧 Input；timeScale 可能留 0；06:00–08:00 马里奥在家不动无提示。
+- 修：`Step1Keys.AnyDown` + 补 R N Y Space 方向键 F5 F8 F9 - =；OverworldGame 任意键关说明、unscaled dt、timeScale=1、地面单贴图、头顶名字、按键条、等出门提示、无焦点提示、`-`/`=` 镜头；`PlayFocus`（进 Play 切 Game 窗口）；SceneTransit 20 秒保险丝；KeyboardInputProvider 全局键走 Step1Keys。
+- 大世界：`OverworldMap.Resize`（往哪边扩拆哪边围栏、外圈封树、批注平移、lost 计数）+ 网页 `owResize`；MaxW/MaxH 96×64 → 192×128；小镇工坊"↔ 扩展"菜单 + 只画可见格 + ⤢；网页"↔ 扩展地图…" + 尺寸显示 + ⤢。
+- 测试：`TestHubWindow`（Ctrl+Alt+T；一键体检写 PlaytestLogs/HealthCheck.md、快速测试模式 `Step1QuickTest`、试玩入口、打包反馈 `TinyZip`）；`Step1Feedback`（F8 截图 + 情况、自动记 Error/Exception，PlaytestLogs/Feedback/）。
+- 没做：不改玩法数值/AI/机关；不做无缝多区域。版本号不变（无新调参、房间场景结构不变）。详见 docs/step1/S217_WORLD_AND_TEST_FLOW.md。
 
 ### [S216] 用户："检查目前项目的机关机制还有技能道具特殊场景和角色是否合理的视觉效果 比如弹跳跳跃是否合理 等 大炮击中人的效果等等 还有人物收到伤害是否合理 整体考虑全部检查一遍 然后参考行业优秀做法……陷进联动视觉效果和联动效果也是合理符合视觉效果 不会让人觉得生硬突兀不自然"
 

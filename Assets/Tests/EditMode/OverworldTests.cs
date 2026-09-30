@@ -385,4 +385,77 @@ public class OverworldTests
         StringAssert.DoesNotContain("MarioTrickster/Overworld/Town Workshop", ob, "同一个窗口只留一个菜单入口");
         StringAssert.Contains("MarioTrickster/旧工具 (Legacy)/Build Test Scene", Read("Scripts/Editor/TestSceneBuilder.cs"));
     }
+
+    // ── S217：大世界扩展 + 测试不卡人 ──────────────
+    [Test]
+    public void Resize_GrowsWorld_KeepsTownPlayable_AndFramed()
+    {
+        foreach (var (l, r, t, b) in new[] { (8, 8, 8, 8), (0, 16, 0, 0), (16, 0, 0, 0), (0, 0, 16, 0), (0, 0, 0, 16) })
+        {
+            var m = Sample(); int w0 = m.W, h0 = m.H; var old = m.rows.ToArray();
+            var res = OverworldMap.Resize(m, l, r, t, b);
+            Assert.IsTrue(res.ok, res.why); Assert.AreEqual(0, res.lost, "只扩展不丢东西");
+            Assert.AreEqual(w0 + l + r, m.W); Assert.AreEqual(h0 + t + b, m.H);
+            for (int x = 0; x < m.W; x++) { Assert.IsTrue(OverworldCatalog.Solid(m.rows[0][x])); Assert.IsTrue(OverworldCatalog.Solid(m.rows[m.H - 1][x])); }
+            for (int y = 0; y < m.H; y++) { Assert.IsTrue(OverworldCatalog.Solid(m.rows[y][0])); Assert.IsTrue(OverworldCatalog.Solid(m.rows[y][m.W - 1])); }
+            for (int y = 1; y < h0 - 1; y++) Assert.AreEqual(old[y].Substring(1, w0 - 2), m.rows[y + t].Substring(l + 1, w0 - 2), "老镇里面一格不变");
+            var rep = OverworldMap.Check(m, OverworldMap.Rules.Default);
+            Assert.IsTrue(rep.Playable, string.Join("\n", rep.issues));
+            Assert.IsTrue(OverworldWalker.SimulateDay(m, OverworldMap.Rules.Default).ok, "H10：扩展后没人捣乱一天照样走完");
+        }
+    }
+
+    [Test]
+    public void Resize_OpensOldFenceTowardNewLand_AndRejectsOutOfRange()
+    {
+        var m = Sample(); int w0 = m.W;
+        Assert.IsTrue(OverworldMap.Resize(m, 0, 10, 0, 0).ok);
+        Assert.AreEqual('.', m.rows[m.H / 2][w0 - 1], "往东扩：老镇东边的围栏树拆掉，新地和老镇连成一片");
+        Assert.AreEqual('t', m.rows[m.H / 2][0], "西边没扩：围栏不动");
+        var big = Sample();
+        Assert.IsTrue(OverworldMap.Resize(big, 0, OverworldMap.MaxW - big.W, 0, OverworldMap.MaxH - big.H).ok, "能扩到最大");
+        Assert.GreaterOrEqual(OverworldMap.MaxW, 192); Assert.GreaterOrEqual(OverworldMap.MaxH, 128);
+        Assert.IsFalse(OverworldMap.Resize(big, 1, 0, 0, 0).ok, "超过上限拒绝（不会画出打不开的图）");
+        var crop = Sample(); var cr = OverworldMap.Resize(crop, -12, 0, 0, 0);
+        Assert.IsTrue(cr.ok); Assert.Greater(cr.lost, 0, "裁掉有东西的地方 → 报告丢了几格（编辑器会先问）");
+        var n = Sample(); n.notes.Clear(); n.notes.Add(new OverworldMap.Note { x = 3, y = 3, text = "a" });
+        OverworldMap.Resize(n, 5, 0, 0, 2); Assert.AreEqual(8, n.notes[0].x); Assert.AreEqual(5, n.notes[0].y, "批注跟着平移");
+    }
+
+    [Test]
+    public void Wiring_S217_NoFrozenScreen_AndQuickTest()
+    {
+        string game = Read("Scripts/Overworld/Runtime/OverworldGame.cs"), screen = Read("Scripts/Gameplay/Step1/Step1Screen.cs"), keys = Read("Scripts/Gameplay/Step1/Step1Keys.cs");
+        StringAssert.Contains("if (helpOpen) { if (Step1Keys.AnyDown()) helpOpen = false;", game); // 说明面板任意键关（以前只有 H → 画面停住）
+        StringAssert.Contains("Time.unscaledDeltaTime, 0.1f", game);                               // 小镇不受 timeScale 影响
+        StringAssert.Contains("Time.timeScale = 1f;", game);
+        StringAssert.Contains("Step1Text.OverworldControlsBar", game);
+        StringAssert.Contains("Step1Text.OverworldWaitDepart(", game);
+        StringAssert.Contains("Application.isFocused", game);
+        StringAssert.Contains("groundPx", game);                                                   // 地面一张贴图（大世界不卡）
+        StringAssert.Contains("Step1Keys.AnyDown()", screen);
+        StringAssert.DoesNotContain("Input.anyKeyDown", screen);
+        StringAssert.Contains("kb.anyKey.wasPressedThisFrame", keys);
+        StringAssert.Contains("case KeyCode.R: return kb.rKey.wasPressedThisFrame;", keys);
+        StringAssert.Contains("if (Step1QuickTest.On) return;", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs"));
+        StringAssert.Contains("!Step1QuickTest.On", screen);
+        StringAssert.Contains("ExecuteMenuItem(\"Window/General/Game\")", Read("Scripts/Editor/PlayFocus.cs"));
+        StringAssert.Contains("WatchdogSeconds", Read("Scripts/Overworld/Runtime/SceneTransit.cs"));
+        StringAssert.Contains("OverworldMap.Resize(map,", Read("Scripts/Editor/OverworldWorkshopWindow.cs"));
+        StringAssert.Contains("RunHealthCheck()", Read("Scripts/Editor/TestHubWindow.cs"));
+        StringAssert.Contains("KeyCode.F8", Read("Scripts/Gameplay/Step1/Step1Feedback.cs"));
+        foreach (var bad in new[] { "SuspicionMeter.Add", "Mind.Meter", "SetInputProvider" }) StringAssert.DoesNotContain(bad, Read("Scripts/Gameplay/Step1/Step1Feedback.cs"), "反馈只记录，不碰玩法（H4）");
+    }
+
+    [Test]
+    public void TinyZip_WritesReadableArchive()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "mt_zip_test"); if (Directory.Exists(dir)) Directory.Delete(dir, true); Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "反馈.md"), "你好");
+        string zip = Path.Combine(Path.GetTempPath(), "mt_zip_test.zip");
+        TinyZip.Write(zip, Directory.GetFiles(dir));
+        var bytes = File.ReadAllBytes(zip);
+        Assert.AreEqual(0x50, bytes[0]); Assert.AreEqual(0x4B, bytes[1], "PK 头");
+        Assert.AreEqual(0xCBF43926u, TinyZip.Crc(System.Text.Encoding.ASCII.GetBytes("123456789")), "CRC32 标准校验值");
+    }
 }

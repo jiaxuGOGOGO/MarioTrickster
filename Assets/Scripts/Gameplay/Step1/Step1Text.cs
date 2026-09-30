@@ -72,7 +72,7 @@ public static partial class Step1Text
         }
     }
 
-    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   F 连锁   T 挑衅   ↓ 通风管   |   V 这是什么 Labels   C 镜头 Camera   H 帮助 Help   Esc 暂停";
+    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   F 连锁   T 挑衅   ↓ 通风管   |   V 这是什么 Labels   C 镜头 Camera   H 帮助 Help   F8 记反馈   Esc 暂停";
 
     public const string Help =
         "<b>怎么玩  HOW TO PLAY</b>\n\n" +

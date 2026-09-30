@@ -674,6 +674,7 @@ function owRender() {
   $('#owIssues').querySelectorAll('.loc').forEach(el => el.onclick = () => { const i = rep.issues[+el.dataset.k]; owLocate(i.x, i.y); });
   const sc = rep.schedule;
   $('#owSched').innerHTML = sc ? sc.stops.map((s, k) => `门 ${s.door.n}：${owClock(s.depart)} 出发 → ${owClock(s.arrive)} 到 → ${owClock(s.leave)} 出来　你能提前 ${Math.round(owLead(sc, k, OW.Rules.minutesPerSecond))} 秒`).join('<br>') + `<br>${owClock(sc.homeArrive)} 到家` : '（先把检查里的红色问题改掉）';
+  $('#owSize').textContent = `${owW(m)}×${m.rows.length}`;
   owLedgerRender(); owScrubText(); owPalette(); owDraw(); owSave();
 }
 // S215：一天总览（和 Unity 小镇工坊同一套规则：CampaignLedger）
@@ -759,7 +760,7 @@ $('#owCanvas').onmousedown = e => {
 };
 $('#owCanvas').onmouseleave = () => { OWT.hover = null; $('#owHover').textContent = owHoverText(); owDraw(); };
 $('#owCanvas').addEventListener('mousemove', e => { const c = owCell(e); if (String(c) !== String(OWT.hover)) { OWT.hover = c; $('#owHover').textContent = owHoverText(); if (!OWT.painting) owDraw(); } });
-$('#owWrap').addEventListener('wheel', e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); OWT.zoom = Math.max(8, Math.min(40, Math.round(OWT.zoom * (e.deltaY > 0 ? 0.9 : 1.1)))); $('#owZoom').value = OWT.zoom; owDraw(); }, { passive: false });
+$('#owWrap').addEventListener('wheel', e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); OWT.zoom = Math.max(4, Math.min(40, Math.round(OWT.zoom * (e.deltaY > 0 ? 0.9 : 1.1)))); $('#owZoom').value = OWT.zoom; owDraw(); }, { passive: false });
 $('#owWrap').addEventListener('dragover', e => { e.preventDefault(); $('#owWrap').classList.add('drop'); });
 $('#owWrap').addEventListener('dragleave', () => $('#owWrap').classList.remove('drop'));
 $('#owWrap').addEventListener('drop', e => { e.preventDefault(); $('#owWrap').classList.remove('drop'); const f = e.dataTransfer.files[0]; if (!f) return; const dt = new DataTransfer(); dt.items.add(f); $('#fileIn').files = dt.files; $('#fileIn').onchange({ target: $('#fileIn') }); });
@@ -775,6 +776,18 @@ window.addEventListener('mouseup', e => {
 document.querySelectorAll('[data-owtool]').forEach(b => b.onclick = () => { OWT.tool = b.dataset.owtool; owPalette(); });
 $('#owUndo').onclick = owUndo;
 $('#owZoom').oninput = e => { OWT.zoom = +e.target.value; owDraw(); };
+// S217：往大世界扩展 / 裁掉（与 Unity OverworldMap.Resize 同规则）
+$('#owGrow').onchange = e => {
+  const v = e.target.value; e.target.value = ''; if (!v) return;
+  const m = owM(), [l, r, t, b] = v === 'x2' ? [0, owW(m), 0, m.rows.length] : v.split(',').map(Number);
+  const probe = owFromJson(owToJson(m)), res = owResize(probe, l, r, t, b);
+  if (!res.ok) { toast(res.why); return; }
+  if (res.lost > 0 && !confirm(`会裁掉 / 盖掉 ${res.lost} 个格子（房子、门、道具等）。继续吗？（Ctrl+Z 可撤销）`)) return;
+  owPush(); owResize(m, l, r, t, b); owRender();
+  const wrap = $('#owWrap'), z = OWT.zoom; wrap.scrollTo({ left: (l + (owW(m) - l - r) / 2) * z - wrap.clientWidth / 2, top: (t + (m.rows.length - t - b) / 2) * z - wrap.clientHeight / 2 });
+  toast(`现在 ${owW(m)}×${m.rows.length}（Ctrl+Z 撤销）。新地是草地，外圈已种树；接着画路和房子`);
+};
+$('#owFit').onclick = () => { const wrap = $('#owWrap'), m = owM(); OWT.zoom = Math.max(4, Math.min(28, Math.floor(Math.min((wrap.clientWidth - 4) / owW(m), (wrap.clientHeight - 4) / m.rows.length)))); $('#owZoom').value = OWT.zoom; owDraw(); };
 $('#owRoute').onchange = owDraw; $('#owNight').onchange = owDraw;
 $('#owPick').onchange = e => { OWCUR = +e.target.value; OWT.undo = []; OWT.redo = []; owRender(); };
 $('#owName').onchange = e => { owM().name = e.target.value.trim() || '未命名小镇'; owRender(); };

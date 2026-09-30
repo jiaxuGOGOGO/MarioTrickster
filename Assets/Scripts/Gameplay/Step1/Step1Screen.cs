@@ -55,17 +55,17 @@ public class Step1Screen : MonoBehaviour
         if (firstFrame)
         {
             firstFrame = false;
-            if (tuning.showHelpOnStart && !Step1HandsOffCheck.IsRunning && !(OverworldSession.Active && OverworldSession.Results.Count > 0)) HelpOpen = true; // S210：小镇一天里第 2 个房间起不再弹说明
+            if (tuning.showHelpOnStart && !Step1QuickTest.On && !Step1HandsOffCheck.IsRunning && !(OverworldSession.Active && OverworldSession.Results.Count > 0)) HelpOpen = true; // S210：小镇一天里第 2 个房间起不再弹说明；S217：快速测试模式不弹
         }
         if (Step1HandsOffCheck.IsRunning) { HelpOpen = false; return; }
 
         if (HelpOpen)
         {
             Time.timeScale = 0f; // GameManager.StartGame 会设回 1，这里说明打开期间每帧保持暂停
-            if (Input.anyKeyDown && !Input.GetKeyDown(KeyCode.Escape)) Close();
+            if (Step1Keys.AnyDown() && !Step1Keys.Down(KeyCode.Escape)) Close(); // S217：两套输入都读（以前只读旧输入 → 有的机器说明关不掉、整局停住）
             return;
         }
-        if (!Step1PlaytestLog.IsTyping && Input.GetKeyDown(KeyCode.H)) HelpOpen = true;
+        if (!Step1PlaytestLog.IsTyping && Step1Keys.Down(KeyCode.H)) HelpOpen = true;
     }
 
     private void Close()

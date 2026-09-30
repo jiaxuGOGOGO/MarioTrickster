@@ -219,7 +219,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
 
     private string HoverText()
     {
-        if (hover.x < 0) return "B 画笔 R 矩形 F 填充 E 橡皮 I 吸管（Alt+点也行）  1–9 门  Ctrl+滚轮 缩放  中键拖动  Ctrl+Z/Y  Ctrl+S  F5 试玩";
+        if (hover.x < 0) return $"{map.W}×{map.H}　B 画笔 R 矩形 F 填充 E 橡皮 I 吸管（Alt+点也行）  1–9 门  ↔ 扩展地图  Ctrl+滚轮 缩放  中键拖动  Ctrl+Z/Y  Ctrl+S  F5 试玩";
         char c = map.At(hover.x, hover.y); var t = OverworldCatalog.Get(c);
         string s = $"({hover.x},{hover.y}) {c} {(t != null ? t.zh : "?")}";
         if (OverworldCatalog.IsDoor(c)) { var d = map.DoorOf(c - '0'); if (d != null) s += $" · {OverworldMap.Clock(d.minute)} → {d.room}"; }
@@ -235,6 +235,8 @@ public sealed class OverworldWorkshopWindow : EditorWindow
             Load($"# Overworld: 新小镇\n# Goal: \n{string.Join("\n", rows)}\n", "新建 40×24（已放好家 M 和出生点 T）");
         }
         if (GUILayout.Button(new GUIContent("样板", "内置样板：星露小镇（4 户人家）"), EditorStyles.toolbarButton, GUILayout.Width(40))) Load(OverworldPack.SampleText, "载入样板 星露小镇");
+        // S217：往大世界扩展（四边都能加 / 裁），网页"↔ 扩展"同一套规则
+        if (GUILayout.Button(new GUIContent($"↔ 扩展 {map.W}×{map.H} ▾", $"把地图往外加大（新地是草地，最外圈自动种树）或裁掉一圈。最大 {OverworldMap.MaxW}×{OverworldMap.MaxH}"), EditorStyles.toolbarDropDown, GUILayout.Width(118))) ResizeMenu();
         if (GUILayout.Button("打开 ▾", EditorStyles.toolbarDropDown, GUILayout.Width(54)))
         {
             var menu = new GenericMenu();
@@ -269,13 +271,47 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         GUILayout.Space(8);
         tool = (Tool)GUILayout.Toolbar((int)tool, new[] { new GUIContent("✎ 画笔", "B"), new GUIContent("▭ 矩形", "R"), new GUIContent("▦ 填充", "F"), new GUIContent("⌫ 橡皮", "E"), new GUIContent("◉ 吸管", "I（或按住 Alt 点一下）") }, EditorStyles.toolbarButton, GUILayout.Width(300));
         GUILayout.Space(8);
-        cell = GUILayout.HorizontalSlider(cell, 8f, 28f, GUILayout.Width(80));
+        cell = GUILayout.HorizontalSlider(cell, 4f, 28f, GUILayout.Width(80));
+        if (GUILayout.Button(new GUIContent("⤢", "缩放到整张地图都看得见"), EditorStyles.toolbarButton, GUILayout.Width(22)))
+            cell = Mathf.Clamp(Mathf.Floor(Mathf.Min((canvasView.width - 4) / map.W, (canvasView.height - 4) / map.H)), 4f, 28f);
         GUILayout.FlexibleSpace();
         if (GUILayout.Button(new GUIContent("🏠 关卡工坊", "做门里面的横版房间"), EditorStyles.toolbarButton, GUILayout.Width(80))) LevelWorkshopWindow.Open();
+        if (GUILayout.Button(new GUIContent("🧪 测试中心", "一键体检全项目 / 快速测试模式 / 打包反馈（Ctrl+Alt+T）"), EditorStyles.toolbarButton, GUILayout.Width(80))) TestHubWindow.Open();
         GUI.backgroundColor = report != null && report.Playable ? new Color(0.5f, 1f, 0.5f) : Color.white;
         if (GUILayout.Button(new GUIContent("▶ 试玩小镇", "F5"), EditorStyles.toolbarButton, GUILayout.Width(80))) PlayTown();
         GUI.backgroundColor = Color.white;
         EditorGUILayout.EndHorizontal();
+    }
+
+    private void ResizeMenu()
+    {
+        var menu = new GenericMenu();
+        void Add(string label, int l, int r, int t, int b) => menu.AddItem(new GUIContent(label), false, () => DoResize(l, r, t, b));
+        Add("四周各 +8 格", 8, 8, 8, 8);
+        Add("四周各 +16 格", 16, 16, 16, 16);
+        menu.AddSeparator("");
+        Add("右边 +16（往东）", 0, 16, 0, 0); Add("左边 +16（往西）", 16, 0, 0, 0);
+        Add("上边 +16（往北）", 0, 0, 16, 0); Add("下边 +16（往南）", 0, 0, 0, 16);
+        menu.AddSeparator("");
+        Add("加倍：宽高都 ×2（往右下长）", 0, map.W, 0, map.H);
+        menu.AddSeparator("");
+        Add("裁掉四周各 4 格", -4, -4, -4, -4);
+        menu.ShowAsContext();
+    }
+
+    /// <summary>S217：扩展 / 裁掉。有东西会被裁掉时先问；之后滚到老镇中间，不会一扩展就"找不到自己的镇"。</summary>
+    private void DoResize(int l, int r, int t, int b)
+    {
+        var probe = OverworldMap.Parse(OverworldMap.ToText(map));
+        var res = OverworldMap.Resize(probe, l, r, t, b);
+        if (!res.ok) { EditorUtility.DisplayDialog("小镇尺寸", res.why, "好"); return; }
+        if (res.lost > 0 && !EditorUtility.DisplayDialog("小镇尺寸", $"会裁掉 / 盖掉 {res.lost} 个格子（房子、门、道具等）。继续吗？（Ctrl+Z 可撤销）", "继续", "取消")) return;
+        Snapshot();
+        OverworldMap.Resize(map, l, r, t, b);
+        Recheck();
+        status = $"现在 {map.W}×{map.H}（Ctrl+Z 撤销）。新地是草地，外圈已种树；接着画路 = 和房子，门 1–9 画在房子下方一格";
+        scroll = new Vector2(Mathf.Max(0, (l + (map.W - l - r) / 2f) * cell - canvasView.width / 2f), Mathf.Max(0, (t + (map.H - t - b) / 2f) * cell - canvasView.height / 2f));
+        Repaint();
     }
 
     private void Palette()
@@ -314,7 +350,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         // S212：Ctrl+滚轮缩放（以鼠标为中心）、中键拖动画布
         if (ev.type == EventType.ScrollWheel && (ev.control || ev.command))
         {
-            float old = cell; cell = Mathf.Clamp(cell * (ev.delta.y > 0 ? 0.9f : 1.1f), 8f, 40f);
+            float old = cell; cell = Mathf.Clamp(cell * (ev.delta.y > 0 ? 0.9f : 1.1f), 4f, 40f);
             scroll = (scroll + ev.mousePosition - canvasView.position) * (cell / old) - (ev.mousePosition - canvasView.position);
             ev.Use(); Repaint();
         }
@@ -325,8 +361,11 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         var route = new HashSet<(int, int)>();
         if (report?.schedule != null) { foreach (var s in report.schedule.stops) foreach (var c in s.path) route.Add((c.x, c.y)); if (report.schedule.homePath != null) foreach (var c in report.schedule.homePath) route.Add((c.x, c.y)); }
         var label = new GUIStyle(EditorStyles.miniBoldLabel) { alignment = TextAnchor.MiddleCenter, fontSize = Mathf.RoundToInt(cell * 0.6f) };
-        for (int y = 0; y < map.H; y++)
-            for (int x = 0; x < map.W; x++)
+        // S217：只画看得见的格子（192×128 的大世界也不卡）
+        int vx0 = Mathf.Max(0, Mathf.FloorToInt(scroll.x / cell) - 1), vx1 = Mathf.Min(map.W - 1, Mathf.CeilToInt((scroll.x + Mathf.Max(canvasView.width, 400f)) / cell) + 1);
+        int vr0 = Mathf.Max(0, Mathf.FloorToInt(scroll.y / cell) - 1), vr1 = Mathf.Min(map.H - 1, Mathf.CeilToInt((scroll.y + Mathf.Max(canvasView.height, 300f)) / cell) + 1);
+        for (int y = map.H - 1 - vr1; y <= map.H - 1 - vr0; y++)
+            for (int x = vx0; x <= vx1; x++)
             {
                 char c = map.At(x, y);
                 var t = OverworldCatalog.Get(c);

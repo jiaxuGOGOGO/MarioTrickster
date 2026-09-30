@@ -117,3 +117,10 @@
 - `Gameplay/Step1/Step1Fx.cs`：冲击环/颗粒/尘土/连锁火花线，纯画面，不许加碰撞体（H4）；同屏上限 MaxAlive。
 - 让人"飞起来"的新机关：设速度后调 `mario.ApplyKnockbackStun(秒, untilLanded: true, slide: false)`；别再写"硬直期没重力"的代码。sim S216 会检查弹高 < 头顶空格。
 - 震屏用 `Step1RoomCamera.Current.Shake(幅度, 秒)`，不要 FindObjectOfType。
+
+## S217 大世界 + 测试流程
+- `OverworldMap.Resize(m,l,r,t,b)` ↔ 网页 `owResize`（逐字一致，verify 对照 ow_resize.json）；MaxW/MaxH 192×128。改扩展规则两边一起改。
+- `Gameplay/Step1/Step1QuickTest.cs`（PlayerPrefs 开关：不弹说明/问卷）、`Step1Feedback.cs`（F8 截图 + 自动记错误 → PlaytestLogs/Feedback/；`Step1Feedback.Context` 由场景填"此刻情况"）。
+- `Editor/TestHubWindow.cs`（Ctrl+Alt+T：一键体检 HealthCheck.md / 快速测试 / 试玩 / 打包反馈；`TinyZip` 不依赖 System.IO.Compression）、`Editor/PlayFocus.cs`（进 Play 切 Game 窗口）。
+- `Step1Keys.AnyDown()`；新键：R N Y Space 方向键 A D W S F5 F8 F9 Minus Equals。**以后任何"按任意键 / 结算键"都用 Step1Keys**，不要写 Input.anyKeyDown / Input.GetKeyDown。
+- SceneTransit 20 秒保险丝（WatchdogSeconds）。小镇开场 timeScale=1、计时用 unscaledDeltaTime。

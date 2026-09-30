@@ -9,7 +9,8 @@ public static partial class Step1Text
         "E 在门口按：比他先到 = 埋伏（进屋开打，还多 1 枚炸弹给准备）\n" +
         "他先进门：6 秒内跟进去 = 迟到（照样打，但他不等你）；再晚 = 这户被偷\n" +
         "躲进高草/房子后面他就看不见；晚上 19:00 后他看得近，路灯下除外\n" +
-        "? 木盒：捡到 +1 枚炸弹，带进下一个房间   H 关闭/打开说明";
+        "? 木盒：捡到 +1 枚炸弹，带进下一个房间\n" +
+        "指引：屏幕边上的箭头 = 下一扇门；左上会算好\"你几秒 / 他几秒\"来不来得及；按住 Tab 看去门的路线，M 小地图   H 关闭/打开说明";
 
     public static string OverworldClock(string clock, bool night) => night ? $"🌙 {clock}" : $"☀ {clock}";
     public static string OverworldNextDoor(int n, string clock) => $"下一站：门 {n}  {clock}\nNext: door {n}";
@@ -29,6 +30,23 @@ public static partial class Step1Text
         $"门 {door} · {room}\n" + (o == OverworldMind.DoorOutcome.Ambush ? "埋伏成功！Ambush!" : o == OverworldMind.DoorOutcome.Late ? "迟到了——他不等你 Late!" : "");
     public static string OverworldTransitToTown(string clock) => $"回到小镇  {clock}\nBack to town";
     public static string OverworldTransitNewDay(string town) => $"{town}\n新的一天 06:00  New day";
+    public static string OverworldTransitRetry(int door) => $"门 {door} · 重来一次\nRetry room";
+    // S212：地图指引
+    public static string OverworldRace(OverworldGuide.Race r)
+    {
+        switch (r.verdict)
+        {
+            case OverworldGuide.Verdict.Ahead: return $"你 {r.you:0} 秒 / 他 {r.him:0} 秒  ✓ 来得及埋伏";
+            case OverworldGuide.Verdict.Tight: return $"你 {r.you:0} 秒 / 他 {r.him:0} 秒  ⚠ 很紧，快走！";
+            case OverworldGuide.Verdict.Behind: return $"你 {r.you:0} 秒 / 他 {r.him:0} 秒  ✗ 追不上——香蕉皮/挑衅拖住他";
+            case OverworldGuide.Verdict.Inside: return "他已经进门了！快按 E 跟进";
+            default: return "";
+        }
+    }
+    /// <summary>门头上的倒计时：realSeconds = 现实里还有几秒他出发去这扇门（≤0 = 已经在路上）。</summary>
+    public static string OverworldDoorCountdown(int n, double realSeconds) => realSeconds > 0.5 ? $"门 {n} · {realSeconds:0} 秒后出发" : $"门 {n} · 他在路上";
+    public const string OverworldGuideKeys = "Tab 路线   M 小地图   H 说明";
+    public const string OverworldMinimapTitle = "小地图（M 关闭）  蓝 = 你  红 = 马里奥  亮粉 = 下一扇门";
     public const string OverworldBackToTown = "按 Enter 回到小镇\nPress Enter to return to town";
 
     public static string OverworldDoorLabel(int n, string clock, OverworldSession.DoorResult r)

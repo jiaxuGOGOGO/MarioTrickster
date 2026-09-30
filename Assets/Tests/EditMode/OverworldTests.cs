@@ -180,7 +180,7 @@ public class OverworldTests
         string tr = Read("Scripts/Overworld/Runtime/SceneTransit.cs"), b = Read("Scripts/Editor/OverworldBuilder.cs");
         StringAssert.Contains("SceneTransit.Go(scene,", game);
         StringAssert.Contains("if (SceneTransit.Busy) { UpdateVisuals(); return; }", game);
-        StringAssert.Contains("SceneManager.GetActiveScene().path", game);
+        StringAssert.Contains("gameObject.scene.path", game); // S212：自己所在场景（不依赖当前激活场景）
         StringAssert.Contains("if (!over || SceneTransit.Busy) return;", link);
         StringAssert.Contains("op.allowSceneActivation = false;", tr);
         StringAssert.Contains("DontDestroyOnLoad(go);", tr);
@@ -189,5 +189,71 @@ public class OverworldTests
         StringAssert.Contains("EditorPrefs.SetString(TownHashKey, TownFingerprint(text));", b);
         StringAssert.Contains("names.Add(path);", b);
         StringAssert.Contains("AssetDatabase.DeleteAsset(fp);", b);
+    }
+
+    // ── S212：更顺的转场 + 地图指引 + 工坊顺手 ──────────────
+    [Test]
+    public void Transit_EasedIris_AndHitchFrameDoesNotJump()
+    {
+        Assert.AreEqual(0f, SceneTransitPlan.Ease(0f)); Assert.AreEqual(1f, SceneTransitPlan.Ease(1f));
+        Assert.Less(SceneTransitPlan.Ease(0.1f), 0.1f, "开头慢"); Assert.Greater(SceneTransitPlan.Ease(0.9f), 0.9f, "结尾慢");
+        var p = new SceneTransitPlan(); p.Begin("x");
+        Assert.LessOrEqual(p.Step(0.5f), SceneTransitPlan.MaxStep, "卡顿帧封顶");
+        p.Tick(1f, true); Assert.AreEqual(SceneTransitPlan.Phase.Loading, p.phase);
+        Assert.AreEqual(0.5f, p.Step(0.5f), "等加载时按真实时间（超时保护才准）");
+        Assert.IsTrue(p.Tick(0.5f, true)); p.Activated();
+        p.Tick(p.Step(0.6f), true); Assert.Greater(p.Alpha, 0.5f, "激活后第一帧即便卡了 0.6 秒，淡入也不会跳过大半");
+        Assert.AreEqual(1f - p.Alpha, p.IrisOpen, 1e-5);
+        p.SetFocus(2f, -1f); Assert.AreEqual(1f, p.focusX); Assert.AreEqual(0f, p.focusY);
+        Assert.AreEqual(Mathf.Sqrt(800f * 800f + 600f * 600f), SceneTransitPlan.FarCorner(0f, 0f, 800, 600), 0.01f);
+    }
+
+    [Test]
+    public void Guide_EdgeArrow_ClampsToBorder()
+    {
+        var on = OverworldGuide.EdgeArrow(0.5f, 0.7f); Assert.IsTrue(on.onScreen);
+        var r = OverworldGuide.EdgeArrow(3f, 0.5f); Assert.IsFalse(r.onScreen); Assert.AreEqual(0.94f, r.x, 1e-4); Assert.AreEqual(0.5f, r.y, 1e-4); Assert.AreEqual(0f, r.angleDeg, 1e-3);
+        var d = OverworldGuide.EdgeArrow(0.5f, -2f); Assert.AreEqual(0.06f, d.y, 1e-4); Assert.AreEqual(-90f, d.angleDeg, 1e-3);
+        var b = OverworldGuide.EdgeArrow(0.7f, 0.5f, 0.06f, true); Assert.IsFalse(b.onScreen, "在镜头后面也要画箭头"); Assert.Less(b.x, 0.5f);
+    }
+
+    [Test]
+    public void Guide_Race_AndScrubber_FollowSchedule()
+    {
+        var m = OverworldPack.Parse(OverworldPack.SampleText)[0]; var r = OverworldMap.Rules.Default;
+        var sc = OverworldMap.Check(m, r).schedule; var st = sc.stops[0]; var T = OverworldMap.Find(m, 'T')[0]; var M = OverworldMap.Find(m, 'M')[0];
+        var race = OverworldGuide.RaceTo(m, r, st.cell, st.door.minute, OverworldMap.DayStart, T.x + 0.5, T.y + 0.5, M.x + 0.5, M.y + 0.5, false);
+        Assert.AreEqual(OverworldGuide.Verdict.Ahead, race.verdict, "06:00 从出生点出发，第一扇门来得及");
+        var late = OverworldGuide.RaceTo(m, r, st.cell, st.door.minute, st.door.minute, M.x + 0.5, M.y + 0.5, st.path[st.path.Count - 2].x + 0.5, st.path[st.path.Count - 2].y + 0.5, false);
+        Assert.AreEqual(OverworldGuide.Verdict.Behind, late.verdict, "他就在门口、你在他家 → 来不及");
+        Assert.AreEqual(OverworldGuide.Verdict.Inside, OverworldGuide.RaceTo(m, r, st.cell, 0, 0, 0, 0, 0, 0, true).verdict);
+        Assert.AreEqual(M, OverworldGuide.MarioAt(m, sc, OverworldMap.DayStart, r.marioSpeed, r.minutesPerSecond).cell);
+        Assert.AreEqual(st.door.n, OverworldGuide.MarioAt(m, sc, (st.arrive + st.leave) / 2, r.marioSpeed, r.minutesPerSecond).insideDoor);
+        var mid = OverworldGuide.MarioAt(m, sc, (st.depart + st.arrive) / 2, r.marioSpeed, r.minutesPerSecond).cell;
+        Assert.IsTrue(st.path.Contains(mid) && !mid.Equals(M) && !mid.Equals(st.cell), "走路途中在路线中间");
+        Assert.AreEqual(M, OverworldGuide.MarioAt(m, sc, OverworldMap.DayEnd, r.marioSpeed, r.minutesPerSecond).cell, "晚上到家");
+    }
+
+    [Test]
+    public void Wiring_S212_GuideRetryAndWorkshop()
+    {
+        string game = Read("Scripts/Overworld/Runtime/OverworldGame.cs"), link = Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs"), tr = Read("Scripts/Overworld/Runtime/SceneTransit.cs");
+        string gm = Read("Scripts/Core/GameManager.cs"), ws = Read("Scripts/Editor/OverworldWorkshopWindow.cs"), lw = Read("Scripts/Editor/LevelWorkshopWindow.cs");
+        StringAssert.Contains("SceneTransit.RevealAt(new Vector3((float)tx, (float)ty, 0), cam);", game);
+        StringAssert.Contains("SnapCamera();", game);
+        StringAssert.Contains("OverworldGuide.RaceTo(", game);
+        StringAssert.Contains("OverworldGuide.EdgeArrow(", game);
+        StringAssert.Contains("Step1Keys.Held(KeyCode.Tab)", game);
+        StringAssert.Contains("gameObject.scene.path", game);
+        StringAssert.Contains("GameManager.RestartOverride = RestartRoom;", link);
+        StringAssert.Contains("if (RestartOverride != null && RestartOverride()) return;", gm);
+        Assert.Less(gm.IndexOf("RestartOverride()"), gm.IndexOf("EditorRestartHandler()"), "小镇房间的重开要在编辑器'退出 Play'之前接管");
+        StringAssert.Contains("plan.Step(Time.unscaledDeltaTime)", tr);
+        StringAssert.Contains("AudioListener.volume", tr);
+        StringAssert.Contains("Resources.UnloadUnusedAssets()", tr);
+        StringAssert.Contains("LevelWorkshopWindow.OpenRoom(d.room)", ws);
+        StringAssert.Contains("OverworldGuide.MarioAt(", ws);
+        StringAssert.Contains("SessionState.SetString(DraftKey", ws);
+        StringAssert.Contains("public static bool OpenRoom(string name)", lw);
     }
 }

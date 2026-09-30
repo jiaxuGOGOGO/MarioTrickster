@@ -124,6 +124,22 @@ public class LevelWorkshopWindow : EditorWindow
         w.Show();
     }
 
+    /// <summary>S212：从小镇工坊的"✎ 编辑房间"跳过来：打开这个门连的房间（关卡库优先，其次内置样板）。改完"存入关卡库"同名覆盖，回小镇 ▶ 时自动重建。</summary>
+    public static bool OpenRoom(string name)
+    {
+        name = (name ?? "").Trim();
+        string text = null;
+        foreach (var (n, path, _) in LevelLibrary.List()) if (n == name) { text = File.ReadAllText(path); break; }
+        if (text == null) { var rows = OverworldBuilder.ResolveRoom(name); if (rows != null) text = string.Join("\n", rows); }
+        if (text == null) return false;
+        Open();
+        var w = GetWindow<LevelWorkshopWindow>("关卡工坊");
+        w.SetSource(text, "Load room " + name);
+        w.libraryName = name;
+        w.ShowNotification(new GUIContent("门连的房间：" + name + "（改完 → 关卡库 → 存入，同名覆盖）"));
+        return true;
+    }
+
     private void OnEnable()
     {
         if (string.IsNullOrEmpty(source)) source = EditorPrefs.GetString(DraftKey, "");

@@ -21,12 +21,32 @@ public sealed class OverworldRoomLink : MonoBehaviour
         manager = GameManager.Instance;
         if (manager != null) { manager.OnGameOver += HandleOver; manager.OnRoundStart += HandleRoundStart; }
         GameManager.BlockRoundOverKeys = () => over; // 回合结束后 R/N 不重开，由这里送回小镇
+        GameManager.RestartOverride = RestartRoom;   // S212：F5 = 平滑重开这个房间（以前会在编辑器里直接退出 Play，小镇进度全丢）
         StartCoroutine(ApplyNextFrame());
+        StartCoroutine(RevealOnYou());
     }
 
     private void OnDestroy()
     {
         if (manager != null) { manager.OnGameOver -= HandleOver; manager.OnRoundStart -= HandleRoundStart; }
+        if (GameManager.RestartOverride == (System.Func<bool>)RestartRoom) GameManager.RestartOverride = null;
+    }
+
+    /// <summary>S212：转场的圆在你（捣蛋者）身上展开——一进门眼睛就知道自己在哪。</summary>
+    private System.Collections.IEnumerator RevealOnYou()
+    {
+        yield return null;
+        var t = FindObjectOfType<TricksterController>();
+        if (t != null) SceneTransit.RevealAt(t.transform.position);
+    }
+
+    /// <summary>结果已经记下 → 不许重开（防止输了就 F5 刷）；还在打 → 同一扇门重来一次（小镇时间、门的顺序都不变）。</summary>
+    private bool RestartRoom()
+    {
+        if (over || SceneTransit.Busy) return true;
+        string here = gameObject.scene.path;
+        if (!SceneTransit.Go(here, Step1Text.OverworldTransitRetry(door))) return false;
+        return true;
     }
 
     private void HandleRoundStart() { if (!over) StartCoroutine(ApplyNextFrame()); }
@@ -67,11 +87,13 @@ public sealed class OverworldRoomLink : MonoBehaviour
     {
         enabled = false;
         GameManager.BlockRoundOverKeys = null;
+        GameManager.RestartOverride = null;
         Time.timeScale = 1f;
         string town = OverworldSession.TownScene;
         if (string.IsNullOrEmpty(town)) return;
         // S211：平滑回小镇；万一没登记到 Build Settings，退回直接加载（至少不会卡在房间里）
-        if (!SceneTransit.Go(town, Step1Text.OverworldTransitToTown(OverworldMap.Clock(OverworldSession.Minute)))) SceneManager.LoadScene(town);
+        var t = FindObjectOfType<TricksterController>(); // S212：圆在你身上收拢，回到小镇在门口展开
+        if (!SceneTransit.Go(town, Step1Text.OverworldTransitToTown(OverworldMap.Clock(OverworldSession.Minute)), t != null ? t.transform.position : (Vector3?)null)) SceneManager.LoadScene(town);
     }
 
     private void OnGUI()

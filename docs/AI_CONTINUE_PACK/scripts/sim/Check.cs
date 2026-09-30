@@ -78,6 +78,23 @@ static class CHECK {
     var q=new SceneTransitPlan(); q.Begin("c"); float t2=0; bool a2=false; while(!a2&&t2<30){ t2+=0.05f; a2=q.Tick(0.05f,false);} if(!a2||t2>q.fadeOutSeconds+q.maxLoadSeconds+0.2f) tb++;
     var r=new SceneTransitPlan(); r.Begin("d"); float t3=0; bool a3=false; while(!a3){ t3+=1f/60; a3=r.Tick(1f/60,true);} r.Activated(); while(r.Busy){ t3+=1f/60; r.Tick(1f/60,true);} 
     Console.WriteLine($"[{(tb==0?"OK":"FAIL")}] S211 场景切换节奏：加载瞬间完成时一次切换 {t3:0.00} 秒；加载卡住 {t2:0.0} 秒后仍会揭幕"); fail+=tb; }
+  // S212：转场缓入缓出 + 卡顿帧不跳；地图指引（边缘箭头、赛跑提示、时间滑条）按日程走；时间滑条与网页 owMarioAt 逐字一致（ow_scrub.json 由 verify.sh 用 node 生成）
+  { int gb=0; var p=new SceneTransitPlan(); p.Begin("x"); p.Tick(1f,true); p.Tick(0.5f,true); p.Activated(); p.Tick(p.Step(0.8f),true); if(p.Alpha<0.5f){ gb++; Console.WriteLine("     [FAIL] 激活卡顿帧让淡入跳了一大截"); }
+    if(SceneTransitPlan.Ease(0.1f)>=0.1f||SceneTransitPlan.Ease(0.9f)<=0.9f) gb++;
+    var ar=OverworldGuide.EdgeArrow(5f,5f); if(ar.onScreen||Math.Abs(ar.x-0.94f)>1e-3||Math.Abs(ar.y-0.94f)>1e-3) { gb++; Console.WriteLine("     [FAIL] 边缘箭头没贴边"); }
+    var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; var r=OverworldMap.Rules.Default; var sc=OverworldMap.Check(m,r).schedule;
+    var T=OverworldMap.Find(m,'T')[0]; var M=OverworldMap.Find(m,'M')[0];
+    var ra=OverworldGuide.RaceTo(m,r,sc.stops[0].cell,sc.stops[0].door.minute,OverworldMap.DayStart,T.x+0.5,T.y+0.5,M.x+0.5,M.y+0.5,false);
+    double lead=OverworldMap.AmbushLead(sc,0,r.minutesPerSecond); if(ra.verdict!=OverworldGuide.Verdict.Ahead||Math.Abs(ra.margin-lead)>0.01){ gb++; Console.WriteLine($"     [FAIL] 赛跑提示 {ra.margin:0.00} 秒 ≠ 检查里的提前量 {lead:0.00} 秒"); }
+    // 时间滑条：每一分钟他都在能走的格子上 / 门里 / 家里，且走路时一步不超过 1 格
+    OverworldMap.Cell prev=M; var lines=new List<string>();
+    for(int t=OverworldMap.DayStart;t<=OverworldMap.DayEnd;t+=1){ var w=OverworldGuide.MarioAt(m,sc,t,r.marioSpeed,r.minutesPerSecond); if(t%20==0) lines.Add(OverworldMap.Clock(t)+" "+w.cell.x+","+w.cell.y+" "+w.what);
+      if(!OverworldMap.Walkable(m,w.cell.x,w.cell.y)){ gb++; Console.WriteLine($"     [FAIL] {OverworldMap.Clock(t)} 他在挡路格 {w.cell}"); break; }
+      if(w.insideDoor==0 && Math.Abs(w.cell.x-prev.x)+Math.Abs(w.cell.y-prev.y)>2 && !w.cell.Equals(M)){ gb++; Console.WriteLine($"     [FAIL] {OverworldMap.Clock(t)} 他瞬移 {prev}→{w.cell}"); break; }
+      prev=w.cell; }
+    var web=File.Exists("ow_scrub.json")? (MiniJson.Parse(File.ReadAllText("ow_scrub.json"),out _) as List<object>)?.Select(x=>(string)x).ToList() : null;
+    bool same=web!=null&&web.SequenceEqual(lines); if(web!=null&&!same){ gb++; foreach(var x in lines.Except(web).Take(3)) Console.WriteLine("       Unity: "+x); foreach(var x in web.Except(lines).Take(3)) Console.WriteLine("       网页: "+x); }
+    Console.WriteLine($"[{(gb==0?"OK":"FAIL")}] S212 转场+地图指引：第一扇门你比他早 {ra.margin:0.0} 秒；时间滑条 {lines.Count} 个时刻{(web==null?"（网页对照跳过）":same?"，网页一致":"，网页不一致")}"); fail+=gb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
  }}

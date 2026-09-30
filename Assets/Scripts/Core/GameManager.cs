@@ -71,6 +71,8 @@ public class GameManager : MonoBehaviour
 #endif
     /// <summary>S181：回合结束后若有问卷正在输入，返回 true 屏蔽 R/N（否则按 N 回答"否"会直接开下一局）。</summary>
     public static System.Func<bool> BlockRoundOverKeys;
+    /// <summary>S212：从小镇进来的房间里按 F5 / 重开 → 由 OverworldRoomLink 平滑重开这个房间（不退出 Play、不丢小镇进度）。返回 true = 已处理。</summary>
+    public static System.Func<bool> RestartOverride;
     public bool ShowResumedHint => false; // 已移除恢复提示功能
 
     // 事件
@@ -307,6 +309,7 @@ public class GameManager : MonoBehaviour
     public void RestartLevel()
     {
         Time.timeScale = 1f;
+        if (RestartOverride != null && RestartOverride()) return;
 #if UNITY_EDITOR
         // [AI防坑警告] 白盒场景可能尚未保存或未加入 Build Settings。
         // 编辑器必须恢复完整编辑态快照，不能用 ResetRound 假装重载（已销毁的金币/敌人无法恢复）。

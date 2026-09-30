@@ -55,7 +55,7 @@ public sealed class OverworldGame : MonoBehaviour
         tuning = MarioMindTuningSO.LoadOrDefault();
         map = OverworldMap.Parse(mapText);
         if (map.W == 0) { enabled = false; Debug.LogError("[Overworld] mapText 为空"); return; }
-        string town = SceneManager.GetActiveScene().path; // S211：完整路径（切换用）
+        string town = gameObject.scene.path; // S211：完整路径（切换用）；S212：用自己所在的场景，不依赖"当前激活场景"
         if (!OverworldSession.Active || OverworldSession.MapName != map.name || OverworldSession.TownScene != town) OverworldSession.NewDay(map.name, town);
         OverworldSession.Active = true;
         for (int i = 0; i < doorNumbers.Length && i < doorScenes.Length; i++) OverworldSession.RoomScenes[doorNumbers[i]] = doorScenes[i];
@@ -79,6 +79,8 @@ public sealed class OverworldGame : MonoBehaviour
         dayOver = OverworldSession.DayOver;
         helpOpen = !helpSeenThisPlay; helpSeenThisPlay = true;
         BuildVisuals();
+        UpdateVisuals(); SnapCamera(); // S212：镜头直接就位（以前从默认位置滑过来，揭幕时画面在"飘"）
+        SceneTransit.RevealAt(new Vector3((float)tx, (float)ty, 0), cam); // 转场的圆在你身上展开
     }
 
     // ═════════════════════ 每帧 ═════════════════════
@@ -199,8 +201,8 @@ public sealed class OverworldGame : MonoBehaviour
         OverworldSession.MarioX = c.x + 0.5; OverworldSession.MarioY = c.y + 0.5;
         OverworldSession.TricksterX = below.x + 0.5; OverworldSession.TricksterY = below.y + 0.5;
         OverworldSession.HasPositions = true;
-        // S211：淡出 → 标题卡 → 后台加载 → 淡入（SceneTransit）
-        SceneTransit.Go(scene, Step1Text.OverworldTransitToRoom(d.n, d.room, outcome));
+        // S211：淡出 → 标题卡 → 后台加载 → 淡入（SceneTransit）；S212：圆从这扇门收拢
+        SceneTransit.Go(scene, Step1Text.OverworldTransitToRoom(d.n, d.room, outcome), new Vector3(c.x + 0.5f, c.y + 0.75f, 0));
     }
 
     private void MarioUpdate(float dt)
@@ -412,11 +414,146 @@ public sealed class OverworldGame : MonoBehaviour
         }
         UpdateCone();
 
-        // 镜头跟你，夹在地图内
+        // 镜头跟你，夹在地图内。S212：按时间平滑（和帧率无关），切换中直接跟住
+        var goal = CameraGoal();
+        float k = SceneTransit.Busy ? 1f : 1f - Mathf.Exp(-12f * Time.unscaledDeltaTime);
+        cam.transform.position = Vector3.Lerp(cam.transform.position, goal, k);
+        GuideTick();
+    }
+
+    private Vector3 CameraGoal()
+    {
         float halfH = cam.orthographicSize, halfW = halfH * cam.aspect;
         float cx = Mathf.Clamp((float)tx, Mathf.Min(halfW, map.W / 2f), Mathf.Max(map.W - halfW, map.W / 2f));
         float cy = Mathf.Clamp((float)ty, Mathf.Min(halfH, map.H / 2f), Mathf.Max(map.H - halfH, map.H / 2f));
-        cam.transform.position = Vector3.Lerp(cam.transform.position, new Vector3(cx, cy, -10f), 0.2f);
+        return new Vector3(cx, cy, -10f);
+    }
+
+    private void SnapCamera() { if (cam != null) cam.transform.position = CameraGoal(); }
+
+    // ═════════════════════ S212 地图指引 ═════════════════════
+    private OverworldGuide.Race race;
+    private float raceAt = -1f;
+    private List<OverworldMap.Cell> trail;
+    private bool showTrail, showMinimap;
+    private Texture2D minimap;
+
+    private void GuideTick()
+    {
+        if (map == null || dayOver) return;
+        showTrail = Step1Keys.Held(KeyCode.Tab) && !helpOpen;
+        if (Step1Keys.Down(KeyCode.M) && !SceneTransit.Busy) showMinimap = !showMinimap;
+        if (Time.unscaledTime < raceAt) return;
+        raceAt = Time.unscaledTime + 0.25f; // 4 次/秒就够（寻路很便宜，但没必要每帧）
+        var next = NextStop;
+        if (next == null || !doorCells.TryGetValue(next.n, out var dc)) { race = default; trail = null; return; }
+        var r = OverworldBuilderRules();
+        race = OverworldGuide.RaceTo(map, r, dc, next.minute, OverworldSession.Minute, tx, ty, mario.x, mario.y, marioInside);
+        trail = OverworldMap.Path(map, OverworldGuide.Near(map, tx, ty), dc);
+    }
+
+    private OverworldMap.Rules OverworldBuilderRules() => new OverworldMap.Rules
+    {
+        marioSpeed = tuning.overworldMarioSpeed, tricksterSpeed = tuning.overworldTricksterSpeed,
+        minutesPerSecond = tuning.overworldMinutesPerSecond, visitMinutes = tuning.overworldVisitMinutes,
+    };
+
+    private void GuideGUI(GUIStyle box)
+    {
+        if (dayOver || helpOpen) return;
+        var next = NextStop;
+        // 赛跑提示（左上"下一站"下面）
+        string rl = Step1Text.OverworldRace(race);
+        if (rl.Length > 0)
+        {
+            var old = GUI.backgroundColor;
+            GUI.backgroundColor = race.verdict == OverworldGuide.Verdict.Ahead ? new Color(0.5f, 1f, 0.5f) : race.verdict == OverworldGuide.Verdict.Behind ? new Color(1f, 0.5f, 0.5f) : new Color(1f, 0.9f, 0.4f);
+            GUI.Box(new Rect(10, 66, 340, 28), rl, box);
+            GUI.backgroundColor = old;
+        }
+        GUI.Label(new Rect(10, 98, 340, 22), Step1Text.OverworldGuideKeys, Step1Gui.Text(13));
+        if (next == null || !doorCells.TryGetValue(next.n, out var dc)) return;
+        // 门头上的倒计时（门在屏幕里才画）
+        foreach (var d in stops)
+        {
+            if (OverworldSession.ResultOf(d.n) != OverworldSession.DoorResult.NotYet || !doorCells.TryGetValue(d.n, out var c)) continue;
+            var sp = cam.WorldToScreenPoint(new Vector3(c.x + 0.5f, c.y + 1.3f, 0));
+            if (sp.z < 0 || sp.x < 0 || sp.x > Screen.width || sp.y < 0 || sp.y > Screen.height) continue;
+            double secs = (d.minute - OverworldSession.Minute) / Mathf.Max(0.01f, tuning.overworldMinutesPerSecond);
+            string label = d.n == next.n ? Step1Text.OverworldDoorCountdown(d.n, secs) : "门 " + d.n + " · " + OverworldMap.Clock(d.minute);
+            GUI.Label(new Rect(sp.x - 80, Screen.height - sp.y - 12, 160, 24), label, Step1Gui.Text(d.n == next.n ? 15 : 12, TextAnchor.MiddleCenter));
+        }
+        // 屏幕边缘箭头 → 下一扇门（门在屏幕里就不画）
+        var vp = cam.WorldToViewportPoint(new Vector3(dc.x + 0.5f, dc.y + 0.5f, 0));
+        var a = OverworldGuide.EdgeArrow(vp.x, vp.y, 0.06f, vp.z < 0);
+        if (!a.onScreen)
+        {
+            var at = new Vector2(a.x * Screen.width, (1f - a.y) * Screen.height);
+            var m = GUI.matrix;
+            GUIUtility.RotateAroundPivot(-a.angleDeg, at);
+            if (arrowTex == null) arrowTex = MakeArrow(32); // 自己画的三角（默认字体不一定有 ➤ 这个字）
+            GUI.color = race.verdict == OverworldGuide.Verdict.Behind ? new Color(1f, 0.45f, 0.4f) : new Color(1f, 0.55f, 0.85f);
+            GUI.DrawTexture(new Rect(at.x - 18, at.y - 18, 36, 36), arrowTex);
+            GUI.matrix = m;
+            GUI.color = Color.white;
+            GUI.Label(new Rect(at.x - 30, at.y + (a.y < 0.5f ? -44 : 18), 60, 22), "门 " + next.n, Step1Gui.Text(13, TextAnchor.MiddleCenter));
+        }
+        // 按住 Tab：面包屑（你 → 下一扇门的最短路）
+        if (showTrail && trail != null)
+        {
+            GUI.color = new Color(1f, 0.55f, 0.85f, 0.9f);
+            for (int i = 1; i < trail.Count; i += 1)
+            {
+                var p = cam.WorldToScreenPoint(new Vector3(trail[i].x + 0.5f, trail[i].y + 0.5f, 0));
+                float s = i == trail.Count - 1 ? 14f : 7f;
+                GUI.DrawTexture(new Rect(p.x - s / 2, Screen.height - p.y - s / 2, s, s), nightTex);
+            }
+            GUI.color = Color.white;
+        }
+        if (showMinimap) MinimapGUI(dc);
+    }
+
+    private Texture2D arrowTex;
+    /// <summary>朝右的实心三角（白色，画的时候用 GUI.color 染色），边缘抗锯齿。</summary>
+    private static Texture2D MakeArrow(int n)
+    {
+        var t = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        var px = new Color[n * n];
+        for (int y = 0; y < n; y++) for (int x = 0; x < n; x++)
+        {
+            float u = (x + 0.5f) / n, v = Mathf.Abs((y + 0.5f) / n - 0.5f) * 2f; // v：离中线多远 0..1
+            float edge = (1f - u) - v * 0.95f;                                    // 三角：尖在右边
+            px[y * n + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(edge * n * 0.5f) * (u > 0.08f ? 1f : 0f));
+        }
+        t.SetPixels(px); t.Apply();
+        return t;
+    }
+
+    private void MinimapGUI(OverworldMap.Cell dc)
+    {
+        if (minimap == null)
+        {
+            minimap = new Texture2D(map.W, map.H) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < map.H; y++) for (int x = 0; x < map.W; x++)
+            {
+                var t = OverworldCatalog.Get(map.At(x, y)) ?? OverworldCatalog.Get('.');
+                minimap.SetPixel(x, y, new Color(t.r, t.g, t.b));
+            }
+            minimap.Apply();
+        }
+        float cell = Mathf.Floor(Mathf.Min(Screen.width * 0.6f / map.W, Screen.height * 0.6f / map.H));
+        float w = cell * map.W, h = cell * map.H, x0 = (Screen.width - w) / 2f, y0 = (Screen.height - h) / 2f;
+        GUI.Box(new Rect(x0 - 8, y0 - 32, w + 16, h + 40), Step1Text.OverworldMinimapTitle);
+        GUI.DrawTexture(new Rect(x0, y0, w, h), minimap);
+        void Dot(double wx, double wy, Color c, float s)
+        {
+            GUI.color = c;
+            GUI.DrawTexture(new Rect(x0 + (float)wx * cell - s / 2, y0 + (map.H - (float)wy) * cell - s / 2, s, s), nightTex);
+        }
+        Dot(dc.x + 0.5, dc.y + 0.5, new Color(1f, 0.4f, 0.8f), cell * 1.6f);
+        if (!marioInside) Dot(mario.x, mario.y, new Color(0.95f, 0.15f, 0.15f), cell * 1.2f);
+        Dot(tx, ty, new Color(0.25f, 0.5f, 1f), cell * 1.2f);
+        GUI.color = Color.white;
     }
 
     private void UpdateCone()
@@ -475,6 +612,7 @@ public sealed class OverworldGame : MonoBehaviour
         // 门口提示
         if (next != null && doorCells.TryGetValue(next.n, out var dc) && Dist(dc.x + 0.5, dc.y + 0.5, tx, ty) <= 1.3f && !dayOver)
             GUI.Box(new Rect(Screen.width / 2f - 160, Screen.height - 100, 320, 56), marioInside ? Step1Text.OverworldLateHint : Step1Text.OverworldAmbushHint, big);
+        GuideGUI(box);
         if (Time.unscaledTime < hintUntil) GUI.Box(new Rect(Screen.width / 2f - 220, 70, 440, 56), hint, big);
         if (helpOpen) GUI.Box(new Rect(Screen.width / 2f - 330, Screen.height / 2f - 150, 660, 300), Step1Text.OverworldHelp, box);
         if (dayOver) GUI.Box(new Rect(Screen.width / 2f - 280, Screen.height / 2f - 90, 560, 180), OverworldSession.Summary(stops.Count), big);

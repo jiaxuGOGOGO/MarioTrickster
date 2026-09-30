@@ -66,6 +66,7 @@ public static class Step1Keys
             case KeyCode.D: return kb.dKey.isPressed;
             case KeyCode.W: return kb.wKey.isPressed;
             case KeyCode.S: return kb.sKey.isPressed;
+            case KeyCode.Tab: return kb.tabKey.isPressed; // S212：按住看去门的路线
             default: return false;
         }
     }

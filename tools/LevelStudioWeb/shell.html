@@ -162,7 +162,10 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 .ow .pal{grid-template-columns:1fr}
 .owwrap{overflow:auto;max-height:74vh;border:1px solid var(--line);border-radius:10px;background:#0f1a10}
 #owCanvas{display:block;image-rendering:pixelated;cursor:crosshair}
-.owdoor{display:grid;grid-template-columns:44px 72px 1fr;gap:6px;align-items:center;margin:4px 0}
+.owdoor{display:grid;grid-template-columns:44px 64px 1fr 26px 26px;gap:6px;align-items:center;margin:4px 0}
+.owdoor button{padding:3px 0}
+.owiss.loc{cursor:pointer}.owiss.loc:hover{background:var(--line)}
+.owwrap.drop{outline:2px dashed var(--loot);outline-offset:-4px}
 .owdoor input,.owdoor select{background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;min-width:0}
 .owiss{font-size:12.5px;margin:3px 0;padding:5px 8px;border-radius:6px;background:var(--ink);border-left:3px solid var(--dim)}
 .owiss.Error{border-color:var(--bad)}.owiss.Warn{border-color:var(--warn)}.owiss.Info{border-color:var(--trick)}
@@ -295,13 +298,17 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
         <button class="btn small" data-owtool="brush">✎ 画笔</button>
         <button class="btn small" data-owtool="rect">▭ 矩形</button>
         <button class="btn small" data-owtool="fill">▦ 填充</button>
-        <button class="btn small" id="owUndo">撤销</button>
+        <button class="btn small" data-owtool="pick" title="I（或按住 Alt 点一下）">◉ 吸管</button>
+        <button class="btn small" id="owUndo" title="Ctrl+Z">↶</button>
+        <button class="btn small" id="owRedo" title="Ctrl+Y">↷</button>
         <label class="toggle"><input type="checkbox" id="owRoute" checked> 路线</label>
         <label class="toggle"><input type="checkbox" id="owNight"> 夜晚视野</label>
         <input type="range" id="owZoom" min="8" max="28" value="16" style="width:80px">
       </div>
-      <div class="owwrap"><canvas id="owCanvas"></canvas></div>
-      <p class="hint">左键画，右键擦成草地。M = 马里奥的家，T = 你的出生点，1–9 = 门（画在房子最下面一排的下方一格）。</p>
+      <div class="owwrap" id="owWrap"><canvas id="owCanvas"></canvas></div>
+      <p class="hint" id="owHover" style="font-family:var(--mono)"></p>
+      <p class="hint">左键画，右键擦成草地。M = 马里奥的家，T = 你的出生点，1–9 = 门（画在房子最下面一排的下方一格）。<br>
+      快捷键（和 Unity 小镇工坊一样）：B 画笔 R 矩形 F 填充 I 吸管（Alt+点）· 1–9 门 · Ctrl+Z/Y · Ctrl+滚轮缩放 · Ctrl+C 复制整张小镇 / Ctrl+V 贴入（Unity 小镇工坊里同样 Ctrl+C/V）· 文件直接拖进画布导入</p>
     </div>
     <div class="card">
       <label class="f">名字<input class="f" id="owName"></label>
@@ -312,6 +319,9 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <div id="owIssues"></div>
       <h3>马里奥的一天</h3>
       <div class="owsched" id="owSched"></div>
+      <label class="toggle" style="margin-top:8px"><input type="checkbox" id="owScrubOn"> ⏱ 时间滑条（看他几点在哪）</label>
+      <input type="range" id="owScrub" min="360" max="1320" value="480" step="1" style="width:100%" disabled>
+      <div class="owsched" id="owScrubTxt"></div>
       <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:6px">
         <button class="btn gold" id="owPack" title="所有横版关卡 + 所有小镇，一个文件。Unity：小镇工坊 → 导入">导出关卡包 .json</button>
         <button class="btn" id="owTxt" title="只导出当前小镇（Unity 小镇工坊可导入）">导出小镇 .txt</button>

@@ -159,3 +159,18 @@ const OW_TILED_DEFAULT = { 0: '.', 1: '.', 2: '=', 3: 'W', 4: 't', 5: 'w', 6: 'f
 function owFromNumbers(nums, map) { map = map || OW_TILED_DEFAULT; return nums.map(r => r.map(v => map[v] !== undefined ? map[v] : '.').join('')); }
 
 if (typeof module !== 'undefined') module.exports = { OW, owParse, owToText, owFromJson, owToJson, owCheck, owSchedule, owPath, owLead, owClock, owNewMap, owIssueText, owFind, owAt, owTile };
+// ── S212 时间滑条：某一分钟马里奥（无人捣乱时）在哪 —— 逐行移植 OverworldGuide.MarioAt / Along（verify.sh 逐项对照）──
+function owAlong(m, p, seconds, speed) { if (!p || !p.length) return [0, 0]; let t = 0; for (let i = 1; i < p.length; i++) { t += 1.0 / (speed * owSpeed(owAt(m, p[i][0], p[i][1]))); if (t > seconds + 1e-9) return p[i - 1]; } return p[p.length - 1]; }
+function owMarioAt(m, sc, minute, speed, mps) {
+  const home = owFind(m, 'M'); const w = { cell: home.length ? home[0] : [0, 0], insideDoor: 0, what: '在家' };
+  if (!sc) return w; let at = w.cell, atWhat = '在家';
+  for (const s of sc.stops) {
+    if (minute < s.depart) { w.cell = at; w.what = atWhat === '在家' ? `在家（${owClock(s.depart)} 出发去门 ${s.door.n}）` : atWhat; return w; }
+    if (minute < s.arrive) { w.cell = owAlong(m, s.path, (minute - s.depart) / mps, speed); w.what = `走向门 ${s.door.n}（${owClock(s.arrive)} 到）`; return w; }
+    if (minute < s.leave) { w.cell = s.cell; w.insideDoor = s.door.n; w.what = `在门 ${s.door.n} 里面偷东西（${owClock(s.leave)} 出来）`; return w; }
+    at = s.cell; atWhat = `刚从门 ${s.door.n} 出来`;
+  }
+  const homeDepart = sc.stops.length ? sc.stops[sc.stops.length - 1].leave : OW.DayStart;
+  if (sc.homePath && minute < sc.homeArrive && minute >= homeDepart) { w.cell = owAlong(m, sc.homePath, (minute - homeDepart) / mps, speed); w.what = `回家路上（${owClock(sc.homeArrive)} 到家）`; return w; }
+  w.cell = home.length ? home[0] : at; w.what = '到家了'; return w;
+}

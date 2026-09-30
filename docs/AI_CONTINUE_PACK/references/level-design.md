@@ -48,4 +48,5 @@
 - 格子只能用 OverworldCatalog 的 15 种（和房间字符表**分开**）。门 1–9 画在房子墙面下方一格；房间名先找关卡库同名，再找 `LevelWorkshopModel.SampleRooms` / 默认房间。
 - 检查 `OverworldMap.Check`（网页 `owCheck` 同文字）；无人捣乱一天 `OverworldWalker.SimulateDay`。改检查文字要两边一起改，verify 会逐字对照。
 - 新样板小镇：写进 `OverworldPack`，build.py 自动读。
+- S212 小镇工坊快捷键（网页同）：B R F E I、Alt+点吸管、1–9 门、Ctrl+Z/Y、Ctrl+S、F5、Ctrl+滚轮、中键拖、Ctrl+C/V 与网页互通；门行 ◎ 定位 / ✎ 打开房间；⏱ 时间滑条。
 - 一键试玩 `OverworldBuilder.BuildAll`：每门一个 `Assets/Scenes/Overworld/Room_N.unity`（带 OverworldRoomLink）+ `Town.unity`，登记 Build Settings。

@@ -544,6 +544,7 @@ $('#btnUndo').onclick = () => { if (!undo.length) return; redo.push(JSON.stringi
 $('#btnRedo').onclick = () => { if (!redo.length) return; undo.push(JSON.stringify(S.grid)); S.grid = JSON.parse(redo.pop()); syncInputs(); recheck(true); };
 window.addEventListener('keydown', e => {
   if (e.target.matches('input,textarea,select')) return;
+  if ($('#pageOverworld').classList.contains('on')) { owKey(e); return; } // S212：大地图页有自己的快捷键（和 Unity 小镇工坊一样）
   if (S.tool === 'move' && moveKey(e)) { e.preventDefault(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('#btnUndo').click(); }
   else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); $('#btnRedo').click(); }
@@ -602,7 +603,7 @@ if (S.firstRun) setTimeout(openWizard, 300);
 
 // ── S210 大地图（星露谷视角小镇）─────────────────────────
 const LSOW = 'mariotrickster.studio.overworld.v1';
-let OWLIB = [], OWCUR = 0, OWT = { brush: '=', tool: 'brush', zoom: 16, drag: null, undo: [], rep: null };
+let OWLIB = [], OWCUR = 0, OWT = { brush: '=', tool: 'brush', zoom: 16, drag: null, undo: [], redo: [], rep: null, hover: null, flash: null, scrub: -1 };
 try { const d = JSON.parse(localStorage.getItem(LSOW) || 'null'); if (d && d.lib && d.lib.length) { OWLIB = d.lib.map(owFromJson); OWCUR = Math.min(d.cur | 0, OWLIB.length - 1); } } catch (e) { }
 if (!OWLIB.length) OWLIB = [owParse(OW_SAMPLE)];
 const owM = () => OWLIB[OWCUR];
@@ -660,19 +661,55 @@ function owRender() {
   for (const d of m.doors) {
     const row = document.createElement('div'); row.className = 'owdoor';
     const opts = (rooms.includes(d.room) ? rooms : rooms.concat([d.room])).map(r => `<option${r === d.room ? ' selected' : ''}>${r.replace(/</g, '&lt;')}</option>`).join('');
-    row.innerHTML = `<b>门 ${d.n}</b><input value="${owClock(d.minute)}" aria-label="门 ${d.n} 时间"><select aria-label="门 ${d.n} 房间">${opts}</select>`;
+    row.innerHTML = `<b>门 ${d.n}</b><input value="${owClock(d.minute)}" aria-label="门 ${d.n} 时间"><select aria-label="门 ${d.n} 房间">${opts}</select><button class="btn small" data-loc title="在画布上找到门 ${d.n}">◎</button><button class="btn small" data-edit title="去'画关卡'页打开这个房间来改">✎</button>`;
+    row.querySelector('[data-loc]').onclick = () => { const c = owFind(m, String(d.n))[0]; if (c) owLocate(c[0], c[1]); };
+    row.querySelector('[data-edit]').onclick = () => owEditRoom(d.room);
     row.querySelector('input').onchange = e => { const v = owParseClock(e.target.value); if (v === null) { toast('时间格式：08:30'); e.target.value = owClock(d.minute); return; } owPush(); d.minute = v; owRender(); };
     row.querySelector('select').onchange = e => { owPush(); d.room = e.target.value; owRender(); };
     $('#owDoors').appendChild(row);
   }
   const rep = OWT.rep = owCheck(m, OW.Rules, owRoomOk);
   $('#owHead').textContent = '检查　' + rep.headline; $('#owHead').style.color = rep.playable ? 'var(--ok)' : 'var(--bad)';
-  $('#owIssues').innerHTML = rep.issues.map(i => `<div class="owiss ${i.sev}">${owIssueText(i).replace(/</g, '&lt;')}</div>`).join('') || '<p class="hint">没有问题。</p>';
+  $('#owIssues').innerHTML = rep.issues.map((i, k) => `<div class="owiss ${i.sev}${i.x >= 0 ? ' loc' : ''}" data-k="${k}" title="${i.x >= 0 ? '点一下：画布上闪出这一格' : ''}">${owIssueText(i).replace(/</g, '&lt;')}</div>`).join('') || '<p class="hint">没有问题。</p>';
+  $('#owIssues').querySelectorAll('.loc').forEach(el => el.onclick = () => { const i = rep.issues[+el.dataset.k]; owLocate(i.x, i.y); });
   const sc = rep.schedule;
   $('#owSched').innerHTML = sc ? sc.stops.map((s, k) => `门 ${s.door.n}：${owClock(s.depart)} 出发 → ${owClock(s.arrive)} 到 → ${owClock(s.leave)} 出来　你能提前 ${Math.round(owLead(sc, k, OW.Rules.minutesPerSecond))} 秒`).join('<br>') + `<br>${owClock(sc.homeArrive)} 到家` : '（先把检查里的红色问题改掉）';
-  owPalette(); owDraw(); owSave();
+  owScrubText(); owPalette(); owDraw(); owSave();
 }
-function owPush() { OWT.undo.push(JSON.stringify(owToJson(owM()))); if (OWT.undo.length > 60) OWT.undo.shift(); }
+function owPush() { OWT.redo = []; OWT.undo.push(JSON.stringify(owToJson(owM()))); if (OWT.undo.length > 60) OWT.undo.shift(); }
+// ── S212：定位 / 编辑房间 / 时间滑条 / 撤销重做 ──
+function owLocate(x, y) {
+  if (x < 0) return; const wrap = $('#owWrap'), z = OWT.zoom, h = owM().rows.length;
+  wrap.scrollTo({ left: x * z - wrap.clientWidth / 2, top: (h - 1 - y) * z - wrap.clientHeight / 2, behavior: 'smooth' });
+  OWT.flash = [x, y, performance.now() + 1500]; (function blink() { owDraw(); if (OWT.flash && performance.now() < OWT.flash[2]) requestAnimationFrame(blink); else { OWT.flash = null; owDraw(); } })();
+}
+function owEditRoom(name) {
+  let l = LIB.find(x => x.name === name);
+  if (!l) { const g = owRoomGrid(name); if (!g) { toast('找不到房间"' + name + '"'); return; } storeCurrent(); l = { id: newId(), name, goal: '', grid: g.slice(), notes: [] }; LIB.push(l); toast(`内置样板"${name}"复制进了关卡库（同名：导入 Unity 后门会用你改过的这份）`); }
+  openLevel(l.id); document.querySelector('[data-page=design]').click(); save();
+}
+function owScrubText() {
+  const on = $('#owScrubOn').checked, sc = OWT.rep && OWT.rep.schedule; $('#owScrub').disabled = !on || !sc;
+  OWT.scrub = on && sc ? +$('#owScrub').value : -1;
+  $('#owScrubTxt').textContent = OWT.scrub >= 0 ? `${owClock(OWT.scrub)}　${owMarioAt(owM(), sc, OWT.scrub, OW.Rules.marioSpeed, OW.Rules.minutesPerSecond).what}` : '';
+}
+function owUndo() { if (!OWT.undo.length) return; OWT.redo.push(JSON.stringify(owToJson(owM()))); OWLIB[OWCUR] = owFromJson(JSON.parse(OWT.undo.pop())); owRender(); }
+function owRedo() { if (!OWT.redo.length) return; OWT.undo.push(JSON.stringify(owToJson(owM()))); OWLIB[OWCUR] = owFromJson(JSON.parse(OWT.redo.pop())); owRender(); }
+function owPasteText(t) {
+  let m = null; try { if (/^# Overworld:/m.test(t)) m = owParse(t); else { const d = JSON.parse(t); const l = (d.overworlds || []).concat((d.levels || []).filter(x => x.kind === 'overworld')); if (l.length) m = owFromJson(l[0]); else if (d.kind === 'overworld') m = owFromJson(d); } } catch (e) { }
+  if (!m || !m.rows.length) { toast('剪贴板里不是小镇（Unity 小镇工坊里 Ctrl+C 复制）'); return; }
+  owPush(); OWLIB[OWCUR] = m; owRender(); toast(`贴入了小镇"${m.name}"（Ctrl+Z 撤销）`);
+}
+function owKey(e) {
+  const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && k === 'z') { e.preventDefault(); e.shiftKey ? owRedo() : owUndo(); return; }
+  if (ctrl && k === 'y') { e.preventDefault(); owRedo(); return; }
+  if (ctrl && k === 'c') { e.preventDefault(); navigator.clipboard && navigator.clipboard.writeText(owToText(owM())).then(() => toast('已复制整张小镇（Unity 小镇工坊里 Ctrl+V 贴入）'), () => toast('浏览器不让复制：用"导出小镇 .txt"')); return; }
+  if (ctrl || e.altKey) return;
+  const t = { b: 'brush', r: 'rect', f: 'fill', i: 'pick' }[k];
+  if (t) { OWT.tool = t; owPalette(); return; }
+  if (k >= '1' && k <= '9') { OWT.brush = k; if (OWT.tool === 'pick') OWT.tool = 'brush'; owPalette(); }
+}
 function owDraw() {
   const m = owM(), z = OWT.zoom, w = owW(m), h = m.rows.length, cv = $('#owCanvas'), g = cv.getContext('2d');
   cv.width = w * z; cv.height = h * z;
@@ -695,25 +732,43 @@ function owDraw() {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!lamps.some(([lx, ly]) => (lx - x) ** 2 + (ly - y) ** 2 <= 9)) { g.fillStyle = 'rgba(10,15,50,.5)'; g.fillRect(x * z, (h - 1 - y) * z, z, z); }
   }
   for (const n of m.notes) { g.fillStyle = '#ffc83d'; g.fillText('✎', n.x * z + z / 2, (h - 1 - n.y) * z + z / 2); }
+  const hv = OWT.hover;
+  if (OWT.drag && hv) { const a = OWT.drag, x0 = Math.min(a[0], hv[0]), x1 = Math.max(a[0], hv[0]), y0 = Math.min(a[1], hv[1]), y1 = Math.max(a[1], hv[1]); const t = owTile(OWT.brush); g.globalAlpha = .55; g.fillStyle = t ? owCss(t) : '#fff'; g.fillRect(x0 * z, (h - 1 - y1) * z, (x1 - x0 + 1) * z, (y1 - y0 + 1) * z); g.globalAlpha = 1; g.fillStyle = '#fff'; g.font = `700 12px JetBrains Mono,monospace`; g.textAlign = 'left'; g.fillText(`${x1 - x0 + 1}×${y1 - y0 + 1}`, (x1 + 1) * z + 3, (h - y0) * z); }
+  if (hv) { g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1; g.strokeRect(hv[0] * z + .5, (h - 1 - hv[1]) * z + .5, z - 2, z - 2); }
+  if (OWT.flash && Math.floor(performance.now() / 160) % 2 === 0) { g.strokeStyle = '#ffe14d'; g.lineWidth = 3; g.strokeRect(OWT.flash[0] * z - 3, (h - 1 - OWT.flash[1]) * z - 3, z + 5, z + 5); }
+  if (OWT.scrub >= 0 && sc) { const wh = owMarioAt(m, sc, OWT.scrub, OW.Rules.marioSpeed, OW.Rules.minutesPerSecond); g.fillStyle = 'rgba(240,25,25,.9)'; g.fillRect(wh.cell[0] * z - z * .2, (h - 1 - wh.cell[1]) * z - z * .2, z * 1.4, z * 1.4); g.fillStyle = '#fff'; g.font = `700 ${Math.round(z * .7)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.fillText('M', wh.cell[0] * z + z / 2, (h - 1 - wh.cell[1]) * z + z / 2 + 1); }
 }
+function owHoverText() { const hv = OWT.hover; if (!hv) return 'B 画笔 R 矩形 F 填充 I 吸管 · 1–9 门 · Ctrl+Z/Y · Ctrl+滚轮缩放 · Ctrl+C/V 和 Unity 互相复制'; const m = owM(), c = owAt(m, hv[0], hv[1]), t = owTile(c); let s = `(${hv[0]},${hv[1]}) ${c} ${t ? t.zh : '?'}`; if (owIsDoor(c)) { const d = m.doors.find(d => d.n === +c); if (d) s += ` · ${owClock(d.minute)} → ${d.room}`; } return s; }
 function owCell(e) { const cv = $('#owCanvas'), r = cv.getBoundingClientRect(), m = owM(), z = OWT.zoom; const x = Math.floor((e.clientX - r.left) / z), y = m.rows.length - 1 - Math.floor((e.clientY - r.top) / z); return x >= 0 && y >= 0 && x < owW(m) && y < m.rows.length ? [x, y] : null; }
 $('#owCanvas').oncontextmenu = e => e.preventDefault();
 $('#owCanvas').onmousedown = e => {
-  const c = owCell(e); if (!c) return; const paint = e.button === 2 ? '.' : OWT.brush; owPush();
+  const c = owCell(e); if (!c) return;
+  if (e.button === 0 && (OWT.tool === 'pick' || e.altKey)) { OWT.brush = owAt(owM(), c[0], c[1]); if (OWT.tool === 'pick') OWT.tool = 'brush'; owPalette(); toast('吸管：' + OWT.brush + ' ' + (owTile(OWT.brush) || {}).zh); return; }
+  const paint = e.button === 2 ? '.' : OWT.brush; owPush();
   if (OWT.tool === 'rect' && e.button === 0) { OWT.drag = c; return; }
   if (OWT.tool === 'fill' && e.button === 0) { owFlood(owM(), c[0], c[1], paint); owRender(); return; }
   owSet(owM(), c[0], c[1], paint); OWT.painting = paint; owRender();
 };
+$('#owCanvas').onmouseleave = () => { OWT.hover = null; $('#owHover').textContent = owHoverText(); owDraw(); };
+$('#owCanvas').addEventListener('mousemove', e => { const c = owCell(e); if (String(c) !== String(OWT.hover)) { OWT.hover = c; $('#owHover').textContent = owHoverText(); if (!OWT.painting) owDraw(); } });
+$('#owWrap').addEventListener('wheel', e => { if (!e.ctrlKey && !e.metaKey) return; e.preventDefault(); OWT.zoom = Math.max(8, Math.min(40, Math.round(OWT.zoom * (e.deltaY > 0 ? 0.9 : 1.1)))); $('#owZoom').value = OWT.zoom; owDraw(); }, { passive: false });
+$('#owWrap').addEventListener('dragover', e => { e.preventDefault(); $('#owWrap').classList.add('drop'); });
+$('#owWrap').addEventListener('dragleave', () => $('#owWrap').classList.remove('drop'));
+$('#owWrap').addEventListener('drop', e => { e.preventDefault(); $('#owWrap').classList.remove('drop'); const f = e.dataTransfer.files[0]; if (!f) return; const dt = new DataTransfer(); dt.items.add(f); $('#fileIn').files = dt.files; $('#fileIn').onchange({ target: $('#fileIn') }); });
+window.addEventListener('paste', e => { if (!$('#pageOverworld').classList.contains('on') || e.target.matches('input,textarea')) return; e.preventDefault(); owPasteText(e.clipboardData.getData('text')); });
+$('#owScrubOn').onchange = () => { owScrubText(); owDraw(); };
+$('#owScrub').oninput = () => { owScrubText(); owDraw(); };
+$('#owRedo').onclick = owRedo;
 $('#owCanvas').onmousemove = e => { if (!OWT.painting || OWT.tool !== 'brush' && OWT.painting !== '.') return; const c = owCell(e); if (c && owAt(owM(), c[0], c[1]) !== OWT.painting) { owSet(owM(), c[0], c[1], OWT.painting); owRender(); } };
 window.addEventListener('mouseup', e => {
   if (OWT.drag) { const c = owCell(e) || OWT.drag, a = OWT.drag; OWT.drag = null; for (let x = Math.min(a[0], c[0]); x <= Math.max(a[0], c[0]); x++) for (let y = Math.min(a[1], c[1]); y <= Math.max(a[1], c[1]); y++) owSet(owM(), x, y, OWT.brush); owRender(); }
   OWT.painting = null;
 });
 document.querySelectorAll('[data-owtool]').forEach(b => b.onclick = () => { OWT.tool = b.dataset.owtool; owPalette(); });
-$('#owUndo').onclick = () => { if (!OWT.undo.length) return; OWLIB[OWCUR] = owFromJson(JSON.parse(OWT.undo.pop())); owRender(); };
+$('#owUndo').onclick = owUndo;
 $('#owZoom').oninput = e => { OWT.zoom = +e.target.value; owDraw(); };
 $('#owRoute').onchange = owDraw; $('#owNight').onchange = owDraw;
-$('#owPick').onchange = e => { OWCUR = +e.target.value; OWT.undo = []; owRender(); };
+$('#owPick').onchange = e => { OWCUR = +e.target.value; OWT.undo = []; OWT.redo = []; owRender(); };
 $('#owName').onchange = e => { owM().name = e.target.value.trim() || '未命名小镇'; owRender(); };
 $('#owGoal').onchange = e => { owM().goal = e.target.value.trim(); owSave(); };
 $('#owNew').onclick = () => { OWLIB.push({ kind: 'overworld', name: '新小镇 ' + (OWLIB.length + 1), goal: '', id: '', rows: owNewMap(40, 24), doors: [], notes: [] }); OWCUR = OWLIB.length - 1; OWT.undo = []; owRender(); toast('新建 40×24：先画家 M、出生点 T、至少一扇门'); };

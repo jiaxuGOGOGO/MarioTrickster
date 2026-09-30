@@ -30,5 +30,12 @@ const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ─�
 const dump=m=>{const r=X.owCheck(m);const o=r.issues.map(i=>i.sev+' '+X.owIssueText(i));if(r.schedule){for(const s of r.schedule.stops)o.push('stop '+s.door.n+' '+X.owClock(s.arrive)+' '+X.owClock(s.leave)+' '+s.path.map(p=>'('+p[0]+','+p[1]+')').join(';'));o.push('home '+X.owClock(r.schedule.homeArrive));}return o;};
 const m=X.owParse(X.OW_SAMPLE);const b=X.owParse(X.owToText(m));for(const y of [14,19]){const r=b.rows.length-1-y;b.rows[r]=b.rows[r].slice(0,21)+'ww'+b.rows[r].slice(23);}
 fs.writeFileSync('$WS/sim/ow_web.json',JSON.stringify({sample:dump(m),broken:dump(b)}));") || rm -f "$WS/sim/ow_web.json"
+# S212：网页 owMarioAt（时间滑条）跑样板小镇，每 20 分钟一个时刻，交给 C# 逐字对照
+command -v node >/dev/null && (cd "$WS/repo/tools/LevelStudioWeb" && node -e "
+const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html','utf8');
+const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ── 状态'))+';this.X={owParse,owCheck,owMarioAt,owClock,OW_SAMPLE,OW};',c);const X=c.X;
+const m=X.owParse(X.OW_SAMPLE);const sc=X.owCheck(m).schedule;const o=[];for(let t=X.OW.DayStart;t<=X.OW.DayEnd;t+=20){const w=X.owMarioAt(m,sc,t,X.OW.Rules.marioSpeed,X.OW.Rules.minutesPerSecond);o.push(X.owClock(t)+' '+w.cell[0]+','+w.cell[1]+' '+w.what);}
+fs.writeFileSync('$WS/sim/ow_scrub.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_scrub.json"
 (cd "$WS/sim" && rm -rf obj bin && dotnet build -c Release -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error " | head -10; dotnet bin/Release/net8.0/sim.dll) || ok=0
 [ $ok = 1 ] && echo "VERIFY ALL GREEN（提醒：Unity 里的 EditMode 测试仍需用户跑）" || { echo "VERIFY FAILED"; exit 1; }

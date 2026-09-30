@@ -34,3 +34,11 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - https://github.com/vimsos/unity-scene-handling （同步 LoadScene 掉帧；异步 + 明确激活）
 - https://github.com/starikcetin/Eflatun.SceneReference （场景要登记且勾选；路径引用）
 - https://docs.unity3d.com/ScriptReference/AsyncOperation-allowSceneActivation.html
+
+## S212 转场/指引/编辑器调研
+- 插件评估：mygamedevtools/scene-loader 4.1.1 是最后支持 2022.3 的版本（MIT）；收益小 + 与直接 LoadScene 混用会记错当前场景 → 不装，只借流程。
+- https://developers.meta.com/horizon/blog/avoiding-hitches-when-loading-scenes-in-unity/ （激活卡顿随物体数增长 → 动画单帧封顶）
+- https://www.reddit.com/r/Unity3D/comments/m7j2xh/best_way_to_load_a_scene_async_without_stutter/ （用淡出盖住）
+- https://www.reddit.com/r/Unity3D/comments/1u5tg2f/made_a_themed_loading_transition_is_it_cool_or/ （S 曲线）
+- https://www.reddit.com/r/gamedesign/comments/lh58im/other_ways_to_tell_the_player_where_to_go/ 、https://www.reddit.com/r/Games/comments/29shsy/rgames_mechanic_discussion_breadcrumb_trail/ （边缘箭头、按需面包屑）
+- https://github.com/jinincarnate/off-screen-indicator 、https://github.com/prime31/TransitionKit （圆形转场）、https://github.com/deepnight/ldtk （编辑器快捷键/吸管/悬停）

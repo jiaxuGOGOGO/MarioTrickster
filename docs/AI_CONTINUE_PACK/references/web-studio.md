@@ -43,3 +43,4 @@
 - `tools/LevelStudioWeb/overworld.js`：逐行移植 `Assets/Scripts/Overworld/OverworldMap.cs`（Dijkstra 同样平手规则，检查文字一致）。build.py 生成 `OW_TILES`（OverworldCatalog）、`OW_SAMPLE`（OverworldPack）、`OW_ROOMS`（SampleRooms → SAMPLES 键）。
 - 存储 localStorage `mariotrickster.studio.overworld.v1`；关卡包多一个 `overworlds:[{kind:"overworld",name,goal,grid,doors:[{n,time,room}],notes}]`。
 - verify.sh 用 node 生成 `sim/ow_web.json`（样板 + 拆桥反例），Check.cs 对照。
+- S212：大地图页快捷键在 `owKey`（大地图页打开时全局 keydown 先交给它）；`owMarioAt` 与 C# `OverworldGuide.MarioAt` 逐行一致；`owEditRoom` 把内置样板房间复制进关卡库再打开。

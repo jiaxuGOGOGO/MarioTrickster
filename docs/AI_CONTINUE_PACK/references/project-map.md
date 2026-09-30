@@ -90,3 +90,10 @@
 - `Overworld/SceneTransitPlan.cs`（纯逻辑，进 sim）+ `Overworld/Runtime/SceneTransit.cs`：所有小镇↔房间切换走 `SceneTransit.Go(场景路径, 标题)`，不要再直接 `SceneManager.LoadScene`（失败时才兜底）。
 - 不要预加载（allowSceneActivation=false 会堵住后续异步加载）。
 - `OverworldBuilder.IsStale/TownFingerprint`：新增会影响房间场景的东西（新主题字段等）要加进指纹。
+
+## S212 转场 + 指引 + 工坊
+- `SceneTransit.Go(场景, 标题, 世界坐标起点)` 圆从起点收拢；新场景里调 `SceneTransit.RevealAt(你的位置)` 在你身上展开。运行时每帧 `plan.Tick(plan.Step(unscaledDt), ...)`（卡顿帧封顶）。
+- `Overworld/OverworldGuide.cs`（纯逻辑，进 sim）：EdgeArrow / RaceTo / MarioAt / Along；网页 `owMarioAt/owAlong` 逐行移植（verify 对照 ow_scrub.json）。
+- `GameManager.RestartOverride`：优先于 EditorRestartHandler；OverworldRoomLink 用它平滑重开房间。以后别的"会话型"场景也用它，不要改 EditorRestartHandler。
+- `LevelWorkshopWindow.OpenRoom(名字)`：从别处打开一个关卡库/样板房间。
+- 小镇工坊草稿：SessionState `MarioTrickster.Overworld.WorkshopDraft`。

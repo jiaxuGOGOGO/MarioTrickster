@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 209（试玩截图修复：马里奥在宝物正上方台边左右徘徊 → 走下台边（SteerX）+ 卡住救援沿路线往前放；捣蛋者空中贴墙悬停 → 贴墙判定挪到方向键之后 + 伪装变大时脚底对齐 + 嵌墙自动推出（双方）；新增"按马里奥走法走一遍"检查（工坊 + verify 59 关）） |
+| **最新 Session** | Session 212（小镇↔房间转场更顺：圆形收缩/展开 + 缓入缓出 + 卡顿帧不跳 + 声音淡出；地图指引：边缘箭头、"你几秒/他几秒"赛跑提示、Tab 路线、M 小地图、门头倒计时；房间里 F5 平滑重开不丢小镇进度；小镇工坊/网页：快捷键、吸管、重做、悬停、矩形预览、点问题定位、✎ 编辑门里的房间、时间滑条、Ctrl+C/V 互通） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,16 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S212] 用户："装一个插件包可以接受装插件 我希望能平滑过渡 并且地图指引和关卡编辑网页和unity内都方便丝滑 参考github和reddit全网资料进行自我审计迭代"
+
+- 插件决定（用户选 B）：不装 mygamedevtools/scene-loader——4.1.2 起要 Unity 6，4.1.1 相比 S211 的淡出+异步加载提升很小，且 GameManager.RestartLevel 直接 SceneManager.LoadScene 会让它记错当前场景；只借它"盖住→加载→揭开"的流程。
+- 转场（SceneTransitPlan/SceneTransit）：smoothstep 缓入缓出；`Step(dt)` 动画阶段单帧封顶 1/30 秒（激活卡顿帧不再让淡入跳一截，等加载阶段仍按真实时间）；圆形 iris（从门口收拢 → `RevealAt` 在新场景的你身上展开，OnGUI 软边圆洞 + 四块黑）；声音跟着淡出淡入；黑屏里 `Resources.UnloadUnusedAssets`；多等一帧让镜头就位。
+- 自我审计修复：小镇镜头第一帧直接就位（以前从默认位置滑过来）、镜头跟随改成与帧率无关；town 用 `gameObject.scene.path`；房间里 F5 → `GameManager.RestartOverride` → OverworldRoomLink 平滑重开同一扇门（以前编辑器里 EditorRestartHandler 直接退出 Play，一天进度全丢；结果已记下后不许重开）。
+- 地图指引（纯逻辑 Overworld/OverworldGuide，进 sim）：EdgeArrow（屏幕边缘箭头，镜头后也画）、RaceTo（你几秒/他几秒 → 来得及/很紧/来不及/已进门，与检查里的 AmbushLead 一致）、MarioAt/Along（时间滑条）。小镇 HUD：赛跑提示条、门头倒计时、按住 Tab 面包屑、M 小地图、自绘三角箭头（默认字体不一定有 ➤）。
+- 小镇工坊：B/R/F/E/I 快捷键、Alt+点吸管、1–9 门、Ctrl+Z/Y 重做、Ctrl+S、F5 试玩、Ctrl+滚轮缩放、中键拖动、悬停格信息、矩形预览+尺寸、点问题定位闪烁、门行 ◎ 定位 / ✎ 在关卡工坊打开房间（`LevelWorkshopWindow.OpenRoom`）、⏱ 时间滑条、Ctrl+C/V 和网页互通、SessionState 草稿（重新编译不丢）。
+- 网页大地图页：同一套快捷键、吸管、重做、悬停、矩形预览、点问题定位、◎/✎（内置样板房间自动复制进关卡库）、时间滑条（owMarioAt 逐行移植）、Ctrl+C/V、文件拖进画布导入。
+- 测试 +4（OverworldTests），sim 加 S212（卡顿帧、边缘箭头、赛跑=提前量、时间滑条每分钟不在挡路格/不瞬移、与网页逐字一致）。未验证：Unity 里圆形转场观感、箭头/小地图位置、F5 平滑重开、工坊快捷键手感。
 
 ### [S211] 用户："是否也对项目地图切换做了升级优化 参考github的优秀方案 我只要做好地图就能流畅切换载入地图"
 

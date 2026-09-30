@@ -120,17 +120,131 @@ public static class OverworldProps
         return l.OrderBy(t => t.d).ThenBy(t => t.k).Select(t => t.c).ToList();
     }
 
+    // ── S219：巨炮现场瞄准（方向键移落点，发射前落点画出来；落点走不回家 = 不许发射，H1）──
+    public const int MinAim = 3, MaxAim = 24;
+
+    /// <summary>默认瞄准 = 靶心 X（没有靶心就朝第一个有炮口的方向打 12 格）。</summary>
+    public static void DefaultAim(OverworldMap.Map m, OverworldMap.Cell k, out int dir, out int dist)
+    {
+        if (Aim(m, k, out _, out dir, out dist)) { dist = Math.Max(MinAim, dist); return; } // 靶心比 24 格远也照旧（S218 的图不变）
+        dir = 0; dist = 12;
+        for (int d = 0; d < 4; d++) if (MuzzleCells(m, k, d).Count > 0) { dir = d; return; }
+    }
+
+    /// <summary>按一下方向键：顺着炮管 = 远 1 格；反着 = 近 1 格（近到头就调头）；横着 = 炮管转过去（距离不变）。炮口被堵死的方向跳过。</summary>
+    public static void AimStep(OverworldMap.Map m, OverworldMap.Cell k, ref int dir, ref int dist, int key)
+    {
+        if (key < 0 || key > 3) return;
+        int opp = dir ^ 1;
+        if (key == dir) { dist = Math.Min(Math.Max(MaxAim, dist), dist + 1); return; }
+        if (key == opp) { if (dist > MinAim) { dist--; return; } if (MuzzleCells(m, k, opp).Count > 0) dir = opp; return; }
+        if (MuzzleCells(m, k, key).Count > 0) dir = key;
+    }
+
+    /// <summary>瞄准的落点（和真的发射一样：先偏风，再找最近的能走的格）。</summary>
+    public static OverworldMap.Cell AimLanding(OverworldMap.Map m, OverworldMap.Cell k, int dir, int dist, int wind)
+        => Landing(m, new OverworldMap.Cell(k.x + DX[dir] * dist, k.y + DY[dir] * dist), wind);
+
+    /// <summary>这一炮能不能打：炮口有空地、落点走得回马里奥的家（被轰过去不会困住，H1）。</summary>
+    public static bool AimOk(OverworldMap.Map m, OverworldMap.Cell k, int dir, OverworldMap.Cell land, OverworldMap.Cell home)
+        => MuzzleCells(m, k, dir).Count > 0 && OverworldMap.Path(m, land, home) != null;
+
+    /// <summary>从 c 出发到每一格的步数（4 方向 BFS，-1 = 走不到）。马里奥算"坐炮值不值"用：每站只算两次。</summary>
+    public static int[] StepsField(OverworldMap.Map m, OverworldMap.Cell c)
+    {
+        int w = m.W, h = m.H; var d = new int[w * h]; for (int i = 0; i < d.Length; i++) d[i] = -1;
+        if (!OverworldMap.Walkable(m, c.x, c.y)) return d;
+        var q = new Queue<int>(); d[c.y * w + c.x] = 0; q.Enqueue(c.y * w + c.x);
+        while (q.Count > 0)
+        {
+            int i = q.Dequeue(), x = i % w, y = i / w;
+            for (int k = 0; k < 4; k++) { int nx = x + DX[k], ny = y + DY[k]; if (!OverworldMap.Walkable(m, nx, ny)) continue; int j = ny * w + nx; if (d[j] >= 0) continue; d[j] = d[i] + 1; q.Enqueue(j); }
+        }
+        return d;
+    }
+
+    // ── S219：山地（高度）/ 山洞 / 泥石流 / 闪电 ──
+    public const int MudLen = 6;
+    public const double LightningRadius = 1.5;
+
+    /// <summary>高度：山 A = 2，山丘 ^ = 1，其余 0。视线：中间的格子比两个人都高 → 挡住（躲在山丘后面）。</summary>
+    public static int Height(char c) => c == 'A' ? 2 : c == '^' ? 1 : 0;
+
+    /// <summary>山洞一对一对（扫描顺序：从上到下、从左到右；第 1 和第 2 个一对……）。单出来的那个没有另一头。</summary>
+    public static OverworldMap.Cell? CaveExit(OverworldMap.Map m, OverworldMap.Cell c)
+    {
+        var l = OverworldMap.Find(m, 'h'); int i = l.IndexOf(c);
+        if (i < 0) return null; int j = i ^ 1;
+        return j < l.Count ? l[j] : (OverworldMap.Cell?)null;
+    }
+
+    public static bool NextTo(OverworldMap.Map m, OverworldMap.Cell c, char k) { for (int d = 0; d < 4; d++) if (m.At(c.x + DX[d], c.y + DY[d]) == k) return true; return false; }
+
+    /// <summary>泥石流的源头 = 紧挨着山 A 的山丘 ^。方向 = 离开山（第一个挨着的山按 右 左 上 下 找，往反方向冲）；-1 = 不是源头。</summary>
+    public static int MudDir(OverworldMap.Map m, OverworldMap.Cell c)
+    {
+        if (m.At(c.x, c.y) != '^') return -1;
+        for (int d = 0; d < 4; d++) if (m.At(c.x + DX[d], c.y + DY[d]) == 'A') return d ^ 1;
+        return -1;
+    }
+
+    /// <summary>泥石流冲过的格子（最多 6 格；能走的 / 木箱栅栏冲垮；碰到别的挡路就停；不碰最外一圈）。全部变泥地——只会"打开"，H1 不会关死。</summary>
+    public static List<OverworldMap.Cell> MudLane(OverworldMap.Map m, OverworldMap.Cell c, List<OverworldMap.Cell> smashed = null)
+    {
+        var l = new List<OverworldMap.Cell>(); int dir = MudDir(m, c); if (dir < 0) return l;
+        for (int s = 1; s <= MudLen; s++)
+        {
+            int x = c.x + DX[dir] * s, y = c.y + DY[dir] * s;
+            if (x <= 0 || y <= 0 || x >= m.W - 1 || y >= m.H - 1) break;
+            char ch = m.At(x, y);
+            if (OverworldMap.Walkable(m, x, y)) l.Add(new OverworldMap.Cell(x, y));
+            else if (Smashable(ch)) { l.Add(new OverworldMap.Cell(x, y)); smashed?.Add(new OverworldMap.Cell(x, y)); }
+            else break;
+        }
+        return l;
+    }
+
+    /// <summary>泥石流会把哪些格子变泥地：地面（草 / 石子路 / 高草 / 山丘）和冲垮的木箱栅栏。门、家、出生点、山洞、靶心、道具冲过去但不改。</summary>
+    public static bool Muddable(char c) => Floodable(c) || c == '^' || Smashable(c);
+
+    /// <summary>冲击点 1.5 格内的泥石流源头（只在湿的天：雨 / 雷雨 / 酸雨）。</summary>
+    public static List<OverworldMap.Cell> MudSources(OverworldMap.Map m, double ix, double iy)
+    {
+        var l = new List<OverworldMap.Cell>();
+        foreach (var c in OverworldMap.Find(m, '^'))
+        {
+            if (MudDir(m, c) < 0) continue;
+            double dx = c.x + 0.5 - ix, dy = c.y + 0.5 - iy;
+            if (dx * dx + dy * dy <= ChainRadius * ChainRadius + 1e-9) l.Add(c);
+        }
+        return l;
+    }
+
     // ── 检查（OverworldMap.Check 里调用；网页 owCheck 同位置同文字）──
-    public static void CheckCounts(OverworldMap.Map m, Action<string, int, int> E)
+    public static void CheckCounts(OverworldMap.Map m, Action<string, int, int> E, Action<string, int, int> Wn)
     {
         var all = All(m);
         if (all.Count > MaxBig) E($"大机关（巨炮 / 滚石 / 水塔）最多 {MaxBig} 个（现在 {all.Count} 个）：太多了玩家记不住，也看不清谁连着谁", -1, -1);
         foreach (var c in all)
         {
             if (m.At(c.x, c.y) != 'K') continue;
-            if (!Aim(m, c, out _, out int dir, out _)) { E($"巨炮 K 同一行 / 同一列找不到靶心 X：炮弹不知道往哪飞", c.x, c.y); continue; }
+            if (!Aim(m, c, out _, out int dir, out _))
+            {
+                bool any = false; for (int d = 0; d < 4; d++) if (MuzzleCells(m, c, d).Count > 0) any = true;
+                if (!any) E("巨炮 K 四面都被挡住：炮口前要空地（最好 3 格）", c.x, c.y);
+                else Wn("巨炮 K 同一行 / 同一列找不到靶心 X：只能坐进去自己瞄（远程按 L / 被连锁震响时没有默认落点，会打 12 格远）", c.x, c.y); // S219：能瞄准了，靶心只是默认落点
+                continue;
+            }
             if (MuzzleCells(m, c, dir).Count == 0) E($"巨炮 K 朝靶心那边第一格就被挡住：炮口前要空地（最好 3 格）", c.x, c.y);
         }
+    }
+
+    /// <summary>S219：山洞 / 山的提醒（黄色，不挡试玩）。</summary>
+    public static void CheckMountains(OverworldMap.Map m, Action<string, int, int> Wn)
+    {
+        var caves = OverworldMap.Find(m, 'h');
+        if (caves.Count % 2 == 1) { var c = caves[caves.Count - 1]; Wn($"山洞 h 有 {caves.Count} 个：两个一对，最后一个没配对（按 E 钻不过去）", c.x, c.y); }
+        foreach (var c in caves) if (!NextTo(m, c, 'A')) Wn("山洞 h 旁边没有山 A：画在山脚下，玩家一眼就知道这是洞", c.x, c.y);
     }
 
     public static void CheckReach(OverworldMap.Map m, OverworldMap.Cell home, Action<string, int, int> E, Action<string, int, int> Wn)
@@ -171,13 +285,13 @@ public static class OverworldProps
     {
         var lines = new List<Line>();
         var all = All(m);
-        if (all.Count == 0) { lines.Add(new Line { text = "还没有大机关：巨炮 K + 靶心 X、滚石 O、水塔 U 是小镇专用的夸张机关（L 发动）", x = -1, y = -1 }); return lines; }
+        if (all.Count == 0) { lines.Add(new Line { text = "还没有大机关：巨炮 K + 靶心 X、滚石 O、水塔 U 是小镇专用的夸张机关（L 发动）", x = -1, y = -1 }); DescribeMountains(m, lines); return lines; }
         foreach (var c in all)
         {
             char ch = m.At(c.x, c.y); string s;
             if (ch == 'K')
             {
-                if (!Aim(m, c, out var tg, out int dir, out int dist)) s = $"{Label(m, c)}：同一行 / 列没有靶心 X（不能用）";
+                if (!Aim(m, c, out var tg, out int dir, out int dist)) s = $"{Label(m, c)}：同一行 / 列没有靶心 X（坐进去自己瞄）";
                 else
                 {
                     var l = Landing(m, tg, -1); var near = new List<string>();
@@ -185,7 +299,8 @@ public static class OverworldProps
                     foreach (var t in Triggers(m, c)) near.Add("震响 " + Label(m, t));
                     int peels = 0; for (int yy = l.y - 1; yy <= l.y + 1; yy++) for (int xx = l.x - 1; xx <= l.x + 1; xx++) if (m.At(xx, yy) == 'n') peels++;
                     if (peels > 0) near.Add($"香蕉皮 {peels}");
-                    s = $"{Label(m, c)} → 靶心 X({tg.x},{tg.y})：往{DirZh[dir]}飞 {dist} 格，炮口 {MuzzleCells(m, c, dir).Count} 格；落点旁：{(near.Count > 0 ? string.Join("、", near) : "空地")}";
+                    int dirs = 0; for (int d = 0; d < 4; d++) if (MuzzleCells(m, c, d).Count > 0) dirs++;
+                    s = $"{Label(m, c)} → 靶心 X({tg.x},{tg.y})：往{DirZh[dir]}飞 {dist} 格，炮口 {MuzzleCells(m, c, dir).Count} 格；落点旁：{(near.Count > 0 ? string.Join("、", near) : "空地")}；坐进去能瞄 {dirs} 个方向";
                 }
             }
             else if (ch == 'O')
@@ -214,7 +329,29 @@ public static class OverworldProps
         lines.Add(chain.Count >= 2
             ? new Line { text = $"最长连锁：{string.Join(" → ", chain.Select(c => Label(m, c)))}（{chain.Count} 连）", x = chain[0].x, y = chain[0].y }
             : new Line { text = "还没有连锁：把靶心 X 放在滚石 / 水塔 / 另一门巨炮旁 1 格内，或让滚石滚到头正好撞上它们", x = -1, y = -1 });
+        DescribeMountains(m, lines);
         return lines;
+    }
+
+    /// <summary>S219：山洞配对、泥石流源头（下雨天被冲击才会冲）、雷雨天能召唤闪电的路灯。</summary>
+    public static void DescribeMountains(OverworldMap.Map m, List<Line> lines)
+    {
+        var caves = OverworldMap.Find(m, 'h');
+        for (int i = 0; i + 1 < caves.Count; i += 2) lines.Add(new Line { text = $"山洞 h({caves[i].x},{caves[i].y}) ⇄ h({caves[i + 1].x},{caves[i + 1].y})：钻进去按 E 从另一头出来（马里奥不知道这条路）", x = caves[i].x, y = caves[i].y });
+        foreach (var c in OverworldMap.Find(m, '^'))
+        {
+            int d = MudDir(m, c); if (d < 0) continue;
+            var sm = new List<OverworldMap.Cell>(); var lane = MudLane(m, c, sm); if (lane.Count == 0) continue;
+            int path = lane.Count(p => m.At(p.x, p.y) == '=');
+            lines.Add(new Line { text = $"泥石流 ^({c.x},{c.y})：下雨天被冲击 → 往{DirZh[d]}冲 {lane.Count} 格变泥地" + (path > 0 ? $"（石子路 {path}）" : "") + (sm.Count > 0 ? $"，冲垮 {sm.Count}" : ""), x = c.x, y = c.y });
+        }
+        foreach (var c in OverworldMap.Find(m, 'i'))
+        {
+            var near = new List<string>();
+            foreach (var t in ChainTargets(m, c.x + 0.5, c.y + 0.5, LightningRadius)) near.Add("震响 " + Label(m, t));
+            foreach (var t in MudSources(m, c.x + 0.5, c.y + 0.5)) near.Add($"泥石流 ^({t.x},{t.y})");
+            if (near.Count > 0) lines.Add(new Line { text = $"路灯 i({c.x},{c.y})：雷雨天按 L 召唤闪电 → " + string.Join("、", near), x = c.x, y = c.y });
+        }
     }
 
     public static List<OverworldMap.Cell> DoorsNear(OverworldMap.Map m, OverworldMap.Cell c, int r)
@@ -245,25 +382,43 @@ public static class OverworldProps
 /// </summary>
 public static class OverworldEvents
 {
-    public enum Kind { Clear, Wind, Rain, Fog, Market }
+    public enum Kind { Clear, Wind, Rain, Fog, Market, Storm, Acid }
     public struct Day { public int day; public Kind kind; public int wind; public uint h; }
 
     public static uint Hash(string s) { uint h = 2166136261u; foreach (char c in s ?? "") { h ^= c; h = unchecked(h * 16777619u); } return h; }
 
-    public static Day Of(string mapName, int day)
+    public static Day Of(string mapName, int day) => Of(mapName, day, Base);
+
+    /// <summary>S219：天气池按地图格局来——有路灯才会有雷雨（闪电要打在路灯上）；有山洞才会有酸雨（高草枯了，只剩山洞能躲）。</summary>
+    public static Day Of(OverworldMap.Map m, int day) => Of(m.name, day, Pool(m));
+
+    private static readonly Kind[] Base = { Kind.Clear, Kind.Wind, Kind.Rain, Kind.Fog, Kind.Market };
+    public static Kind[] Pool(OverworldMap.Map m)
+    {
+        var l = new List<Kind>(Base);
+        if (OverworldMap.Find(m, 'i').Count > 0) l.Add(Kind.Storm);
+        if (OverworldMap.Find(m, 'h').Count >= 2) l.Add(Kind.Acid);
+        return l.ToArray();
+    }
+
+    public static Day Of(string mapName, int day, Kind[] pool)
     {
         uint h = Hash(mapName);
         h ^= unchecked((uint)day * 2654435761u);
         h ^= h << 13; h ^= h >> 17; h ^= h << 5;
-        var d = new Day { day = day, h = h, kind = day <= 1 ? Kind.Clear : (Kind)(h % 5), wind = (int)((h >> 8) % 4) };
+        var d = new Day { day = day, h = h, kind = day <= 1 ? Kind.Clear : pool[(int)(h % (uint)pool.Length)], wind = (int)((h >> 8) % 4) };
         return d;
     }
+
+    /// <summary>湿的天（泥石流会被冲击引发）。</summary>
+    public static bool Wet(Day d) => d.kind == Kind.Rain || d.kind == Kind.Storm || d.kind == Kind.Acid;
 
     /// <summary>赶集日：门 n 晚 0 / 15 / 30 分钟；按时间顺序往后推，保证每扇门至少比上一扇晚 15 分钟、不超过 20:00。</summary>
     public static int MarketDelay(Day d, int door) => (int)((d.h >> (door * 3)) % 3) * 15;
 
     public static void ApplyTo(OverworldMap.Map m, Day d)
     {
+        if (d.kind == Kind.Acid) { foreach (var c in OverworldMap.Find(m, '"')) OverworldMap.Set(m, c.x, c.y, '.'); return; } // 酸雨：高草枯了一天（只会"打开"，H1 不受影响）
         if (d.kind != Kind.Market) return;
         int prev = -9999;
         foreach (var door in m.doors.OrderBy2())
@@ -279,9 +434,11 @@ public static class OverworldEvents
         switch (d.kind)
         {
             case Kind.Wind: return $"🌬 大风（往{OverworldProps.DirZh[d.wind]}吹）：巨炮落点被吹偏 {OverworldProps.WindShift} 格";
-            case Kind.Rain: return $"🌧 雨天：水塔淹得更大（半径 {OverworldProps.FloodRadius + 1}），香蕉皮滑得更久";
+            case Kind.Rain: return $"🌧 雨天：水塔淹得更大（半径 {OverworldProps.FloodRadius + 1}），香蕉皮滑得更久，山丘被震会泥石流";
             case Kind.Fog: return "🌫 雾天：他只看得见平时 6 成远（你也更好躲）";
             case Kind.Market: return "🧺 赶集日：他每扇门晚 0–30 分钟出门（时间表已更新）";
+            case Kind.Storm: return "⛈ 雷雨：在路灯旁按 L 召唤闪电（1.5 格内晕），山丘被震会泥石流";
+            case Kind.Acid: return "☂ 酸雨：高草全枯了（只剩山洞能躲），他打着伞只看得见 7 成远";
             default: return "☀ 晴天：一切照常";
         }
     }
@@ -292,7 +449,7 @@ public static class OverworldEvents
         var l = new List<string>();
         for (int day = from; day < from + n; day++)
         {
-            var d = Of(m.name, day); string s = $"第 {day} 天 {Zh(d)}";
+            var d = Of(m, day); string s = $"第 {day} 天 {Zh(d)}";
             if (d.kind == Kind.Market)
             {
                 var c = OverworldMap.Parse(OverworldMap.ToText(m)); ApplyTo(c, d);

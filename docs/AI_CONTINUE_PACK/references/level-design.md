@@ -69,3 +69,12 @@
 - 联动：`OverworldSession.CarriedDaze` → `OverworldRoomLink` → `MarioMindDriver.AddStartDelay`；`ReloadDoor`（守住一户）→ `OverworldTown.Reload` 装填旁边最近的用过的巨炮/水塔。
 - 样板 `OverworldPack.BigSampleText`（星露大镇 72×40，最长 3 连）；build.py 读成 `OW_BIG_SAMPLE`。
 - 想加第 4 种大机关：OverworldCatalog 加 T(...) → OverworldProps.IsBig + 几何函数 + CheckCounts/CheckReach/Describe/Triggers → OverworldTown.Fire 分支 → OverworldGame 造型 → 网页同步 → sim S218 块加一行 → 测试。
+
+## S219 巨炮能坐能瞄 + 山地 + 雷雨 / 酸雨 / 泥石流
+- 瞄准纯逻辑：`OverworldProps.DefaultAim / AimStep / AimLanding / AimOk`（顺着 = 远、反着 = 近到 3 格就调头、横着 = 转；落点走不回家 = 不许打，H1）。瞄准记在 `OverworldSession.CannonAim`（当天有效），远程 L / 连锁震响都打瞄好的地方；没瞄过 = 靶心 X（S218 的图不变）。
+- 你坐炮：`OverworldTown.Seat`（E 坐进 / 方向键 Input.aim 1–4 / L 发射 / E 下来 / overworldCannonSeatSeconds 自动）。马里奥坐炮：`Ride` + `PlanRide`（每站一次，两次 BFS `StepsField`，省 ≥ overworldMarioCannonSaveSteps 才坐；MarioWary 有 'K' 就不坐）→ 瞄 overworldMarioCannonAimSeconds → 飞；`TryTamper` = 你 L 拨歪 → 他落地晕 + 记住 K。
+- 山地：`Height`（A=2、^=1）进 `OverworldMap.LineOfSight`（中间格比两端都高 = 挡）；`^` 走 0.75 倍速、站上去 L +1 格（`PrankRange`）；`h` 山洞 hides=true，`CaveExit` 两两配对（扫描顺序），E 钻过去（`TryCave` 在 TryDoor 之前）。马里奥寻路不走隧道。
+- 灾害：`MudDir`（挨着山 A 的山丘，方向 = 离开山）、`MudLane` 6 格、`Muddable` 只改地面 / 木箱栅栏（门 家 洞 靶心 不改）；触发 = `Impact` 在 `OverworldEvents.Wet`（雨 / 雷雨 / 酸雨）时 `MudSources` 1.5 格内；水塔淹到源头 = 山洪（任何天气）。闪电 = 路灯 'i' 在 Storm 天可被 Arm（L 或连锁），FireLightning 1.5 格晕 + Impact。
+- 天气池 `OverworldEvents.Pool(map)`：基础 5 种 + 有路灯 → Storm + ≥2 山洞 → Acid。**一定用 `Of(map, day)`**（旧 `Of(name, day)` = 基础 5 种，只给老测试用）。网页 `owDayOfMap`。酸雨 ApplyTo：高草 → 草。
+- 样板 `OverworldPack.MountainSampleText`（星露山镇）；build.py 读成 `OW_MTN_SAMPLE`；sim 块 "S219"，verify 生成 ow_mtn.json（检查 + 总览 + 天气 30 天 + 预览 14 天 + 24 步瞄准 + 5 条山丘视线）。
+- 调参 v20：overworldCannonSeatSeconds 6、overworldCannonFireSeconds 0.6、overworldMarioCannonAimSeconds 1.6、overworldMarioCannonSaveSteps 10、overworldAcidSight 0.7。

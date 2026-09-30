@@ -8,7 +8,8 @@ using UnityEngine;
 /// </summary>
 public sealed class OverworldTown
 {
-    public struct Input { public float h, v; public bool disguise, peel, taunt, door, fastForward; }
+    public struct Input { public float h, v; public bool disguise, peel, taunt, door, fastForward; /// <summary>S219：这一帧按下的方向（坐在炮里瞄准用）：0 没按，1 右 2 左 3 上 4 下。</summary>
+        public int aim; }
 
     public readonly OverworldMap.Map map;
     public readonly MarioMindTuningSO tuning;
@@ -35,7 +36,7 @@ public sealed class OverworldTown
 
     // ── 这一帧发生的事（驱动层读完就清）──
     /// <summary>这一帧要给玩家的提示（驱动层翻成 Step1Text 文字；纯逻辑这边不碰文字，sim 才能跑）。</summary>
-    public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck }
+    public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit }
     public Note hint; public float hintSeconds;
     public bool wantsEnter; public OverworldMap.Door enterDoor; public OverworldMind.DoorOutcome enterOutcome;
 
@@ -50,8 +51,10 @@ public sealed class OverworldTown
     {
         public OverworldMap.Cell c; public char kind; public float fuse, fuseTotal; public int dir = -1, depth = 1;
         public bool rolling; public double rx, ry; public List<OverworldMap.Cell> lane; public double rolled; public bool hitMario, hitYou;
+        /// <summary>S219：巨炮瞄准的距离；rider = 坐在里面的人（0 没人，1 你，2 马里奥）；tampered = 马里奥坐炮时被你拨歪了。</summary>
+        public int dist; public int rider; public bool tampered;
     }
-    public sealed class Flight { public double fx, fy, tx, ty; public float t, dur; public int depth; public bool mario, you, shell; public double X => fx + (tx - fx) * System.Math.Min(1f, t / dur); public double Y => fy + (ty - fy) * System.Math.Min(1f, t / dur); public float Arc => 4f * (t / dur) * (1f - t / dur); }
+    public sealed class Flight { public double fx, fy, tx, ty; public float t, dur; public int depth; public bool mario, you, shell, ride, tampered; public double X => fx + (tx - fx) * System.Math.Min(1f, t / dur); public double Y => fy + (ty - fy) * System.Math.Min(1f, t / dur); public float Arc => 4f * (t / dur) * (1f - t / dur); }
     public readonly List<Big> active = new List<Big>();
     public readonly List<Flight> flights = new List<Flight>();
     /// <summary>这一帧被改掉的格子（画面层据此换贴图）/ 冲击点（画面层放冲击环 + 震屏）。</summary>
@@ -64,14 +67,14 @@ public sealed class OverworldTown
     private Vector2? heardNoise;
     public bool marioFlying => flights.Exists(f => f.mario);
     public bool youFlying => flights.Exists(f => f.you);
-    public bool BigBusy => active.Count > 0 || flights.Count > 0;
+    public bool BigBusy => active.Count > 0 || flights.Count > 0 || seat != null || (ride != null && ride.seated);
     public float PeelActive => weather.kind == OverworldEvents.Kind.Rain ? PeelActiveSeconds * 1.5f : PeelActiveSeconds;
 
     public OverworldTown(OverworldMap.Map m, MarioMindTuningSO t, System.Func<int, bool> roomReady = null)
     {
         // S218：自己留一份（大机关会改地形；赶集日会改门的时间）——调用方的地图不变，重建小镇也不会越改越多
         m = OverworldMap.Parse(OverworldMap.ToText(m));
-        weather = OverworldEvents.Of(m.name, OverworldSession.Day);
+        weather = OverworldEvents.Of(m, OverworldSession.Day); // S219：天气池看地图格局（有路灯才有雷雨、有山洞才有酸雨）
         OverworldEvents.ApplyTo(m, weather);
         foreach (var kv in OverworldSession.Changed) OverworldMap.Set(m, kv.Key % m.W, kv.Key / m.W, kv.Value);
         map = m; tuning = t; this.roomReady = roomReady;
@@ -107,7 +110,7 @@ public sealed class OverworldTown
 
     public void Tick(float dt, Input i)
     {
-        hint = Note.None; wantsEnter = false; changedCells.Clear(); impacts.Clear();
+        hint = Note.None; wantsEnter = false; changedCells.Clear(); impacts.Clear(); bolts.Clear();
         if (dayOver) return;
         timeScale = i.fastForward && CanFastForward ? FastForwardScale : 1f;
         float gdt = dt * timeScale; // 游戏时间（人和马里奥都按它走：快进 = 整个世界快放，公平）
@@ -126,8 +129,9 @@ public sealed class OverworldTown
 
     private void Trickster(float dt, Input i)
     {
-        tauntedThisFrame = false;
+        tauntedThisFrame = false; aimedThisFrame = false;
         if (youFlying) { lastMoved = false; return; }
+        if (seat != null) { SeatTick(dt, i); return; }
         if (frozen > 0f) { frozen -= dt; lastMoved = false; return; }
         var dir = new Vector2(i.h, i.v); if (dir.magnitude > 1f) dir = dir / dir.magnitude;
         double sp = tuning.overworldTricksterSpeed * OverworldMap.SpeedFactor(Here(tx, ty)) * (disguised ? 0.6 : 1.0) * dt;
@@ -148,7 +152,7 @@ public sealed class OverworldTown
             OverworldSession.BonusBombs = Mathf.Min(MaxBonusBombs, OverworldSession.BonusBombs + 1);
             Hint(Note.Pickup);
         }
-        if (i.door) TryDoor();
+        if (i.door && !TryCave() && !TryDoor()) TryBoard();
     }
 
     /// <summary>S213：他离下一扇门还有几格路（他还没出发 / 在门里 = -1）。每 0.2 秒算一次。</summary>
@@ -171,16 +175,20 @@ public sealed class OverworldTown
 
     private void TryPeel()
     {
-        // S218：L = 离你最近的一个能用的机关（香蕉皮 / 巨炮 / 滚石 / 水塔）
-        OverworldMap.Cell? big = null; double bb = tuning.overworldPrankRange * tuning.overworldPrankRange;
-        foreach (var c in OverworldProps.All(map))
+        // S218：L = 离你最近的一个能用的机关（香蕉皮 / 巨炮 / 滚石 / 水塔）；S219：他在炮里瞄准 → 先拨炮管；雷雨天路灯也算（召唤闪电）
+        if (TryTamper()) return;
+        double pr = PrankRange;
+        OverworldMap.Cell? big = null; double bb = pr * pr;
+        var cands = OverworldProps.All(map);
+        if (weather.kind == OverworldEvents.Kind.Storm) cands.AddRange(lamps);
+        foreach (var c in cands)
         {
             int id = c.y * map.W + c.x;
             if (OverworldSession.UsedCells.Contains(id)) continue;
             double dx = c.x + 0.5 - tx, dy = c.y + 0.5 - ty, d = dx * dx + dy * dy;
             if (d <= bb) { bb = d; big = c; }
         }
-        int best = -1; double bd = tuning.overworldPrankRange * tuning.overworldPrankRange;
+        int best = -1; double bd = pr * pr;
         foreach (var c in OverworldMap.Find(map, 'n'))
         {
             int id = c.y * map.W + c.x;
@@ -206,21 +214,181 @@ public sealed class OverworldTown
         }
     }
 
-    private void TryDoor()
+    /// <summary>返回 true = 你在某扇门旁边（E 被门用掉了）。</summary>
+    private bool TryDoor()
     {
         foreach (var kv in doorCells)
         {
             if (!NearDoor(kv.Key)) continue;
             var next = NextStop;
-            if (next == null || next.n != kv.Key) { Hint(Note.TooEarly); return; }
+            if (next == null || next.n != kv.Key) { Hint(Note.TooEarly); return true; }
             var outcome = OverworldMind.AtDoor(!marioInside, insideSeconds, tuning.overworldLateWindowSeconds);
-            if (outcome == OverworldMind.DoorOutcome.Missed) return;
+            if (outcome == OverworldMind.DoorOutcome.Missed) return true;
             // S213：埋伏 = 他快到了你已经守在门口。他还远 → 不进门，告诉你等（躲草丛 / P 伪装 / 空格快进）
-            if (outcome == OverworldMind.DoorOutcome.Ambush && !AmbushReady) { Hint(Spotted ? Note.Spotted : Note.AmbushWait); return; }
+            if (outcome == OverworldMind.DoorOutcome.Ambush && !AmbushReady) { Hint(Spotted ? Note.Spotted : Note.AmbushWait); return true; }
             EnterRoom(next, outcome);
-            return;
+            return true;
+        }
+        return false;
+    }
+
+    // ═════════ S219：坐进巨炮（你 / 马里奥都能坐）、现场瞄准、山洞隧道 ═════════
+    public sealed class Seat { public OverworldMap.Cell k, board; public int dir, dist; public float t, fuse = -1f; }
+    public sealed class Ride { public OverworldMap.Cell k, board; public int dir, dist, forStop; public bool seated, tampered; public float t; }
+    /// <summary>你坐在炮里（null = 没坐）。</summary>
+    public Seat seat;
+    /// <summary>马里奥打算 / 正在坐的炮（null = 没有）。</summary>
+    public Ride ride;
+    private int ridePlannedFor = -1;
+    private bool aimedThisFrame;
+    public bool Seated => seat != null;
+    public bool MarioSeated => ride != null && ride.seated;
+
+    private int Wind => weather.kind == OverworldEvents.Kind.Wind ? weather.wind : -1;
+    private static int Pack(int dir, int dist) => dir * 100 + dist;
+
+    /// <summary>这门炮现在瞄着哪（你上次瞄好的；没瞄过 = 靶心 X）。</summary>
+    public void AimOf(OverworldMap.Cell k, out int dir, out int dist)
+    {
+        if (OverworldSession.CannonAim.TryGetValue(k.y * map.W + k.x, out int a)) { dir = a / 100; dist = a % 100; return; }
+        OverworldProps.DefaultAim(map, k, out dir, out dist);
+    }
+    public OverworldMap.Cell AimLandingOf(OverworldMap.Cell k, int dir, int dist) => OverworldProps.AimLanding(map, k, dir, dist, Wind);
+
+    /// <summary>画面层用：现在所有"瞄着的"落点（你坐炮 / 他坐炮 / 预警中的巨炮）。ok = 这一炮能打。</summary>
+    public struct AimView { public OverworldMap.Cell k, land; public int dir; public bool ok, mario; }
+    public List<AimView> Aims()
+    {
+        var l = new List<AimView>();
+        if (seat != null) { var ld = AimLandingOf(seat.k, seat.dir, seat.dist); l.Add(new AimView { k = seat.k, land = ld, dir = seat.dir, ok = OverworldProps.AimOk(map, seat.k, seat.dir, ld, home) }); }
+        if (ride != null && ride.seated) l.Add(new AimView { k = ride.k, land = AimLandingOf(ride.k, ride.dir, ride.dist), dir = ride.dir, ok = true, mario = true });
+        foreach (var b in active) if (b.kind == 'K' && b.fuse > 0f && b.rider == 0) l.Add(new AimView { k = b.c, land = AimLandingOf(b.c, b.dir, b.dist), dir = b.dir, ok = true });
+        return l;
+    }
+
+    private bool CannonFree(OverworldMap.Cell k) => map.At(k.x, k.y) == 'K' && !OverworldSession.UsedCells.Contains(k.y * map.W + k.x)
+        && (seat == null || !seat.k.Equals(k)) && (ride == null || !ride.k.Equals(k)) && !active.Exists(b => b.c.Equals(k));
+
+    /// <summary>E 靠近一门没用过的巨炮（1.6 格内）→ 坐进去。</summary>
+    private void TryBoard()
+    {
+        OverworldMap.Cell? best = null; double bd = 1.6 * 1.6;
+        foreach (var c in OverworldProps.All(map))
+        {
+            if (!CannonFree(c)) continue;
+            double dx = c.x + 0.5 - tx, dy = c.y + 0.5 - ty, d = dx * dx + dy * dy;
+            if (d <= bd) { bd = d; best = c; }
+        }
+        if (!best.HasValue) return;
+        var k = best.Value; AimOf(k, out int dir, out int dist);
+        seat = new Seat { k = k, board = OverworldGuide.Near(map, tx, ty), dir = dir, dist = dist };
+        disguised = false; tx = k.x + 0.5; ty = k.y + 0.5; lastMoved = false;
+        Hint(Note.CannonSeat, 3f);
+    }
+
+    /// <summary>坐在炮里：方向键瞄准（落点实时画出来），L 发射，E 下来（瞄好的方向留着——以后在外面按 L 就打那里）。坐太久自动发射（H9）。</summary>
+    private void SeatTick(float dt, Input i)
+    {
+        lastMoved = false;
+        var s = seat;
+        if (s.fuse >= 0f) return; // 已经点火（TickBigs 在数）
+        s.t += dt;
+        if (i.aim >= 1 && i.aim <= 4) { int od = s.dir, ok = s.dist; OverworldProps.AimStep(map, s.k, ref s.dir, ref s.dist, i.aim - 1); aimedThisFrame = od != s.dir || ok != s.dist; }
+        OverworldSession.CannonAim[s.k.y * map.W + s.k.x] = Pack(s.dir, s.dist);
+        var land = AimLandingOf(s.k, s.dir, s.dist); bool good = OverworldProps.AimOk(map, s.k, s.dir, land, home);
+        if (i.door) { LeaveSeat(); return; }
+        bool timeUp = s.t >= tuning.overworldCannonSeatSeconds;
+        if (i.peel || timeUp)
+        {
+            if (!good) { if (timeUp) LeaveSeat(); else Hint(Note.CannonBadAim); return; }
+            var b = new Big { c = s.k, kind = 'K', dir = s.dir, dist = s.dist, depth = 1, rider = 1, fuse = tuning.overworldCannonFireSeconds, fuseTotal = tuning.overworldCannonFireSeconds };
+            OverworldSession.UsedCells.Add(s.k.y * map.W + s.k.x); active.Add(b); s.fuse = b.fuse;
         }
     }
+
+    private void LeaveSeat() { if (seat == null) return; tx = seat.board.x + 0.5; ty = seat.board.y + 0.5; seat = null; }
+
+    /// <summary>站在山洞 h 里按 E → 从配对的另一个山洞出来。返回 true = E 被山洞用掉了。</summary>
+    private bool TryCave()
+    {
+        var here = new OverworldMap.Cell((int)System.Math.Floor(tx), (int)System.Math.Floor(ty));
+        if (map.At(here.x, here.y) != 'h') return false;
+        var exit = OverworldProps.CaveExit(map, here);
+        if (!exit.HasValue) { Hint(Note.CaveNoExit); return true; }
+        tx = exit.Value.x + 0.5; ty = exit.Value.y + 0.5; disguised = false; lastMoved = false;
+        OverworldSession.CaveHops++; Hint(Note.CaveHop, 1.5f);
+        impacts.Add(new Impact3((float)tx, (float)ty, 0.5f));
+        return true;
+    }
+
+    /// <summary>
+    /// 马里奥会不会坐炮（H4：只用公开的东西——炮、靶心、地图；H10：落点一定走得回家）。
+    /// 每一站只算一次：步数场（从门 / 从他）各一次 BFS，每门没用过的炮试所有瞄准，省下 ≥ overworldMarioCannonSaveSteps 格才坐。吃过炮的亏（MarioWary 有 K）就不坐。
+    /// </summary>
+    private void PlanRide(OverworldMap.Cell door)
+    {
+        ridePlannedFor = OverworldSession.NextStop; ride = null;
+        if (OverworldSession.MarioWary.Contains('K')) return;
+        var ks = OverworldProps.All(map).FindAll(c => map.At(c.x, c.y) == 'K' && CannonFree(c)); if (ks.Count == 0) return;
+        var me = OverworldGuide.Near(map, mario.x, mario.y);
+        var fromDoor = OverworldProps.StepsField(map, door); var fromMe = OverworldProps.StepsField(map, me);
+        int direct = fromDoor[me.y * map.W + me.x]; if (direct < 0) return;
+        int bestCost = direct - tuning.overworldMarioCannonSaveSteps; Ride best = null;
+        foreach (var k in ks)
+        {
+            OverworldMap.Cell? board = null; int bb = int.MaxValue;
+            for (int d = 0; d < 4; d++) { int x = k.x + OverworldProps.DX[d], y = k.y + OverworldProps.DY[d]; if (!OverworldMap.Walkable(map, x, y)) continue; int v = fromMe[y * map.W + x]; if (v >= 0 && v < bb) { bb = v; board = new OverworldMap.Cell(x, y); } }
+            if (!board.HasValue) continue;
+            for (int d = 0; d < 4; d++)
+            {
+                if (OverworldProps.MuzzleCells(map, k, d).Count == 0) continue;
+                for (int dist = OverworldProps.MinAim; dist <= OverworldProps.MaxAim; dist++)
+                {
+                    var land = AimLandingOf(k, d, dist); int rest = fromDoor[land.y * map.W + land.x];
+                    if (rest < 0) continue; // 落点走得到门 = 走得回家（门本来就和家连通，H1）
+                    int cost = bb + 2 + rest;
+                    if (cost < bestCost) { bestCost = cost; best = new Ride { k = k, board = board.Value, dir = d, dist = dist, forStop = OverworldSession.NextStop }; }
+                }
+            }
+        }
+        ride = best;
+    }
+
+    private bool RideStillFree() => ride != null && !OverworldSession.UsedCells.Contains(ride.k.y * map.W + ride.k.x) && (seat == null || !seat.k.Equals(ride.k)) && !active.Exists(x => x.c.Equals(ride.k)); // 你先坐进去了 / 已经被发动
+
+    /// <summary>马里奥坐在炮里这一帧：瞄 overworldMarioCannonAimSeconds 秒（落点一直画在地上），然后发射。</summary>
+    private void MarioRide(float dt)
+    {
+        ride.t += dt;
+        lastOrder = new OverworldOrder { state = OverworldMarioState.Waiting, mark = "AIM", intent = "AIMING" };
+        if (ride.t < tuning.overworldMarioCannonAimSeconds) return;
+        // 发射：他飞到落点；炮口里的人（你）也被轰过去
+        var land = AimLandingOf(ride.k, ride.dir, ride.dist); double lx = land.x + 0.5, ly = land.y + 0.5;
+        OverworldSession.UsedCells.Add(ride.k.y * map.W + ride.k.x);
+        flights.Add(new Flight { fx = mario.x, fy = mario.y, tx = lx, ty = ly, dur = FlightSeconds, mario = true, ride = true, tampered = ride.tampered });
+        var muzzle = OverworldProps.MuzzleCells(map, ride.k, ride.dir);
+        if (!youFlying && seat == null && muzzle.Exists(q => q.x == (int)System.Math.Floor(tx) && q.y == (int)System.Math.Floor(ty))) { flights.Add(new Flight { fx = tx, fy = ty, tx = lx + 0.01, ty = ly, dur = FlightSeconds, you = true }); disguised = false; }
+        flights.Add(new Flight { fx = ride.k.x + 0.5, fy = ride.k.y + 0.5, tx = lx, ty = ly, dur = FlightSeconds, shell = true, depth = 1 });
+        Noise(ride.k.x + 0.5, ride.k.y + 0.5);
+        ride = null;
+    }
+
+    /// <summary>他坐在炮里瞄准时，你在旁边按 L：炮管拨到下一个能打的方向（距离不变）。他落地会晕（被你耍了），以后不再坐炮。</summary>
+    private bool TryTamper()
+    {
+        if (ride == null || !ride.seated) return false;
+        double r = PrankRange; if (Dist(ride.k.x + 0.5, ride.k.y + 0.5, tx, ty) > r) return false;
+        for (int s = 1; s <= 3; s++)
+        {
+            int d = (ride.dir + s) % 4; if (OverworldProps.MuzzleCells(map, ride.k, d).Count == 0) continue;
+            var land = AimLandingOf(ride.k, d, ride.dist); if (!OverworldProps.AimOk(map, ride.k, d, land, home)) continue;
+            ride.dir = d; ride.tampered = true; ride.t = Mathf.Min(ride.t, tuning.overworldMarioCannonAimSeconds * 0.5f); Hint(Note.CannonTamper, 2f); return true;
+        }
+        return false;
+    }
+
+    /// <summary>站在山丘上 L 够得远 1 格。</summary>
+    public double PrankRange => tuning.overworldPrankRange + (Here(tx, ty) == '^' ? 1 : 0);
 
     private void EnterRoom(OverworldMap.Door d, OverworldMind.DoorOutcome outcome)
     {
@@ -266,6 +434,10 @@ public sealed class OverworldTown
         else { goingHome = true; goalCell = home; schedule = Center(home); }
 
         if (marioFlying) return; // S218：被巨炮轰在天上（TickBigs 在移动他）
+        // S219：他要去门了 → 看看坐炮是不是快很多（每一站算一次）；坐在炮里时他看不见外面
+        if (schedule.HasValue && next != null && ridePlannedFor != OverworldSession.NextStop && mind.State == OverworldMarioState.Walking && exitGrace <= 0f) PlanRide(goalCell);
+        if (ride != null && ride.seated) { MarioRide(dt); return; }
+        if (ride != null && (ride.forStop != OverworldSession.NextStop || !schedule.HasValue || !RideStillFree())) ride = null;
         var r = Sight();
         bool blind = exitGrace > 0f; // 出门缓冲：他在清点战利品，不看不听（头上有 '…' 标记，H6）
         bool sees = !blind && OverworldMap.CanSee(map, lamps, mario.x, mario.y, mario.fx, mario.fy, tx, ty, r);
@@ -274,8 +446,8 @@ public sealed class OverworldTown
             marioPos = new Vector2((float)mario.x, (float)mario.y),
             seesFigure = sees,
             figurePos = new Vector2((float)tx, (float)ty),
-            figureLooksLikeProp = disguised,
-            figureMoving = lastMoved,
+            figureLooksLikeProp = disguised || seat != null, // S219：坐在炮里 = 他只看见一门炮；炮管转动 = 可疑（和伪装同一条规则 H6）
+            figureMoving = lastMoved || aimedThisFrame,
             sawRustle = !blind && !sees && lastMoved && OverworldMap.SeesRustle(map, lamps, mario.x, mario.y, mario.fx, mario.fy, tx, ty, r),
             rustlePos = new Vector2((float)tx, (float)ty),
             heardTaunt = !blind && tauntedThisFrame && Dist(mario.x, mario.y, tx, ty) <= tuning.overworldVisionRange * 1.5f,
@@ -299,6 +471,8 @@ public sealed class OverworldTown
             mario.SetGoal(map, dodge.Value); mario.Step(map, tuning.overworldChaseSpeed, dt); lastOrder = o;
             return;
         }
+        bool toCannon = ride != null && o.state == OverworldMarioState.Walking; // S219：平静地赶路时才去坐炮（起疑 / 追你就先不坐）
+        if (toCannon) { o.target = new Vector2(ride.board.x + 0.5f, ride.board.y + 0.5f); o.intent = "CANNON!"; lastOrder = o; }
         if (o.target.HasValue)
         {
             var tc = new OverworldMap.Cell(Mathf.FloorToInt(o.target.Value.x), Mathf.FloorToInt(o.target.Value.y));
@@ -308,6 +482,7 @@ public sealed class OverworldTown
             mario.Step(map, speed, dt);
         }
         if (o.tryCatch) Caught();
+        if (toCannon && Dist(mario.x, mario.y, ride.board.x + 0.5, ride.board.y + 0.5) < 0.35) { ride.seated = true; ride.t = 0f; mario.x = ride.k.x + 0.5; mario.y = ride.k.y + 0.5; mario.Clear(); Hint(Note.MarioRides, 2.5f); return; }
 
         if (o.state == OverworldMarioState.Walking && mario.Arrived && schedule.HasValue && mario.Goal.Equals(goalCell))
         {
@@ -321,9 +496,15 @@ public sealed class OverworldTown
     public bool Arm(OverworldMap.Cell c, int depth, double fromX, double fromY)
     {
         int id = c.y * map.W + c.x; char k = map.At(c.x, c.y);
-        if (!OverworldProps.IsBig(k) || OverworldSession.UsedCells.Contains(id)) return false;
+        bool ok = OverworldProps.IsBig(k) || (k == 'i' && weather.kind == OverworldEvents.Kind.Storm) || (k == '^' && OverworldProps.MudDir(map, c) >= 0);
+        if (!ok || OverworldSession.UsedCells.Contains(id)) return false;
+        if (k == 'K' && ((seat != null && seat.k.Equals(c)) || (ride != null && ride.seated && ride.k.Equals(c)))) return false; // 有人坐着，由坐的人发射
         var b = new Big { c = c, kind = k, depth = depth, fuse = tuning.overworldBigFuseSeconds, fuseTotal = tuning.overworldBigFuseSeconds };
-        if (k == 'K') { if (!OverworldProps.Aim(map, c, out _, out b.dir, out _)) return false; }
+        if (k == 'K')
+        {
+            AimOf(c, out b.dir, out b.dist); // S219：你瞄好的方向（没瞄过 = 靶心）
+            if (!OverworldProps.AimOk(map, c, b.dir, AimLandingOf(c, b.dir, b.dist), home)) return false;
+        }
         else if (k == 'O') { b.dir = OverworldProps.PushDir(map, c, fromX, fromY); if (b.dir < 0) return false; }
         OverworldSession.UsedCells.Add(id);
         active.Add(b);
@@ -336,6 +517,8 @@ public sealed class OverworldTown
     public List<OverworldMap.Cell> Danger(Big b)
     {
         if (b.kind == 'K') return OverworldProps.MuzzleCells(map, b.c, b.dir);
+        if (b.kind == 'i') { var l = new List<OverworldMap.Cell>(); int r = (int)System.Math.Ceiling(OverworldProps.LightningRadius); for (int y = b.c.y - r; y <= b.c.y + r; y++) for (int x = b.c.x - r; x <= b.c.x + r; x++) if (OverworldMap.Walkable(map, x, y) && Dist(x + 0.5, y + 0.5, b.c.x + 0.5, b.c.y + 0.5) <= OverworldProps.LightningRadius + 1e-6) l.Add(new OverworldMap.Cell(x, y)); return l; }
+        if (b.kind == '^') return OverworldProps.MudLane(map, b.c);
         if (b.kind == 'O') { var l = b.lane ?? OverworldProps.Lane(map, b.c, b.dir); int from = (int)System.Math.Floor(b.rolled); return l.GetRange(System.Math.Min(from, l.Count), l.Count - System.Math.Min(from, l.Count)); }
         return new List<OverworldMap.Cell>();
     }
@@ -362,6 +545,7 @@ public sealed class OverworldTown
     {
         Noise(x, y);
         foreach (var t in OverworldProps.ChainTargets(map, x, y)) if (!t.Equals(self)) Arm(t, depth + 1, x, y);
+        if (OverworldEvents.Wet(weather)) foreach (var t in OverworldProps.MudSources(map, x, y)) if (!t.Equals(self)) Arm(t, depth + 1, x, y); // S219：下雨天震到山丘 = 泥石流
         foreach (var c in OverworldMap.Find(map, 'n')) // 冲击也会把旁边的香蕉皮震活
         {
             int id = c.y * map.W + c.x;
@@ -379,8 +563,8 @@ public sealed class OverworldTown
             if (f.you) { tx = f.X; ty = f.Y; }
             if (f.t < f.dur) continue;
             flights.RemoveAt(i);
-            if (f.mario) { mario.x = f.tx; mario.y = f.ty; mario.Clear(); HitMario('K'); }
-            if (f.you) { tx = f.tx; ty = f.ty; frozen = Mathf.Max(frozen, 0.4f); }
+            if (f.mario) { mario.x = f.tx; mario.y = f.ty; mario.Clear(); if (!f.ride || f.tampered) HitMario('K'); } // S219：他自己坐炮、没被你拨歪 = 平稳落地
+            if (f.you) { tx = f.tx; ty = f.ty; frozen = Mathf.Max(frozen, 0.4f); if (seat != null) seat = null; }
             if (f.shell) Impact(f.tx, f.ty, f.depth, new OverworldMap.Cell(-1, -1));
         }
         for (int i = active.Count - 1; i >= 0; i--)
@@ -405,13 +589,12 @@ public sealed class OverworldTown
         double cx = b.c.x + 0.5, cy = b.c.y + 0.5;
         if (b.kind == 'K')
         {
-            OverworldProps.Aim(map, b.c, out var tg, out _, out _);
-            var land = OverworldProps.Landing(map, tg, weather.kind == OverworldEvents.Kind.Wind ? weather.wind : -1);
+            var land = AimLandingOf(b.c, b.dir, b.dist); // S219：瞄准的落点（没瞄过 = 靶心 X，和 S218 一样）
             var muzzle = OverworldProps.MuzzleCells(map, b.c, b.dir);
             bool In(double x, double y) => muzzle.Exists(m => m.x == (int)System.Math.Floor(x) && m.y == (int)System.Math.Floor(y));
             double lx = land.x + 0.5, ly = land.y + 0.5;
             if (!marioInside && !marioFlying && In(mario.x, mario.y)) flights.Add(new Flight { fx = mario.x, fy = mario.y, tx = lx, ty = ly, dur = FlightSeconds, mario = true });
-            if (!youFlying && In(tx, ty)) { flights.Add(new Flight { fx = tx, fy = ty, tx = lx + 0.01, ty = ly, dur = FlightSeconds, you = true }); disguised = false; }
+            if (!youFlying && (b.rider == 1 || (seat == null && In(tx, ty)))) { flights.Add(new Flight { fx = tx, fy = ty, tx = lx + 0.01, ty = ly, dur = FlightSeconds, you = true }); disguised = false; if (b.rider == 1) OverworldSession.CannonRides++; }
             flights.Add(new Flight { fx = cx, fy = cy, tx = lx, ty = ly, dur = FlightSeconds, shell = true, depth = b.depth });
             Noise(cx, cy);
             return false;
@@ -423,7 +606,11 @@ public sealed class OverworldTown
             Noise(cx, cy);
             return true;
         }
+        if (b.kind == 'i') return FireLightning(b);
+        if (b.kind == '^') return FireMud(b);
         int rad = OverworldProps.FloodRadius + (weather.kind == OverworldEvents.Kind.Rain ? 1 : 0);
+        // S219 山洪：水塔淹到的山丘（泥石流源头）也冲下来（不管天气）
+        foreach (var hc in OverworldMap.Find(map, '^')) if (OverworldProps.MudDir(map, hc) >= 0 && (hc.x - b.c.x) * (hc.x - b.c.x) + (hc.y - b.c.y) * (hc.y - b.c.y) <= rad * rad) Arm(hc, b.depth + 1, cx, cy);
         foreach (var c in OverworldProps.Flood(map, b.c, rad)) Change(c.x, c.y, 'g');
         foreach (var c in OverworldMap.Find(map, 'n'))
         {
@@ -435,6 +622,39 @@ public sealed class OverworldTown
         return false;
     }
 
+    /// <summary>S219 闪电：打在路灯上，1.5 格内的人晕 2 秒；冲击会震响旁边的大机关 / 山丘（雷雨 = 湿，会泥石流）。</summary>
+    private bool FireLightning(Big b)
+    {
+        double cx = b.c.x + 0.5, cy = b.c.y + 0.5, r = OverworldProps.LightningRadius + 0.3;
+        if (!marioInside && !marioFlying && !MarioSeated && Dist(cx, cy, mario.x, mario.y) <= r) HitMario('i');
+        if (!youFlying && seat == null && Dist(cx, cy, tx, ty) <= r) { frozen = Mathf.Max(frozen, tuning.overworldBigStunSeconds); disguised = false; Hint(Note.BigSelf, 2f); }
+        OverworldSession.Lightnings++; bolts.Add(new Impact3((float)cx, (float)cy, 1f));
+        Impact(cx, cy, b.depth, b.c); impacts.Add(new Impact3((float)cx, (float)cy, (float)OverworldProps.LightningRadius));
+        if (hint == Note.None || hint == Note.BigArmed) Hint(Note.Lightning, 2f);
+        return false;
+    }
+
+    /// <summary>S219 泥石流：山丘朝离开山的方向冲 6 格，全部变泥地（木箱栅栏冲垮），冲到的人晕；冲到头再震一下（连锁）。</summary>
+    private bool FireMud(Big b)
+    {
+        var lane = OverworldProps.MudLane(map, b.c);
+        Change(b.c.x, b.c.y, 'g');
+        foreach (var q in lane)
+        {
+            if (!marioInside && !marioFlying && !MarioSeated && (int)System.Math.Floor(mario.x) == q.x && (int)System.Math.Floor(mario.y) == q.y) HitMario('^');
+            if (!youFlying && seat == null && (int)System.Math.Floor(tx) == q.x && (int)System.Math.Floor(ty) == q.y) { frozen = Mathf.Max(frozen, tuning.overworldBigStunSeconds); Hint(Note.BigSelf, 2f); }
+            if (OverworldProps.Muddable(map.At(q.x, q.y))) Change(q.x, q.y, 'g'); impacts.Add(new Impact3(q.x + 0.5f, q.y + 0.5f, 0.6f)); // 门 / 家 / 山洞 / 靶心 冲过但不改
+        }
+        OverworldSession.Mudslides++;
+        var end = lane.Count > 0 ? lane[lane.Count - 1] : b.c;
+        Impact(end.x + 0.5, end.y + 0.5, b.depth, b.c);
+        if (hint == Note.None || hint == Note.BigArmed) Hint(Note.Mudslide, 2f);
+        return false;
+    }
+
+    /// <summary>这一帧打下来的闪电（画面层画一道光）。</summary>
+    public readonly List<Impact3> bolts = new List<Impact3>();
+
     /// <summary>他站在他吃过亏的那种大机关的危险格里、而且看得见那个机关 → 最近的安全格（≤ overworldDodgeSteps 步）。H4：只用他看得见的预警 + 自己的经历。</summary>
     private OverworldMap.Cell? DodgeCell(OverworldMap.SightRules r)
     {
@@ -442,7 +662,7 @@ public sealed class OverworldTown
         var danger = new HashSet<(int, int)>();
         foreach (var b in active)
         {
-            if (!OverworldSession.MarioWary.Contains(b.kind) || b.kind == 'U') continue;
+            if (!OverworldSession.MarioWary.Contains(b.kind) || b.kind == 'U' || b.rider == 2) continue;
             double px = b.rolling ? b.rx : b.c.x + 0.5, py = b.rolling ? b.ry : b.c.y + 0.5;
             if (!OverworldMap.CanSee(map, lamps, mario.x, mario.y, mario.fx, mario.fy, px, py, r) && Dist(px, py, mario.x, mario.y) > r.range) continue;
             foreach (var c in Danger(b)) danger.Add((c.x, c.y));
@@ -510,7 +730,7 @@ public sealed class OverworldTown
         minutesPerSecond = tuning.overworldMinutesPerSecond, visitMinutes = tuning.overworldVisitMinutes,
     };
 
-    private float Fog => weather.kind == OverworldEvents.Kind.Fog ? tuning.overworldFogSight : 1f;
+    private float Fog => weather.kind == OverworldEvents.Kind.Fog ? tuning.overworldFogSight : weather.kind == OverworldEvents.Kind.Acid ? tuning.overworldAcidSight : 1f;
 
     private char Here(double x, double y) => map.At((int)System.Math.Floor(x), (int)System.Math.Floor(y));
     private static Vector2 Center(OverworldMap.Cell c) => new Vector2(c.x + 0.5f, c.y + 0.5f);

@@ -234,11 +234,12 @@ public sealed class OverworldWorkshopWindow : EditorWindow
             var rows = OverworldMap.NewMap(40, 24);
             Load($"# Overworld: 新小镇\n# Goal: \n{string.Join("\n", rows)}\n", "新建 40×24（已放好家 M 和出生点 T）");
         }
-        if (GUILayout.Button(new GUIContent("样板 ▾", "内置样板：星露小镇（4 户人家）/ 星露大镇（72×40，巨炮 滚石 水塔 + 3 连锁）"), EditorStyles.toolbarDropDown, GUILayout.Width(52)))
+        if (GUILayout.Button(new GUIContent("样板 ▾", "内置样板：星露小镇（4 户人家）/ 星露大镇（72×40，巨炮 滚石 水塔 + 3 连锁）/ 星露山镇（山脉 + 山洞 + 雷雨 + 泥石流）"), EditorStyles.toolbarDropDown, GUILayout.Width(52)))
         {
             var sm = new GenericMenu();
             sm.AddItem(new GUIContent("星露小镇（44×28，入门）"), false, () => Load(OverworldPack.SampleText, "载入样板 星露小镇"));
             sm.AddItem(new GUIContent("星露大镇（72×40，大机关 + 连锁）"), false, () => Load(OverworldPack.BigSampleText, "载入样板 星露大镇：右边'大机关 · 连锁'点一行就定位"));
+            sm.AddItem(new GUIContent("星露山镇（72×40，山脉 山洞 闪电 泥石流）"), false, () => Load(OverworldPack.MountainSampleText, "载入样板 星露山镇：紫虚线 = 山洞配对，棕色 = 泥石流会冲到哪"));
             sm.ShowAsContext();
         }
         // S217：往大世界扩展（四边都能加 / 裁），网页"↔ 扩展"同一套规则
@@ -380,7 +381,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
                 EditorGUI.DrawRect(r, t != null ? new Color(t.r, t.g, t.b) : Color.magenta);
                 if (route.Contains((x, y)) && !OverworldCatalog.Solid(c)) EditorGUI.DrawRect(new Rect(r.x + cell * 0.35f, r.y + cell * 0.35f, cell * 0.3f, cell * 0.3f), new Color(1f, 0.2f, 0.2f, 0.8f));
                 if (errCells.Contains((x, y))) { EditorGUI.DrawRect(new Rect(r.x, r.y, r.width, 2), Color.red); EditorGUI.DrawRect(new Rect(r.x, r.yMax - 2, r.width, 2), Color.red); }
-                if (OverworldCatalog.IsDoor(c) || "MT?niKOUX".IndexOf(c) >= 0) GUI.Label(r, c.ToString(), label);
+                if (OverworldCatalog.IsDoor(c) || "MT?niKOUXh^A".IndexOf(c) >= 0) GUI.Label(r, c.ToString(), label);
             }
         // S212：矩形拖动预览
         if (dragStart.HasValue && hover.x >= 0)
@@ -437,6 +438,21 @@ public sealed class OverworldWorkshopWindow : EditorWindow
                 for (int d = 0; d < 4; d++) { var lane = OverworldProps.Lane(map, c, d); if (lane.Count < 2) continue; var e = lane[lane.Count - 1]; Handles.color = new Color(0.85f, 0.8f, 0.7f, 0.55f); Handles.DrawAAPolyLine(4f, C(area, c.x, c.y), C(area, e.x, e.y)); }
             else if (k == 'U') foreach (var f in OverworldProps.Flood(map, c, OverworldProps.FloodRadius)) EditorGUI.DrawRect(new Rect(area.x + f.x * cell + cell * 0.3f, area.y + (map.H - 1 - f.y) * cell + cell * 0.3f, cell * 0.4f, cell * 0.4f), new Color(0.3f, 0.55f, 1f, 0.55f));
             foreach (var t in OverworldProps.Triggers(map, c)) { Handles.color = new Color(1f, 0.85f, 0.2f, 0.95f); Handles.DrawAAPolyLine(2.5f, C(area, c.x, c.y) + Vector2.one * 2, C(area, t.x, t.y) + Vector2.one * 2); }
+            if (k == 'K') for (int d = 0; d < 4; d++) { var mz = OverworldProps.MuzzleCells(map, c, d); if (mz.Count == 0) continue; Handles.color = new Color(0.45f, 1f, 0.55f, 0.8f); Handles.DrawAAPolyLine(1.5f, C(area, c.x, c.y), C(area, mz[mz.Count - 1].x, mz[mz.Count - 1].y)); } // S219：坐进去能瞄的方向
+        }
+        // S219：山洞配对（紫线）、泥石流（棕色）、雷雨天路灯能震响谁（淡蓝）
+        var caves = OverworldMap.Find(map, 'h');
+        for (int i = 0; i + 1 < caves.Count; i += 2) { Handles.color = new Color(0.8f, 0.5f, 1f, 0.9f); Handles.DrawDottedLine(C(area, caves[i].x, caves[i].y), C(area, caves[i + 1].x, caves[i + 1].y), 4f); }
+        foreach (var hc in OverworldMap.Find(map, '^'))
+        {
+            var lane = OverworldProps.MudLane(map, hc); if (lane.Count == 0) continue;
+            foreach (var q in lane) EditorGUI.DrawRect(new Rect(area.x + q.x * cell + cell * 0.2f, area.y + (map.H - 1 - q.y) * cell + cell * 0.2f, cell * 0.6f, cell * 0.6f), new Color(0.55f, 0.35f, 0.15f, 0.5f));
+            Handles.color = new Color(0.6f, 0.37f, 0.15f, 0.9f); Handles.DrawAAPolyLine(3f, C(area, hc.x, hc.y), C(area, lane[lane.Count - 1].x, lane[lane.Count - 1].y));
+        }
+        foreach (var lc in OverworldMap.Find(map, 'i'))
+        {
+            var ts = OverworldProps.ChainTargets(map, lc.x + 0.5, lc.y + 0.5, OverworldProps.LightningRadius); ts.AddRange(OverworldProps.MudSources(map, lc.x + 0.5, lc.y + 0.5));
+            foreach (var t in ts) { Handles.color = new Color(0.7f, 0.87f, 1f, 0.95f); Handles.DrawAAPolyLine(2f, C(area, lc.x, lc.y), C(area, t.x, t.y)); }
         }
         Handles.EndGUI();
         // 悬停门 → 画布旁边弹出门里房间的缩略图（不用切到关卡工坊）

@@ -185,7 +185,7 @@ static class CHECK {
     var chain=OverworldProps.LongestChain(big); if(chain.Count<3){ rb++; Console.WriteLine($"     [FAIL] 星露大镇最长连锁只有 {chain.Count}"); }
     parts.Add($"星露大镇 {big.W}×{big.H} {rep.Headline} 最长连锁 {chain.Count}");
     // 反例：巨炮没有靶心 / 炮口堵死 / 靶心在封闭围栏里（落点走不回家）/ 大机关太多
-    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; OverworldMap.Set(m,26,16,'K'); var c=OverworldMap.Check(m,r); if(c.Playable||!c.issues.Any(i=>i.text.Contains("找不到靶心"))){ rb++; Console.WriteLine("     [FAIL] 没靶心的巨炮应报错"); } }
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; OverworldMap.Set(m,26,16,'K'); var c=OverworldMap.Check(m,r); if(!c.issues.Any(i=>i.sev==OverworldMap.Sev.Warn&&i.text.Contains("找不到靶心"))){ rb++; Console.WriteLine("     [FAIL] 没靶心的巨炮应提醒（S219 起能自己瞄，只是黄色提醒）"); } }
     { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; OverworldMap.Set(m,26,16,'K'); OverworldMap.Set(m,26,15,'c'); OverworldMap.Set(m,26,3,'X'); var c=OverworldMap.Check(m,r); if(!c.issues.Any(i=>i.text.Contains("第一格就被挡住"))){ rb++; Console.WriteLine("     [FAIL] 炮口堵死应报错"); } }
     { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; OverworldMap.Set(m,2,20,'K'); OverworldMap.Set(m,2,1,'X'); for(int x=1;x<=6;x++) for(int y=1;y<=6;y++) if(x==1||y==6||x==6) if(m.At(x,y)=='.'||m.At(x,y)=='"') OverworldMap.Set(m,x,y,'f');
       var c=OverworldMap.Check(m,r); if(!c.issues.Any(i=>i.text.Contains("走不回马里奥的家"))){ rb++; Console.WriteLine("     [FAIL] 靶心在围栏里（被轰过去就困住）应报错 H1："+string.Join(" / ",c.issues.Take(3))); } }
@@ -238,6 +238,90 @@ static class CHECK {
       for(int i=0;i<Math.Max(web.Count,mine.Count);i++){ string a=i<mine.Count?mine[i]:"(无)", b=i<web.Count?web[i]:"(无)"; if(a!=b){ wd++; if(wd<=3) Console.WriteLine($"     [FAIL] 大机关 网页≠Unity 第{i}行：\n        Unity {a}\n        网页  {b}"); } } }
     rb+=wd;
     Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S218 小镇大机关：{string.Join("｜",parts)}｜网页对照{(!haveWeb?"跳过":wd==0?$"一致 {mine.Count} 行":"不一致")}"); fail+=rb; }
+  // S219：巨炮自由瞄准（你 / 马里奥都能坐）+ 山地（山丘挡视线 / 山洞隧道）+ 雷雨闪电 / 酸雨 / 泥石流 + 网页逐字对照（ow_mtn.json）
+  { int rb=0; var parts=new List<string>(); var r=OverworldMap.Rules.Default; var t=MarioMindTuningSO.LoadOrDefault(); var inp=new OverworldTown.Input();
+    var mtn=OverworldPack.Parse(OverworldPack.MountainSampleText)[0];
+    var rep=OverworldMap.Check(mtn,r); if(!rep.Playable){ rb++; Console.WriteLine("     [FAIL] 星露山镇不可玩："+string.Join(" / ",rep.issues.Where(i=>i.sev==OverworldMap.Sev.Error).Take(3))); }
+    var day=OverworldWalker.SimulateDay(mtn,r); if(!day.ok){ rb++; Console.WriteLine("     [FAIL] 星露山镇一天走不完："+day.summary); }
+    parts.Add($"星露山镇 {rep.Headline}");
+    // 旧图不受影响：星露大镇 S218 的检查文字 / 默认落点不变（靶心仍是默认瞄准）
+    { var big=OverworldPack.Parse(OverworldPack.BigSampleText)[0]; OverworldProps.DefaultAim(big,new OverworldMap.Cell(26,16),out int dd,out int ds); OverworldProps.Aim(big,new OverworldMap.Cell(26,16),out var tg,out _,out _);
+      var l1=OverworldProps.AimLanding(big,new OverworldMap.Cell(26,16),dd,ds,-1); var l2=OverworldProps.Landing(big,tg,-1); if(!l1.Equals(l2)){ rb++; Console.WriteLine($"     [FAIL] 默认瞄准落点 {l1} ≠ S218 靶心落点 {l2}"); } }
+    // 视线：山丘挡住两个站在平地的人；站上山丘就看得过去；山 A 永远挡
+    { var m=OverworldMap.Parse("# Overworld: los\n"+string.Join("\n",OverworldMap.NewMap(16,12))); OverworldMap.Set(m,7,5,'^');
+      bool flat=OverworldMap.LineOfSight(m,4.5,5.5,10.5,5.5); OverworldMap.Set(m,4,5,'^'); bool up=OverworldMap.LineOfSight(m,4.5,5.5,10.5,5.5); OverworldMap.Set(m,7,5,'A'); bool mt=OverworldMap.LineOfSight(m,4.5,5.5,10.5,5.5);
+      if(flat||!up||mt){ rb++; Console.WriteLine($"     [FAIL] 视线：平地隔山丘={flat}（应 false） 站上山丘={up}（应 true） 隔山={mt}（应 false）"); } else parts.Add("山丘挡平地视线、站上去看得远"); }
+    // 瞄准：顺着远 / 反着近到头调头 / 横着转；落点走不回家不许打
+    { var k=new OverworldMap.Cell(26,16); OverworldProps.DefaultAim(mtn,k,out int dir,out int dist); int d0=dir,s0=dist;
+      OverworldProps.AimStep(mtn,k,ref dir,ref dist,dir); bool far=dist==s0+1; for(int i=0;i<40;i++) OverworldProps.AimStep(mtn,k,ref dir,ref dist,d0^1); bool flip=dir==(d0^1);
+      int dir2=0,dist2=5; OverworldProps.AimStep(mtn,k,ref dir2,ref dist2,2); bool turn=dir2==2&&dist2==5;
+      if(!far||!flip||!turn){ rb++; Console.WriteLine($"     [FAIL] 瞄准：远={far} 调头={flip} 转向={turn}"); } else parts.Add("瞄准 远/近/调头/转向"); }
+    // 你坐炮：E 坐进去 → 方向键瞄 → L 发射 → 飞到瞄的落点；落点走不回家 → 不许打（H1）
+    { OverworldSession.ResetStatics(); OverworldSession.NewDay(mtn.name,"Town"); OverworldSession.Active=true;
+      var town=new OverworldTown(OverworldPack.Parse(OverworldPack.MountainSampleText)[0],t); var k=new OverworldMap.Cell(26,16);
+      town.tx=k.x-0.5; town.ty=k.y+0.5; OverworldSession.Minute=OverworldMap.DayStart; town.Tick(1f/30,new OverworldTown.Input{door=true});
+      bool sat=town.Seated; int want=town.seat!=null?town.seat.dist:0; for(int i=0;i<3&&sat;i++) town.Tick(1f/30,new OverworldTown.Input{aim=town.seat.dir+1}); 
+      var land=town.seat!=null?town.AimLandingOf(k,town.seat.dir,town.seat.dist):k; town.Tick(1f/30,new OverworldTown.Input{peel=true});
+      float tt=0; bool flew=false; while(tt<5f){ town.Tick(1f/30,inp); tt+=1f/30; if(town.youFlying) flew=true; if(flew&&!town.youFlying) break; }
+      bool atLand=OverworldTown.Dist(town.tx,town.ty,land.x+0.5,land.y+0.5)<0.6;
+      if(!sat||!flew||!atLand||OverworldSession.CannonRides!=1){ rb++; Console.WriteLine($"     [FAIL] 你坐炮：坐进去={sat} 飞={flew} 落在瞄的地方={atLand} ({town.tx:0.0},{town.ty:0.0}) vs {land}"); } else parts.Add($"你坐炮瞄 {want+3} 格飞到 {land}");
+      // 被围起来的落点：不许打
+      var m2=OverworldPack.Parse(OverworldPack.MountainSampleText)[0]; for(int x=5;x<=9;x++) for(int y=30;y<=34;y++) if(x==5||x==9||y==30||y==34) OverworldMap.Set(m2,x,y,'f');
+      OverworldMap.Set(m2,20,32,'K'); bool okIn=OverworldProps.AimOk(m2,new OverworldMap.Cell(20,32),1,OverworldProps.AimLanding(m2,new OverworldMap.Cell(20,32),1,13,-1),OverworldMap.Find(m2,'M')[0]);
+      if(okIn){ rb++; Console.WriteLine("     [FAIL] 瞄进围栏里（走不回家）应不许发射"); } else parts.Add("瞄进死地不许打"); }
+    // 马里奥坐炮：星露山镇 8:00 他去门 1……找一个"坐炮能省 ≥10 格"的场景：门 4 在东南，炮在 (63,28) 北边
+    { OverworldSession.ResetStatics(); OverworldSession.NewDay(mtn.name,"Town"); OverworldSession.Active=true;
+      var m=OverworldPack.Parse(OverworldPack.MountainSampleText)[0]; var town=new OverworldTown(m,t);
+      town.mario.x=62.5; town.mario.y=30.5; town.mario.Clear(); town.tx=3.5; town.ty=2.5; OverworldSession.NextStop=3; OverworldSession.Minute=16*60+31;
+      bool rode=false,flew=false,dizzy=false; float tt=0; while(tt<25f&&OverworldSession.NextStop==3){ town.Tick(1f/30,inp); tt+=1f/30; if(town.MarioSeated) rode=true; if(town.marioFlying) flew=true; if(town.lastOrder.state==OverworldMarioState.Dizzy) dizzy=true; }
+      if(!rode||!flew||dizzy){ rb++; Console.WriteLine($"     [FAIL] 马里奥坐炮抄近路：坐={rode} 飞={flew} 晕={dizzy}（自己坐不该晕） 门={OverworldSession.NextStop}"); } else parts.Add($"马里奥自己坐炮抄近路（{tt:0} 秒进门）");
+      // 你拨歪：他坐着瞄的时候你站旁边按 L → 他飞歪、落地晕、以后不坐
+      OverworldSession.ResetStatics(); OverworldSession.NewDay(mtn.name,"Town"); OverworldSession.Active=true;
+      var t2=new OverworldTown(OverworldPack.Parse(OverworldPack.MountainSampleText)[0],t); t2.mario.x=62.5; t2.mario.y=30.5; t2.mario.Clear(); t2.tx=65.5; t2.ty=27.5; OverworldSession.NextStop=3; OverworldSession.Minute=16*60+31;
+      bool tam=false,dz=false; tt=0; while(tt<20f){ var ii=new OverworldTown.Input{peel=t2.MarioSeated&&!tam}; t2.Tick(1f/30,ii); if(t2.hint==OverworldTown.Note.CannonTamper) tam=true; if(t2.lastOrder.state==OverworldMarioState.Dizzy) dz=true; tt+=1f/30; if(dz) break; }
+      if(!tam||!dz||!OverworldSession.MarioWary.Contains('K')){ rb++; Console.WriteLine($"     [FAIL] 拨歪他的炮：拨到={tam} 他落地晕={dz} 记住了={OverworldSession.MarioWary.Contains('K')}"); } else parts.Add("拨歪他的炮 → 他晕 + 以后不坐");
+      OverworldSession.ResetStatics(); }
+    // 雷雨：路灯 L 召唤闪电 → 旁边的人晕、震响山丘 → 泥石流（湿的天）；晴天路灯 L 没用
+    { OverworldSession.ResetStatics(); int stormDay=-1; for(int d=2;d<80&&stormDay<0;d++) if(OverworldEvents.Of(mtn,d).kind==OverworldEvents.Kind.Storm) stormDay=d;
+      if(stormDay<0){ rb++; Console.WriteLine("     [FAIL] 星露山镇 80 天里没有雷雨"); }
+      else { OverworldSession.NewDay(mtn.name,"Town",stormDay); OverworldSession.Active=true; var town=new OverworldTown(OverworldPack.Parse(OverworldPack.MountainSampleText)[0],t);
+        var lamp=new OverworldMap.Cell(45,31); town.tx=lamp.x+2.5; town.ty=lamp.y+0.5; town.mario.x=lamp.x-0.5; town.mario.y=lamp.y+0.5; town.mario.Clear(); OverworldSession.Minute=OverworldMap.DayStart;
+        town.Tick(1f/30,new OverworldTown.Input{peel=true}); bool dz=false; float tt=0; while(tt<4f){ town.Tick(1f/30,inp); tt+=1f/30; if(town.lastOrder.state==OverworldMarioState.Dizzy) dz=true; }
+        if(OverworldSession.Lightnings!=1||!dz||OverworldSession.Mudslides<1){ rb++; Console.WriteLine($"     [FAIL] 雷雨闪电：劈={OverworldSession.Lightnings} 他晕={dz} 泥石流={OverworldSession.Mudslides}"); } else parts.Add($"第 {stormDay} 天雷雨：闪电 → 他晕 → 泥石流 {OverworldSession.Mudslides} 道"); }
+      OverworldSession.ResetStatics(); OverworldSession.NewDay(mtn.name,"Town",1); OverworldSession.Active=true; var sunny=new OverworldTown(OverworldPack.Parse(OverworldPack.MountainSampleText)[0],t);
+      sunny.tx=47.5; sunny.ty=31.5; sunny.Tick(1f/30,new OverworldTown.Input{peel=true}); for(int i=0;i<90;i++) sunny.Tick(1f/30,inp);
+      if(OverworldSession.Lightnings!=0){ rb++; Console.WriteLine("     [FAIL] 晴天路灯不该召唤闪电"); } OverworldSession.ResetStatics(); }
+    // 山洞：钻进去按 E 从另一头出来；马里奥寻路不走隧道（H4：他不知道）
+    { OverworldSession.ResetStatics(); OverworldSession.NewDay(mtn.name,"Town"); OverworldSession.Active=true; var town=new OverworldTown(OverworldPack.Parse(OverworldPack.MountainSampleText)[0],t);
+      var cv=OverworldMap.Find(town.map,'h'); town.tx=cv[0].x+0.5; town.ty=cv[0].y+0.5; town.Tick(1f/30,new OverworldTown.Input{door=true});
+      bool hop=OverworldTown.Dist(town.tx,town.ty,cv[1].x+0.5,cv[1].y+0.5)<0.2;
+      if(!hop||cv.Count!=2){ rb++; Console.WriteLine($"     [FAIL] 山洞：{cv.Count} 个，钻过去={hop}"); } else parts.Add($"山洞 {cv[0]}⇄{cv[1]}"); OverworldSession.ResetStatics(); }
+    // 最坏情况：所有泥石流都冲 + 酸雨高草全枯 → 仍可玩、一天走得完（地形只会"打开"）
+    { var m=OverworldPack.Parse(OverworldPack.MountainSampleText)[0];
+      foreach(var c in OverworldMap.Find(m,'^')){ if(OverworldProps.MudDir(m,c)<0) continue; foreach(var q in OverworldProps.MudLane(m,c)) if(OverworldProps.Muddable(m.At(q.x,q.y))) OverworldMap.Set(m,q.x,q.y,'g'); OverworldMap.Set(m,c.x,c.y,'g'); }
+      OverworldEvents.ApplyTo(m,new OverworldEvents.Day{kind=OverworldEvents.Kind.Acid});
+      var c2=OverworldMap.Check(m,r); var d2=OverworldWalker.SimulateDay(m,r); if(!c2.Playable||!d2.ok){ rb++; Console.WriteLine($"     [FAIL] 泥石流全冲 + 酸雨后不可玩：{c2.Headline} {d2.summary}"); } else parts.Add("泥石流全冲+酸雨后仍可玩"); }
+    // 天气池看格局：星露山镇 7 种都会出现；星露小镇（有路灯没山洞）没有酸雨；没路灯的图没有雷雨
+    { var kinds=new HashSet<OverworldEvents.Kind>(); for(int d=1;d<=120;d++) kinds.Add(OverworldEvents.Of(mtn,d).kind);
+      var small=OverworldPack.Parse(OverworldPack.SampleText)[0]; bool acid=false; for(int d=1;d<=120;d++) if(OverworldEvents.Of(small,d).kind==OverworldEvents.Kind.Acid) acid=true;
+      var bare=OverworldMap.Parse("# Overworld: bare\n"+string.Join("\n",OverworldMap.NewMap(16,12))); bool storm=false; for(int d=1;d<=120;d++) if(OverworldEvents.Of(bare,d).kind==OverworldEvents.Kind.Storm) storm=true;
+      if(kinds.Count<7||acid||storm){ rb++; Console.WriteLine($"     [FAIL] 天气池：山镇 {kinds.Count} 种 小镇出现酸雨={acid} 空地出现雷雨={storm}"); } else parts.Add("天气池 7 种（按格局：路灯→雷雨、山洞→酸雨）"); }
+    // 机器人：星露山镇 4 种玩家 × 4 天，一天都能结束，会躲的每扇门都埋伏上（H10）
+    { var sw=System.Diagnostics.Stopwatch.StartNew(); int am=0,doors=0; bool ended=true;
+      for(int d=1;d<=4;d++) foreach(var kd in new[]{OverworldBots.Kind.Hider,OverworldBots.Kind.Prankster,OverworldBots.Kind.Idle,OverworldBots.Kind.Chaos}){
+        var br=OverworldBots.PlayDay(OverworldPack.Parse(OverworldPack.MountainSampleText)[0],t,kd,true,d,d); if(!br.dayEnded) ended=false; if(kd==OverworldBots.Kind.Hider){ am+=br.ambush; doors+=br.doors; } }
+      OverworldSession.ResetStatics(); sw.Stop();
+      if(!ended||am<doors){ rb++; Console.WriteLine($"     [FAIL] 星露山镇机器人：都结束={ended} 会躲的埋伏 {am}/{doors}"); } else parts.Add($"机器人 4 天×4 种 {sw.ElapsedMilliseconds}ms 埋伏 {am}/{doors}"); }
+    // 网页对照
+    var mine=new List<string>(); foreach(var i in rep.issues) mine.Add(i.sev+" "+i); foreach(var l in OverworldProps.Describe(mtn)) mine.Add("D "+l.text);
+    for(int d=1;d<=30;d++){ var w=OverworldEvents.Of(mtn,d); mine.Add($"W {d} {(int)w.kind} {w.wind}"); } mine.AddRange(OverworldEvents.Preview(mtn,1,14));
+    { var k=new OverworldMap.Cell(26,16); OverworldProps.DefaultAim(mtn,k,out int dir,out int dist); foreach(int key in new[]{0,0,1,1,1,2,3,3,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}){ OverworldProps.AimStep(mtn,k,ref dir,ref dist,key); var l=OverworldProps.AimLanding(mtn,k,dir,dist,2); mine.Add($"A {dir} {dist} {l.x},{l.y} {OverworldProps.AimOk(mtn,k,dir,l,OverworldMap.Find(mtn,'M')[0])}"); } }
+    foreach(var (ax,ay,bx,by) in new[]{(35.5,20.5,35.5,24.5),(33.5,22.5,38.5,22.5),(36.5,22.5,30.5,22.5),(50.5,31.5,50.5,38.5),(40.5,30.5,60.5,30.5)}) mine.Add($"L {OverworldMap.LineOfSight(mtn,ax,ay,bx,by)}");
+    int wd=0; bool haveWeb=File.Exists("ow_mtn.json");
+    if(haveWeb){ var web=(MiniJson.Parse(File.ReadAllText("ow_mtn.json"),out _) as List<object>)?.Select(o=>(string)o).ToList()??new List<string>();
+      for(int i=0;i<Math.Max(web.Count,mine.Count);i++){ string a2=i<mine.Count?mine[i]:"(无)", b=i<web.Count?web[i]:"(无)"; if(a2!=b){ wd++; if(wd<=3) Console.WriteLine($"     [FAIL] 山镇 网页≠Unity 第{i}行：\n        Unity {a2}\n        网页  {b}"); } } }
+    rb+=wd;
+    Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S219 巨炮瞄准 + 山地 + 雷雨泥石流：{string.Join("｜",parts)}｜网页对照{(!haveWeb?"跳过":wd==0?$"一致 {mine.Count} 行":"不一致")}"); fail+=rb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

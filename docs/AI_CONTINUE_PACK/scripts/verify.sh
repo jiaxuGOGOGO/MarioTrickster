@@ -69,5 +69,15 @@ const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ─�
 const m=X.owParse(X.OW_BIG_SAMPLE);const o=[];for(const i of X.owCheck(m).issues)o.push(i.sev+' '+X.owIssueText(i));for(const l of X.owPropsDescribe(m))o.push('D '+l.text);
 for(let d=1;d<=20;d++){const w=X.owDayOf(m.name,d);o.push('W '+d+' '+w.kind+' '+w.wind);}for(const l of X.owWeatherPreview(m,1,8))o.push(l);
 fs.writeFileSync('$WS/sim/ow_props.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_props.json"
+# S219：网页 星露山镇 检查 / 总览 / 天气池 / 瞄准 / 山丘视线，交给 C# 逐字对照
+command -v node >/dev/null && (cd "$WS/repo/tools/LevelStudioWeb" && node -e "
+const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html','utf8');
+const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ── 状态'))+';this.X={owParse,owCheck,owIssueText,owPropsDescribe,owDayOfMap,owWeatherPreview,owDefaultAim,owAimStep,owAimLanding,owAimOk,owFind,owLos,OW_MTN_SAMPLE};',c);const X=c.X;
+const m=X.owParse(X.OW_MTN_SAMPLE);const o=[];for(const i of X.owCheck(m).issues)o.push(i.sev+' '+X.owIssueText(i));for(const l of X.owPropsDescribe(m))o.push('D '+l.text);
+for(let d=1;d<=30;d++){const w=X.owDayOfMap(m,d);o.push('W '+d+' '+w.kind+' '+w.wind);}for(const l of X.owWeatherPreview(m,1,14))o.push(l);
+const k=[26,16];let a=X.owDefaultAim(m,k);const home=X.owFind(m,'M')[0];for(const key of [0,0,1,1,1,2,3,3,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]){a=X.owAimStep(m,k,a,key);const l=X.owAimLanding(m,k,a.dir,a.dist,2);o.push('A '+a.dir+' '+a.dist+' '+l[0]+','+l[1]+' '+(X.owAimOk(m,k,a.dir,l,home)?'True':'False'));}
+for(const q of [[35.5,20.5,35.5,24.5],[33.5,22.5,38.5,22.5],[36.5,22.5,30.5,22.5],[50.5,31.5,50.5,38.5],[40.5,30.5,60.5,30.5]])o.push('L '+(X.owLos(m,...q)?'True':'False'));
+fs.writeFileSync('$WS/sim/ow_mtn.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_mtn.json"
 (cd "$WS/sim" && rm -rf obj bin && dotnet build -c Release -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error " | head -10; dotnet bin/Release/net8.0/sim.dll) || ok=0
 [ $ok = 1 ] && echo "VERIFY ALL GREEN（提醒：Unity 里的 EditMode 测试仍需用户跑）" || { echo "VERIFY FAILED"; exit 1; }

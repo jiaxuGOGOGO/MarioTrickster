@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 218（小镇大机关：巨炮 K + 靶心 X / 滚石 O / 水塔 U，冲击 1.5 格内连锁，地形只会打开、只活一天；每天 06:00 公布天气（晴/大风/雨/雾/赶集，输入随机、可复现）；马里奥听见动静起疑、吃过亏会躲（H4 只凭经历）；小镇砸晕 → 进门还晕着、守住一户 → 旁边大机关重新装填；小镇工坊/网页画布关系线 + ⚡ 大机关·连锁面板 + 天气 7 天预览 + 悬停门看房间；样板"星露大镇" 72×40 三连锁；调参 v19） |
+| **最新 Session** | Session 219（巨炮能坐能瞄：你 / 马里奥都能 E 坐进去，方向键瞄准、落点先画在地上，落点走不回家不许打；马里奥省 ≥10 格才坐，瞄准 1.6 秒时你按 L 拨歪 → 他飞错落地晕、以后不坐；山地：山丘 ^ 挡平地视线 / 站上去看得远、山 A、山洞 h 两个一对 E 钻过去；天气池按格局：有路灯才有 ⛈ 雷雨（路灯旁 L 召唤闪电）、有山洞才有 ☂ 酸雨（高草全枯）；湿的天冲击震到山坡 = 泥石流、水塔淹山坡 = 山洪；样板"星露山镇"；调参 v20） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,15 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S219] 用户："大炮是否能操作调整方向在角色不管是马里奥还是捣蛋者按键进入大炮后在发射前可以给出方向并标识出落点 是否还可以加入山脉地形 躲在山丘暗中不止陷进 或者山洞里 基于这些设想更新优化关卡所有关联联动……天气系统可以根据游戏目前的格局进行综合考虑添加 召唤闪电 或者酸雨 如果有山脉可能会触发泥石流山洪等灾害"
+
+- 纯逻辑 `OverworldProps`：DefaultAim / AimStep / AimLanding / AimOk、StepsField、Height、CaveExit、MudDir / MudLane / Muddable / MudSources、CheckMountains、DescribeMountains；`OverworldEvents`：Kind 加 Storm / Acid，Pool(map)（路灯 → 雷雨、≥2 山洞 → 酸雨），Wet，酸雨 ApplyTo 高草 → 草。网页 overworld.js 逐行移植，verify 生成 ow_mtn.json 对照 99 行。
+- `OverworldMap.LineOfSight`：中间格子比两个人都高 → 挡（山丘）；山丘走路 0.75；门口掩护也算山丘 / 山洞。巨炮没有靶心降为黄色提醒（能自己瞄）。
+- `OverworldTown`：Seat（你坐炮：aim 方向键、L 发射、E 下来、6 秒自动）、Ride（马里奥 PlanRide 每站一次 BFS，省 ≥10 格才坐、MarioWary 有 K 不坐；1.6 秒瞄准；TryTamper 拨歪 → 落地晕）、TryCave、闪电 FireLightning（路灯，仅雷雨）、泥石流 FireMud（湿天冲击 / 水塔淹到）、坐炮时 figureLooksLikeProp、转炮管 = figureMoving；Session.CannonAim 记住瞄准。
+- 画面：AimVisuals（绿 / 红圈 + 虚线弧 + 炮管转向）、山 / 山丘 / 洞口造型、闪电白光 + 闪屏、雨 / 雷雨 / 酸雨色调、坐炮时的按键条和瞄准读数。
+- 编辑器 + 网页：样板"星露山镇"、关系线加 瞄准方向 / 山洞配对 / 泥石流 / 路灯闪电；测试中心体检含星露山镇。
+- 调参 v20（5 个字段）。没做：山崩堵路、随机劈人、酸雨扣血、长按转炮、真物理。详见 docs/step1/S219_AIM_CANNON_MOUNTAINS_STORMS.md。
 
 ### [S218] 用户："现在我想做大地图和房间内的关卡 我希望地图不是框选只有这么大 可以根据我的想法进行拓宽 但是方便我进行箱庭等思路设计 对于我新创建的道具和机关留足空间 同时大地图还有关卡内部的联动以及内部自身的联动都能有足够的联通……大炮 我希望可以比室内关卡做更加夸张变体适配 同时考虑更适合大地图的陷进机制增加 包括随机性确保涌现……必须参考足够多的gdc也好 github也好的成功失败经验规范进行制作 并且质疑的角度尊重第一性原理的"
 

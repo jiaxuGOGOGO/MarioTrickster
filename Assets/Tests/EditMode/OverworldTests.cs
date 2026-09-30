@@ -485,7 +485,7 @@ public class OverworldTests
     {
         var r = OverworldMap.Rules.Default;
         var a = Sample(); OverworldMap.Set(a, 26, 16, 'K');
-        Assert.IsTrue(OverworldMap.Check(a, r).issues.Exists(i => i.text.Contains("找不到靶心")), "巨炮没有靶心");
+        Assert.IsTrue(OverworldMap.Check(a, r).issues.Exists(i => i.sev == OverworldMap.Sev.Warn && i.text.Contains("找不到靶心")), "巨炮没有靶心 = 提醒（S219 起能坐进去自己瞄）");
         var b = Sample(); OverworldMap.Set(b, 2, 20, 'K'); OverworldMap.Set(b, 2, 1, 'X');
         for (int x = 1; x <= 6; x++) for (int y = 1; y <= 6; y++) if ((x == 1 || y == 6 || x == 6) && (b.At(x, y) == '.' || b.At(x, y) == '"')) OverworldMap.Set(b, x, y, 'f');
         Assert.IsTrue(OverworldMap.Check(b, r).issues.Exists(i => i.text.Contains("走不回马里奥的家")), "靶心在围栏里 = 被轰过去就困住");
@@ -539,5 +539,97 @@ public class OverworldTests
         Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 19);
         var t = Tuning(); Assert.LessOrEqual(t.overworldBigStunSeconds, t.maxStunSeconds, "H9");
         Assert.Greater(t.overworldBigFuseSeconds, 0.5f, "H3：预警够看清");
+    }
+
+    // ═════ S219：巨炮自由瞄准 / 马里奥坐炮 / 山地视线 / 山洞 / 雷雨闪电 / 泥石流 / 酸雨 ═════
+    private static OverworldMap.Map Mtn() => OverworldPack.Parse(OverworldPack.MountainSampleText)[0];
+
+    [Test]
+    public void S219_MountainSample_Playable_WorstCaseStillOpens()
+    {
+        var r = OverworldMap.Rules.Default; var m = Mtn();
+        Assert.IsTrue(OverworldMap.Check(m, r).Playable, OverworldMap.Check(m, r).Headline);
+        Assert.IsTrue(OverworldWalker.SimulateDay(m, r).ok);
+        foreach (var c in OverworldMap.Find(m, '^')) { if (OverworldProps.MudDir(m, c) < 0) continue; foreach (var q in OverworldProps.MudLane(m, c)) if (OverworldProps.Muddable(m.At(q.x, q.y))) OverworldMap.Set(m, q.x, q.y, 'g'); OverworldMap.Set(m, c.x, c.y, 'g'); }
+        OverworldEvents.ApplyTo(m, new OverworldEvents.Day { kind = OverworldEvents.Kind.Acid });
+        Assert.IsTrue(OverworldMap.Check(m, r).Playable, "泥石流 + 酸雨只会打开地形（H1）");
+        Assert.IsTrue(OverworldWalker.SimulateDay(m, r).ok);
+    }
+
+    [Test]
+    public void S219_HillBlocksFlatSight_StandOnHillSeesOver()
+    {
+        var m = OverworldMap.Parse("# Overworld: los\n" + string.Join("\n", OverworldMap.NewMap(16, 12)));
+        OverworldMap.Set(m, 7, 5, '^');
+        Assert.IsFalse(OverworldMap.LineOfSight(m, 4.5, 5.5, 10.5, 5.5), "躲在山丘后面");
+        OverworldMap.Set(m, 4, 5, '^');
+        Assert.IsTrue(OverworldMap.LineOfSight(m, 4.5, 5.5, 10.5, 5.5), "站上山丘看得远");
+        OverworldMap.Set(m, 7, 5, 'A');
+        Assert.IsFalse(OverworldMap.LineOfSight(m, 4.5, 5.5, 10.5, 5.5), "山永远挡");
+    }
+
+    [Test]
+    public void S219_YouRideCannon_AimAndLandWhereAimed_BadAimRefused()
+    {
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露山镇", "Town"); OverworldSession.Active = true;
+        var t = Tuning(); var town = new OverworldTown(Mtn(), t); var k = new OverworldMap.Cell(26, 16);
+        town.tx = k.x - 0.5; town.ty = k.y + 0.5; OverworldSession.Minute = OverworldMap.DayStart;
+        town.Tick(1f / 30, new OverworldTown.Input { door = true });
+        Assert.IsTrue(town.Seated, "E 坐进巨炮");
+        town.Tick(1f / 30, new OverworldTown.Input { aim = town.seat.dir + 1 });
+        var land = town.AimLandingOf(k, town.seat.dir, town.seat.dist);
+        town.Tick(1f / 30, new OverworldTown.Input { peel = true });
+        bool flew = false; for (int i = 0; i < 200; i++) { town.Tick(1f / 30, new OverworldTown.Input()); flew |= town.youFlying; if (flew && !town.youFlying) break; }
+        Assert.IsTrue(flew); Assert.Less(OverworldTown.Dist(town.tx, town.ty, land.x + 0.5, land.y + 0.5), 0.6f, "落在瞄的地方");
+        var m2 = Mtn(); for (int x = 5; x <= 9; x++) for (int y = 30; y <= 34; y++) if (x == 5 || x == 9 || y == 30 || y == 34) OverworldMap.Set(m2, x, y, 'f');
+        OverworldMap.Set(m2, 20, 32, 'K'); var kk = new OverworldMap.Cell(20, 32);
+        Assert.IsFalse(OverworldProps.AimOk(m2, kk, 1, OverworldProps.AimLanding(m2, kk, 1, 13, -1), OverworldMap.Find(m2, 'M')[0]), "H1：瞄进死地不许打");
+        OverworldSession.ResetStatics();
+    }
+
+    [Test]
+    public void S219_MarioRidesCannonForShortcut_TamperMakesHimDizzy()
+    {
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露山镇", "Town"); OverworldSession.Active = true;
+        var t = Tuning(); var town = new OverworldTown(Mtn(), t);
+        town.mario.x = 62.5; town.mario.y = 30.5; town.mario.Clear(); town.tx = 3.5; town.ty = 2.5; OverworldSession.NextStop = 3; OverworldSession.Minute = 16 * 60 + 31;
+        bool rode = false, dizzy = false; for (int i = 0; i < 750 && OverworldSession.NextStop == 3; i++) { town.Tick(1f / 30, new OverworldTown.Input()); rode |= town.MarioSeated; dizzy |= town.lastOrder.state == OverworldMarioState.Dizzy; }
+        Assert.IsTrue(rode, "坐炮快很多 → 他会坐（只凭公开的炮和地图，H4）"); Assert.IsFalse(dizzy, "自己坐 = 平稳落地");
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露山镇", "Town"); OverworldSession.Active = true;
+        var t2 = new OverworldTown(Mtn(), t); t2.mario.x = 62.5; t2.mario.y = 30.5; t2.mario.Clear(); t2.tx = 65.5; t2.ty = 27.5; OverworldSession.NextStop = 3; OverworldSession.Minute = 16 * 60 + 31;
+        bool tam = false, dz = false; for (int i = 0; i < 600 && !dz; i++) { t2.Tick(1f / 30, new OverworldTown.Input { peel = t2.MarioSeated && !tam }); tam |= t2.hint == OverworldTown.Note.CannonTamper; dz |= t2.lastOrder.state == OverworldMarioState.Dizzy; }
+        Assert.IsTrue(tam, "他瞄准时你按 L 拨歪"); Assert.IsTrue(dz, "飞歪落地晕"); Assert.IsTrue(OverworldSession.MarioWary.Contains('K'), "以后不坐（吃过亏）");
+        OverworldSession.ResetStatics();
+    }
+
+    [Test]
+    public void S219_StormLightning_Mudslide_Caves_WeatherPoolFollowsMap()
+    {
+        var m = Mtn(); int storm = -1; for (int d = 2; d < 80 && storm < 0; d++) if (OverworldEvents.Of(m, d).kind == OverworldEvents.Kind.Storm) storm = d;
+        Assert.Greater(storm, 1, "有路灯的图会有雷雨");
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露山镇", "Town", storm); OverworldSession.Active = true;
+        var town = new OverworldTown(Mtn(), Tuning()); var lamp = new OverworldMap.Cell(45, 31);
+        town.tx = lamp.x + 2.5; town.ty = lamp.y + 0.5; town.mario.x = lamp.x - 0.5; town.mario.y = lamp.y + 0.5; town.mario.Clear(); OverworldSession.Minute = OverworldMap.DayStart;
+        town.Tick(1f / 30, new OverworldTown.Input { peel = true });
+        bool dz = false; for (int i = 0; i < 120; i++) { town.Tick(1f / 30, new OverworldTown.Input()); dz |= town.lastOrder.state == OverworldMarioState.Dizzy; }
+        Assert.AreEqual(1, OverworldSession.Lightnings); Assert.IsTrue(dz, "闪电旁的人晕"); Assert.GreaterOrEqual(OverworldSession.Mudslides, 1, "雷雨 = 湿，震到山坡 = 泥石流");
+        var cv = OverworldMap.Find(town.map, 'h'); town.tx = cv[0].x + 0.5; town.ty = cv[0].y + 0.5; town.frozen = 0f; town.Tick(1f / 30, new OverworldTown.Input { door = true });
+        Assert.Less(OverworldTown.Dist(town.tx, town.ty, cv[1].x + 0.5, cv[1].y + 0.5), 0.3f, "山洞一对：E 钻到另一头");
+        var bare = OverworldMap.Parse("# Overworld: bare\n" + string.Join("\n", OverworldMap.NewMap(16, 12)));
+        for (int d = 1; d <= 120; d++) { var k = OverworldEvents.Of(bare, d).kind; Assert.AreNotEqual(OverworldEvents.Kind.Storm, k); Assert.AreNotEqual(OverworldEvents.Kind.Acid, k); }
+        OverworldSession.ResetStatics();
+    }
+
+    [Test]
+    public void Wiring_S219_KeysH4Tuning()
+    {
+        string town = Read("Scripts/Overworld/OverworldTown.cs"), game = Read("Scripts/Overworld/Runtime/OverworldGame.cs");
+        StringAssert.Contains("aim = Step1Keys.Down(KeyCode.RightArrow)", game);         // 两套输入都读
+        StringAssert.Contains("AimVisuals();", game);                                     // 落点画出来（H3/H6）
+        StringAssert.Contains("figureLooksLikeProp = disguised || seat != null", town);   // 坐在炮里 = 他只看见炮（H4）
+        StringAssert.Contains("OverworldProps.AimOk(map", town);                          // 落点走不回家不许打（H1）
+        StringAssert.Contains("if (OverworldSession.MarioWary.Contains('K')) return;", town); // 被耍过就不坐
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 20);
+        var t = Tuning(); Assert.Greater(t.overworldCannonSeatSeconds, 0f, "H9：坐炮有时限"); Assert.Greater(t.overworldMarioCannonAimSeconds, 0.8f, "他瞄准时你来得及反应");
     }
 }

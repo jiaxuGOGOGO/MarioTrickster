@@ -55,3 +55,11 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - 编辑器：https://doc.mapeditor.org/en/stable/manual/worlds/ ，https://ldtk.io/docs/general/world/ ，https://github.com/deepnight/ldtk/issues/1160 ，https://github.com/deepnight/ldtk/issues/712 ，http://blog.joelburgess.com/2013/04/skyrims-modular-level-design-gdc-2013.html
 - 反面：http://www.megabearsfan.net/post/2016/07/18/How-open-world-games-fail-to-use-space.aspx ，Mario Maker https://www.gamedeveloper.com/design/lessons-of-game-design-learned-from-super-mario-maker
 - 结论：夸张 = 放大作用范围，不另起规则；随机只在决定前公布；连锁 + 天气 + 马里奥学习相乘 = 涌现；地形只打开不关死、只活一天。质疑后没做：牛群 / 停电 / 钟楼 / 真物理 / 隐藏保底。
+
+## S219 瞄准炮 / 高地视线 / 天气灾害调研（报告：repo/docs/step1/S219_AIM_CANNON_MOUNTAINS_STORMS.md）
+- DK 炮桶三类（自动 / 按键 / 先瞄准）：https://donkeykong.fandom.com/wiki/Barrel_Cannon
+- Shadow Tactics 视锥、高地、一致性：https://www.gamedeveloper.com/design/game-design-deep-dive-dynamic-detection-in-i-shadow-tactics-i- ；高物体全挡 / 中等可探头：https://kosmonautblog.wordpress.com/2017/01/09/shadow-tactics-rendering-breakdown/
+- BotW 雷暴随机劈金属（反面：被困、抱怨）：https://zelda.fandom.com/wiki/Thunderstorm ，https://www.resetera.com/threads/never-ending-thunderstorm-in-breath-of-the-wild.2457/
+- Don't Starve 避雷针（把闪电引到固定点）：https://dontstarve.wiki.gg/wiki/Lightning_Rod/DST ；酸雨改环境：https://dontstarve.wiki.gg/wiki/Acid_Rain
+- Into the Breach 潮汐（提前标出、不冲断孤岛）：https://gamefaqs.gamespot.com/pc/205477-into-the-breach/faqs/76363/archive-tidal-waves
+- 结论：落点先画出来再发射；召唤型闪电不随机劈；灾害只"打开"地形、只在湿天被冲击触发；天气池跟地图格局走。没做：山崩堵路、随机劈人、酸雨扣血、长按转炮。

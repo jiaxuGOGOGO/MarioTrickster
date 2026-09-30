@@ -272,8 +272,8 @@ public static class OverworldMap
         return t;
     }
 
-    /// <summary>地面对走路速度的影响（你和马里奥一样）：泥地 0.55、高草 0.8、其余 1。</summary>
-    public static double SpeedFactor(char c) => c == 'g' ? 0.55 : c == '"' ? 0.8 : 1.0;
+    /// <summary>地面对走路速度的影响（你和马里奥一样）：泥地 0.55、山丘 0.75、高草 0.8、其余 1。</summary>
+    public static double SpeedFactor(char c) => c == 'g' ? 0.55 : c == '"' ? 0.8 : c == '^' ? 0.75 : 1.0;
 
     private sealed class MinHeap
     {
@@ -305,18 +305,21 @@ public static class OverworldMap
     }
 
     // ── 视线 ───────────────────────────────────────────
-    /// <summary>从 (ax,ay) 看 (bx,by)：中间有挡视线的格子（房子、树、木箱）→ 看不见。起点与终点所在格不算。</summary>
+    /// <summary>从 (ax,ay) 看 (bx,by)：中间有挡视线的格子（房子、树、木箱、山）→ 看不见。起点与终点所在格不算。
+    /// S219：中间的格子比两个人站的地方都高（山丘 ^ 挡住两个站在平地的人）→ 看不见；站上山丘就看得过去。</summary>
     public static bool LineOfSight(Map m, double ax, double ay, double bx, double by)
     {
         double dx = bx - ax, dy = by - ay, dist = Math.Sqrt(dx * dx + dy * dy);
         int steps = Math.Max(1, (int)Math.Ceiling(dist * 4));
         int sx = (int)Math.Floor(ax), sy = (int)Math.Floor(ay), ex = (int)Math.Floor(bx), ey = (int)Math.Floor(by);
+        int eye = Math.Max(OverworldProps.Height(m.At(sx, sy)), OverworldProps.Height(m.At(ex, ey)));
         for (int i = 1; i < steps; i++)
         {
             double t = (double)i / steps;
             int cx = (int)Math.Floor(ax + dx * t), cy = (int)Math.Floor(ay + dy * t);
             if ((cx == sx && cy == sy) || (cx == ex && cy == ey)) continue;
-            if (OverworldCatalog.BlocksSight(m.At(cx, cy))) return false;
+            char c = m.At(cx, cy);
+            if (OverworldCatalog.BlocksSight(c) || OverworldProps.Height(c) > eye) return false;
         }
         return true;
     }
@@ -472,7 +475,7 @@ public static class OverworldMap
         if (doorCells.Count == 0) E("至少要有一扇门（数字 1–9）：门连到横版房间，马里奥每天去门里拿宝");
         int pickups = Find(m, '?').Count;
         if (pickups > MaxPickups) E($"道具箱最多 {MaxPickups} 个（现在 {pickups} 个）");
-        OverworldProps.CheckCounts(m, (t, x, y) => E(t, x, y)); // S218 大机关
+        OverworldProps.CheckCounts(m, (t, x, y) => E(t, x, y), (t, x, y) => Wn(t, x, y)); // S218 大机关
         if (!rep.Playable) return rep;
 
         var home = Find(m, 'M')[0]; var tsp = Find(m, 'T')[0];
@@ -489,14 +492,15 @@ public static class OverworldMap
             if (!nearHouse) Wn($"门 {kv.Key} 旁边没有房屋 W：画在房子墙面前一格，玩家一眼就知道这是门", c.x, c.y);
             bool cover = false;
             for (int yy = c.y - 4; yy <= c.y + 4 && !cover; yy++) for (int xx = c.x - 4; xx <= c.x + 4; xx++)
-                if ((xx != c.x || yy != c.y) && "\"ct".IndexOf(m.At(xx, yy)) >= 0 && !(xx <= 0 || yy <= 0 || xx >= w - 1 || yy >= h - 1)) { cover = true; break; }
-            if (!cover) I($"门 {kv.Key} 附近 4 格内没有高草/木箱/树：你在门口等他时没地方躲", c.x, c.y);
+                if ((xx != c.x || yy != c.y) && "\"ct^h".IndexOf(m.At(xx, yy)) >= 0 && !(xx <= 0 || yy <= 0 || xx >= w - 1 || yy >= h - 1)) { cover = true; break; }
+            if (!cover) I($"门 {kv.Key} 附近 4 格内没有高草/木箱/树/山丘/山洞：你在门口等他时没地方躲", c.x, c.y);
         }
         foreach (var d in m.doors) if (!doorCells.ContainsKey(d.n)) Wn($"门 {d.n} 有设置但地图上没画（多余的设置会被忽略）");
         var times = m.doors.Where(d => doorCells.ContainsKey(d.n)).GroupBy(d => d.minute).Where(g => g.Count() > 1).ToList();
         foreach (var g in times) E($"门 {string.Join("、", g.Select(d => d.n))} 的时间都是 {Clock(g.Key)}：每扇门的时间要不一样（马里奥一次只去一扇）");
         if (Path(m, home, tsp) == null) E("你的出生点和马里奥的家不连通");
         OverworldProps.CheckReach(m, home, (t, x, y) => E(t, x, y), (t, x, y) => Wn(t, x, y)); // S218：落点走不回家 = 困住（H1）
+        OverworldProps.CheckMountains(m, (t, x, y) => Wn(t, x, y)); // S219：山洞要成对、画在山脚
         if (!rep.Playable) return rep;
 
         var sc = DaySchedule(m, rules.marioSpeed, rules.tricksterSpeed, rules.minutesPerSecond, rules.visitMinutes);

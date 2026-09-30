@@ -11,11 +11,13 @@ public static partial class Step1Text
         "躲进高草/房子后面他就看不见；晚上 19:00 后他看得近，路灯下除外\n" +
         "? 木盒：捡到 +1 枚炸弹，带进下一个房间\n" +
         "大机关（L 发动，每天一次，先闪 1.2 秒再动）：巨炮 K 把炮口里的人轰到靶心 X；滚石 O 一路撞碎木箱栅栏；水塔 U 把路口淹成泥地。冲击会震响 1.5 格内的下一个 = 连锁。他吃过一次亏就会躲\n" +
-        "每天早上公布天气：大风吹偏炮弹、雨天水更大、雾天他看得近、赶集日他晚出门\n" +
+        "巨炮：走到炮旁按 E 坐进去，方向键瞄准（落点画在地上），L 把自己轰过去；他也会坐炮抄近路——红圈是他的落点，跑过去按 L 拨歪\n" +
+        "山丘 ^ 挡住平地上的视线（躲在后面），站上去看得远、L 够得远；山洞 h 两个一对，钻进去按 E 从另一头出来\n" +
+        "每天早上公布天气：大风吹偏炮弹、雨天水更大、雾天他看得近、赶集日他晚出门；雷雨在路灯旁 L 召唤闪电；酸雨高草全枯；下雨天震到山坡 = 泥石流\n" +
         "指引：屏幕边上的箭头 = 下一扇门；左上会算好\"你几秒 / 他几秒\"来不来得及；按住 Tab 看去门的路线，M 小地图   H 关闭/打开说明";
 
     // S217：测试不卡人——底部常驻按键、等他出门的提示、没点游戏窗口的提醒、快速测试、F8 反馈
-    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   E 门口埋伏   空格(按住) 快进   Tab 路线   M 小地图   - / = 镜头远近   H 说明   F8 记反馈";
+    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   E 门口埋伏/坐炮/钻洞   空格(按住) 快进   Tab 路线   M 小地图   - / = 镜头远近   H 说明   F8 记反馈";
     public const string OverworldHelpClose = "按任意键关闭说明（H 随时再打开）  Press any key";
     public static string OverworldWaitDepart(int door, string clock, double realSeconds) =>
         $"马里奥 {clock} 才出门去门 {door}（还有约 {realSeconds:0} 秒）\n先去门口躲好，或按住空格快进";
@@ -44,8 +46,20 @@ public static partial class Step1Text
     public const string OverworldBigReloaded = "守住了一户：旁边的大机关重新装填好了\nBig prank reloaded";
     public const string OverworldBigSelf = "被自己的滚石碾到了！晕 2 秒\nFlattened by your own boulder";
     public const string OverworldBigStuck = "这个机关现在用不了（今天用过 / 四面堵死）\nCan't use that now";
+    // S219：坐炮瞄准 / 马里奥坐炮 / 闪电 / 泥石流 / 山洞
+    public const string OverworldCannonSeat = "坐进巨炮了！方向键瞄准（落点画在地上），L 发射，E 下来\nIn the cannon: arrows aim, L fire, E exit";
+    public const string OverworldCannonBar = "巨炮里：方向键 瞄准（顺着炮管 = 远，反着 = 近，横着 = 转向）   L 发射   E 下来（瞄好的留着）   坐太久自动发射";
+    public static string OverworldCannonAim(string dir, int dist, int x, int y, bool ok, float left) =>
+        (ok ? $"往{dir} {dist} 格 → 落点 ({x},{y})  L 发射" : $"往{dir} {dist} 格 → 落点 ({x},{y}) 走不回家，不能打") + $"\n还能坐 {System.Math.Max(0f, left):0} 秒";
+    public const string OverworldCannonBadAim = "这一炮落点走不回马里奥的家（被轰过去会困住）：换个方向或距离\nBad landing — re-aim";
+    public const string OverworldCannonTamper = "拨歪了他的炮管！他会飞错地方、落地晕一下\nYou knocked his aim!";
+    public const string OverworldMarioRides = "马里奥坐进巨炮抄近路了！红圈 = 他的落点，跑过去按 L 拨歪炮管\nMario is taking the cannon!";
+    public const string OverworldLightning = "闪电劈下来了！旁边的人都晕了\nLightning!";
+    public const string OverworldMudslide = "泥石流！山坡冲下来一片泥地\nMudslide!";
+    public const string OverworldCaveHop = "从山洞另一头钻出来了\nThrough the cave";
+    public const string OverworldCaveNoExit = "这个山洞没有另一头（山洞要两个一对）\nDead-end cave";
     public static string OverworldWeather(int day, string zh) => $"第 {day} 天  {zh}\nDay {day}";
-    public static string OverworldWeatherShort(int day, int kind) => $"D{day} " + (kind == 1 ? "🌬" : kind == 2 ? "🌧" : kind == 3 ? "🌫" : kind == 4 ? "🧺" : "☀");
+    public static string OverworldWeatherShort(int day, int kind) => $"D{day} " + (kind == 1 ? "🌬" : kind == 2 ? "🌧" : kind == 3 ? "🌫" : kind == 4 ? "🧺" : kind == 5 ? "⛈" : kind == 6 ? "☂" : "☀");
     public static string OverworldRoomDazed(float s) => $"他在小镇被砸晕了，进来还晕着（多等 {s:0} 秒）\nStill dazed from town";
     public const string OverworldPickup = "捡到炸弹 +1（下一个房间用）\n+1 bomb for next room";
     public const string OverworldPeel = "香蕉皮变滑了（3 秒）\nPeel armed (3s)";

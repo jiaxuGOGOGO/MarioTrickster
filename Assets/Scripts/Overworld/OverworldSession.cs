@@ -39,6 +39,9 @@ public static class OverworldSession
     /// <summary>刚守住的门（回到小镇时，离它最近的一个用过的大机关重新装填）。</summary>
     public static int ReloadDoor;
     public static int BigHits, BestChain;
+    /// <summary>S219：每门巨炮现在的瞄准（格子编号 → 方向×100 + 距离）。你瞄好了下车，被连锁震响时就打那里；当天有效。</summary>
+    public static readonly Dictionary<int, int> CannonAim = new Dictionary<int, int>();
+    public static int CannonRides, Lightnings, Mudslides, CaveHops;
 
     /// <summary>每次进入 Play 都重置（Unity 关了域重载时静态值会留着）。</summary>
     [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -46,7 +49,7 @@ public static class OverworldSession
 
     public static void NewDay(string map, string town, int day = 1)
     {
-        Day = System.Math.Max(1, day); Changed.Clear(); LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0;
+        Day = System.Math.Max(1, day); Changed.Clear(); CannonAim.Clear(); CannonRides = Lightnings = Mudslides = CaveHops = 0; LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0;
         MapName = map ?? ""; TownScene = town ?? ""; Minute = OverworldMap.DayStart;
         Results.Clear(); UsedCells.Clear(); DayOver = false; HasPositions = false; NextStop = 0; PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f; Caught = 0; TauntsUsed = 0; DelayedSeconds = 0f;
     }

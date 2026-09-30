@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 19;
+    public const int CurrentDataVersion = 20;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -490,6 +490,16 @@ public class MarioMindTuningSO : ScriptableObject
     [Range(0.3f, 1f)] public float overworldFogSight = 0.6f;
     [Tooltip("S218：他看见吃过亏的大机关在预警时，最多往旁边躲几格")]
     public int overworldDodgeSteps = 4;
+    [Tooltip("S219：你钻进巨炮后最多待几秒（到点自动发射，H9 不会一直躲在炮里）")]
+    public float overworldCannonSeatSeconds = 6f;
+    [Tooltip("S219：按 L 发射后炮身抖几秒才发（落点早就画出来了，这是最后的预警 H3）")]
+    public float overworldCannonFireSeconds = 0.6f;
+    [Tooltip("S219：马里奥坐炮要瞄几秒（这段时间落点一直画在地上，你可以跑过去按 L 把炮管转走）")]
+    public float overworldMarioCannonAimSeconds = 1.6f;
+    [Tooltip("S219：坐炮比走路少走几格，马里奥才会去坐（他只看得见公开的炮和落点）")]
+    public int overworldMarioCannonSaveSteps = 10;
+    [Tooltip("S219：酸雨天马里奥打着伞，看得见平时的几成远")]
+    [Range(0.3f, 1f)] public float overworldAcidSight = 0.7f;
 
     [Header("S216: 手感 / 被弹飞的抛物线 / 特效")]
     [Tooltip("S216 被弹飞/打飞时的重力（格/秒²）。以前硬直期间往上飞没有重力 → 弹簧弹 11 格撞天花板、炸弹推 8 格像在月球。平时跳跃重力 80；这里略轻 → 有滞空感但仍是抛物线")]
@@ -618,6 +628,10 @@ public class MarioMindTuningSO : ScriptableObject
         {
             overworldBigFuseSeconds = 1.2f; overworldBigStunSeconds = 2f; overworldRollSpeed = 9f; overworldNoiseRange = 14f; overworldNoiseSuspicion = 35f;
             overworldDazeCarryMinutes = 40f; overworldDazeCarrySeconds = 2f; overworldFogSight = 0.6f; overworldDodgeSteps = 4;
+        }
+        if (dataVersion < 20)
+        {
+            overworldCannonSeatSeconds = 6f; overworldCannonFireSeconds = 0.6f; overworldMarioCannonAimSeconds = 1.6f; overworldMarioCannonSaveSteps = 10; overworldAcidSight = 0.7f;
         }
         dataVersion = CurrentDataVersion;
         return true;

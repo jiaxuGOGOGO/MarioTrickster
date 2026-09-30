@@ -714,7 +714,12 @@ function owLinksDraw(g, m, z, h) {
     else if (k === 'O') for (let d = 0; d < 4; d++) { const lane = owLane(m, c, d); if (lane.length >= 2) line(c, lane[lane.length - 1], 'rgba(215,205,180,.55)', 4); }
     else for (const f of owFloodCells(m, c, OWP.FloodRadius)) { g.fillStyle = 'rgba(75,140,255,.55)'; g.fillRect(f[0] * z + z * .3, (h - 1 - f[1]) * z + z * .3, z * .4, z * .4); }
     for (const t of owTriggers(m, c)) line(c, t, 'rgba(255,215,50,.95)', 2.5);
+    if (k === 'K') for (let d = 0; d < 4; d++) { const mz = owMuzzle(m, c, d); if (!mz.length) continue; const e = mz[mz.length - 1]; g.strokeStyle = 'rgba(120,255,140,.8)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(...C(c)); g.lineTo(...C(e)); g.stroke(); } // S219：坐进去能瞄的方向
   }
+  // S219：山洞配对（紫虚线）、泥石流（棕色箭头）、雷雨路灯 → 能震响的东西
+  const cv = owFind(m, 'h'); g.setLineDash([5, 4]); for (let i = 0; i + 1 < cv.length; i += 2) line(cv[i], cv[i + 1], 'rgba(200,120,255,.9)', 2); g.setLineDash([]);
+  for (const c of owFind(m, '^')) { const lane = owMudLane(m, c); if (!lane.length) continue; for (const q of lane) { g.fillStyle = 'rgba(140,90,40,.5)'; g.fillRect(q[0] * z + z * .2, (h - 1 - q[1]) * z + z * .2, z * .6, z * .6); } line(c, lane[lane.length - 1], 'rgba(150,95,40,.9)', 3); }
+  for (const c of owFind(m, 'i')) { for (const t of owChainTargets(m, c[0] + 0.5, c[1] + 0.5, OWP.LightningRadius).concat(owMudSources(m, c[0] + 0.5, c[1] + 0.5))) line(c, t, 'rgba(180,220,255,.95)', 2); }
 }
 function owPush() { OWT.redo = []; OWT.undo.push(JSON.stringify(owToJson(owM()))); if (OWT.undo.length > 60) OWT.undo.shift(); }
 // ── S212：定位 / 编辑房间 / 时间滑条 / 撤销重做 ──
@@ -759,7 +764,9 @@ function owDraw() {
     g.fillStyle = t ? owCss(t) : '#f0f'; g.fillRect(px, py, z - 1, z - 1);
     if (c === 'W' && owAt(m, x, y - 1) !== 'W') { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(px, py + z * 0.45, z - 1, z * 0.55); }
     if (c === 't') { g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(px + z / 2, py + z / 2, z * 0.42, 0, 7); g.fill(); }
-    if ('MT?niKOUX'.includes(c) || (c >= '1' && c <= '9')) { g.fillStyle = '#111'; g.font = `700 ${Math.round(z * 0.62)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c, px + z / 2, py + z / 2 + 1); }
+    if (c === '^') { g.fillStyle = 'rgba(255,255,220,.35)'; g.fillRect(px, py, z - 1, z * 0.22); }
+    if (c === 'A') { g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.moveTo(px + z / 2, py + 2); g.lineTo(px + z - 2, py + z - 2); g.lineTo(px + 2, py + z - 2); g.fill(); }
+    if ('MT?niKOUXh'.includes(c) || (c >= '1' && c <= '9')) { g.fillStyle = '#111'; g.font = `700 ${Math.round(z * 0.62)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c, px + z / 2, py + z / 2 + 1); }
     if (err.has(x + ',' + y)) { g.strokeStyle = '#ff5a4e'; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, z - 3, z - 3); }
   }
   const sc = OWT.rep && OWT.rep.schedule;
@@ -825,7 +832,7 @@ $('#owPick').onchange = e => { OWCUR = +e.target.value; OWT.undo = []; OWT.redo 
 $('#owName').onchange = e => { owM().name = e.target.value.trim() || '未命名小镇'; owRender(); };
 $('#owGoal').onchange = e => { owM().goal = e.target.value.trim(); owSave(); };
 $('#owNew').onclick = () => { OWLIB.push({ kind: 'overworld', name: '新小镇 ' + (OWLIB.length + 1), goal: '', id: '', rows: owNewMap(40, 24), doors: [], notes: [] }); OWCUR = OWLIB.length - 1; OWT.undo = []; owRender(); toast('新建 40×24：先画家 M、出生点 T、至少一扇门'); };
-$('#owSample').onchange = e => { const v = e.target.value; e.target.value = ''; if (!v) return; const s = owParse(v === 'big' ? OW_BIG_SAMPLE : OW_SAMPLE); const i = OWLIB.findIndex(x => x.name === s.name); if (i >= 0) { owPush(); OWLIB[i] = s; OWCUR = i; } else { OWLIB.push(s); OWCUR = OWLIB.length - 1; } owRender(); };
+$('#owSample').onchange = e => { const v = e.target.value; e.target.value = ''; if (!v) return; const s = owParse(v === 'big' ? OW_BIG_SAMPLE : v === 'mtn' ? OW_MTN_SAMPLE : OW_SAMPLE); const i = OWLIB.findIndex(x => x.name === s.name); if (i >= 0) { owPush(); OWLIB[i] = s; OWCUR = i; } else { OWLIB.push(s); OWCUR = OWLIB.length - 1; } owRender(); };
 $('#owDel').onclick = () => { if (OWLIB.length <= 1) { toast('至少留一个小镇'); return; } if (!confirm(`删除小镇"${owM().name}"？`)) return; OWLIB.splice(OWCUR, 1); OWCUR = 0; owRender(); };
 $('#owPack').onclick = exportPack;
 $('#owTxt').onclick = () => download(`${(owM().name || '小镇').replace(/[\\/:*?"<>|]/g, '')}.txt`, owToText(owM()), 'text/plain');

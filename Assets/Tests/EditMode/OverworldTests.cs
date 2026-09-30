@@ -10,8 +10,8 @@ using UnityEngine;
 public class OverworldTests
 {
     static MarioMindTuningSO Tuning() => ScriptableObject.CreateInstance<MarioMindTuningSO>();
-    static string Read(string relative) => File.ReadAllText(Path.Combine(Application.dataPath, relative)).Replace("\r\n", "\n");
     static OverworldMap.Map Sample() => OverworldPack.Parse(OverworldPack.SampleText)[0];
+    static string Read(string relative) => File.ReadAllText(Path.Combine(Application.dataPath, relative)).Replace("\r\n", "\n");
 
     [Test]
     public void SampleTown_IsPlayable_AndDayCompletes()
@@ -178,7 +178,7 @@ public class OverworldTests
     {
         string game = Read("Scripts/Overworld/Runtime/OverworldGame.cs"), link = Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs");
         string tr = Read("Scripts/Overworld/Runtime/SceneTransit.cs"), b = Read("Scripts/Editor/OverworldBuilder.cs");
-        StringAssert.Contains("SceneTransit.Go(scene,", game);
+        StringAssert.Contains("SceneTransit.Go(OverworldSession.RoomScenes[d.n],", game); // S213：规则搬进 OverworldTown，这里只切场景
         StringAssert.Contains("if (SceneTransit.Busy) { UpdateVisuals(); return; }", game);
         StringAssert.Contains("gameObject.scene.path", game); // S212：自己所在场景（不依赖当前激活场景）
         StringAssert.Contains("if (!over || SceneTransit.Busy) return;", link);
@@ -255,5 +255,70 @@ public class OverworldTests
         StringAssert.Contains("OverworldGuide.MarioAt(", ws);
         StringAssert.Contains("SessionState.SetString(DraftKey", ws);
         StringAssert.Contains("public static bool OpenRoom(string name)", lw);
+    }
+
+    // ── S213：玩家视角模拟找出的问题 ──────────────
+
+    [Test]
+    public void Town_AmbushNeedsHimClose_AndNotSpotted()
+    {
+        var m = Sample(); var t = Tuning(); OverworldSession.NewDay(m.name, "Town");
+        var town = new OverworldTown(m, t); var dc = town.doorCells[town.NextStop.n];
+        town.tx = dc.x + 0.5; town.ty = dc.y - 0.5; // 06:00 就站在门 1 口
+        town.Tick(1f / 30, new OverworldTown.Input { door = true });
+        Assert.IsFalse(town.wantsEnter, "他还没出发：按 E 不算埋伏（以前直奔门口就全胜）");
+        Assert.AreEqual(OverworldTown.Note.AmbushWait, town.hint);
+        Assert.IsFalse(town.AmbushReady);
+    }
+
+    [Test]
+    public void Town_FastForwardOnlyWhenQuiet_AndDayEndsAfterLastDoor()
+    {
+        var m = Sample(); var t = Tuning(); OverworldSession.NewDay(m.name, "Town");
+        var town = new OverworldTown(m, t);
+        double before = OverworldSession.Minute; town.Tick(1f, new OverworldTown.Input { fastForward = true });
+        Assert.AreEqual(OverworldTown.FastForwardScale * t.overworldMinutesPerSecond, OverworldSession.Minute - before, 1e-3, "没事时快进 ×4");
+        town.frozen = 2f; Assert.IsFalse(town.CanFastForward, "被定身时不能快进");
+        OverworldSession.NextStop = town.stops.Count; town.frozen = 0f;
+        town.Tick(1f / 30, new OverworldTown.Input());
+        Assert.IsTrue(OverworldSession.DayOver, "最后一扇门结束 → 当天结算（不再干等他走回家）");
+    }
+
+    [Test]
+    public void Town_ExitGrace_HeDoesNotSeeYouRightAfterRoom()
+    {
+        var m = Sample(); var t = Tuning(); OverworldSession.NewDay(m.name, "Town");
+        var c = OverworldMap.Find(m, '1')[0];
+        OverworldSession.HasPositions = true; OverworldSession.MarioX = c.x + 0.5; OverworldSession.MarioY = c.y + 0.5; OverworldSession.TricksterX = c.x + 0.5; OverworldSession.TricksterY = c.y - 0.5;
+        OverworldSession.NextStop = 1; OverworldSession.Minute = 9 * 60 + 15;
+        var town = new OverworldTown(m, t);
+        Assert.Greater(town.exitGrace, 0f);
+        for (int i = 0; i < 30; i++) town.Tick(1f / 30, new OverworldTown.Input());
+        Assert.AreEqual(OverworldMarioState.Waiting, town.mind.State, "出门 1 秒内：你就在他背后也不起疑");
+        Assert.AreEqual("…", town.lastOrder.mark, "看得见的'清点中'标记（H6）");
+    }
+
+    [Test]
+    public void PlayerSim_HidingMatters_NoOneStuck()
+    {
+        var m = Sample(); var t = Tuning();
+        var hider = OverworldBots.PlayDay(m, t, OverworldBots.Kind.Hider, true, 1);
+        var stand = OverworldBots.PlayDay(m, t, OverworldBots.Kind.Follower, true, 1);
+        var idle = OverworldBots.PlayDay(m, t, OverworldBots.Kind.Idle, true, 1);
+        Assert.AreEqual(m.doors.Count, hider.ambush, "会躲的玩家每扇门都能埋伏");
+        Assert.Less(stand.ambush, m.doors.Count, "站着不躲不能全胜");
+        Assert.IsTrue(idle.dayEnded && hider.dayEnded && stand.dayEnded, "H10/H9：谁玩一天都会结束");
+        Assert.Less(hider.longestIdle, 6.0, "有快进就不会干等");
+    }
+
+    [Test]
+    public void Wiring_S213_GameUsesTownLogic()
+    {
+        string game = Read("Scripts/Overworld/Runtime/OverworldGame.cs"), town = Read("Scripts/Overworld/OverworldTown.cs");
+        StringAssert.Contains("town.Tick(dt, input);", game);
+        StringAssert.Contains("fastForward = Step1Keys.Held(KeyCode.Space)", game);
+        StringAssert.DoesNotContain("mind.Tick(", game);
+        StringAssert.Contains("figureLooksLikeProp = disguised", town);
+        foreach (var bad in new[] { "FindObjectOfType", "UnityEngine.Input", "Step1Text" }) StringAssert.DoesNotContain(bad, town);
     }
 }

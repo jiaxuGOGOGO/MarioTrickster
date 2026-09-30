@@ -14,29 +14,29 @@ public sealed class OverworldGame : MonoBehaviour
     public int[] doorNumbers = new int[0];
     public string[] doorScenes = new string[0];
 
-    // ── 状态 ─────────────────────────────
+    // ── 状态（S213：规则全部在纯逻辑 OverworldTown 里；这里只读键盘、画画面、切场景）──
+    private OverworldTown town;
     private OverworldMap.Map map;
     private MarioMindTuningSO tuning;
-    private OverworldMind mind;
-    private OverworldWalker mario;
-    private double tx, ty;                  // 你
-    private bool disguised, lastMoved;
-    private float frozen;                   // 被抓后的定身
-    private readonly List<OverworldMap.Door> stops = new List<OverworldMap.Door>();
-    private readonly Dictionary<int, OverworldMap.Cell> doorCells = new Dictionary<int, OverworldMap.Cell>();
-    private List<OverworldMap.Cell> lamps = new List<OverworldMap.Cell>();
-    private OverworldMap.Cell home, spawn;
-    private bool marioInside;               // 他进门了（等你跟进，或者超时算被偷）
-    private float insideSeconds;
-    private bool goingHome, dayOver, helpOpen;
-    private OverworldOrder lastOrder;
+    private bool helpOpen;
     private string hint = ""; private float hintUntil;
     private static bool helpSeenThisPlay;
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)] private static void ResetStatics() { helpSeenThisPlay = false; }
 
-    // 香蕉皮：格子编号 → (闪烁剩余, 生效剩余)
-    private readonly Dictionary<int, Vector2> peels = new Dictionary<int, Vector2>();
-    private bool tauntedThisFrame;
+    // 旧字段名保留为属性（画面代码不用改）
+    private OverworldWalker mario => town.mario;
+    private double tx => town.tx;
+    private double ty => town.ty;
+    private bool disguised => town.disguised;
+    private float frozen => town.frozen;
+    private bool marioInside => town.marioInside;
+    private bool dayOver => town.dayOver;
+    private OverworldOrder lastOrder => town.lastOrder;
+    private List<OverworldMap.Door> stops => town.stops;
+    private Dictionary<int, OverworldMap.Cell> doorCells => town.doorCells;
+    private List<OverworldMap.Cell> lamps => town.lamps;
+    private Dictionary<int, Vector2> peels => town.peels;
+    private OverworldMap.Door NextStop => town.NextStop;
 
     // ── 画面 ─────────────────────────────
     private Sprite square;
@@ -47,36 +47,16 @@ public sealed class OverworldGame : MonoBehaviour
     private Mesh coneMesh;
     private Texture2D nightTex;
 
-    public const float PeelFlashSeconds = 0.5f, PeelActiveSeconds = 3f;
-    public const int AmbushBonusBombs = 1, MaxBonusBombs = 3;
-
     private void Start()
     {
         tuning = MarioMindTuningSO.LoadOrDefault();
         map = OverworldMap.Parse(mapText);
         if (map.W == 0) { enabled = false; Debug.LogError("[Overworld] mapText 为空"); return; }
-        string town = gameObject.scene.path; // S211：完整路径（切换用）；S212：用自己所在的场景，不依赖"当前激活场景"
-        if (!OverworldSession.Active || OverworldSession.MapName != map.name || OverworldSession.TownScene != town) OverworldSession.NewDay(map.name, town);
+        string townScene = gameObject.scene.path; // S211：完整路径（切换用）；S212：用自己所在的场景，不依赖"当前激活场景"
+        if (!OverworldSession.Active || OverworldSession.MapName != map.name || OverworldSession.TownScene != townScene) OverworldSession.NewDay(map.name, townScene);
         OverworldSession.Active = true;
         for (int i = 0; i < doorNumbers.Length && i < doorScenes.Length; i++) OverworldSession.RoomScenes[doorNumbers[i]] = doorScenes[i];
-
-        home = OverworldMap.Find(map, 'M')[0];
-        var ts = OverworldMap.Find(map, 'T'); spawn = ts.Count > 0 ? ts[0] : home;
-        lamps = OverworldMap.Find(map, 'i');
-        foreach (var d in map.doors.OrderBy2()) { var c = OverworldMap.Find(map, (char)('0' + d.n)); if (c.Count == 1) { stops.Add(d); doorCells[d.n] = c[0]; } }
-
-        mind = new OverworldMind(tuning);
-        if (OverworldSession.HasPositions)
-        {
-            mario = new OverworldWalker(OverworldSession.MarioX, OverworldSession.MarioY);
-            tx = OverworldSession.TricksterX; ty = OverworldSession.TricksterY;
-        }
-        else
-        {
-            mario = new OverworldWalker(home.x + 0.5, home.y + 0.5);
-            tx = spawn.x + 0.5; ty = spawn.y + 0.5;
-        }
-        dayOver = OverworldSession.DayOver;
+        town = new OverworldTown(map, tuning, n => OverworldSession.RoomScenes.TryGetValue(n, out var sc) && SceneTransit.CanLoad(sc));
         helpOpen = !helpSeenThisPlay; helpSeenThisPlay = true;
         BuildVisuals();
         UpdateVisuals(); SnapCamera(); // S212：镜头直接就位（以前从默认位置滑过来，揭幕时画面在"飘"）
@@ -99,206 +79,46 @@ public sealed class OverworldGame : MonoBehaviour
         }
         if (helpOpen) { UpdateVisuals(); return; }
         float dt = Mathf.Min(Time.deltaTime, 0.1f);
-        OverworldSession.Minute += dt * tuning.overworldMinutesPerSecond;
-
-        TricksterUpdate(dt);
-        TickPeels(dt);
-        MarioUpdate(dt);
-
-        if (OverworldSession.Minute >= OverworldMap.DayEnd) EndDay();
+        var input = new OverworldTown.Input
+        {
+            h = (Step1Keys.Held(KeyCode.RightArrow) || Step1Keys.Held(KeyCode.D) ? 1f : 0f) - (Step1Keys.Held(KeyCode.LeftArrow) || Step1Keys.Held(KeyCode.A) ? 1f : 0f),
+            v = (Step1Keys.Held(KeyCode.UpArrow) || Step1Keys.Held(KeyCode.W) ? 1f : 0f) - (Step1Keys.Held(KeyCode.DownArrow) || Step1Keys.Held(KeyCode.S) ? 1f : 0f),
+            disguise = Step1Keys.Down(KeyCode.P), peel = Step1Keys.Down(KeyCode.L), taunt = Step1Keys.Down(KeyCode.T), door = Step1Keys.Down(KeyCode.E),
+            fastForward = Step1Keys.Held(KeyCode.Space), // S213：等他出发时按住空格快进（有事发生自动恢复）
+        };
+        town.Tick(dt, input);
+        if (town.hint != OverworldTown.Note.None) Hint(NoteText(town.hint), town.hintSeconds);
+        if (town.wantsEnter)
+        {
+            var d = town.enterDoor; var c = doorCells[d.n];
+            // S211：淡出 → 标题卡 → 后台加载 → 淡入（SceneTransit）；S212：圆从这扇门收拢
+            if (!SceneTransit.Go(OverworldSession.RoomScenes[d.n], Step1Text.OverworldTransitToRoom(d.n, d.room, town.enterOutcome), new Vector3(c.x + 0.5f, c.y + 0.75f, 0)))
+                SceneManager.LoadScene(OverworldSession.RoomScenes[d.n]);
+        }
         UpdateVisuals();
     }
 
-    private void TricksterUpdate(float dt)
+    private static string NoteText(OverworldTown.Note n)
     {
-        tauntedThisFrame = false;
-        if (frozen > 0f) { frozen -= dt; lastMoved = false; return; }
-        float h = (Step1Keys.Held(KeyCode.RightArrow) || Step1Keys.Held(KeyCode.D) ? 1f : 0f) - (Step1Keys.Held(KeyCode.LeftArrow) || Step1Keys.Held(KeyCode.A) ? 1f : 0f);
-        float v = (Step1Keys.Held(KeyCode.UpArrow) || Step1Keys.Held(KeyCode.W) ? 1f : 0f) - (Step1Keys.Held(KeyCode.DownArrow) || Step1Keys.Held(KeyCode.S) ? 1f : 0f);
-        var dir = new Vector2(h, v); if (dir.sqrMagnitude > 1f) dir.Normalize();
-        double sp = tuning.overworldTricksterSpeed * OverworldMap.SpeedFactor(Here(tx, ty)) * (disguised ? 0.6 : 1.0) * dt;
-        var (nx, ny) = OverworldMap.Move(map, tx, ty, dir.x * sp, dir.y * sp);
-        lastMoved = (nx - tx) * (nx - tx) + (ny - ty) * (ny - ty) > 1e-8;
-        tx = nx; ty = ny;
-
-        if (Step1Keys.Down(KeyCode.P)) disguised = !disguised;
-        if (Step1Keys.Down(KeyCode.L)) TryPeel();
-        if (Step1Keys.Down(KeyCode.T))
+        switch (n)
         {
-            if (OverworldSession.TauntsUsed >= tuning.overworldTaunts) Hint(Step1Text.OverworldTauntNone);
-            else { OverworldSession.TauntsUsed++; tauntedThisFrame = true; }
-        }
-        // 道具箱
-        int cx = (int)System.Math.Floor(tx), cy = (int)System.Math.Floor(ty), id = cy * map.W + cx;
-        if (map.At(cx, cy) == '?' && !OverworldSession.UsedCells.Contains(id))
-        {
-            OverworldSession.UsedCells.Add(id);
-            OverworldSession.BonusBombs = Mathf.Min(MaxBonusBombs, OverworldSession.BonusBombs + 1);
-            Hint(Step1Text.OverworldPickup);
-        }
-        if (Step1Keys.Down(KeyCode.E)) TryDoor();
-    }
-
-    private void TryPeel()
-    {
-        int best = -1; double bd = tuning.overworldPrankRange * tuning.overworldPrankRange;
-        foreach (var c in OverworldMap.Find(map, 'n'))
-        {
-            int id = c.y * map.W + c.x;
-            if (OverworldSession.UsedCells.Contains(id) || peels.ContainsKey(id)) continue;
-            double dx = c.x + 0.5 - tx, dy = c.y + 0.5 - ty, d = dx * dx + dy * dy;
-            if (d <= bd) { bd = d; best = id; }
-        }
-        if (best < 0) { Hint(Step1Text.OverworldPeelNo); return; }
-        peels[best] = new Vector2(PeelFlashSeconds, PeelActiveSeconds);
-        Hint(Step1Text.OverworldPeel);
-    }
-
-    private void TickPeels(float dt)
-    {
-        var keys = new List<int>(peels.Keys);
-        foreach (var k in keys)
-        {
-            var p = peels[k];
-            if (p.x > 0f) p.x -= dt; else p.y -= dt;
-            if (p.y <= 0f) { peels.Remove(k); OverworldSession.UsedCells.Add(k); }
-            else peels[k] = p;
+            case OverworldTown.Note.TauntNone: return Step1Text.OverworldTauntNone;
+            case OverworldTown.Note.Pickup: return Step1Text.OverworldPickup;
+            case OverworldTown.Note.PeelNo: return Step1Text.OverworldPeelNo;
+            case OverworldTown.Note.Peel: return Step1Text.OverworldPeel;
+            case OverworldTown.Note.TooEarly: return Step1Text.OverworldTooEarly;
+            case OverworldTown.Note.RoomMissing: return Step1Text.OverworldRoomMissing;
+            case OverworldTown.Note.Missed: return Step1Text.OverworldMissed;
+            case OverworldTown.Note.LateHint: return Step1Text.OverworldLateHint;
+            case OverworldTown.Note.Caught: return Step1Text.OverworldCaught;
+            case OverworldTown.Note.AmbushWait: return Step1Text.OverworldAmbushWait;
+            case OverworldTown.Note.Spotted: return Step1Text.OverworldSpotted;
+            default: return "";
         }
     }
 
-    private OverworldMap.Door NextStop => OverworldSession.NextStop < stops.Count ? stops[OverworldSession.NextStop] : null;
-
-    private void TryDoor()
-    {
-        foreach (var kv in doorCells)
-        {
-            double dx = kv.Value.x + 0.5 - tx, dy = kv.Value.y + 0.5 - ty;
-            if (dx * dx + dy * dy > 1.3 * 1.3) continue;
-            var next = NextStop;
-            if (next == null || next.n != kv.Key) { Hint(Step1Text.OverworldTooEarly); return; }
-            var outcome = OverworldMind.AtDoor(!marioInside, insideSeconds, tuning.overworldLateWindowSeconds);
-            if (outcome == OverworldMind.DoorOutcome.Missed) return; // 超时的已在 MarioUpdate 里处理
-            EnterRoom(next, outcome);
-            return;
-        }
-    }
-
-    private void EnterRoom(OverworldMap.Door d, OverworldMind.DoorOutcome outcome)
-    {
-        if (SceneTransit.Busy) return;
-        if (!OverworldSession.RoomScenes.TryGetValue(d.n, out var scene) || !SceneTransit.CanLoad(scene))
-        { Hint(Step1Text.OverworldRoomMissing); return; }
-        var c = doorCells[d.n];
-        OverworldSession.PendingDoor = d.n;
-        OverworldSession.PendingOutcome = outcome;
-        if (outcome == OverworldMind.DoorOutcome.Ambush) OverworldSession.BonusBombs = Mathf.Min(MaxBonusBombs, OverworldSession.BonusBombs + AmbushBonusBombs);
-        OverworldSession.CarriedSuspicion = OverworldMind.CarriedSuspicion(mind.State == OverworldMarioState.InRoom ? OverworldMarioState.Walking : mind.State, mind.Meter.Value, tuning.curiousThreshold);
-        OverworldSession.Minute = System.Math.Max(OverworldSession.Minute, d.minute) + tuning.overworldVisitMinutes;
-        OverworldSession.DelayedSeconds += mind.DelayedSeconds;
-        OverworldSession.NextStop++;
-        // 出门后两人都站在门口前一格（门下方能走就站下方）
-        var below = OverworldMap.Walkable(map, c.x, c.y - 1) ? new OverworldMap.Cell(c.x, c.y - 1) : c;
-        OverworldSession.MarioX = c.x + 0.5; OverworldSession.MarioY = c.y + 0.5;
-        OverworldSession.TricksterX = below.x + 0.5; OverworldSession.TricksterY = below.y + 0.5;
-        OverworldSession.HasPositions = true;
-        // S211：淡出 → 标题卡 → 后台加载 → 淡入（SceneTransit）；S212：圆从这扇门收拢
-        SceneTransit.Go(scene, Step1Text.OverworldTransitToRoom(d.n, d.room, outcome), new Vector3(c.x + 0.5f, c.y + 0.75f, 0));
-    }
-
-    private void MarioUpdate(float dt)
-    {
-        var next = NextStop;
-        if (marioInside)
-        {
-            insideSeconds += dt;
-            if (next != null && insideSeconds > tuning.overworldLateWindowSeconds)
-            {
-                // 你没跟进来：他安心偷完出门
-                OverworldSession.RecordMissed(next.n);
-                OverworldSession.Minute += tuning.overworldVisitMinutes;
-                OverworldSession.NextStop++;
-                marioInside = false; insideSeconds = 0f;
-                mind.SetInRoom(false);
-                Hint(Step1Text.OverworldMissed, 3f);
-            }
-            return;
-        }
-
-        // 日程目标
-        Vector2? schedule = null; OverworldMap.Cell goalCell = home;
-        if (next != null)
-        {
-            if (OverworldSession.Minute >= next.minute) { goalCell = doorCells[next.n]; schedule = Center(goalCell); }
-        }
-        else { goingHome = true; goalCell = home; schedule = Center(home); }
-
-        // 眼睛 / 耳朵（H4：只看你的外观和位置）
-        var r = Sight();
-        bool sees = OverworldMap.CanSee(map, lamps, mario.x, mario.y, mario.fx, mario.fy, tx, ty, r);
-        var p = new OverworldPercept
-        {
-            marioPos = new Vector2((float)mario.x, (float)mario.y),
-            seesFigure = sees,
-            figurePos = new Vector2((float)tx, (float)ty),
-            figureLooksLikeProp = disguised,
-            figureMoving = lastMoved,
-            sawRustle = !sees && lastMoved && OverworldMap.SeesRustle(map, lamps, mario.x, mario.y, mario.fx, mario.fy, tx, ty, r),
-            rustlePos = new Vector2((float)tx, (float)ty),
-            heardTaunt = tauntedThisFrame && Dist(mario.x, mario.y, tx, ty) <= tuning.overworldVisionRange * 1.5f,
-            tauntPos = new Vector2((float)tx, (float)ty),
-            scheduleTarget = schedule,
-        };
-        // 香蕉皮
-        int mid = (int)System.Math.Floor(mario.y) * map.W + (int)System.Math.Floor(mario.x);
-        if (peels.TryGetValue(mid, out var peel) && peel.x <= 0f) { p.slipped = true; peels.Remove(mid); OverworldSession.UsedCells.Add(mid); }
-
-        var o = mind.Tick(dt, p);
-        lastOrder = o;
-        if (o.target.HasValue)
-        {
-            var tc = new OverworldMap.Cell(Mathf.FloorToInt(o.target.Value.x), Mathf.FloorToInt(o.target.Value.y));
-            if (!OverworldMap.Walkable(map, tc.x, tc.y) && !OverworldCatalog.IsDoor(map.At(tc.x, tc.y))) tc = goalCell;
-            mario.SetGoal(map, tc);
-            float speed = o.state == OverworldMarioState.Chasing ? tuning.overworldChaseSpeed : tuning.overworldMarioSpeed;
-            mario.Step(map, speed, dt);
-        }
-        if (o.tryCatch) Caught();
-
-        // 到门口 / 到家
-        if (o.state == OverworldMarioState.Walking && mario.Arrived && schedule.HasValue && mario.Goal.Equals(goalCell))
-        {
-            if (next != null) { marioInside = true; insideSeconds = 0f; mind.SetInRoom(true); Hint(Step1Text.OverworldLateHint, tuning.overworldLateWindowSeconds); }
-            else EndDay();
-        }
-    }
-
-    private void Caught()
-    {
-        OverworldSession.Caught++;
-        tx = spawn.x + 0.5; ty = spawn.y + 0.5; disguised = false;
-        frozen = tuning.overworldCaughtPenaltySeconds;
-        mind.OnCaught();
-        Hint(Step1Text.OverworldCaught, 2.5f);
-    }
-
-    private void EndDay()
-    {
-        if (dayOver) return;
-        dayOver = true; OverworldSession.DayOver = true;
-        OverworldSession.DelayedSeconds += mind.DelayedSeconds;
-        if (!goingHome) mind.SetHome();
-    }
-
-    private OverworldMap.SightRules Sight() => new OverworldMap.SightRules
-    {
-        range = tuning.overworldVisionRange, nightRange = tuning.overworldNightVisionRange, halfAngleDeg = tuning.overworldVisionHalfAngle,
-        nearRadius = tuning.overworldNearSense, grassRadius = tuning.overworldGrassSeeRadius, lampRadius = tuning.overworldLampRadius,
-        night = OverworldSession.Minute >= OverworldMap.NightStart,
-    };
-
-    private char Here(double x, double y) => map.At((int)System.Math.Floor(x), (int)System.Math.Floor(y));
-    private static Vector2 Center(OverworldMap.Cell c) => new Vector2(c.x + 0.5f, c.y + 0.5f);
-    private static float Dist(double ax, double ay, double bx, double by) => (float)System.Math.Sqrt((ax - bx) * (ax - bx) + (ay - by) * (ay - by));
+    private OverworldMap.SightRules Sight() => town.Sight();
+    private static float Dist(double ax, double ay, double bx, double by) => OverworldTown.Dist(ax, ay, bx, by);
     private void Hint(string s, float secs = 2f) { hint = s; hintUntil = Time.unscaledTime + secs; }
 
     // ═════════════════════ 画面 ═════════════════════
@@ -452,11 +272,7 @@ public sealed class OverworldGame : MonoBehaviour
         trail = OverworldMap.Path(map, OverworldGuide.Near(map, tx, ty), dc);
     }
 
-    private OverworldMap.Rules OverworldBuilderRules() => new OverworldMap.Rules
-    {
-        marioSpeed = tuning.overworldMarioSpeed, tricksterSpeed = tuning.overworldTricksterSpeed,
-        minutesPerSecond = tuning.overworldMinutesPerSecond, visitMinutes = tuning.overworldVisitMinutes,
-    };
+    private OverworldMap.Rules OverworldBuilderRules() => town.Rules;
 
     private void GuideGUI(GUIStyle box)
     {
@@ -472,6 +288,7 @@ public sealed class OverworldGame : MonoBehaviour
             GUI.backgroundColor = old;
         }
         GUI.Label(new Rect(10, 98, 340, 22), Step1Text.OverworldGuideKeys, Step1Gui.Text(13));
+        if (town.timeScale > 1f) GUI.Box(new Rect(Screen.width / 2f - 150, 14, 300, 30), Step1Text.OverworldFastForward, box);
         if (next == null || !doorCells.TryGetValue(next.n, out var dc)) return;
         // 门头上的倒计时（门在屏幕里才画）
         foreach (var d in stops)
@@ -611,7 +428,7 @@ public sealed class OverworldGame : MonoBehaviour
         }
         // 门口提示
         if (next != null && doorCells.TryGetValue(next.n, out var dc) && Dist(dc.x + 0.5, dc.y + 0.5, tx, ty) <= 1.3f && !dayOver)
-            GUI.Box(new Rect(Screen.width / 2f - 160, Screen.height - 100, 320, 56), marioInside ? Step1Text.OverworldLateHint : Step1Text.OverworldAmbushHint, big);
+            GUI.Box(new Rect(Screen.width / 2f - 180, Screen.height - 100, 360, 56), marioInside ? Step1Text.OverworldLateHint : town.AmbushReady ? Step1Text.OverworldAmbushHint : Step1Text.OverworldAmbushCountdown(town.MarioStepsToDoor, tuning.overworldAmbushSteps, disguised), big);
         GuideGUI(box);
         if (Time.unscaledTime < hintUntil) GUI.Box(new Rect(Screen.width / 2f - 220, 70, 440, 56), hint, big);
         if (helpOpen) GUI.Box(new Rect(Screen.width / 2f - 330, Screen.height / 2f - 150, 660, 300), Step1Text.OverworldHelp, box);

@@ -6,7 +6,7 @@ public static partial class Step1Text
         "马里奥今天按时间表去几户人家偷宝贝（门上的数字 = 顺序，右上角有时间）。\n" +
         "方向键/WASD 走路   P 伪装成木箱（伪装时被看见还在动 = 可疑）\n" +
         "L 靠近地上的香蕉皮（3 格内）让它变滑：闪一下后滑 3 秒，他踩上去晕 1.5 秒   T 挑衅（把他引过来，每天 3 次）\n" +
-        "E 在门口按：比他先到 = 埋伏（进屋开打，还多 1 枚炸弹给准备）\n" +
+        "E 埋伏：先到门口躲好（高草 / P 伪装），等他走到离门 8 格内再按 E（进屋开打，还多 1 枚炸弹）；按住空格快进等他\n" +
         "他先进门：6 秒内跟进去 = 迟到（照样打，但他不等你）；再晚 = 这户被偷\n" +
         "躲进高草/房子后面他就看不见；晚上 19:00 后他看得近，路灯下除外\n" +
         "? 木盒：捡到 +1 枚炸弹，带进下一个房间\n" +
@@ -15,7 +15,12 @@ public static partial class Step1Text
     public static string OverworldClock(string clock, bool night) => night ? $"🌙 {clock}" : $"☀ {clock}";
     public static string OverworldNextDoor(int n, string clock) => $"下一站：门 {n}  {clock}\nNext: door {n}";
     public const string OverworldGoingHome = "他要回家了\nHeading home";
-    public const string OverworldAmbushHint = "按 E 进屋埋伏！\nPress E to ambush";
+    public const string OverworldAmbushHint = "他快到了——按 E 进屋埋伏！\nPress E to ambush";
+    // S213：埋伏要等他走近
+    public const string OverworldAmbushWait = "他还远：先躲好（高草 / 按 P 伪装），等他走近再按 E\nWait for him — hide first";
+    public const string OverworldSpotted = "他盯上你了！先甩掉他（躲进高草 / 绕到房子后面），再回来埋伏\nHe spotted you — lose him first";
+    public static string OverworldAmbushCountdown(int steps, int need, bool disguised) =>
+        (steps < 0 ? "他还没出发" : $"他还有 {steps} 格（{need} 格内按 E 埋伏）") + (disguised ? "\n伪装中，别动" : "\n先躲进高草或按 P 伪装；按住空格快进");
     public const string OverworldLateHint = "他刚进去了！快按 E 跟进\nHe just went in — press E!";
     public const string OverworldTooEarly = "这扇门今天不是他下一站\nNot his next stop";
     public const string OverworldCaught = "被马里奥抓住了！送回出生点\nCaught! Back to start";
@@ -45,7 +50,8 @@ public static partial class Step1Text
     }
     /// <summary>门头上的倒计时：realSeconds = 现实里还有几秒他出发去这扇门（≤0 = 已经在路上）。</summary>
     public static string OverworldDoorCountdown(int n, double realSeconds) => realSeconds > 0.5 ? $"门 {n} · {realSeconds:0} 秒后出发" : $"门 {n} · 他在路上";
-    public const string OverworldGuideKeys = "Tab 路线   M 小地图   H 说明";
+    public const string OverworldGuideKeys = "Tab 路线   M 小地图   空格 快进   H 说明";
+    public const string OverworldFastForward = ">> 快进 ×4（有动静自动停）";
     public const string OverworldMinimapTitle = "小地图（M 关闭）  蓝 = 你  红 = 马里奥  亮粉 = 下一扇门";
     public const string OverworldBackToTown = "按 Enter 回到小镇\nPress Enter to return to town";
 

@@ -95,6 +95,19 @@ static class CHECK {
     var web=File.Exists("ow_scrub.json")? (MiniJson.Parse(File.ReadAllText("ow_scrub.json"),out _) as List<object>)?.Select(x=>(string)x).ToList() : null;
     bool same=web!=null&&web.SequenceEqual(lines); if(web!=null&&!same){ gb++; foreach(var x in lines.Except(web).Take(3)) Console.WriteLine("       Unity: "+x); foreach(var x in web.Except(lines).Take(3)) Console.WriteLine("       网页: "+x); }
     Console.WriteLine($"[{(gb==0?"OK":"FAIL")}] S212 转场+地图指引：第一扇门你比他早 {ra.margin:0.0} 秒；时间滑条 {lines.Count} 个时刻{(web==null?"（网页对照跳过）":same?"，网页一致":"，网页不一致")}"); fail+=gb; }
+  // S213：玩家视角模拟——6 种机器人玩家（跟箭头站着按 E / 会躲 / 反应慢 / 贪道具 / 捣蛋 / 挂机）+ 乱按 100 天，用和游戏同一份 OverworldTown 规则玩一天
+  { int pb=0; var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; var t=MarioMindTuningSO.LoadOrDefault(); var sum=new List<string>();
+    foreach(OverworldBots.Kind k in Enum.GetValues(typeof(OverworldBots.Kind))){ if(k==OverworldBots.Kind.Chaos) continue;
+      int am=0,mi=0,ca=0; double lg=0,rs=0; for(int s=1;s<=3;s++){ var r=OverworldBots.PlayDay(m,t,k,true,s); am+=r.ambush; mi+=r.missed; ca+=r.caught; lg=Math.Max(lg,r.longestIdle); rs+=r.realSeconds; if(!r.dayEnded){ pb++; Console.WriteLine($"     [FAIL] {k} 一天没结束"); } }
+      sum.Add($"{k} 埋伏{am}/{3*m.doors.Count} 被抓{ca} {rs/3:0}秒");
+      if(lg>6){ pb++; Console.WriteLine($"     [FAIL] {k}：用了快进还干等 {lg:0.0} 秒"); }
+      if((k==OverworldBots.Kind.Hider||k==OverworldBots.Kind.Prankster) && am<3*m.doors.Count){ pb++; Console.WriteLine($"     [FAIL] {k}（会躲的玩家）没能全部埋伏：{am}"); }
+      if(k==OverworldBots.Kind.Slow && ca>3){ pb++; Console.WriteLine($"     [FAIL] 反应慢的玩家 3 天被抓 {ca} 次（出门缓冲不够）"); }
+      if(k==OverworldBots.Kind.Follower && am>=3*m.doors.Count){ pb++; Console.WriteLine("     [FAIL] 站在门口不躲也能全胜：躲藏没意义"); }
+      if(k==OverworldBots.Kind.Idle && (am>0||mi<3*m.doors.Count)){ pb++; Console.WriteLine("     [FAIL] 挂机结果不对"); } }
+    int ne=0,mc=0; for(int s=1;s<=100;s++){ var r=OverworldBots.PlayDay(m,t,OverworldBots.Kind.Chaos,s%2==0,s); if(!r.dayEnded) ne++; mc=Math.Max(mc,r.caught); } if(ne>0||mc>4){ pb++; Console.WriteLine($"     [FAIL] 乱按 100 天：没结束 {ne}，最多被抓 {mc}"); }
+    var noFF=OverworldBots.PlayDay(m,t,OverworldBots.Kind.Hider,false,1); var ff=OverworldBots.PlayDay(m,t,OverworldBots.Kind.Hider,true,1);
+    Console.WriteLine($"[{(pb==0?"OK":"FAIL")}] S213 玩家视角模拟：{string.Join("｜",sum)}｜乱按 100 天全部结束、最多被抓 {mc}｜一天 {noFF.realSeconds:0} 秒 → 快进 {ff.realSeconds:0} 秒"); fail+=pb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
  }}

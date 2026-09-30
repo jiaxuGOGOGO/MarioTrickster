@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 16;
+    public const int CurrentDataVersion = 17;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -466,6 +466,10 @@ public class MarioMindTuningSO : ScriptableObject
     public float overworldCaughtPenaltySeconds = 3f;
     [Tooltip("S210 大地图：挑衅 T 每天几次")]
     public int overworldTaunts = 3;
+    [Tooltip("S213 大地图：他从房间出来后清点几秒（头上 '…'，不看不听），你有时间走开。0 = 一出门就能看见你（玩家模拟：反应慢的人每次出门都被抓）")]
+    public float overworldExitGraceSeconds = 2.5f;
+    [Tooltip("S213 大地图：他离门还有几格路时你才能按 E 埋伏。以前任何时候按 E 都算埋伏（玩家模拟：直奔门口按 E 就全胜，躲藏/伪装/香蕉皮都没用）。太大 = 太容易，太小 = 他离你太近容易被看见")]
+    public int overworldAmbushSteps = 8;
 
     /// <summary>把 S183 校准值写入旧资产（只在 dataVersion 较旧时执行一次）。返回是否有改动。</summary>
     public bool UpgradeData()
@@ -485,6 +489,10 @@ public class MarioMindTuningSO : ScriptableObject
             overworldLateWindowSeconds = 6f; overworldVisionRange = 7f; overworldNightVisionRange = 3.5f; overworldVisionHalfAngle = 55f; overworldNearSense = 1.2f;
             overworldGrassSeeRadius = 1.5f; overworldLampRadius = 3f; overworldMaxChaseSeconds = 8f; overworldSlipStunSeconds = 1.5f; overworldPrankRange = 3f;
             overworldCaughtPenaltySeconds = 3f; overworldTaunts = 3;
+        }
+        if (dataVersion < 17)
+        {
+            overworldExitGraceSeconds = 2.5f; overworldAmbushSteps = 8;
         }
         if (dataVersion < 15)
         {

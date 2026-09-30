@@ -28,3 +28,6 @@ namespace UnityEngine {
 namespace UnityEngine { public class Transform {} }
 
 namespace UnityEngine { public struct Vector2Int { public int x,y; public Vector2Int(int x,int y){this.x=x;this.y=y;} } }
+// S213：玩家视角模拟需要的桩（Step1Text / OverworldSession 编进 sim）
+namespace UnityEngine { public enum RuntimeInitializeLoadType { SubsystemRegistration, AfterAssembliesLoaded, BeforeSceneLoad, AfterSceneLoad } public class RuntimeInitializeOnLoadMethodAttribute:Attribute{ public RuntimeInitializeOnLoadMethodAttribute(){} public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType t){} } }
+public enum MarioMindState { Running, Curious, Investigating, Chasing, Searching }

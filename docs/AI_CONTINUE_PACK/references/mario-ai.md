@@ -33,3 +33,6 @@ MarioMindDriver（接线、速度、楼层寻路）◄── MarioOrder ◄─�
 - 新行为的纯逻辑测试（用 `new RushMarioMind(Tuning())` + 构造 `MarioPercept` 逐帧 Tick）。
 - `MindAndDriverNeverReadTricksterTruth` 必须仍过（禁用词见 SKILL.md H4）。
 - H2：任何来源都先进 `?`。
+
+## S213 小镇 AI 改动先跑玩家模拟
+- 改 OverworldMind / OverworldTown 后看 verify 里 S213 那行：会躲的玩家要全埋伏、站着不躲不能全胜、反应慢的 3 天被抓 ≤3、乱按 100 天全部结束。

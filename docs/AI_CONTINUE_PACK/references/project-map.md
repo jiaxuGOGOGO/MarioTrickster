@@ -97,3 +97,8 @@
 - `GameManager.RestartOverride`：优先于 EditorRestartHandler；OverworldRoomLink 用它平滑重开房间。以后别的"会话型"场景也用它，不要改 EditorRestartHandler。
 - `LevelWorkshopWindow.OpenRoom(名字)`：从别处打开一个关卡库/样板房间。
 - 小镇工坊草稿：SessionState `MarioTrickster.Overworld.WorkshopDraft`。
+
+## S213 小镇规则 = 纯逻辑
+- `Overworld/OverworldTown.cs`：小镇一帧的全部规则（输入 → 走路/伪装/香蕉皮/挑衅/门/马里奥/抓人/结算）。**改小镇玩法改这里**，OverworldGame 只读键盘、画画面、切场景。提示用 `OverworldTown.Note` 枚举，文字在 OverworldGame.NoteText。
+- `Overworld/OverworldBots.cs`：玩家视角模拟（7 种机器人）。新机制加进小镇后，给合适的机器人加一种用法，并在 sim S213 里加一条期望。
+- 调参 dataVersion 17：overworldExitGraceSeconds 2.5、overworldAmbushSteps 8。

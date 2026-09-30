@@ -67,6 +67,7 @@ public static class Step1Keys
             case KeyCode.W: return kb.wKey.isPressed;
             case KeyCode.S: return kb.sKey.isPressed;
             case KeyCode.Tab: return kb.tabKey.isPressed; // S212：按住看去门的路线
+            case KeyCode.Space: return kb.spaceKey.isPressed; // S213：大地图按住快进
             default: return false;
         }
     }

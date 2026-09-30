@@ -198,6 +198,10 @@ public class S51_DataDrivenTasTests
             recorder.SetTasReplayState(true);
         }
 
+        float settleDeadline = Time.realtimeSinceStartup + 3f;
+        while (!mario.IsGrounded && Time.realtimeSinceStartup < settleDeadline) yield return null;
+        Assert.IsTrue(mario.IsGrounded, "TAS fixture must be grounded before playback");
+
         // ── Step 6: 注入 TAS 输入序列 ──
         var autoProvider = new AutomatedInputProvider(replayData.frames);
         im.SetInputProvider(autoProvider);
@@ -217,7 +221,7 @@ public class S51_DataDrivenTasTests
             if (winner == "Mario") won = true;
         };
 
-        while (!autoProvider.IsFinished && !won)
+        while (!autoProvider.IsFinished && !won && gm.CurrentState == GameState.Playing)
         {
             if (Time.realtimeSinceStartup - startTime > TEST_TIMEOUT_SECONDS)
             {
@@ -232,7 +236,7 @@ public class S51_DataDrivenTasTests
         // 额外等待几帧让 GoalZone 触发和 GameManager 处理
         for (int i = 0; i < 10; i++)
         {
-            if (won) break;
+            if (won || gm.CurrentState == GameState.RoundOver) break;
             yield return null;
         }
 
@@ -245,7 +249,7 @@ public class S51_DataDrivenTasTests
         // ── Step 10: 断言 1 — 触发胜利 ──
         Assert.IsTrue(health.CurrentHealth > 0,
             $"[{testName}] Mario 应该存活（当前血量: {health.CurrentHealth}）");
-        Assert.IsTrue(won || gm.CurrentState == GameState.RoundOver,
+        Assert.IsTrue(won,
             $"[{testName}] Mario 应该触发胜利判定（GameState: {gm.CurrentState}, won: {won}）");
 
         // ── Step 11: 断言 2 — S52 柔性防脱轨坐标校验 ──
@@ -348,6 +352,38 @@ public class S51_DataDrivenTasTests
     /// 复用 S50 的环境搭建逻辑：
     ///   Mario（视碰分离） + InputManager + GameManager + LevelManager + KillZone
     /// </summary>
+    [UnityTest]
+    public IEnumerator EnvironmentUsesGroundSpawnAndWiresRoundReset() => VerifyAuthoredSpawn(2, 1);
+    [UnityTest]
+    public IEnumerator EnvironmentUsesElevatedSpawnAndWiresRoundReset() => VerifyAuthoredSpawn(8, 3);
+
+    private IEnumerator VerifyAuthoredSpawn(int x, int y)
+    {
+        // Let deferred destruction from the preceding PlayMode fixture finish first.
+        yield return null;
+        const int width = 15, height = 5;
+        var rows = new string[height];
+        for (int row = 0; row < height; row++) rows[row] = new string('.', width);
+        rows[height - 1] = new string('#', width);
+        rows[height - 2] = new string('.', width - 1) + "G";
+        var spawnRow = rows[height - 1 - y].ToCharArray(); spawnRow[x] = 'M';
+        rows[height - 1 - y] = new string(spawnRow);
+        var root = AsciiLevelGenerator.GenerateFromTemplate(string.Join("\n", rows), true);
+        _testObjects.Add(root); SetupPlayableEnvironment(root);
+        var actor = Object.FindObjectOfType<MarioController>();
+        Assert.AreEqual(new Vector3(x, y + 0.5f, 0), actor.transform.position);
+        var field = typeof(GameManager).GetField("marioSpawnPoint", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.AreEqual(new Vector3(x, y, 0), ((Transform)field.GetValue(GameManager.Instance)).position);
+    }
+
+    [Test]
+    public void EnvironmentRejectsMissingSpawnInsteadOfTestingAtFallbackCoordinates()
+    {
+        var root = new GameObject("MissingSpawnFixture"); _testObjects.Add(root);
+        Assert.Throws<AssertionException>(() => SetupPlayableEnvironment(root));
+        Assert.IsNull(root.transform.Find("MarioSpawnPoint"), "Do not fabricate a replacement marker");
+    }
+
     private void SetupPlayableEnvironment(GameObject levelRoot)
     {
         // ── 查找 SpawnPoint ──
@@ -357,8 +393,13 @@ public class S51_DataDrivenTasTests
 
         foreach (Transform child in levelRoot.transform)
         {
-            if (child.name.StartsWith("MarioSpawnPoint"))
+            // Generator emits MarioSpawn_x_y, not MarioSpawnPoint. Never silently
+            // substitute a different position: that can put the runner ON a test ceiling.
+            if (child.name.StartsWith("MarioSpawn_", System.StringComparison.Ordinal) || child.name == "MarioSpawnPoint")
+            {
+                Assert.IsNull(marioSpawnT, "Fixture requires exactly one authored Mario spawn");
                 marioSpawnT = child;
+            }
 
             float x = child.position.x;
             float y = child.position.y;
@@ -366,9 +407,8 @@ public class S51_DataDrivenTasTests
             if (y > levelHeight) levelHeight = y;
         }
 
-        Vector3 marioSpawnPos = marioSpawnT != null
-            ? marioSpawnT.position
-            : new Vector3(1f, 2f, 0f);
+        Assert.IsNotNull(marioSpawnT, "Missing authored MarioSpawn_x_y marker; refusing fallback spawn");
+        Vector3 marioSpawnPos = marioSpawnT.position;
 
         // ── Ground Layer ──
         int groundLayerIndex = LayerMask.NameToLayer(GROUND_LAYER);
@@ -420,19 +460,14 @@ public class S51_DataDrivenTasTests
 
         // 连线
         inputManager.SetMarioController(marioCtrl);
+        // No live keyboard or default bot may move the runner during fixture warmup.
+        inputManager.SetInputProvider(new AutomatedInputProvider(new List<InputFrame>()));
         SetPrivateField(gameManager, "mario", marioCtrl);
         SetPrivateField(gameManager, "marioHealth", marioHealth);
         SetPrivateField(gameManager, "inputManager", inputManager);
 
         // SpawnPoint
-        GameObject marioSP = marioSpawnT != null
-            ? marioSpawnT.gameObject
-            : new GameObject("MarioSpawnPoint");
-        if (marioSpawnT == null)
-        {
-            marioSP.transform.position = marioSpawnPos;
-            _testObjects.Add(marioSP);
-        }
+        GameObject marioSP = marioSpawnT.gameObject;
         SetPrivateField(gameManager, "marioSpawnPoint", marioSP.transform);
         SetPrivateField(levelManager, "marioSpawnPoint", marioSP.transform);
 

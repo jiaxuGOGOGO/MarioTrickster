@@ -286,6 +286,7 @@ public class TricksterAbilitySystem : MonoBehaviour
         // S143 暗线清理：若正在暗线过渡中，恢复可见性
         if (_isUnderlining)
         {
+            if (_underlineCoroutine != null) StopCoroutine(_underlineCoroutine);
             SetUnderlineVisibility(true);
             _isUnderlining = false;
             _underlineCoroutine = null;
@@ -568,7 +569,10 @@ public class TricksterAbilitySystem : MonoBehaviour
         float transitTime = target != null ? Mathf.Max(0f, target.underlineTransitTime) : 0f;
         yield return new WaitForSeconds(transitTime);
 
-        if (target != null)
+        // A reveal/unpossess during transit must cancel arrival, not teleport later and rebind.
+        if (target != null && target.isActiveAndEnabled && target.CanBePossessed() && isActiveAndEnabled &&
+            disguiseSystem != null && disguiseSystem.IsDisguised && possessionGate != null &&
+            possessionGate.CurrentState == TricksterPossessionState.Underlining)
         {
             Vector3 arrivePosition = target.transform.position;
             transform.position = arrivePosition;
@@ -714,7 +718,7 @@ public class TricksterAbilitySystem : MonoBehaviour
 
         for (int i = 0; i < cachedProps.Length && propsInRangeCount < MaxPropsInRange; i++)
         {
-            if (cachedProps[i] == null) continue;
+            if (cachedProps[i] == null || !cachedProps[i].isActiveAndEnabled) continue; // S187：随机布局里未激活的机关
             float dist = Vector2.Distance(myPos, cachedProps[i].transform.position);
             if (dist <= controlRange)
             {
@@ -739,7 +743,7 @@ public class TricksterAbilitySystem : MonoBehaviour
 
         foreach (ControllablePropBase prop in cachedProps)
         {
-            if (prop == null) continue; // 防止已销毁的对象
+            if (prop == null || !prop.isActiveAndEnabled) continue; // 防止已销毁/未激活的对象（S187 随机布局）
             float dist = Vector2.Distance(transform.position, prop.transform.position);
             if (dist <= controlRange && dist < nearestDist)
             {

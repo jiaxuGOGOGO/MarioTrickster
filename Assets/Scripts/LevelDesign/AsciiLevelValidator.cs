@@ -225,7 +225,7 @@ public static class AsciiLevelValidator
         // ── 检查 4: 垂直高台扫描（改进版）──
         // S43 改进: 检查周围水平范围内是否有可跳达的平台，
         // 而非只看正下方的垂直距离。
-        CheckHighPlatforms(grid, maxWidth, height, solidChars, result);
+        CheckHighPlatforms(grid, maxWidth, height, solidChars, hazardChars, result);
 
         // ── 检查 5: S35 出生点安全距离 ──
         // 业界参考: Celeste 每个 checkpoint 周围无危险物，给玩家安全起步空间
@@ -306,7 +306,8 @@ public static class AsciiLevelValidator
                     // 间隙结束
                     int gapWidth = x - gapStart;
                     // S43: 检查间隙上方是否有替代通路
-                    if (!HasBridgeAbove(grid, gapStart, x - 1, y, width, height, solidChars))
+                    if (!HasNearbyFloorBelow(grid, gapStart, x - 1, y, result) &&
+                        !HasBridgeAbove(grid, gapStart, x - 1, y, width, height, solidChars))
                     {
                         CheckGap(gapWidth, gapStart, y, result);
                     }
@@ -321,6 +322,28 @@ public static class AsciiLevelValidator
     /// 如果在间隙正上方的跳跃高度范围内，存在连续的实体块横跨整个间隙，
     /// 则玩家可以走上面的桥，该间隙不是死路。
     /// </summary>
+    // A continuous permanent lower floor is not an abyss. Deep drops remain explicit warnings.
+    // This does NOT certify returning to the upper route, headroom, or hazard safety.
+    private static bool HasNearbyFloorBelow(char[,] grid, int startX, int endX, int y, ValidationResult result)
+    {
+        for (int floorY = y - 1; floorY >= 0; floorY--)
+        {
+            bool continuous = true;
+            for (int x = startX; x <= endX; x++)
+                // Conveyor is a permanent solid support, not a hole in an otherwise continuous floor.
+                // Do not include collapsing, breakable, one-way or moving platforms here.
+                if (grid[x, floorY] != '#' && grid[x, floorY] != '=' && grid[x, floorY] != '<')
+                { continuous = false; break; }
+            if (continuous)
+            {
+                if (y - floorY > PhysicsMetrics.ASCII_MAX_HEIGHT)
+                    result.warnings.Add($"Upper gap Y={y}, X=[{startX}..{endX}] has a lower floor at Y={floorY}; verify the drop, hazards and return climb in PlayMode.");
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static bool HasBridgeAbove(char[,] grid, int gapStartX, int gapEndX, int gapY,
         int width, int height, HashSet<char> solidChars)
     {
@@ -398,7 +421,7 @@ public static class AsciiLevelValidator
     /// 4. 水平搜索范围 = MAX_JUMP_DISTANCE（而非仅 ASCII_MAX_GAP）
     /// </summary>
     private static void CheckHighPlatforms(char[,] grid, int width, int height,
-        HashSet<char> solidChars, ValidationResult result)
+        HashSet<char> solidChars, HashSet<char> hazardChars, ValidationResult result)
     {
         for (int x = 0; x < width; x++)
         {
@@ -407,6 +430,14 @@ public static class AsciiLevelValidator
                 // 找到一个实体块，检查它是否是可站立表面
                 if (!IsSolid(grid, x, y, width, height, solidChars)) continue;
                 if (y + 1 < height && IsSolid(grid, x, y + 1, width, height, solidChars)) continue; // 上方被覆盖，不是表面
+
+                // [AI防坑警告] 实体危险机关的悬挂/安装点不是必须跳上的安全落点。
+                // 保留 solidChars 的碰撞/支撑语义以及独立危险检查；不移动摆锤或吞掉生成器错误。
+                if (hazardChars.Contains(grid[x, y]))
+                {
+                    result.info.Add($"Hazard mount '{grid[x, y]}' at ({x},{y}) is not a required landing target; moving hazard clearance still needs runtime validation.");
+                    continue;
+                }
 
                 // 向下查找最近的地面
                 int dropHeight = 0;

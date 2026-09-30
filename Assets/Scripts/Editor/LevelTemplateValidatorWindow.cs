@@ -22,7 +22,7 @@ public class LevelTemplateValidatorWindow : EditorWindow
     // MenuItem 入口
     // ═══════════════════════════════════════════════════
 
-    [MenuItem("MarioTrickster/AI Arena/Level Template Validator (QA)")]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/AI Arena/Level Template Validator (QA)")]
     public static void ShowWindow()
     {
         LevelTemplateValidatorWindow window = GetWindow<LevelTemplateValidatorWindow>("Level Template Validator");

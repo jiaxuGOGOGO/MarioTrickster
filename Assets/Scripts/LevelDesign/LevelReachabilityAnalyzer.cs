@@ -121,6 +121,24 @@ public static class LevelReachabilityAnalyzer
     /// <param name="template">ASCII 模板字符串（多行，第一行=最高层）</param>
     /// <param name="isSnippet">是否为片段模式（片段不要求 M/G，直接返回可达）</param>
     /// <returns>可达性分析结果</returns>
+    /// <summary>
+    /// S189：从 (fromX, fromY) 出发能到达的所有站立格（与 Analyze 用同一套跳跃/行走/下落规则，不改算法）。
+    /// 返回 HashSet 的 key = x * 100000 + y。供死局分析（LevelDeadlockAnalyzer）使用。
+    /// </summary>
+    public static HashSet<int> ReachableFrom(string template, int fromX, int fromY)
+    {
+        var cells = new HashSet<int>();
+        s_collect = cells; s_forceStart = new Vector2Int(fromX, fromY);
+        try { Analyze(template, false); }
+        finally { s_collect = null; s_forceStart = null; }
+        return cells;
+    }
+
+    [System.ThreadStatic] private static HashSet<int> s_collect;
+    [System.ThreadStatic] private static Vector2Int? s_forceStart;
+
+    public static int CellKey(int x, int y) => x * 100000 + y;
+
     public static ReachabilityResult Analyze(string template, bool isSnippet = false)
     {
         var result = new ReachabilityResult();
@@ -193,6 +211,10 @@ public static class LevelReachabilityAnalyzer
             return result;
         }
 
+        // S189：ReachableFrom 模式——替换起点、不在终点提前结束（收集全部可达格）
+        bool collect = s_collect != null;
+        if (collect && s_forceStart.HasValue) { startX = s_forceStart.Value.x; startY = s_forceStart.Value.y; }
+
         result.StartX = startX;
         result.StartY = startY;
         result.GoalX = goalX;
@@ -233,8 +255,10 @@ public static class LevelReachabilityAnalyzer
             BfsState current = queue.Dequeue();
             exploredCount++;
 
+            if (collect) s_collect.Add(CellKey(current.x, current.y));
+
             // 到达终点？
-            if (current.x == goalX && current.y == goalY)
+            if (!collect && current.x == goalX && current.y == goalY)
             {
                 result.IsReachable = true;
                 result.ExploredCount = exploredCount;
@@ -276,6 +300,9 @@ public static class LevelReachabilityAnalyzer
                 for (int ny = current.y; ny <= Mathf.Min(height - 1, current.y + jumpUp); ny++)
                 {
                     int dy = ny - current.y;
+                    // S189：死局分析模式下，横向跳跃不能穿过高墙（原 L2 只查起跳列头顶；为不改变既有验证结果，仅在收集模式启用）
+                    if (collect && !HorizontalArcClear(grid, current.x, current.y, nx, ny, current.y + jumpUp, solidChars, width, height))
+                        continue;
 
                     // 物理可行性检查：跳跃抛物线约束
                     // 向上跳时，水平距离和垂直高度有耦合关系
@@ -295,7 +322,8 @@ public static class LevelReachabilityAnalyzer
 
                 // 向下跳/平跳后下落：从当前高度向下搜索第一个支撑面
                 int fallLimit = Mathf.Max(0, current.y - MAX_FALL_CELLS);
-                for (int ny = current.y - 1; ny >= fallLimit; ny--)
+                bool fallBlocked = collect && !HorizontalArcClear(grid, current.x, current.y, nx, current.y, current.y + jumpUp, solidChars, width, height);
+                for (int ny = current.y - 1; ny >= fallLimit && !fallBlocked; ny--)
                 {
                     if (CanStandAt(grid, nx, ny, solidChars, hazardChars, width, height))
                     {
@@ -467,6 +495,30 @@ public static class LevelReachabilityAnalyzer
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// S189（仅死局分析模式）：从 fromX 横向移动到 toX 时，每个中间列都必须在 [max(fromY,toY), topY] 高度里至少有一格不是实体
+    /// （单向台面不挡）——即能从上方跳过去。高于跳跃极限的整面墙会挡住，1 格高的箱子不会。
+    /// </summary>
+    private static bool HorizontalArcClear(char[,] grid, int fromX, int fromY, int toX, int toY, int topY,
+        HashSet<char> solidChars, int width, int height)
+    {
+        if (fromX == toX) return true;
+        int step = toX > fromX ? 1 : -1;
+        int low = Mathf.Max(fromY, toY);
+        int high = Mathf.Min(height - 1, Mathf.Max(low, topY));
+        for (int cx = fromX + step; cx != toX; cx += step)
+        {
+            bool open = false;
+            for (int cy = low; cy <= high && !open; cy++)
+                open = !IsSolidAt(grid, cx, cy, solidChars, width, height) || grid[cx, cy] == ONE_WAY_PLATFORM_CHAR;
+            if (!open) return false;
+        }
+        // 目标列自身在落点高度以上到 low 之间不能被实体封住（从上方落下）
+        for (int cy = toY + 1; cy <= low; cy++)
+            if (IsSolidAt(grid, toX, cy, solidChars, width, height) && grid[toX, cy] != ONE_WAY_PLATFORM_CHAR) return false;
+        return true;
     }
 
     /// <summary>BFS 状态编码（用于 visited 集合去重）</summary>

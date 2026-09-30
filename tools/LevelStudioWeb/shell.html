@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarioTrickster 关卡设计台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16131f;        /* 地牢夜色：画布底 */
+  --slab:#221d2e;       /* 面板 */
+  --slab2:#2c2640;      /* 面板高亮 */
+  --chalk:#efe7d6;      /* 粉笔白：正文 */
+  --dim:#9d93b3;        /* 次要文字 */
+  --mario:#ff5a4e;      /* 马里奥红 */
+  --trick:#4f8cff;      /* 捣蛋者蓝 */
+  --loot:#ffc83d;       /* 宝物金：唯一强调色 */
+  --ok:#5fd39a; --bad:#ff5a4e; --warn:#ffb347;
+  --line:#3a3350;
+  --r:10px;
+  --mono:'JetBrains Mono',Consolas,ui-monospace,monospace;
+  --sans:'Noto Sans SC','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --disp:'Bricolage Grotesque','Noto Sans SC',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--ink);color:var(--chalk);font:14px/1.5 var(--sans)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--loot);outline-offset:2px}
+.app{display:grid;grid-template-rows:auto 1fr;height:100vh}
+header{display:flex;align-items:center;gap:18px;padding:10px 18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#1d1829,#16131f)}
+.brand{display:flex;align-items:baseline;gap:10px;white-space:nowrap}
+.brand b{font:800 22px/1 var(--disp);letter-spacing:-.02em}
+.brand b i{font-style:normal;color:var(--mario)} .brand b u{text-decoration:none;color:var(--trick)}
+.brand span{color:var(--dim);font-size:12px}
+.tabs{display:flex;gap:4px;margin-left:8px}
+.tab{background:none;border:1px solid transparent;border-radius:999px;padding:6px 14px;cursor:pointer;color:var(--dim)}
+.tab[aria-selected=true]{background:var(--slab2);color:var(--chalk);border-color:var(--line)}
+.spacer{flex:1}
+.btn{background:var(--slab2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--dim)}
+.btn.gold{background:var(--loot);color:#1b1407;border-color:var(--loot);font-weight:700}
+.btn.small{padding:4px 9px;font-size:12px}
+main{display:grid;grid-template-columns:260px 1fr 340px;min-height:0}
+aside,section.panel{min-height:0;overflow:auto}
+aside{border-right:1px solid var(--line);padding:12px}
+.side-right{border-left:1px solid var(--line);border-right:0}
+h3{font:700 12px/1 var(--sans);letter-spacing:.08em;color:var(--dim);margin:16px 0 8px;text-transform:uppercase}
+h3:first-child{margin-top:4px}
+.search{width:100%;background:var(--slab);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+.pal{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.chip{display:flex;align-items:center;gap:8px;background:var(--slab);border:1px solid var(--line);border-radius:8px;padding:5px 7px;cursor:pointer;text-align:left;min-width:0}
+.chip:hover{border-color:var(--dim)}
+.chip[aria-pressed=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+.chip .sw{flex:0 0 22px;height:22px;border-radius:5px;display:grid;place-items:center;font:600 13px var(--mono)}
+.chip .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+.chip.prop .sw{outline:2px dashed var(--loot);outline-offset:-2px}
+.chip.off{opacity:.45}
+.lib{display:flex;flex-direction:column;gap:4px;max-height:210px;overflow:auto}
+.lib button{display:flex;gap:8px;align-items:center;text-align:left;background:var(--slab);border:1px solid var(--line);border-radius:8px;padding:6px 8px;cursor:pointer}
+.lib button[aria-current=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+.lib .st{flex:0 0 8px;height:8px;border-radius:50%}
+.lib .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+.lib small{color:var(--dim);font:10.5px var(--mono)}
+.scope{font:11.5px/1.5 var(--mono);color:var(--dim);background:var(--slab);border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin-top:6px}
+.badge{display:inline-block;font:11px var(--mono);border-radius:999px;padding:1px 8px;border:1px solid var(--line)}
+.badge.idea{color:var(--warn);border-color:var(--warn)} .badge.ok{color:var(--ok);border-color:var(--ok)} .badge.go{color:var(--loot);border-color:var(--loot)}
+.info{background:var(--slab);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;font-size:12.5px;color:var(--dim)}
+.info b{color:var(--chalk)}
+/* 中间 */
+.center{display:grid;grid-template-rows:auto 1fr auto;min-width:0;min-height:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:var(--slab);border:0;padding:6px 10px;cursor:pointer;color:var(--dim)}
+.seg button[aria-pressed=true]{background:var(--slab2);color:var(--chalk)}
+.toggle{display:inline-flex;align-items:center;gap:6px;color:var(--dim);font-size:12.5px;cursor:pointer;padding:0 4px}
+.toggle input{accent-color:var(--loot)}
+.ovgroup{display:inline-flex;align-items:center;flex-wrap:wrap;gap:2px 4px;color:var(--dim);font-size:12px;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:3px 6px}
+.ovgroup small{opacity:.7;margin-right:2px}
+.ovsw{display:inline-block;width:10px;height:10px;border-radius:2px}
+.ovsw.hatch{background:repeating-linear-gradient(45deg,#ff5a4e 0 2px,transparent 2px 4px)}
+.ovsw.dot{background:radial-gradient(circle,#b08cff 40%,transparent 45%)}
+.worstbar{background:#3a2a10;color:#ffc83d;font-size:12.5px;padding:6px 12px;border-bottom:1px solid #6b4f1d}
+.toolhint{color:var(--loot);margin-left:12px;font-size:12px}
+.stage{overflow:auto;position:relative;background:
+  radial-gradient(circle at 1px 1px,#2a2440 1px,transparent 1.2px) 0 0/18px 18px,var(--ink);padding:24px}
+canvas{display:block;image-rendering:pixelated;cursor:crosshair;margin:auto;border-radius:6px;box-shadow:0 0 0 1px var(--line),0 20px 60px -20px #000}
+.status{display:flex;gap:14px;align-items:center;white-space:nowrap;overflow:hidden;padding:6px 12px;border-top:1px solid var(--line);font:12px var(--mono);color:var(--dim)}
+.status .hover{color:var(--chalk)}
+.jumpkey{display:inline-flex;gap:10px;align-items:center}.jumpkey i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+/* 右侧 */
+.verdict{border-radius:var(--r);padding:12px 14px;margin-bottom:10px;border:1px solid var(--line);background:var(--slab)}
+.verdict .big{font:800 20px/1.2 var(--disp)}
+.verdict.ok .big{color:var(--ok)} .verdict.bad .big{color:var(--bad)}
+.issue{display:flex;gap:8px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:12.5px}
+.issue:hover{background:var(--slab2)}
+.issue .dot{flex:0 0 8px;height:8px;border-radius:50%;margin-top:6px;background:var(--bad)}
+.issue.info .dot{background:var(--dim)} .issue.warn .dot{background:var(--warn)}
+.issue code{font:11px var(--mono);color:var(--dim)}
+/* 时间线：本页的招牌——马里奥的一趟路，按秒排开，你知道他几秒走到哪个机关 */
+.timeline{position:relative;height:96px;margin:6px 0 4px;border-radius:8px;background:var(--slab);border:1px solid var(--line);overflow:hidden}
+.timeline .track{position:absolute;left:10px;right:10px;top:28px;height:2px;background:repeating-linear-gradient(90deg,var(--dim) 0 4px,transparent 4px 8px)}
+.timeline .run{position:absolute;top:20px;width:10px;height:18px;border-radius:3px;background:var(--mario);box-shadow:0 0 12px var(--mario)}
+.timeline .stop{position:absolute;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}
+.timeline .stop::before{content:'';position:absolute;bottom:100%;left:50%;width:1px;height:26px;background:var(--line)}
+.timeline .stop .g{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;font:600 11px var(--mono)}
+.timeline .stop small{font:10px var(--mono);color:var(--dim)}
+.timeline .lootmark{position:absolute;top:18px;width:2px;height:22px;background:var(--loot)}
+.tl-legend{display:flex;justify-content:space-between;font:11px var(--mono);color:var(--dim)}
+/* 面板页（提案 / 交接） */
+.page{display:none;min-height:0;overflow:auto;padding:22px 28px;grid-column:1/-1}
+.page.on{display:block}
+.page h2{font:800 30px/1.1 var(--disp);letter-spacing:-.02em;margin:0 0 6px}
+.page .lead{color:var(--dim);max-width:720px;margin:0 0 20px}
+.grid2{display:grid;grid-template-columns:minmax(320px,440px) 1fr;gap:22px;align-items:start}
+.card{background:var(--slab);border:1px solid var(--line);border-radius:14px;padding:16px}
+label.f{display:block;font-size:12px;color:var(--dim);margin:10px 0 4px}
+.f input,.f select,.f textarea,input.f,select.f,textarea.f{width:100%;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+textarea.f{min-height:70px;resize:vertical}
+input[type=color].f{height:38px;padding:3px;cursor:pointer}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.checks{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.proplist .p{display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:start;padding:12px;border-bottom:1px solid var(--line)}
+.proplist .p .sw{width:40px;height:40px;border-radius:8px;display:grid;place-items:center;font:700 18px var(--mono);outline:2px dashed var(--loot);outline-offset:-2px}
+.proplist .p h4{margin:0;font-size:15px}
+.proplist .p p{margin:2px 0;color:var(--dim);font-size:12.5px}
+.hint{font-size:12px;color:var(--dim)}
+.law{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.law span{font:11px var(--mono);border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--dim)}
+.law span.need{border-color:var(--warn);color:var(--warn)}
+.handoff{white-space:pre-wrap;font:12.5px/1.6 var(--mono);background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:16px;max-height:60vh;overflow:auto}
+.cutlist label{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:13px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(30px);opacity:0;background:var(--loot);color:#1b1407;padding:10px 16px;border-radius:10px;font-weight:700;transition:.25s}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.wiz{background:var(--slab);color:var(--chalk);border:1px solid var(--line);border-radius:16px;padding:22px 24px;max-width:640px;width:94vw}
+.wiz::backdrop{background:rgba(10,8,16,.72)}
+.wiz h2{font:800 24px/1.15 var(--disp);margin:0 0 4px}
+.wiz .step{display:grid;grid-template-columns:28px 1fr;gap:10px;margin-top:16px}
+.wiz .num{width:28px;height:28px;border-radius:50%;background:var(--loot);color:#1b1407;display:grid;place-items:center;font:800 14px var(--disp)}
+.wiz .stars{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.wiz .stars button,.wiz .lens button{background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px;cursor:pointer;text-align:left;color:var(--chalk)}
+.wiz .stars button[aria-pressed=true],.wiz .lens button[aria-pressed=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+.wiz .stars b{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:5px;font:600 12px var(--mono);margin-right:6px;vertical-align:-4px}
+.wiz .lens{display:flex;gap:6px;margin-top:6px}.wiz .lens button{flex:1}
+.wiz .lens small,.wiz .stars small{display:block;color:var(--dim);font-size:11px;margin-top:2px}
+.wiz .beatrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:14px}
+.wiz .beatrow div{border:1px dashed var(--line);border-radius:10px;padding:7px 8px;font-size:11.5px;color:var(--dim)}
+.wiz .beatrow b{display:block;color:var(--loot);font:800 16px var(--disp)}
+.stamps{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.stamps button{background:var(--slab);border:1px solid var(--line);border-radius:8px;padding:6px 7px;cursor:pointer;text-align:left;color:var(--chalk);font-size:12px}
+.stamps button[aria-pressed=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+.stamps pre{margin:3px 0 0;font:9.5px/1.05 var(--mono);color:var(--dim);white-space:pre;overflow:hidden}
+.rhythm{position:relative;height:14px;border-radius:7px;overflow:hidden;background:var(--slab);border:1px solid var(--line);margin:4px 0 2px}
+.rhythm i{position:absolute;top:0;bottom:0}
+.rhythm i.busy{background:var(--mario)} .rhythm i.rest{background:#2f5c49}
+.rh-legend{display:flex;gap:12px;font:11px var(--mono);color:var(--dim)}.rh-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.empty{color:var(--dim);font-size:13px;padding:12px;border:1px dashed var(--line);border-radius:10px}
+@media (max-width:1100px){main{grid-template-columns:220px 1fr}.side-right{grid-column:1/-1;border-left:0;border-top:1px solid var(--line)}}
+/* S210 大地图 */
+.ow{display:grid;grid-template-columns:230px 1fr 360px;gap:16px;align-items:start}
+.ow .pal{grid-template-columns:1fr}
+.owwrap{overflow:auto;max-height:74vh;border:1px solid var(--line);border-radius:10px;background:#0f1a10}
+#owCanvas{display:block;image-rendering:pixelated;cursor:crosshair}
+.owdoor{display:grid;grid-template-columns:44px 64px 1fr 26px 26px;gap:6px;align-items:center;margin:4px 0}
+.owdoor button{padding:3px 0}
+.owiss.loc{cursor:pointer}.owiss.loc:hover{background:var(--line)}
+.owwrap.drop{outline:2px dashed var(--loot);outline-offset:-4px}
+.owdoor input,.owdoor select{background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;min-width:0}
+.owiss{font-size:12.5px;margin:3px 0;padding:5px 8px;border-radius:6px;background:var(--ink);border-left:3px solid var(--dim)}
+.owiss.Error{border-color:var(--bad)}.owiss.Warn{border-color:var(--warn)}.owiss.Info{border-color:var(--trick)}
+.owbar>*{flex:0 0 auto}.owbar .spacer{flex:1}
+.owsched{font:12px/1.6 var(--mono);color:var(--dim)}
+.owled{display:grid;grid-template-columns:88px 1fr 26px;gap:4px;align-items:start;margin:2px 0}.owled b{color:var(--chalk)}.owled .new{color:var(--loot)}
+.owdoors{display:flex;flex-wrap:wrap;gap:3px}.owdoors button{width:26px;padding:3px 0}
+@media (max-width:1100px){.ow{grid-template-columns:1fr}}
+@media (max-width:760px){main{grid-template-columns:1fr}aside{border-right:0}.grid2{grid-template-columns:1fr}.brand span{display:none}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="brand"><b><i>Mario</i><u>Trickster</u></b><span>关卡设计台 · 在这里想清楚，再交给 AI 实现</span></div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-page="design">画关卡</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="overworld" title="S210：星露谷视角的小镇，门连到横版房间">大地图</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="mech">新机制提案</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="handoff">交给 AI</button>
+  </nav>
+  <div class="spacer"></div>
+  <button class="btn small" id="btnSync" title="S214：连接 Unity 项目文件夹（选 MarioTrickster 那一层）。之后这里一改，切到 Unity 自动导入；Unity 里 Ctrl+S 存了，切回这里自动拿到。需要 Chrome / Edge">🔗 连接 Unity 项目</button>
+  <button class="btn small gold" id="btnPlayUnity" hidden title="把当前这一关（在大地图页 = 当前小镇）发给 Unity，切到 Unity 就自动开始试玩">▶ 在 Unity 试玩</button>
+  <button class="btn small" id="btnImport" title="支持：本设计台 .json、Unity 工坊 .txt、Tiled 导出的 .json/.csv、LDtk 的 .ldtk/.csv、像素图 .png（1 像素 = 1 格）">导入（多种格式）</button>
+  <button class="btn small" id="btnExport" title="所有关卡 + 所有提案，一个文件。Unity 工坊：关卡库 ▾ → 导入网页关卡包">导出关卡包 .json</button>
+  <input type="file" id="fileIn" accept=".json,.txt,.csv,.ldtk,.tmj,.png,.gif,.bmp" hidden>
+</header>
+
+<main id="pageDesign">
+  <aside>
+    <h3>我的关卡 <span id="libCount"></span></h3>
+    <div id="libList" class="lib"></div>
+    <div class="row" style="gap:6px;margin-top:6px">
+      <button class="btn small gold" id="libNew" title="新建关卡向导：先想一句话点子、选主角机关和时长，自动铺好起承转合 4 段（已经能玩）">＋ 新关卡（向导）</button>
+      <button class="btn small" id="libDup" title="复制当前这关">复制</button>
+      <button class="btn small" id="libDel" title="删除当前这关">删除</button>
+    </div>
+    <h3>起步</h3>
+    <div class="row" style="gap:6px">
+      <select class="f" id="sampleSel" aria-label="选择样板"></select>
+    </div>
+    <div class="row" style="gap:6px;margin-top:6px">
+      <button class="btn small" id="btnLoad">载入样板</button>
+      <button class="btn small" id="btnBlank">空白房间</button>
+    </div>
+    <div class="row" style="gap:6px;margin-top:6px">
+      <label class="f" style="margin:0">宽 <input class="f" id="inW" type="number" min="12" max="128" value="48"></label>
+      <label class="f" style="margin:0">高 <input class="f" id="inH" type="number" min="6" max="48" value="12"></label>
+    </div>
+    <button class="btn small" id="btnResize" style="margin-top:6px;width:100%">改尺寸（地面不动，往上加空间）</button>
+    <div class="scope" id="scopeBox">搭建范围：宽 12–128 格、高 6–48 格<br>外圈必须是实心：最左/最右列 W，顶行、底行全实心<br>必须各 1 个：M 马里奥 · T 你 · G 出口 · o 宝物<br>马里奥：往上跳 ≤2 格，平跳 ≤4 格宽的坑<br>一屏装得下：高 ≤16 格整屏看，更高自动跟随</div>
+    <h3>模式印章 <span class="hint">点一个，再点画布盖上去</span></h3>
+    <div class="stamps" id="stamps"></div>
+    <h3>元素 <span id="palCount"></span></h3>
+    <input class="search" id="palSearch" placeholder="搜索：火 / 弹簧 / J …" aria-label="搜索元素">
+    <label class="toggle" style="margin:6px 0"><input type="checkbox" id="showAll"> 显示第 1 步不用的元素</label>
+    <div id="palette"></div>
+    <h3>当前笔刷</h3>
+    <div class="info" id="brushInfo"></div>
+  </aside>
+
+  <section class="center">
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="工具">
+        <button aria-pressed="true" data-tool="brush" title="画笔（B）">画笔</button>
+        <button aria-pressed="false" data-tool="rect" title="矩形（R）">矩形</button>
+        <button aria-pressed="false" data-tool="fill" title="油漆桶（F）">填充</button>
+        <button aria-pressed="false" data-tool="pick" title="吸管（I）：点一个已放的东西，画笔就变成它，然后自动回到原来的工具。随时也可以 Ctrl+点击 直接吸">吸管</button>
+        <button aria-pressed="false" data-tool="stamp" title="印章（S）：在左边'模式印章'里选一个，点画布 = 以马里奥站的那格为左下角盖上一组现成的机关；空白处右键取消">印章</button>
+        <button aria-pressed="false" data-tool="move" title="移动（V）：点住已放的东西拖走；空白处拖 = 框选多个；方向键微调；Del 删除；Ctrl+C / Ctrl+V 复制">移动</button>
+      </div>
+      <button class="btn small" id="btnUndo" title="撤销 Ctrl+Z">撤销</button>
+      <button class="btn small" id="btnRedo" title="重做 Ctrl+Y">重做</button>
+      <span style="width:8px"></span>
+      <span class="ovgroup" title="这一组勾选框只改变画面上显示什么，不会改关卡、不影响检查结果、不影响导出">显示<small>（只改画面）</small>：
+      <label class="toggle" title="红色虚线 = 马里奥 AI 预计走的路（出生 → 宝物 → 出口），黄字 = 走到那里大约第几秒"><input type="checkbox" id="ovRoute" checked><i class="ovsw" style="background:#ff5a4e"></i>马里奥路线</label>
+      <label class="toggle" title="红色斜线格 = 马里奥站到这里后，最坏情况下再也回不到出口（死局）。有斜线就要改"><input type="checkbox" id="ovDead" checked><i class="ovsw hatch"></i>死局格</label>
+      <label class="toggle" title="假装塌桥 / 裂缝地板 / 捷径门 / 裂墙全都已经触发，看看地形变成什么样。只是看，勾着时不能画"><input type="checkbox" id="ovWorst"><i class="ovsw" style="background:#1c1a2b;border:1px dashed #9d93b3"></i>最坏情况预览</label>
+      <label class="toggle" title="黄色小三角 = 你写的批注（Alt+点击格子写）"><input type="checkbox" id="ovNotes" checked><i class="ovsw" style="background:#ffc83d"></i>批注</label>
+      <label class="toggle" title="鼠标停在马里奥能站的格子上：绿色 = 跳一下能到（AI 会走），黄色 = 物理上够得着但 AI 不稳（别把必经路放这）"><input type="checkbox" id="ovJump" checked><i class="ovsw" style="background:#5fd39a"></i>跳跃辅助</label>
+      <label class="toggle" title="紫色点 = 能站但马里奥永远上不去的格子（放宝物/机关在这里没意义）"><input type="checkbox" id="ovUnreach" checked><i class="ovsw dot"></i>上不去的格</label>
+      <label class="toggle" title="蓝色虚线框 = 游戏里镜头一次能看到的范围（跟着鼠标走）。大房间（宽 >64 或高 >16）游戏里镜头会跟着人移动，像死亡细胞"><input type="checkbox" id="ovView"><i class="ovsw" style="background:#6fc3ff"></i>游戏一屏</label>
+      <label class="toggle" title="金色虚线分段 = 起承转合 4 段（起：教 → 承：加深 → 转：意外 → 合：收尾）。按马里奥出生点到宝物平均切；向导建的关卡按向导的分段"><input type="checkbox" id="ovBeats" checked><i class="ovsw" style="background:transparent;border:1px dashed #ffc83d"></i>起承转合</label>
+      <label class="toggle" title="橙色圈 = 马里奥会路过的机关，5 格内没有草丛/箱子/隔墙可以躲：你伪装着站着不动不会被怀疑，但走过去的路上会被看见 → 提前伪装好等他来，或旁边放一丛草"><input type="checkbox" id="ovCover" checked><i class="ovsw" style="background:transparent;border:2px solid #ffb347;border-radius:50%"></i>转移点提示</label>
+      </span>
+      <span class="spacer"></span>
+      <label class="toggle">缩放 <input type="range" id="zoom" min="10" max="36" value="20" aria-label="缩放"></label>
+    </div>
+    <div class="worstbar" id="worstBanner" hidden>正在看"最坏情况"：塌桥 / 裂缝地板 / 捷径门 / 裂墙都假装已打开。这只是预览，不能画 —— 取消勾选"最坏情况预览"回到编辑</div>
+    <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+    <div class="status"><span class="hover" id="hoverInfo">把鼠标放到格子上</span><span class="jumpkey" id="jumpKey" hidden><span><i style="background:#5fd39a"></i>跳一下能到</span><span><i style="background:#ffb347"></i>够得着但 AI 不稳</span></span><span class="toolhint" id="toolHint"></span><span class="spacer"></span><span>右键 = 擦除 · Ctrl+点击 = 吸管 · Alt+点击 = 写批注 · 坐标 x 从左 0、y 从下 0（和 Unity 工坊一致）</span></div>
+  </section>
+
+  <aside class="side-right">
+    <h3>检查结果</h3>
+    <div class="verdict" id="verdict"></div>
+    <h3>马里奥一趟 · 几秒走到哪个机关</h3>
+    <div class="timeline" id="timeline"></div>
+    <div class="tl-legend"><span>出发</span><span id="tlLoot"></span><span id="tlEnd"></span></div>
+    <h3>节奏 · 紧张和喘气</h3>
+    <div class="rhythm" id="rhythm" title="红 = 马里奥正经过机关（前后 1 秒，去程和回程都算）；绿 = 喘气。好节奏是红绿交替：连续红 ≥8 秒太挤，连续绿 ≥10 秒太空"></div>
+    <div class="rh-legend"><span><i style="background:var(--mario)"></i>经过机关</span><span><i style="background:#2f5c49"></i>喘气</span><span id="rhSum"></span></div>
+    <h3>问题（点一下定位）</h3>
+    <div id="issues"></div>
+    <h3>这张图的设计意图</h3>
+    <label class="f">名字<input class="f" id="lvName" placeholder="例：诱捕走廊 2 · 高路版"></label>
+    <label class="f">想让玩家体验到什么<textarea class="f" id="lvGoal" placeholder="例：先布连锁，再挑衅把谨慎型引下高路"></textarea></label>
+    <label class="f">批注（Alt+点击格子添加）</label>
+    <div id="notesList"></div>
+  </aside>
+</main>
+
+<section class="page" id="pageOverworld">
+  <h2>大地图 · 星露谷视角小镇</h2>
+  <p class="lead"><b style="color:var(--chalk)">玩法：</b>马里奥每天按时间表去几户人家（门 1–9），门里面就是你在"画关卡"里做的横版房间。你抄近路先到门口躲好（高草 / 伪装），等他走到离门 8 格内再按 E = 埋伏开打（被他盯上时不算）；躲进高草、树后、木箱后他就看不见。红点 = 他没人捣乱时的路线。做好后导出关卡包，Unity：小镇工坊 → 导入。</p>
+  <div class="ow">
+    <aside class="card" style="padding:12px">
+      <h3>格子</h3>
+      <div class="pal" id="owPal"></div>
+      <h3>房间门</h3>
+      <div class="owdoors" id="owDoorPal"></div>
+      <p class="hint" id="owTip" style="margin-top:10px"></p>
+    </aside>
+    <div>
+      <div class="row owbar" style="flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center">
+        <select class="f" id="owPick" style="flex:0 0 180px" title="你的所有小镇"></select>
+        <button class="btn small" id="owNew">新建</button>
+        <button class="btn small" id="owSample" title="内置样板：星露小镇">载入样板</button>
+        <button class="btn small" id="owDel">删除</button>
+        <select class="f" id="owGrow" style="flex:0 0 150px" title="把地图往外加大（新地是草地，最外圈自动种树）或裁掉一圈；和 Unity 小镇工坊 ↔ 扩展 同一套规则">
+          <option value="">↔ 扩展地图…</option>
+          <option value="8,8,8,8">四周各 +8 格</option><option value="16,16,16,16">四周各 +16 格</option>
+          <option value="0,16,0,0">右边 +16（往东）</option><option value="16,0,0,0">左边 +16（往西）</option>
+          <option value="0,0,16,0">上边 +16（往北）</option><option value="0,0,0,16">下边 +16（往南）</option>
+          <option value="x2">加倍：宽高都 ×2</option><option value="-4,-4,-4,-4">裁掉四周各 4 格</option>
+        </select>
+        <b id="owSize" class="hint" style="font-family:var(--mono)"></b>
+        <span class="spacer"></span>
+        <button class="btn small" data-owtool="brush">✎ 画笔</button>
+        <button class="btn small" data-owtool="rect">▭ 矩形</button>
+        <button class="btn small" data-owtool="fill">▦ 填充</button>
+        <button class="btn small" data-owtool="pick" title="I（或按住 Alt 点一下）">◉ 吸管</button>
+        <button class="btn small" id="owUndo" title="Ctrl+Z">↶</button>
+        <button class="btn small" id="owRedo" title="Ctrl+Y">↷</button>
+        <label class="toggle"><input type="checkbox" id="owRoute" checked> 路线</label>
+        <label class="toggle"><input type="checkbox" id="owNight"> 夜晚视野</label>
+        <input type="range" id="owZoom" min="4" max="28" value="16" style="width:80px"><button class="btn small" id="owFit" title="缩放到整张地图都看得见">⤢</button>
+      </div>
+      <div class="owwrap" id="owWrap"><canvas id="owCanvas"></canvas></div>
+      <p class="hint" id="owHover" style="font-family:var(--mono)"></p>
+      <p class="hint">左键画，右键擦成草地。M = 马里奥的家，T = 你的出生点，1–9 = 门（画在房子最下面一排的下方一格）。地图不够大：上面"↔ 扩展地图"（最大 192×128，老镇原样保留，新地铺草、外圈自动种树）。<br>
+      快捷键（和 Unity 小镇工坊一样）：B 画笔 R 矩形 F 填充 I 吸管（Alt+点）· 1–9 门 · Ctrl+Z/Y · Ctrl+滚轮缩放 · Ctrl+C 复制整张小镇 / Ctrl+V 贴入（Unity 小镇工坊里同样 Ctrl+C/V）· 文件直接拖进画布导入</p>
+    </div>
+    <div class="card">
+      <label class="f">名字<input class="f" id="owName"></label>
+      <label class="f">玩法说明<input class="f" id="owGoal"></label>
+      <h3>门（马里奥按时间顺序去）</h3>
+      <div id="owDoors"></div>
+      <h3 id="owHead">检查</h3>
+      <div id="owIssues"></div>
+      <h3>📋 一天总览 <small class="hint">按马里奥的顺序：每扇门主打什么、哪扇门第一次教新机关</small></h3>
+      <div id="owLedger" class="owsched"></div>
+      <h3>马里奥的一天</h3>
+      <div class="owsched" id="owSched"></div>
+      <label class="toggle" style="margin-top:8px"><input type="checkbox" id="owScrubOn"> ⏱ 时间滑条（看他几点在哪）</label>
+      <input type="range" id="owScrub" min="360" max="1320" value="480" step="1" style="width:100%" disabled>
+      <div class="owsched" id="owScrubTxt"></div>
+      <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:6px">
+        <button class="btn gold" id="owPack" title="所有横版关卡 + 所有小镇，一个文件。Unity：小镇工坊 → 导入">导出关卡包 .json</button>
+        <button class="btn" id="owTxt" title="只导出当前小镇（Unity 小镇工坊可导入）">导出小镇 .txt</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="pageMech">
+  <h2>新机制提案</h2>
+  <p class="lead"><b style="color:var(--chalk)">新增流程：</b>① 写提案（💡想法）→ ② 画进关卡试摆 → ③ 想清楚后改成 ✅确认要做 → ④ 导出关卡包 + 设计单交给 AI → ⑤ AI 实现后，新版设计台里它会变成正式元素（✔），再导出关卡包导入 Unity，之前画的格子自动还原。<br>先在这里把一个新机关/新技能想清楚：它是什么、谁用、代价和对方怎么反制。提案会出现在"画关卡"的元素库里（金色虚线框），可以直接画进关卡试摆。项目有 10 条硬规则，下面会自动提醒哪几条要特别说明。</p>
+  <div class="grid2">
+    <div class="card">
+      <div class="row">
+        <label class="f">字符（1 个）<input class="f" id="mChar" maxlength="1" placeholder="例：A"></label>
+        <label class="f">英文名（主题键）<input class="f" id="mKey" placeholder="例：MagnetTrap"></label>
+      </div>
+      <label class="f">中文名<input class="f" id="mZh" placeholder="例：磁铁陷阱"></label>
+      <div class="row">
+        <label class="f">类型<select class="f" id="mRole">
+          <option value="PlayerPrank">机关（你按 L 触发）</option>
+          <option value="Special">特殊地形/被动物</option>
+          <option value="Terrain">地形</option>
+          <option value="Scenery">摆件（遮挡/藏身）</option>
+          <option value="Skill">捣蛋者技能（按键）</option>
+          <option value="MarioAI">马里奥行为/性格</option>
+        </select></label>
+        <label class="f">颜色<input class="f" id="mColor" type="color" value="#b08cff"></label>
+      </div>
+      <div class="checks">
+        <label class="toggle"><input type="checkbox" id="mSolid"> 实心（挡路）</label>
+        <label class="toggle"><input type="checkbox" id="mSupport" checked> 脚下要实心</label>
+        <label class="toggle"><input type="checkbox" id="mTerrain"> 会改变地形（炸/塌/开）</label>
+        <label class="toggle"><input type="checkbox" id="mControl"> 会控制人（晕/关/吊）</label>
+      </div>
+      <label class="f">它做什么（大白话）<textarea class="f" id="mEffect" placeholder="例：按 L 后 1 秒，把 3 格内的马里奥吸过来"></textarea></label>
+      <label class="f">预警：触发前让人看到什么（H3）<input class="f" id="mTele" placeholder="例：磁铁变红闪 0.8 秒"></label>
+      <label class="f">代价：你用它要付出什么<input class="f" id="mCost" placeholder="例：每局 2 次；你自己也会被吸"></label>
+      <label class="f">马里奥怎么反制/发现<input class="f" id="mCounter" placeholder="例：看见红光会后退；谨慎型绕开"></label>
+      <label class="f">放在哪<input class="f" id="mPlace" placeholder="例：通道中间，两边各留 2 格"></label>
+      <label class="f">和哪些现有机关连得起来<input class="f" id="mCombo" placeholder="例：吸到火前 → 火；吸下塌桥"></label>
+      <div class="law" id="mLaws"></div>
+      <div class="row" style="margin-top:14px">
+        <label class="f" style="margin:0;flex:0 0 190px">状态<select class="f" id="mStatus">
+          <option value="idea">💡 想法（还在想）</option>
+          <option value="go">✅ 确认要做（交给 AI 实现）</option>
+          <option value="done">✔ 已实现（项目里有了）</option>
+        </select></label>
+        <button class="btn gold" id="mSave">保存提案</button>
+        <button class="btn" id="mClear">清空</button>
+      </div>
+      <p class="hint" id="mMsg"></p>
+    </div>
+    <div>
+      <div class="card proplist" id="propList"></div>
+      <h3 style="margin-top:22px">想删掉 / 改掉的旧东西</h3>
+      <div class="card">
+        <p class="hint" style="margin-top:0">勾选你觉得多余、难用或想改的现有元素，写一句原因，会一起交给 AI。</p>
+        <div class="cutlist" id="cutList"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="page" id="pageHandoff">
+  <h2>交给 AI</h2>
+  <p class="lead"><b style="color:var(--chalk)">两样东西一起给 AI：</b>设计单（文字，说清要做什么）+ 关卡包 .json（所有关卡数据）。新账号也一样：把接续包 .skill、设计单、关卡包三个一起发过去。<br>把这里生成的"设计单"整段复制，发给 Genspark 里的 AI（说一句"按这份设计单更新 MarioTrickster"）。它会：把关卡加成工坊样板、把新机制按项目规则实现、处理删改，最后跑完整检查并给你升级包。也可以下载成文件发过去。</p>
+  <div class="row" style="flex-wrap:wrap;gap:8px;max-width:880px;margin-bottom:14px">
+    <label class="toggle" style="flex:0 0 auto"><input type="checkbox" id="hAll" checked> 包含所有关卡</label>
+    <button class="btn gold" id="hCopy">复制设计单</button>
+    <button class="btn" id="hPack">导出关卡包 .json（Unity 导入用）</button>
+    <button class="btn" id="hDownload">下载设计单 .md</button>
+    <button class="btn" id="hTxt">只导出关卡 .txt（Unity 工坊可导入）</button>
+    <button class="btn" id="hPng" title="1 像素 = 1 格，用元素的颜色。拿去 Piskel / Aseprite / 画图 里改，改完再导入回来">导出像素图 .png（去别的画图工具改）</button>
+    <button class="btn" id="hPal" title="所有第 1 步元素的颜色表，画像素图时用吸管取色">导出调色板 .png</button>
+  </div>
+  <div class="handoff" id="handoffText"></div>
+</section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<dialog id="wizDlg" class="wiz" aria-labelledby="wizTitle">
+  <h2 id="wizTitle">新建关卡：三步起一个能玩的草稿</h2>
+  <p class="hint" style="margin:0">做法来自任天堂的"起承转合"：一关只练一个点子，分 4 段摆。生成后已经能玩，你只改最别扭的地方。</p>
+  <div class="step"><span class="num">1</span><div><label class="f" style="margin-top:2px">一句话点子（可以先空着）</label>
+    <input class="f" id="wizIdea" placeholder="这关让马里奥被 ___ 坑，因为他以为 ___。例：被塌桥坑，因为他以为那是安全的近路"></div></div>
+  <div class="step"><span class="num">2</span><div><div class="hint">主角机关（这关主要练哪个）</div><div class="stars" id="wizStars"></div></div></div>
+  <div class="step"><span class="num">3</span><div><div class="hint">马里奥走一趟大约多久</div><div class="lens" id="wizLens"></div></div></div>
+  <div class="beatrow" id="wizBeats"></div>
+  <label class="f">名字<input class="f" id="wizName"></label>
+  <div class="row" style="margin-top:14px"><button class="btn gold" id="wizOk">生成草稿</button><button class="btn" id="wizBlank" title="不用向导：只有外墙、地面和 M T G o">空白房间</button><button class="btn" id="wizCancel">取消</button></div>
+</dialog>
+<dialog id="mapDlg" style="background:var(--slab);color:var(--chalk);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:560px;width:92vw">
+  <h3 style="margin-top:0">把数字对应到元素</h3>
+  <p class="hint" id="mapFrom"></p>
+  <div id="mapRows" style="display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center"></div>
+  <label class="toggle" style="margin-top:10px"><input type="checkbox" id="mapFrame" checked> 外面自动补一圈墙和底层地面</label>
+  <div class="row" style="margin-top:14px"><button class="btn gold" id="mapOk">导入</button><button class="btn" id="mapCancel">取消</button></div>
+</dialog>
+<script>/*DATA*/</script>
+<script>/*LOGIC*/</script>
+<script>/*APP*/</script>
+</body>
+</html>

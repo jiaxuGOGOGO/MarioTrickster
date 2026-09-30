@@ -436,7 +436,7 @@ public partial class TestConsoleWindow
         if (routeBudget != null)
             passed.Add("② RouteBudgetService ✅");
         else
-            warnings.Add("② RouteBudgetService 未找到（可选，但建议配置）");
+            { if (GameplayLoopSceneBootstrapper.CoreLoopOnly) passed.Add("② RouteBudgetService：第0步已关闭（设计宪法）"); else warnings.Add("② RouteBudgetService 未找到（可选，但建议配置）"); }
 
         // ③ LootObjective + EscapeGate
         var loot = Object.FindObjectOfType<LootObjective>();
@@ -453,7 +453,7 @@ public partial class TestConsoleWindow
         if (crisis != null)
             passed.Add("④ AlarmCrisisDirector ✅");
         else
-            warnings.Add("④ AlarmCrisisDirector 未找到（可选，但建议配置）");
+            { if (GameplayLoopSceneBootstrapper.CoreLoopOnly) passed.Add("④ AlarmCrisisDirector：第0步已关闭（设计宪法）"); else warnings.Add("④ AlarmCrisisDirector 未找到（可选，但建议配置）"); }
 
         // ⑤ 附身点分布质量
         if (enabledAnchors >= 3)
@@ -478,14 +478,14 @@ public partial class TestConsoleWindow
         if (heat != null)
             passed.Add("⑥ TricksterHeatMeter ✅");
         else
-            warnings.Add("⑥ TricksterHeatMeter 未找到");
+            { if (GameplayLoopSceneBootstrapper.CoreLoopOnly) passed.Add("⑥ TricksterHeatMeter：第0步已关闭（设计宪法）"); else warnings.Add("⑥ TricksterHeatMeter 未找到"); }
 
         // ⑦ PropComboTracker
         var combo = Object.FindObjectOfType<PropComboTracker>();
         if (combo != null)
             passed.Add("⑦ PropComboTracker ✅");
         else
-            warnings.Add("⑦ PropComboTracker 未找到");
+            { if (GameplayLoopSceneBootstrapper.CoreLoopOnly) passed.Add("⑦ PropComboTracker：第0步已关闭（设计宪法）"); else warnings.Add("⑦ PropComboTracker 未找到"); }
 
         // 结果汇总
         string report = "=== 机制验证报告 ===\n\n";
@@ -684,6 +684,16 @@ public partial class TestConsoleWindow
         DrawPaletteButton("Breakable", 'X', new Color(0.75f, 0.55f, 0.3f));
         EditorGUILayout.EndHorizontal();
 
+        // S187：大炮 + 场景摆件（不可操控，只负责阻挡/遮挡/装饰；换主题时只换图）
+        EditorGUILayout.LabelField("Cannon & Scenery", EditorStyles.boldLabel);
+        EditorGUILayout.BeginHorizontal();
+        DrawPaletteButton("Cannon →", 'K', new Color(0.2f, 0.22f, 0.28f));
+        DrawPaletteButton("Cannon ←", 'k', new Color(0.2f, 0.22f, 0.28f));
+        DrawPaletteButton("Crate", 'c', new Color(0.62f, 0.44f, 0.24f));
+        DrawPaletteButton("Bush", 'b', new Color(0.22f, 0.55f, 0.25f));
+        DrawPaletteButton("Decor", 'd', new Color(0.85f, 0.75f, 0.95f));
+        EditorGUILayout.EndHorizontal();
+
         // 其他
         EditorGUILayout.LabelField("Other", EditorStyles.boldLabel);
         EditorGUILayout.BeginHorizontal();
@@ -712,7 +722,10 @@ public partial class TestConsoleWindow
             GUI.backgroundColor = color;
         }
 
-        Rect btnRect = GUILayoutUtility.GetRect(new GUIContent(label), style, GUILayout.Height(25));
+        // S188：鼠标悬停显示元素说明书里的"它是干什么的 / 摆在哪"
+        var info = ElementCatalog.Get(charKey);
+        var content = new GUIContent(label, info != null ? $"{info.zh} {info.en}\n{info.what}\n摆放：{info.place}" : label);
+        Rect btnRect = GUILayoutUtility.GetRect(content, style, GUILayout.Height(25));
 
         // 检测右键点击
         Event e = Event.current;
@@ -723,7 +736,7 @@ public partial class TestConsoleWindow
             e.Use();
             Repaint();
         }
-        else if (GUI.Button(btnRect, label, style))
+        else if (GUI.Button(btnRect, content, style))
         {
             // 左键：单个放置（原有行为）
             SpawnElementAtSceneCenter(charKey, label);

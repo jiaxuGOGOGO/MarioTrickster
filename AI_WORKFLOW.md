@@ -18,20 +18,67 @@
 
 ---
 
-## 2. Git 日常速查
+## 2. 固定安全更新命令（后续原样使用）
 
-| 你想做什么 | 命令 |
-| --- | --- |
-| 查看当前有没有本地修改 | `git status` |
-| 拉取 AI 已推送的最新代码 | `git pull` |
-| 查看最近 10 次提交 | `git log --oneline -10` |
-| 保存本地改动并推送 | `git add -A && git commit -m "your message" && git push` |
-| 本地有修改但想先拉远程 | `git stash && git pull && git stash pop` |
-| 放弃所有本地未提交修改 | `git reset --hard HEAD` |
-| 强制与远程 master 对齐 | `git fetch origin && git reset --hard origin/master` |
-| 更新子模块 | `git submodule update --init --recursive` |
+先关闭Unity，在 **MarioTrickster仓库根目录** 打开PowerShell，完整粘贴以下命令。无需填写版本号或本机路径。脚本只恢复本次新建的stash，保留所有备份；任何失败立即停止，不会自动解决冲突。没有本地修改时不创建、更不应用旧stash。拒绝分支错误、未完成Git操作或未备份干净的工作区。
 
-> **安全提醒**：如果本地有你想保留的改动，不要直接运行 `reset --hard`。先 `git status` 看清楚，再决定是否提交或 stash。
+```powershell
+$ErrorActionPreference = 'Stop'
+function GitSafe {
+    $output = & git @args
+    if ($LASTEXITCODE -ne 0) { throw "Git failed: git $($args -join ' ')" }
+    return (($output -join "`n").Trim())
+}
+if (Get-Process -Name Unity -ErrorAction SilentlyContinue) {
+    throw 'Please close Unity before updating.'
+}
+$root = GitSafe rev-parse --show-toplevel
+if ([IO.Path]::GetFullPath($root).TrimEnd('\','/') -ne (Get-Location).Path.TrimEnd('\','/')) {
+    throw 'Open PowerShell in the repository root first.'
+}
+if (!(Test-Path -LiteralPath 'Assets') -or !(Test-Path -LiteralPath 'ProjectSettings')) {
+    throw 'This is not the Unity project root.'
+}
+$origin = GitSafe remote get-url origin
+if ($origin -notmatch '^(https://github\.com/|git@github\.com:)jiaxuGOGOGO/MarioTrickster(?:\.git)?/?$') {
+    throw "Unexpected origin: $origin"
+}
+$branch = GitSafe symbolic-ref --quiet --short HEAD
+if ($branch -ne 'genspark_ai_developer') { throw "Unexpected branch: $branch" }
+GitSafe config --local core.longpaths true | Out-Null
+foreach ($name in @('MERGE_HEAD','REBASE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','BISECT_LOG','rebase-apply','rebase-merge','sequencer','index.lock')) {
+    $path = GitSafe rev-parse --git-path $name
+    if (Test-Path -LiteralPath $path) { throw "Unfinished Git operation or lock: $name" }
+}
+$backup = ''
+$dirty = GitSafe status --porcelain=v1 --untracked-files=all
+if ($dirty) {
+    $before = GitSafe stash list -1 --format=%H
+    $tag = 'safe-update-' + [Guid]::NewGuid().ToString('N')
+    Write-Host (GitSafe stash push --include-untracked -m $tag)
+    $backup = GitSafe rev-parse --verify refs/stash
+    $subject = GitSafe log -1 --format=%s $backup
+    if (!$backup -or $backup -eq $before -or $subject -notlike "*$tag*") {
+        throw 'A unique new backup was not verified. Update stopped.'
+    }
+    Write-Host "Retained backup: $backup ($tag)"
+    if (GitSafe status --porcelain=v1 --untracked-files=all) {
+        throw 'Some changes remain unbacked up (possibly a submodule). Update stopped.'
+    }
+}
+Write-Host (GitSafe pull --ff-only --no-rebase origin genspark_ai_developer)
+if ($backup) {
+    Write-Host (GitSafe stash apply $backup)
+    Write-Host "Applied this update backup only; stash retained: $backup"
+}
+Write-Host (GitSafe log -1 --oneline)
+Write-Host (GitSafe status --short)
+Write-Host 'Update complete. You may open Unity.'
+```
+
+如果pull失败，本次备份仍在，脚本不继续apply；如果apply冲突，备份同样保留，停止并把完整输出发给AI。**不使用pop、不删除stash、不reset、不clean，不盲目应用以前的备份。** 本脚本没有在用户Windows机器执行验证；Git路径/分支或冲突异常时保守停止。
+
+只读检查可以单独用 `git status`、`git log --oneline -10`；不要改用下面错误排查中的破坏性快捷方式。
 
 ---
 
@@ -39,9 +86,9 @@
 
 | 报错 | 通常原因 | 处理方式 |
 | --- | --- | --- |
-| `Your local changes would be overwritten` | 本地有未提交修改，远程也要更新同一批文件。 | 先 `git add -A && git commit -m "local work"`，或 `git stash` 后再 `git pull`。 |
-| `cannot pull with rebase: You have unstaged changes` | 工作区未清理。 | 先提交、stash 或放弃本地修改。 |
-| `Updates were rejected` | 远程比本地新。 | 先 `git pull --rebase`，解决冲突后再 `git push`。 |
+| `Your local changes would be overwritten` | 本地有未提交修改，远程也要更新同一批文件。 | 使用上方完整安全更新脚本；若仍失败，保留备份并反馈输出。 |
+| `cannot pull with rebase: You have unstaged changes` | 工作区未清理。 | 使用上方安全脚本，不放弃本地修改。 |
+| `Updates were rejected` | 远程比本地新。 | 停止并反馈分支分歧；本地更新不自动rebase或强推。 |
 | `Failed to connect to github.com port 443` | 网络或代理问题。 | 检查代理软件，再按本文第 5 节配置 Git 代理。 |
 | `Author identity unknown` | 没配置 Git 用户名和邮箱。 | 运行 `git config --global user.name "你的名字"` 与 `git config --global user.email "你的邮箱"`。 |
 | `dubious ownership` | Git 不信任当前目录。 | 运行 `git config --global --add safe.directory "项目路径"`。 |

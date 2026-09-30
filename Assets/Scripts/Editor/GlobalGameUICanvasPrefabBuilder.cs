@@ -16,7 +16,7 @@ public static class GlobalGameUICanvasPrefabBuilder
 {
     public const string PrefabPath = "Assets/Prefabs/UI/GlobalGameUICanvas.prefab";
 
-    [MenuItem("MarioTrickster/UI/Rebuild Global Game UI Canvas Prefab")]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Rebuild Global Game UI Canvas Prefab")]
     public static void RebuildPrefabFromMenu()
     {
         GameObject prefab = EnsurePrefabAsset(true);

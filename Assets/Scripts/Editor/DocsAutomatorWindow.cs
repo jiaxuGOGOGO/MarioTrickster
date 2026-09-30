@@ -32,7 +32,7 @@ public class DocsAutomatorWindow : EditorWindow
     private GUIStyle _resultStyle;   // cached
     private bool _stylesInitialized; // cached
 
-    [MenuItem("MarioTrickster/Docs Automator", false, 200)]
+    [MenuItem("MarioTrickster/旧工具 (Legacy)/Docs Automator", false, 200)]
     public static void ShowWindow()
     {
         var win = GetWindow<DocsAutomatorWindow>("Docs Automator");

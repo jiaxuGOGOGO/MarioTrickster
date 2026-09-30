@@ -54,7 +54,8 @@ public class LevelThemeProfile : ScriptableObject
     [Tooltip("按名称键映射的元素 Sprite 列表。\n" +
              "键名约定: SpikeTrap, FireTrap, PendulumTrap, BouncingEnemy,\n" +
              "BouncyPlatform, CollapsingPlatform, OneWayPlatform, MovingPlatform,\n" +
-             "HiddenPassage, FakeWall, GoalZone, Collectible, SimpleEnemy\n" +
+             "HiddenPassage, FakeWall, GoalZone, Collectible, SimpleEnemy,\n" +
+             "Cannon, Crate, Bush, Decor (S187)\n" +
              "留空 Sprite = 保留白盒原样")]
     public ElementSpriteMapping[] elementSprites = new ElementSpriteMapping[]
     {
@@ -77,6 +78,28 @@ public class LevelThemeProfile : ScriptableObject
         new ElementSpriteMapping { elementKey = "ConveyorBelt" },
         new ElementSpriteMapping { elementKey = "Checkpoint" },
         new ElementSpriteMapping { elementKey = "BreakableBlock" },
+        // S187 新增：大炮 + 场景摆件（游乐园/公园/山上公园主题只需给这几个键拖图）
+        new ElementSpriteMapping { elementKey = "Cannon" },
+        // S189：封路墙、队列机关此前没有插槽（测试 EveryNonTerrainElementHasAThemeSlot 发现）
+        new ElementSpriteMapping { elementKey = "ControllableBlocker" },
+        new ElementSpriteMapping { elementKey = "StateQueueTrap" },
+        new ElementSpriteMapping { elementKey = "Crate" },
+        new ElementSpriteMapping { elementKey = "Bush" },
+        new ElementSpriteMapping { elementKey = "Decor" },
+        // S193：弹簧板、裂缝地板
+        new ElementSpriteMapping { elementKey = "SpringPad" },
+        new ElementSpriteMapping { elementKey = "CrackFloor" },
+        new ElementSpriteMapping { elementKey = "BananaPeel" },
+        new ElementSpriteMapping { elementKey = "OneWayDoor" },
+        new ElementSpriteMapping { elementKey = "CrackedWall" },
+        new ElementSpriteMapping { elementKey = "Vent" },
+        new ElementSpriteMapping { elementKey = "PoisonPool" },
+        new ElementSpriteMapping { elementKey = "Glue" },
+        new ElementSpriteMapping { elementKey = "SnareTrap" },
+        new ElementSpriteMapping { elementKey = "PickupSpot" },
+        new ElementSpriteMapping { elementKey = "OilBarrel" },
+        new ElementSpriteMapping { elementKey = "IronCage" },
+        new ElementSpriteMapping { elementKey = "Tripwire" },
     };
 
     [Header("=== 角色 ===")]

@@ -24,6 +24,9 @@ public class FakeWall : ControllableLevelElement
     [Tooltip("透明度过渡速度")]
     [SerializeField] private float fadeSpeed = 3f;
 
+    [SerializeField] private bool showPublicWallCue;
+    public bool ShowPublicWallCue { get => showPublicWallCue; set => showPublicWallCue = value; }
+
     // 组件
     private BoxCollider2D boxCollider;
     private SpriteRenderer sr;
@@ -66,7 +69,13 @@ public class FakeWall : ControllableLevelElement
 
         if (sr != null)
         {
-            sr.color = new Color(baseColor.r, baseColor.g, baseColor.b, currentAlpha);
+            // Opt-in cave presentation: the old fade assignment otherwise erases base windup tint.
+            // Public phase only, never possession identity, remaining time or a hidden cooldown.
+            Color tint = baseColor;
+            if (showPublicWallCue && currentState == PropControlState.Telegraph)
+                tint = Color.Lerp(baseColor, telegraphColor, 0.65f + 0.35f * Mathf.Abs(Mathf.Sin(Time.time * telegraphFlashRate)));
+            else if (showPublicWallCue && tricksterSolidified) tint = new Color(0.85f, 0.32f, 0.15f);
+            sr.color = new Color(tint.r, tint.g, tint.b, currentAlpha);
         }
     }
 

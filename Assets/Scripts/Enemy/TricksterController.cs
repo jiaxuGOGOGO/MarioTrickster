@@ -110,7 +110,8 @@ public class TricksterController : MonoBehaviour
     private bool _bufferedJumpUsable;
     private bool _endedJumpEarly;
     private bool _coyoteUsable;
-    private float _timeJumpWasPressed;
+    // No press exists at time zero. Zero is a valid press time, not an empty buffer.
+    private float _timeJumpWasPressed = float.NegativeInfinity;
 
     private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + jumpBuffer;
     private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + coyoteTime;
@@ -118,6 +119,7 @@ public class TricksterController : MonoBehaviour
     // ── 击退 stun 状态 (Session 16: B023) ─────────────────
     private bool _isKnockbackStunned;
     private float _knockbackStunTimer;
+    private bool _stunUntilLanded; // S216：被发射/炸飞 → 落地才恢复控制
 
     // ── 朝向 ──────────────────────────────────────────────
     private bool isFacingRight = true;
@@ -129,6 +131,37 @@ public class TricksterController : MonoBehaviour
     // ── 公共属性 ──────────────────────────────────────────
     public bool IsGrounded  => _grounded;
     public bool IsDisguised => disguiseSystem != null && disguiseSystem.IsDisguised;
+
+    // ── S197：第 1 步技能钩子（数据驱动，默认值 = 旧行为不变）─────────
+    /// <summary>移动速度倍率（缩小时变快等）。</summary>
+    public float AbilitySpeedMultiplier { get; set; } = 1f;
+    public bool IsFacingRightValue => isFacingRight;
+    /// <summary>跳跃力（构建器按"必须跳得上 2.5 格"设定；null = Inspector 值）。</summary>
+    public void SetJumpPower(float power) { if (power > 0f) jumpPower = power; }
+    public float JumpPowerValue => jumpPower;
+    public float FallAccelerationValue => fallAcceleration;
+    /// <summary>缩小身体：碰撞体与外观按比例缩放（底边对齐，站在原地不会穿地）。</summary>
+    public void SetBodyScale(float scale)
+    {
+        scale = Mathf.Clamp(scale, 0.3f, 1f);
+        if (boxCollider == null) boxCollider = GetComponent<BoxCollider2D>();
+        if (!_baseSizeCaptured && boxCollider != null) { _baseSize = boxCollider.size; _baseOffset = boxCollider.offset; _baseScale = transform.localScale; _baseSizeCaptured = true; }
+        if (!_baseSizeCaptured) return;
+        float bottom = _baseOffset.y - _baseSize.y * 0.5f;
+        boxCollider.size = _baseSize * scale;
+        boxCollider.offset = new Vector2(_baseOffset.x, bottom + _baseSize.y * scale * 0.5f);
+        var vis = visualTransform != null ? visualTransform : transform.Find("Visual");
+        if (vis != null)
+        {
+            if (!_visualCaptured) { _visualBase = vis.localScale; _visualPos = vis.localPosition; _visualCaptured = true; }
+            vis.localScale = new Vector3(_visualBase.x * scale, _visualBase.y * scale, _visualBase.z);
+            // 视觉底边与碰撞体底边一起对齐（视觉锚点在脚底，见 PhysicsMetrics.TRICKSTER_VISUAL_OFFSET_Y）
+            vis.localPosition = _visualPos;
+        }
+        BodyScale = scale;
+    }
+    public float BodyScale { get; private set; } = 1f;
+    private bool _baseSizeCaptured, _visualCaptured; private Vector2 _baseSize, _baseOffset; private Vector3 _baseScale, _visualBase, _visualPos;
 
     /// <summary>Session 20: 是否处于融入状态（已伪装且完全融入）</summary>
     public bool IsFullyBlended => disguiseSystem != null && disguiseSystem.IsDisguised && disguiseSystem.IsFullyBlended;
@@ -192,9 +225,9 @@ public class TricksterController : MonoBehaviour
         if (_isKnockbackStunned)
         {
             _knockbackStunTimer -= Time.deltaTime;
-            if (_knockbackStunTimer <= 0f)
+            if (Step1Feel.StunOver(_knockbackStunTimer, _stunUntilLanded, _grounded, LaunchFeel.landGrace))
             {
-                _isKnockbackStunned = false;
+                _isKnockbackStunned = false; _stunUntilLanded = false;
             }
         }
 
@@ -215,6 +248,13 @@ public class TricksterController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Match Mario: direct fixed-step replay may press jump between rendered Updates.
+        if (jumpPressedThisFrame)
+        {
+            _jumpToConsume = true;
+            _timeJumpWasPressed = _time;
+            jumpPressedThisFrame = false;
+        }
         // 击退 stun 期间：不覆盖 rb.velocity，让物理引擎的 AddForce 击退力自然衰减
         if (_isKnockbackStunned)
         {
@@ -223,16 +263,18 @@ public class TricksterController : MonoBehaviour
             _platformVelocity = Vector2.zero;
 
             _frameVelocity = rb.velocity;
-
-            if (_frameVelocity.y <= 0f)
-            {
-                _frameVelocity.y = Mathf.MoveTowards(
-                    _frameVelocity.y, -maxFallSpeed, fallAcceleration * Time.fixedDeltaTime);
-            }
+            // S216：与马里奥同一条规则——全程重力（抛物线）+ 空中阻力 + 落地摩擦
+            if (!rb.isKinematic) CheckCollisions();
+            _frameVelocity = Step1Feel.StunStep(_frameVelocity, _grounded, Time.fixedDeltaTime,
+                LaunchFeel.gravity, maxFallSpeed, LaunchFeel.airDrag, LaunchFeel.groundFriction, false);
+            if (_grounded && _frameVelocity.y <= 0f) _frameVelocity.y = groundingForce;
 
             rb.velocity = _frameVelocity;
             return;
         }
+
+        // S209：身体嵌进墙里（伪装变大 / 缩小恢复 / 传送）→ 先推出来，否则脚下检测会把墙里的方块顶当地面，悬在半空（用户截图）
+        if (!rb.isKinematic) BodyUnstick.Resolve(rb, boxCollider, groundLayer);
 
         // 读回 rb.velocity 并减去上一帧平台速度
         _frameVelocity = rb.velocity - _lastPlatformVelocity;
@@ -240,6 +282,8 @@ public class TricksterController : MonoBehaviour
         CheckCollisions();
         HandleJump();
         HandleDirection();
+        // S209：贴墙不粘要在"施加方向键之后"再判断（原来在之前判断，随后方向键又把朝墙速度加回去 → 仍然粘墙）
+        if (!_grounded && Mathf.Abs(_frameVelocity.x) > 0.01f && HitsWall(_frameVelocity.x > 0f ? Vector2.right : Vector2.left)) _frameVelocity.x = 0f;
         HandleGravity();
 
         // 叠加平台速度
@@ -259,24 +303,42 @@ public class TricksterController : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region 碰撞检测
 
+    private static readonly RaycastHit2D[] s_wallHits = new RaycastHit2D[4];
+
+    /// <summary>S198：身体一侧紧贴实心（非单向台面）墙面。</summary>
+    private bool HitsWall(Vector2 side)
+    {
+        if (boxCollider == null) return false;
+        var b = boxCollider.bounds;
+        var filter = new ContactFilter2D { useTriggers = false };
+        filter.SetLayerMask(groundLayer);
+        int n = Physics2D.BoxCast(b.center, new Vector2(b.size.x, b.size.y * 0.8f), 0f, side, filter, s_wallHits, 0.04f);
+        for (int i = 0; i < n; i++)
+        {
+            var c = s_wallHits[i].collider;
+            if (c == null || c == boxCollider || c.isTrigger) continue;
+            if (MarioSuspicionTracker.IsOneWayPlatform(c)) continue;
+            if (Mathf.Abs(s_wallHits[i].normal.x) > 0.5f) return true;
+        }
+        return false;
+    }
+
     private void CheckCollisions()
     {
-        bool prev = Physics2D.queriesStartInColliders;
-        Physics2D.queriesStartInColliders = false;
-
-        bool groundHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.down, grounderDistance, groundLayer);
-
-        bool ceilingHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.up, grounderDistance, groundLayer);
-
-        Physics2D.queriesStartInColliders = prev;
+        bool groundHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.down,
+            grounderDistance, groundLayer, _frameVelocity.y);
+        bool ceilingHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.up,
+            grounderDistance, groundLayer, _frameVelocity.y);
 
         if (ceilingHit) _frameVelocity.y = Mathf.Min(0, _frameVelocity.y);
+
+        // S198：贴墙不粘。空中朝墙推时，零摩擦材质之外 Unity 的接触求解仍会让刚体"卡"在墙面上（用户反馈：跳起来能粘在墙上）。
+        // 检测到正在朝实心墙移动 → 清掉朝墙的水平速度，让重力正常把人拉下来。
+        if (!_grounded && Mathf.Abs(_frameVelocity.x) > 0.01f)
+        {
+            Vector2 side = _frameVelocity.x > 0f ? Vector2.right : Vector2.left;
+            if (HitsWall(side)) _frameVelocity.x = 0f;
+        }
 
         if (!_grounded && groundHit)
         {
@@ -318,7 +380,7 @@ public class TricksterController : MonoBehaviour
     private void ExecuteJump()
     {
         _endedJumpEarly = false;
-        _timeJumpWasPressed = 0;
+        _timeJumpWasPressed = float.NegativeInfinity;
         _bufferedJumpUsable = false;
         _coyoteUsable = false;
         _frameVelocity.y = jumpPower;
@@ -334,7 +396,7 @@ public class TricksterController : MonoBehaviour
         // Session 20: 融入状态下方向键被拦截，不产生移动
         // moveInput 在融入状态下由 InputManager 设为 zero（见 DispatchP2 修改）
         float speedMult = IsDisguised ? disguisedMoveMultiplier : 1f;
-        float target = moveInput.x * maxSpeed * speedMult;
+        float target = moveInput.x * maxSpeed * speedMult * AbilitySpeedMultiplier;
 
         if (Mathf.Abs(moveInput.x) > 0.01f)
         {
@@ -394,8 +456,24 @@ public class TricksterController : MonoBehaviour
     /// </summary>
     public void ApplyKnockbackStun(float duration = -1f)
     {
+        _stunUntilLanded = false;
         _isKnockbackStunned = true;
         _knockbackStunTimer = duration > 0f ? duration : knockbackStunDuration;
+    }
+
+    /// <summary>
+    /// S187：被外力发射（大炮人肉发射 / 以后的弹射装置）。解除伪装，设置速度，
+    /// 在 stunSeconds 内不覆盖速度（复用击退 stun 通道：物理自然衰减 + 重力），之后恢复正常控制。
+    /// </summary>
+    public void Launch(Vector2 velocity, float stunSeconds)
+    {
+        if (rb == null) return;
+        if (disguiseSystem != null && disguiseSystem.IsDisguised) disguiseSystem.Undisguise();
+        _grounded = false;
+        _frameVelocity = velocity;
+        rb.velocity = velocity;
+        ApplyKnockbackStun(Mathf.Max(0.05f, stunSeconds));
+        _stunUntilLanded = velocity.y > 0.5f; // S216：往上飞的要等落地
     }
 
     #endregion
@@ -421,6 +499,9 @@ public class TricksterController : MonoBehaviour
     /// </summary>
     public void ResetForNewRound()
     {
+        // 未初始化（对象从未激活过，Awake 未执行）时没有可重置的状态。
+        if (rb == null) return;
+
         // 1. 清零速度
         rb.velocity = Vector2.zero;
         _frameVelocity = Vector2.zero;
@@ -430,6 +511,9 @@ public class TricksterController : MonoBehaviour
         _knockbackStunTimer = 0f;
 
         // 3. 重置跳跃状态
+        _timeJumpWasPressed = float.NegativeInfinity;
+        _timeLeftGrounded = float.NegativeInfinity;
+        _grounded = false;
         _jumpToConsume = false;
         _bufferedJumpUsable = false;
         _endedJumpEarly = false;
@@ -518,11 +602,28 @@ public class TricksterController : MonoBehaviour
         if (!IsFullyBlended) return;
         if (direction.sqrMagnitude < 0.01f) return;
 
+        // S198：当前控制的是有炮弹的大炮 → 方向键用来瞄准（←→ 调头、↑↓ 仰角），不切换目标。
+        // 想换别的机关：按住 Shift + 方向键（或先打完炮弹）。
+        if (abilitySystem.BoundProp is PranksterCannon cannon && cannon.HasAmmo && !ShiftHeld())
+        {
+            cannon.Nudge(direction);
+            return;
+        }
+
         // 防抖：冷却时间内不重复切换
         if (Time.time - _lastSwitchTime < SwitchCooldown) return;
         _lastSwitchTime = Time.time;
 
         abilitySystem.SwitchTarget(direction);
+    }
+
+    private static bool ShiftHeld()
+    {
+        bool legacy = false;
+        try { legacy = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift); } catch (System.InvalidOperationException) { }
+        if (legacy) return true;
+        var kb = UnityEngine.InputSystem.Keyboard.current;
+        return kb != null && kb.shiftKey.isPressed;
     }
 
     /// <summary>
@@ -540,6 +641,7 @@ public class TricksterController : MonoBehaviour
     /// </summary>
     private string GetAbilityFailReason()
     {
+        if (TricksterKit.BlocksPranks) return "Too small to trigger props!";
         if (disguiseSystem == null || !disguiseSystem.IsDisguised)
             return "Must be disguised to control props!";
 
@@ -558,6 +660,9 @@ public class TricksterController : MonoBehaviour
 
         if (!abilitySystem.IsPossessionActionAllowed)
             return $"Possession gate blocked: {abilitySystem.PossessionState}";
+
+        if (abilitySystem.BoundProp is PranksterCannon cannon && !cannon.HasAmmo)
+            return "No cannonballs left! Stand inside the cannon to launch yourself.";
 
         if (!abilitySystem.BoundProp.CanBeControlled())
         {
@@ -588,9 +693,12 @@ public class TricksterController : MonoBehaviour
     // Session 11 修复：原来放在右上角(Screen.width-520)，Game视图窄时会被裁剪看不到
     // Session 18 性能优化：缓存 GUIStyle，消除每帧 new 分配
     private GUIStyle cachedDebugStyle;
+    [Tooltip("S182：左上角伪装调试状态行（第 1 步房间关掉）")]
+    [SerializeField] private bool showDebugStatus = true;
+    public void SetShowDebugStatus(bool value) => showDebugStatus = value;
     private void OnGUI()
     {
-        if (disguiseSystem == null) return;
+        if (!showDebugStatus || disguiseSystem == null) return;
         if (cachedDebugStyle == null)
         {
             cachedDebugStyle = new GUIStyle(GUI.skin.label)

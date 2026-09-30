@@ -33,7 +33,9 @@ using UnityEngine;
 /// </summary>
 [ExecuteInEditMode]
 [RequireComponent(typeof(SpriteRenderer))]
-[RequireComponent(typeof(BoxCollider2D))]
+// [AI防坑警告] S191：不能 RequireComponent(BoxCollider2D)。本组件挂在 Visual 子节点上，
+// Require 会在 Visual 上自动加一个多余碰撞体（草丛这类触发器会变成实心、大炮挡路）。
+// 物理真相只在 Root 的 BoxCollider2D，这里用 GetComponentInParent 读取。
 public class SpriteAutoFit : MonoBehaviour
 {
     /// <summary>适配模式</summary>
@@ -44,12 +46,19 @@ public class SpriteAutoFit : MonoBehaviour
         /// <summary>缩放模式（兼容）：用 localScale 拉伸匹配碰撞体</summary>
         Scaled,
         /// <summary>九宫格模式：使用 Sprite 的 9-Slice 边框</summary>
-        SlicedNineSlice
+        SlicedNineSlice,
+        /// <summary>S191 等比放入模式：Sprite 等比缩放放进"显示框"（默认=碰撞体，可指定），不变形，底边对齐。用于箱子/大炮/火/道具。</summary>
+        Contain
     }
 
     [Header("=== 适配设置 ===")]
     [Tooltip("适配模式：Tiled=平铺（推荐地形），Scaled=拉伸（角色/道具），SlicedNineSlice=九宫格")]
     [SerializeField] private FitMode fitMode = FitMode.Tiled;
+
+    [Tooltip("S191：显示框（格）。≤0 = 用碰撞体尺寸。Contain/Scaled 模式下按它适配，碰撞体永远不动（视碰分离）")]
+    [SerializeField] private Vector2 displayBox = Vector2.zero;
+    [Tooltip("S191：Contain 模式底边对齐显示框底边（站在地上的东西不悬空）")]
+    [SerializeField] private bool alignBottom = true;
 
     [Tooltip("是否在运行时持续适配（关闭则仅在 Start 时适配一次）")]
     [SerializeField] private bool continuousFit = false;
@@ -104,6 +113,9 @@ public class SpriteAutoFit : MonoBehaviour
             case FitMode.SlicedNineSlice:
                 FitSliced();
                 break;
+            case FitMode.Contain:
+                FitContain();
+                break;
         }
     }
 
@@ -155,8 +167,8 @@ public class SpriteAutoFit : MonoBehaviour
 
         if (spriteWidth <= 0 || spriteHeight <= 0) return;
 
-        float targetWidth = col.size.x;
-        float targetHeight = col.size.y;
+        float targetWidth = TargetBox.x;
+        float targetHeight = TargetBox.y;
 
         float scaleX = targetWidth / spriteWidth;
         float scaleY = targetHeight / spriteHeight;
@@ -177,6 +189,45 @@ public class SpriteAutoFit : MonoBehaviour
 
         sr.drawMode = SpriteDrawMode.Sliced;
         sr.size = col.size;
+    }
+
+    /// <summary>显示框：设置了就用设置值，否则用碰撞体尺寸。</summary>
+    private Vector2 TargetBox => displayBox.x > 0f && displayBox.y > 0f ? displayBox : col.size;
+
+    /// <summary>设置显示框（格）。由换肤流程按 Registry.visualScale 传入。</summary>
+    public void SetDisplayBox(Vector2 box, bool bottomAligned)
+    {
+        displayBox = box;
+        alignBottom = bottomAligned;
+        FitSprite();
+    }
+
+    /// <summary>纯计算：等比放入的缩放（取宽、高比例中较小者）。供测试。</summary>
+    public static float ContainScale(Vector2 sprite, Vector2 box)
+    {
+        if (sprite.x <= 0.0001f || sprite.y <= 0.0001f) return 1f;
+        return Mathf.Min(box.x / sprite.x, box.y / sprite.y);
+    }
+
+    /// <summary>
+    /// S191 Contain：等比缩放放进显示框，不变形；底边对齐时 Visual 往下挪，使图的底边贴着显示框底边。
+    /// </summary>
+    private void FitContain()
+    {
+        if (ShouldBlockRootScaleMutation()) return;
+        sr.drawMode = SpriteDrawMode.Simple;
+        Vector2 spriteSize = sr.sprite.bounds.size;
+        Vector2 box = TargetBox;
+        float k = ContainScale(spriteSize, box);
+        transform.localScale = new Vector3(k, k, 1f);
+        if (alignBottom && transform.parent != null)
+        {
+            // 图的包围盒中心（考虑 pivot）→ 让图的底边 = 显示框底边（显示框以碰撞体中心为中心）
+            float spriteBottom = (sr.sprite.bounds.center.y - sr.sprite.bounds.extents.y) * k;
+            float boxBottom = col.offset.y - box.y * 0.5f;
+            var p = transform.localPosition;
+            transform.localPosition = new Vector3(col.offset.x, boxBottom - spriteBottom, p.z);
+        }
     }
 
     /// <summary>

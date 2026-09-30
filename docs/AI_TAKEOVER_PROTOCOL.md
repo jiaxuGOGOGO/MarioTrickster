@@ -15,12 +15,19 @@
 
 ---
 
+## 1.5 S200 起：接续包（第 1 步开发必读）
+
+继续第 1 步（恶作剧房间 / 关卡工坊 / 马里奥 AI / 连锁陷阱）时，先读 `docs/AI_CONTINUE_PACK/SKILL.md`：
+宪法硬规则落地做法、质量红线、沙盒无 Unity 验证（`scripts/setup_sandbox.sh` → `scripts/verify.sh`）、
+补丁交付（`scripts/make_patch.sh`），并按任务类型读 `references/*.md` 分册。
+
 ## 2. 强制静默读档
 
 AI 接手后必须先读以下文件，再开始执行。读档动作在后台完成，不需要用户确认，不需要让用户选择路线。
 
 | 必读顺序 | 文件 | 用途 |
 | --- | --- | --- |
+| 0 | `docs/DESIGN_CONSTITUTION_v1.0.md` | **设计最高准则**（S179 起）：好玩标准、硬规则 H1–H10、开发顺序 0–6。与其他文档冲突时以它为准。 |
 | 1 | `SESSION_TRACKER.md` | 当前状态、防坑警告、测试安全网、待办队列和本次落库位置。 |
 | 2 | `docs/AI_HANDOFF_PROJECT_STATUS_2026-04-12.md` | 项目的最高认知指南：关卡主线优先，美术支线服务玩法验证。 |
 | 3 | `README.md` | 面向人的清晰入口，确认用户和 AI 应看哪些文档。 |

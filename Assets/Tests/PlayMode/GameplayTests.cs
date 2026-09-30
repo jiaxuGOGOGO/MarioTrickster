@@ -18,11 +18,309 @@ using UnityEngine.TestTools;
 /// </summary>
 public class GameplayTests
 {
+    [UnityTest]
+    public IEnumerator NativeTunnelDirectionalInputArrivesAfterDelay() { yield return NativeTunnelLifecycle(false, false); }
+
+    [UnityTest]
+    public IEnumerator NativeTunnelRevealCancelsLateTeleport() { yield return NativeTunnelLifecycle(true, false); }
+
+    [UnityTest]
+    public IEnumerator NativeTunnelDisableCancelsCoroutineAndRestoresVisibility() { yield return NativeTunnelLifecycle(false, true); }
+
+    private IEnumerator NativeTunnelLifecycle(bool reveal, bool disable)
+    {
+        float savedScale = Time.timeScale;
+        var actor = CreateTestTrickster(new Vector3(35000, 1, 0));
+        var origin = new GameObject("NativeTunnelOrigin"); var exit = new GameObject("NativeTunnelExit");
+        try
+        {
+            Time.timeScale = 1;
+            actor.GetComponent<TricksterController>().enabled = false;
+            actor.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+            origin.transform.position = actor.transform.position; exit.transform.position = actor.transform.position + Vector3.right * 6;
+            var sourceProp = origin.AddComponent<FakeWall>(); exit.AddComponent<FakeWall>();
+            var from = origin.AddComponent<PossessionAnchor>(); var to = exit.AddComponent<PossessionAnchor>();
+            from.connectedUnderlineNodes.Add(to); to.connectedUnderlineNodes.Add(from); to.underlineTransitTime = 0.1f;
+            var disguise = actor.GetComponent<DisguiseSystem>();
+            var ability = actor.GetComponent<TricksterAbilitySystem>();
+            var gate = actor.GetComponent<TricksterPossessionGate>();
+            Assert.IsNotNull(gate);
+            // Isolated lifecycle fixture: establish an already-blended actor, not AI/gameplay success evidence.
+            disguise.enabled = false;
+            SetPrivateField(disguise, "isDisguised", true); SetPrivateField(disguise, "isFullyBlended", true);
+            SetPrivateField(ability, "isAbilityActive", true); SetPrivateField(ability, "boundProp", sourceProp);
+            SetPrivateField(ability, "boundPropObject", origin);
+            ability.OnPropBound?.Invoke(sourceProp);
+            Assert.AreEqual(TricksterPossessionState.Possessing, gate.CurrentState);
+            ability.SwitchTarget(Vector2.right); // Real public direction path, real delay coroutine.
+            Assert.AreEqual(TricksterPossessionState.Underlining, gate.CurrentState);
+            Assert.Less(Vector2.Distance(actor.transform.position, origin.transform.position), 0.01f);
+            Assert.IsFalse(actor.GetComponent<SpriteRenderer>().enabled);
+            if (reveal) gate.ForceReveal(1f, "test-cancel");
+            if (disable) ability.enabled = false;
+            yield return new WaitForSeconds(0.2f);
+            if (reveal || disable)
+                Assert.Less(Vector2.Distance(actor.transform.position, origin.transform.position), 0.01f, "Cancelled transit must never teleport later");
+            else
+            {
+                Assert.Less(Vector2.Distance(actor.transform.position, exit.transform.position), 0.01f);
+                Assert.AreSame(to, gate.CurrentAnchor);
+            }
+            Assert.IsTrue(actor.GetComponent<SpriteRenderer>().enabled);
+            Assert.AreNotEqual(TricksterPossessionState.Underlining, gate.CurrentState);
+            if (reveal) Assert.AreEqual(TricksterPossessionState.Revealed, gate.CurrentState);
+        }
+        finally
+        {
+            Time.timeScale = savedScale;
+            Object.Destroy(actor); Object.Destroy(origin); Object.Destroy(exit);
+        }
+    }
+
     // ═══════════════════════════════════════════════════════
     // 测试辅助：创建带完整组件的测试角色
     // ═══════════════════════════════════════════════════════
 
     private const string GROUND_LAYER = "Ground";
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    [UnityTest]
+    public IEnumerator PendulumProbe_RealTriggerDistinguishesContactDamageAndDisabledRoot()
+    {
+        float originalScale = Time.timeScale;
+        var pivot = new GameObject("ProbePivot");
+        var actor = CreateTestMario(new Vector3(24010, 0, 0));
+        var opponent = CreateTestTrickster(new Vector3(24020, 0, 0));
+        ExplorationContactProbe root = null;
+        int runnerContacts = 0, opponentContacts = 0;
+        GameObject source = null;
+        System.Action<string, GameObject, GameObject> contact = (id, from, who) => {
+            if (id != "P" || from.GetComponent<ExplorationContactProbe>().Root != root) return;
+            source = from;
+            if (who == actor) runnerContacts++;
+            if (who == opponent) opponentContacts++;
+        };
+        ExplorationContactProbe.Contact += contact;
+        try
+        {
+            Time.timeScale = 1f;
+            pivot.transform.position = new Vector3(24000, 3, 0);
+            var trap = pivot.AddComponent<PendulumTrap>();
+            root = pivot.AddComponent<ExplorationContactProbe>(); root.mechanism = "P";
+            root.BindMovingPart(); root.BindMovingPart();
+            var hammer = pivot.GetComponentInChildren<PendulumHammerTrigger>();
+            Assert.AreEqual(1, hammer.GetComponents<ExplorationContactProbe>().Length, "Binding must be idempotent");
+            Assert.AreEqual(2, pivot.GetComponentsInChildren<ExplorationContactProbe>().Length, "One root plus one relay");
+            Assert.IsFalse(root.IsMovingPart);
+            Assert.AreSame(root, hammer.GetComponent<ExplorationContactProbe>().Root);
+            // Fixed fixture only: immobilize actors and the swing, retaining the real trigger and damage path.
+            trap.enabled = false;
+            actor.GetComponent<MarioController>().enabled = false;
+            opponent.GetComponent<TricksterController>().enabled = false;
+            actor.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+            opponent.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+            hammer.transform.position = new Vector3(24000, 0, 0);
+            yield return new WaitForFixedUpdate();
+            var health = actor.GetComponent<PlayerHealth>();
+            int initialHealth = health.CurrentHealth;
+            actor.transform.position = hammer.transform.position;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            Assert.Greater(runnerContacts, 0, "Must receive a real physics callback, not invoke Record directly");
+            Assert.AreSame(hammer.gameObject, source, "Source must remain the actual moving part");
+            Assert.AreEqual(initialHealth - 1, health.CurrentHealth);
+            Assert.IsTrue(health.IsInvincible);
+            int firstContacts = runnerContacts;
+            actor.transform.position += Vector3.right * 10;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            actor.transform.position = hammer.transform.position;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            Assert.Greater(runnerContacts, firstContacts, "Invincible contact still counts as contact");
+            Assert.AreEqual(initialHealth - 1, health.CurrentHealth, "Contact is not a damage event");
+            actor.transform.position += Vector3.right * 10;
+            opponent.transform.position = hammer.transform.position;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            Assert.Greater(opponentContacts, 0);
+            int beforeDisable = runnerContacts;
+            root.enabled = false;
+            actor.transform.position = hammer.transform.position;
+            Physics2D.SyncTransforms();
+            for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
+            Assert.AreEqual(beforeDisable, runnerContacts, "Disabled root must stop relay recording");
+        }
+        finally
+        {
+            ExplorationContactProbe.Contact -= contact;
+            Object.DestroyImmediate(pivot); Object.DestroyImmediate(actor); Object.DestroyImmediate(opponent);
+            Time.timeScale = originalScale;
+        }
+    }
+#endif
+
+    [UnityTest]
+    public IEnumerator PublicQueueCueMatchesWorldLabelAndHonorsVisibility()
+    {
+        var go = new GameObject("QueueCueFixture");
+        var wall = new GameObject("OpaqueFixture");
+        try
+        {
+            go.transform.position = new Vector3(23000, 1, 0);
+            var queue = go.AddComponent<StateQueueTrap>();
+            var label = go.GetComponentInChildren<TextMesh>();
+            var cue = queue.ReadPublicCue();
+            Assert.IsFalse(cue.safe, "Generic Idle must not be interpreted as a safe queue");
+            StringAssert.Contains(cue.current, label.text);
+            StringAssert.Contains(cue.next, label.text);
+            StringAssert.Contains("Reach:", label.text);
+            var viewer = (Vector2)go.transform.position + Vector2.left * 3;
+            Physics2D.SyncTransforms();
+            Assert.IsTrue(queue.TryReadPublicCue(viewer, out var visible));
+            Assert.AreEqual(cue.current, visible.current);
+            Assert.IsFalse(queue.TryReadPublicCue(viewer + Vector2.left * 10, out _));
+            Assert.IsFalse(queue.TryReadPublicCue(viewer + Vector2.up * 4, out _));
+            label.GetComponent<Renderer>().enabled = false;
+            Assert.IsFalse(queue.TryReadPublicCue(viewer, out _), "Hidden label cannot feed the AI");
+            label.GetComponent<Renderer>().enabled = true;
+            wall.transform.position = go.transform.position + Vector3.left * 1.5f;
+            wall.AddComponent<BoxCollider2D>().size = new Vector2(0.3f, 3f);
+            Physics2D.SyncTransforms();
+            Assert.IsFalse(queue.TryReadPublicCue(viewer, out _), "Opaque solid must occlude cue sampling");
+            queue.enabled = false;
+            Assert.IsFalse(queue.TryReadPublicCue(go.transform.position, out _));
+            yield return null;
+        }
+        finally { Object.DestroyImmediate(go); Object.DestroyImmediate(wall); }
+    }
+
+    [UnityTest]
+    public IEnumerator QueueDamageEventReportsRealSourceAndNoInvincibleDamage()
+    {
+        var go = new GameObject("QueueDamageFixture");
+        go.transform.position = new Vector3(23500, 1, 0);
+        var actor = CreateTestMario(go.transform.position + Vector3.left * 0.85f);
+        int events = 0, lost = 0;
+        StateQueueTrap receivedSource = null;
+        System.Action<StateQueueTrap, MarioController, int, StateQueueTrap.PublicCue> handler = (source, mario, amount, cue) => {
+            if (mario.gameObject != actor) return;
+            events++; lost += amount; receivedSource = source;
+            Assert.AreEqual("Left Attack", cue.current);
+        };
+        StateQueueTrap.ActualDamage += handler;
+        float scale = Time.timeScale;
+        try
+        {
+            Time.timeScale = 1f;
+            actor.GetComponent<MarioController>().enabled = false;
+            actor.GetComponent<Rigidbody2D>().constraints = RigidbodyConstraints2D.FreezeAll;
+            var health = actor.GetComponent<PlayerHealth>();
+            var queue = go.AddComponent<StateQueueTrap>();
+            Physics2D.SyncTransforms();
+            yield return new WaitForSeconds(0.15f);
+            Assert.AreSame(queue, receivedSource); Assert.AreEqual(1, events);
+            Assert.AreEqual(1, lost); Assert.AreEqual(health.MaxHealth - 1, health.CurrentHealth);
+            yield return new WaitForSeconds(0.65f);
+            Assert.IsTrue(health.IsInvincible);
+            Assert.AreEqual(1, events, "Later attack tick during normal invulnerability must not emit damage");
+        }
+        finally
+        {
+            StateQueueTrap.ActualDamage -= handler;
+            Object.DestroyImmediate(go); Object.DestroyImmediate(actor); Time.timeScale = scale;
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator SpikeCycleKeepsAuthoredHeightAndRetractsRelativeToIt()
+    {
+        foreach (float height in new[] { -3f, 1f, 5f })
+        {
+            var go = new GameObject("AuthoredSpike");
+            try
+            {
+                go.transform.position = new Vector3(25000, height, 0);
+                var spike = go.AddComponent<SpikeTrap>();
+                SetPrivateField(spike, "cycleTimer", 10f);
+                yield return new WaitForSeconds(0.25f);
+                Assert.AreEqual(height, go.transform.localPosition.y, 0.01f, "Extended spike must stay on its authored floor");
+                spike.OnLevelReset(); // Periodic reset retracts; it must not travel toward global -0.8.
+                SetPrivateField(spike, "cycleTimer", 10f);
+                yield return new WaitForSeconds(0.25f);
+                Assert.AreEqual(height - 0.8f, go.transform.localPosition.y, 0.02f);
+                Assert.IsFalse(go.GetComponent<BoxCollider2D>().enabled, "Fully retracted collision must be disabled at any height");
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator OneWay_RepeatedDropRenewsOnlyRequestingPair()
+    {
+        var platform = new GameObject("DropPlatform");
+        var runner = new GameObject("DropRunner");
+        var opponent = new GameObject("OtherRider");
+        try
+        {
+            var oneWay = platform.AddComponent<OneWayPlatform>();
+            var deck = platform.GetComponent<BoxCollider2D>();
+            var a = runner.AddComponent<BoxCollider2D>();
+            var b = opponent.AddComponent<BoxCollider2D>();
+            runner.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            opponent.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            SetPrivateField(oneWay, "dropThroughDuration", 0.8f);
+            oneWay.AllowDropThrough(a);
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(a, deck));
+            Assert.IsFalse(Physics2D.GetIgnoreCollision(b, deck), "Other rider must retain collision");
+            yield return new WaitForSeconds(0.5f);
+            oneWay.AllowDropThrough(a);
+            yield return new WaitForSeconds(0.4f);
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(a, deck), "Earlier request must not expire renewed drop");
+            yield return new WaitForSeconds(0.5f);
+            Assert.IsFalse(Physics2D.GetIgnoreCollision(a, deck), "Renewed request must eventually restore collision");
+        }
+        finally { Object.DestroyImmediate(platform); Object.DestroyImmediate(runner); Object.DestroyImmediate(opponent); }
+    }
+
+    [TestCase(false)]
+    [TestCase(true)]
+    public void OneWay_ResetOrDisableRestoresOwnedPairsButPreservesExternalIgnore(bool disable)
+    {
+        var platform = new GameObject("DropPlatform");
+        var runner = new GameObject("DropRunner");
+        var opponent = new GameObject("OtherRider");
+        var external = new GameObject("ExternalIgnore");
+        try
+        {
+            var oneWay = platform.AddComponent<OneWayPlatform>();
+            var deck = platform.GetComponent<BoxCollider2D>();
+            var a = runner.AddComponent<BoxCollider2D>();
+            var b = opponent.AddComponent<BoxCollider2D>();
+            var c = external.AddComponent<BoxCollider2D>();
+            runner.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            opponent.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            external.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
+            Physics2D.IgnoreCollision(c, deck, true);
+            oneWay.AllowDropThrough(a); oneWay.AllowDropThrough(b); oneWay.AllowDropThrough(c);
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(a, deck));
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(b, deck));
+            if (disable) oneWay.enabled = false; else oneWay.OnLevelReset();
+            Assert.IsFalse(Physics2D.GetIgnoreCollision(a, deck));
+            Assert.IsFalse(Physics2D.GetIgnoreCollision(b, deck));
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(c, deck), "Pre-existing external ignore is not ours to release");
+            Assert.IsTrue(deck.enabled, "Cancellation must not remove the shared platform");
+            if (disable)
+            {
+                oneWay.AllowDropThrough(a);
+                Assert.IsFalse(Physics2D.GetIgnoreCollision(a, deck), "Disabled component must reject new requests");
+                oneWay.enabled = true;
+            }
+            oneWay.OnLevelReset(); // Idempotent, including after re-enable.
+            Assert.IsTrue(Physics2D.GetIgnoreCollision(c, deck));
+        }
+        finally { Object.DestroyImmediate(platform); Object.DestroyImmediate(runner); Object.DestroyImmediate(opponent); Object.DestroyImmediate(external); }
+    }
 
     /// <summary>创建测试用 Mario 对象</summary>
     private GameObject CreateTestMario(Vector3 position)
@@ -345,33 +643,30 @@ public class GameplayTests
         BoxCollider2D col = hazardGO.AddComponent<BoxCollider2D>();
         ControllableHazard hazard = hazardGO.AddComponent<ControllableHazard>();
 
-        yield return null; // 等待 Awake
+        try
+        {
+            yield return null;
+            IControllableProp prop = hazard;
+            Assert.AreEqual(PropControlState.Idle, prop.GetControlState());
+            Assert.IsTrue(prop.CanBeControlled());
+            prop.OnTricksterActivate(Vector2.right);
+            Assert.AreEqual(PropControlState.Telegraph, prop.GetControlState());
+            Assert.IsFalse(GetPrivateField<bool>(hazard, "isDamageActive"), "Telegraph must leave a safe reaction window");
 
-        IControllableProp prop = hazard as IControllableProp;
-        Assert.AreEqual(PropControlState.Idle, prop.GetControlState(),
-            "初始状态应该是 Idle");
-
-        // 触发操控
-        Assert.IsTrue(prop.CanBeControlled(), "初始状态应该可以被操控");
-        prop.OnTricksterActivate(Vector2.right);
-
-        yield return null;
-        Assert.AreEqual(PropControlState.Telegraph, prop.GetControlState(),
-            "触发后应该进入 Telegraph 状态");
-
-        // 等待预警结束（默认 0.8 秒）
-        yield return new WaitForSeconds(1.0f);
-        Assert.AreEqual(PropControlState.Active, prop.GetControlState(),
-            "预警结束后应该进入 Active 状态");
-
-        // 等待激活结束（默认 1.5 秒）
-        yield return new WaitForSeconds(2.0f);
-
-        PropControlState finalState = prop.GetControlState();
-        Assert.IsTrue(finalState == PropControlState.Cooldown || finalState == PropControlState.Idle,
-            $"激活结束后应该进入 Cooldown 或 Idle 状态（实际: {finalState}）");
-
-        Object.Destroy(hazardGO);
+            // Observe ordered transitions instead of guessing a fixed sleep from old durations.
+            foreach (var expected in new[] { PropControlState.Active, PropControlState.Recovery, PropControlState.Cooldown, PropControlState.Idle })
+            {
+                var previous = prop.GetControlState();
+                float deadline = Time.realtimeSinceStartup + 8f;
+                while (prop.GetControlState() == previous && Time.realtimeSinceStartup < deadline)
+                    yield return null;
+                Assert.AreEqual(expected, prop.GetControlState(), "Missing or out-of-order hazard phase");
+                Assert.AreEqual(expected == PropControlState.Active, GetPrivateField<bool>(hazard, "isDamageActive"),
+                    "Damage is permitted only during Active, never during Recovery counterplay");
+                Assert.AreEqual(expected == PropControlState.Idle, prop.CanBeControlled());
+            }
+        }
+        finally { Object.Destroy(hazardGO); }
     }
 
     [UnityTest]
@@ -534,6 +829,86 @@ public class GameplayTests
         Object.Destroy(gmGO);
         Object.Destroy(spawnPoint);
     }
+
+    [UnityTest]
+    public IEnumerator GameManager_RoundFeedback_IsStableAndResetsForNextAttempt()
+    {
+        GameObject gmGO = new GameObject("FeedbackGM");
+        GameObject marioGO = CreateTestMario(new Vector3(4, 2, 0));
+        GameManager gm = gmGO.AddComponent<GameManager>();
+        try
+        {
+            yield return null;
+            yield return null;
+            float elapsed = gm.RoundElapsed;
+            Assert.GreaterOrEqual(elapsed, 0f);
+            Vector3 endPosition = marioGO.transform.position;
+            gm.EndRound("Mario", "Test route cleared");
+            Assert.AreEqual("Test route cleared", gm.LastRoundReason);
+            Assert.AreEqual(endPosition, gm.LastRoundPosition);
+            Assert.AreEqual(1, gm.MarioWins);
+            gm.EndRound("Trickster", "Must not overwrite");
+            yield return null;
+            Assert.AreEqual(elapsed, gm.RoundElapsed);
+            Assert.AreEqual("Test route cleared", gm.LastRoundReason);
+            Assert.AreEqual(0, gm.TricksterWins);
+            gm.StartGame();
+            Assert.AreEqual(0f, gm.RoundElapsed);
+            Assert.IsEmpty(gm.LastRoundReason);
+        }
+        finally
+        {
+            Object.Destroy(gmGO);
+            Object.Destroy(marioGO);
+            Time.timeScale = 1f;
+        }
+    }
+
+    [UnityTest]
+    public IEnumerator GameManager_PausedTimeDoesNotCountAsAttemptTime()
+    {
+        GameObject gmGO = new GameObject("PauseFeedbackGM");
+        GameManager gm = gmGO.AddComponent<GameManager>();
+        try
+        {
+            yield return null;
+            gm.TogglePause();
+            float elapsed = gm.RoundElapsed;
+            yield return new WaitForSecondsRealtime(0.05f);
+            Assert.AreEqual(elapsed, gm.RoundElapsed);
+            gm.ResetRound();
+            Assert.AreEqual(1f, Time.timeScale, "Restarting from pause must restore time");
+            Assert.AreEqual(GameState.Playing, gm.CurrentState);
+        }
+        finally { Object.Destroy(gmGO); Time.timeScale = 1f; }
+    }
+
+#if UNITY_EDITOR
+    [UnityTest]
+    public IEnumerator GameManager_EditorRetryUsesBridgeEvenForUnsavedScenes()
+    {
+        GameObject gmGO = new GameObject("RetryGM");
+        GameManager gm = gmGO.AddComponent<GameManager>();
+        var previous = GameManager.EditorRestartHandler;
+        int requests = 0;
+        try
+        {
+            yield return null;
+            GameManager.EditorRestartHandler = () => { requests++; return true; };
+            Time.timeScale = 0f;
+            gm.RestartLevel();
+            Assert.AreEqual(1, requests);
+            Assert.AreEqual(1f, Time.timeScale);
+            Assert.IsNotNull(gm, "Bridge must run before any scene load");
+        }
+        finally
+        {
+            GameManager.EditorRestartHandler = previous;
+            Object.Destroy(gmGO);
+            Time.timeScale = 1f;
+        }
+    }
+#endif
 
     // ═══════════════════════════════════════════════════════
     // 8. 暂停/继续测试
@@ -710,6 +1085,48 @@ public class GameplayTests
         Assert.AreEqual(0f, rb.velocity.y, 0.01f, "Win() 后 Y 速度应为 0");
 
         Object.Destroy(marioGO);
+    }
+
+    [UnityTest]
+    public IEnumerator GlobalHUD_RuntimeLifecycle_FeedbackExpiresWhilePaused()
+    {
+        var go = new GameObject("RuntimeHUDTest");
+        var existingSink = Object.FindObjectOfType<InteractionLogSink>();
+        float originalScale = Time.timeScale;
+        try
+        {
+            var hud = go.AddComponent<GlobalGameUICanvas>();
+            yield return null; // Exercise real Awake, OnEnable, Start and Update, not reflection.
+            var panel = go.transform.Find("HUDRoot/AbilityFailPanel");
+            Assert.IsNotNull(panel);
+            Assert.IsNotNull(go.transform.Find("HUDRoot/InteractionLogPanel"), "HUD must finish building");
+            var text = panel.Find("AbilityFailText").GetComponent<UnityEngine.UI.Text>();
+            Assert.IsFalse(panel.gameObject.activeSelf);
+            Time.timeScale = 0f;
+            hud.ShowAbilityFailFeedback("Not enough energy");
+            yield return null;
+            Assert.IsTrue(panel.gameObject.activeSelf);
+            Assert.AreEqual("Not enough energy", text.text);
+            float deadline = Time.realtimeSinceStartup + 4f;
+            while (panel.gameObject.activeSelf && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.IsFalse(panel.gameObject.activeSelf, "Feedback uses unscaled time and must not linger during pause");
+            Assert.IsFalse(text.gameObject.activeInHierarchy);
+            hud.ShowAbilityFailFeedback("Wait for cooldown");
+            yield return null;
+            Assert.IsTrue(panel.gameObject.activeSelf);
+            Assert.AreEqual("Wait for cooldown", text.text);
+            UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
+        }
+        finally
+        {
+            Time.timeScale = originalScale;
+            Object.DestroyImmediate(go);
+            if (existingSink == null)
+            {
+                var createdSink = Object.FindObjectOfType<InteractionLogSink>();
+                if (createdSink != null) Object.DestroyImmediate(createdSink.gameObject);
+            }
+        }
     }
 
     [UnityTest]

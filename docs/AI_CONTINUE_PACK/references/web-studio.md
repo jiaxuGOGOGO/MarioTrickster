@@ -44,3 +44,5 @@
 - 存储 localStorage `mariotrickster.studio.overworld.v1`；关卡包多一个 `overworlds:[{kind:"overworld",name,goal,grid,doors:[{n,time,room}],notes}]`。
 - verify.sh 用 node 生成 `sim/ow_web.json`（样板 + 拆桥反例），Check.cs 对照。
 - S212：大地图页快捷键在 `owKey`（大地图页打开时全局 keydown 先交给它）；`owMarioAt` 与 C# `OverworldGuide.MarioAt` 逐行一致；`owEditRoom` 把内置样板房间复制进关卡库再打开。
+- S214 同步：网页 app.js 末尾 `SY`（File System Access API）。网页 → `Assets/Levels/Inbox/web_*.json`（Unity `Editor/WebSync.cs` 收完即删；`mariotrickster-play` = 试玩请求）；Unity → 网页读 `Assets/Levels/Library/*.txt`、`Assets/Levels/Overworld/*.txt`（`syLevelFromTxt` 还原 # Pending 字符）。哈希记在 localStorage `mariotrickster.sync.hashes`，目录句柄在 IndexedDB `mariotrickster.sync`。冲突：首次连接 Unity 为准 + 网页留副本；之后双改留网页（Unity 覆盖前 `WebSync.BackupBeforeWrite` 备份到 Library/MarioTricksterHistory）。
+- 改关卡库 .txt 格式时：`LevelPack.ToText` 与网页 `syLevelFromTxt` 一起改，verify 里 S214 会逐字对照。

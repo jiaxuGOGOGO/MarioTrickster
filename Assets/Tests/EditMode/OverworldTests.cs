@@ -321,4 +321,37 @@ public class OverworldTests
         StringAssert.Contains("figureLooksLikeProp = disguised", town);
         foreach (var bad in new[] { "FindObjectOfType", "UnityEngine.Input", "Step1Text" }) StringAssert.DoesNotContain(bad, town);
     }
+
+    // ── S214：网页 ↔ Unity 同步 + 关卡切换 ──────────────
+    [Test]
+    public void Sync_UnitySaveKeepsWebPendingMechanics()
+    {
+        var old = "W....W\nWWWWWW\n# Name: t\n# Pending: Ж=磁铁 (2,1) (3,1)\n";
+        var l = new LevelPack.Level { name = "t", rows = new[] { "W.#..W", "WWWWWW" } };
+        LevelWorkshopModel.CarryPending(old, l);
+        Assert.IsTrue(l.pending.ContainsKey('Ж'), "Unity 再存一次，网页画的新机制不丢");
+        Assert.AreEqual(1, l.pending['Ж'].Count, "那一格在 Unity 里画了别的 → 只丢那一格");
+        StringAssert.Contains("# Pending: Ж=磁铁 (3,1)", LevelPack.ToText(l));
+        Assert.IsTrue(LevelWorkshopModel.SameGrid("A\nB\n# Name: x", "A\r\nB\n# Goal: y"));
+        Assert.IsFalse(LevelWorkshopModel.SameGrid("A\nB", "A\nC"));
+    }
+
+    [Test]
+    public void Wiring_S214_WebSyncAndSwitching()
+    {
+        string ws = Read("Scripts/Editor/WebSync.cs"), lw = Read("Scripts/Editor/LevelWorkshopWindow.cs"), ow = Read("Scripts/Editor/OverworldWorkshopWindow.cs");
+        string lib = Read("Scripts/Editor/LevelLibrary.cs"), ob = Read("Scripts/Editor/OverworldBuilder.cs");
+        StringAssert.Contains("public sealed class WebSync : AssetPostprocessor", ws);
+        StringAssert.Contains("EditorApplication.delayCall += Flush;", ws);
+        StringAssert.Contains("AssetDatabase.DeleteAsset(path);", ws);
+        StringAssert.Contains("WebSync.BackupBeforeWrite(path, text);", lib);
+        StringAssert.Contains("WebSync.BackupBeforeWrite(p, text);", ob);
+        StringAssert.Contains("WebSync.Imported += OnWebImported;", lw);
+        StringAssert.Contains("WebSync.Imported += OnWebImported;", ow);
+        StringAssert.Contains("KeyCode.PageDown", lw);
+        StringAssert.Contains("KeyCode.PageDown", ow);
+        StringAssert.Contains("LevelWorkshopModel.CarryPending(", lw);
+        StringAssert.Contains("OverworldBots.PlayDay(m, t, k, true, s)", ow);
+        StringAssert.Contains("/Assets/Levels/Inbox/", File.ReadAllText(Path.Combine(Application.dataPath, "../.gitignore")));
+    }
 }

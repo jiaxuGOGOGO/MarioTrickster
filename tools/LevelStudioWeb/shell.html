@@ -188,6 +188,8 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
     <button class="tab" role="tab" aria-selected="false" data-page="handoff">交给 AI</button>
   </nav>
   <div class="spacer"></div>
+  <button class="btn small" id="btnSync" title="S214：连接 Unity 项目文件夹（选 MarioTrickster 那一层）。之后这里一改，切到 Unity 自动导入；Unity 里 Ctrl+S 存了，切回这里自动拿到。需要 Chrome / Edge">🔗 连接 Unity 项目</button>
+  <button class="btn small gold" id="btnPlayUnity" hidden title="把当前这一关（在大地图页 = 当前小镇）发给 Unity，切到 Unity 就自动开始试玩">▶ 在 Unity 试玩</button>
   <button class="btn small" id="btnImport" title="支持：本设计台 .json、Unity 工坊 .txt、Tiled 导出的 .json/.csv、LDtk 的 .ldtk/.csv、像素图 .png（1 像素 = 1 格）">导入（多种格式）</button>
   <button class="btn small" id="btnExport" title="所有关卡 + 所有提案，一个文件。Unity 工坊：关卡库 ▾ → 导入网页关卡包">导出关卡包 .json</button>
   <input type="file" id="fileIn" accept=".json,.txt,.csv,.ldtk,.tmj,.png,.gif,.bmp" hidden>

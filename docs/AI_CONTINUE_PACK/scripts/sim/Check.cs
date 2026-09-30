@@ -108,6 +108,21 @@ static class CHECK {
     int ne=0,mc=0; for(int s=1;s<=100;s++){ var r=OverworldBots.PlayDay(m,t,OverworldBots.Kind.Chaos,s%2==0,s); if(!r.dayEnded) ne++; mc=Math.Max(mc,r.caught); } if(ne>0||mc>4){ pb++; Console.WriteLine($"     [FAIL] 乱按 100 天：没结束 {ne}，最多被抓 {mc}"); }
     var noFF=OverworldBots.PlayDay(m,t,OverworldBots.Kind.Hider,false,1); var ff=OverworldBots.PlayDay(m,t,OverworldBots.Kind.Hider,true,1);
     Console.WriteLine($"[{(pb==0?"OK":"FAIL")}] S213 玩家视角模拟：{string.Join("｜",sum)}｜乱按 100 天全部结束、最多被抓 {mc}｜一天 {noFF.realSeconds:0} 秒 → 快进 {ff.realSeconds:0} 秒"); fail+=pb; }
+  // S214：网页 ↔ Unity 同步往返：网页关卡包（含还没实现的新机制字符）→ Unity 关卡库 .txt → 网页读回（sync_back.json 由 verify.sh 用网页的 syLevelFromTxt 解析）必须和原来一模一样；Unity 再存一次也不丢新机制
+  { int sb=0; var reg2=AsciiElementRegistry.GetDefault();
+    var grid=new List<string>(LevelWorkshopModel.LureSample); int r0=grid.Count-3; var ch=grid[r0].ToCharArray(); int px=Array.IndexOf(ch,'.'); ch[px]='Ж'; grid[r0]=new string(ch);
+    string json="{\"type\":\"mariotrickster-levelpack\",\"levels\":[{\"id\":\"L1\",\"name\":\"同步测试\",\"goal\":\"目标\",\"grid\":["+string.Join(",",grid.Select(g=>"\""+g.Replace("\\","\\\\").Replace("\"","\\\"")+"\""))+"],\"notes\":[{\"x\":2,\"y\":3,\"text\":\"批注\"}]}],\"proposals\":[{\"c\":\"Ж\",\"zh\":\"磁铁\"}]}";
+    var lv=LevelPack.Parse(json,cc=>reg2.GetEntry(cc)!=null||Step1Layout.Slots.ContainsKey(cc),out string er); string txt=lv!=null&&lv.Count==1?LevelPack.ToText(lv[0]):"";
+    if(!txt.Contains("# Pending: Ж=磁铁")){ sb++; Console.WriteLine("     [FAIL] 新机制没写进 # Pending"); }
+    File.WriteAllText("sync_level.txt",txt); File.WriteAllText("sync_grid.json","["+string.Join(",",grid.Select(g=>"\""+g.Replace("\\","\\\\").Replace("\"","\\\"")+"\""))+"]");
+    // Unity 里再改一格、再存：新机制那格没动 → 仍保留
+    var again=new LevelPack.Level{ name="同步测试", rows=lv[0].rows.ToArray() }; LevelWorkshopModel.CarryPending(txt,again); if(!LevelPack.ToText(again).Contains("# Pending: Ж=磁铁")){ sb++; Console.WriteLine("     [FAIL] Unity 再存一次把网页新机制弄丢了"); }
+    var rows2=lv[0].rows.ToArray(); int rr=rows2.Length-1-(lv[0].pending['Ж'][0].Item2); var c2=rows2[rr].ToCharArray(); c2[lv[0].pending['Ж'][0].Item1]='#'; rows2[rr]=new string(c2);
+    var over=new LevelPack.Level{ name="同步测试", rows=rows2 }; LevelWorkshopModel.CarryPending(txt,over); if(over.pending.ContainsKey('Ж')){ sb++; Console.WriteLine("     [FAIL] 那格在 Unity 里画了别的东西，新机制却还留着"); }
+    if(!LevelWorkshopModel.SameGrid(txt,string.Join("\n",lv[0].rows)+"\n# Name: x")){ sb++; Console.WriteLine("     [FAIL] SameGrid 应忽略元数据行"); }
+    string web=File.Exists("sync_back.json")?File.ReadAllText("sync_back.json").Trim():null; bool same=web!=null&&web=="ok";
+    if(web!=null&&!same){ sb++; Console.WriteLine("     [FAIL] 网页读回 Unity 关卡库：" + web); }
+    Console.WriteLine($"[{(sb==0?"OK":"FAIL")}] S214 网页↔Unity 同步往返：新机制字符、批注、目标都保留{(web==null?"（网页读回对照：下次 verify）":same?"，网页读回一模一样":"")}"); fail+=sb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
  }}

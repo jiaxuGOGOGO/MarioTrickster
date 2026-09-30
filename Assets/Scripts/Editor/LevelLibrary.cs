@@ -32,7 +32,9 @@ public static class LevelLibrary
     {
         Directory.CreateDirectory(Folder);
         string path = PathFor(level.name);
-        File.WriteAllText(path, LevelPack.ToText(level));
+        string text = LevelPack.ToText(level);
+        WebSync.BackupBeforeWrite(path, text); // S214：覆盖前备份旧版本
+        File.WriteAllText(path, text);
         AssetDatabase.ImportAsset(path);
         return path;
     }

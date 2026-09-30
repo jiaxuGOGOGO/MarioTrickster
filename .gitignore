@@ -144,3 +144,7 @@ desktop.ini
 
 # Step 1 playtest logs (local only)
 /PlaytestLogs/
+
+# S214：网页同步收件箱（Unity 收完就删）
+/Assets/Levels/Inbox/
+/Assets/Levels/Inbox.meta

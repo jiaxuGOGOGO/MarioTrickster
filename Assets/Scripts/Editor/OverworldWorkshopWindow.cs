@@ -44,7 +44,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         if (map != null) { undo.Push(OverworldMap.ToText(map)); redo.Clear(); }
         map = OverworldMap.Parse(text);
         if (map.W == 0) map = OverworldMap.Parse(OverworldPack.SampleText);
-        Recheck(); status = why;
+        Recheck(); status = why; botLines.Clear();
     }
 
     private void Snapshot() { redo.Clear(); undo.Push(OverworldMap.ToText(map)); if (undo.Count > 60) { var a = undo.ToArray().Take(60).Reverse(); undo.Clear(); foreach (var s in a) undo.Push(s); } }
@@ -72,6 +72,8 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         if (ctrl && e.keyCode == KeyCode.C) { EditorGUIUtility.systemCopyBuffer = OverworldMap.ToText(map); status = "已复制整张小镇（网页'大地图'页 Ctrl+V 就能贴进去）"; e.Use(); return; }
         if (ctrl && e.keyCode == KeyCode.V) { PasteTown(); e.Use(); return; }
         if (e.keyCode == KeyCode.F5) { PlayTown(); e.Use(); return; }
+        if (e.keyCode == KeyCode.PageUp) { StepTown(-1); e.Use(); return; }
+        if (e.keyCode == KeyCode.PageDown) { StepTown(1); e.Use(); return; }
         if (ctrl || e.alt) return;
         switch (e.keyCode)
         {
@@ -85,6 +87,42 @@ public sealed class OverworldWorkshopWindow : EditorWindow
                 return;
         }
         e.Use(); Repaint();
+    }
+
+    private List<string> botLines = new List<string>();
+
+    /// <summary>纯逻辑跑机器人玩家（OverworldBots）。只在编辑模式跑（会临时占用 OverworldSession，跑完清掉）。</summary>
+    private List<string> RunBots()
+    {
+        var t = MarioMindTuningSO.LoadOrDefault(); var m = OverworldMap.Parse(OverworldMap.ToText(map)); var lines = new List<string>();
+        int doors = m.doors.Count(d => OverworldMap.Find(m, (char)('0' + d.n)).Count == 1);
+        var who = new[] { (OverworldBots.Kind.Hider, "会躲（伪装等他）"), (OverworldBots.Kind.Follower, "站着不躲"), (OverworldBots.Kind.Slow, "反应慢"), (OverworldBots.Kind.Greedy, "先捡道具") };
+        int hide = 0, stand = 0, slowCaught = 0;
+        foreach (var (k, zh) in who)
+        {
+            int am = 0, ca = 0; double sec = 0;
+            for (int s = 1; s <= 3; s++) { var r = OverworldBots.PlayDay(m, t, k, true, s); am += r.ambush; ca += r.caught; sec += r.realSeconds; }
+            lines.Add($"{zh}：埋伏 {am}/{doors * 3}，被抓 {ca}，一天约 {sec / 3:0} 秒");
+            if (k == OverworldBots.Kind.Hider) hide = am; if (k == OverworldBots.Kind.Follower) stand = am; if (k == OverworldBots.Kind.Slow) slowCaught = ca;
+        }
+        OverworldSession.ResetStatics();
+        if (hide < doors * 3) lines.Add("⚠ 会躲的玩家也有门埋伏不上：这扇门附近缺藏身处，或时间太紧（看检查里的'你能提前几秒'）");
+        if (stand >= doors * 3) lines.Add("⚠ 站着不躲也全赢：躲藏没有意义——门口视野太空？把门放在他路线的拐角后面");
+        if (slowCaught > 3) lines.Add("⚠ 反应慢的玩家老被抓：出门的地方太开阔");
+        if (lines.Count == who.Length) lines.Add("✓ 会躲才稳赢：这张小镇的节奏是对的（房间里的战斗没有模拟）");
+        return lines;
+    }
+
+    private void StepTown(int dir)
+    {
+        var list = OverworldBuilder.List();
+        if (list.Count == 0) { status = "还没有保存的小镇：先点 保存"; return; }
+        OverworldBuilder.Save(map);
+        list = OverworldBuilder.List();
+        int i = list.FindIndex(l => l.name == map.name);
+        int n = i < 0 ? 0 : (i + dir + list.Count) % list.Count;
+        Load(File.ReadAllText(list[n].path), $"{n + 1}/{list.Count}  {list[n].name}");
+        EditorPrefs.SetString(OverworldBuilder.CurrentKey, list[n].path);
     }
 
     private void PasteTown()
@@ -105,8 +143,20 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         Repaint();
     }
 
-    private void OnEnable() { wantsMouseMove = true; EditorApplication.update += Blink; }
-    private void OnDisable() { EditorApplication.update -= Blink; }
+    private void OnEnable() { wantsMouseMove = true; EditorApplication.update += Blink; WebSync.Imported -= OnWebImported; WebSync.Imported += OnWebImported; }
+    private void OnDisable() { EditorApplication.update -= Blink; WebSync.Imported -= OnWebImported; }
+
+    /// <summary>S214：网页改了正在打开的这张小镇 → 自动换成新版本（↶ 可以退回）。</summary>
+    private void OnWebImported(List<string> levels, List<string> towns, string report)
+    {
+        if (map == null) return;
+        if (towns.Contains(map.name))
+        {
+            string p = OverworldBuilder.PathFor(map.name);
+            if (File.Exists(p)) { string t = File.ReadAllText(p); if (t.Replace("\r", "") != OverworldMap.ToText(map)) { Load(t, "网页刚改了这张小镇 → 已换成新版本（↶ 退回）"); ShowNotification(new GUIContent("网页同步：小镇已更新")); } }
+        }
+        else if (levels.Count > 0) { Recheck(); ShowNotification(new GUIContent($"网页同步：{levels.Count} 个房间已更新，▶ 时会自动重建")); }
+    }
     private void Blink() { if (flash.HasValue) { if (EditorApplication.timeSinceStartup > flashUntil) flash = null; Repaint(); } }
     private void OnFocus() { if (map != null) Recheck(); } // 从关卡工坊改完房间回来 → 状态刷新
 
@@ -164,6 +214,9 @@ public sealed class OverworldWorkshopWindow : EditorWindow
             foreach (var e in list) { var p = e.path; menu.AddItem(new GUIContent(e.name), false, () => { Load(File.ReadAllText(p), "打开 " + p); EditorPrefs.SetString(OverworldBuilder.CurrentKey, p); }); }
             menu.ShowAsContext();
         }
+        // S214：◀ ▶ 切换小镇（PageUp / PageDown），切走前自动存
+        if (GUILayout.Button(new GUIContent("◀", "上一张小镇（PageUp）"), EditorStyles.toolbarButton, GUILayout.Width(22))) StepTown(-1);
+        if (GUILayout.Button(new GUIContent("▶", "下一张小镇（PageDown）"), EditorStyles.toolbarButton, GUILayout.Width(22))) StepTown(1);
         if (GUILayout.Button("保存", EditorStyles.toolbarButton, GUILayout.Width(40))) status = "已保存到 " + OverworldBuilder.Save(map);
         if (GUILayout.Button(new GUIContent("导入", "小镇 .txt / 网页工作室的关卡包 .json（里面的房间一起进关卡库）"), EditorStyles.toolbarButton, GUILayout.Width(40)))
         {
@@ -415,6 +468,11 @@ public sealed class OverworldWorkshopWindow : EditorWindow
                     EditorGUILayout.LabelField($"门 {s.door.n}：{OverworldMap.Clock(s.depart)} 出发 → {OverworldMap.Clock(s.arrive)} 到 → {OverworldMap.Clock(s.leave)} 出来　你能提前 {lead:0} 秒", EditorStyles.wordWrappedMiniLabel);
                 }
                 EditorGUILayout.LabelField($"{OverworldMap.Clock(sc.homeArrive)} 到家", EditorStyles.miniLabel);
+                // S214：🤖 模拟玩家——你画的这张小镇好不好玩（S213 的机器人玩家，同一份规则跑一天）
+                EditorGUILayout.Space();
+                using (new EditorGUI.DisabledScope(EditorApplication.isPlaying || !report.Playable))
+                    if (GUILayout.Button(new GUIContent("🤖 模拟玩家玩一天", "4 种玩家各玩 3 天：会躲的该全赢、站着不躲不该全赢、反应慢的别老被抓。约 1 秒"))) botLines = RunBots();
+                foreach (var l in botLines) EditorGUILayout.LabelField(l, EditorStyles.wordWrappedMiniLabel);
                 // S212：时间滑条——拖一拖，画布上的红 M 就是他那一刻在哪
                 EditorGUILayout.Space();
                 bool on = EditorGUILayout.ToggleLeft("⏱ 时间滑条（看他几点在哪）", scrub >= 0);

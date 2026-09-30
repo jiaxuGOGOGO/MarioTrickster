@@ -10,6 +10,33 @@ using System.Linq;
 /// </summary>
 public static class LevelWorkshopModel
 {
+    /// <summary>S214：两份关卡文字的网格一样吗（忽略 # 元数据行和换行符）。</summary>
+    public static bool SameGrid(string a, string b)
+    {
+        string G(string t) => string.Join("\n", (t ?? "").Replace("\r", "").Split('\n').Where(l => l.Length > 0 && !l.StartsWith("#")));
+        return G(a) == G(b);
+    }
+
+    /// <summary>S214：把旧文件里的 # Pending（网页新机制，Unity 还没实现）带到新存的关卡上——只保留那一格现在仍是空气的。</summary>
+    public static void CarryPending(string oldText, LevelPack.Level level)
+    {
+        int h = level.rows.Length;
+        foreach (var raw in (oldText ?? "").Replace("\r", "").Split('\n'))
+        {
+            if (!raw.StartsWith("# Pending: ") || raw.Length < 13) continue;
+            char c = raw[11]; if (level.pending.ContainsKey(c)) continue;
+            int sp = raw.IndexOf(" (", 12); string name = sp > 13 ? raw.Substring(13, sp - 13) : raw.Substring(13);
+            var cells = new List<(int, int)>();
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(raw, @"\((\d+),(\d+)\)"))
+            {
+                int x = int.Parse(m.Groups[1].Value), y = int.Parse(m.Groups[2].Value), r = h - 1 - y;
+                if (r >= 0 && r < h && x < level.rows[r].Length && level.rows[r][x] == '.') cells.Add((x, y));
+            }
+            if (cells.Count == 0) continue;
+            level.pending[c] = cells; level.pendingNames[c] = name.Trim();
+        }
+    }
+
     public enum Tool { Brush, Rect, Erase, Pick, Move } // S207：Move 追加在末尾（窗口按数字存）
 
     public sealed class Group

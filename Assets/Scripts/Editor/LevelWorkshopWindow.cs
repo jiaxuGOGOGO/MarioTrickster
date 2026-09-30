@@ -146,10 +146,48 @@ public class LevelWorkshopWindow : EditorWindow
         if (string.IsNullOrEmpty(source)) source = string.Join("\n", Step1PrankRoomBuilder.Current);
         Undo.undoRedoPerformed += OnUndo;
         EditorApplication.update += Tick;
+        WebSync.Imported -= OnWebImported; WebSync.Imported += OnWebImported;
         wantsMouseMove = true;
     }
 
-    private void OnDisable() { Undo.undoRedoPerformed -= OnUndo; EditorApplication.update -= Tick; }
+    private void OnDisable() { Undo.undoRedoPerformed -= OnUndo; EditorApplication.update -= Tick; WebSync.Imported -= OnWebImported; }
+
+    // ── S214：关卡库切换 + 网页同步 ─────────────────
+    /// <summary>网页改了正在打开的这一关 → 自动换成新版本（Ctrl+Z 可以退回你在 Unity 里的版本）。</summary>
+    private void OnWebImported(List<string> levels, List<string> towns, string report)
+    {
+        if (string.IsNullOrEmpty(libraryName) || !levels.Contains(libraryName)) { ShowNotification(new GUIContent($"网页同步：收到 {levels.Count} 关 {towns.Count} 个小镇")); return; }
+        var e = LevelLibrary.List().Find(l => l.name == libraryName);
+        if (e.path == null) return;
+        string text = File.ReadAllText(e.path);
+        if (LevelWorkshopModel.SameGrid(text, source)) return;
+        SetSource(text, "Web sync " + libraryName);
+        ShowNotification(new GUIContent("网页刚改了「" + libraryName + "」→ 已换成新版本（Ctrl+Z 退回）"));
+        Repaint();
+    }
+
+    /// <summary>◀ ▶：按关卡库顺序切到上一关 / 下一关（先把当前这一关存好，不丢改动）。</summary>
+    private void StepLibrary(int dir)
+    {
+        var list = LevelLibrary.List();
+        if (list.Count == 0) { ShowNotification(new GUIContent("关卡库还是空的：先 关卡库 ▾ → 存入")); return; }
+        if (!string.IsNullOrEmpty(libraryName)) QuickSave(false);
+        int i = list.FindIndex(l => l.name == libraryName);
+        int n = i < 0 ? (dir > 0 ? 0 : list.Count - 1) : (i + dir + list.Count) % list.Count;
+        SetSource(File.ReadAllText(list[n].path), "Open " + list[n].name);
+        libraryName = list[n].name;
+        ShowNotification(new GUIContent($"{n + 1}/{list.Count}  {libraryName}"));
+    }
+
+    /// <summary>Ctrl+S：已经是关卡库里的关 → 直接同名存（不弹窗）；新画的 → 问名字。</summary>
+    private void QuickSave(bool notify = true)
+    {
+        if (string.IsNullOrEmpty(libraryName)) { SaveToLibrary(); return; }
+        var e = LevelLibrary.List().Find(l => l.name == libraryName);
+        if (e.path != null && LevelWorkshopModel.SameGrid(File.ReadAllText(e.path), source)) { if (notify) ShowNotification(new GUIContent("没有改动")); return; }
+        SaveAs(libraryName);
+        if (notify) ShowNotification(new GUIContent("已存 「" + libraryName + "」（网页连接了项目文件夹的话，切回网页就能看到）"));
+    }
 
     /// <summary>停笔一小会儿后再跑完整检查（不在画的过程中跑）。</summary>
     private void Tick()
@@ -220,6 +258,12 @@ public class LevelWorkshopWindow : EditorWindow
         Parse();
         // S207：工具快捷键（和网页设计台一致）：B 画笔 R 矩形 E 橡皮 I 吸管 M 移动
         var ke = Event.current;
+        if (ke.type == EventType.KeyDown && !EditorGUIUtility.editingTextField)
+        {
+            if ((ke.control || ke.command) && ke.keyCode == KeyCode.S) { QuickSave(); ke.Use(); }
+            else if (ke.keyCode == KeyCode.PageUp) { StepLibrary(-1); ke.Use(); }
+            else if (ke.keyCode == KeyCode.PageDown) { StepLibrary(1); ke.Use(); }
+        }
         if (ke.type == EventType.KeyDown && !ke.control && !ke.command && !ke.alt && !EditorGUIUtility.editingTextField)
         {
             var map = new Dictionary<KeyCode, LevelWorkshopModel.Tool> { { KeyCode.B, LevelWorkshopModel.Tool.Brush }, { KeyCode.R, LevelWorkshopModel.Tool.Rect }, { KeyCode.E, LevelWorkshopModel.Tool.Erase }, { KeyCode.I, LevelWorkshopModel.Tool.Pick }, { KeyCode.M, LevelWorkshopModel.Tool.Move } };
@@ -281,6 +325,10 @@ public class LevelWorkshopWindow : EditorWindow
             menu.ShowAsContext();
         }
         if (GUILayout.Button(new GUIContent("关卡库 ▾", "你存下来的所有关卡（Assets/Levels/Library）：打开 / 存入 / 导入网页关卡包"), EditorStyles.toolbarDropDown, GUILayout.Width(66))) LibraryMenu();
+        // S214：关卡切换 ◀ ▶（PageUp / PageDown）+ 当前是哪一关
+        if (GUILayout.Button(new GUIContent("◀", "上一关（PageUp）：先自动存好当前这一关"), EditorStyles.toolbarButton, GUILayout.Width(22))) StepLibrary(-1);
+        GUILayout.Label(new GUIContent(string.IsNullOrEmpty(libraryName) ? "（未存入关卡库）" : libraryName, "Ctrl+S 存；网页连接了项目文件夹时，两边改动自动同步"), EditorStyles.toolbarButton, GUILayout.MaxWidth(120));
+        if (GUILayout.Button(new GUIContent("▶", "下一关（PageDown）"), EditorStyles.toolbarButton, GUILayout.Width(22))) StepLibrary(1);
         if (GUILayout.Button(new GUIContent("🏘 小镇", "S210：打开小镇工坊（星露谷视角大地图，门连到这里做的房间）"), EditorStyles.toolbarButton, GUILayout.Width(54))) OverworldWorkshopWindow.Open();
         if (GUILayout.Button("导入", EditorStyles.toolbarButton, GUILayout.Width(44))) Import();
         if (GUILayout.Button("导出", EditorStyles.toolbarButton, GUILayout.Width(44))) Export();
@@ -876,20 +924,29 @@ public class LevelWorkshopWindow : EditorWindow
         menu.ShowAsContext();
     }
 
-    [NonSerialized] private string libraryName = "";
+    [SerializeField] private string libraryName = ""; // S214：重新编译后也记得当前是关卡库里哪一关（◀ ▶ 切换、Ctrl+S 直接存）
     private void SaveToLibrary()
     {
         string name = LevelNameDialog.Ask("存入关卡库", "给这一关起个名字（同名会覆盖）：", string.IsNullOrEmpty(libraryName) ? "我的关卡" : libraryName);
         if (string.IsNullOrEmpty(name)) return;
+        string path = SaveAs(name);
+        ShowNotification(new GUIContent("已存入 " + path));
+    }
+
+    private string SaveAs(string name)
+    {
         var level = new LevelPack.Level { name = name, rows = Rows() };
         foreach (var line in (source ?? "").Replace("\r", "").Split('\n'))
         {
             if (line.StartsWith("# Goal: ")) level.goal = line.Substring(8);
             if (line.StartsWith("# Note: ")) { var m = System.Text.RegularExpressions.Regex.Match(line, @"^# Note: \((\d+),(\d+)\) (.*)$"); if (m.Success) level.notes.Add(new LevelPack.Note { x = int.Parse(m.Groups[1].Value), y = int.Parse(m.Groups[2].Value), text = m.Groups[3].Value }); }
         }
+        // S214：网页里的"还没实现的新机制"（# Pending 行）存回去时保留，不然 Unity 一存就把网页画的新机制弄丢
+        var old = LevelLibrary.List().Find(l => l.name == name);
+        if (old.path != null) LevelWorkshopModel.CarryPending(File.ReadAllText(old.path), level);
         string path = LevelLibrary.Save(level);
         libraryName = name;
-        ShowNotification(new GUIContent("已存入 " + path));
+        return path;
     }
 
     private void ImportPack()

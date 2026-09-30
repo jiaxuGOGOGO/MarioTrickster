@@ -91,7 +91,9 @@ public static class OverworldBuilder
     {
         Directory.CreateDirectory(Folder);
         string p = PathFor(m.name.Length > 0 ? m.name : "小镇");
-        File.WriteAllText(p, OverworldMap.ToText(m));
+        string text = OverworldMap.ToText(m);
+        WebSync.BackupBeforeWrite(p, text); // S214：覆盖前备份旧版本
+        File.WriteAllText(p, text);
         AssetDatabase.ImportAsset(p);
         EditorPrefs.SetString(CurrentKey, p);
         return p;

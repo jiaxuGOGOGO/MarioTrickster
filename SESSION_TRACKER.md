@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 213（玩家视角模拟：小镇规则抽成纯逻辑 OverworldTown，6 种机器人玩家 + 乱按 100 天跑一天；修：直奔门口按 E 就全胜 → 他走到 8 格内且没盯上你才算埋伏；出门被秒抓 → 出门清点 2.5 秒；最后一扇门后干等他回家 → 直接结算；干等出发 → 空格快进 ×4（有动静自动停）） |
+| **最新 Session** | Session 214（网页 ↔ Unity 自动同步：网页"🔗 连接 Unity 项目"一次，之后改动自动写进 Assets/Levels/Inbox → Unity 自动导入、打开着的工坊自动换新；Unity Ctrl+S 存了切回网页自动拿到；覆盖前自动备份；网页"▶ 在 Unity 试玩"；两边 ◀ ▶ / PageUp PageDown 切关卡与小镇；小镇工坊"🤖 模拟玩家玩一天"） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,19 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S214] 用户："继续从第一性原理出发……确保网页编辑和unity内部编辑同步流畅性 包括方便关卡切换制作的按钮或者别的更好的方案 进行质疑自我迭代 但不要把优秀的改成落后的……"
+
+- 第一性原理：制作人从"有个点子"到"在游戏里玩到它"要几步？改之前：网页 导出 → 下载 → Unity 关卡库 ▾ → 导入 → 选文件 → 打开 → ▶（7 步、每次都要）；Unity 改了想回网页看 → 导出 .txt → 网页导入（又 4 步）。这是最大的摩擦，其他都是小事。
+- 调研：LDtk to Unity（https://github.com/Cammin/LDtkToUnity ）"外部编辑器一保存 Unity 自动重新导入"；Chrome File System Access API（https://developer.chrome.com/docs/capabilities/web-apis/file-system-access ）网页可在用户授权后直接读写本地文件夹、句柄存 IndexedDB 下次一键重连；GDC 2017 Robin-Yann Storm "Improving Tool Design Through Editor Triage"（https://www.youtube.com/watch?v=VRm3d0TqMq4 ）：先砍迭代回路上的步数。
+- 做了：
+  - Unity `Editor/WebSync.cs`（AssetPostprocessor）：Assets/Levels/Inbox/*.json|.txt 一出现就走原来的 LevelLibrary.ImportPack / OverworldBuilder.Import（同一条路），收完删掉；Play 中先不导；`Imported` 事件让打开着的关卡工坊/小镇工坊自动换成新版本（Ctrl+Z / ↶ 可退）；`mariotrickster-play` 文件 = 网页"▶ 在 Unity 试玩"（关卡 → 第 1 步房间开玩；小镇 → BuildAll 开玩）。
+  - 备份：LevelLibrary.Save / OverworldBuilder.Save 覆盖前把旧内容存到 Library/MarioTricksterHistory（不进 git），每名留 10 份；菜单 MarioTrickster/网页同步/。
+  - `LevelWorkshopModel.SameGrid / CarryPending`：Unity 存回关卡库时保留网页画的新机制（# Pending），那一格被画了别的才丢。
+  - 关卡工坊：◀ 当前关名 ▶（PageUp/PageDown，切走前自动存）、Ctrl+S 同名直接存（不弹窗）、libraryName 改 SerializeField（重新编译不丢）。小镇工坊：◀ ▶ / PageUp PageDown 切小镇、"🤖 模拟玩家玩一天"（S213 机器人跑你画的小镇，给出 ⚠ 建议）。
+  - 网页：顶栏"🔗 连接 Unity 项目"（选 MarioTrickster 那一层；Chrome/Edge）、"▶ 在 Unity 试玩"；改动停笔 1.2 秒写 Inbox（只写变了的）；窗口回到前台时读 Library/*.txt、Overworld/*.txt。冲突规则：第一次连接不一样 → 以 Unity 项目（进 git）为准、网页那份留"（网页旧版）"副本；连上后两边都改 → 留网页版本（Unity 覆盖前已备份）；网页删掉的不从 Unity 复活。PageUp/PageDown 切关卡/小镇。不支持文件夹的浏览器：导出的关卡包拖进 Inbox 同样自动导入。
+- 没做（避免矫枉过正）：没装 LDtk / Tiled 插件（我们的 ASCII 格式 + 网页已经覆盖，换格式会丢掉现有检查/模拟）；没做本地 WebSocket 服务器（要常驻进程、要防火墙，文件夹同步已够）；没改已有导入/导出按钮（离线/换电脑时仍然有用）。
+- 验证：sim S214 往返（网页关卡包含新机制字符 → Unity .txt → 网页 syLevelFromTxt 读回一模一样；Unity 再存不丢新机制；那格被画了别的才丢）；node 模拟文件夹跑同步流程（首次连接、只推变了的、Unity 改后拉回、不重复写）；测试 +2。未验证：真实 Chrome 授权流程、Unity 前台刷新时机。
 
 ### [S213] 用户："自我审视目前项目进行优化升级以玩家视角进行模拟迭代"
 

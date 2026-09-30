@@ -102,3 +102,7 @@
 - `Overworld/OverworldTown.cs`：小镇一帧的全部规则（输入 → 走路/伪装/香蕉皮/挑衅/门/马里奥/抓人/结算）。**改小镇玩法改这里**，OverworldGame 只读键盘、画画面、切场景。提示用 `OverworldTown.Note` 枚举，文字在 OverworldGame.NoteText。
 - `Overworld/OverworldBots.cs`：玩家视角模拟（7 种机器人）。新机制加进小镇后，给合适的机器人加一种用法，并在 sim S213 里加一条期望。
 - 调参 dataVersion 17：overworldExitGraceSeconds 2.5、overworldAmbushSteps 8。
+
+## S214 同步与切换
+- `Editor/WebSync.cs`：Inbox 自动导入 + `Imported` 事件 + 覆盖前备份 + 网页试玩请求。以后新增"会写关卡库/小镇文件"的地方，写之前调 `WebSync.BackupBeforeWrite`。
+- 关卡工坊 `StepLibrary / QuickSave / SaveAs`（保留 Pending：`LevelWorkshopModel.CarryPending`）；小镇工坊 `StepTown / RunBots`。

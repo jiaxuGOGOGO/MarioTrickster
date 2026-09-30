@@ -22,7 +22,7 @@ const ROLE_ORDER = ['Spawn', 'Objective', 'Terrain', 'PlayerPrank', 'Special', '
 let LIB = [], CUR = '';
 const newId = () => 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 function storeCurrent() { const i = LIB.findIndex(l => l.id === CUR); const rec = { id: CUR, name: S.name, goal: S.goal, grid: S.grid.slice(), notes: S.notes.slice(), beats: S.beats || undefined }; if (i >= 0) LIB[i] = rec; else LIB.push(rec); }
-function save() { try { storeCurrent(); localStorage.setItem(LS2, JSON.stringify({ lib: LIB, cur: CUR, proposals: S.proposals, cuts: S.cuts })); } catch (e) { } renderLib(); }
+function save() { try { storeCurrent(); localStorage.setItem(LS2, JSON.stringify({ lib: LIB, cur: CUR, proposals: S.proposals, cuts: S.cuts })); } catch (e) { } renderLib(); syncSoon(); }
 function load() {
   try {
     const d2 = JSON.parse(localStorage.getItem(LS2) || 'null');
@@ -607,7 +607,7 @@ let OWLIB = [], OWCUR = 0, OWT = { brush: '=', tool: 'brush', zoom: 16, drag: nu
 try { const d = JSON.parse(localStorage.getItem(LSOW) || 'null'); if (d && d.lib && d.lib.length) { OWLIB = d.lib.map(owFromJson); OWCUR = Math.min(d.cur | 0, OWLIB.length - 1); } } catch (e) { }
 if (!OWLIB.length) OWLIB = [owParse(OW_SAMPLE)];
 const owM = () => OWLIB[OWCUR];
-function owSave() { try { localStorage.setItem(LSOW, JSON.stringify({ lib: OWLIB.map(owToJson), cur: OWCUR })); } catch (e) { } }
+function owSave() { try { localStorage.setItem(LSOW, JSON.stringify({ lib: OWLIB.map(owToJson), cur: OWCUR })); } catch (e) { } syncSoon(); }
 /** 门能连的房间：内置样板 + 你在"画关卡"里的所有关卡。关卡库里同名的优先（和 Unity 一样）。 */
 function owRoomNames() { const s = new Set(Object.keys(OW_ROOMS)); for (const l of LIB) s.add(l.name); return [...s]; }
 function owRoomGrid(name) { const l = LIB.find(x => x.name === name); if (l) return l.grid; const k = OW_ROOMS[name]; return k && SAMPLES[k] ? SAMPLES[k] : null; }
@@ -776,3 +776,115 @@ $('#owSample').onclick = () => { const s = owParse(OW_SAMPLE); const i = OWLIB.f
 $('#owDel').onclick = () => { if (OWLIB.length <= 1) { toast('至少留一个小镇'); return; } if (!confirm(`删除小镇"${owM().name}"？`)) return; OWLIB.splice(OWCUR, 1); OWCUR = 0; owRender(); };
 $('#owPack').onclick = exportPack;
 $('#owTxt').onclick = () => download(`${(owM().name || '小镇').replace(/[\\/:*?"<>|]/g, '')}.txt`, owToText(owM()), 'text/plain');
+
+// ── S214 网页 ↔ Unity 自动同步（File System Access API：连接一次项目文件夹，之后两边改动自动过去）──
+// 借鉴 LDtk to Unity："外部编辑器一保存，Unity 自动重新导入"。网页 → Assets/Levels/Inbox/*.json（Unity 收完就删）；
+// Unity → 网页：切回网页时读 Assets/Levels/Library/*.txt、Assets/Levels/Overworld/*.txt。两边都改了同一关 → 保留网页版本，Unity 旧版本在 Unity 的备份里。
+var SY = null; // { dir, name, synced: {key: hash}, timer, busy }
+const SYDB = 'mariotrickster.sync', SYKEY = 'mariotrickster.sync.hashes';
+const syHash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = (h * 33 + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+const syLevelKey = l => 'L:' + l.name, syTownKey = m => 'T:' + m.name;
+const syLevelHash = l => syHash(l.grid.join('\n') + '|' + (l.goal || '') + '|' + (l.notes || []).map(n => n.x + ',' + n.y + n.text).join(';'));
+const syTownHash = m => syHash(owToText(m));
+function syIdb(mode, fn) { return new Promise((ok, bad) => { const r = indexedDB.open(SYDB, 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onerror = () => bad(r.error); r.onsuccess = () => { const tx = r.result.transaction('h', mode); const q = fn(tx.objectStore('h')); tx.oncomplete = () => ok(q && q.result); tx.onerror = () => bad(tx.error); }; }); }
+function syStatus(t, cls) { const b = $('#btnSync'); if (!b) return; b.textContent = t; b.className = 'btn small' + (cls ? ' ' + cls : ''); }
+async function syConnect(reuse) {
+  if (!('showDirectoryPicker' in window)) { toast('这个浏览器不能直接连文件夹（请用 Chrome / Edge）。也可以：导出关卡包 → 拖进 Unity 项目的 Assets/Levels/Inbox，会自动导入'); return; }
+  try {
+    let dir = reuse;
+    if (dir) { if ((await dir.requestPermission({ mode: 'readwrite' })) !== 'granted') return; }
+    else dir = await window.showDirectoryPicker({ id: 'mariotrickster', mode: 'readwrite' });
+    let assets; try { assets = await dir.getDirectoryHandle('Assets'); } catch (e) { toast('请选 Unity 项目文件夹（里面有 Assets 的那一层，例如 MarioTrickster）'); return; }
+    const levels = await assets.getDirectoryHandle('Levels', { create: true });
+    SY = { dir, name: dir.name, levels, synced: JSON.parse(localStorage.getItem(SYKEY) || '{}'), timer: 0, busy: false };
+    await syIdb('readwrite', s => s.put(dir, 'dir'));
+    syStatus('🔗 ' + dir.name, 'gold'); $('#btnPlayUnity').hidden = false;
+    await syPull(true); await syPush();
+  } catch (e) { if (e.name !== 'AbortError') toast('连接失败：' + e.message); }
+}
+function sySaveHashes() { try { localStorage.setItem(SYKEY, JSON.stringify(SY.synced)); } catch (e) { } }
+function syncSoon() { if (!SY || !SY.dir) return; clearTimeout(SY.timer); SY.timer = setTimeout(syPush, 1200); } // 停笔 1.2 秒再写（不在画的过程中写）
+async function syWriteInbox(obj, tag) {
+  const inbox = await SY.levels.getDirectoryHandle('Inbox', { create: true });
+  const f = await inbox.getFileHandle(`web_${tag}_${Date.now()}.json`, { create: true });
+  const w = await f.createWritable(); await w.write(JSON.stringify(obj, null, 1)); await w.close();
+}
+async function syPush() {
+  if (!SY || !SY.dir) return; if (SY.busy) { syncSoon(); return; } SY.busy = true;
+  try {
+    storeCurrent();
+    const levels = LIB.filter(l => SY.synced[syLevelKey(l)] !== syLevelHash(l)), towns = OWLIB.filter(m => SY.synced[syTownKey(m)] !== syTownHash(m));
+    if (!levels.length && !towns.length) return;
+    await syWriteInbox({ type: 'mariotrickster-levelpack', v: 1, rules: 'S214', levels: levels.map(l => ({ id: l.id, name: l.name || '未命名', goal: l.goal || '', grid: l.grid, notes: l.notes || [] })), overworlds: towns.map(owToJson), proposals: S.proposals }, 'sync');
+    for (const l of levels) SY.synced[syLevelKey(l)] = syLevelHash(l); for (const m of towns) SY.synced[syTownKey(m)] = syTownHash(m); sySaveHashes();
+    syStatus('🔗 ' + SY.name + ' ✓', 'gold');
+  } catch (e) { syStatus('🔗 同步出错', ''); toast('写入 Unity 项目失败：' + e.message + '（点 🔗 重新连接）'); SY.dir = null; }
+  finally { SY.busy = false; }
+}
+/** Unity 关卡库 .txt → 网页关卡（# Pending 的新机制格子还原回原字符）。 */
+function syLevelFromTxt(text, file) {
+  const lines = text.replace(/\r/g, '').split('\n'); const rows = lines.filter(r => r.length && !r.startsWith('#'));
+  const meta = k => { const m = lines.find(r => r.startsWith(`# ${k}: `)); return m ? m.slice(k.length + 4).trim() : ''; };
+  const grid = rows.map(r => r.split('')), h = grid.length;
+  for (const r of lines.filter(r => r.startsWith('# Pending: '))) { const c = r[11]; for (const m of r.matchAll(/\((\d+),(\d+)\)/g)) { const x = +m[1], y = +m[2]; if (grid[h - 1 - y] && grid[h - 1 - y][x] === '.') grid[h - 1 - y][x] = c; } }
+  const notes = lines.filter(r => r.startsWith('# Note: ')).map(r => { const m = r.match(/^# Note: \((\d+),(\d+)\) (.*)$/); return m ? { x: +m[1], y: +m[2], text: m[3] } : null; }).filter(Boolean);
+  return { name: meta('Name') || file.replace(/\.txt$/, ''), goal: meta('Goal'), id: meta('Source'), grid: grid.map(r => r.join('')), notes };
+}
+async function syReadDir(name) { const out = []; try { const d = await SY.levels.getDirectoryHandle(name); for await (const [n, h] of d.entries()) if (h.kind === 'file' && n.endsWith('.txt')) out.push([n, await (await h.getFile()).text()]); } catch (e) { } return out; }
+async function syPull(first) {
+  if (!SY || !SY.dir) return; if (SY.busy) { setTimeout(() => syPull(first), 400); return; } SY.busy = true; let got = 0, clash = [], kept = [];
+  try {
+    storeCurrent();
+    for (const [f, t] of await syReadDir('Library')) {
+      const u = syLevelFromTxt(t, f), key = syLevelKey(u), uh = syLevelHash(u); if (!u.grid.length || SY.synced[key] === uh) continue;
+      const mine = LIB.find(l => l.name === u.name);
+      if (mine && syLevelHash(mine) === uh) { SY.synced[key] = uh; continue; }
+      if (!mine && SY.synced[key] !== undefined) continue; // 网页里删掉 / 改名了：不从 Unity 复活
+      if (mine && SY.synced[key] === undefined) { // 第一次连接就不一样：Unity 项目（进 git 的）为准，网页这份留一个副本（只在网页，不推过去）
+        const copy = { id: newId(), name: uniqueName(u.name + '（网页旧版）'), goal: mine.goal, grid: mine.grid.slice(), notes: (mine.notes || []).slice() };
+        LIB.push(copy); SY.synced[syLevelKey(copy)] = syLevelHash(copy); Object.assign(mine, { grid: u.grid, goal: u.goal, notes: u.notes }); SY.synced[key] = uh; got++; kept.push(copy.name); continue;
+      }
+      if (mine && syLevelHash(mine) !== SY.synced[key]) { clash.push(u.name); continue; } // 连上之后两边都改了：留网页版本，推过去时 Unity 自动备份旧的
+      if (mine) Object.assign(mine, { grid: u.grid, goal: u.goal, notes: u.notes }); else LIB.push({ id: u.id || newId(), name: u.name, goal: u.goal, grid: u.grid, notes: u.notes });
+      SY.synced[key] = uh; got++;
+    }
+    for (const [f, t] of await syReadDir('Overworld')) {
+      if (!/^# Overworld:/m.test(t)) continue; const u = owParse(t), key = syTownKey(u), uh = syTownHash(u); if (SY.synced[key] === uh) continue;
+      const i = OWLIB.findIndex(m => m.name === u.name);
+      if (i >= 0 && syTownHash(OWLIB[i]) === uh) { SY.synced[key] = uh; continue; }
+      if (i < 0 && SY.synced[key] !== undefined) continue;
+      if (i >= 0 && SY.synced[key] === undefined) { const copy = Object.assign(owFromJson(owToJson(OWLIB[i])), { name: OWLIB[i].name + '（网页旧版）' }); OWLIB.push(copy); SY.synced[syTownKey(copy)] = syTownHash(copy); OWLIB[i] = u; SY.synced[key] = uh; got++; kept.push(copy.name); continue; }
+      if (i >= 0 && syTownHash(OWLIB[i]) !== SY.synced[key]) { clash.push('小镇 ' + u.name); continue; }
+      if (i >= 0) OWLIB[i] = u; else OWLIB.push(u);
+      SY.synced[key] = uh; got++;
+    }
+    sySaveHashes();
+    if (got) { const l = LIB.find(x => x.id === CUR) || LIB[0]; openLevel(l.id); renderLib(); if ($('#pageOverworld').classList.contains('on')) owRender(); try { localStorage.setItem(LS2, JSON.stringify({ lib: LIB, cur: CUR, proposals: S.proposals, cuts: S.cuts })); localStorage.setItem(LSOW, JSON.stringify({ lib: OWLIB.map(owToJson), cur: OWCUR })); } catch (e) { } }
+    if (kept.length) toast(`第一次连接：以 Unity 项目为准；网页里不一样的留了副本：${kept.join('、')}`);
+    else if (got || clash.length) toast((got ? `从 Unity 拿到 ${got} 处更新` : '') + (clash.length ? `${got ? '；' : ''}两边都改了：${clash.join('、')} → 保留网页版本（Unity 的旧版本在它的备份里）` : ''));
+    else if (first) toast(`已连接 ${SY.name}：之后这里一改，切到 Unity 就自动导入；Unity 里存了，切回这里自动拿到`);
+  } catch (e) { toast('读取 Unity 项目失败：' + e.message); }
+  finally { SY.busy = false; }
+  if (clash.length) syPush();
+}
+async function syPlayInUnity() {
+  if (!SY || !SY.dir) { syConnect(); return; }
+  storeCurrent(); await syPush();
+  const town = $('#pageOverworld').classList.contains('on');
+  await syWriteInbox({ type: 'mariotrickster-play', v: 1, play: town ? { town: owM().name } : { level: S.name }, at: Date.now() }, 'play');
+  toast(`切到 Unity 就开始试玩「${town ? owM().name : S.name}」（Unity 在 Play 中时会等它停下）`);
+}
+window.addEventListener('focus', () => syPull(false));
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syPull(false); });
+$('#btnSync').onclick = () => SY && SY.dir ? syPull(false) : syConnect(SY && SY.pendingDir);
+$('#btnPlayUnity').onclick = syPlayInUnity;
+(async () => { try { const d = await syIdb('readonly', s => s.get('dir')); if (d) { SY = { pendingDir: d }; syStatus('🔗 重新连接 ' + d.name, ''); } } catch (e) { } })();
+
+// ── S214 关卡切换：PageUp / PageDown（和 Unity 关卡工坊 ◀ ▶ 一样）──
+function stepLevel(dir) { if (LIB.length < 2) return; storeCurrent(); const i = LIB.findIndex(l => l.id === CUR); const n = LIB[(i + dir + LIB.length) % LIB.length]; openLevel(n.id); save(); toast(`${LIB.indexOf(n) + 1}/${LIB.length}  ${n.name}`); }
+function stepTown(dir) { if (OWLIB.length < 2) return; OWCUR = (OWCUR + dir + OWLIB.length) % OWLIB.length; OWT.undo = []; OWT.redo = []; owRender(); toast(`${OWCUR + 1}/${OWLIB.length}  ${owM().name}`); }
+window.addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea,select') || (e.key !== 'PageUp' && e.key !== 'PageDown')) return;
+  e.preventDefault(); const d = e.key === 'PageUp' ? -1 : 1;
+  if ($('#pageOverworld').classList.contains('on')) stepTown(d); else if ($('#pageDesign').style.display !== 'none') stepLevel(d);
+}, true);

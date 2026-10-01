@@ -295,7 +295,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <div class="row owbar" style="flex-wrap:wrap;gap:6px;margin-bottom:8px;align-items:center">
         <select class="f" id="owPick" style="flex:0 0 180px" title="你的所有小镇"></select>
         <button class="btn small" id="owNew">新建</button>
-        <select class="f" id="owSample" style="flex:0 0 150px" title="内置样板"><option value="">载入样板…</option><option value="small">星露小镇（44×28 入门）</option><option value="big">星露大镇（72×40 大机关 + 连锁）</option><option value="mtn">星露山镇（72×40 山脉 山洞 闪电 泥石流）</option></select>
+        <select class="f" id="owSample" style="flex:0 0 150px" title="内置样板"><option value="">载入样板…</option><option value="small">星露小镇（44×28 入门）</option><option value="big">星露大镇（72×40 大机关 + 连锁）</option><option value="mtn">星露山镇（72×40 山脉 山洞 闪电 泥石流）</option><option value="storm">星露雷镇（72×40 雷区 补心 能量 雷云）</option></select>
         <button class="btn small" id="owDel">删除</button>
         <select class="f" id="owGrow" style="flex:0 0 150px" title="把地图往外加大（新地是草地，最外圈自动种树）或裁掉一圈；和 Unity 小镇工坊 ↔ 扩展 同一套规则">
           <option value="">↔ 扩展地图…</option>
@@ -310,6 +310,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
         <button class="btn small" data-owtool="rect">▭ 矩形</button>
         <button class="btn small" data-owtool="fill">▦ 填充</button>
         <button class="btn small" data-owtool="pick" title="I（或按住 Alt 点一下）">◉ 吸管</button>
+        <button class="btn small" data-owtool="storm" title="Z：拖一个框 = 雷区。雷雨天（或勾'每天'）每隔一会儿在框里随机劈几道闪电；右键点雷区 = 删">⛈ 雷区</button>
         <button class="btn small" id="owUndo" title="Ctrl+Z">↶</button>
         <button class="btn small" id="owRedo" title="Ctrl+Y">↷</button>
         <label class="toggle"><input type="checkbox" id="owRoute" checked> 路线</label>
@@ -329,6 +330,10 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <div id="owDoors"></div>
       <h3 id="owHead">检查</h3>
       <div id="owIssues"></div>
+      <h3>⛈ 雷区 <small class="hint">按 Z 在画布上拖框；每次随机劈 最少–最多 道（先蓝色闪 1.2 秒预警）</small></h3>
+      <div id="owStorms" class="owsched"></div>
+      <h3>❤ 伤害一览 <small class="hint">谁碰到什么、掉几颗心（游戏里和 Unity 同一张表）</small></h3>
+      <div id="owHarm" class="owsched"></div>
       <h3>📋 一天总览 <small class="hint">按马里奥的顺序：每扇门主打什么、哪扇门第一次教新机关</small></h3>
       <div id="owLedger" class="owsched"></div>
       <h3>⚡ 大机关 · 连锁 <small class="hint">点一行 = 画布定位（和 Unity 小镇工坊同一套规则）</small></h3>

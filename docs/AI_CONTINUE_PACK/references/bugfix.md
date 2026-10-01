@@ -46,3 +46,9 @@
 | "按任意键开始" / R / N / Esc 没反应 | 只读旧 Input | 一律 Step1Keys（KeyboardInputProvider 全局键也改了） |
 | 早上马里奥不动像卡了 | 08:00 才出门，没提示 | 底部"几点出门、还有几秒、按住空格快进" |
 | 用户测试被问卷/弹窗打断、反馈丢 | 每局 5 道问卷 | 测试中心：快速测试模式 + F8 反馈 + 打包 zip；用户发来反馈包 → 先读 00_给AI的话.md、HealthCheck.md、feedback.md（错误行有位置），再看截图（gsk understand_images） |
+
+## S220：编辑器窗口卡顿（IMGUI）
+- 症状："下拉菜单卡""拖半天没反应，然后突然拖下来"。原因：OnGUI 每个事件（Layout + Repaint + 鼠标移动）都会执行；里面只要有读盘 / 全图检查 / 验房间变体，就会卡。
+- 规则：OnGUI 里只读缓存。改地图后调用 `Touch()`（版本 +1，0.12 秒后空闲再 Recheck）；会改变布局的状态只在 MouseUp / EditorApplication.update / delayCall 里改。
+- 文件列表用 `LevelLibrary.Signature`（文件数 + 最新修改时间）缓存；写文件后调用 `Invalidate` / `OverworldBuilder.InvalidateCaches()`。
+- 网页同理：mousemove 只做 `owDraw()`（贴离屏底图 + 悬停框），mouseup 才 `owRender()`；改了地图要 `OWT.ver++`。

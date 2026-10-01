@@ -396,7 +396,7 @@ public static class OverworldEvents
     public static Kind[] Pool(OverworldMap.Map m)
     {
         var l = new List<Kind>(Base);
-        if (OverworldMap.Find(m, 'i').Count > 0) l.Add(Kind.Storm);
+        if (OverworldMap.Find(m, 'i').Count > 0 || m.storms.Count > 0) l.Add(Kind.Storm); // S220：画了雷区也会有雷雨天
         if (OverworldMap.Find(m, 'h').Count >= 2) l.Add(Kind.Acid);
         return l.ToArray();
     }
@@ -437,7 +437,7 @@ public static class OverworldEvents
             case Kind.Rain: return $"🌧 雨天：水塔淹得更大（半径 {OverworldProps.FloodRadius + 1}），香蕉皮滑得更久，山丘被震会泥石流";
             case Kind.Fog: return "🌫 雾天：他只看得见平时 6 成远（你也更好躲）";
             case Kind.Market: return "🧺 赶集日：他每扇门晚 0–30 分钟出门（时间表已更新）";
-            case Kind.Storm: return "⛈ 雷雨：在路灯旁按 L 召唤闪电（1.5 格内晕），山丘被震会泥石流";
+            case Kind.Storm: return "⛈ 雷雨：雷区一阵阵劈闪电（地上闪光 = 快跑），在路灯旁按 L 召唤闪电，山丘被震会泥石流";
             case Kind.Acid: return "☂ 酸雨：高草全枯了（只剩山洞能躲），他打着伞只看得见 7 成远";
             default: return "☀ 晴天：一切照常";
         }

@@ -118,6 +118,13 @@ public class PlayerHealth : MonoBehaviour
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 
+    /// <summary>S220：直接设成 n 颗心（从小镇带进房间用）。夹在 1..max，不触发受伤闪烁 / 无敌。</summary>
+    public void SetCurrent(int n)
+    {
+        currentHealth = Mathf.Clamp(n, 1, maxHealth);
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+    }
+
     /// <summary>重置生命值</summary>
     public void ResetHealth()
     {

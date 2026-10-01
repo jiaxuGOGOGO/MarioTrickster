@@ -121,6 +121,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
 
+### [S220] 用户："目前下拉菜单特别卡 拖把天没反应 然后突然拖下来了……闪电是否是范围内（关卡编辑的时候自己设置范围）随机同时霹几道闪电（可以设置至少几道 限制最多几道）……马里奥也是三条命 或者设置失去的获取生命的道具 或者拾取能量的道具 让捣蛋者能量满了有机会可以操控天气……副作用就是自然灾害可能同时影响到自己……道具陷进过于抽象……方便后续美术资产替换"
+
+- 防卡：小镇工坊拖动只 Touch（mapVersion++），松手 / 空闲 0.12 秒才 Recheck；OnFocus 走 delayCall；Describe / Preview / 红框 / 路线 / GUIStyle 按版本缓存；LevelLibrary.List / OverworldBuilder.List 按文件夹签名缓存，ResolveRoom 按 mtime 缓存，RoomProblem 按 RoomHash 缓存，TownFingerprint 缓存；WebSync 导入后 InvalidateCaches。网页：离屏底图，mousemove 只贴底图 + 悬停框，mouseup 才 owRender。
+- 雷区：`# Storm: x0,y0,x1,y1 | min | max [| always]`（最多 4 块，1–6 道）；OverworldStorm（Volley 可复现 xorshift，网页逐字一致）；工坊 ⛈ 工具（Z）+ 雷区面板；网页同款。
+- 心 3 颗 + 伤害表 OverworldCatalog.Harm；2.5 秒无敌、掉光晕 3 秒剩 1；`+` 补心、`*` 能量；Q 雷云（能量 3，原地 9 秒，会劈到自己）；带心进房间 OverworldRoomCarry。
+- 像素图标 OverworldArt（18 个，生成器 gen_art.py）；运行时 / 工坊 / 网页同一套；Resources/OverworldArt 同名覆盖 + OverworldArtImporter 点采样 + 菜单导出模板。
+- 调参 v21（8 个字段）。新测试 4 项。没做：房间贴图重画、山图标、洪水扣血。详见 docs/step1/S220_HEARTS_STORMZONES_CLOUD_NOLAG.md。
+
 ### [S219] 用户："大炮是否能操作调整方向在角色不管是马里奥还是捣蛋者按键进入大炮后在发射前可以给出方向并标识出落点 是否还可以加入山脉地形 躲在山丘暗中不止陷进 或者山洞里 基于这些设想更新优化关卡所有关联联动……天气系统可以根据游戏目前的格局进行综合考虑添加 召唤闪电 或者酸雨 如果有山脉可能会触发泥石流山洪等灾害"
 
 - 纯逻辑 `OverworldProps`：DefaultAim / AimStep / AimLanding / AimOk、StepsField、Height、CaveExit、MudDir / MudLane / Muddable / MudSources、CheckMountains、DescribeMountains；`OverworldEvents`：Kind 加 Storm / Acid，Pool(map)（路灯 → 雷雨、≥2 山洞 → 酸雨），Wet，酸雨 ApplyTo 高草 → 草。网页 overworld.js 逐行移植，verify 生成 ow_mtn.json 对照 99 行。

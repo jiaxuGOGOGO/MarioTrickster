@@ -60,6 +60,13 @@ public class TricksterLives : MonoBehaviour
         LivesChanged?.Invoke(Lives);
     }
 
+    /// <summary>S220：从小镇带进来的命（小镇里的心）。夹在 1..MaxLives，不算"被抓"。</summary>
+    public void SetLives(int n)
+    {
+        Lives = Mathf.Clamp(n, 1, MaxLives);
+        LivesChanged?.Invoke(Lives);
+    }
+
     /// <summary>S198：被自己的炸弹等炸到：掉 n 条命（无敌期内不掉），命没了本局马里奥赢。原地不传送（不是被抓）。</summary>
     public bool HitBySelf(int n)
     {

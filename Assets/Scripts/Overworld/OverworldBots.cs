@@ -77,8 +77,11 @@ public static class OverworldBots
                     }
                 }
             }
+            // S220：能量满 → 捣蛋型在他走近（4 格内）时按 Q；乱按型随便按；会躲的从不按
+            if (kind == Kind.Prankster && OverworldSession.Energy >= OverworldSession.MaxEnergy && !town.marioInside && OverworldTown.Dist(town.mario.x, town.mario.y, town.tx, town.ty) < 4) input.weather = true;
             if (kind == Kind.Chaos)
             {
+                input.weather = rng.NextDouble() < 0.01;
                 if (rng.NextDouble() < 0.05) { chaosH = (float)(rng.NextDouble() * 2 - 1); chaosV = (float)(rng.NextDouble() * 2 - 1); }
                 input.h = chaosH; input.v = chaosV; goal = null;
                 input.disguise = rng.NextDouble() < 0.01; input.peel = rng.NextDouble() < 0.02; input.taunt = rng.NextDouble() < 0.005; input.door = rng.NextDouble() < 0.05;

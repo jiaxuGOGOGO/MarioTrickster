@@ -632,4 +632,70 @@ public class OverworldTests
         Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 20);
         var t = Tuning(); Assert.Greater(t.overworldCannonSeatSeconds, 0f, "H9：坐炮有时限"); Assert.Greater(t.overworldMarioCannonAimSeconds, 0.8f, "他瞄准时你来得及反应");
     }
+
+    // ═════ S220：心 / 雷区 / 补心能量 / Q 雷云 / 防卡 ═════
+    private static OverworldMap.Map StormTown() => OverworldPack.Parse(OverworldPack.StormSampleText)[0];
+
+    [Test]
+    public void S220_StormSample_Playable_RoundTrips_AndOldMapsUnchanged()
+    {
+        var m = StormTown();
+        Assert.IsTrue(OverworldMap.Check(m, OverworldMap.Rules.Default).Playable, "星露雷镇可以试玩");
+        Assert.AreEqual(2, m.storms.Count);
+        var rt = OverworldMap.Parse(OverworldMap.ToText(m));
+        Assert.AreEqual(OverworldMap.StormText(m.storms[0]), OverworldMap.StormText(rt.storms[0]));
+        Assert.IsTrue(rt.storms[0].always); Assert.IsFalse(rt.storms[1].always);
+        foreach (var txt in new[] { OverworldPack.SampleText, OverworldPack.BigSampleText, OverworldPack.MountainSampleText })
+            StringAssert.DoesNotContain("storms", OverworldMap.ToJson(OverworldMap.Parse(txt)), "旧小镇的 JSON 不多一个字");
+    }
+
+    [Test]
+    public void S220_StormVolley_Reproducible_InRange_InsideZone()
+    {
+        var m = StormTown();
+        for (int z = 0; z < m.storms.Count; z++)
+            for (int v = 0; v < 40; v++)
+            {
+                var a = OverworldStorm.Volley(m, z, 3, v); var b = OverworldStorm.Volley(m, z, 3, v); var st = m.storms[z];
+                Assert.AreEqual(string.Join(";", a), string.Join(";", b), "同一天同一轮 → 同样的落点（可复现）");
+                Assert.That(a.Count, Is.InRange(st.min, st.max), "每次劈 最少..最多 道");
+                foreach (var c in a) { Assert.That(c.x, Is.InRange(st.x0, st.x1)); Assert.That(c.y, Is.InRange(st.y0, st.y1)); Assert.IsTrue(OverworldMap.Walkable(m, c.x, c.y)); }
+            }
+        var bad = StormTown(); bad.storms[0].min = 5; bad.storms[0].max = 3;
+        Assert.IsFalse(OverworldMap.Check(bad, OverworldMap.Rules.Default).Playable, "最少 > 最多 = 红色错误");
+    }
+
+    [Test]
+    public void S220_Hearts_Grace_KO_Pickups_Cloud()
+    {
+        var t = Tuning(); var inp = new OverworldTown.Input(); const float dt = 1f / 30;
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇", "Town", 1); OverworldSession.Active = true;
+        var town = new OverworldTown(StormTown(), t);
+        var hurt = typeof(OverworldTown).GetMethod("HurtYou", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        hurt.Invoke(town, null); hurt.Invoke(town, null);
+        Assert.AreEqual(2, OverworldSession.YouHearts, "被打后 2.5 秒内不再掉心");
+        var hp = OverworldMap.Find(town.map, '+')[0]; town.tx = hp.x + 0.5; town.ty = hp.y + 0.5; town.frozen = 0f; town.Tick(dt, inp);
+        Assert.AreEqual(3, OverworldSession.YouHearts, "少了心踩 + 补 1 颗");
+        town.tx = 50.5; town.ty = 19.5; town.frozen = 0f; town.Tick(dt, new OverworldTown.Input { weather = true });
+        Assert.IsNull(town.cloud, "能量没满不能召唤雷云");
+        OverworldSession.Energy = OverworldSession.MaxEnergy; town.Tick(dt, new OverworldTown.Input { weather = true });
+        Assert.IsNotNull(town.cloud); Assert.AreEqual(0, OverworldSession.Energy, "召唤后能量清零");
+        double cx = town.cloud.x; for (int i = 0; i < 60; i++) town.Tick(dt, inp);
+        if (town.cloud != null) Assert.AreEqual(cx, town.cloud.x, "雷云停在召唤的地方（不跟着你）");
+        OverworldSession.ResetStatics();
+    }
+
+    [Test]
+    public void Wiring_S220_NoLagEditor_ArtPipeline_Tuning21()
+    {
+        string w = Read("Scripts/Editor/OverworldWorkshopWindow.cs"), b = Read("Scripts/Editor/OverworldBuilder.cs"), lib = Read("Scripts/Editor/LevelLibrary.cs");
+        StringAssert.Contains("Set(x, y, paint); Touch(); }", w);              // 拖动只改格子，不整张检查
+        StringAssert.Contains("EditorApplication.delayCall += () => { if (this != null && map != null) Recheck(); }", w); // OnFocus 不在 OnGUI 中途改状态
+        StringAssert.Contains("problemCache", b);                              // 房间验证结果缓存
+        StringAssert.Contains("Signature(Folder, \"*.txt\")", lib);            // 关卡库列表缓存
+        StringAssert.Contains("Resources.Load<Texture2D>(\"OverworldArt/\"", Read("Scripts/Overworld/Runtime/OverworldGame.cs")); // 美术同名换图
+        StringAssert.Contains("filterMode = FilterMode.Point", Read("Scripts/Editor/OverworldArtTools.cs"));
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 21);
+        var t = Tuning(); Assert.Greater(t.overworldBoltTelegraphSeconds, 0.9f, "闪电预警够看清"); Assert.Greater(t.overworldHurtGraceSeconds, 1f);
+    }
 }

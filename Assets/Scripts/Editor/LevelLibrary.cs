@@ -16,16 +16,35 @@ public static class LevelLibrary
 
     public static string PathFor(string name) => Folder + "/" + LevelPack.SafeFileName(name) + ".txt";
 
+    // S220：缓存——以前每次调用都把关卡库里每个文件读一遍；小镇工坊每动一下鼠标会调用好几次 → 下拉菜单 / 拖动卡顿。
+    // 现在：文件夹"签名"（文件数 + 最新修改时间）没变就直接用上次的结果；签名最多 1 秒查一次；存 / 导入时立刻作废。
+    private static List<(string name, string path, List<char> pending)> cache;
+    private static string cacheSig = ""; private static double cacheCheckedAt = -10;
+    public static void Invalidate() { cache = null; cacheSig = ""; cacheCheckedAt = -10; }
+    public static string Signature(string folder, string pattern)
+    {
+        if (!Directory.Exists(folder)) return "none";
+        var fs = Directory.GetFiles(folder, pattern); long max = 0;
+        foreach (var f in fs) { long t = File.GetLastWriteTimeUtc(f).Ticks; if (t > max) max = t; }
+        return fs.Length + ":" + max;
+    }
+
     public static List<(string name, string path, List<char> pending)> List()
     {
+        double now = EditorApplication.timeSinceStartup;
+        if (cache != null && now - cacheCheckedAt < 1.0) return new List<(string, string, List<char>)>(cache);
+        cacheCheckedAt = now;
+        string sig = Signature(Folder, "*.txt");
+        if (cache != null && sig == cacheSig) return new List<(string, string, List<char>)>(cache);
         var list = new List<(string, string, List<char>)>();
-        if (!Directory.Exists(Folder)) return list;
-        foreach (var f in Directory.GetFiles(Folder, "*.txt").OrderBy(p => p, StringComparer.Ordinal))
-        {
-            string text = File.ReadAllText(f);
-            list.Add((LevelPack.NameOf(text) ?? Path.GetFileNameWithoutExtension(f), f.Replace('\\', '/'), LevelPack.PendingOf(text)));
-        }
-        return list;
+        if (Directory.Exists(Folder))
+            foreach (var f in Directory.GetFiles(Folder, "*.txt").OrderBy(p => p, StringComparer.Ordinal))
+            {
+                string text = File.ReadAllText(f);
+                list.Add((LevelPack.NameOf(text) ?? Path.GetFileNameWithoutExtension(f), f.Replace('\\', '/'), LevelPack.PendingOf(text)));
+            }
+        cache = list; cacheSig = sig;
+        return new List<(string, string, List<char>)>(cache);
     }
 
     public static string Save(LevelPack.Level level)
@@ -35,6 +54,7 @@ public static class LevelLibrary
         string text = LevelPack.ToText(level);
         WebSync.BackupBeforeWrite(path, text); // S214：覆盖前备份旧版本
         File.WriteAllText(path, text);
+        Invalidate();
         AssetDatabase.ImportAsset(path);
         return path;
     }

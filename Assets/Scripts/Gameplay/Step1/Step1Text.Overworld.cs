@@ -14,10 +14,13 @@ public static partial class Step1Text
         "巨炮：走到炮旁按 E 坐进去，方向键瞄准（落点画在地上），L 把自己轰过去；他也会坐炮抄近路——红圈是他的落点，跑过去按 L 拨歪\n" +
         "山丘 ^ 挡住平地上的视线（躲在后面），站上去看得远、L 够得远；山洞 h 两个一对，钻进去按 E 从另一头出来\n" +
         "每天早上公布天气：大风吹偏炮弹、雨天水更大、雾天他看得近、赶集日他晚出门；雷雨在路灯旁 L 召唤闪电；酸雨高草全枯；下雨天震到山坡 = 泥石流\n" +
+        "心：你和马里奥各 3 颗（左上）。被闪电 / 滚石 / 泥石流 / 被巨炮轰 打中 = 掉 1 颗心 + 晕 2 秒（受伤后 2.5 秒内不再掉心）；香蕉皮只滑倒、水淹只变慢。心掉光 = 晕倒 3 秒、剩 1 颗站起来\n" +
+        "雷区（地图上的蓝色虚线框）：每隔一会儿同时劈几道闪电——地上先闪 1.2 秒，变白 = 马上劈，十字形 1 格。+ 补心，* 能量（你的机关让他掉心也 +1）\n" +
+        "能量满 3 格按 Q：在你头顶召唤雷云（停在原地 9 秒，冲着云里的他劈，但也会随机劈——快逃出来，别劈到自己）\n" +
         "指引：屏幕边上的箭头 = 下一扇门；左上会算好\"你几秒 / 他几秒\"来不来得及；按住 Tab 看去门的路线，M 小地图   H 关闭/打开说明";
 
     // S217：测试不卡人——底部常驻按键、等他出门的提示、没点游戏窗口的提醒、快速测试、F8 反馈
-    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   E 门口埋伏/坐炮/钻洞   空格(按住) 快进   Tab 路线   M 小地图   - / = 镜头远近   H 说明   F8 记反馈";
+    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   Q 雷云(能量满)   E 门口埋伏/坐炮/钻洞   空格(按住) 快进   Tab 路线   M 小地图   - / = 镜头远近   H 说明   F8 记反馈";
     public const string OverworldHelpClose = "按任意键关闭说明（H 随时再打开）  Press any key";
     public static string OverworldWaitDepart(int door, string clock, double realSeconds) =>
         $"马里奥 {clock} 才出门去门 {door}（还有约 {realSeconds:0} 秒）\n先去门口躲好，或按住空格快进";
@@ -57,6 +60,19 @@ public static partial class Step1Text
     public const string OverworldLightning = "闪电劈下来了！旁边的人都晕了\nLightning!";
     public const string OverworldMudslide = "泥石流！山坡冲下来一片泥地\nMudslide!";
     public const string OverworldCaveHop = "从山洞另一头钻出来了\nThrough the cave";
+    // S220：心 / 能量 / 雷区 / 雷云
+    public const string OverworldYouHurt = "你被打中了！掉 1 颗心，晕 2 秒\nYou got hit (-1 heart)";
+    public const string OverworldYouKO = "你的心掉光了！晕倒 3 秒，剩 1 颗心站起来\nKnocked out!";
+    public const string OverworldMarioKO = "马里奥的心掉光了！他晕倒 3 秒（进门时他只带 2 颗心）\nMario knocked out!";
+    public const string OverworldHeal = "捡到补心 +1\n+1 heart";
+    public const string OverworldMarioHeal = "马里奥路过捡了补心 +1\nMario healed";
+    public const string OverworldEnergyUp = "能量 +1（满 3 格按 Q 召唤雷云）\n+1 energy";
+    public const string OverworldEnergyFull = "能量满了！按 Q 在头顶召唤雷云（会劈到你自己，召完快跑）\nEnergy full — press Q";
+    public const string OverworldCloud = "雷云来了！它停在这里不动——快跑出圈，让他走进来\nStorm cloud summoned — get out!";
+    public const string OverworldCloudLow = "能量不够（要满 3 格）：捡 * 或者用机关让他掉心\nNot enough energy";
+    public const string OverworldStormBolt = "雷区劈下来了！地上闪光 = 马上劈，变白就跑\nLightning zone!";
+    public static string OverworldRoomCarry(int mario, int you) => $"带着心进门：马里奥 {mario} ❤  你 {you} 条命\nCarried hearts";
+    public static string OverworldHearts(int mario, int you, int energy) => $"马里奥 {new string('♥', mario)}{new string('♡', System.Math.Max(0, 3 - mario))}   你 {new string('♥', you)}{new string('♡', System.Math.Max(0, 3 - you))}   能量 {new string('◆', energy)}{new string('◇', System.Math.Max(0, 3 - energy))}" + (energy >= 3 ? "  Q!" : "");
     public const string OverworldCaveNoExit = "这个山洞没有另一头（山洞要两个一对）\nDead-end cave";
     public static string OverworldWeather(int day, string zh) => $"第 {day} 天  {zh}\nDay {day}";
     public static string OverworldWeatherShort(int day, int kind) => $"D{day} " + (kind == 1 ? "🌬" : kind == 2 ? "🌧" : kind == 3 ? "🌫" : kind == 4 ? "🧺" : kind == 5 ? "⛈" : kind == 6 ? "☂" : "☀");

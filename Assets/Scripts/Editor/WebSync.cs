@@ -52,6 +52,7 @@ public sealed class WebSync : AssetPostprocessor
             ImportFile(path, text);
             AssetDatabase.DeleteAsset(path); // 收完就删：收件箱只放"还没收的"，不会被旧文件反复覆盖
         }
+        OverworldBuilder.InvalidateCaches(); // S220：关卡库 / 小镇列表的缓存作废
         if (play != null) Play(play);
     }
 

@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 20;
+    public const int CurrentDataVersion = 21;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -501,6 +501,24 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("S219：酸雨天马里奥打着伞，看得见平时的几成远")]
     [Range(0.3f, 1f)] public float overworldAcidSight = 0.7f;
 
+    [Header("S220: 小镇的心 / 雷区 / 雷云")]
+    [Tooltip("S220：雷区多久劈一轮（真实秒，按游戏时间换算，快进也一样）")]
+    public float overworldStormVolleySeconds = 10f;
+    [Tooltip("S220：闪电落下前地上闪多久（秒）。最后 0.3 秒变白 = 马上劈（两段预警：反应 0.25 秒 + 走出 1 格 0.5 秒刚好来得及）")]
+    public float overworldBoltTelegraphSeconds = 1.2f;
+    [Tooltip("S220：受伤后几秒内不再掉心（只挡掉心，晕照样晕）")]
+    public float overworldHurtGraceSeconds = 2.5f;
+    [Tooltip("S220：心掉光 = 晕倒几秒，然后剩 1 颗心站起来（一天不会因此结束）")]
+    public float overworldKoSeconds = 3f;
+    [Tooltip("S220：雷云（能量满按 Q）持续几秒")]
+    public float overworldCloudSeconds = 9f;
+    [Tooltip("S220：雷云半径（格）。雷云停在召唤的地方，不跟着你走——你得自己逃出来")]
+    public float overworldCloudRadius = 3f;
+    [Tooltip("S220：雷云每隔几秒劈一轮（每轮 2 道：一道冲着云里的马里奥，一道随机——可能劈到你自己）")]
+    public float overworldCloudVolleySeconds = 2.5f;
+    [Tooltip("S220：马里奥带进房间至少几颗心（小镇里被打得再惨，房间里也要能打）")]
+    public int overworldRoomHeartFloor = 2;
+
     [Header("S216: 手感 / 被弹飞的抛物线 / 特效")]
     [Tooltip("S216 被弹飞/打飞时的重力（格/秒²）。以前硬直期间往上飞没有重力 → 弹簧弹 11 格撞天花板、炸弹推 8 格像在月球。平时跳跃重力 80；这里略轻 → 有滞空感但仍是抛物线")]
     public float launchGravity = 40f;
@@ -632,6 +650,11 @@ public class MarioMindTuningSO : ScriptableObject
         if (dataVersion < 20)
         {
             overworldCannonSeatSeconds = 6f; overworldCannonFireSeconds = 0.6f; overworldMarioCannonAimSeconds = 1.6f; overworldMarioCannonSaveSteps = 10; overworldAcidSight = 0.7f;
+        }
+        if (dataVersion < 21)
+        {
+            overworldStormVolleySeconds = 10f; overworldBoltTelegraphSeconds = 1.2f; overworldHurtGraceSeconds = 2.5f; overworldKoSeconds = 3f;
+            overworldCloudSeconds = 9f; overworldCloudRadius = 3f; overworldCloudVolleySeconds = 2.5f; overworldRoomHeartFloor = 2;
         }
         dataVersion = CurrentDataVersion;
         return true;

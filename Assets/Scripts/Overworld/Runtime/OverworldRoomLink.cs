@@ -13,7 +13,9 @@ public sealed class OverworldRoomLink : MonoBehaviour
     private bool over, applied;
     private float overTime;
     private string headline = "";
-    private float dazedNote;
+    private float dazedNote, carryNote;
+    private int carriedMario = -1, carriedYou = -1;
+    private GUIStyle noteStyle, overStyle;
     public const float AutoBackSeconds = 8f;
 
     private void Start()
@@ -67,7 +69,13 @@ public sealed class OverworldRoomLink : MonoBehaviour
             if (OverworldSession.CarriedSuspicion > 0f && driver.Mind != null) driver.Mind.Meter.Set(OverworldSession.CarriedSuspicion);
             // S218 小镇 → 房间：刚在镇上被大机关砸晕 → 开局多等几秒（迟到也照样晕着：晕是他身上的状态，不是"等你"）
             if (OverworldSession.CarriedDaze > 0f) { driver.AddStartDelay(OverworldSession.CarriedDaze); dazedNote = Time.unscaledTime + 3f; }
+            // S220：小镇的心带进来（他至少 2 颗；你的心 = 命数）。少了才提示
+            var hp = driver.GetComponent<PlayerHealth>();
+            if (hp != null) { carriedMario = OverworldRoomCarry.MarioRoomHearts(MarioMindTuningSO.LoadOrDefault(), hp.MaxHealth); if (carriedMario < hp.MaxHealth) driver.SetCarriedHealth(carriedMario); }
         }
+        var lives = FindObjectOfType<TricksterLives>();
+        if (lives != null) { carriedYou = OverworldRoomCarry.TricksterRoomLives(lives.MaxLives); if (carriedYou < lives.MaxLives) lives.SetLives(carriedYou); }
+        if ((carriedMario >= 0 && carriedMario < OverworldSession.MaxHearts) || (carriedYou >= 0 && carriedYou < OverworldSession.MaxHearts)) carryNote = Time.unscaledTime + 3.5f;
     }
 
     private void HandleOver(string winner)
@@ -101,9 +109,10 @@ public sealed class OverworldRoomLink : MonoBehaviour
 
     private void OnGUI()
     {
-        if (!over && Time.unscaledTime < dazedNote && !SceneTransit.Busy) GUI.Box(new Rect(Screen.width / 2f - 240, 80, 480, 56), Step1Text.OverworldRoomDazed(OverworldSession.CarriedDaze), new GUIStyle(GUI.skin.box) { fontSize = 18, alignment = TextAnchor.MiddleCenter, wordWrap = true });
+        if (noteStyle == null) { noteStyle = new GUIStyle(GUI.skin.box) { fontSize = 18, alignment = TextAnchor.MiddleCenter, wordWrap = true }; overStyle = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, wordWrap = true }; } // S220：样式只建一次（OnGUI 每帧好几次）
+        if (!over && Time.unscaledTime < dazedNote && !SceneTransit.Busy) GUI.Box(new Rect(Screen.width / 2f - 240, 80, 480, 56), Step1Text.OverworldRoomDazed(OverworldSession.CarriedDaze), noteStyle);
+        if (!over && Time.unscaledTime < carryNote && !SceneTransit.Busy) GUI.Box(new Rect(Screen.width / 2f - 240, 142, 480, 56), Step1Text.OverworldRoomCarry(carriedMario, carriedYou), noteStyle);
         if (!over || SceneTransit.Busy) return;
-        var st = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, wordWrap = true };
-        GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height - 150, 520, 120), headline + "\n" + Step1Text.OverworldBackToTown, st);
+        GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height - 150, 520, 120), headline + "\n" + Step1Text.OverworldBackToTown, overStyle);
     }
 }

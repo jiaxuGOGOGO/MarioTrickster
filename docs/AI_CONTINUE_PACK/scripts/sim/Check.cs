@@ -322,6 +322,95 @@ static class CHECK {
       for(int i=0;i<Math.Max(web.Count,mine.Count);i++){ string a2=i<mine.Count?mine[i]:"(无)", b=i<web.Count?web[i]:"(无)"; if(a2!=b){ wd++; if(wd<=3) Console.WriteLine($"     [FAIL] 山镇 网页≠Unity 第{i}行：\n        Unity {a2}\n        网页  {b}"); } } }
     rb+=wd;
     Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S219 巨炮瞄准 + 山地 + 雷雨泥石流：{string.Join("｜",parts)}｜网页对照{(!haveWeb?"跳过":wd==0?$"一致 {mine.Count} 行":"不一致")}"); fail+=rb; }
+  // S220：心 / 伤害表 / 雷区（设计师画范围、每次劈 min..max 道、可复现）/ 补心能量 / Q 雷云（会劈到自己）/ 带心进房间 + 网页逐字对照（ow_storm.json）
+  { int rb=0; var parts=new List<string>(); var r=OverworldMap.Rules.Default; var t=MarioMindTuningSO.LoadOrDefault(); var inp=new OverworldTown.Input(); const float dt=1f/30;
+    var sm=OverworldPack.Parse(OverworldPack.StormSampleText)[0];
+    var rep=OverworldMap.Check(sm,r); if(!rep.Playable){ rb++; Console.WriteLine("     [FAIL] 星露雷镇不可玩："+string.Join(" / ",rep.issues.Where(i=>i.sev==OverworldMap.Sev.Error).Take(3))); }
+    if(sm.storms.Count!=2){ rb++; Console.WriteLine($"     [FAIL] 星露雷镇雷区 {sm.storms.Count} 个（应 2）"); }
+    parts.Add($"星露雷镇 {rep.Headline} 雷区 {sm.storms.Count}");
+    // 旧图文本 / JSON 一个字不变（没有雷区就不写 Storm 行）
+    { bool same=true; foreach(var txt in new[]{OverworldPack.SampleText,OverworldPack.BigSampleText,OverworldPack.MountainSampleText}){ var m=OverworldMap.Parse(txt); if(OverworldMap.ToText(m)!=OverworldMap.ToText(OverworldMap.Parse(OverworldMap.ToText(m)))||OverworldMap.ToJson(m).Contains("storms")) same=false; }
+      var rt=OverworldMap.Parse(OverworldMap.ToText(sm)); bool rtOk=rt.storms.Count==2&&OverworldMap.StormText(rt.storms[0])==OverworldMap.StormText(sm.storms[0])&&rt.storms[0].always&&!rt.storms[1].always;
+      var js=OverworldMap.FromJson(MiniJson.Parse(OverworldMap.ToJson(sm),out _) as Dictionary<string,object>); bool jsOk=js.storms.Count==2&&OverworldMap.StormText(js.storms[1])==OverworldMap.StormText(sm.storms[1]);
+      if(!same||!rtOk||!jsOk){ rb++; Console.WriteLine($"     [FAIL] 往返：旧图不变={same} 文本往返={rtOk} JSON往返={jsOk}"); } else parts.Add("旧图文本/JSON 不变、雷区往返一致"); }
+    // 落点：可复现、数量在 min..max、不重复、都在框里、门/家/出生点 1 格外
+    { bool ok=true; int lo=99,hi=0; for(int z=0;z<sm.storms.Count;z++) for(int v=0;v<60;v++){ var a=OverworldStorm.Volley(sm,z,3,v); var b=OverworldStorm.Volley(sm,z,3,v); var st=sm.storms[z];
+        if(string.Join(";",a)!=string.Join(";",b)) ok=false; if(a.Count<st.min||a.Count>st.max) ok=false; if(a.Distinct().Count()!=a.Count) ok=false; lo=Math.Min(lo,a.Count); hi=Math.Max(hi,a.Count);
+        foreach(var c in a){ if(c.x<st.x0||c.x>st.x1||c.y<st.y0||c.y>st.y1||!OverworldMap.Walkable(sm,c.x,c.y)) ok=false; for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++){ char q=sm.At(c.x+dx,c.y+dy); if(q=='M'||q=='T'||OverworldCatalog.IsDoor(q)) ok=false; } } }
+      if(!ok){ rb++; Console.WriteLine("     [FAIL] 雷区落点：不可复现 / 道数越界 / 重复 / 出框 / 挨着门"); } else parts.Add($"落点可复现、每次 {lo}–{hi} 道"); }
+    // 检查：坐标出界 / min>max / 太多 / 劈不到 → 红；盖住门 → 黄
+    { var m=OverworldMap.Parse(OverworldPack.StormSampleText); m.storms.Add(new OverworldMap.Storm{x0=0,y0=0,x1=5,y1=5,min=1,max=2}); bool e1=!OverworldMap.Check(m,r).Playable;
+      m=OverworldMap.Parse(OverworldPack.StormSampleText); m.storms[0].min=5; m.storms[0].max=3; bool e2=!OverworldMap.Check(m,r).Playable;
+      m=OverworldMap.Parse(OverworldPack.StormSampleText); for(int i=0;i<3;i++) m.storms.Add(new OverworldMap.Storm{x0=2,y0=2,x1=4,y1=3,min=1,max=1}); bool e3=!OverworldMap.Check(m,r).Playable;
+      m=OverworldMap.Parse(OverworldPack.StormSampleText); m.storms.Add(new OverworldMap.Storm{x0=21,y0=20,x1=22,y1=26,min=1,max=1}); bool e4=!OverworldMap.Check(m,r).Playable; // 河里
+      m=OverworldMap.Parse(OverworldPack.StormSampleText); m.storms.Add(new OverworldMap.Storm{x0=10,y0=17,x1=18,y1=19,min=1,max=2}); bool w5=OverworldMap.Check(m,r).issues.Any(i=>i.sev==OverworldMap.Sev.Warn&&i.text.Contains("挨着门"));
+      m=OverworldMap.Parse(OverworldPack.StormSampleText); for(int i=0;i<4;i++){ var cs=OverworldMap.Find(m,'.'); OverworldMap.Set(m,cs[i*7].x,cs[i*7].y,'+'); } bool e6=!OverworldMap.Check(m,r).Playable;
+      if(!e1||!e2||!e3||!e4||!w5||!e6){ rb++; Console.WriteLine($"     [FAIL] 雷区检查：出界={e1} min>max={e2} 太多={e3} 劈不到={e4} 挨门提醒={w5} 补心太多={e6}"); } else parts.Add("检查：出界/道数/太多/劈不到/挨门/补心太多"); }
+    // 扩展地图：雷区跟着平移；裁掉 → 放不下的丢掉
+    { var m=OverworldMap.Parse(OverworldPack.StormSampleText); var rr=OverworldMap.Resize(m,4,0,0,2); bool mv=rr.ok&&m.storms[0].x0==20&&m.storms[0].y0==15;
+      var m2=OverworldMap.Parse(OverworldPack.StormSampleText); OverworldMap.Resize(m2,-20,0,0,0); bool drop=m2.storms.Count==1;
+      if(!mv||!drop){ rb++; Console.WriteLine($"     [FAIL] 扩展：平移={mv} 裁掉丢弃={drop}（剩 {m2.storms.Count}）"); } else parts.Add("扩展平移/裁掉丢弃"); }
+    OverworldTown Fresh(int day){ OverworldSession.ResetStatics(); OverworldSession.NewDay(sm.name,"Town",day); OverworldSession.Active=true; return new OverworldTown(OverworldPack.Parse(OverworldPack.StormSampleText)[0],t); }
+    // 雷区实跑（晴天也劈 always 的那个）：站在落点上 → 预警 1.2 秒 → 掉 1 颗心 + 晕；进场景当下不劈；预警期间不许快进
+    { var town=Fresh(1); int v0=OverworldStorm.VolleyIndex(OverworldSession.Minute,t.overworldStormVolleySeconds,t.overworldMinutesPerSecond,0);
+      for(int i=0;i<3;i++) town.Tick(dt,inp); bool noInstant=town.strikes.Count==0;
+      double next=OverworldMap.DayStart; while(OverworldStorm.VolleyIndex(next,t.overworldStormVolleySeconds,t.overworldMinutesPerSecond,0)<=v0) next+=0.5;
+      int vol=OverworldStorm.VolleyIndex(next,t.overworldStormVolleySeconds,t.overworldMinutesPerSecond,0); var cells=OverworldStorm.Volley(sm,0,1,vol);
+      OverworldSession.Minute=next-0.01; town.tx=cells[0].x+0.5; town.ty=cells[0].y+0.5; town.mario.x=3.5; town.mario.y=2.5; town.mario.Clear(); OverworldSession.NextStop=0;
+      town.Tick(dt,inp); bool warn=town.strikes.Count==cells.Count; bool noFF=!town.CanFastForward; float tt=0; int h0=OverworldSession.YouHearts; bool hitEarly=false;
+      while(tt<t.overworldBoltTelegraphSeconds-0.1f){ town.Tick(dt,inp); tt+=dt; if(OverworldSession.YouHearts<h0) hitEarly=true; }
+      while(tt<2f){ town.Tick(dt,inp); tt+=dt; }
+      bool hit=OverworldSession.YouHearts==h0-1&&town.frozen>0f; bool noEnergy=OverworldSession.Energy==0;
+      if(!noInstant||!warn||!noFF||hitEarly||!hit||!noEnergy){ rb++; Console.WriteLine($"     [FAIL] 雷区实跑：进场不劈={noInstant} 预警{town.strikes.Count}/{cells.Count}={warn} 不许快进={noFF} 预警没到就掉心={hitEarly} 掉心+晕={hit} 天灾不给能量={noEnergy}"); } else parts.Add($"雷区：预警 {t.overworldBoltTelegraphSeconds} 秒后劈 {cells.Count} 道 → 你 -1❤ 晕"); }
+    // 只在雷雨天的雷区：晴天一整天不劈
+    { var town=Fresh(1); town.tx=3.5; town.ty=2.5; int bolts=0; for(int i=0;i<30*60;i++){ town.Tick(dt,new OverworldTown.Input{fastForward=true}); foreach(var s in town.strikes) if(s.zone==1) bolts++; }
+      if(bolts>0){ rb++; Console.WriteLine($"     [FAIL] 晴天不该劈雷区 2（劈了 {bolts}）"); } else parts.Add("雷雨雷区晴天不劈"); }
+    // 伤害表：i 帧 2.5 秒挡掉心不挡晕；心掉光 = 晕 3 秒剩 1 颗；香蕉皮/水淹不掉心
+    { var town=Fresh(1); var hurt=typeof(OverworldTown).GetMethod("HurtYou",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+      hurt.Invoke(town,null); hurt.Invoke(town,null); bool grace=OverworldSession.YouHearts==2;
+      for(int i=0;i<90;i++) town.Tick(dt,inp); hurt.Invoke(town,null); for(int i=0;i<90;i++) town.Tick(dt,inp); hurt.Invoke(town,null);
+      bool ko=OverworldSession.YouHearts==1&&town.frozen>=t.overworldKoSeconds-0.01f&&OverworldSession.Kos==1&&!OverworldSession.DayOver;
+      var hm=typeof(OverworldTown).GetMethod("HitMario",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+      hm.Invoke(town,new object[]{'O',true}); bool mHurt=OverworldSession.MarioHearts==2&&OverworldSession.Energy==1; hm.Invoke(town,new object[]{'i',false}); bool mGrace=OverworldSession.MarioHearts==2;
+      if(!grace||!ko||!mHurt||!mGrace){ rb++; Console.WriteLine($"     [FAIL] 伤害：无敌时间={grace} 心掉光晕倒剩 1={ko} 他被你砸掉心+能量={mHurt} 他无敌时间={mGrace}"); } else parts.Add("无敌 2.5 秒、掉光晕 3 秒剩 1 颗、你砸他 +能量"); }
+    // 补心 / 能量：少了心才捡，每个一次；他路过顺手捡；能量满 3
+    { var town=Fresh(1); var hp=OverworldMap.Find(town.map,'+')[0]; var ep=OverworldMap.Find(town.map,'*');
+      town.tx=hp.x+0.5; town.ty=hp.y+0.5; town.Tick(dt,inp); bool notFull=!OverworldSession.UsedCells.Contains(hp.y*town.map.W+hp.x);
+      OverworldSession.YouHearts=1; town.Tick(dt,inp); bool healed=OverworldSession.YouHearts==2; town.Tick(dt,inp); bool once=OverworldSession.YouHearts==2;
+      foreach(var e in ep){ town.tx=e.x+0.5; town.ty=e.y+0.5; town.Tick(dt,inp); } bool full=OverworldSession.Energy==3;
+      if(!notFull||!healed||!once||!full){ rb++; Console.WriteLine($"     [FAIL] 拾取：满心不捡={notFull} 补心={healed} 只一次={once} 能量满={full}（{OverworldSession.Energy}）"); } else parts.Add("补心/能量拾取"); }
+    // Q 雷云：能量不够 → 提示；满 → 停在原地劈；他在云里会被劈；你站着不走也会被劈到（副作用）；能量清零
+    { var town=Fresh(1); town.tx=50.5; town.ty=19.5; town.Tick(dt,new OverworldTown.Input{weather=true}); bool low=town.hint==OverworldTown.Note.CloudLow&&town.cloud==null;
+      OverworldSession.Energy=3; town.mario.x=51.5; town.mario.y=19.5; town.mario.Clear(); OverworldSession.NextStop=0; OverworldSession.Minute=7*60;
+      town.Tick(dt,new OverworldTown.Input{weather=true}); bool made=town.cloud!=null&&OverworldSession.Energy==0; double cx=town.cloud?.x??0;
+      int mh=OverworldSession.MarioHearts; float tt=0; int selfHits=0; int yh=OverworldSession.YouHearts; bool still=true;
+      while(tt<t.overworldCloudSeconds+2f){ town.Tick(dt,inp); tt+=dt; if(town.cloud!=null&&town.cloud.x!=cx) still=false; if(OverworldSession.YouHearts<yh){ selfHits++; yh=OverworldSession.YouHearts; } }
+      bool mHit=OverworldSession.MarioHeartsLost>=1; bool gone=town.cloud==null;
+      // 副作用：一百个召唤点里你原地不动，至少有一些会劈到你自己
+      int selfAny=0; for(int k=0;k<12;k++){ var t3=Fresh(1); OverworldSession.Energy=3; OverworldSession.Clouds=k; var cs=OverworldMap.Find(t3.map,'.'); var c=cs[(k*97)%cs.Count]; t3.tx=c.x+0.5; t3.ty=c.y+0.5; t3.mario.x=3.5; t3.mario.y=2.5; t3.mario.Clear(); OverworldSession.Minute=7*60;
+        t3.Tick(dt,new OverworldTown.Input{weather=true}); for(int i=0;i<30*12;i++) t3.Tick(dt,inp); if(OverworldSession.YouHeartsLost>0) selfAny++; }
+      if(!low||!made||!still||!mHit||!gone||selfAny==0){ rb++; Console.WriteLine($"     [FAIL] 雷云：能量不够提示={low} 召唤={made} 停在原地={still} 劈到他={mHit} 结束={gone} 原地不动被劈 {selfAny}/12"); } else parts.Add($"Q 雷云：劈到他、原地不动的你 {selfAny}/12 次也挨劈"); }
+    // 带心进房间：他至少 2 颗、你的心 = 房间命数；房间打完回满
+    { OverworldSession.ResetStatics(); OverworldSession.NewDay(sm.name,"Town"); OverworldSession.MarioHearts=1; OverworldSession.YouHearts=2;
+      int mc=OverworldRoomCarry.MarioRoomHearts(t,3), yc=OverworldRoomCarry.TricksterRoomLives(3); OverworldSession.RecordRoom(1,true); bool full=OverworldSession.MarioHearts==3&&OverworldSession.YouHearts==3;
+      OverworldSession.MarioHearts=3; int m3=OverworldRoomCarry.MarioRoomHearts(t,3);
+      if(mc!=2||yc!=2||!full||m3!=3){ rb++; Console.WriteLine($"     [FAIL] 带心进房间：他 {mc}（应 2） 你 {yc}（应 2） 打完回满={full} 满心 {m3}"); } else parts.Add("带心进房间（他至少 2）、打完回满"); OverworldSession.ResetStatics(); }
+    // 机器人：星露雷镇 4 天 × 5 种，一天都能结束；会躲的每扇门都埋伏上（H10）；Prankster/Chaos 会按 Q
+    { var sw=System.Diagnostics.Stopwatch.StartNew(); int am=0,doors=0,clouds=0; bool ended=true;
+      for(int d=1;d<=4;d++) foreach(var kd in new[]{OverworldBots.Kind.Hider,OverworldBots.Kind.Prankster,OverworldBots.Kind.Idle,OverworldBots.Kind.Chaos,OverworldBots.Kind.Follower}){
+        var br=OverworldBots.PlayDay(OverworldPack.Parse(OverworldPack.StormSampleText)[0],t,kd,true,d,d); clouds+=OverworldSession.Clouds; if(!br.dayEnded) ended=false; if(kd==OverworldBots.Kind.Hider){ am+=br.ambush; doors+=br.doors; } }
+      OverworldSession.ResetStatics(); sw.Stop();
+      if(!ended||am*100<doors*95){ rb++; Console.WriteLine($"     [FAIL] 星露雷镇机器人：都结束={ended} 会躲的埋伏 {am}/{doors}"); } else parts.Add($"机器人 4 天×5 种 {sw.ElapsedMilliseconds}ms 埋伏 {am}/{doors} 雷云 {clouds} 次"); }
+    // 网页对照
+    var mine=new List<string>(); foreach(var i in rep.issues) mine.Add(i.sev+" "+i);
+    for(int z=0;z<sm.storms.Count;z++) for(int v=0;v<12;v++) mine.Add($"V {z} {v} "+string.Join(";",OverworldStorm.Volley(sm,z,5,v).Select(c=>c.x+","+c.y)));
+    foreach(double mm in new[]{360.0,399.9,400.0,455.5,800.0}) for(int z=0;z<2;z++) mine.Add($"I {mm} {z} {OverworldStorm.VolleyIndex(mm,t.overworldStormVolleySeconds,t.overworldMinutesPerSecond,z)}");
+    mine.Add("T "+OverworldMap.ToText(sm).Replace("\n","/")); for(int d=1;d<=20;d++){ var w=OverworldEvents.Of(sm,d); mine.Add($"W {d} {(int)w.kind}"); }
+    int wd=0; bool haveWeb=File.Exists("ow_storm.json");
+    if(haveWeb){ var web=(MiniJson.Parse(File.ReadAllText("ow_storm.json"),out _) as List<object>)?.Select(o=>(string)o).ToList()??new List<string>();
+      for(int i=0;i<Math.Max(web.Count,mine.Count);i++){ string a2=i<mine.Count?mine[i]:"(无)", b2=i<web.Count?web[i]:"(无)"; if(a2!=b2){ wd++; if(wd<=3) Console.WriteLine($"     [FAIL] 雷镇 网页≠Unity 第{i}行：\n        Unity {a2}\n        网页  {b2}"); } } }
+    rb+=wd;
+    Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S220 心 + 雷区 + 雷云：{string.Join("｜",parts)}｜网页对照{(!haveWeb?"跳过":wd==0?$"一致 {mine.Count} 行":"不一致")}"); fail+=rb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

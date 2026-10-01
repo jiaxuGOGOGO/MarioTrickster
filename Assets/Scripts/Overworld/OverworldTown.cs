@@ -8,7 +8,8 @@ using UnityEngine;
 /// </summary>
 public sealed class OverworldTown
 {
-    public struct Input { public float h, v; public bool disguise, peel, taunt, door, fastForward; /// <summary>S219：这一帧按下的方向（坐在炮里瞄准用）：0 没按，1 右 2 左 3 上 4 下。</summary>
+    public struct Input { public float h, v; public bool disguise, peel, taunt, door, fastForward, /// <summary>S220：Q = 能量满时召唤雷云。</summary>
+        weather; /// <summary>S219：这一帧按下的方向（坐在炮里瞄准用）：0 没按，1 右 2 左 3 上 4 下。</summary>
         public int aim; }
 
     public readonly OverworldMap.Map map;
@@ -36,7 +37,8 @@ public sealed class OverworldTown
 
     // ── 这一帧发生的事（驱动层读完就清）──
     /// <summary>这一帧要给玩家的提示（驱动层翻成 Step1Text 文字；纯逻辑这边不碰文字，sim 才能跑）。</summary>
-    public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit }
+    public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit,
+        /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt }
     public Note hint; public float hintSeconds;
     public bool wantsEnter; public OverworldMap.Door enterDoor; public OverworldMind.DoorOutcome enterOutcome;
 
@@ -53,8 +55,10 @@ public sealed class OverworldTown
         public bool rolling; public double rx, ry; public List<OverworldMap.Cell> lane; public double rolled; public bool hitMario, hitYou;
         /// <summary>S219：巨炮瞄准的距离；rider = 坐在里面的人（0 没人，1 你，2 马里奥）；tampered = 马里奥坐炮时被你拨歪了。</summary>
         public int dist; public int rider; public bool tampered;
+        /// <summary>S220：这一下是你引发的（你按 L / 连锁自你的机关）→ 他掉心你得能量。马里奥自己坐炮 / 雷区天灾 = false。</summary>
+        public bool byYou = true;
     }
-    public sealed class Flight { public double fx, fy, tx, ty; public float t, dur; public int depth; public bool mario, you, shell, ride, tampered; public double X => fx + (tx - fx) * System.Math.Min(1f, t / dur); public double Y => fy + (ty - fy) * System.Math.Min(1f, t / dur); public float Arc => 4f * (t / dur) * (1f - t / dur); }
+    public sealed class Flight { public double fx, fy, tx, ty; public float t, dur; public int depth; public bool mario, you, shell, ride, tampered, /* S220 */ hurt, byYou; public double X => fx + (tx - fx) * System.Math.Min(1f, t / dur); public double Y => fy + (ty - fy) * System.Math.Min(1f, t / dur); public float Arc => 4f * (t / dur) * (1f - t / dur); }
     public readonly List<Big> active = new List<Big>();
     public readonly List<Flight> flights = new List<Flight>();
     /// <summary>这一帧被改掉的格子（画面层据此换贴图）/ 冲击点（画面层放冲击环 + 震屏）。</summary>
@@ -67,13 +71,29 @@ public sealed class OverworldTown
     private Vector2? heardNoise;
     public bool marioFlying => flights.Exists(f => f.mario);
     public bool youFlying => flights.Exists(f => f.you);
-    public bool BigBusy => active.Count > 0 || flights.Count > 0 || seat != null || (ride != null && ride.seated);
+    public bool BigBusy => active.Count > 0 || flights.Count > 0 || seat != null || (ride != null && ride.seated) || cloud != null;
+
+    // ═════════ S220：心 / 闪电预警 / 雷云 ═════════
+    /// <summary>一道要劈下来的闪电：地上闪 total 秒（最后 0.3 秒变白），劈十字形 1 格。zone = 雷区（-1 = 雷云）。</summary>
+    public sealed class Strike { public OverworldMap.Cell c; public float t, total; public int zone; public bool byYou; public float Left => t; public bool White => t <= OverworldStorm.FlashSeconds; }
+    public readonly List<Strike> strikes = new List<Strike>();
+    /// <summary>雷云：停在召唤的地方（不跟着你走——你自己得逃出来）。</summary>
+    public sealed class Cloud { public double x, y; public float t, next; public int volley, id; }
+    public Cloud cloud;
+    /// <summary>这一帧谁受了什么伤（画面层飘字 / 角标）。kind 0 = 掉 1 颗心（红碎心），1 = 只晕（黄星），2 = 变慢（蓝水滴），3 = 补心（绿），4 = 能量（紫）。</summary>
+    public struct HurtFx { public float x, y; public bool mario; public int kind; }
+    public readonly List<HurtFx> hurts = new List<HurtFx>();
+    private float marioGrace, youGrace;
+    private readonly OverworldMap.Map stormMap; // 雷区落点按"设计台里画的那张图"算（不受今天撞碎 / 淹掉的地形影响）→ 和网页预览一模一样
+    private int[] stormLast = new int[0];
+    public float MarioGrace => marioGrace; public float YouGrace => youGrace;
     public float PeelActive => weather.kind == OverworldEvents.Kind.Rain ? PeelActiveSeconds * 1.5f : PeelActiveSeconds;
 
     public OverworldTown(OverworldMap.Map m, MarioMindTuningSO t, System.Func<int, bool> roomReady = null)
     {
         // S218：自己留一份（大机关会改地形；赶集日会改门的时间）——调用方的地图不变，重建小镇也不会越改越多
         m = OverworldMap.Parse(OverworldMap.ToText(m));
+        stormMap = OverworldMap.Parse(OverworldMap.ToText(m));
         weather = OverworldEvents.Of(m, OverworldSession.Day); // S219：天气池看地图格局（有路灯才有雷雨、有山洞才有酸雨）
         OverworldEvents.ApplyTo(m, weather);
         foreach (var kv in OverworldSession.Changed) OverworldMap.Set(m, kv.Key % m.W, kv.Key / m.W, kv.Value);
@@ -98,6 +118,9 @@ public sealed class OverworldTown
             tx = spawn.x + 0.5; ty = spawn.y + 0.5;
         }
         dayOver = OverworldSession.DayOver;
+        // S220：雷区从"现在这一轮"开始数——进场景 / 从房间出来不会立刻劈、错过的轮次不补
+        stormLast = new int[map.storms.Count];
+        for (int z = 0; z < stormLast.Length; z++) stormLast[z] = OverworldStorm.VolleyIndex(OverworldSession.Minute, t.overworldStormVolleySeconds, t.overworldMinutesPerSecond, z);
     }
 
     public OverworldMap.Door NextStop => OverworldSession.NextStop < stops.Count ? stops[OverworldSession.NextStop] : null;
@@ -105,12 +128,12 @@ public sealed class OverworldTown
     /// <summary>快进只在"没事"时允许：他平静、没在门里、你没被定身。任何起疑 / 他进门 → 立刻恢复正常速度。</summary>
     public bool CanFastForward => !dayOver && !marioInside && frozen <= 0f && exitGrace <= 0f
         && (mind.State == OverworldMarioState.Walking || mind.State == OverworldMarioState.Waiting) && mind.Meter.Level == SuspicionLevel.Calm
-        && !BigBusy
+        && !BigBusy && !StormNear(8)
         && (MarioStepsToDoor < 0 || MarioStepsToDoor > tuning.overworldAmbushSteps + 6); // 他快进入埋伏范围 → 自动恢复正常速度，不会快进错过
 
     public void Tick(float dt, Input i)
     {
-        hint = Note.None; wantsEnter = false; changedCells.Clear(); impacts.Clear(); bolts.Clear();
+        hint = Note.None; wantsEnter = false; changedCells.Clear(); impacts.Clear(); bolts.Clear(); hurts.Clear();
         if (dayOver) return;
         timeScale = i.fastForward && CanFastForward ? FastForwardScale : 1f;
         float gdt = dt * timeScale; // 游戏时间（人和马里奥都按它走：快进 = 整个世界快放，公平）
@@ -121,6 +144,8 @@ public sealed class OverworldTown
         if (wantsEnter) return;
         TickPeels(gdt);
         TickBigs(gdt);
+        TickStorms(gdt);
+        if (marioGrace > 0f) marioGrace -= gdt; if (youGrace > 0f) youGrace -= gdt;
         Mario(gdt);
         if (OverworldSession.Minute >= OverworldMap.DayEnd) EndDay();
     }
@@ -152,6 +177,12 @@ public sealed class OverworldTown
             OverworldSession.BonusBombs = Mathf.Min(MaxBonusBombs, OverworldSession.BonusBombs + 1);
             Hint(Note.Pickup);
         }
+        // S220：补心 +（少了心才捡，每天每个一次）、能量 *（只有你捡）
+        if (map.At(cx, cy) == '+' && !OverworldSession.UsedCells.Contains(id) && OverworldSession.YouHearts < OverworldSession.MaxHearts)
+        { OverworldSession.UsedCells.Add(id); OverworldSession.YouHearts++; hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 3 }); Hint(Note.Heal); }
+        if (map.At(cx, cy) == '*' && !OverworldSession.UsedCells.Contains(id) && OverworldSession.Energy < OverworldSession.MaxEnergy)
+        { OverworldSession.UsedCells.Add(id); GainEnergy(); }
+        if (i.weather) TryCloud();
         if (i.door && !TryCave() && !TryDoor()) TryBoard();
     }
 
@@ -365,10 +396,10 @@ public sealed class OverworldTown
         // 发射：他飞到落点；炮口里的人（你）也被轰过去
         var land = AimLandingOf(ride.k, ride.dir, ride.dist); double lx = land.x + 0.5, ly = land.y + 0.5;
         OverworldSession.UsedCells.Add(ride.k.y * map.W + ride.k.x);
-        flights.Add(new Flight { fx = mario.x, fy = mario.y, tx = lx, ty = ly, dur = FlightSeconds, mario = true, ride = true, tampered = ride.tampered });
+        flights.Add(new Flight { fx = mario.x, fy = mario.y, tx = lx, ty = ly, dur = FlightSeconds, mario = true, ride = true, tampered = ride.tampered, byYou = ride.tampered });
         var muzzle = OverworldProps.MuzzleCells(map, ride.k, ride.dir);
-        if (!youFlying && seat == null && muzzle.Exists(q => q.x == (int)System.Math.Floor(tx) && q.y == (int)System.Math.Floor(ty))) { flights.Add(new Flight { fx = tx, fy = ty, tx = lx + 0.01, ty = ly, dur = FlightSeconds, you = true }); disguised = false; }
-        flights.Add(new Flight { fx = ride.k.x + 0.5, fy = ride.k.y + 0.5, tx = lx, ty = ly, dur = FlightSeconds, shell = true, depth = 1 });
+        if (!youFlying && seat == null && muzzle.Exists(q => q.x == (int)System.Math.Floor(tx) && q.y == (int)System.Math.Floor(ty))) { flights.Add(new Flight { fx = tx, fy = ty, tx = lx + 0.01, ty = ly, dur = FlightSeconds, you = true, hurt = true }); disguised = false; }
+        flights.Add(new Flight { fx = ride.k.x + 0.5, fy = ride.k.y + 0.5, tx = lx, ty = ly, dur = FlightSeconds, shell = true, depth = 1, byYou = ride.tampered });
         Noise(ride.k.x + 0.5, ride.k.y + 0.5);
         ride = null;
     }
@@ -458,7 +489,9 @@ public sealed class OverworldTown
         };
         heardNoise = null; pendingMarioStun = 0f;
         int mid = (int)System.Math.Floor(mario.y) * map.W + (int)System.Math.Floor(mario.x);
-        if (peels.TryGetValue(mid, out var peel) && peel.x <= 0f) { p.slipped = true; peels.Remove(mid); OverworldSession.UsedCells.Add(mid); }
+        if (peels.TryGetValue(mid, out var peel) && peel.x <= 0f) { p.slipped = true; peels.Remove(mid); OverworldSession.UsedCells.Add(mid); hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 1 }); }
+        if (map.At(mid % map.W, mid / map.W) == '+' && !OverworldSession.UsedCells.Contains(mid) && OverworldSession.MarioHearts < OverworldSession.MaxHearts) // S220：他路过补心就顺手捡（不绕路）
+        { OverworldSession.UsedCells.Add(mid); OverworldSession.MarioHearts++; hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 3 }); Hint(Note.MarioHeal); }
 
         var o = mind.Tick(dt, p);
         if (blind && string.IsNullOrEmpty(o.mark)) o.mark = "…";
@@ -493,13 +526,13 @@ public sealed class OverworldTown
 
     // ═════════ S218 大机关 ═════════
     /// <summary>发动（按 L 或被冲击震响）。先预警 fuse 秒（H3），UsedCells 立刻记上（每天一次）。from = 推的人 / 冲击点（决定滚石往哪滚）。</summary>
-    public bool Arm(OverworldMap.Cell c, int depth, double fromX, double fromY)
+    public bool Arm(OverworldMap.Cell c, int depth, double fromX, double fromY, bool byYou = true)
     {
         int id = c.y * map.W + c.x; char k = map.At(c.x, c.y);
         bool ok = OverworldProps.IsBig(k) || (k == 'i' && weather.kind == OverworldEvents.Kind.Storm) || (k == '^' && OverworldProps.MudDir(map, c) >= 0);
         if (!ok || OverworldSession.UsedCells.Contains(id)) return false;
         if (k == 'K' && ((seat != null && seat.k.Equals(c)) || (ride != null && ride.seated && ride.k.Equals(c)))) return false; // 有人坐着，由坐的人发射
-        var b = new Big { c = c, kind = k, depth = depth, fuse = tuning.overworldBigFuseSeconds, fuseTotal = tuning.overworldBigFuseSeconds };
+        var b = new Big { c = c, kind = k, depth = depth, byYou = byYou, fuse = tuning.overworldBigFuseSeconds, fuseTotal = tuning.overworldBigFuseSeconds };
         if (k == 'K')
         {
             AimOf(c, out b.dir, out b.dist); // S219：你瞄好的方向（没瞄过 = 靶心）
@@ -534,18 +567,50 @@ public sealed class OverworldTown
         impacts.Add(new Impact3((float)x, (float)y, 1.5f));
     }
 
-    private void HitMario(char kind)
+    /// <summary>S220：马里奥被闪电 / 滚石 / 泥石流 / 被迫轰飞 打中：晕 2 秒 + 掉 1 颗心（受伤后 2.5 秒内不再掉心，晕照样晕）。掉光 = 晕倒 3 秒、剩 1 颗。</summary>
+    private void HitMario(char kind, bool byYou = true)
     {
-        pendingMarioStun = Mathf.Min(tuning.maxStunSeconds, tuning.overworldBigStunSeconds);
+        pendingMarioStun = Mathf.Max(pendingMarioStun, Mathf.Min(tuning.maxStunSeconds, tuning.overworldBigStunSeconds));
         OverworldSession.MarioWary.Add(kind); OverworldSession.BigHits++; OverworldSession.LastBigHitMinute = OverworldSession.Minute;
         Hint(Note.BigHit, 2f);
+        if (marioGrace > 0f) { hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 1 }); return; }
+        marioGrace = tuning.overworldHurtGraceSeconds;
+        OverworldSession.MarioHearts--; OverworldSession.MarioHeartsLost++;
+        hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 0 });
+        if (byYou) GainEnergy();
+        if (OverworldSession.MarioHearts <= 0)
+        {
+            OverworldSession.MarioHearts = 1; OverworldSession.Kos++;
+            pendingMarioStun = Mathf.Min(tuning.maxStunSeconds, Mathf.Max(pendingMarioStun, tuning.overworldKoSeconds));
+            Hint(Note.MarioKO, 2.5f);
+        }
     }
 
-    private void Impact(double x, double y, int depth, OverworldMap.Cell self)
+    /// <summary>S220：你被自己 / 天灾打中：晕 2 秒 + 掉 1 颗心（同样 2.5 秒内不再掉心）。掉光 = 晕倒 3 秒、剩 1 颗（不回出生点、不算被抓）。</summary>
+    private void HurtYou()
     {
-        Noise(x, y);
-        foreach (var t in OverworldProps.ChainTargets(map, x, y)) if (!t.Equals(self)) Arm(t, depth + 1, x, y);
-        if (OverworldEvents.Wet(weather)) foreach (var t in OverworldProps.MudSources(map, x, y)) if (!t.Equals(self)) Arm(t, depth + 1, x, y); // S219：下雨天震到山丘 = 泥石流
+        frozen = Mathf.Max(frozen, tuning.overworldBigStunSeconds); disguised = false;
+        if (youGrace > 0f) { hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 1 }); return; }
+        youGrace = tuning.overworldHurtGraceSeconds;
+        OverworldSession.YouHearts--; OverworldSession.YouHeartsLost++;
+        hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 0 });
+        if (OverworldSession.YouHearts <= 0) { OverworldSession.YouHearts = 1; OverworldSession.Kos++; frozen = Mathf.Max(frozen, tuning.overworldKoSeconds); Hint(Note.YouKO, 2.5f); }
+        else Hint(Note.YouHurt, 2f);
+    }
+
+    private void GainEnergy()
+    {
+        if (OverworldSession.Energy >= OverworldSession.MaxEnergy) return;
+        OverworldSession.Energy++;
+        hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 4 });
+        Hint(OverworldSession.Energy >= OverworldSession.MaxEnergy ? Note.EnergyFull : Note.EnergyUp, 2f);
+    }
+
+    private void Impact(double x, double y, int depth, OverworldMap.Cell self, bool byYou = true, bool noise = true)
+    {
+        if (noise) Noise(x, y); else impacts.Add(new Impact3((float)x, (float)y, 1.5f));
+        foreach (var t in OverworldProps.ChainTargets(map, x, y)) if (!t.Equals(self)) Arm(t, depth + 1, x, y, byYou);
+        if (OverworldEvents.Wet(weather)) foreach (var t in OverworldProps.MudSources(map, x, y)) if (!t.Equals(self)) Arm(t, depth + 1, x, y, byYou); // S219：下雨天震到山丘 = 泥石流
         foreach (var c in OverworldMap.Find(map, 'n')) // 冲击也会把旁边的香蕉皮震活
         {
             int id = c.y * map.W + c.x;
@@ -563,9 +628,9 @@ public sealed class OverworldTown
             if (f.you) { tx = f.X; ty = f.Y; }
             if (f.t < f.dur) continue;
             flights.RemoveAt(i);
-            if (f.mario) { mario.x = f.tx; mario.y = f.ty; mario.Clear(); if (!f.ride || f.tampered) HitMario('K'); } // S219：他自己坐炮、没被你拨歪 = 平稳落地
-            if (f.you) { tx = f.tx; ty = f.ty; frozen = Mathf.Max(frozen, 0.4f); if (seat != null) seat = null; }
-            if (f.shell) Impact(f.tx, f.ty, f.depth, new OverworldMap.Cell(-1, -1));
+            if (f.mario) { mario.x = f.tx; mario.y = f.ty; mario.Clear(); if (!f.ride || f.tampered) HitMario('K', f.byYou); } // S219：他自己坐炮、没被你拨歪 = 平稳落地
+            if (f.you) { tx = f.tx; ty = f.ty; frozen = Mathf.Max(frozen, 0.4f); if (seat != null) seat = null; if (f.hurt) HurtYou(); } // S220：自己坐炮不疼；站在炮口被轰 = 掉心
+            if (f.shell) Impact(f.tx, f.ty, f.depth, new OverworldMap.Cell(-1, -1), f.byYou);
         }
         for (int i = active.Count - 1; i >= 0; i--)
         {
@@ -577,9 +642,9 @@ public sealed class OverworldTown
                 if (OverworldProps.Smashable(map.At(b.lane[k].x, b.lane[k].y))) { Change(b.lane[k].x, b.lane[k].y, '.'); impacts.Add(new Impact3(b.lane[k].x + 0.5f, b.lane[k].y + 0.5f, 0.6f)); }
             double p = b.rolled, sx = b.c.x + 0.5 + OverworldProps.DX[b.dir] * p, sy = b.c.y + 0.5 + OverworldProps.DY[b.dir] * p;
             b.rx = sx; b.ry = sy;
-            if (!b.hitMario && !marioInside && !marioFlying && Dist(sx, sy, mario.x, mario.y) < 0.8f) { b.hitMario = true; HitMario('O'); }
-            if (!b.hitYou && !youFlying && Dist(sx, sy, tx, ty) < 0.8f) { b.hitYou = true; frozen = Mathf.Max(frozen, tuning.overworldBigStunSeconds); Hint(Note.BigSelf, 2f); }
-            if (b.rolled >= b.lane.Count) { active.RemoveAt(i); var end = b.lane.Count > 0 ? b.lane[b.lane.Count - 1] : b.c; Impact(end.x + 0.5, end.y + 0.5, b.depth, b.c); }
+            if (!b.hitMario && !marioInside && !marioFlying && Dist(sx, sy, mario.x, mario.y) < 0.8f) { b.hitMario = true; HitMario('O', b.byYou); }
+            if (!b.hitYou && !youFlying && Dist(sx, sy, tx, ty) < 0.8f) { b.hitYou = true; HurtYou(); Hint(Note.BigSelf, 2f); }
+            if (b.rolled >= b.lane.Count) { active.RemoveAt(i); var end = b.lane.Count > 0 ? b.lane[b.lane.Count - 1] : b.c; Impact(end.x + 0.5, end.y + 0.5, b.depth, b.c, b.byYou); }
         }
     }
 
@@ -593,9 +658,9 @@ public sealed class OverworldTown
             var muzzle = OverworldProps.MuzzleCells(map, b.c, b.dir);
             bool In(double x, double y) => muzzle.Exists(m => m.x == (int)System.Math.Floor(x) && m.y == (int)System.Math.Floor(y));
             double lx = land.x + 0.5, ly = land.y + 0.5;
-            if (!marioInside && !marioFlying && In(mario.x, mario.y)) flights.Add(new Flight { fx = mario.x, fy = mario.y, tx = lx, ty = ly, dur = FlightSeconds, mario = true });
-            if (!youFlying && (b.rider == 1 || (seat == null && In(tx, ty)))) { flights.Add(new Flight { fx = tx, fy = ty, tx = lx + 0.01, ty = ly, dur = FlightSeconds, you = true }); disguised = false; if (b.rider == 1) OverworldSession.CannonRides++; }
-            flights.Add(new Flight { fx = cx, fy = cy, tx = lx, ty = ly, dur = FlightSeconds, shell = true, depth = b.depth });
+            if (!marioInside && !marioFlying && In(mario.x, mario.y)) flights.Add(new Flight { fx = mario.x, fy = mario.y, tx = lx, ty = ly, dur = FlightSeconds, mario = true, hurt = true, byYou = b.byYou });
+            if (!youFlying && (b.rider == 1 || (seat == null && In(tx, ty)))) { flights.Add(new Flight { fx = tx, fy = ty, tx = lx + 0.01, ty = ly, dur = FlightSeconds, you = true, hurt = b.rider != 1 }); disguised = false; if (b.rider == 1) OverworldSession.CannonRides++; }
+            flights.Add(new Flight { fx = cx, fy = cy, tx = lx, ty = ly, dur = FlightSeconds, shell = true, depth = b.depth, byYou = b.byYou });
             Noise(cx, cy);
             return false;
         }
@@ -610,8 +675,13 @@ public sealed class OverworldTown
         if (b.kind == '^') return FireMud(b);
         int rad = OverworldProps.FloodRadius + (weather.kind == OverworldEvents.Kind.Rain ? 1 : 0);
         // S219 山洪：水塔淹到的山丘（泥石流源头）也冲下来（不管天气）
-        foreach (var hc in OverworldMap.Find(map, '^')) if (OverworldProps.MudDir(map, hc) >= 0 && (hc.x - b.c.x) * (hc.x - b.c.x) + (hc.y - b.c.y) * (hc.y - b.c.y) <= rad * rad) Arm(hc, b.depth + 1, cx, cy);
-        foreach (var c in OverworldProps.Flood(map, b.c, rad)) Change(c.x, c.y, 'g');
+        foreach (var hc in OverworldMap.Find(map, '^')) if (OverworldProps.MudDir(map, hc) >= 0 && (hc.x - b.c.x) * (hc.x - b.c.x) + (hc.y - b.c.y) * (hc.y - b.c.y) <= rad * rad) Arm(hc, b.depth + 1, cx, cy, b.byYou);
+        foreach (var c in OverworldProps.Flood(map, b.c, rad))
+        {
+            Change(c.x, c.y, 'g');
+            if (!marioInside && (int)System.Math.Floor(mario.x) == c.x && (int)System.Math.Floor(mario.y) == c.y) hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 2 }); // S220：水淹只变慢（蓝水滴），不掉心
+            if ((int)System.Math.Floor(tx) == c.x && (int)System.Math.Floor(ty) == c.y) hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 2 });
+        }
         foreach (var c in OverworldMap.Find(map, 'n'))
         {
             int id = c.y * map.W + c.x;
@@ -626,10 +696,10 @@ public sealed class OverworldTown
     private bool FireLightning(Big b)
     {
         double cx = b.c.x + 0.5, cy = b.c.y + 0.5, r = OverworldProps.LightningRadius + 0.3;
-        if (!marioInside && !marioFlying && !MarioSeated && Dist(cx, cy, mario.x, mario.y) <= r) HitMario('i');
-        if (!youFlying && seat == null && Dist(cx, cy, tx, ty) <= r) { frozen = Mathf.Max(frozen, tuning.overworldBigStunSeconds); disguised = false; Hint(Note.BigSelf, 2f); }
+        if (!marioInside && !marioFlying && !MarioSeated && Dist(cx, cy, mario.x, mario.y) <= r) HitMario('i', b.byYou);
+        if (!youFlying && seat == null && Dist(cx, cy, tx, ty) <= r) { HurtYou(); Hint(Note.BigSelf, 2f); }
         OverworldSession.Lightnings++; bolts.Add(new Impact3((float)cx, (float)cy, 1f));
-        Impact(cx, cy, b.depth, b.c); impacts.Add(new Impact3((float)cx, (float)cy, (float)OverworldProps.LightningRadius));
+        Impact(cx, cy, b.depth, b.c, b.byYou); impacts.Add(new Impact3((float)cx, (float)cy, (float)OverworldProps.LightningRadius));
         if (hint == Note.None || hint == Note.BigArmed) Hint(Note.Lightning, 2f);
         return false;
     }
@@ -641,15 +711,92 @@ public sealed class OverworldTown
         Change(b.c.x, b.c.y, 'g');
         foreach (var q in lane)
         {
-            if (!marioInside && !marioFlying && !MarioSeated && (int)System.Math.Floor(mario.x) == q.x && (int)System.Math.Floor(mario.y) == q.y) HitMario('^');
-            if (!youFlying && seat == null && (int)System.Math.Floor(tx) == q.x && (int)System.Math.Floor(ty) == q.y) { frozen = Mathf.Max(frozen, tuning.overworldBigStunSeconds); Hint(Note.BigSelf, 2f); }
+            if (!marioInside && !marioFlying && !MarioSeated && (int)System.Math.Floor(mario.x) == q.x && (int)System.Math.Floor(mario.y) == q.y) HitMario('^', b.byYou);
+            if (!youFlying && seat == null && (int)System.Math.Floor(tx) == q.x && (int)System.Math.Floor(ty) == q.y) { HurtYou(); Hint(Note.BigSelf, 2f); }
             if (OverworldProps.Muddable(map.At(q.x, q.y))) Change(q.x, q.y, 'g'); impacts.Add(new Impact3(q.x + 0.5f, q.y + 0.5f, 0.6f)); // 门 / 家 / 山洞 / 靶心 冲过但不改
         }
         OverworldSession.Mudslides++;
         var end = lane.Count > 0 ? lane[lane.Count - 1] : b.c;
-        Impact(end.x + 0.5, end.y + 0.5, b.depth, b.c);
+        Impact(end.x + 0.5, end.y + 0.5, b.depth, b.c, b.byYou);
         if (hint == Note.None || hint == Note.BigArmed) Hint(Note.Mudslide, 2f);
         return false;
+    }
+
+    // ═════════ S220：雷区 + 雷云 ═════════
+    /// <summary>附近 range 格内有闪电预警 / 雷云 → 不许快进（快进会让人来不及看预警）。</summary>
+    public bool StormNear(double range)
+    {
+        foreach (var s in strikes) if (Dist(s.c.x + 0.5, s.c.y + 0.5, mario.x, mario.y) <= range || Dist(s.c.x + 0.5, s.c.y + 0.5, tx, ty) <= range) return true;
+        return false;
+    }
+
+    private void TickStorms(float dt)
+    {
+        for (int z = 0; z < stormLast.Length && z < map.storms.Count; z++)
+        {
+            int idx = OverworldStorm.VolleyIndex(OverworldSession.Minute, tuning.overworldStormVolleySeconds, tuning.overworldMinutesPerSecond, z);
+            if (idx <= stormLast[z]) continue;
+            stormLast[z] = idx;
+            if (!OverworldStorm.ActiveOn(map.storms[z], weather)) continue;
+            foreach (var c in OverworldStorm.Volley(stormMap, z, OverworldSession.Day, idx))
+                strikes.Add(new Strike { c = c, t = tuning.overworldBoltTelegraphSeconds, total = tuning.overworldBoltTelegraphSeconds, zone = z, byYou = false });
+        }
+        if (cloud != null)
+        {
+            cloud.t += dt;
+            if (cloud.t >= cloud.next && cloud.t < tuning.overworldCloudSeconds) { CloudVolley(); cloud.next += tuning.overworldCloudVolleySeconds; }
+            if (cloud.t >= tuning.overworldCloudSeconds && !strikes.Exists(s => s.zone < 0)) cloud = null;
+        }
+        for (int i = strikes.Count - 1; i >= 0; i--)
+        {
+            var s = strikes[i]; s.t -= dt;
+            if (s.t > 0f) continue;
+            strikes.RemoveAt(i);
+            FireStrike(s);
+        }
+    }
+
+    private void FireStrike(Strike s)
+    {
+        double cx = s.c.x + 0.5, cy = s.c.y + 0.5;
+        if (!marioInside && !marioFlying && !MarioSeated && OverworldStorm.InPlus(s.c, mario.x, mario.y)) HitMario('i', s.byYou);
+        if (!youFlying && seat == null && OverworldStorm.InPlus(s.c, tx, ty)) HurtYou();
+        OverworldSession.Lightnings++; OverworldSession.StormBolts++;
+        bolts.Add(new Impact3((float)cx, (float)cy, 1f)); impacts.Add(new Impact3((float)cx, (float)cy, 1f));
+        if (s.zone < 0) Impact(cx, cy, 1, new OverworldMap.Cell(-1, -1), s.byYou, false); // 雷云：完整冲击链（但只在召唤时响一声）
+        else if (OverworldEvents.Wet(weather)) foreach (var t in OverworldProps.MudSources(map, cx, cy)) Arm(t, 2, cx, cy, false); // 雷区：不出声、不连锁；下雨天会引发泥石流
+        if (hint == Note.None) Hint(Note.StormBolt, 1.5f);
+    }
+
+    /// <summary>Q：能量满 → 头顶召唤一朵雷云（停在这里 9 秒，每 2.5 秒劈 2 道：一道冲着云里的马里奥，一道随便劈——可能劈到你自己）。</summary>
+    private void TryCloud()
+    {
+        if (cloud != null) return;
+        if (OverworldSession.Energy < OverworldSession.MaxEnergy) { Hint(Note.CloudLow); return; }
+        OverworldSession.Energy = 0; OverworldSession.Clouds++;
+        cloud = new Cloud { x = System.Math.Floor(tx) + 0.5, y = System.Math.Floor(ty) + 0.5, t = 0f, next = 1f, id = OverworldSession.Clouds };
+        Noise(tx, ty); // 一声闷雷：他会过来看
+        Hint(Note.Cloud, 2.5f);
+    }
+
+    public List<OverworldMap.Cell> CloudCells()
+    {
+        var l = new List<OverworldMap.Cell>(); if (cloud == null) return l;
+        int r = (int)System.Math.Ceiling(tuning.overworldCloudRadius);
+        int x0 = (int)System.Math.Floor(cloud.x), y0 = (int)System.Math.Floor(cloud.y);
+        for (int y = y0 - r; y <= y0 + r; y++) for (int x = x0 - r; x <= x0 + r; x++)
+            if (OverworldMap.Walkable(map, x, y) && Dist(x + 0.5, y + 0.5, cloud.x, cloud.y) <= tuning.overworldCloudRadius + 1e-6) l.Add(new OverworldMap.Cell(x, y));
+        return l;
+    }
+
+    private void CloudVolley()
+    {
+        var cells = CloudCells(); if (cells.Count == 0) return;
+        uint h = OverworldStorm.Seed(map.name, OverworldSession.Day, 100 + cloud.id, cloud.volley++);
+        var picks = new List<OverworldMap.Cell>();
+        if (!marioInside && Dist(mario.x, mario.y, cloud.x, cloud.y) <= tuning.overworldCloudRadius) picks.Add(OverworldGuide.Near(map, mario.x, mario.y));
+        while (picks.Count < 2 && cells.Count > 0) { h = OverworldStorm.Next(h); int i = (int)(h % (uint)cells.Count); if (!picks.Contains(cells[i])) picks.Add(cells[i]); cells.RemoveAt(i); }
+        foreach (var c in picks) strikes.Add(new Strike { c = c, t = tuning.overworldBoltTelegraphSeconds, total = tuning.overworldBoltTelegraphSeconds, zone = -1, byYou = true });
     }
 
     /// <summary>这一帧打下来的闪电（画面层画一道光）。</summary>
@@ -667,6 +814,13 @@ public sealed class OverworldTown
             if (!OverworldMap.CanSee(map, lamps, mario.x, mario.y, mario.fx, mario.fy, px, py, r) && Dist(px, py, mario.x, mario.y) > r.range) continue;
             foreach (var c in Danger(b)) danger.Add((c.x, c.y));
         }
+        if (OverworldSession.MarioWary.Contains('i')) // S220：被劈过一次 → 看见地上闪电预警就躲（只躲看得见的）
+            foreach (var s in strikes)
+            {
+                double px = s.c.x + 0.5, py = s.c.y + 0.5;
+                if (!OverworldMap.CanSee(map, lamps, mario.x, mario.y, mario.fx, mario.fy, px, py, r) && Dist(px, py, mario.x, mario.y) > 2.5) continue;
+                foreach (var c in OverworldStorm.Plus(map, s.c)) danger.Add((c.x, c.y));
+            }
         var here = OverworldGuide.Near(map, mario.x, mario.y);
         if (!danger.Contains((here.x, here.y))) return null;
         var q = new Queue<(OverworldMap.Cell c, int d)>(); var seen = new HashSet<(int, int)> { (here.x, here.y) }; q.Enqueue((here, 0));

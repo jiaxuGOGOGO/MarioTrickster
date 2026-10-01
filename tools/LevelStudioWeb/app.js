@@ -645,11 +645,12 @@ function owPalette() {
   $('#owPal').innerHTML = ''; $('#owDoorPal').innerHTML = '';
   for (const t of OW_TILES) {
     if (t.c === '1') { for (let n = 1; n <= 9; n++) { const b = document.createElement('button'); b.className = 'btn small'; b.textContent = n; b.style.background = owCss(t); b.setAttribute('aria-pressed', OWT.brush === String(n)); if (OWT.brush === String(n)) b.style.outline = '2px solid var(--loot)'; b.onclick = () => { OWT.brush = String(n); owPalette(); }; $('#owDoorPal').appendChild(b); } continue; }
-    const b = document.createElement('button'); b.className = 'chip'; b.setAttribute('aria-pressed', OWT.brush === t.c); b.title = t.w + '\n\n' + t.p;
-    b.innerHTML = `<span class="sw" style="background:${owCss(t)};color:#111">${t.c === '.' ? '' : t.c.replace('"', '&quot;')}</span><span class="nm">${t.zh}</span>`;
-    b.onclick = () => { OWT.brush = t.c; owPalette(); }; $('#owPal').appendChild(b);
+    const b = document.createElement('button'); b.className = 'chip'; b.setAttribute('aria-pressed', OWT.brush === t.c); b.title = t.w + '\n\n' + t.p + (owHarm(t.c) ? '\n\n' + owHarm(t.c) : '');
+    const ic = owIconUrl(t.c);
+    b.innerHTML = `<span class="sw" style="background:${owCss(t)};color:#111">${ic ? `<img src="${ic}" width="16" height="16" style="image-rendering:pixelated;display:block;margin:auto">` : t.c === '.' ? '' : t.c.replace('"', '&quot;')}</span><span class="nm">${t.zh}</span>`;
+    b.onclick = () => { OWT.brush = t.c; if (OWT.tool === 'storm' || OWT.tool === 'pick') OWT.tool = 'brush'; owPalette(); }; $('#owPal').appendChild(b);
   }
-  const cur = owTile(OWT.brush); $('#owTip').textContent = cur ? `${cur.zh}：${cur.w} ${cur.p}` : '';
+  const cur = owTile(OWT.brush); $('#owTip').textContent = cur ? `${cur.zh}：${cur.w} ${cur.p}${owHarm(cur.c) ? '　' + owHarm(cur.c) : ''}` : '';
   document.querySelectorAll('[data-owtool]').forEach(b => b.classList.toggle('gold', b.dataset.owtool === OWT.tool));
 }
 function owRender() {
@@ -675,8 +676,42 @@ function owRender() {
   const sc = rep.schedule;
   $('#owSched').innerHTML = sc ? sc.stops.map((s, k) => `门 ${s.door.n}：${owClock(s.depart)} 出发 → ${owClock(s.arrive)} 到 → ${owClock(s.leave)} 出来　你能提前 ${Math.round(owLead(sc, k, OW.Rules.minutesPerSecond))} 秒`).join('<br>') + `<br>${owClock(sc.homeArrive)} 到家` : '（先把检查里的红色问题改掉）';
   $('#owSize').textContent = `${owW(m)}×${m.rows.length}`;
-  owLedgerRender(); owPropsRender(); owScrubText(); owPalette(); owDraw(); owSave();
+  owStormsRender(); owHarmRender(); owLedgerRender(); owPropsRender(); owScrubText(); owPalette(); OWT.ver = (OWT.ver | 0) + 1; owDraw(); owSave();
 }
+// ═════ S220：像素图标（和 Unity OverworldArt 同一套，build.py 生成 OW_ART）═════
+const OWIC = {};
+function owIconCanvas(key) {
+  if (!key || typeof OW_ART === 'undefined' || !OW_ART.icons[key]) return null;
+  if (OWIC[key]) return OWIC[key];
+  const rows = OW_ART.icons[key], n = rows.length, c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d');
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const ch = rows[y][x], col = OW_ART.pal[ch]; if (ch === '.' || !col) continue; g.fillStyle = `rgb(${col.map(v => Math.round(v * 255)).join(',')})`; g.fillRect(x, y, 1, 1); }
+  return OWIC[key] = c;
+}
+const owIconKey = c => (typeof OW_ART !== 'undefined' && OW_ART.tile[c]) || null;
+const OWICU = {};
+function owIconUrl(c) { const k = owIconKey(c); if (!k) return null; if (OWICU[k]) return OWICU[k]; const cv = owIconCanvas(k); return OWICU[k] = cv ? cv.toDataURL() : null; }
+// ═════ S220：雷区面板 + 伤害一览 ═════
+function owStormsRender() {
+  const m = owM(), box = $('#owStorms'); if (!box) return;
+  if (!m.storms.length) { box.innerHTML = '<p class="hint">还没有雷区。按 Z（或点 ⛈ 雷区）在画布上拖一个框。</p>'; return; }
+  box.innerHTML = m.storms.map((st, k) => `<div class="owdoor"><b>雷区${k + 1}</b><span class="hint">(${st.x0},${st.y0})–(${st.x1},${st.y1})</span><input type="number" min="1" max="${OW.MaxBolts}" value="${st.min}" data-k="${k}" data-f="min" style="width:42px" aria-label="最少几道">–<input type="number" min="1" max="${OW.MaxBolts}" value="${st.max}" data-k="${k}" data-f="max" style="width:42px" aria-label="最多几道">道<label class="toggle" title="勾上 = 每天都劈；不勾 = 只有雷雨天"><input type="checkbox" data-k="${k}" data-f="always"${st.always ? ' checked' : ''}>每天</label><button class="btn small" data-loc="${k}">◎</button><button class="btn small" data-del="${k}">✕</button></div>`).join('')
+    + `<p class="hint">最少 1 道，最多 ${OW.MaxBolts} 道；只劈能走的格子。劈中十字形 1 格 → 掉 1 颗心 + 晕 2 秒。</p>`;
+  box.querySelectorAll('input').forEach(el => el.onchange = () => {
+    const st = m.storms[+el.dataset.k]; owPush();
+    if (el.dataset.f === 'always') st.always = el.checked;
+    else { const v = Math.max(1, Math.min(OW.MaxBolts, parseInt(el.value) || 1)); st[el.dataset.f] = v; if (st.max < st.min) { if (el.dataset.f === 'min') st.max = st.min; else st.min = st.max; } }
+    owRender();
+  });
+  box.querySelectorAll('[data-loc]').forEach(b => b.onclick = () => { const st = m.storms[+b.dataset.loc]; owLocate((st.x0 + st.x1) >> 1, (st.y0 + st.y1) >> 1); });
+  box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { owPush(); m.storms.splice(+b.dataset.del, 1); owRender(); });
+}
+function owHarmRender() {
+  const box = $('#owHarm'); if (!box || box.dataset.done) return; box.dataset.done = 1;
+  const esc = t => String(t).replace(/</g, '&lt;');
+  box.innerHTML = (typeof OW_HARM === 'undefined' ? [] : Object.keys(OW_HARM)).map(c => { const u = owIconUrl(c); return `<div class="owled">${u ? `<img src="${u}" width="16" height="16" style="image-rendering:pixelated">` : `<b>${esc(c)}</b>`}<span>${esc(OW_HARM[c])}</span><i></i></div>`; }).join('')
+    + '<p class="hint">每人 3 颗心；掉光 = 晕 3 秒后回到 1 颗心继续（一天不会结束）。被打后 2.5 秒内不再掉心。</p>';
+}
+function owStormAt(m, x, y) { for (let k = m.storms.length - 1; k >= 0; k--) { const s = m.storms[k]; if (x >= s.x0 && x <= s.x1 && y >= s.y0 && y <= s.y1) return k; } return -1; }
 // S215：一天总览（和 Unity 小镇工坊同一套规则：CampaignLedger）
 function owLedgerRender() {
   const rep = owLedger(owM(), W, owRoomGrid, 3, 3), esc = t => String(t).replace(/</g, '&lt;');
@@ -751,13 +786,23 @@ function owKey(e) {
   if (ctrl && k === 'y') { e.preventDefault(); owRedo(); return; }
   if (ctrl && k === 'c') { e.preventDefault(); navigator.clipboard && navigator.clipboard.writeText(owToText(owM())).then(() => toast('已复制整张小镇（Unity 小镇工坊里 Ctrl+V 贴入）'), () => toast('浏览器不让复制：用"导出小镇 .txt"')); return; }
   if (ctrl || e.altKey) return;
-  const t = { b: 'brush', r: 'rect', f: 'fill', i: 'pick' }[k];
+  const t = { b: 'brush', r: 'rect', f: 'fill', i: 'pick', z: 'storm' }[k];
   if (t) { OWT.tool = t; owPalette(); return; }
   if (k >= '1' && k <= '9') { OWT.brush = k; if (OWT.tool === 'pick') OWT.tool = 'brush'; owPalette(); }
 }
+// S220：防卡——底图（格子 + 图标 + 红框 + 路线 + 夜晚 + 关系线 + 雷区）画在离屏画布上，只有地图 / 缩放 / 开关变了才重画；
+// 鼠标移动只把底图贴上去再画悬停框（以前每动一下就重画整张 72×40 + 关系线 + 改 canvas 尺寸 → 卡）。
+let OWBASE = null, OWBASEKEY = '';
 function owDraw() {
   const m = owM(), z = OWT.zoom, w = owW(m), h = m.rows.length, cv = $('#owCanvas'), g = cv.getContext('2d');
-  cv.width = w * z; cv.height = h * z;
+  if (cv.width !== w * z || cv.height !== h * z) { cv.width = w * z; cv.height = h * z; }
+  const key = [OWCUR, OWT.ver | 0, z, w, h, $('#owRoute').checked, $('#owNight').checked, $('#owLinks') && $('#owLinks').checked].join('|');
+  if (!OWBASE || OWBASEKEY !== key) { OWBASEKEY = key; OWBASE = OWBASE || document.createElement('canvas'); OWBASE.width = w * z; OWBASE.height = h * z; owDrawBase(OWBASE.getContext('2d'), m, z, w, h); }
+  g.clearRect(0, 0, cv.width, cv.height); g.drawImage(OWBASE, 0, 0);
+  owDrawOverlay(g, m, z, w, h);
+}
+function owDrawBase(g, m, z, w, h) {
+  g.imageSmoothingEnabled = false;
   const err = new Set((OWT.rep ? OWT.rep.issues : []).filter(i => i.sev === 'Error' && i.x >= 0).map(i => i.x + ',' + i.y));
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const c = owAt(m, x, y), t = owTile(c), px = x * z, py = (h - 1 - y) * z;
@@ -766,7 +811,9 @@ function owDraw() {
     if (c === 't') { g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(px + z / 2, py + z / 2, z * 0.42, 0, 7); g.fill(); }
     if (c === '^') { g.fillStyle = 'rgba(255,255,220,.35)'; g.fillRect(px, py, z - 1, z * 0.22); }
     if (c === 'A') { g.fillStyle = 'rgba(0,0,0,.18)'; g.beginPath(); g.moveTo(px + z / 2, py + 2); g.lineTo(px + z - 2, py + z - 2); g.lineTo(px + 2, py + z - 2); g.fill(); }
-    if ('MT?niKOUXh'.includes(c) || (c >= '1' && c <= '9')) { g.fillStyle = '#111'; g.font = `700 ${Math.round(z * 0.62)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c, px + z / 2, py + z / 2 + 1); }
+    const ic = z >= 10 ? owIconCanvas(owIconKey(c)) : null;
+    if (ic) g.drawImage(ic, px, py, z - 1, z - 1);
+    if ((!ic && 'MT?niKOUXh+*'.includes(c)) || (c >= '1' && c <= '9')) { g.fillStyle = ic ? '#fff' : '#111'; g.font = `700 ${Math.round(z * 0.62)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c, px + z / 2, py + z / 2 + 1); }
     if (err.has(x + ',' + y)) { g.strokeStyle = '#ff5a4e'; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, z - 3, z - 3); }
   }
   const sc = OWT.rep && OWT.rep.schedule;
@@ -780,8 +827,20 @@ function owDraw() {
   }
   if ($('#owLinks') && $('#owLinks').checked) owLinksDraw(g, m, z, h);
   for (const n of m.notes) { g.fillStyle = '#ffc83d'; g.fillText('✎', n.x * z + z / 2, (h - 1 - n.y) * z + z / 2); }
+  // S220：雷区（蓝虚线框；勾了"每天"= 黄框）
+  m.storms.forEach((st, k) => {
+    const rx = st.x0 * z, ry = (h - 1 - st.y1) * z, rw = (st.x1 - st.x0 + 1) * z, rh = (st.y1 - st.y0 + 1) * z, col = st.always ? '255,215,50' : '75,215,255';
+    g.fillStyle = `rgba(${col},.10)`; g.fillRect(rx, ry, rw, rh); g.setLineDash([z, z]); g.strokeStyle = `rgb(${col})`; g.lineWidth = 2; g.strokeRect(rx + 1, ry + 1, rw - 2, rh - 2); g.setLineDash([]);
+    const lbl = `雷区${k + 1} · ${st.min}–${st.max} 道${st.always ? ' · 每天' : ''}`; g.font = '600 11px system-ui'; g.textAlign = 'left'; g.textBaseline = 'top';
+    const tw = g.measureText(lbl).width; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(rx + 2, ry + 2, tw + 24, 16);
+    const b = owIconCanvas('Bolt'); if (b) g.drawImage(b, rx + 3, ry + 2, 16, 16); g.fillStyle = '#fff'; g.fillText(lbl, rx + 21, ry + 4);
+  });
+}
+function owDrawOverlay(g, m, z, w, h) {
+  const sc = OWT.rep && OWT.rep.schedule;
   const hv = OWT.hover;
-  if (OWT.drag && hv) { const a = OWT.drag, x0 = Math.min(a[0], hv[0]), x1 = Math.max(a[0], hv[0]), y0 = Math.min(a[1], hv[1]), y1 = Math.max(a[1], hv[1]); const t = owTile(OWT.brush); g.globalAlpha = .55; g.fillStyle = t ? owCss(t) : '#fff'; g.fillRect(x0 * z, (h - 1 - y1) * z, (x1 - x0 + 1) * z, (y1 - y0 + 1) * z); g.globalAlpha = 1; g.fillStyle = '#fff'; g.font = `700 12px JetBrains Mono,monospace`; g.textAlign = 'left'; g.fillText(`${x1 - x0 + 1}×${y1 - y0 + 1}`, (x1 + 1) * z + 3, (h - y0) * z); }
+  if (OWT.drag && hv && OWT.tool === 'storm') { const a = OWT.drag, x0 = Math.min(a[0], hv[0]), x1 = Math.max(a[0], hv[0]), y0 = Math.min(a[1], hv[1]), y1 = Math.max(a[1], hv[1]); g.fillStyle = 'rgba(75,200,255,.25)'; g.fillRect(x0 * z, (h - 1 - y1) * z, (x1 - x0 + 1) * z, (y1 - y0 + 1) * z); g.strokeStyle = '#4bd7ff'; g.lineWidth = 2; g.strokeRect(x0 * z, (h - 1 - y1) * z, (x1 - x0 + 1) * z, (y1 - y0 + 1) * z); }
+  else if (OWT.drag && hv) { const a = OWT.drag, x0 = Math.min(a[0], hv[0]), x1 = Math.max(a[0], hv[0]), y0 = Math.min(a[1], hv[1]), y1 = Math.max(a[1], hv[1]); const t = owTile(OWT.brush); g.globalAlpha = .55; g.fillStyle = t ? owCss(t) : '#fff'; g.fillRect(x0 * z, (h - 1 - y1) * z, (x1 - x0 + 1) * z, (y1 - y0 + 1) * z); g.globalAlpha = 1; g.fillStyle = '#fff'; g.font = `700 12px JetBrains Mono,monospace`; g.textAlign = 'left'; g.fillText(`${x1 - x0 + 1}×${y1 - y0 + 1}`, (x1 + 1) * z + 3, (h - y0) * z); }
   if (hv) { g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1; g.strokeRect(hv[0] * z + .5, (h - 1 - hv[1]) * z + .5, z - 2, z - 2); }
   if (OWT.flash && Math.floor(performance.now() / 160) % 2 === 0) { g.strokeStyle = '#ffe14d'; g.lineWidth = 3; g.strokeRect(OWT.flash[0] * z - 3, (h - 1 - OWT.flash[1]) * z - 3, z + 5, z + 5); }
   if (OWT.scrub >= 0 && sc) { const wh = owMarioAt(m, sc, OWT.scrub, OW.Rules.marioSpeed, OW.Rules.minutesPerSecond); g.fillStyle = 'rgba(240,25,25,.9)'; g.fillRect(wh.cell[0] * z - z * .2, (h - 1 - wh.cell[1]) * z - z * .2, z * 1.4, z * 1.4); g.fillStyle = '#fff'; g.font = `700 ${Math.round(z * .7)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.fillText('M', wh.cell[0] * z + z / 2, (h - 1 - wh.cell[1]) * z + z / 2 + 1); }
@@ -792,10 +851,16 @@ $('#owCanvas').oncontextmenu = e => e.preventDefault();
 $('#owCanvas').onmousedown = e => {
   const c = owCell(e); if (!c) return;
   if (e.button === 0 && (OWT.tool === 'pick' || e.altKey)) { OWT.brush = owAt(owM(), c[0], c[1]); if (OWT.tool === 'pick') OWT.tool = 'brush'; owPalette(); toast('吸管：' + OWT.brush + ' ' + (owTile(OWT.brush) || {}).zh); return; }
+  if (OWT.tool === 'storm') {
+    if (e.button === 2) { const k = owStormAt(owM(), c[0], c[1]); if (k >= 0) { owPush(); owM().storms.splice(k, 1); owRender(); toast('删掉了一块雷区（Ctrl+Z 撤销）'); } return; }
+    if (owM().storms.length >= OW.MaxStorms) { toast(`雷区最多 ${OW.MaxStorms} 块（右键点雷区删掉一块）`); return; }
+    OWT.drag = c; return;
+  }
   const paint = e.button === 2 ? '.' : OWT.brush; owPush();
   if (OWT.tool === 'rect' && e.button === 0) { OWT.drag = c; return; }
   if (OWT.tool === 'fill' && e.button === 0) { owFlood(owM(), c[0], c[1], paint); owRender(); return; }
-  owSet(owM(), c[0], c[1], paint); OWT.painting = paint; owRender();
+  // S220：按下 / 拖动只改格子 + 重画底图；松开鼠标才做检查和侧栏（以前每一格都整页重算）
+  owSet(owM(), c[0], c[1], paint); OWT.painting = paint; OWT.ver = (OWT.ver | 0) + 1; owDraw();
 };
 $('#owCanvas').onmouseleave = () => { OWT.hover = null; $('#owHover').textContent = owHoverText(); owDraw(); owPeek(); };
 $('#owCanvas').addEventListener('mousemove', e => { const c = owCell(e); if (String(c) !== String(OWT.hover)) { OWT.hover = c; $('#owHover').textContent = owHoverText(); if (!OWT.painting) owDraw(); owPeek(); } });
@@ -807,10 +872,15 @@ window.addEventListener('paste', e => { if (!$('#pageOverworld').classList.conta
 $('#owScrubOn').onchange = () => { owScrubText(); owDraw(); };
 $('#owScrub').oninput = () => { owScrubText(); owDraw(); };
 $('#owRedo').onclick = owRedo;
-$('#owCanvas').onmousemove = e => { if (!OWT.painting || OWT.tool !== 'brush' && OWT.painting !== '.') return; const c = owCell(e); if (c && owAt(owM(), c[0], c[1]) !== OWT.painting) { owSet(owM(), c[0], c[1], OWT.painting); owRender(); } };
+$('#owCanvas').onmousemove = e => { if (!OWT.painting || OWT.tool !== 'brush' && OWT.painting !== '.') { if (OWT.drag) owDraw(); return; } const c = owCell(e); if (c && owAt(owM(), c[0], c[1]) !== OWT.painting) { owSet(owM(), c[0], c[1], OWT.painting); OWT.ver = (OWT.ver | 0) + 1; owDraw(); } };
 window.addEventListener('mouseup', e => {
+  if (OWT.drag && OWT.tool === 'storm') {
+    const c = owCell(e) || OWT.hover || OWT.drag, a = OWT.drag; OWT.drag = null;
+    owPush(); owM().storms.push({ x0: Math.min(a[0], c[0]), y0: Math.min(a[1], c[1]), x1: Math.max(a[0], c[0]), y1: Math.max(a[1], c[1]), min: 1, max: 3, always: false });
+    owRender(); toast('加了雷区：雷雨天每隔一会儿劈 1–3 道（右边"⛈ 雷区"改）。右键点雷区 = 删'); return;
+  }
   if (OWT.drag) { const c = owCell(e) || OWT.drag, a = OWT.drag; OWT.drag = null; for (let x = Math.min(a[0], c[0]); x <= Math.max(a[0], c[0]); x++) for (let y = Math.min(a[1], c[1]); y <= Math.max(a[1], c[1]); y++) owSet(owM(), x, y, OWT.brush); owRender(); }
-  OWT.painting = null;
+  if (OWT.painting) { OWT.painting = null; owRender(); }
 });
 document.querySelectorAll('[data-owtool]').forEach(b => b.onclick = () => { OWT.tool = b.dataset.owtool; owPalette(); });
 $('#owUndo').onclick = owUndo;
@@ -832,7 +902,7 @@ $('#owPick').onchange = e => { OWCUR = +e.target.value; OWT.undo = []; OWT.redo 
 $('#owName').onchange = e => { owM().name = e.target.value.trim() || '未命名小镇'; owRender(); };
 $('#owGoal').onchange = e => { owM().goal = e.target.value.trim(); owSave(); };
 $('#owNew').onclick = () => { OWLIB.push({ kind: 'overworld', name: '新小镇 ' + (OWLIB.length + 1), goal: '', id: '', rows: owNewMap(40, 24), doors: [], notes: [] }); OWCUR = OWLIB.length - 1; OWT.undo = []; owRender(); toast('新建 40×24：先画家 M、出生点 T、至少一扇门'); };
-$('#owSample').onchange = e => { const v = e.target.value; e.target.value = ''; if (!v) return; const s = owParse(v === 'big' ? OW_BIG_SAMPLE : v === 'mtn' ? OW_MTN_SAMPLE : OW_SAMPLE); const i = OWLIB.findIndex(x => x.name === s.name); if (i >= 0) { owPush(); OWLIB[i] = s; OWCUR = i; } else { OWLIB.push(s); OWCUR = OWLIB.length - 1; } owRender(); };
+$('#owSample').onchange = e => { const v = e.target.value; e.target.value = ''; if (!v) return; const s = owParse(v === 'big' ? OW_BIG_SAMPLE : v === 'mtn' ? OW_MTN_SAMPLE : v === 'storm' ? OW_STORM_SAMPLE : OW_SAMPLE); const i = OWLIB.findIndex(x => x.name === s.name); if (i >= 0) { owPush(); OWLIB[i] = s; OWCUR = i; } else { OWLIB.push(s); OWCUR = OWLIB.length - 1; } owRender(); };
 $('#owDel').onclick = () => { if (OWLIB.length <= 1) { toast('至少留一个小镇'); return; } if (!confirm(`删除小镇"${owM().name}"？`)) return; OWLIB.splice(OWCUR, 1); OWCUR = 0; owRender(); };
 $('#owPack').onclick = exportPack;
 $('#owTxt').onclick = () => download(`${(owM().name || '小镇').replace(/[\\/:*?"<>|]/g, '')}.txt`, owToText(owM()), 'text/plain');

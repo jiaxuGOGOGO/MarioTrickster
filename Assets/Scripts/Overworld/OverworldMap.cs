@@ -19,9 +19,13 @@ public static class OverworldMap
     public const int MinW = 16, MinH = 12, MaxW = 192, MaxH = 128; // S217：96×64 → 192×128（大世界；再大就该拆成多张小镇）
     public const int DayStart = 6 * 60, DayEnd = 22 * 60, LatestDoor = 20 * 60;
     public const int MaxPickups = 3;
+    /// <summary>S220：补心 + 最多 3 个、能量 * 最多 4 个；雷区最多 4 个，每次同时劈 1–6 道。</summary>
+    public const int MaxHeartPickups = 3, MaxEnergyPickups = 4, MaxStorms = 4, MaxBolts = 6;
 
     public sealed class Door { public int n; public int minute = 8 * 60; public string room = ""; }
     public sealed class Note { public int x, y; public string text = ""; }
+    /// <summary>S220：雷区（关卡编辑时自己画范围）：x0..x1 × y0..y1（含两端），每一轮同时劈 min..max 道。always = 每天都劈（否则只在雷雨天）。</summary>
+    public sealed class Storm { public int x0, y0, x1, y1, min = 1, max = 3; public bool always; }
 
     public sealed class Map
     {
@@ -29,6 +33,7 @@ public static class OverworldMap
         public string[] rows = new string[0];
         public readonly List<Door> doors = new List<Door>();
         public readonly List<Note> notes = new List<Note>();
+        public readonly List<Storm> storms = new List<Storm>();
         public int W => rows.Length > 0 ? rows[0].Length : 0;
         public int H => rows.Length;
         public char At(int x, int y)
@@ -95,6 +100,7 @@ public static class OverworldMap
                     if (xy.Length == 2 && int.TryParse(xy[0], out int nx) && int.TryParse(xy[1], out int ny))
                         m.notes.Add(new Note { x = nx, y = ny, text = line.Substring(close + 1).Trim() });
                 }
+                else if (line.StartsWith("# Storm:")) { var st = ParseStorm(line.Substring(8)); if (st != null) m.storms.Add(st); }
                 continue;
             }
             string row = raw.TrimEnd();
@@ -114,9 +120,21 @@ public static class OverworldMap
         if (m.id.Length > 0) sb.Append("# Source: ").AppendLine(OneLine(m.id));
         foreach (var d in m.doors.OrderBy(d => d.n)) sb.Append("# Door: ").Append(d.n).Append(" | ").Append(Clock(d.minute)).Append(" | ").AppendLine(OneLine(d.room).Replace("|", "/"));
         foreach (var n in m.notes) sb.Append("# Note: (").Append(n.x).Append(',').Append(n.y).Append(") ").AppendLine(OneLine(n.text));
+        foreach (var st in m.storms) sb.Append("# Storm: ").AppendLine(StormText(st));
         foreach (var r in m.rows) sb.AppendLine(r);
         return sb.ToString();
     }
+
+    /// <summary>S220：雷区一行：x0,y0,x1,y1 | 最少 | 最多 [| always]（坐标自动排成左下 → 右上）。格式不对返回 null。</summary>
+    public static Storm ParseStorm(string s)
+    {
+        var p = (s ?? "").Split('|'); if (p.Length < 3) return null;
+        var xy = p[0].Split(','); if (xy.Length != 4) return null;
+        var v = new int[4]; for (int i = 0; i < 4; i++) if (!int.TryParse(xy[i].Trim(), out v[i])) return null;
+        if (!int.TryParse(p[1].Trim(), out int mn) || !int.TryParse(p[2].Trim(), out int mx)) return null;
+        return new Storm { x0 = Math.Min(v[0], v[2]), y0 = Math.Min(v[1], v[3]), x1 = Math.Max(v[0], v[2]), y1 = Math.Max(v[1], v[3]), min = mn, max = mx, always = p.Length >= 4 && p[3].Trim() == "always" };
+    }
+    public static string StormText(Storm st) => $"{st.x0},{st.y0},{st.x1},{st.y1} | {st.min} | {st.max}" + (st.always ? " | always" : "");
 
     /// <summary>关卡包 JSON 里 kind="overworld" 的一关（MiniJson 解析后的字典）→ Map。</summary>
     public static Map FromJson(Dictionary<string, object> d)
@@ -137,6 +155,8 @@ public static class OverworldMap
                 }
         if (d.TryGetValue("notes", out var ns) && ns is List<object> nl)
             foreach (var o in nl) if (o is Dictionary<string, object> nd) m.notes.Add(new Note { x = (int)Num(nd, "x"), y = (int)Num(nd, "y"), text = Str(nd, "text") });
+        if (d.TryGetValue("storms", out var ss) && ss is List<object> sl)
+            foreach (var o in sl) if (o is string line) { var st = ParseStorm(line); if (st != null) m.storms.Add(st); }
         m.doors.Sort((a, b) => a.n.CompareTo(b.n));
         return m;
     }
@@ -146,7 +166,9 @@ public static class OverworldMap
         var sb = new StringBuilder("{\"kind\":\"overworld\",\"id\":").Append(Js(m.id)).Append(",\"name\":").Append(Js(m.name)).Append(",\"goal\":").Append(Js(m.goal)).Append(",\"grid\":[");
         sb.Append(string.Join(",", m.rows.Select(Js))).Append("],\"doors\":[");
         sb.Append(string.Join(",", m.doors.OrderBy(d => d.n).Select(d => $"{{\"n\":{d.n},\"time\":{Js(Clock(d.minute))},\"room\":{Js(d.room)}}}"))).Append("],\"notes\":[");
-        sb.Append(string.Join(",", m.notes.Select(n => $"{{\"x\":{n.x},\"y\":{n.y},\"text\":{Js(n.text)}}}"))).Append("]}");
+        sb.Append(string.Join(",", m.notes.Select(n => $"{{\"x\":{n.x},\"y\":{n.y},\"text\":{Js(n.text)}}}"))).Append(']');
+        if (m.storms.Count > 0) sb.Append(",\"storms\":[").Append(string.Join(",", m.storms.Select(st => Js(StormText(st))))).Append(']'); // S220：没有雷区的旧图输出不变
+        sb.Append('}');
         return sb.ToString();
     }
 
@@ -207,6 +229,10 @@ public static class OverworldMap
         var keep = new List<Note>();
         foreach (var n in m.notes) { n.x += left; n.y += bottom; if (n.x >= 0 && n.y >= 0 && n.x < nw && n.y < nh) keep.Add(n); }
         m.notes.Clear(); m.notes.AddRange(keep);
+        // S220：雷区跟着平移；新地图里放不下（碰到最外圈）的丢掉
+        var ks = new List<Storm>();
+        foreach (var st in m.storms) { st.x0 += left; st.x1 += left; st.y0 += bottom; st.y1 += bottom; if (st.x0 >= 1 && st.y0 >= 1 && st.x1 <= nw - 2 && st.y1 <= nh - 2) ks.Add(st); }
+        m.storms.Clear(); m.storms.AddRange(ks);
         return new ResizeResult { ok = true, lost = lost };
     }
 
@@ -475,6 +501,10 @@ public static class OverworldMap
         if (doorCells.Count == 0) E("至少要有一扇门（数字 1–9）：门连到横版房间，马里奥每天去门里拿宝");
         int pickups = Find(m, '?').Count;
         if (pickups > MaxPickups) E($"道具箱最多 {MaxPickups} 个（现在 {pickups} 个）");
+        int hearts = Find(m, '+').Count, energy = Find(m, '*').Count; // S220
+        if (hearts > MaxHeartPickups) E($"补心 + 最多 {MaxHeartPickups} 个（现在 {hearts} 个）：太多了受伤就没意义");
+        if (energy > MaxEnergyPickups) E($"能量 * 最多 {MaxEnergyPickups} 个（现在 {energy} 个）：太多了一天能放好几次雷云");
+        OverworldStorm.Check(m, (t, x, y) => E(t, x, y), (t, x, y) => Wn(t, x, y), (t, x, y) => I(t, x, y));
         OverworldProps.CheckCounts(m, (t, x, y) => E(t, x, y), (t, x, y) => Wn(t, x, y)); // S218 大机关
         if (!rep.Playable) return rep;
 

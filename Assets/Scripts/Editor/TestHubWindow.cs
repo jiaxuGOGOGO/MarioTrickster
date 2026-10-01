@@ -117,6 +117,7 @@ public sealed class TestHubWindow : EditorWindow
             if (!towns.Any(x => x.name == OverworldPack.SampleName)) towns.Insert(0, (OverworldPack.SampleName + "（内置样板）", OverworldPack.SampleText));
             if (!towns.Any(x => x.name == OverworldPack.BigSampleName)) towns.Insert(1, (OverworldPack.BigSampleName + "（内置样板）", OverworldPack.BigSampleText));
             if (!towns.Any(x => x.name == OverworldPack.MountainSampleName)) towns.Insert(2, (OverworldPack.MountainSampleName + "（内置样板）", OverworldPack.MountainSampleText));
+            if (!towns.Any(x => x.name == OverworldPack.StormSampleName)) towns.Insert(3, (OverworldPack.StormSampleName + "（内置样板）", OverworldPack.StormSampleText));
             var rules = OverworldBuilder.RulesFromTuning();
             foreach (var (name, text) in towns)
             {

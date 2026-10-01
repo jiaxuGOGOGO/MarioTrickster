@@ -45,6 +45,16 @@ public static class OverworldBuilder
     /// <summary>这张小镇 + 它连的所有房间 + 构建器版本 + 主题 的指纹。任何一样变了，场景就要重建。</summary>
     public static string TownFingerprint(string text)
     {
+        // S220：同样的输入（小镇文字 + 各房间修改时间）不重算
+        var sbk = new System.Text.StringBuilder(text ?? "");
+        sbk.Append('|').Append(LevelLibrary.Signature(LevelLibrary.Folder, "*.txt")).Append('|').Append(Step1PrankRoomBuilder.BuilderVersion).Append('|').Append(Step1PrankRoomBuilder.EnsureTuningAsset().themePreset);
+        string ck = Hash128.Compute(sbk.ToString()).ToString();
+        if (fingerprintCache.TryGetValue(ck, out var fp)) return fp;
+        if (fingerprintCache.Count > 64) fingerprintCache.Clear();
+        return fingerprintCache[ck] = TownFingerprintUncached(text);
+    }
+    private static string TownFingerprintUncached(string text)
+    {
         var m = OverworldMap.Parse(text);
         var sb = new System.Text.StringBuilder(OverworldMap.ToText(m));
         sb.Append('|').Append(Step1PrankRoomBuilder.BuilderVersion).Append('|').Append(Step1PrankRoomBuilder.EnsureTuningAsset().themePreset);
@@ -75,7 +85,19 @@ public static class OverworldBuilder
         }
     }
 
+    // S220：小镇列表也缓存（以前"打开 ▾"每次把每张小镇完整解析一遍）
+    private static List<(string name, string path)> townCache; private static string townSig = ""; private static double townAt = -10;
+    public static void InvalidateCaches() { townCache = null; townSig = ""; townAt = -10; roomCache.Clear(); problemCache.Clear(); fingerprintCache.Clear(); LevelLibrary.Invalidate(); }
     public static List<(string name, string path)> List()
+    {
+        double now = EditorApplication.timeSinceStartup;
+        if (townCache != null && now - townAt < 1.0) return new List<(string, string)>(townCache);
+        townAt = now; string sig = LevelLibrary.Signature(Folder, "*.txt");
+        if (townCache != null && sig == townSig) return new List<(string, string)>(townCache);
+        townCache = ListUncached(); townSig = sig;
+        return new List<(string, string)>(townCache);
+    }
+    private static List<(string name, string path)> ListUncached()
     {
         var l = new List<(string, string)>();
         if (!Directory.Exists(Folder)) return l;
@@ -94,6 +116,7 @@ public static class OverworldBuilder
         string text = OverworldMap.ToText(m);
         WebSync.BackupBeforeWrite(p, text); // S214：覆盖前备份旧版本
         File.WriteAllText(p, text);
+        townCache = null;
         AssetDatabase.ImportAsset(p);
         EditorPrefs.SetString(CurrentKey, p);
         return p;
@@ -136,13 +159,22 @@ public static class OverworldBuilder
     }
 
     /// <summary>房间名 → 网格（关卡库优先）。找不到返回 null。</summary>
+    // S220：房间网格按"文件路径 + 修改时间"缓存（悬停一扇门 / 每次检查都要用；以前每次读盘）
+    private static readonly Dictionary<string, (long t, string[] rows)> roomCache = new Dictionary<string, (long, string[])>();
+    private static readonly Dictionary<string, string> problemCache = new Dictionary<string, string>();
+    private static readonly Dictionary<string, string> fingerprintCache = new Dictionary<string, string>();
     public static string[] ResolveRoom(string name)
     {
         name = (name ?? "").Trim();
         if (name.Length == 0) return null;
         foreach (var e in LevelLibrary.List())
             if (e.name == name)
-                return File.ReadAllText(e.path).Replace("\r", "").Split('\n').Where(l => l.Length > 0 && !l.StartsWith("#")).ToArray();
+            {
+                long t = File.Exists(e.path) ? File.GetLastWriteTimeUtc(e.path).Ticks : 0;
+                if (roomCache.TryGetValue(e.path, out var c) && c.t == t) return c.rows;
+                var rows = File.ReadAllText(e.path).Replace("\r", "").Split('\n').Where(l => l.Length > 0 && !l.StartsWith("#")).ToArray();
+                roomCache[e.path] = (t, rows); return rows;
+            }
         if (name == LevelWorkshopModel.DefaultRoomName) return Step1PrankRoomBuilder.Room;
         foreach (var s in LevelWorkshopModel.SampleRooms) if (s.name == name) return s.rows;
         return null;
@@ -153,8 +185,12 @@ public static class OverworldBuilder
     {
         var rows = ResolveRoom(name);
         if (rows == null) return "找不到这个房间（关卡库里没有，也不是内置样板）";
+        // S220：同一个房间（同样的格子）只验一次——验所有随机变体很慢，以前每画一格、每关一次下拉菜单都要对每扇门重验一遍
+        string key = Step1PrankRoomBuilder.RoomHash(rows);
+        if (problemCache.TryGetValue(key, out var why)) return why;
         Step1PrankRoomBuilder.ValidateAllVariants(rows, out bool ok);
-        return ok ? null : "房间本身检查没通过（在关卡工坊里打开它看红格）";
+        why = ok ? null : "房间本身检查没通过（在关卡工坊里打开它看红格）";
+        problemCache[key] = why; return why;
     }
 
     [MenuItem("MarioTrickster/Overworld/▶ Play Town (小镇)", false, 0)]

@@ -182,6 +182,14 @@ public class MarioMindDriver : MonoBehaviour
         return c != null && c.gameObject.activeInHierarchy ? (Vector2?)c.transform.position : null;
     }
 
+    /// <summary>S220：从小镇带心进房间——直接设血量，并同步 lastHealth（不当成"受伤"、不吃护盾）。</summary>
+    public void SetCarriedHealth(int n)
+    {
+        if (health == null) health = GetComponent<PlayerHealth>();
+        if (health == null) return;
+        lastHealth = -1; health.SetCurrent(n); lastHealth = health.CurrentHealth; hurtThisFrame = false;
+    }
+
     private void HandleHealthChanged(int current, int max)
     {
         // S198 道具：护盾 = 下一次受伤免疫（把血加回去）

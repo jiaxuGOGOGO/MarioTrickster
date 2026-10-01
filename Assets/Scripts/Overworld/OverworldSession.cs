@@ -42,6 +42,13 @@ public static class OverworldSession
     /// <summary>S219：每门巨炮现在的瞄准（格子编号 → 方向×100 + 距离）。你瞄好了下车，被连锁震响时就打那里；当天有效。</summary>
     public static readonly Dictionary<int, int> CannonAim = new Dictionary<int, int>();
     public static int CannonRides, Lightnings, Mudslides, CaveHops;
+    // ── S220：心 / 能量 ──
+    public const int MaxHearts = 3, MaxEnergy = 3;
+    /// <summary>小镇里的心（马里奥 / 你各 3 颗）。被劈 / 砸 / 冲到掉 1 颗；掉光 = 晕倒几秒、剩 1 颗站起来（一天不会因此结束）。进房间带进去，房间打完回满。</summary>
+    public static int MarioHearts = MaxHearts, YouHearts = MaxHearts;
+    /// <summary>你的能量（0–3）：捡 * +1，你的机关让他掉心 +1。满了按 Q 召唤雷云。</summary>
+    public static int Energy;
+    public static int MarioHeartsLost, YouHeartsLost, Kos, Clouds, StormBolts;
 
     /// <summary>每次进入 Play 都重置（Unity 关了域重载时静态值会留着）。</summary>
     [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -49,7 +56,7 @@ public static class OverworldSession
 
     public static void NewDay(string map, string town, int day = 1)
     {
-        Day = System.Math.Max(1, day); Changed.Clear(); CannonAim.Clear(); CannonRides = Lightnings = Mudslides = CaveHops = 0; LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0;
+        Day = System.Math.Max(1, day); Changed.Clear(); CannonAim.Clear(); CannonRides = Lightnings = Mudslides = CaveHops = 0; MarioHearts = YouHearts = MaxHearts; Energy = 0; MarioHeartsLost = YouHeartsLost = Kos = Clouds = StormBolts = 0; LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0;
         MapName = map ?? ""; TownScene = town ?? ""; Minute = OverworldMap.DayStart;
         Results.Clear(); UsedCells.Clear(); DayOver = false; HasPositions = false; NextStop = 0; PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f; Caught = 0; TauntsUsed = 0; DelayedSeconds = 0f;
     }
@@ -60,6 +67,7 @@ public static class OverworldSession
         if (door <= 0) return;
         Results[door] = playerWon ? DoorResult.Defended : DoorResult.Looted;
         PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f; CarriedDaze = 0f;
+        MarioHearts = YouHearts = MaxHearts; // S220：房间打完两人都回满心（房间里有自己的血量）
         if (playerWon) ReloadDoor = door; // S218：守住一户 → 回到小镇时那户旁边的大机关重新装填
     }
 
@@ -73,4 +81,16 @@ public static class OverworldSession
     public static bool DayWon(int doorCount) => doorCount > 0 && Count(DoorResult.Defended) * 2 >= doorCount;
 
     public static string Summary(int doorCount) => Step1Text.OverworldDaySummary(Count(DoorResult.Defended), Count(DoorResult.Looted), Count(DoorResult.Missed), doorCount, Caught, DelayedSeconds, DayWon(doorCount));
+}
+
+/// <summary>S220：小镇的心带进横版房间（纯逻辑，沙盒可测）。马里奥至少带 overworldRoomHeartFloor 颗（小镇被打得再惨，房间里也要能打）；你的心 = 房间命数（至少 1）。</summary>
+public static class OverworldRoomCarry
+{
+    public static int MarioRoomHearts(MarioMindTuningSO t, int roomMax)
+    {
+        if (!OverworldSession.Active && OverworldSession.MarioHearts >= OverworldSession.MaxHearts) return roomMax;
+        int floor = System.Math.Max(1, t != null ? t.overworldRoomHeartFloor : 2);
+        return System.Math.Max(1, System.Math.Min(roomMax, System.Math.Max(floor, OverworldSession.MarioHearts)));
+    }
+    public static int TricksterRoomLives(int roomMax) => System.Math.Max(1, System.Math.Min(roomMax, OverworldSession.YouHearts));
 }

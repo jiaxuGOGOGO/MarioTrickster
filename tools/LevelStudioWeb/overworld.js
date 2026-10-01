@@ -1,6 +1,6 @@
 // ── S210 大地图（星露谷视角小镇）纯逻辑：逐行移植 Assets/Scripts/Overworld/OverworldMap.cs（同样的检查文字、同样的寻路顺序；verify.sh 逐项对照）──
 // OW_TILES 由 build.py 从 OverworldCatalog.cs 生成。
-const OW = { MinW: 16, MinH: 12, MaxW: 192, MaxH: 128, DayStart: 360, DayEnd: 1320, LatestDoor: 1200, NightStart: 1140, MaxPickups: 3,
+const OW = { MinW: 16, MinH: 12, MaxW: 192, MaxH: 128, DayStart: 360, DayEnd: 1320, LatestDoor: 1200, NightStart: 1140, MaxPickups: 3, MaxHeartPickups: 3, MaxEnergyPickups: 4, MaxStorms: 4, MaxBolts: 6,
   Rules: { marioSpeed: 3.4, tricksterSpeed: 5.0, minutesPerSecond: 4.0, visitMinutes: 60.0 } };
 const owTile = c => { if (c === ' ') c = '.'; if (c >= '1' && c <= '9') c = '1'; return OW_TILES.find(t => t.c === c) || null; };
 const owIsDoor = c => c >= '1' && c <= '9';
@@ -17,7 +17,7 @@ const owW = m => m.rows.length ? m.rows[0].length : 0;
 const owWalk = (m, x, y) => x >= 0 && y >= 0 && x < owW(m) && y < m.rows.length && !owSolid(owAt(m, x, y));
 
 function owParse(text) {
-  const m = { kind: 'overworld', name: '', goal: '', id: '', rows: [], doors: [], notes: [] }; const grid = [];
+  const m = { kind: 'overworld', name: '', goal: '', id: '', rows: [], doors: [], notes: [], storms: [] }; const grid = [];
   for (const raw of String(text || '').replace(/\r/g, '').replace(/\uFEFF/g, '').split('\n')) {
     if (raw.startsWith('#')) {
       const line = raw.trimEnd();
@@ -30,7 +30,7 @@ function owParse(text) {
       } else if (line.startsWith('# Note: (')) {
         const close = line.indexOf(')'); const xy = close > 9 ? line.slice(9, close).split(',') : [];
         if (xy.length === 2 && /^-?\d+$/.test(xy[0]) && /^-?\d+$/.test(xy[1])) m.notes.push({ x: +xy[0], y: +xy[1], text: line.slice(close + 1).trim() });
-      }
+      } else if (line.startsWith('# Storm:')) { const st = owParseStorm(line.slice(8)); if (st) m.storms.push(st); }
       continue;
     }
     const row = raw.trimEnd(); if (row.length) grid.push(row.replace(/ /g, '.'));
@@ -44,16 +44,28 @@ function owToText(m) {
   if (m.goal) L.push(`# Goal: ${owOne(m.goal)}`); if (m.id) L.push(`# Source: ${owOne(m.id)}`);
   for (const d of m.doors.slice().sort((a, b) => a.n - b.n)) L.push(`# Door: ${d.n} | ${owClock(d.minute)} | ${owOne(d.room).replace(/\|/g, '/')}`);
   for (const n of m.notes) L.push(`# Note: (${n.x},${n.y}) ${owOne(n.text)}`);
+  for (const st of m.storms || []) L.push(`# Storm: ${owStormText(st)}`);
   return L.concat(m.rows).join('\n') + '\n';
 }
 function owFromJson(d) {
-  const m = { kind: 'overworld', name: d.name || '', goal: d.goal || '', id: d.id || '', rows: (d.grid || []).map(r => String(r).replace(/ /g, '.')), doors: [], notes: [] };
+  const m = { kind: 'overworld', name: d.name || '', goal: d.goal || '', id: d.id || '', rows: (d.grid || []).map(r => String(r).replace(/ /g, '.')), doors: [], notes: [], storms: [] };
   const w = m.rows.reduce((a, r) => Math.max(a, r.length), 0); m.rows = m.rows.map(r => r.padEnd(w, '.'));
   for (const o of d.doors || []) { const n = Math.floor(+o.n || 0); if (n < 1 || n > 9) continue; const mm = owParseClock(o.time); m.doors = m.doors.filter(x => x.n !== n); m.doors.push({ n, minute: mm === null ? 480 : mm, room: o.room || '' }); }
   for (const o of d.notes || []) m.notes.push({ x: +o.x | 0, y: +o.y | 0, text: o.text || '' });
+  for (const o of d.storms || []) { const st = owParseStorm(String(o)); if (st) m.storms.push(st); }
   m.doors.sort((a, b) => a.n - b.n); return m;
 }
-const owToJson = m => ({ kind: 'overworld', id: m.id || '', name: m.name || '', goal: m.goal || '', grid: m.rows.slice(), doors: m.doors.slice().sort((a, b) => a.n - b.n).map(d => ({ n: d.n, time: owClock(d.minute), room: d.room || '' })), notes: m.notes.slice() });
+const owToJson = m => { const j = { kind: 'overworld', id: m.id || '', name: m.name || '', goal: m.goal || '', grid: m.rows.slice(), doors: m.doors.slice().sort((a, b) => a.n - b.n).map(d => ({ n: d.n, time: owClock(d.minute), room: d.room || '' })), notes: m.notes.slice() }; if ((m.storms || []).length) j.storms = m.storms.map(owStormText); return j; };
+// S220：雷区（和 C# OverworldMap.ParseStorm / StormText 一样）
+function owParseStorm(s) {
+  const p = String(s || '').split('|'); if (p.length < 3) return null;
+  const xy = p[0].split(','); if (xy.length !== 4) return null;
+  const v = xy.map(t => t.trim()); if (!v.every(t => /^-?\d+$/.test(t))) return null;
+  const mn = p[1].trim(), mx = p[2].trim(); if (!/^-?\d+$/.test(mn) || !/^-?\d+$/.test(mx)) return null;
+  const a = v.map(Number);
+  return { x0: Math.min(a[0], a[2]), y0: Math.min(a[1], a[3]), x1: Math.max(a[0], a[2]), y1: Math.max(a[1], a[3]), min: +mn, max: +mx, always: p.length >= 4 && p[3].trim() === 'always' };
+}
+const owStormText = st => `${st.x0},${st.y0},${st.x1},${st.y1} | ${st.min} | ${st.max}` + (st.always ? ' | always' : '');
 function owNewMap(w, h) { w = Math.max(OW.MinW, Math.min(OW.MaxW, w)); h = Math.max(OW.MinH, Math.min(OW.MaxH, h)); const rows = []; for (let r = 0; r < h; r++) rows.push(r === 0 || r === h - 1 ? 't'.repeat(w) : 't' + '.'.repeat(w - 2) + 't'); return rows; }
 
 // S217：往外扩展 / 裁掉（大世界）。逐行移植 C# OverworldMap.Resize（verify 逐字对照）。返回 {ok, why, lost}；ok 时就地改 m.rows / m.notes。
@@ -82,6 +94,7 @@ function owResize(m, left, right, top, bottom) {
   }
   m.rows = g;
   m.notes = m.notes.map(n => ({ x: n.x + left, y: n.y + bottom, text: n.text })).filter(n => n.x >= 0 && n.y >= 0 && n.x < nw && n.y < nh);
+  m.storms = (m.storms || []).map(st => ({ ...st, x0: st.x0 + left, x1: st.x1 + left, y0: st.y0 + bottom, y1: st.y1 + bottom })).filter(st => st.x0 >= 1 && st.y0 >= 1 && st.x1 <= nw - 2 && st.y1 <= nh - 2); // S220
   return { ok: true, why: '', lost };
 }
 
@@ -145,6 +158,10 @@ function owCheck(m, R, roomOk) {
   for (let n = 1; n <= 9; n++) { const cs = owFind(m, String(n)); if (cs.length > 1) E(`门 ${n} 画了 ${cs.length} 个：每个数字只能用一次`, cs[1][0], cs[1][1]); if (cs.length >= 1) doorCells.set(n, cs[0]); }
   if (!doorCells.size) E('至少要有一扇门（数字 1–9）：门连到横版房间，马里奥每天去门里拿宝');
   const pickups = owFind(m, '?').length; if (pickups > OW.MaxPickups) E(`道具箱最多 ${OW.MaxPickups} 个（现在 ${pickups} 个）`);
+  const hearts = owFind(m, '+').length, energy = owFind(m, '*').length; // S220
+  if (hearts > OW.MaxHeartPickups) E(`补心 + 最多 ${OW.MaxHeartPickups} 个（现在 ${hearts} 个）：太多了受伤就没意义`);
+  if (energy > OW.MaxEnergyPickups) E(`能量 * 最多 ${OW.MaxEnergyPickups} 个（现在 ${energy} 个）：太多了一天能放好几次雷云`);
+  owStormCheck(m, E, Wn, I);
   owPropsCheckCounts(m, E, Wn); // S218 大机关
   if (!playable()) return done();
   const home = owFind(m, 'M')[0], tsp = owFind(m, 'T')[0];
@@ -378,7 +395,7 @@ function owDescribeMountains(m, lines) {
 // 天气（输入随机）：FNV-1a + xorshift，全部 uint32（和 C# 一样）
 function owHash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h = (h ^ s.charCodeAt(i)) >>> 0; h = Math.imul(h, 16777619) >>> 0; } return h; }
 // S219：天气池看地图格局（有路灯才有雷雨 5，有 ≥2 个山洞才有酸雨 6）——和 C# OverworldEvents.Pool 一样
-function owWeatherPool(m) { const l = [0, 1, 2, 3, 4]; if (owFind(m, 'i').length) l.push(5); if (owFind(m, 'h').length >= 2) l.push(6); return l; }
+function owWeatherPool(m) { const l = [0, 1, 2, 3, 4]; if (owFind(m, 'i').length || (m.storms || []).length) l.push(5); if (owFind(m, 'h').length >= 2) l.push(6); return l; }
 function owDayOf(name, day, pool) {
   pool = pool || [0, 1, 2, 3, 4];
   let h = owHash(name || ''); h = (h ^ (Math.imul(day, 2654435761 | 0) >>> 0)) >>> 0;
@@ -396,7 +413,7 @@ function owWeatherZh(d) {
     case 2: return `🌧 雨天：水塔淹得更大（半径 ${OWP.FloodRadius + 1}），香蕉皮滑得更久，山丘被震会泥石流`;
     case 3: return '🌫 雾天：他只看得见平时 6 成远（你也更好躲）';
     case 4: return '🧺 赶集日：他每扇门晚 0–30 分钟出门（时间表已更新）';
-    case 5: return '⛈ 雷雨：在路灯旁按 L 召唤闪电（1.5 格内晕），山丘被震会泥石流';
+    case 5: return '⛈ 雷雨：雷区一阵阵劈闪电（地上闪光 = 快跑），在路灯旁按 L 召唤闪电，山丘被震会泥石流';
     case 6: return '☂ 酸雨：高草全枯了（只剩山洞能躲），他打着伞只看得见 7 成远';
     default: return '☀ 晴天：一切照常';
   }
@@ -410,3 +427,45 @@ function owWeatherPreview(m, from, n) {
   }
   return l;
 }
+
+// ═════════ S220：雷区——逐行移植 C# OverworldStorm（同一个哈希 → 同一批落点，verify 逐字对照）═════════
+const OWS = { VolleySeconds: 10, MinutesPerSecond: 4 };
+function owStormNearSafe(m, x, y) { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const c = owAt(m, x + dx, y + dy); if (c === 'M' || c === 'T' || owIsDoor(c)) return true; } return false; }
+function owStrikeable(m, st) { const l = [], w = owW(m), h = m.rows.length; for (let y = Math.max(0, st.y0); y <= Math.min(h - 1, st.y1); y++) for (let x = Math.max(0, st.x0); x <= Math.min(w - 1, st.x1); x++) { if (!owWalk(m, x, y) || owStormNearSafe(m, x, y)) continue; l.push([x, y]); } return l; }
+function owStormPlus(m, c) { const l = [c]; for (let k = 0; k < 4; k++) { const x = c[0] + ODX[k], y = c[1] + ODY[k]; if (owWalk(m, x, y)) l.push([x, y]); } return l; }
+const owXs = h => { h = (h ^ (h << 13)) >>> 0; h = (h ^ (h >>> 17)) >>> 0; h = (h ^ (h << 5)) >>> 0; return h === 0 ? 0x9E3779B9 : h; };
+function owStormSeed(name, day, zone, volley) {
+  let h = owHash(name || '');
+  h = (h ^ (Math.imul(day, 2654435761 | 0) >>> 0)) >>> 0;
+  h = (h ^ (Math.imul(zone + 1, 2654435769 | 0) >>> 0)) >>> 0;
+  h = (h ^ (Math.imul(volley, 2246822507 | 0) >>> 0)) >>> 0;
+  return owXs(owXs(h));
+}
+function owStormVolley(m, zone, day, volley) {
+  const res = []; const st = (m.storms || [])[zone]; if (!st) return res;
+  const pool = owStrikeable(m, st); if (!pool.length) return res;
+  const lo = Math.max(1, st.min), hi = Math.max(lo, Math.min(OW.MaxBolts, st.max));
+  let h = owStormSeed(m.name, day, zone, volley);
+  const n = lo + (h % (hi - lo + 1));
+  for (let k = 0; k < n && pool.length; k++) { h = owXs(h); const i = h % pool.length; res.push(pool[i]); pool[i] = pool[pool.length - 1]; pool.pop(); }
+  return res;
+}
+function owStormVolleyIndex(minute, zone) { const period = Math.max(1, OWS.VolleySeconds * OWS.MinutesPerSecond); return Math.floor((minute - OW.DayStart) / period + zone * 0.37); }
+function owStormCheck(m, E, W, I) {
+  const ss = m.storms || []; if (!ss.length) return;
+  if (ss.length > OW.MaxStorms) E(`雷区最多 ${OW.MaxStorms} 个（现在 ${ss.length} 个）`, -1, -1);
+  const w = owW(m), h = m.rows.length;
+  ss.forEach((st, i) => {
+    const nm = `雷区 ${i + 1}`;
+    if (st.x0 < 1 || st.y0 < 1 || st.x1 > w - 2 || st.y1 > h - 2) { E(`${nm} 超出地图（要在最外一圈以内）`, st.x0, st.y0); return; }
+    if (st.min < 1 || st.max > OW.MaxBolts || st.min > st.max) E(`${nm}：每次劈的道数要满足 1 ≤ 最少 ≤ 最多 ≤ ${OW.MaxBolts}（现在 ${st.min}–${st.max}）`, st.x0, st.y0);
+    const pool = owStrikeable(m, st);
+    if (!pool.length) { E(`${nm} 里没有能劈的格子（全是墙 / 水，或者紧挨着门 / 家 / 出生点）`, st.x0, st.y0); return; }
+    for (const d of m.doors) for (const c of owFind(m, String(d.n)))
+      if (c[0] >= st.x0 - 1 && c[0] <= st.x1 + 1 && c[1] >= st.y0 - 1 && c[1] <= st.y1 + 1) W(`${nm} 挨着门 ${d.n}：门口 1 格不会劈，但他进门的路上会被劈（拖住他是好事，劈太多他会一直晕）`, c[0], c[1]);
+    if (st.min > pool.length) W(`${nm} 只有 ${pool.length} 格能劈，少于最少 ${st.min} 道 → 实际每次最多劈 ${pool.length} 道`, st.x0, st.y0);
+    I(`${nm}：${st.x1 - st.x0 + 1}×${st.y1 - st.y0 + 1} 格，每次同时劈 ${st.min}–${st.max} 道，${st.always ? '每天都劈' : '只在雷雨天劈'}`, st.x0, st.y0);
+  });
+}
+// S220：伤害说明（由 build.py 从 OverworldCatalog.Harm 生成 OW_HARM；没生成时为空）
+const owHarm = c => (typeof OW_HARM !== 'undefined' && OW_HARM[c]) || '';

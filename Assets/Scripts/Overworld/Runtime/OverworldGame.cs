@@ -93,7 +93,7 @@ public sealed class OverworldGame : MonoBehaviour
         {
             h = (Step1Keys.Held(KeyCode.RightArrow) || Step1Keys.Held(KeyCode.D) ? 1f : 0f) - (Step1Keys.Held(KeyCode.LeftArrow) || Step1Keys.Held(KeyCode.A) ? 1f : 0f),
             v = (Step1Keys.Held(KeyCode.UpArrow) || Step1Keys.Held(KeyCode.W) ? 1f : 0f) - (Step1Keys.Held(KeyCode.DownArrow) || Step1Keys.Held(KeyCode.S) ? 1f : 0f),
-            disguise = Step1Keys.Down(KeyCode.P), peel = Step1Keys.Down(KeyCode.L), taunt = Step1Keys.Down(KeyCode.T), door = Step1Keys.Down(KeyCode.E),
+            disguise = Step1Keys.Down(KeyCode.P), peel = Step1Keys.Down(KeyCode.L), taunt = Step1Keys.Down(KeyCode.T), door = Step1Keys.Down(KeyCode.E), weather = Step1Keys.Down(KeyCode.Q),
             fastForward = Step1Keys.Held(KeyCode.Space), // S213：等他出发时按住空格快进（有事发生自动恢复）
             // S219：坐在炮里按一下方向 = 瞄准一步（右 左 上 下）
             aim = Step1Keys.Down(KeyCode.RightArrow) || Step1Keys.Down(KeyCode.D) ? 1 : Step1Keys.Down(KeyCode.LeftArrow) || Step1Keys.Down(KeyCode.A) ? 2 : Step1Keys.Down(KeyCode.UpArrow) || Step1Keys.Down(KeyCode.W) ? 3 : Step1Keys.Down(KeyCode.DownArrow) || Step1Keys.Down(KeyCode.S) ? 4 : 0,
@@ -140,6 +140,16 @@ public sealed class OverworldGame : MonoBehaviour
             case OverworldTown.Note.Mudslide: return Step1Text.OverworldMudslide;
             case OverworldTown.Note.CaveHop: return Step1Text.OverworldCaveHop;
             case OverworldTown.Note.CaveNoExit: return Step1Text.OverworldCaveNoExit;
+            case OverworldTown.Note.YouHurt: return Step1Text.OverworldYouHurt;
+            case OverworldTown.Note.YouKO: return Step1Text.OverworldYouKO;
+            case OverworldTown.Note.MarioKO: return Step1Text.OverworldMarioKO;
+            case OverworldTown.Note.Heal: return Step1Text.OverworldHeal;
+            case OverworldTown.Note.MarioHeal: return Step1Text.OverworldMarioHeal;
+            case OverworldTown.Note.EnergyUp: return Step1Text.OverworldEnergyUp;
+            case OverworldTown.Note.EnergyFull: return Step1Text.OverworldEnergyFull;
+            case OverworldTown.Note.Cloud: return Step1Text.OverworldCloud;
+            case OverworldTown.Note.CloudLow: return Step1Text.OverworldCloudLow;
+            case OverworldTown.Note.StormBolt: return Step1Text.OverworldStormBolt;
             default: return "";
         }
     }
@@ -200,6 +210,18 @@ public sealed class OverworldGame : MonoBehaviour
                 else if (c == 'n' || c == '?') tileSr[y * map.W + x] = Quad(root, c == 'n' ? "peel" : "box", x + 0.5f, y + 0.5f, 0.55f, 0.45f, new Color(t.r, t.g, t.b), -1500);
                 else if (OverworldCatalog.IsDoor(c)) tileSr[y * map.W + x] = Quad(root, "door" + c, x + 0.5f, y + 0.75f, 0.7f, 0.5f, new Color(t.r, t.g, t.b), Order(y + 1) + 1);
                 else if (c == 'M') Quad(root, "home", x + 0.5f, y + 0.75f, 0.7f, 0.5f, new Color(t.r, t.g, t.b), Order(y + 1) + 1);
+                else if (c == '+' || c == '*') tileSr[y * map.W + x] = Icon(root, OverworldArt.IconOf(c), x + 0.5f, y + 0.5f, 0.8f, -1500); // S220 补心 / 能量
+                // S220：像素图标叠在原来的色块上（一眼认出是什么；美术换图 = 同名 PNG 覆盖）
+                string ik = OverworldArt.IconOf(c);
+                if (ik != null && c != '+' && c != '*' && c != 'i')
+                {
+                    var icon = Icon(root, ik, x + 0.5f, y + 0.55f, c == 'K' || c == 'O' || c == 'U' ? 1.15f : 0.85f, c == 'X' || c == 'n' || c == '?' ? -1450 : Order(y) + 2);
+                    if (icon != null)
+                    {
+                        if (c == 'n' || c == '?' || c == 'X') { if (tileSr.TryGetValue(y * map.W + x, out var under)) under.enabled = false; tileSr[y * map.W + x] = icon; }
+                        else Keep(x, y, icon);
+                    }
+                }
             }
 
         groundTex = null;
@@ -237,6 +259,95 @@ public sealed class OverworldGame : MonoBehaviour
     }
 
     private TextMesh youTag, marioTag;
+
+    // ═════════ S220：像素图标（OverworldArt；Resources/OverworldArt/<名字>.png 同名覆盖）═════════
+    private static readonly Dictionary<string, Sprite> iconCache = new Dictionary<string, Sprite>();
+    public static Sprite IconSprite(string key)
+    {
+        if (key == null) return null;
+        if (iconCache.TryGetValue(key, out var sp) && sp != null) return sp;
+        var tex = Resources.Load<Texture2D>("OverworldArt/" + key); // 美术换图
+        if (tex == null)
+        {
+            var px = OverworldArt.Pixels(key); if (px == null) return null;
+            tex = new Texture2D(OverworldArt.Size, OverworldArt.Size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            var cols = new Color[OverworldArt.Size * OverworldArt.Size];
+            for (int i = 0; i < cols.Length; i++) cols[i] = new Color(px[i * 4], px[i * 4 + 1], px[i * 4 + 2], px[i * 4 + 3]);
+            tex.SetPixels(cols); tex.Apply();
+        }
+        else tex.filterMode = FilterMode.Point;
+        sp = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), tex.width);
+        iconCache[key] = sp; return sp;
+    }
+    private SpriteRenderer Icon(Transform parent, string key, float x, float y, float size, int order)
+    {
+        var sp = IconSprite(key); if (sp == null) return null;
+        var sr = Quad(parent, "icon_" + key, x, y, size, size, Color.white, order); sr.sprite = sp; return sr;
+    }
+
+    private readonly List<SpriteRenderer> strikeSr = new List<SpriteRenderer>();
+    private SpriteRenderer cloudSr;
+    private struct Pop { public Vector3 at; public int kind; public float until; }
+    private readonly List<Pop> pops = new List<Pop>();
+    /// <summary>闪电预警（十字格闪蓝，最后 0.3 秒变白 + 头上一个闪电图标）、雷云（停在原地的灰云 + 范围圈）、受伤角标飘字。纯画面（H4）。</summary>
+    private void StormVisuals()
+    {
+        int n = 0;
+        foreach (var s in town.strikes)
+        {
+            float k = 1f - s.t / Mathf.Max(0.01f, s.total);
+            foreach (var c in OverworldStorm.Plus(map, s.c))
+            {
+                if (n >= strikeSr.Count) strikeSr.Add(Quad(null, "boltWarn", 0, 0, 0.92f, 0.92f, Color.white, -1390));
+                var sr = strikeSr[n++]; sr.sprite = square; sr.enabled = true; sr.transform.position = new Vector3(c.x + 0.5f, c.y + 0.5f, 0); sr.transform.localScale = new Vector3(0.92f, 0.92f, 1);
+                float blink = Mathf.PingPong(Time.time * (5f + 14f * k), 1f);
+                sr.color = s.White ? new Color(1f, 1f, 1f, 0.85f) : new Color(0.35f, 0.75f, 1f, 0.2f + 0.4f * blink);
+            }
+            if (n >= strikeSr.Count) strikeSr.Add(Quad(null, "boltIcon", 0, 0, 1, 1, Color.white, 3990));
+            var ic = strikeSr[n++]; ic.sprite = IconSprite("Bolt"); ic.enabled = true; ic.color = Color.white;
+            ic.transform.position = new Vector3(s.c.x + 0.5f, s.c.y + 1.4f + 0.15f * Mathf.Sin(Time.time * 12f), 0); ic.transform.localScale = new Vector3(0.9f, 0.9f, 1);
+        }
+        for (int i = n; i < strikeSr.Count; i++) strikeSr[i].enabled = false;
+        if (town.cloud != null)
+        {
+            if (cloudSr == null) { cloudSr = Quad(null, "stormCloud", 0, 0, 1, 1, Color.white, 4050); cloudSr.sprite = IconSprite("Cloud"); }
+            float r = tuning.overworldCloudRadius; cloudSr.enabled = true; cloudSr.color = new Color(1f, 1f, 1f, 0.85f);
+            cloudSr.transform.position = new Vector3((float)town.cloud.x, (float)town.cloud.y + 2.2f, 0); cloudSr.transform.localScale = new Vector3(r * 1.6f, r * 1.6f, 1);
+            if (Time.frameCount % 20 == 0) Step1Fx.Ring(new Vector2((float)town.cloud.x, (float)town.cloud.y), r, new Color(0.6f, 0.75f, 1f, 0.6f)); // 范围圈
+        }
+        else if (cloudSr != null) cloudSr.enabled = false;
+        foreach (var h in town.hurts) pops.Add(new Pop { at = new Vector3(h.x, h.y + 1.1f, 0), kind = h.kind, until = Time.unscaledTime + 1.1f });
+        pops.RemoveAll(p => Time.unscaledTime > p.until);
+    }
+    private static readonly string[] PopIcon = { "HurtBadge", "StunBadge", "SlowBadge", "Heart", "Energy" };
+    private static readonly string[] PopText = { "-1❤", "晕", "慢", "+1❤", "+1◆" };
+    private GUIStyle popStyle, hudStyle;
+    private void StormGUI()
+    {
+        if (popStyle == null) { popStyle = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft }; hudStyle = new GUIStyle(GUI.skin.box) { fontSize = 18, alignment = TextAnchor.MiddleLeft }; }
+        foreach (var p in pops)
+        {
+            float age = 1.1f - (p.until - Time.unscaledTime);
+            var sp = cam.WorldToScreenPoint(p.at + Vector3.up * age * 0.8f); if (sp.z < 0) continue;
+            var tex = IconSprite(PopIcon[p.kind])?.texture; float y = Screen.height - sp.y;
+            GUI.color = new Color(1, 1, 1, Mathf.Clamp01(2f - age * 1.8f));
+            if (tex != null) GUI.DrawTexture(new Rect(sp.x - 28, y - 12, 24, 24), tex);
+            popStyle.normal.textColor = p.kind == 0 ? new Color(1f, 0.35f, 0.35f) : p.kind == 1 ? Color.yellow : p.kind == 2 ? new Color(0.5f, 0.75f, 1f) : p.kind == 3 ? new Color(0.5f, 1f, 0.6f) : new Color(0.8f, 0.6f, 1f);
+            GUI.Label(new Rect(sp.x - 2, y - 14, 80, 28), PopText[p.kind], popStyle);
+        }
+        GUI.color = Color.white;
+        // 左上：心 + 能量（图标画出来，不靠字体有没有 ♥）
+        var rect = new Rect(10, 126, 340, 34); GUI.Box(rect, "", hudStyle);
+        var heart = IconSprite("Heart")?.texture; var en = IconSprite("Energy")?.texture;
+        float x = 16; GUI.Label(new Rect(x, 130, 60, 26), "马里奥", Step1Gui.Text(13)); x += 52;
+        for (int i = 0; i < OverworldSession.MaxHearts; i++) { GUI.color = i < OverworldSession.MarioHearts ? Color.white : new Color(1, 1, 1, 0.18f); if (heart != null) GUI.DrawTexture(new Rect(x, 131, 22, 22), heart); x += 22; }
+        GUI.color = Color.white; x += 10; GUI.Label(new Rect(x, 130, 30, 26), "你", Step1Gui.Text(13)); x += 22;
+        for (int i = 0; i < OverworldSession.MaxHearts; i++) { GUI.color = i < OverworldSession.YouHearts ? Color.white : new Color(1, 1, 1, 0.18f); if (heart != null) GUI.DrawTexture(new Rect(x, 131, 22, 22), heart); x += 22; }
+        x += 10;
+        for (int i = 0; i < OverworldSession.MaxEnergy; i++) { GUI.color = i < OverworldSession.Energy ? Color.white : new Color(1, 1, 1, 0.18f); if (en != null) GUI.DrawTexture(new Rect(x, 131, 22, 22), en); x += 22; }
+        GUI.color = Color.white;
+        if (OverworldSession.Energy >= OverworldSession.MaxEnergy) GUI.Label(new Rect(x + 4, 130, 60, 26), "Q!", Step1Gui.Text(15));
+    }
 
     // ═════════════════════ S218 大机关画面（纯画面：不加碰撞体、不影响他——H4）═════════════════════
     private Texture2D groundTex;
@@ -404,7 +515,7 @@ public sealed class OverworldGame : MonoBehaviour
                 kv.Value.enabled = !used;
                 if (peels.TryGetValue(kv.Key, out var p)) kv.Value.color = p.x > 0f ? (Mathf.PingPong(Time.time * 12f, 1f) > 0.5f ? Color.white : Color.yellow) : new Color(1f, 0.6f, 0.1f);
             }
-            else if (c == '?') kv.Value.enabled = !OverworldSession.UsedCells.Contains(kv.Key);
+            else if (c == '?' || c == '+' || c == '*') kv.Value.enabled = !OverworldSession.UsedCells.Contains(kv.Key);
             else if (c == 'i') kv.Value.color = OverworldSession.Minute >= OverworldMap.NightStart ? new Color(1f, 0.95f, 0.6f) : new Color(0.6f, 0.58f, 0.5f);
             else if (OverworldCatalog.IsDoor(c))
             {
@@ -418,6 +529,9 @@ public sealed class OverworldGame : MonoBehaviour
         UpdateCone();
         BigVisuals();
         AimVisuals();
+        StormVisuals();
+        // S220：受伤无敌期间闪一闪（看得出"刚挨了一下，现在不会再掉心"）
+        if (marioSr != null && town.MarioGrace > 0f && !marioInside) marioSr.color = Color.Lerp(new Color(0.9f, 0.18f, 0.16f), Color.white, Mathf.PingPong(Time.time * 8f, 1f) * 0.6f); else if (marioSr != null) marioSr.color = new Color(0.9f, 0.18f, 0.16f);
         // S219：坐在炮里 = 你藏在炮身里（看不见人，只露一个 "你" 字）；他坐炮 = 他也藏进去
         if (town.Seated) { trickSr.enabled = false; crateSr.enabled = false; }
         if (town.MarioSeated) marioSr.enabled = false;
@@ -590,6 +704,7 @@ public sealed class OverworldGame : MonoBehaviour
         coneMesh.vertices = v; coneMesh.triangles = tri;
     }
 
+    private GUIStyle boxStyle, bigStyle, markStyle;
     private void OnGUI()
     {
         if (map == null || cam == null) return;
@@ -599,8 +714,9 @@ public sealed class OverworldGame : MonoBehaviour
         if (wk == OverworldEvents.Kind.Rain || wk == OverworldEvents.Kind.Storm || wk == OverworldEvents.Kind.Acid) { GUI.color = wk == OverworldEvents.Kind.Acid ? new Color(0.45f, 0.9f, 0.2f, 0.12f) : new Color(0.3f, 0.4f, 0.6f, wk == OverworldEvents.Kind.Storm ? 0.22f : 0.12f); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), nightTex); GUI.color = Color.white; }
         if (night) { GUI.color = new Color(0.05f, 0.08f, 0.25f, 0.35f); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), nightTex); GUI.color = Color.white; }
 
-        var box = new GUIStyle(GUI.skin.box) { fontSize = 16, alignment = TextAnchor.UpperLeft, wordWrap = true };
-        var big = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, wordWrap = true };
+        // S220：样式只建一次（OnGUI 每帧会跑好几次，每次 new GUIStyle = 每帧几十次分配 → 卡顿）
+        if (boxStyle == null) { boxStyle = new GUIStyle(GUI.skin.box) { fontSize = 16, alignment = TextAnchor.UpperLeft, wordWrap = true }; bigStyle = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, wordWrap = true }; markStyle = new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter }; }
+        var box = boxStyle; var big = bigStyle;
         // 右上：时钟 + 门列表
         var sb = new System.Text.StringBuilder();
         sb.AppendLine(Step1Text.OverworldClock(OverworldMap.Clock(OverworldSession.Minute), night) + "  " + Step1Text.OverworldWeatherShort(OverworldSession.Day, (int)town.weather.kind));
@@ -614,7 +730,7 @@ public sealed class OverworldGame : MonoBehaviour
         if (!marioInside && !dayOver && !string.IsNullOrEmpty(lastOrder.mark))
         {
             var sp = cam.WorldToScreenPoint(new Vector3((float)mario.x, (float)mario.y + 1f, 0));
-            var ms = new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            var ms = markStyle;
             ms.normal.textColor = lastOrder.mark.StartsWith("!") ? Color.red : Color.yellow;
             GUI.Label(new Rect(sp.x - 50, Screen.height - sp.y - 20, 100, 40), lastOrder.mark, ms);
         }
@@ -622,6 +738,7 @@ public sealed class OverworldGame : MonoBehaviour
         if (next != null && doorCells.TryGetValue(next.n, out var dc) && Dist(dc.x + 0.5, dc.y + 0.5, tx, ty) <= 1.3f && !dayOver)
             GUI.Box(new Rect(Screen.width / 2f - 180, Screen.height - 100, 360, 56), marioInside ? Step1Text.OverworldLateHint : town.AmbushReady ? Step1Text.OverworldAmbushHint : Step1Text.OverworldAmbushCountdown(town.MarioStepsToDoor, tuning.overworldAmbushSteps, disguised), big);
         GuideGUI(box);
+        if (!dayOver && !helpOpen) StormGUI();
         if (Time.unscaledTime < hintUntil) GUI.Box(new Rect(Screen.width / 2f - 220, 70, 440, 56), hint, big);
         // S217：底部常驻按键条 + 等他出门的提示 + 没点游戏窗口的提醒
         if (!helpOpen && !dayOver) GUI.Box(new Rect(0, Screen.height - 30, Screen.width, 30), town.Seated ? Step1Text.OverworldCannonBar : Step1Text.OverworldControlsBar, Step1Gui.Text(14, TextAnchor.MiddleCenter, false));
@@ -631,7 +748,7 @@ public sealed class OverworldGame : MonoBehaviour
             double wait = (next.minute - OverworldSession.Minute) / Mathf.Max(0.01f, tuning.overworldMinutesPerSecond);
             GUI.Box(new Rect(Screen.width / 2f - 230, Screen.height - 94, 460, 56), Step1Text.OverworldWaitDepart(next.n, OverworldMap.Clock(next.minute), wait), big);
         }
-        if (helpOpen) GUI.Box(new Rect(Screen.width / 2f - 330, Screen.height / 2f - 160, 660, 320), Step1Text.OverworldHelp + "\n\n" + Step1Text.OverworldHelpClose, box);
+        if (helpOpen) GUI.Box(new Rect(Screen.width / 2f - 360, Screen.height / 2f - 210, 720, 420), Step1Text.OverworldHelp + "\n\n" + Step1Text.OverworldHelpClose, box);
         if (!Application.isFocused) GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height / 2f - 40, 520, 80), Step1Text.ClickGameWindow, big);
         if (dayOver) GUI.Box(new Rect(Screen.width / 2f - 280, Screen.height / 2f - 90, 560, 180), OverworldSession.Summary(stops.Count), big);
     }

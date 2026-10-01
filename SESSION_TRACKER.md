@@ -121,6 +121,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
 
+### [S221] 用户："参考优秀类似角度形式的2d游戏优秀设计经验和案例进行自我全流程模拟测试检验 是否还存在需要改进的地方边检查变搜集资料校验 尊重第一性原理"
+
+- 探针全流程模拟（3 样板 × 5 机器人 × 4 天 + 40 种雷云场景）发现 3 个问题并修正：
+  ① 连控：保护期在晕的时候就过完了，结果你 1 颗心站在雷云里最长连续定身 7.1 秒、被连续击倒 → 保护期 = 晕的秒数 + 站起来后 `overworldHurtGraceSeconds`（1.5），期间全无敌（`GraceAfter`）；修后最长定身 3.0 秒，两次之间至少能动 1.9 秒。
+  ② 被劈过的他闪一步就穿过雷云（Q 对他完全没用）→ `StormBlocksRoute`：看见云挡路就在云外等（WAIT，最多 9 秒）；DodgeCell 把整朵云都算作危险。修后拖住他 +8.3 秒 / +9.6 秒，照样进门。
+  ③ 机器人从不按 Q → 捣蛋型来得及就去捡能量 `*`，满了按 Q，按完先跑出圈。
+- 调参 v22（grace 1.5）。新测试 `S221_NoStunLock_WaryMarioWaitsOutCloud_BotUsesQ`、sim 新增 S221。调研：DbD Health States、stun lock、起身无敌、吃豆人能量豆、Spy vs Spy、Stardew。详见 docs/step1/S221_FULL_FLOW_SIM_FIXES.md。
+
 ### [S220] 用户："目前下拉菜单特别卡 拖把天没反应 然后突然拖下来了……闪电是否是范围内（关卡编辑的时候自己设置范围）随机同时霹几道闪电（可以设置至少几道 限制最多几道）……马里奥也是三条命 或者设置失去的获取生命的道具 或者拾取能量的道具 让捣蛋者能量满了有机会可以操控天气……副作用就是自然灾害可能同时影响到自己……道具陷进过于抽象……方便后续美术资产替换"
 
 - 防卡：小镇工坊拖动只 Touch（mapVersion++），松手 / 空闲 0.12 秒才 Recheck；OnFocus 走 delayCall；Describe / Preview / 红框 / 路线 / GUIStyle 按版本缓存；LevelLibrary.List / OverworldBuilder.List 按文件夹签名缓存，ResolveRoom 按 mtime 缓存，RoomProblem 按 RoomHash 缓存，TownFingerprint 缓存；WebSync 导入后 InvalidateCaches。网页：离屏底图，mousemove 只贴底图 + 悬停框，mouseup 才 owRender。

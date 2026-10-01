@@ -709,7 +709,7 @@ function owHarmRender() {
   const box = $('#owHarm'); if (!box || box.dataset.done) return; box.dataset.done = 1;
   const esc = t => String(t).replace(/</g, '&lt;');
   box.innerHTML = (typeof OW_HARM === 'undefined' ? [] : Object.keys(OW_HARM)).map(c => { const u = owIconUrl(c); return `<div class="owled">${u ? `<img src="${u}" width="16" height="16" style="image-rendering:pixelated">` : `<b>${esc(c)}</b>`}<span>${esc(OW_HARM[c])}</span><i></i></div>`; }).join('')
-    + '<p class="hint">每人 3 颗心；掉光 = 晕 3 秒后回到 1 颗心继续（一天不会结束）。被打后 2.5 秒内不再掉心。</p>';
+    + '<p class="hint">每人 3 颗心；掉光 = 晕 3 秒后回到 1 颗心继续（一天不会结束）。被打后身体闪烁 = 保护期（晕的时间 + 站起来后 1.5 秒），期间不会再掉心也不会再晕。</p>';
 }
 function owStormAt(m, x, y) { for (let k = m.storms.length - 1; k >= 0; k--) { const s = m.storms[k]; if (x >= s.x0 && x <= s.x1 && y >= s.y0 && y <= s.y1) return k; } return -1; }
 // S215：一天总览（和 Unity 小镇工坊同一套规则：CampaignLedger）

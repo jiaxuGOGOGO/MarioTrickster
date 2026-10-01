@@ -368,11 +368,11 @@ static class CHECK {
     // 伤害表：i 帧 2.5 秒挡掉心不挡晕；心掉光 = 晕 3 秒剩 1 颗；香蕉皮/水淹不掉心
     { var town=Fresh(1); var hurt=typeof(OverworldTown).GetMethod("HurtYou",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
       hurt.Invoke(town,null); hurt.Invoke(town,null); bool grace=OverworldSession.YouHearts==2;
-      for(int i=0;i<90;i++) town.Tick(dt,inp); hurt.Invoke(town,null); for(int i=0;i<90;i++) town.Tick(dt,inp); hurt.Invoke(town,null);
+      for(int i=0;i<120;i++) town.Tick(dt,inp); hurt.Invoke(town,null); for(int i=0;i<120;i++) town.Tick(dt,inp); hurt.Invoke(town,null); // S221：保护期 = 晕 2 + 1.5 秒
       bool ko=OverworldSession.YouHearts==1&&town.frozen>=t.overworldKoSeconds-0.01f&&OverworldSession.Kos==1&&!OverworldSession.DayOver;
       var hm=typeof(OverworldTown).GetMethod("HitMario",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
       hm.Invoke(town,new object[]{'O',true}); bool mHurt=OverworldSession.MarioHearts==2&&OverworldSession.Energy==1; hm.Invoke(town,new object[]{'i',false}); bool mGrace=OverworldSession.MarioHearts==2;
-      if(!grace||!ko||!mHurt||!mGrace){ rb++; Console.WriteLine($"     [FAIL] 伤害：无敌时间={grace} 心掉光晕倒剩 1={ko} 他被你砸掉心+能量={mHurt} 他无敌时间={mGrace}"); } else parts.Add("无敌 2.5 秒、掉光晕 3 秒剩 1 颗、你砸他 +能量"); }
+      if(!grace||!ko||!mHurt||!mGrace){ rb++; Console.WriteLine($"     [FAIL] 伤害：无敌时间={grace} 心掉光晕倒剩 1={ko} 他被你砸掉心+能量={mHurt} 他无敌时间={mGrace}"); } else parts.Add("保护期 晕+1.5 秒、掉光晕 3 秒剩 1 颗、你砸他 +能量"); }
     // 补心 / 能量：少了心才捡，每个一次；他路过顺手捡；能量满 3
     { var town=Fresh(1); var hp=OverworldMap.Find(town.map,'+')[0]; var ep=OverworldMap.Find(town.map,'*');
       town.tx=hp.x+0.5; town.ty=hp.y+0.5; town.Tick(dt,inp); bool notFull=!OverworldSession.UsedCells.Contains(hp.y*town.map.W+hp.x);
@@ -411,6 +411,37 @@ static class CHECK {
       for(int i=0;i<Math.Max(web.Count,mine.Count);i++){ string a2=i<mine.Count?mine[i]:"(无)", b2=i<web.Count?web[i]:"(无)"; if(a2!=b2){ wd++; if(wd<=3) Console.WriteLine($"     [FAIL] 雷镇 网页≠Unity 第{i}行：\n        Unity {a2}\n        网页  {b2}"); } } }
     rb+=wd;
     Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S220 心 + 雷区 + 雷云：{string.Join("｜",parts)}｜网页对照{(!haveWeb?"跳过":wd==0?$"一致 {mine.Count} 行":"不一致")}"); fail+=rb; }
+  // S221：全流程模拟找出的三处问题 —— ① 连控（保护期在晕的时候就过完了 → 雷云里能被连续击倒、定身 7 秒）② 吃过亏的他闪一步就穿过雷云（Q 对他没用）③ 机器人从不按 Q（没人测过这条路）
+  { int rb=0; var parts=new List<string>(); var t=MarioMindTuningSO.LoadOrDefault(); const float dt=1f/30;
+    OverworldTown Open(){ OverworldSession.ResetStatics(); var m=OverworldPack.Parse(OverworldPack.StormSampleText)[0]; m.storms.Clear(); OverworldSession.NewDay(m.name,"Town",1); OverworldSession.Active=true; return new OverworldTown(m,t); }
+    List<OverworldMap.Cell> Open7(OverworldTown tw)=>OverworldMap.Find(tw.map,'.').Where(q=>{for(int dy=-3;dy<=3;dy++)for(int dx=-3;dx<=3;dx++) if(!OverworldMap.Walkable(tw.map,q.x+dx,q.y+dy)) return false; return true;}).ToList();
+    // ① 你只剩 1 颗心、站在雷云中心不动：最长连续定身 ≤ 掉光晕倒秒数（不能被连着击倒）
+    { double worst=0, minFree=99; for(int k=0;k<40;k++){ var town=Open(); var cs=Open7(town); var c=cs[(k*37)%cs.Count]; OverworldSession.Minute=7*60; OverworldSession.Energy=3; OverworldSession.Clouds=k; OverworldSession.YouHearts=1;
+        town.tx=c.x+0.5; town.ty=c.y+0.5; town.mario.x=3.5; town.mario.y=2.5; town.mario.Clear(); town.Tick(dt,new OverworldTown.Input{weather=true});
+        double cur=0, free=0; bool was=false, seen=false; for(int i=0;i<30*12;i++){ town.Tick(dt,new OverworldTown.Input()); bool f=town.frozen>0;
+          if(f){ if(!was&&seen) minFree=Math.Min(minFree,free); cur+=dt; worst=Math.Max(worst,cur); free=0; seen=true; } else { cur=0; free+=dt; } was=f; } }
+      // 站着不动可以再挨一下（自己选的），但：一次最多定身 = 掉光晕倒秒数；两次之间至少有"站起来后的保护期"那么久能跑（1 格只要 0.2 秒）
+      if(worst>t.overworldKoSeconds+0.05||minFree<t.overworldHurtGraceSeconds-0.05){ rb++; Console.WriteLine($"     [FAIL] 连控：最长连续定身 {worst:0.0}s（应 ≤ {t.overworldKoSeconds}） 两次定身之间最短能动 {minFree:0.00}s（应 ≥ {t.overworldHurtGraceSeconds}）"); }
+      else parts.Add($"不连控：站云心不动最长定身 {worst:0.0}s、两次之间至少能跑 {(minFree>90?0:minFree):0.0}s（修前 7.1s 连续定身）"); }
+    // 他 1 颗心被雷云罩：不会被连劈
+    { int loops=0; for(int k=0;k<20;k++){ var town=Open(); var cs=Open7(town); var c=cs[(k*53)%cs.Count]; OverworldSession.Minute=7*60; OverworldSession.Energy=3; OverworldSession.Clouds=k; OverworldSession.MarioHearts=1;
+        town.mario.x=c.x+0.5; town.mario.y=c.y+0.5; town.mario.Clear(); town.tx=c.x+0.5; town.ty=c.y+0.5; town.Tick(dt,new OverworldTown.Input{weather=true});
+        for(int i=0;i<30*12;i++) town.Tick(dt,new OverworldTown.Input{h=1f}); if(OverworldSession.MarioHeartsLost>=2) loops++; }
+      if(loops>0){ rb++; Console.WriteLine($"     [FAIL] 他被雷云连劈 {loops}/20"); } else parts.Add("他在云里最多挨 1 下"); }
+    // ② 雷云挡在他去门 1 的路上：没吃过亏 / 吃过亏 都要被拖住 ≥ 3 秒，而且照样进门（H10）
+    { var gain=new List<double>(); foreach(int wary in new[]{0,1}){
+        double Arrive(bool cast){ var town=Open(); if(wary==1) OverworldSession.MarioWary.Add('i'); OverworldSession.Minute=town.stops[0].minute-1; OverworldSession.Energy=3; bool did=false; double tt=0;
+          for(int i=0;i<30*120;i++){ var inp=new OverworldTown.Input();
+            if(!did&&cast&&OverworldSession.Minute>=town.stops[0].minute+2){ var route=OverworldMap.Path(town.map,OverworldGuide.Near(town.map,town.mario.x,town.mario.y),town.doorCells[town.stops[0].n]); if(route!=null&&route.Count>8){ var c=route[7]; town.tx=c.x+.5; town.ty=c.y+.5; inp.weather=true; did=true; } }
+            if(did&&town.cloud!=null){ town.tx=3.5; town.ty=2.5; }
+            town.Tick(dt,inp); tt+=dt; if(town.marioInside) return tt; } return -1; }
+        double b=Arrive(false), c=Arrive(true); gain.Add(c<0?-1:c-b); }
+      if(gain.Any(g=>g<3)){ rb++; Console.WriteLine($"     [FAIL] 雷云拖住他：没吃过亏 +{gain[0]:0.0}s 吃过亏 +{gain[1]:0.0}s（应都 ≥ 3 秒且能进门）"); } else parts.Add($"雷云挡路拖住他 +{gain[0]:0.0}s（吃过亏的在云外等 +{gain[1]:0.0}s）"); }
+    // ③ 捣蛋型机器人 4 天会按 Q、仍然每门埋伏（H10 / 不卡）
+    { int clouds=0,am=0,doors=0; bool ended=true; for(int d=1;d<=4;d++){ var br=OverworldBots.PlayDay(OverworldPack.Parse(OverworldPack.StormSampleText)[0],t,OverworldBots.Kind.Prankster,true,d,d); clouds+=OverworldSession.Clouds; am+=br.ambush; doors+=br.doors; if(!br.dayEnded) ended=false; }
+      if(clouds<4||!ended||am<doors){ rb++; Console.WriteLine($"     [FAIL] 捣蛋型：雷云 {clouds} 次（应每天 1 次） 结束={ended} 埋伏 {am}/{doors}"); } else parts.Add($"捣蛋型 4 天按 Q {clouds} 次、埋伏 {am}/{doors}"); }
+    OverworldSession.ResetStatics();
+    Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S221 全流程模拟修正：{string.Join("｜",parts)}"); fail+=rb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

@@ -498,6 +498,12 @@ public sealed class OverworldTown
         lastOrder = o;
         // S218：他吃过亏的大机关在预警 / 正在滚，而且他看得见 → 先闪开（只躲几格、只在危险期间，H10 不会停住）
         var dodge = (o.state == OverworldMarioState.Walking || o.state == OverworldMarioState.Waiting || o.state == OverworldMarioState.Curious) ? DodgeCell(r) : null;
+        // S221：被劈过的他看见雷云挡在要走的路上 → 在云外等它散（最多 overworldCloudSeconds 秒，H10）。以前他只闪一步就穿过去，雷云对"学会了"的他毫无用处
+        if (!dodge.HasValue && o.state == OverworldMarioState.Walking && StormBlocksRoute(r, goalCell))
+        {
+            o.target = null; o.mark = "WAIT"; o.intent = "WAIT STORM"; lastOrder = o; mind.AddDelay(dt); // H6：头上写 WAIT（和出门缓冲的 "…" 区分开）
+            return;
+        }
         if (dodge.HasValue)
         {
             o.target = new Vector2(dodge.Value.x + 0.5f, dodge.Value.y + 0.5f); o.mark = "WHOA!"; o.intent = "DODGE";
@@ -567,35 +573,43 @@ public sealed class OverworldTown
         impacts.Add(new Impact3((float)x, (float)y, 1.5f));
     }
 
-    /// <summary>S220：马里奥被闪电 / 滚石 / 泥石流 / 被迫轰飞 打中：晕 2 秒 + 掉 1 颗心（受伤后 2.5 秒内不再掉心，晕照样晕）。掉光 = 晕倒 3 秒、剩 1 颗。</summary>
+    /// <summary>S220：马里奥被闪电 / 滚石 / 泥石流 / 被迫轰飞 打中：晕 2 秒 + 掉 1 颗心。掉光 = 晕倒 3 秒、剩 1 颗。
+    /// S221：保护期 = 晕的时间 + 站起来后 overworldHurtGraceSeconds 秒；保护期里什么都打不到他（不掉心、也不再晕）——
+    /// 以前保护期在晕的时候就倒计时、而且照样晕 → 雷云里他 9 秒晕 8 秒（连控）。参考：塞尔达 / 马里奥受伤闪烁全无敌、格斗游戏起身无敌、DbD 挨打后加速逃开。</summary>
     private void HitMario(char kind, bool byYou = true)
     {
-        pendingMarioStun = Mathf.Max(pendingMarioStun, Mathf.Min(tuning.maxStunSeconds, tuning.overworldBigStunSeconds));
         OverworldSession.MarioWary.Add(kind); OverworldSession.BigHits++; OverworldSession.LastBigHitMinute = OverworldSession.Minute;
         Hint(Note.BigHit, 2f);
-        if (marioGrace > 0f) { hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 1 }); return; }
-        marioGrace = tuning.overworldHurtGraceSeconds;
+        if (marioGrace > 0f) { hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 1 }); return; } // 闪烁中 = 全无敌（画面在闪，H6）
+        float stun = Mathf.Min(tuning.maxStunSeconds, tuning.overworldBigStunSeconds);
         OverworldSession.MarioHearts--; OverworldSession.MarioHeartsLost++;
         hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 0 });
         if (byYou) GainEnergy();
         if (OverworldSession.MarioHearts <= 0)
         {
             OverworldSession.MarioHearts = 1; OverworldSession.Kos++;
-            pendingMarioStun = Mathf.Min(tuning.maxStunSeconds, Mathf.Max(pendingMarioStun, tuning.overworldKoSeconds));
+            stun = Mathf.Min(tuning.maxStunSeconds, Mathf.Max(stun, tuning.overworldKoSeconds));
             Hint(Note.MarioKO, 2.5f);
         }
+        pendingMarioStun = Mathf.Max(pendingMarioStun, stun);
+        marioGrace = GraceAfter(stun);
     }
 
-    /// <summary>S220：你被自己 / 天灾打中：晕 2 秒 + 掉 1 颗心（同样 2.5 秒内不再掉心）。掉光 = 晕倒 3 秒、剩 1 颗（不回出生点、不算被抓）。</summary>
+    /// <summary>S221：受伤保护期 = 晕多久 + 站起来后还护多久（站起来那一刻一定有时间跑开）。</summary>
+    public float GraceAfter(float stun) => stun + tuning.overworldHurtGraceSeconds;
+
+    /// <summary>S220：你被自己 / 天灾打中：晕 2 秒 + 掉 1 颗心。掉光 = 晕倒 3 秒、剩 1 颗（不回出生点、不算被抓）。S221：保护期同上（闪烁中全无敌）。</summary>
     private void HurtYou()
     {
-        frozen = Mathf.Max(frozen, tuning.overworldBigStunSeconds); disguised = false;
         if (youGrace > 0f) { hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 1 }); return; }
-        youGrace = tuning.overworldHurtGraceSeconds;
+        float stun = tuning.overworldBigStunSeconds;
+        disguised = false;
         OverworldSession.YouHearts--; OverworldSession.YouHeartsLost++;
         hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 0 });
-        if (OverworldSession.YouHearts <= 0) { OverworldSession.YouHearts = 1; OverworldSession.Kos++; frozen = Mathf.Max(frozen, tuning.overworldKoSeconds); Hint(Note.YouKO, 2.5f); }
+        if (OverworldSession.YouHearts <= 0) { OverworldSession.YouHearts = 1; OverworldSession.Kos++; stun = Mathf.Max(stun, tuning.overworldKoSeconds); Hint(Note.YouKO, 2.5f); }
         else Hint(Note.YouHurt, 2f);
+        frozen = Mathf.Max(frozen, stun);
+        youGrace = GraceAfter(stun);
     }
 
     private void GainEnergy()
@@ -799,6 +813,20 @@ public sealed class OverworldTown
         foreach (var c in picks) strikes.Add(new Strike { c = c, t = tuning.overworldBoltTelegraphSeconds, total = tuning.overworldBoltTelegraphSeconds, zone = -1, byYou = true });
     }
 
+    /// <summary>S221：他吃过闪电的亏、看得见雷云（云很大：在视野里或 overworldVisionRange 内）、他接下来 8 格路要穿过云 → true（他在云外等）。
+    /// H4：只用他看得见的云 + 自己的经历；云最多 overworldCloudSeconds 秒就散（H10 不会停住）。他已经在云里 → 交给 DodgeCell 往外躲。</summary>
+    public bool StormBlocksRoute(OverworldMap.SightRules r, OverworldMap.Cell goal)
+    {
+        if (cloud == null || marioInside || !OverworldSession.MarioWary.Contains('i')) return false;
+        double d = Dist(mario.x, mario.y, cloud.x, cloud.y), rad = tuning.overworldCloudRadius;
+        if (d <= rad + 0.2 || d > rad + 6) return false;
+        if (!OverworldMap.CanSee(map, lamps, mario.x, mario.y, mario.fx, mario.fy, cloud.x, cloud.y, r) && d > r.range) return false;
+        var path = OverworldMap.Path(map, OverworldGuide.Near(map, mario.x, mario.y), goal);
+        if (path == null) return false;
+        for (int k = 1; k < path.Count && k <= 8; k++) if (Dist(path[k].x + 0.5, path[k].y + 0.5, cloud.x, cloud.y) <= rad + 0.6) return true;
+        return false;
+    }
+
     /// <summary>这一帧打下来的闪电（画面层画一道光）。</summary>
     public readonly List<Impact3> bolts = new List<Impact3>();
 
@@ -821,6 +849,7 @@ public sealed class OverworldTown
                 if (!OverworldMap.CanSee(map, lamps, mario.x, mario.y, mario.fx, mario.fy, px, py, r) && Dist(px, py, mario.x, mario.y) > 2.5) continue;
                 foreach (var c in OverworldStorm.Plus(map, s.c)) danger.Add((c.x, c.y));
             }
+        if (cloud != null && OverworldSession.MarioWary.Contains('i')) foreach (var c in CloudCells()) danger.Add((c.x, c.y)); // S221：吃过亏 = 整朵云都危险（往云外躲）
         var here = OverworldGuide.Near(map, mario.x, mario.y);
         if (!danger.Contains((here.x, here.y))) return null;
         var q = new Queue<(OverworldMap.Cell c, int d)>(); var seen = new HashSet<(int, int)> { (here.x, here.y) }; q.Enqueue((here, 0));

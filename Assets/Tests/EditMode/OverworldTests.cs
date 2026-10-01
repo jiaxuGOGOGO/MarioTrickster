@@ -686,6 +686,44 @@ public class OverworldTests
     }
 
     [Test]
+    public void S221_NoStunLock_WaryMarioWaitsOutCloud_BotUsesQ()
+    {
+        var t = Tuning(); const float dt = 1f / 30;
+        var hurt = typeof(OverworldTown).GetMethod("HurtYou", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var hit = typeof(OverworldTown).GetMethod("HitMario", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        // 1) 保护期 = 晕 + 站起来后 overworldHurtGraceSeconds：保护期里再挨打不掉心、也不再晕（以前照样晕 → 连控）
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇", "Town", 1); OverworldSession.Active = true;
+        var town = new OverworldTown(StormTown(), t);
+        OverworldSession.YouHearts = 1; hurt.Invoke(town, null);
+        Assert.AreEqual(1, OverworldSession.Kos); float ko = town.frozen;
+        Assert.AreEqual(town.GraceAfter(ko), town.YouGrace, 1e-4f, "保护期 = 晕倒秒数 + 站起来后的秒数");
+        for (int i = 0; i < 30 * 3 + 5; i++) town.Tick(dt, new OverworldTown.Input());
+        hurt.Invoke(town, null);
+        Assert.AreEqual(1, OverworldSession.Kos, "站起来后的保护期里不会被再次击倒");
+        Assert.LessOrEqual(town.frozen, 0f, "保护期里也不会再被定身");
+        hit.Invoke(town, new object[] { 'i', false }); float g = town.MarioGrace; hit.Invoke(town, new object[] { 'i', false });
+        Assert.AreEqual(2, OverworldSession.MarioHearts, "他保护期内不再掉心"); Assert.Greater(g, t.overworldBigStunSeconds, "他的保护期比晕的时间长");
+        // 2) 被劈过的他：雷云挡在路上 → 在云外等（WAIT STORM），云散了接着走（H10）
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇", "Town", 1); OverworldSession.Active = true;
+        town = new OverworldTown(StormTown(), t); OverworldSession.MarioWary.Add('i');
+        OverworldSession.Minute = town.stops[0].minute + 2; OverworldSession.Energy = OverworldSession.MaxEnergy;
+        for (int i = 0; i < 3; i++) town.Tick(dt, new OverworldTown.Input());
+        var route = OverworldMap.Path(town.map, OverworldGuide.Near(town.map, town.mario.x, town.mario.y), town.doorCells[town.stops[0].n]);
+        Assume.That(route != null && route.Count > 9);
+        var c = route[7]; town.tx = c.x + 0.5; town.ty = c.y + 0.5; town.Tick(dt, new OverworldTown.Input { weather = true });
+        Assert.IsNotNull(town.cloud); town.tx = 3.5; town.ty = 2.5;
+        bool waited = false; for (int i = 0; i < 30 * 30 && !town.marioInside; i++) { town.Tick(dt, new OverworldTown.Input()); if (town.lastOrder.intent == "WAIT STORM") waited = true; }
+        Assert.IsTrue(waited, "吃过亏的他看见雷云挡路会在外面等"); Assert.IsTrue(town.marioInside, "云散了他接着走、照样进门（H10）");
+        Assert.AreEqual(0, OverworldSession.MarioHeartsLost, "等在外面 = 不会被劈");
+        // 3) 捣蛋型机器人会捡能量、按 Q
+        int clouds = 0; for (int d = 1; d <= 2; d++) { OverworldBots.PlayDay(StormTown(), t, OverworldBots.Kind.Prankster, true, d, d); clouds += OverworldSession.Clouds; }
+        Assert.Greater(clouds, 0, "捣蛋型会攒满能量按 Q");
+        OverworldSession.ResetStatics();
+        StringAssert.DoesNotContain("TricksterPossessionGate", Read("Scripts/Overworld/OverworldTown.cs"));
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 22);
+    }
+
+    [Test]
     public void Wiring_S220_NoLagEditor_ArtPipeline_Tuning21()
     {
         string w = Read("Scripts/Editor/OverworldWorkshopWindow.cs"), b = Read("Scripts/Editor/OverworldBuilder.cs"), lib = Read("Scripts/Editor/LevelLibrary.cs");

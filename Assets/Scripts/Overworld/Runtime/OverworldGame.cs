@@ -502,7 +502,7 @@ public sealed class OverworldGame : MonoBehaviour
         trickGo.position = new Vector3((float)tx, (float)ty, 0);
         trickSr.enabled = !disguised; crateSr.enabled = disguised;
         trickSr.sortingOrder = crateSr.sortingOrder = Order(ty) + 2;
-        if (frozen > 0f) trickSr.color = Color.Lerp(new Color(0.22f, 0.4f, 0.92f), Color.white, Mathf.PingPong(Time.time * 6f, 1f));
+        if (frozen > 0f || town.YouGrace > 0f) trickSr.color = Color.Lerp(new Color(0.22f, 0.4f, 0.92f), Color.white, Mathf.PingPong(Time.time * (frozen > 0f ? 6f : 10f), 1f)); // S221：站起来后的保护期也闪（闪 = 打不到你）
         else trickSr.color = new Color(0.22f, 0.4f, 0.92f);
 
         // 香蕉皮 / 道具箱 / 门的状态

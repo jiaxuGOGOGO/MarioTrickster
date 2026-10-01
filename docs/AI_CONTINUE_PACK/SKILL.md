@@ -44,13 +44,14 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 
 ## 0.6 进度快照（打包时写入，以 SESSION_TRACKER 为准）
 
-- 最新交付：**S220**（工坊/网页防卡：拖动只改格子、松手才检查、列表/房间/验证缓存；心 3 颗 + 伤害表 OverworldCatalog.Harm；设计者画雷区 `# Storm:`（min..max 道、可复现、网页一致）；`+` 补心 `*` 能量；Q 雷云会劈到自己；带心进房间；OverworldArt 像素图标 + Resources/OverworldArt 同名换图；样板"星露雷镇"）。上一版 S219（巨炮能坐能瞄——你和马里奥都能坐、落点先画出来、你能拨歪他的炮；山丘 ^ / 山 A / 山洞 h；天气池按格局：雷雨召唤闪电、酸雨枯草；湿天冲击 → 泥石流、水塔 → 山洪；样板"星露山镇"））。`scripts/pending/` 里是还没上传到 GitHub 的补丁（setup 会自动补上；已上传的自动跳过）。
-- 数值版本 `MarioMindTuningSO.CurrentDataVersion = 21`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
+- 最新交付：**S221**（全流程模拟自检：修了连控——保护期 = 晕 + 站起来后 1.5 秒全无敌；被劈过的他会在雷云外等它散；捣蛋型机器人会攒能量按 Q）。上一版 S220（工坊/网页防卡：拖动只改格子、松手才检查、列表/房间/验证缓存；心 3 颗 + 伤害表 OverworldCatalog.Harm；设计者画雷区 `# Storm:`（min..max 道、可复现、网页一致）；`+` 补心 `*` 能量；Q 雷云会劈到自己；带心进房间；OverworldArt 像素图标 + Resources/OverworldArt 同名换图；样板"星露雷镇"）。上一版 S219（巨炮能坐能瞄——你和马里奥都能坐、落点先画出来、你能拨歪他的炮；山丘 ^ / 山 A / 山洞 h；天气池按格局：雷雨召唤闪电、酸雨枯草；湿天冲击 → 泥石流、水塔 → 山洪；样板"星露山镇"））。`scripts/pending/` 里是还没上传到 GitHub 的补丁（setup 会自动补上；已上传的自动跳过）。
+- 数值版本 `MarioMindTuningSO.CurrentDataVersion = 22`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
 - 近几次做了什么（详情看 `repo/docs/step1/S21x_*.md`）：
   - S210 星露谷视角小镇大地图（门 = 恶作剧房间）；S211 场景转场；S212 圆形转场 + 指引箭头 + 编辑器快捷键；
   - S213 小镇规则纯逻辑化 + 7 种机器人玩家模拟；S214 网页 ↔ Unity 自动同步（Inbox 文件夹、▶ 在 Unity 试玩、PageUp/PageDown 切关）；
   - S215 一天总览（CampaignLedger，Unity 小镇工坊 + 网页大地图逐字一致）、小镇房间按 3+3 颗炸弹加固、14 个旧菜单收进"旧工具 (Legacy)"；
   - S217 小镇"↔ 扩展"（C# Resize = 网页 owResize）、上限 192×128；说明面板任意键关、进 Play 自动切 Game 窗口、全局键两套输入、转场保险丝、等出门提示；测试中心（一键体检 / 快速测试模式 / F8 反馈 / 打包 zip）；
+  - S221 探针全流程模拟 → 修连控（GraceAfter）/ 雷云等待（StormBlocksRoute）/ 机器人按 Q；
   - S220 心/伤害表/雷区/补心能量/Q 雷云/带心进房间（OverworldStorm；OverworldTown TickStorms/FireStrike/TryCloud/HurtYou/HitMario/GainEnergy；OverworldRoomCarry；OverworldArt + Editor/OverworldArtTools；工坊 Touch/Recheck 防卡规则：OnGUI 里不做读盘/全图检查）；
   - S219 巨炮瞄准 / 马里奥坐炮 / 山地视线 / 山洞 / 雷雨闪电 / 酸雨 / 泥石流（OverworldProps 瞄准+山地函数；OverworldTown Seat/Ride/TryTamper/TryCave/FireLightning/FireMud；Events.Pool(map)）；
   - S218 小镇大机关（OverworldProps + OverworldEvents；OverworldTown Arm/Fire/Impact；马里奥听见起疑、吃过亏会躲；砸晕带进房间、守住一户重新装填；天气第 1 天晴；网页逐字对照）；

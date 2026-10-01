@@ -46,7 +46,7 @@ public static class OverworldBots
         const float dt = 1f / 30f;
         var rng = new System.Random(seed);
         double idleRun = 0; float react = 0f, chaosH = 0f, chaosV = 0f; int pickupsLeft = OverworldMap.Find(m, '?').Count;
-        int guard = 0;
+        int guard = 0; OverworldMap.Cell? energyGoal = null;
         while (!OverworldSession.DayOver && guard++ < 30 * 60 * 30)
         {
             var next = town.NextStop;
@@ -60,6 +60,24 @@ public static class OverworldBots
                     var boxes = OverworldMap.Find(m, '?'); OverworldMap.Cell? best = null; double bd = 1e9;
                     foreach (var b in boxes) { if (OverworldSession.UsedCells.Contains(b.y * m.W + b.x)) continue; double d = OverworldTown.Dist(b.x + .5, b.y + .5, town.tx, town.ty); if (d < bd) { bd = d; best = b; } }
                     if (best.HasValue) goal = best; else pickupsLeft = 0;
+                }
+                // S221：捣蛋型有空就去捡能量 *（真人会这样攒 Q）：来得及"去捡 + 再赶到门口"（留 30% 余量）才去
+                if (kind == Kind.Prankster && OverworldSession.Energy < OverworldSession.MaxEnergy && energyGoal == null)
+                {
+                    double spare = (next.minute - OverworldSession.Minute) / t.overworldMinutesPerSecond * t.overworldTricksterSpeed * 0.95;
+                    var here = OverworldGuide.Near(town.map, town.tx, town.ty); int bestLen = int.MaxValue;
+                    foreach (var e in OverworldMap.Find(m, '*'))
+                    {
+                        if (OverworldSession.UsedCells.Contains(e.y * m.W + e.x)) continue;
+                        var a1 = OverworldMap.Path(town.map, here, e); var a2 = a1 == null ? null : OverworldMap.Path(town.map, e, dc);
+                        if (a1 == null || a2 == null) continue; int len = a1.Count + a2.Count;
+                        if (len < spare && len < bestLen) { bestLen = len; energyGoal = e; }
+                    }
+                }
+                if (energyGoal.HasValue)
+                {
+                    var e = energyGoal.Value;
+                    if (OverworldSession.UsedCells.Contains(e.y * m.W + e.x) || OverworldSession.Energy >= OverworldSession.MaxEnergy) energyGoal = null; else goal = e;
                 }
                 // 捣蛋：他在路上且离门还远 → 先去他路线上最近的香蕉皮按 L
                 if (kind == Kind.Prankster && !town.marioInside && OverworldSession.Minute >= next.minute)
@@ -85,6 +103,18 @@ public static class OverworldBots
                 if (rng.NextDouble() < 0.05) { chaosH = (float)(rng.NextDouble() * 2 - 1); chaosV = (float)(rng.NextDouble() * 2 - 1); }
                 input.h = chaosH; input.v = chaosV; goal = null;
                 input.disguise = rng.NextDouble() < 0.01; input.peel = rng.NextDouble() < 0.02; input.taunt = rng.NextDouble() < 0.005; input.door = rng.NextDouble() < 0.05;
+            }
+            // S221：捣蛋型召唤雷云后先跑出圈（离云心 > 半径 + 1）再回去干活
+            if (kind == Kind.Prankster && town.cloud != null && OverworldTown.Dist(town.tx, town.ty, town.cloud.x, town.cloud.y) <= t.overworldCloudRadius + 1.2)
+            {
+                OverworldMap.Cell? best = null; double bd = 1e9;
+                var here = OverworldGuide.Near(town.map, town.tx, town.ty);
+                for (int y = here.y - 6; y <= here.y + 6; y++) for (int x = here.x - 6; x <= here.x + 6; x++)
+                {
+                    if (!OverworldMap.Walkable(town.map, x, y) || OverworldTown.Dist(x + .5, y + .5, town.cloud.x, town.cloud.y) <= t.overworldCloudRadius + 1.5) continue;
+                    double d = OverworldTown.Dist(x + .5, y + .5, town.tx, town.ty); if (d < bd) { bd = d; best = new OverworldMap.Cell(x, y); }
+                }
+                if (best.HasValue) goal = best;
             }
             if (react > 0f) { react -= dt; goal = null; }
             if (goal.HasValue)

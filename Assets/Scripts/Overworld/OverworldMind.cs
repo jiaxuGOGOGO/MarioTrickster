@@ -53,6 +53,9 @@ public sealed class OverworldMind
 
     public OverworldMind(MarioMindTuningSO tuning) { t = tuning; Meter = new SuspicionMeter(tuning); }
 
+    /// <summary>S221：被你拖住（在雷云外等）——算进今天拖住他的秒数。</summary>
+    public void AddDelay(float dt) { DelayedSeconds += Mathf.Max(0f, dt); }
+
     public void Reset() { Meter.Reset(); State = OverworldMarioState.Walking; stateTime = lostTime = dizzy = 0f; DelayedSeconds = 0f; }
 
     /// <summary>进门/回家：由驱动层设置（不经过起疑表）。</summary>

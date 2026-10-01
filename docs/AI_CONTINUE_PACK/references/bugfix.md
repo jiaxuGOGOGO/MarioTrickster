@@ -52,3 +52,7 @@
 - 规则：OnGUI 里只读缓存。改地图后调用 `Touch()`（版本 +1，0.12 秒后空闲再 Recheck）；会改变布局的状态只在 MouseUp / EditorApplication.update / delayCall 里改。
 - 文件列表用 `LevelLibrary.Signature`（文件数 + 最新修改时间）缓存；写文件后调用 `Invalidate` / `OverworldBuilder.InvalidateCaches()`。
 - 网页同理：mousemove 只做 `owDraw()`（贴离屏底图 + 悬停框），mouseup 才 `owRender()`；改了地图要 `OWT.ver++`。
+
+## S221：受伤保护期规则
+- 无敌 / 保护期必须**从站起来那一刻**开始算（`GraceAfter(stun) = stun + overworldHurtGraceSeconds`），而且保护期里**也不再晕**。否则晕 3 秒 > 无敌 2.5 秒，站起来就又被击倒（连控）。
+- 新的伤害源都走 HitMario / HurtYou，不要自己写扣心或定身。

@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 21;
+    public const int CurrentDataVersion = 22;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -506,8 +506,8 @@ public class MarioMindTuningSO : ScriptableObject
     public float overworldStormVolleySeconds = 10f;
     [Tooltip("S220：闪电落下前地上闪多久（秒）。最后 0.3 秒变白 = 马上劈（两段预警：反应 0.25 秒 + 走出 1 格 0.5 秒刚好来得及）")]
     public float overworldBoltTelegraphSeconds = 1.2f;
-    [Tooltip("S220：受伤后几秒内不再掉心（只挡掉心，晕照样晕）")]
-    public float overworldHurtGraceSeconds = 2.5f;
+    [Tooltip("S221：受伤后，站起来（晕完）之后还有几秒全无敌（身体闪烁；不掉心也不再晕）。保护期 = 晕的秒数 + 这个值，防止连控")]
+    public float overworldHurtGraceSeconds = 1.5f;
     [Tooltip("S220：心掉光 = 晕倒几秒，然后剩 1 颗心站起来（一天不会因此结束）")]
     public float overworldKoSeconds = 3f;
     [Tooltip("S220：雷云（能量满按 Q）持续几秒")]
@@ -655,6 +655,10 @@ public class MarioMindTuningSO : ScriptableObject
         {
             overworldStormVolleySeconds = 10f; overworldBoltTelegraphSeconds = 1.2f; overworldHurtGraceSeconds = 2.5f; overworldKoSeconds = 3f;
             overworldCloudSeconds = 9f; overworldCloudRadius = 3f; overworldCloudVolleySeconds = 2.5f; overworldRoomHeartFloor = 2;
+        }
+        if (dataVersion < 22)
+        {
+            overworldHurtGraceSeconds = 1.5f; // S221：含义改为"站起来后还护几秒"（总保护 = 晕 2 + 1.5 = 3.5 秒；掉光 = 3 + 1.5 = 4.5 秒）
         }
         dataVersion = CurrentDataVersion;
         return true;

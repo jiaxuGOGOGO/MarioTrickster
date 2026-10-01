@@ -63,3 +63,10 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - Don't Starve 避雷针（把闪电引到固定点）：https://dontstarve.wiki.gg/wiki/Lightning_Rod/DST ；酸雨改环境：https://dontstarve.wiki.gg/wiki/Acid_Rain
 - Into the Breach 潮汐（提前标出、不冲断孤岛）：https://gamefaqs.gamespot.com/pc/205477-into-the-breach/faqs/76363/archive-tidal-waves
 - 结论：落点先画出来再发射；召唤型闪电不随机劈；灾害只"打开"地形、只在湿天被冲击触发；天气池跟地图格局走。没做：山崩堵路、随机劈人、酸雨扣血、长按转炮。
+
+## S221 全流程模拟自检（报告：repo/docs/step1/S221_FULL_FLOW_SIM_FIXES.md）
+- 做法：写探针（同一份 OverworldTown），量"最长连续定身 / 两次定身之间能动多久 / 拖住秒数 / 自伤次数"，不只看"通过没"。新系统一定让机器人也走一遍（否则没人测过）。
+- DbD 生命状态 + 挨打加速：https://deadbydaylight.fandom.com/wiki/Health_States ，https://deadbydaylight.wiki.gg/wiki/Patch_Notes_6.1.X
+- 连控：https://www.g2a.com/news/glossary/what-is-stun-lock-in-gaming/ ；起身无敌：https://wiki.supercombo.gg/w/The_Wakeup_Game
+- 吃豆人能量豆：https://pacman.fandom.com/wiki/Power_Pellet ；Spy vs Spy 自伤陷阱：https://en.wikipedia.org/wiki/Spy_vs._Spy_(1984_video_game)
+- 结论：保护期从站起来算；学会 = 用时间躲（等），不是免疫。

@@ -46,7 +46,7 @@ public sealed class OverworldTown
 
     // ── 这一帧发生的事（驱动层读完就清）──
     /// <summary>这一帧要给玩家的提示（驱动层翻成 Step1Text 文字；纯逻辑这边不碰文字，sim 才能跑）。</summary>
-    public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit,
+    public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, /* S228 */ Bell, BellIgnored, WindowFling, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit,
         /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt, /* S224 */ AmbushArmed }
     public Note hint; public float hintSeconds;
     /// <summary>S222：他最后一次看见你的原因（被抓时告诉玩家，H4 同一组视线输入）。</summary>
@@ -69,7 +69,7 @@ public sealed class OverworldTown
         /// <summary>S220：这一下是你引发的（你按 L / 连锁自你的机关）→ 他掉心你得能量。马里奥自己坐炮 / 雷区天灾 = false。</summary>
         public bool byYou = true;
     }
-    public sealed class Flight { public double fx, fy, tx, ty; public float t, dur; public int depth; public bool mario, you, shell, ride, tampered, /* S220 */ hurt, byYou; public double X => fx + (tx - fx) * System.Math.Min(1f, t / dur); public double Y => fy + (ty - fy) * System.Math.Min(1f, t / dur); public float Arc => 4f * (t / dur) * (1f - t / dur); }
+    public sealed class Flight { public double fx, fy, tx, ty; public float t, dur; public int depth; public bool mario, you, shell, ride, tampered, /* S220 */ hurt, byYou, /* S228 */ window; public double X => fx + (tx - fx) * System.Math.Min(1f, t / dur); public double Y => fy + (ty - fy) * System.Math.Min(1f, t / dur); public float Arc => 4f * (t / dur) * (1f - t / dur); }
     public readonly List<Big> active = new List<Big>();
     public readonly List<Flight> flights = new List<Flight>();
     /// <summary>这一帧被改掉的格子（画面层据此换贴图）/ 冲击点（画面层放冲击环 + 震屏）。</summary>
@@ -80,6 +80,9 @@ public sealed class OverworldTown
     public const float FlightSeconds = 0.9f;
     private float pendingMarioStun;
     private Vector2? heardNoise;
+    /// <summary>S228：这一声是钟楼（他上过当 = 不再停下）；他最后一次听见钟的游戏分钟（钟响后几秒内挨砸 = 学会）。</summary>
+    private bool heardBell; private double bellHeardMinute = -9999;
+    public const float BellLearnSeconds = 4f;
     public bool marioFlying => flights.Exists(f => f.mario);
     public bool youFlying => flights.Exists(f => f.you);
     public bool BigBusy => active.Count > 0 || flights.Count > 0 || seat != null || (ride != null && ride.seated) || cloud != null;
@@ -129,9 +132,22 @@ public sealed class OverworldTown
             tx = spawn.x + 0.5; ty = spawn.y + 0.5;
         }
         dayOver = OverworldSession.DayOver;
+        WindowFlingStart();
         // S220：雷区从"现在这一轮"开始数——进场景 / 从房间出来不会立刻劈、错过的轮次不补
         stormLast = new int[map.storms.Count];
         for (int z = 0; z < stormLast.Length; z++) stormLast[z] = OverworldStorm.VolleyIndex(OverworldSession.Minute, t.overworldStormVolleySeconds, t.overworldMinutesPerSecond, z);
+    }
+
+    /// <summary>S228：从房间出来、他在房间里挨过你的炮 → 从门口往外被轰出去（落点先算好、走得回家，H1）。</summary>
+    public bool windowFlung;
+    private void WindowFlingStart()
+    {
+        int door = OverworldSession.WindowFlingDoor; OverworldSession.WindowFlingDoor = 0;
+        if (door <= 0 || !OverworldSession.HasPositions || !doorCells.TryGetValue(door, out var dc)) return;
+        var land = OverworldProps.WindowLanding(map, dc, tuning.overworldWindowFlingCells, home);
+        if (!land.HasValue) return;
+        flights.Add(new Flight { fx = mario.x, fy = mario.y, tx = land.Value.x + 0.5, ty = land.Value.y + 0.5, dur = FlightSeconds, mario = true, byYou = true, window = true });
+        OverworldSession.WindowFlings++; windowFlung = true;
     }
 
     public OverworldMap.Door NextStop => OverworldSession.NextStop < stops.Count ? stops[OverworldSession.NextStop] : null;
@@ -519,7 +535,7 @@ public sealed class OverworldTown
             heardNoise = !blind && heardNoise.HasValue, noisePos = heardNoise ?? default, noiseSuspicion = tuning.overworldNoiseSuspicion,
             bigStun = pendingMarioStun,
         };
-        heardNoise = null; pendingMarioStun = 0f;
+        heardNoise = null; heardBell = false; pendingMarioStun = 0f;
         int mid = (int)System.Math.Floor(mario.y) * map.W + (int)System.Math.Floor(mario.x);
         if (peels.TryGetValue(mid, out var peel) && peel.x <= 0f) { p.slipped = true; peels.Remove(mid); OverworldSession.UsedCells.Add(mid); hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 1 }); }
         if (map.At(mid % map.W, mid / map.W) == '+' && !OverworldSession.UsedCells.Contains(mid) && OverworldSession.MarioHearts < OverworldSession.MaxHearts) // S220：他路过补心就顺手捡（不绕路）
@@ -532,6 +548,7 @@ public sealed class OverworldTown
         if (why != OverworldMap.SeenWhy.None && (wasCalm || seenWhy == OverworldMap.SeenWhy.None)) seenWhy = why; // S222：记"他是怎么注意到你的"（从平静变起疑那一刻）
         if (mind.Meter.Level == SuspicionLevel.Calm && !Spotted) seenWhy = OverworldMap.SeenWhy.None;
         if (blind && string.IsNullOrEmpty(o.mark)) o.mark = "…";
+        if (o.state == OverworldMarioState.Curious) FaceToward(mind.Focus); // S228：'?' 时转头看声音 / 可疑的地方（房间里的马里奥本来就会；小镇以前只停不转 → 钟声没用）
         lastOrder = o;
         // S218：他吃过亏的大机关在预警 / 正在滚，而且他看得见 → 先闪开（只躲几格、只在危险期间，H10 不会停住）
         var dodge = (o.state == OverworldMarioState.Walking || o.state == OverworldMarioState.Waiting || o.state == OverworldMarioState.Curious) ? DodgeCell(r) : null;
@@ -599,16 +616,29 @@ public sealed class OverworldTown
         return new List<OverworldMap.Cell>();
     }
 
+    /// <summary>S228：转头（只改朝向，不动位置）。朝向决定视锥（OverworldMap.CanSee）。</summary>
+    private void FaceToward(Vector2 p)
+    {
+        double dx = p.x - mario.x, dy = p.y - mario.y, d = System.Math.Sqrt(dx * dx + dy * dy);
+        if (d > 0.3) { mario.fx = dx / d; mario.fy = dy / d; }
+    }
+
     private void Change(int x, int y, char c)
     {
         int id = y * map.W + x; OverworldMap.Set(map, x, y, c); OverworldSession.Changed[id] = c; changedCells.Add(id);
     }
 
-    private void Noise(double x, double y)
+    private void Noise(double x, double y) => Noise(x, y, Step1Readability.TownNoiseRadius(tuning), false);
+
+    private void Noise(double x, double y, float radius, bool bell)
     {
-        if (!marioInside && Dist(x, y, mario.x, mario.y) <= Step1Readability.TownNoiseRadius(tuning)) heardNoise = new Vector2((float)x, (float)y);
-        sounds.Add(new Impact3((float)x, (float)y, Step1Readability.TownNoiseRadius(tuning)));
-        impacts.Add(new Impact3((float)x, (float)y, 1.5f));
+        if (!marioInside && Dist(x, y, mario.x, mario.y) <= radius)
+        {
+            if (bell && OverworldSession.MarioWary.Contains('B')) Hint(Note.BellIgnored, 2.5f); // 他上过钟楼的当：不再停下（只凭自己的经历，H4）
+            else { heardNoise = new Vector2((float)x, (float)y); if (bell) { heardBell = true; bellHeardMinute = OverworldSession.Minute; } }
+        }
+        sounds.Add(new Impact3((float)x, (float)y, radius));
+        if (!bell) impacts.Add(new Impact3((float)x, (float)y, 1.5f));
     }
 
     /// <summary>S220：马里奥被闪电 / 滚石 / 泥石流 / 被迫轰飞 打中：晕 2 秒 + 掉 1 颗心。掉光 = 晕倒 3 秒、剩 1 颗。
@@ -617,6 +647,7 @@ public sealed class OverworldTown
     private void HitMario(char kind, bool byYou = true)
     {
         OverworldSession.MarioWary.Add(kind); OverworldSession.BigHits++; OverworldSession.LastBigHitMinute = OverworldSession.Minute;
+        if (BellFooled(OverworldSession.Minute, bellHeardMinute, tuning.overworldMinutesPerSecond)) OverworldSession.MarioWary.Add('B'); // S228：钟一响就挨砸 = 他记住"钟声是圈套"
         Hint(Note.BigHit, 2f);
         if (marioGrace > 0f) { hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 1 }); return; } // 闪烁中 = 全无敌（画面在闪，H6）
         float stun = Mathf.Min(tuning.maxStunSeconds, tuning.overworldBigStunSeconds);
@@ -632,6 +663,9 @@ public sealed class OverworldTown
         pendingMarioStun = Mathf.Max(pendingMarioStun, stun);
         marioGrace = GraceAfter(stun);
     }
+
+    /// <summary>S228 纯逻辑：听见钟后 BellLearnSeconds 秒（现实秒，按游戏分钟换算）内挨砸 = 上当。</summary>
+    public static bool BellFooled(double nowMinute, double bellMinute, float minutesPerSecond) => nowMinute - bellMinute >= 0 && nowMinute - bellMinute <= BellLearnSeconds * minutesPerSecond;
 
     /// <summary>S221：受伤保护期 = 晕多久 + 站起来后还护多久（站起来那一刻一定有时间跑开）。</summary>
     public float GraceAfter(float stun) => stun + tuning.overworldHurtGraceSeconds;
@@ -680,6 +714,15 @@ public sealed class OverworldTown
             if (f.you) { tx = f.X; ty = f.Y; }
             if (f.t < f.dur) continue;
             flights.RemoveAt(i);
+            if (f.mario && f.window) // S228：房间里挨了你的炮 → 被轰出窗户：落地晕、不掉心（房间刚打完回满），冲击照样连锁
+            {
+                mario.x = f.tx; mario.y = f.ty; mario.Clear();
+                float st = Mathf.Min(tuning.maxStunSeconds, tuning.overworldBigStunSeconds);
+                pendingMarioStun = Mathf.Max(pendingMarioStun, st); marioGrace = GraceAfter(st); OverworldSession.LastBigHitMinute = OverworldSession.Minute;
+                hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 1 });
+                Impact(f.tx, f.ty, 1, new OverworldMap.Cell(-1, -1), true);
+                continue;
+            }
             if (f.mario) { mario.x = f.tx; mario.y = f.ty; mario.Clear(); if (!f.ride || f.tampered) HitMario('K', f.byYou); } // S219：他自己坐炮、没被你拨歪 = 平稳落地
             if (f.you) { tx = f.tx; ty = f.ty; frozen = Mathf.Max(frozen, 0.4f); if (seat != null) seat = null; if (f.hurt) HurtYou(); } // S220：自己坐炮不疼；站在炮口被轰 = 掉心
             if (f.shell) Impact(f.tx, f.ty, f.depth, new OverworldMap.Cell(-1, -1), f.byYou);
@@ -724,6 +767,7 @@ public sealed class OverworldTown
             return true;
         }
         if (b.kind == 'i') return FireLightning(b);
+        if (b.kind == 'B') { Noise(cx, cy, Step1Readability.TownBellRadius(tuning), true); OverworldSession.BellRings++; impacts.Add(new Impact3((float)cx, (float)cy, 0.8f)); if (hint == Note.None || hint == Note.BigArmed) Hint(Note.Bell, 2.5f); return false; } // S228 钟楼：只有声音，不伤人、不改地形、不连锁
         if (b.kind == '^') return FireMud(b);
         int rad = OverworldProps.FloodRadius + (weather.kind == OverworldEvents.Kind.Rain ? 1 : 0);
         // S219 山洪：水塔淹到的山丘（泥石流源头）也冲下来（不管天气）

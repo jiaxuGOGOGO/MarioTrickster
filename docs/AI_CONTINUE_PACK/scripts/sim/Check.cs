@@ -430,12 +430,13 @@ static class CHECK {
       if(loops>0){ rb++; Console.WriteLine($"     [FAIL] 他被雷云连劈 {loops}/20"); } else parts.Add("他在云里最多挨 1 下"); }
     // ② 雷云挡在他去门 1 的路上：没吃过亏 / 吃过亏 都要被拖住 ≥ 3 秒，而且照样进门（H10）
     { var gain=new List<double>(); foreach(int wary in new[]{0,1}){
-        double Arrive(bool cast){ var town=Open(); if(wary==1) OverworldSession.MarioWary.Add('i'); OverworldSession.Minute=town.stops[0].minute-1; OverworldSession.Energy=3; bool did=false; double tt=0;
+        double Arrive(bool cast,int off=7){ var town=Open(); if(wary==1) OverworldSession.MarioWary.Add('i'); OverworldSession.Minute=town.stops[0].minute-1; OverworldSession.Energy=3; bool did=false; double tt=0;
           for(int i=0;i<30*120;i++){ var inp=new OverworldTown.Input();
-            if(!did&&cast&&OverworldSession.Minute>=town.stops[0].minute+2){ var route=OverworldMap.Path(town.map,OverworldGuide.Near(town.map,town.mario.x,town.mario.y),town.doorCells[town.stops[0].n]); if(route!=null&&route.Count>8){ var c=route[7]; town.tx=c.x+.5; town.ty=c.y+.5; inp.weather=true; did=true; } }
+            if(!did&&cast&&OverworldSession.Minute>=town.stops[0].minute+2){ var route=OverworldMap.Path(town.map,OverworldGuide.Near(town.map,town.mario.x,town.mario.y),town.doorCells[town.stops[0].n]); if(route!=null&&route.Count>off+1){ var c=route[off]; town.tx=c.x+.5; town.ty=c.y+.5; inp.weather=true; did=true; } }
             if(did&&town.cloud!=null){ town.tx=3.5; town.ty=2.5; }
             town.Tick(dt,inp); tt+=dt; if(town.marioInside) return tt; } return -1; }
-        double b=Arrive(false), c=Arrive(true); gain.Add(c<0?-1:c-b); }
+        // S228：闷雷现在真的听得见（以前同帧衰减抹掉了）→ 他停下的时机早 1 秒，固定在第 7 格放云不一定挡住；真人会挑他前面 5–8 格里最好的一格
+        double b=Arrive(false), c=-1; for(int off=5;off<=8;off++){ double a2=Arrive(true,off); if(a2>=0) c=Math.Max(c,a2); } gain.Add(c<0?-1:c-b); }
       if(gain.Any(g=>g<3)){ rb++; Console.WriteLine($"     [FAIL] 雷云拖住他：没吃过亏 +{gain[0]:0.0}s 吃过亏 +{gain[1]:0.0}s（应都 ≥ 3 秒且能进门）"); } else parts.Add($"雷云挡路拖住他 +{gain[0]:0.0}s（吃过亏的在云外等 +{gain[1]:0.0}s）"); }
     // ③ 捣蛋型机器人 4 天会按 Q、仍然每门埋伏（H10 / 不卡）
     { int clouds=0,am=0,doors=0; bool ended=true; for(int d=1;d<=4;d++){ var br=OverworldBots.PlayDay(OverworldPack.Parse(OverworldPack.StormSampleText)[0],t,OverworldBots.Kind.Prankster,true,d,d); clouds+=OverworldSession.Clouds; am+=br.ambush; doors+=br.doors; if(!br.dayEnded) ended=false; }
@@ -516,7 +517,7 @@ static class CHECK {
     { bool a=Math.Abs(Step1Readability.FillReach(0.5f,9,9)-4.5f)<1e-4&&Step1Readability.FillReach(1,3,9)==3&&Step1Readability.FillReach(0,9,9)==0;
       bool b=Step1Readability.SoundRadius(Step1Readability.Sound.Taunt,t)==t.hearingRange&&Math.Abs(Step1Readability.SoundRadius(Step1Readability.Sound.Vent,t)-t.hearingRange/3f)<1e-4&&Step1Readability.TownTauntRadius(t)==t.overworldVisionRange*1.5f;
       var town=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/OverworldTown.cs")); var eyes=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/MarioEyes.cs")); var rings=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1SoundRings.cs"));
-      bool c=town.Contains("<= Step1Readability.TownTauntRadius(tuning)")&&town.Contains("<= Step1Readability.TownNoiseRadius(tuning)")&&eyes.Contains("t.hearingRange / 3f")&&!rings.Contains("MarioEyes")&&!rings.Contains("Meter.")&&!rings.Contains("RustleOnPass");
+      bool c=town.Contains("<= Step1Readability.TownTauntRadius(tuning)")&&town.Contains("Noise(x, y, Step1Readability.TownNoiseRadius(tuning), false)")&&town.Contains("Dist(x, y, mario.x, mario.y) <= radius")&&town.Contains("Step1Readability.TownBellRadius(tuning), true)")&&eyes.Contains("t.hearingRange / 3f")&&!rings.Contains("MarioEyes")&&!rings.Contains("Meter.")&&!rings.Contains("RustleOnPass");
       bool d=t.overworldAutoFastIdleSeconds>0&&t.visionConeFill&&t.soundRings&&MarioMindTuningSO.CurrentDataVersion>=23;
       if(!(a&&b&&c&&d)){ cb++; Console.WriteLine($"     [FAIL] 灌注={a} 声音圈半径={b} 圈和判定同一个数/只是画面={c} 默认开={d}"); } else parts.Add("视锥灌注 + 声音圈 = 判定同一个数"); }
     // ⑤ 差点被发现
@@ -646,6 +647,48 @@ static class CHECK {
     if(!t.contextKeyBar||Math.Abs(t.roomGameSpeed-1f)>1e-4||MarioMindTuningSO.ClampRoomSpeed(0.2f)!=0.5f||MarioMindTuningSO.ClampRoomSpeed(3f)!=1f){ eb++; Console.WriteLine("     [FAIL] 默认值：按键条应开、游戏速度应 1，速度限制在 0.5~1"); }
     else parts.Add("游戏速度默认 1（不改手感），可调 0.5~1");
     Console.WriteLine($"[{(eb==0?"OK":"FAIL")}] S226 打击感 + 按键条 + 游戏速度：{string.Join("｜",parts)}"); fail+=eb; }
+  // S228：按调研定的数值 + 修"小镇声音永远到不了 ?" + 钟楼 B + 房间大炮轰出窗户
+  //  ① 一次性起疑（声音 / 挑衅）不被同帧衰减抹掉：大机关的声音 → '?' 停下 ≈1 秒（反向：35 = 刚好阈值也必须到 ?）
+  //  ② 调研数值：? → ! ≥ 二选一反应 0.44 秒；马里奥躲机关反应 ≥ 人的视觉反应 0.19 秒；小镇视野 ≤ 屏幕半高（他看不见屏幕外的你）
+  //  ③ 钟楼：全镇听见 → 他 '?' 并转头朝钟；钟响 4 秒内挨砸 → 以后不理钟；钟不伤人、不改地形；样板仍可玩
+  //  ④ 轰出窗户：落点能走、走得回家、他落地晕、不掉心；走不出去的门 = 不轰（H1）
+  { int sb=0; var parts=new List<string>(); var t=MarioMindTuningSO.LoadOrDefault(); float dt=1f/60f;
+    float CuriousSecs(float add){ var mm=new OverworldMind(t); var p=new OverworldPercept{marioPos=Vector2.zero,scheduleTarget=new Vector2(5,0)}; mm.Tick(dt,p); p.heardNoise=true; p.noisePos=new Vector2(3,3); p.noiseSuspicion=add; float secs=0; var o=mm.Tick(dt,p); p.heardNoise=false; if(o.state==OverworldMarioState.Curious) secs+=dt; for(int i=0;i<600;i++){ o=mm.Tick(dt,p); if(o.state==OverworldMarioState.Curious) secs+=dt; } return secs; }
+    float cs=CuriousSecs(t.overworldNoiseSuspicion), c35=CuriousSecs(t.curiousThreshold);
+    if(cs<0.8f||cs>1.6f||c35<=0f){ sb++; Console.WriteLine($"     [FAIL] 大机关声音让他 ? {cs:0.00} 秒（应 0.8–1.6）；刚好到阈值的一声 ? {c35:0.00} 秒（应 >0，否则同帧衰减又把它抹掉了）"); }
+    else parts.Add($"大机关声音 → ? 停 {cs:0.0} 秒（以前 0 秒：同帧衰减抹掉）");
+    float hick=0.2f+0.15f*(float)(Math.Log(3)/Math.Log(2)); // Card/Moran/Newell：a=200ms b=150ms/bit，二选一 log2(2+1)
+    bool num=t.minOmenSeconds>=hick-0.001f&&t.reactionDelay>=0.19f&&t.overworldVisionRange<=7.5f&&t.overworldChaseSpeed<t.overworldTricksterSpeed&&t.overworldMarioSpeed<t.overworldChaseSpeed;
+    if(!num){ sb++; Console.WriteLine($"     [FAIL] 调研数值：? → ! {t.minOmenSeconds} 秒（应 ≥ {hick:0.00}）｜马里奥反应 {t.reactionDelay}（应 ≥0.19）｜小镇视野 {t.overworldVisionRange}（应 ≤ 屏幕半高 7.5）｜速度 走{t.overworldMarioSpeed}<追{t.overworldChaseSpeed}<你{t.overworldTricksterSpeed}"); }
+    else parts.Add($"? → ! ≥{hick:0.00} 秒、他反应 ≥0.19 秒、视野 ≤ 屏幕、你比追你的他快 {t.overworldTricksterSpeed/t.overworldChaseSpeed-1:P0}");
+    // ③ 钟楼
+    { var m=OverworldPack.Parse(OverworldPack.BigSampleText)[0]; var bell=OverworldMap.Find(m,'B'); var r=OverworldMap.Rules.Default; var chk=OverworldMap.Check(m,r);
+      bool placed=bell.Count==1&&chk.Playable&&OverworldWalker.SimulateDay(m,r).ok;
+      OverworldTown Ring(bool wary,out bool cur,out bool faced,out bool hurt){ cur=faced=hurt=false; OverworldSession.ResetStatics(); OverworldSession.NewDay(m.name,"Town",1); OverworldSession.Active=true; if(wary) OverworldSession.MarioWary.Add('B');
+        var town=new OverworldTown(m,t); OverworldSession.Minute=town.stops[0].minute+1; for(int i=0;i<30*2;i++) town.Tick(1f/30f,new OverworldTown.Input());
+        town.mario.fx=-1; town.mario.fy=0; var b=bell[0]; town.tx=b.x+0.5; town.ty=b.y-0.5; if(town.marioInside||OverworldTown.Dist(town.mario.x,town.mario.y,b.x+.5,b.y+.5)>Step1Readability.TownBellRadius(t)) { cur=faced=hurt=false; Console.WriteLine("     [FAIL] 钟楼测试摆位：他在屋里或听不见"); return town; } int hearts=OverworldSession.MarioHearts; var before=OverworldMap.ToText(town.map);
+        town.Tick(1f/30f,new OverworldTown.Input{peel=true}); cur=false; faced=false;
+        for(int i=0;i<30*4;i++){ town.Tick(1f/30f,new OverworldTown.Input()); if(town.lastOrder.state==OverworldMarioState.Curious){ cur=true; double dx=b.x+0.5-town.mario.x, dy=b.y+0.5-town.mario.y, d=Math.Sqrt(dx*dx+dy*dy); if((town.mario.fx*dx+town.mario.fy*dy)/d>0.9) faced=true; } }
+        hurt=OverworldSession.MarioHearts<hearts||OverworldMap.ToText(town.map)!=before; return town; }
+      Ring(false,out bool cur,out bool faced,out bool hurt); int rings=OverworldSession.BellRings; Ring(true,out bool cur2,out _,out _);
+      bool fooled=OverworldTown.BellFooled(100,100-1,4f)&&!OverworldTown.BellFooled(100,100-30,4f);
+      OverworldSession.ResetStatics();
+      if(!placed||rings!=1||!cur||!faced||hurt||cur2||!fooled){ sb++; Console.WriteLine($"     [FAIL] 钟楼：样板={placed} 响={rings} 他 ?={cur} 转头朝钟={faced} 伤人或改地形={hurt} 上过当还停={cur2} 学习判定={fooled}"); }
+      else parts.Add("钟楼：全镇听见 → 他 ? 并转头朝钟，不伤人不改地形；钟响就挨砸 → 以后不理钟"); }
+    // ④ 轰出窗户
+    { var m=OverworldPack.Parse(OverworldPack.BigSampleText)[0]; int okDoors=0, flung=0, badHeart=0, stunned=0; var home=OverworldMap.Find(m,'M')[0];
+      foreach(var d in m.doors){ var dc=OverworldMap.Find(m,(char)('0'+d.n)); if(dc.Count!=1) continue; var land=OverworldProps.WindowLanding(m,dc[0],t.overworldWindowFlingCells,home);
+        if(land.HasValue&&OverworldMap.Walkable(m,land.Value.x,land.Value.y)&&OverworldMap.Path(m,land.Value,home)!=null) okDoors++;
+        OverworldSession.ResetStatics(); OverworldSession.NewDay(m.name,"Town",1); OverworldSession.Active=true; OverworldSession.MarioX=dc[0].x+0.5; OverworldSession.MarioY=dc[0].y+0.5; OverworldSession.TricksterX=dc[0].x+0.5; OverworldSession.TricksterY=dc[0].y-0.5; OverworldSession.HasPositions=true; OverworldSession.NextStop=1; OverworldSession.Minute=d.minute+60; OverworldSession.RecordWindowFling(d.n);
+        var town=new OverworldTown(m,t); if(town.windowFlung) flung++; bool dz=false; for(int i=0;i<30*3;i++){ town.Tick(1f/30f,new OverworldTown.Input()); if(town.lastOrder.state==OverworldMarioState.Dizzy) dz=true; } if(dz) stunned++; if(OverworldSession.MarioHearts!=OverworldSession.MaxHearts) badHeart++; }
+      var boxed=OverworldPack.Parse(OverworldPack.BigSampleText)[0]; var d1=OverworldMap.Find(boxed,'1')[0]; for(int k=1;k<=6;k++) OverworldMap.Set(boxed,d1.x,d1.y-k,'w'); bool awayFromHouse=OverworldProps.WindowLanding(m,OverworldMap.Find(m,'3')[0],6,home)?.y>OverworldMap.Find(m,'3')[0].y; bool noTrap=OverworldProps.WindowLanding(boxed,d1,6,home)==null;
+      OverworldSession.ResetStatics();
+      if(okDoors<m.doors.Count||flung<m.doors.Count||stunned<m.doors.Count||badHeart>0||!noTrap||!awayFromHouse){ sb++; Console.WriteLine($"     [FAIL] 轰出窗户：落点安全 {okDoors}/{m.doors.Count}｜真的飞了 {flung}｜落地晕 {stunned}｜掉心 {badHeart}（应 0）｜门外全是水 = 不轰 {noTrap}｜门 3 房子在下面 → 往上轰 {awayFromHouse}"); }
+      else parts.Add($"轰出窗户：{okDoors} 扇门落点都走得回家、他落地晕、不掉心；门外没路 = 不轰"); }
+    { var sn=File.ReadAllText(WsRepo("Assets/Scripts/LevelElements/Pranks/SnareTrap.cs")); var rl=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/Runtime/OverworldRoomLink.cs"));
+      bool ok=sn.Contains("holdFor = HoldFor(mario != null, holdSeconds, selfSeconds)")&&t.snareSelfSeconds<10f&&t.snareSelfSeconds<t.snareSeconds&&rl.Contains("CannonBall.HitMario += NoteCannonHit")&&rl.Contains("CannonBall.HitMario -= NoteCannonHit")&&rl.Contains("RecordWindowFling(door)");
+      if(!ok){ sb++; Console.WriteLine($"     [FAIL] 接线：你自己被绳套吊 {t.snareSelfSeconds} 秒（应 <10，P4 死区）/ 房间炮打中 → 记下这扇门"); } else parts.Add($"你自己踩绳套吊 {t.snareSelfSeconds:0} 秒（马里奥仍 {t.snareSeconds:0} 秒）"); }
+    Console.WriteLine($"[{(sb==0?"OK":"FAIL")}] S228 调研数值 + 钟楼 + 轰出窗户：{string.Join("｜",parts)}"); fail+=sb; }
   // S227 阶段 D 填表：用你真实的试玩记录（docs/step1/data/*.csv）跑出口报告
   { int db=0; var parts=new List<string>();
     var hdr=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs")),"CsvHeader => \"([^\"]*)\" \\+\\s*\"([^\"]*)\"");

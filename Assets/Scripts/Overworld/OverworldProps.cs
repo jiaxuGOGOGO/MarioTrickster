@@ -19,7 +19,7 @@ public static class OverworldProps
     public static readonly int[] DX = { 1, -1, 0, 0 }, DY = { 0, 0, 1, -1 };
     public static readonly string[] DirZh = { "右", "左", "上", "下" };
 
-    public static bool IsBig(char c) => c == 'K' || c == 'O' || c == 'U';
+    public static bool IsBig(char c) => c == 'K' || c == 'O' || c == 'U' || c == 'B'; // S228：钟楼 B
     public static string Label(OverworldMap.Map m, OverworldMap.Cell c) { char ch = m.At(c.x, c.y); var t = OverworldCatalog.Get(ch); return $"{(t != null ? t.zh : "?")}{ch}({c.x},{c.y})"; }
 
     /// <summary>扫描顺序：从上到下、从左到右（和 OverworldMap.Find 一样）。</summary>
@@ -139,6 +139,22 @@ public static class OverworldProps
         if (key == dir) { dist = Math.Min(Math.Max(MaxAim, dist), dist + 1); return; }
         if (key == opp) { if (dist > MinAim) { dist--; return; } if (MuzzleCells(m, k, opp).Count > 0) dir = opp; return; }
         if (MuzzleCells(m, k, key).Count > 0) dir = key;
+    }
+
+    /// <summary>S228 房间 → 小镇：他在房间里挨了你的炮 → 出门时从门口往"离开房子"的方向（房子 W 在门的哪边就往反方向；
+    /// 都没挨着房子就往下）被轰出去 cells 格。落点必须能走、走得回家（H1）；远的不行就近一格，全不行 = 不轰（返回 null）。</summary>
+    public static OverworldMap.Cell? WindowLanding(OverworldMap.Map m, OverworldMap.Cell door, int cells, OverworldMap.Cell home)
+    {
+        int dir = 3; // 下
+        for (int d = 0; d < 4; d++) if (m.At(door.x + DX[d], door.y + DY[d]) == 'W') { dir = d ^ 1; break; }
+        for (int s = Math.Max(1, cells); s >= 2; s--)
+        {
+            int x = door.x + DX[dir] * s, y = door.y + DY[dir] * s;
+            if (x <= 0 || y <= 0 || x >= m.W - 1 || y >= m.H - 1 || !OverworldMap.Walkable(m, x, y)) continue;
+            var c = new OverworldMap.Cell(x, y);
+            if (OverworldMap.Path(m, c, home) != null) return c;
+        }
+        return null;
     }
 
     /// <summary>瞄准的落点（和真的发射一样：先偏风，再找最近的能走的格）。</summary>
@@ -315,6 +331,7 @@ public static class OverworldProps
                 }
                 s = $"{Label(m, c)}：" + (parts.Count > 0 ? string.Join("；", parts) : "四面堵死，推不动");
             }
+            else if (ch == 'B') s = $"{Label(m, c)}：钟一响全镇听见（他停下转头看），不伤人；冲击 {ChainRadius} 格内会震响它";
             else
             {
                 var f = Flood(m, c, FloodRadius); var f2 = Flood(m, c, FloodRadius + 1);

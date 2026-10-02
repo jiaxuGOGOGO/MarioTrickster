@@ -39,6 +39,9 @@ public static class OverworldSession
     /// <summary>刚守住的门（回到小镇时，离它最近的一个用过的大机关重新装填）。</summary>
     public static int ReloadDoor;
     public static int BigHits, BestChain;
+    /// <summary>S228：他在房间里挨了你的炮 → 回小镇出门时被轰出窗户（门口往外几格，落地晕）。用过就清。</summary>
+    public static int WindowFlingDoor;
+    public static int WindowFlings, BellRings;
     /// <summary>S219：每门巨炮现在的瞄准（格子编号 → 方向×100 + 距离）。你瞄好了下车，被连锁震响时就打那里；当天有效。</summary>
     public static readonly Dictionary<int, int> CannonAim = new Dictionary<int, int>();
     public static int CannonRides, Lightnings, Mudslides, CaveHops;
@@ -60,7 +63,7 @@ public static class OverworldSession
     public static void NewDay(string map, string town, int day = 1)
     {
         NearMiss.Clear();
-        Day = System.Math.Max(1, day); Changed.Clear(); CannonAim.Clear(); CannonRides = Lightnings = Mudslides = CaveHops = 0; MarioHearts = YouHearts = MaxHearts; Energy = 0; MarioHeartsLost = YouHeartsLost = Kos = Clouds = StormBolts = 0; LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0;
+        Day = System.Math.Max(1, day); Changed.Clear(); CannonAim.Clear(); CannonRides = Lightnings = Mudslides = CaveHops = 0; MarioHearts = YouHearts = MaxHearts; Energy = 0; MarioHeartsLost = YouHeartsLost = Kos = Clouds = StormBolts = 0; LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0; WindowFlingDoor = 0; WindowFlings = 0; BellRings = 0;
         MapName = map ?? ""; TownScene = town ?? ""; Minute = OverworldMap.DayStart;
         Results.Clear(); UsedCells.Clear(); DayOver = false; HasPositions = false; NextStop = 0; PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f; Caught = 0; TauntsUsed = 0; DelayedSeconds = 0f;
     }
@@ -74,6 +77,9 @@ public static class OverworldSession
         MarioHearts = YouHearts = MaxHearts; // S220：房间打完两人都回满心（房间里有自己的血量）
         if (playerWon) ReloadDoor = door; // S218：守住一户 → 回到小镇时那户旁边的大机关重新装填
     }
+
+    /// <summary>S228：房间里你的炮打中过他 → 记下这扇门，回到小镇时他从这扇门被轰出来。</summary>
+    public static void RecordWindowFling(int door) { if (door > 0) WindowFlingDoor = door; }
 
     public static void RecordMissed(int door) { if (door > 0) Results[door] = DoorResult.Missed; }
 

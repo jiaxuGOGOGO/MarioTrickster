@@ -774,4 +774,62 @@ public class OverworldTests
         Assert.AreEqual('^', m.At(33, 16)); Assert.GreaterOrEqual(OverworldProps.MudDir(m, hill), 0, "门 4 旁的山坡会流泥");
         Assert.Greater(OverworldProps.MudLane(m, hill).Count, 0, "泥冲到大路上（他每天都走）");
     }
+
+    // ── S228：小镇声音能到 '?'（修同帧衰减）、钟楼、房间大炮轰出窗户 ──
+    [Test]
+    public void S228_OneShotSuspicion_NotEatenBySameFrameDecay()
+    {
+        var t = Tuning(); var m = new SuspicionMeter(t);
+        m.Add(t.curiousThreshold); m.Tick(1f / 60f, 0f);
+        Assert.AreEqual(SuspicionLevel.Curious, m.Level, "刚好到阈值的一声也要到 '?'（以前同帧衰减把它抹到阈值以下）");
+        m.Tick(1f / 60f, 0f); Assert.Less(m.Value, t.curiousThreshold, "下一帧照常衰减");
+        Assert.GreaterOrEqual(t.overworldNoiseSuspicion, t.curiousThreshold + 10f, "大机关的声音到 ? 后还能停一会儿");
+        Assert.GreaterOrEqual(t.minOmenSeconds, 0.43f, "? → ! ≥ 二选一反应时间");
+        Assert.GreaterOrEqual(t.reactionDelay, 0.19f, "马里奥躲机关不比人快");
+    }
+
+    [Test]
+    public void S228_BellTower_WholeTownHears_MarioLooks_LearnsIfFooled()
+    {
+        var m = Big(); var r = OverworldMap.Rules.Default;
+        Assert.AreEqual(1, OverworldMap.Find(m, 'B').Count, "星露大镇放了一座钟楼");
+        Assert.IsTrue(OverworldMap.Check(m, r).Playable);
+        Assert.IsTrue(OverworldProps.IsBig('B'));
+        Assert.IsTrue(OverworldTown.BellFooled(100, 99, 4f), "钟响 1 分钟（0.25 秒）内挨砸 = 上当");
+        Assert.IsFalse(OverworldTown.BellFooled(100, 70, 4f), "隔了 30 分钟 = 不算");
+        var src = Read("Scripts/Overworld/OverworldTown.cs");
+        StringAssert.Contains("if (bell && OverworldSession.MarioWary.Contains('B'))", src);
+        StringAssert.Contains("if (o.state == OverworldMarioState.Curious) FaceToward(mind.Focus);", src);
+        StringAssert.Contains("Step1Readability.TownBellRadius(tuning), true)", src);
+        Assert.AreEqual(Tuning().overworldNoiseRange * 2f, Step1Readability.TownBellRadius(Tuning()), 1e-4f, "圈和判定同一个数");
+        StringAssert.Contains("钟楼", OverworldCatalog.HarmOf('B'));
+    }
+
+    [Test]
+    public void S228_RoomCannonHit_FlingsMarioOutOfDoor_SafeLanding()
+    {
+        var m = Big(); var home = OverworldMap.Find(m, 'M')[0];
+        foreach (var d in m.doors)
+        {
+            var dc = OverworldMap.Find(m, (char)('0' + d.n))[0];
+            var land = OverworldProps.WindowLanding(m, dc, 6, home);
+            Assert.IsTrue(land.HasValue, "门 " + d.n + " 有落点");
+            Assert.IsNotNull(OverworldMap.Path(m, land.Value, home), "H1：落点走得回家");
+        }
+        var link = Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs");
+        StringAssert.Contains("CannonBall.HitMario += NoteCannonHit", link);
+        StringAssert.Contains("CannonBall.HitMario -= NoteCannonHit", link);
+        StringAssert.Contains("OverworldSession.RecordWindowFling(door)", link);
+        OverworldSession.ResetStatics(); OverworldSession.RecordWindowFling(2); Assert.AreEqual(2, OverworldSession.WindowFlingDoor);
+        OverworldSession.NewDay("x", "y"); Assert.AreEqual(0, OverworldSession.WindowFlingDoor, "新的一天清掉");
+    }
+
+    [Test]
+    public void S228_SelfSnare_ShorterThanMario_NoDeadZone()
+    {
+        var t = Tuning();
+        Assert.AreEqual(t.snareSeconds, SnareTrap.HoldFor(true, t.snareSeconds, t.snareSelfSeconds), 1e-4f);
+        Assert.Less(SnareTrap.HoldFor(false, t.snareSeconds, t.snareSelfSeconds), 10f, "宪法 P4：你自己不会干等 10 秒");
+        Assert.LessOrEqual(SnareTrap.HoldFor(false, 2f, 5f), 2f, "你不会比马里奥吊得久");
+    }
 }

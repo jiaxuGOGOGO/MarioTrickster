@@ -89,3 +89,8 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 
 ## S227
 - 阶段 D 由 `Step1ExitReport` 自动出表（体检"第 1 步出口"）。新列加在 CSV 末尾时：同时加进 `Step1ExitReport.Columns`（sim 检查表头一致）。
+
+## S228 调研定值（报告 repo/docs/step1/S228_RESEARCHED_NUMBERS_BELL_WINDOW.md，不要重复调研）
+- 反应时间：视觉简单 ≈0.19 s https://pmc.ncbi.nlm.nih.gov/articles/PMC4456887/ ；Hick 定律 a=200ms b=150ms/bit https://reactscore.com/choice-reaction-test/
+- 速度：DbD 杀手 110–115% https://deadbydaylight.fandom.com/wiki/Movement_Speeds ；吃豆人 Dossier https://pacman.holenet.info/ ；DbD 木板晕 2 s https://deadbydaylight.wiki.gg/wiki/Pallets
+- 视野一致性：Shadow Tactics https://www.gamedeveloper.com/design/game-design-deep-dive-dynamic-detection-in-i-shadow-tactics-i- ；声音只引去看：Mark of the Ninja https://critpoints.net/2015/03/30/stealth-game-spotting-deconstruction/ ；Hitman 噪音气泡 https://www.polygon.com/hitman-distraction-world-of-assassination/ ；被耍过保持警觉 Invisible Inc https://www.gamedeveloper.com/design/lesson-the-problems-of-modern-stealth-design-and-how-invisible-inc-solves-them

@@ -11,6 +11,9 @@ using UnityEngine;
 [RequireComponent(typeof(CircleCollider2D))]
 public class CannonBall : MonoBehaviour
 {
+    /// <summary>S228：炮弹打中马里奥（房间结束时小镇联动用）。</summary>
+    public static event System.Action HitMario;
+
     private Vector2 velocity;
     private float life;
     private int damage;
@@ -53,6 +56,7 @@ public class CannonBall : MonoBehaviour
             if (!health.IsInvincible)
             {
                 health.TakeDamage(damage);
+                HitMario?.Invoke(); // S228：小镇联动用（他从门口被轰出窗户）
                 var rb = other.attachedRigidbody;
                 if (rb != null)
                 {

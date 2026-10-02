@@ -23,14 +23,19 @@ public sealed class OverworldRoomLink : MonoBehaviour
         if (!OverworldSession.Active) { enabled = false; return; }
         manager = GameManager.Instance;
         if (manager != null) { manager.OnGameOver += HandleOver; manager.OnRoundStart += HandleRoundStart; }
+        CannonBall.HitMario += NoteCannonHit; // S228：你的炮弹打中他（只看结果，不读你的状态）
         GameManager.BlockRoundOverKeys = () => over; // 回合结束后 R/N 不重开，由这里送回小镇
         GameManager.RestartOverride = RestartRoom;   // S212：F5 = 平滑重开这个房间（以前会在编辑器里直接退出 Play，小镇进度全丢）
         StartCoroutine(ApplyNextFrame());
         StartCoroutine(RevealOnYou());
     }
 
+    private bool cannonHitMario;
+    private void NoteCannonHit() { if (!over) cannonHitMario = true; }
+
     private void OnDestroy()
     {
+        CannonBall.HitMario -= NoteCannonHit;
         if (manager != null) { manager.OnGameOver -= HandleOver; manager.OnRoundStart -= HandleRoundStart; }
         if (GameManager.RestartOverride == (System.Func<bool>)RestartRoom) GameManager.RestartOverride = null;
     }
@@ -84,6 +89,7 @@ public sealed class OverworldRoomLink : MonoBehaviour
         var o = Step1Text.Classify(winner, manager != null ? manager.LastRoundReason : "");
         bool won = Step1Text.PlayerWon(o);
         OverworldSession.RecordRoom(door, won);
+        if (cannonHitMario) OverworldSession.RecordWindowFling(door); // S228：房间里你的炮打中过他 → 回小镇他从门口被轰出来
         headline = Step1Text.Headline(o);
         over = true; overTime = Time.unscaledTime;
     }

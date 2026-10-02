@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 24;
+    public const int CurrentDataVersion = 25;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -23,7 +23,7 @@ public class MarioMindTuningSO : ScriptableObject
     public string personaName = "Rush";
 
     [Header("Movement persona (feeds the existing HeuristicBot)")]
-    [Range(0f, 1.5f)] public float reactionDelay = 0.12f;
+    [Range(0f, 1.5f)] public float reactionDelay = 0.2f;
     [Range(0f, 1f)] public float riskTolerance = 0.8f;
     [Tooltip("开局站定几秒，给玩家就位时间（S183 用户反馈来不及：2→4）")]
     public float startDelaySeconds = 4f;
@@ -59,7 +59,7 @@ public class MarioMindTuningSO : ScriptableObject
     public float curiousThreshold = 35f;
     public float alertThreshold = 100f;
     [Tooltip("H2：'?' 至少显示这么久才允许变成 '!'")]
-    public float minOmenSeconds = 0.4f;
+    public float minOmenSeconds = 0.45f;
     public float maxSuspicion = 130f;
 
     [Header("Behaviour")]
@@ -483,7 +483,7 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("S218：炮声 / 滚石声 多远听得见（格）。听见 = 起疑一下（?），只知道声音在哪（H4）")]
     public float overworldNoiseRange = 14f;
     [Tooltip("S218：听见大机关的动静加多少起疑（35 = 刚好 '?' 停一下看）")]
-    public float overworldNoiseSuspicion = 35f;
+    public float overworldNoiseSuspicion = 50f;
     [Tooltip("S218：被大机关砸中后这么多游戏分钟内进门 → 房间开局他还晕着")]
     public float overworldDazeCarryMinutes = 40f;
     [Tooltip("S218：带进房间的晕（开局多等几秒）")]
@@ -532,6 +532,12 @@ public class MarioMindTuningSO : ScriptableObject
     public bool contextKeyBar = true;
     [Tooltip("S226 E7 无障碍：房间游戏速度 0.5~1（1 = 正常；0.7 = 慢三成，反应慢/手不方便时用）。只影响房间玩法，不影响暂停/回放")]
     [Range(0.5f, 1f)] public float roomGameSpeed = 1f;
+
+    [Header("S228: 按调研定的数值 + 钟楼 + 房间大炮轰出窗户")]
+    [Tooltip("S228：你自己踩到绳套被吊几秒（马里奥仍是 snareSeconds）。宪法 P4：10 秒没事可做 = 死区；以前你也吊 10 秒。参考 DbD 捕兽夹：设陷阱的人自己踩到只是短暂定住")]
+    public float snareSelfSeconds = 3f;
+    [Tooltip("S228：他在房间里挨了你的炮 → 回到小镇时从门口被轰出去几格（落地晕 overworldBigStunSeconds，不掉心）")]
+    public int overworldWindowFlingCells = 6;
 
     [Header("S216: 手感 / 被弹飞的抛物线 / 特效")]
     [Tooltip("S216 被弹飞/打飞时的重力（格/秒²）。以前硬直期间往上飞没有重力 → 弹簧弹 11 格撞天花板、炸弹推 8 格像在月球。平时跳跃重力 80；这里略轻 → 有滞空感但仍是抛物线")]
@@ -681,6 +687,14 @@ public class MarioMindTuningSO : ScriptableObject
         if (dataVersion < 24)
         {
             contextKeyBar = true; roomGameSpeed = 1f; // S226：看情况的按键条 + 游戏速度（默认不变）
+        }
+        if (dataVersion < 25)
+        {
+            // S228（调研定值，见 docs/step1/S228_RESEARCHED_NUMBERS_BELL_WINDOW.md）：
+            overworldNoiseSuspicion = 50f; // 35 = 刚好到 ? 又被同帧衰减抹掉 → 改成"到 ? 后还能看 ≈1 秒"：35 + 14×1
+            minOmenSeconds = 0.45f;        // ? 到 ! 至少 0.45 秒 ≥ 二选一反应时间 ≈0.44 秒（Card/Moran/Newell 常数 + Hick 定律）
+            reactionDelay = 0.2f;          // 马里奥躲机关的反应 ≥ 人的视觉简单反应 ≈0.19 秒（AI 不比人快）
+            snareSelfSeconds = 3f; overworldWindowFlingCells = 6;
         }
         dataVersion = CurrentDataVersion;
         return true;

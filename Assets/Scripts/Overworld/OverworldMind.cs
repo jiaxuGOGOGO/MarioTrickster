@@ -48,6 +48,8 @@ public sealed class OverworldMind
     private Vector2 focus, lastSeen;
     public SuspicionMeter Meter { get; }
     public OverworldMarioState State { get; private set; } = OverworldMarioState.Walking;
+    /// <summary>S228：他现在在看哪（声音 / 你最后出现的位置——只来自感知，H4）。起疑停下时转头朝这里看。</summary>
+    public Vector2 Focus => focus;
     /// <summary>今天被你拖住/引走的总秒数（给结算看）。</summary>
     public float DelayedSeconds { get; private set; }
 

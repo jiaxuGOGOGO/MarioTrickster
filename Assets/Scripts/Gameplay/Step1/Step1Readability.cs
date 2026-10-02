@@ -27,6 +27,8 @@ public static class Step1Readability
 
     /// <summary>小镇：大机关的动静多远听得见。</summary>
     public static float TownNoiseRadius(MarioMindTuningSO t) => t.overworldNoiseRange;
+    /// <summary>S228：钟楼的声音圈 = 大机关的 2 倍（"全镇听见"，72×40 的镇子几乎全覆盖）。圈和判定同一个数（S224 规则）。</summary>
+    public static float TownBellRadius(MarioMindTuningSO t) => t.overworldNoiseRange * 2f;
 
     public static readonly Color SoundColor = new Color(0.5f, 0.85f, 1f, 0.85f);
 }

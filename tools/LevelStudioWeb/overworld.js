@@ -255,7 +255,7 @@ function owLedger(m, W, resolve, bombsPerRound, maxBonus) {
 const owLedgerLines = rep => rep.rooms.map(r => r.missing ? `门${r.door} ?` : `门${r.door} ${r.room} 主角=${r.star} 共${r.total} 道具箱${r.pickups} 新=${r.firstTime.join('、')} [${r.kinds.map(k => k.zh + k.n).join(' ')}]`).concat(rep.warnings);
 // ── S218 小镇大机关（巨炮 K + 靶心 X / 滚石 O / 水塔 U）+ 天气：逐行移植 Assets/Scripts/Overworld/OverworldProps.cs（verify.sh 逐字对照）──
 const OWP = { Muzzle: 3, MaxShot: 96, WindShift: 3, FloodRadius: 3, MaxRoll: 64, MaxBig: 12, ChainRadius: 1.5, DX: [1, -1, 0, 0], DY: [0, 0, 1, -1], DirZh: ['右', '左', '上', '下'] };
-const owIsBig = c => c === 'K' || c === 'O' || c === 'U';
+const owIsBig = c => c === 'K' || c === 'O' || c === 'U' || c === 'B'; // S228：钟楼 B
 const owCellS = c => `(${c[0]},${c[1]})`;
 const owLabel = (m, c) => { const ch = owAt(m, c[0], c[1]), t = owTile(ch); return `${t ? t.zh : '?'}${ch}(${c[0]},${c[1]})`; };
 const owSame = (a, b) => a[0] === b[0] && a[1] === b[1];
@@ -342,6 +342,8 @@ function owPropsDescribe(m) {
         parts.push(`往${OWP.DirZh[d]} ${lane.length} 格` + (sm.length ? `（撞碎 ${sm.length}）` : '') + (tr.length ? ' → 震响 ' + tr.join('、') : ''));
       }
       s = `${owLabel(m, c)}：` + (parts.length ? parts.join('；') : '四面堵死，推不动');
+    } else if (ch === 'B') {
+      s = `${owLabel(m, c)}：钟一响全镇听见（他停下转头看），不伤人；冲击 ${OWP.ChainRadius} 格内会震响它`;
     } else {
       const f = owFloodCells(m, c, OWP.FloodRadius), f2 = owFloodCells(m, c, OWP.FloodRadius + 1), R = OWP.FloodRadius;
       const grass = f.filter(p => owAt(m, p[0], p[1]) === '"').length, path = f.filter(p => owAt(m, p[0], p[1]) === '=').length; let peels = 0;

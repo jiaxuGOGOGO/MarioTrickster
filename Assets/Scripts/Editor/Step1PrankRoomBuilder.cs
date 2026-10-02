@@ -594,7 +594,7 @@ public static class Step1PrankRoomBuilder
         foreach (var cage in root.GetComponentsInChildren<IronCage>(true)) { cage.Configure(tuning.cageSeconds); EditorUtility.SetDirty(cage); count++; }
         foreach (var barrel in root.GetComponentsInChildren<OilBarrel>(true)) { barrel.Configure(tuning.oilFuseSeconds, tuning.oilRadius, tuning.bombStunSeconds, tuning.bombKnockback, tuning.bombDamageMario, tuning.bombDamageSelf); EditorUtility.SetDirty(barrel); count++; }
         foreach (var wire in root.GetComponentsInChildren<Tripwire>(true)) { wire.Configure(tuning.tripStunSeconds); EditorUtility.SetDirty(wire); count++; }
-        foreach (var snare in root.GetComponentsInChildren<SnareTrap>(true)) { snare.Configure(tuning.snareSeconds); EditorUtility.SetDirty(snare); count++; }
+        foreach (var snare in root.GetComponentsInChildren<SnareTrap>(true)) { snare.Configure(tuning.snareSeconds, tuning.snareSelfSeconds); EditorUtility.SetDirty(snare); count++; }
         foreach (var cannon in root.GetComponentsInChildren<PranksterCannon>(true)) { cannon.ConfigureLaunch(tuning.cannonLaunchCooldown, tuning.cannonLoadSeconds); EditorUtility.SetDirty(cannon); }
         foreach (var spring in root.GetComponentsInChildren<SpringPad>(true))
         {

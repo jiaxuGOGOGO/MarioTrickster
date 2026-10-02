@@ -16,6 +16,7 @@ using UnityEngine;
 public class SnareTrap : ControllableLevelElement
 {
     [SerializeField] private float holdSeconds = 10f;
+    [SerializeField] private float selfSeconds = 3f; // S228：你自己踩到只吊 3 秒（宪法 P4：10 秒干等 = 死区）
     [SerializeField] private float hoistDelay = 0.3f;
     [SerializeField] private float hoistHeight = 1.5f;
     private Transform victim;
@@ -28,7 +29,10 @@ public class SnareTrap : ControllableLevelElement
     public bool Holding => victim != null;
     public static event System.Action<MarioController> MarioSnared;
 
-    public void Configure(float seconds) { holdSeconds = Mathf.Max(0.5f, seconds); }
+    public void Configure(float seconds, float self = 3f) { holdSeconds = Mathf.Max(0.5f, seconds); selfSeconds = Mathf.Max(0.5f, self); }
+    private float holdFor;
+    /// <summary>S228 纯逻辑：被吊多久（马里奥 = 10 秒；你自己 = 短的那个，不会比马里奥久）。</summary>
+    public static float HoldFor(bool isMario, float marioSeconds, float selfSecs) => isMario ? Mathf.Max(0.5f, marioSeconds) : Mathf.Max(0.5f, Mathf.Min(marioSeconds, selfSecs));
 
     protected override void Awake()
     {
@@ -61,10 +65,10 @@ public class SnareTrap : ControllableLevelElement
         victim = (mario != null ? mario.transform : figure.transform);
         victimBody = other.attachedRigidbody;
         armed = false; hoisted = false;
-        timer = hoistDelay;
+        timer = hoistDelay; holdFor = HoldFor(mario != null, holdSeconds, selfSeconds);
         hangPos = transform.position + Vector3.up * hoistHeight;
         if (mario != null) { mario.ApplyKnockbackStun(hoistDelay + holdSeconds); MarioSnared?.Invoke(mario); Step1Hint.Show(Step1Text.SnareMario, 2f); }
-        else { figure.ApplyKnockbackStun(hoistDelay + holdSeconds); Step1Hint.Show(Step1Text.SnareYou, 2f); }
+        else { figure.ApplyKnockbackStun(hoistDelay + holdFor); Step1Hint.Show(Step1Text.SnareYou, 2f); }
     }
 
     private void FixedUpdate()
@@ -74,7 +78,7 @@ public class SnareTrap : ControllableLevelElement
         if (!hoisted)
         {
             if (timer > 0f) return;
-            hoisted = true; timer = holdSeconds; hoistT = 0f;
+            hoisted = true; timer = holdFor; hoistT = 0f;
             Step1Fx.Burst(transform.position, 4, new Color(0.8f, 0.65f, 0.4f, 1f), 3f, Vector2.up, 90f, 10f, 0.12f, 0.35f);
         }
         // 吊着：固定在绳套上方（H9：位置是地图里的空气格，不会卡墙——摆放规则要求上方 2 格空）

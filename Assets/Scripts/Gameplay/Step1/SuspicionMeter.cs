@@ -19,18 +19,21 @@ public sealed class SuspicionMeter
 
     public SuspicionMeter(MarioMindTuningSO tuning) { t = tuning; }
 
-    public void Reset() { Value = 0f; Level = SuspicionLevel.Calm; OmenSeconds = 0f; }
+    public void Reset() { Value = 0f; Level = SuspicionLevel.Calm; OmenSeconds = 0f; addedSinceTick = false; }
 
     public void Set(float value) { Value = Mathf.Clamp(value, 0f, t.maxSuspicion); Evaluate(0f); }
 
     /// <summary>一次性事件（目击触发、受伤）。等级在下一次 Tick 结算。</summary>
-    public void Add(float amount) { if (amount > 0f) Value = Mathf.Min(t.maxSuspicion, Value + amount); }
+    public void Add(float amount) { if (amount > 0f) { Value = Mathf.Min(t.maxSuspicion, Value + amount); addedSinceTick = true; } }
+    /// <summary>S228：这一帧刚有一次性事件 → 这一帧不衰减（以前"加 35 → 同帧衰减 0.23 → 34.77 < 35"，小镇所有大机关的声音都到不了 '?'）。</summary>
+    private bool addedSinceTick;
 
     public void Tick(float dt, float risePerSecond)
     {
         dt = Mathf.Max(0f, dt);
         if (risePerSecond > 0f) Value = Mathf.Min(t.maxSuspicion, Value + risePerSecond * dt);
-        else Value = Mathf.Max(0f, Value - t.decayPerSecond * dt);
+        else if (!addedSinceTick) Value = Mathf.Max(0f, Value - t.decayPerSecond * dt);
+        addedSinceTick = false;
         Evaluate(dt);
     }
 

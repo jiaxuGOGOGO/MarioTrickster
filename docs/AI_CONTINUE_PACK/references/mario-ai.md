@@ -54,3 +54,8 @@ MarioMindDriver（接线、速度、楼层寻路）◄── MarioOrder ◄─�
 ## S226
 - 房间马里奥统计门槛在 sim（Check.cs "S226 房间马里奥统计门槛"），FakeUnity 不再复制 MarioMindState/SuspicionCause 枚举，直接编译 RushMarioMind.cs + MarioPersonality.cs。改马里奥大脑后这个门槛会自动重跑。
 - 中招反应包络 MarioReaction.Punch（PunchPeak 0.25 / PunchScale 1.25），sim 要求一次性动作前 30% 到顶。
+
+## S228
+- `SuspicionMeter.Add` 那一帧不衰减（以前刚好等于阈值的一次性起疑会被同帧衰减抹掉）。新的一次性刺激：值 ≥ 阈值 + 衰减×想让他停的秒数。
+- 小镇 '?' 时 `OverworldTown.FaceToward(mind.Focus)`（朝向 = 视锥）。钟楼：`Noise(x,y,半径,bell:true)`，钟响后 `BellLearnSeconds` 内挨砸 → MarioWary 'B'。
+- 调研定值：minOmenSeconds ≥ 0.44（Hick 二选一），reactionDelay ≥ 0.19（人视觉反应）。sim S228 会检查。

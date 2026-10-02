@@ -67,6 +67,7 @@ public sealed class OverworldGame : MonoBehaviour
         SceneTransit.RevealAt(new Vector3((float)tx, (float)ty, 0), cam); // 转场的圆在你身上展开
         // S218：早上公布今天的天气（输入随机：做决定之前就知道）；刚守住一户 → 旁边的大机关重新装填
         if (OverworldSession.Minute <= OverworldMap.DayStart + 1) Hint(Step1Text.OverworldWeather(OverworldSession.Day, OverworldEvents.Zh(town.weather)), 5f);
+        else if (town.windowFlung) Hint(Step1Text.OverworldWindowFling, 3.5f); // S228：房间里挨了你的炮 → 被轰出窗户
         else if (town.reloaded.HasValue) Hint(Step1Text.OverworldBigReloaded, 3f);
         Step1Feedback.Context = () => $"小镇 {map.name} {OverworldMap.Clock(OverworldSession.Minute)} 下一扇门 {(NextStop != null ? NextStop.n.ToString() : "-")} 你({tx:0.0},{ty:0.0}) 马里奥({mario.x:0.0},{mario.y:0.0}) {town.mind.State}";
     }
@@ -135,6 +136,9 @@ public sealed class OverworldGame : MonoBehaviour
             case OverworldTown.Note.BigReloaded: return Step1Text.OverworldBigReloaded;
             case OverworldTown.Note.BigSelf: return Step1Text.OverworldBigSelf;
             case OverworldTown.Note.BigStuck: return Step1Text.OverworldBigStuck;
+            case OverworldTown.Note.Bell: return Step1Text.OverworldBell;
+            case OverworldTown.Note.BellIgnored: return Step1Text.OverworldBellIgnored;
+            case OverworldTown.Note.WindowFling: return Step1Text.OverworldWindowFling;
             case OverworldTown.Note.CannonSeat: return Step1Text.OverworldCannonSeat;
             case OverworldTown.Note.CannonBadAim: return Step1Text.OverworldCannonBadAim;
             case OverworldTown.Note.CannonTamper: return Step1Text.OverworldCannonTamper;
@@ -203,6 +207,7 @@ public sealed class OverworldGame : MonoBehaviour
                 else if (c == 'f') Keep(x, y, Quad(root, "fence", x + 0.5f, y + 0.45f, 1f, 0.5f, new Color(t.r, t.g, t.b), Order(y)));
                 // S218 大机关：比房子矮一点、比木箱大一圈（一眼看出"这是小镇级的东西"）
                 else if (c == 'K') { Keep(x, y, Quad(root, "cannonBase", x + 0.5f, y + 0.4f, 1.3f, 0.8f, new Color(0.25f, 0.2f, 0.16f), Order(y))); if (OverworldProps.Aim(map, new OverworldMap.Cell(x, y), out _, out int kd, out _)) Keep(x, y, Quad(root, "barrel", x + 0.5f + OverworldProps.DX[kd] * 0.55f, y + 0.6f + OverworldProps.DY[kd] * 0.4f, OverworldProps.DX[kd] != 0 ? 1.2f : 0.55f, OverworldProps.DX[kd] != 0 ? 0.55f : 1.2f, new Color(t.r, t.g, t.b), Order(y) + 1)); }
+                else if (c == 'B') { Keep(x, y, Quad(root, "bellTower", x + 0.5f, y + 0.7f, 0.9f, 1.4f, new Color(0.55f, 0.4f, 0.28f), Order(y))); Keep(x, y, Quad(root, "bell", x + 0.5f, y + 1.15f, 0.55f, 0.45f, new Color(t.r, t.g, t.b), Order(y) + 1)); } // S228 钟楼
                 else if (c == 'O') Keep(x, y, Quad(root, "boulder", x + 0.5f, y + 0.6f, 1.25f, 1.2f, new Color(t.r, t.g, t.b), Order(y)));
                 else if (c == 'U') { Keep(x, y, Quad(root, "towerLegs", x + 0.5f, y + 0.5f, 0.9f, 1f, new Color(0.45f, 0.32f, 0.2f), Order(y))); Keep(x, y, Quad(root, "tank", x + 0.5f, y + 1.35f, 1.4f, 1f, new Color(t.r, t.g, t.b), Order(y) + 1)); }
                 else if (c == 'X') tileSr[y * map.W + x] = Quad(root, "target", x + 0.5f, y + 0.5f, 0.8f, 0.8f, new Color(t.r, t.g, t.b, 0.8f), -1500);
@@ -219,7 +224,7 @@ public sealed class OverworldGame : MonoBehaviour
                 string ik = OverworldArt.IconOf(c);
                 if (ik != null && c != '+' && c != '*' && c != 'i')
                 {
-                    var icon = Icon(root, ik, x + 0.5f, y + 0.55f, c == 'K' || c == 'O' || c == 'U' ? 1.15f : 0.85f, c == 'X' || c == 'n' || c == '?' ? -1450 : Order(y) + 2);
+                    var icon = Icon(root, ik, x + 0.5f, y + 0.55f, c == 'K' || c == 'O' || c == 'U' || c == 'B' ? 1.15f : 0.85f, c == 'X' || c == 'n' || c == '?' ? -1450 : Order(y) + 2);
                     if (icon != null)
                     {
                         if (c == 'n' || c == '?' || c == 'X') { if (tileSr.TryGetValue(y * map.W + x, out var under)) under.enabled = false; tileSr[y * map.W + x] = icon; }

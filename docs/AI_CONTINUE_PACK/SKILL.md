@@ -44,8 +44,8 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 
 ## 0.6 进度快照（打包时写入，以 SESSION_TRACKER 为准）
 
-- 最新交付：**S228**（`repo/docs/step1/S228_RESEARCHED_NUMBERS_BELL_WINDOW.md`：修小镇声音到不了 ? 的老 bug、调研定值、钟楼 B、房间炮把他轰出窗户；数值版本 25）。上一版 **S227**（阶段 D 填表自动化 `repo/docs/step1/S227_EXIT_REPORT_FROM_YOUR_DATA.md`：`Step1ExitReport` 读试玩 CSV → 测试中心体检"第 1 步出口"；小镇房间/快速测试也记一行；CSV 加 tuning_version、mode）。上一版 **S226**（自我对照审计 `repo/docs/step1/S226_SELF_AUDIT_AND_DEFERRED.md`：S225 E5/E6/E7/E9/E10 全做完 + 补房间马里奥统计门槛；看情况的按键条 `Step1Text.ControlsBarFor`；游戏速度 `roomGameSpeed`；中招反应 `MarioReaction.Punch`；门 4 山坡；数值版本 24）。上一版 **S225**（第二轮调研 + 方案 `repo/docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md`——**开工先读它的 §3 E 表**；按 L/P 失败说原因 `Step1FailFeedback`；起疑说原因 `SuspicionCause`/`Step1Text.CauseIntent`；sim 房间死区门槛）。上一版 S224 少等待 + 阶段 C 可读性；S222 总方案 `repo/docs/step1/S222_RESEARCH_MASTERPLAN.md`（§4 阶段表、§7–8 更正）。
-- 数值版本 `MarioMindTuningSO.CurrentDataVersion = 25`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
+- 最新交付：**S229**（`repo/docs/step1/S229_DEATH_ENDS_DAY.md`：小镇心掉光 = 这一天结束、结算写死因、6 秒自动重开、平局；town_days.csv 记反应时间；数值版本 26）。上一版 **S228**（`repo/docs/step1/S228_RESEARCHED_NUMBERS_BELL_WINDOW.md`：修小镇声音到不了 ? 的老 bug、调研定值、钟楼 B、房间炮把他轰出窗户；数值版本 25）。上一版 **S227**（阶段 D 填表自动化 `repo/docs/step1/S227_EXIT_REPORT_FROM_YOUR_DATA.md`：`Step1ExitReport` 读试玩 CSV → 测试中心体检"第 1 步出口"；小镇房间/快速测试也记一行；CSV 加 tuning_version、mode）。上一版 **S226**（自我对照审计 `repo/docs/step1/S226_SELF_AUDIT_AND_DEFERRED.md`：S225 E5/E6/E7/E9/E10 全做完 + 补房间马里奥统计门槛；看情况的按键条 `Step1Text.ControlsBarFor`；游戏速度 `roomGameSpeed`；中招反应 `MarioReaction.Punch`；门 4 山坡；数值版本 24）。上一版 **S225**（第二轮调研 + 方案 `repo/docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md`——**开工先读它的 §3 E 表**；按 L/P 失败说原因 `Step1FailFeedback`；起疑说原因 `SuspicionCause`/`Step1Text.CauseIntent`；sim 房间死区门槛）。上一版 S224 少等待 + 阶段 C 可读性；S222 总方案 `repo/docs/step1/S222_RESEARCH_MASTERPLAN.md`（§4 阶段表、§7–8 更正）。
+- 数值版本 `MarioMindTuningSO.CurrentDataVersion = 26`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
 - 近几次做了什么（详情看 `repo/docs/step1/S21x_*.md`）：
   - S210 星露谷视角小镇大地图（门 = 恶作剧房间）；S211 场景转场；S212 圆形转场 + 指引箭头 + 编辑器快捷键；
   - S213 小镇规则纯逻辑化 + 7 种机器人玩家模拟；S214 网页 ↔ Unity 自动同步（Inbox 文件夹、▶ 在 Unity 试玩、PageUp/PageDown 切关）；
@@ -60,6 +60,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
   - S218 小镇大机关（OverworldProps + OverworldEvents；OverworldTown Arm/Fire/Impact；马里奥听见起疑、吃过亏会躲；砸晕带进房间、守住一户重新装填；天气第 1 天晴；网页逐字对照）；
   - S216 修复"硬直期往上飞没有重力"（Step1Feel.StunStep，全程重力 40、落地才恢复），受伤红白闪 + 小跳、Step1Fx 冲击环/尘土/连锁火花线、预警越来越急、平滑震屏。
 - 交付包固定结构（`out/D<N>/`）：`00_先看我_怎么用.md`、`01_安装到项目`（全部补丁 + `install_and_upload.bat`）、`02_接续包_换账号用`（本 .skill）、`03_说明文档`（S21x_*.md）、`04_关卡设计台网页/MarioTrickster关卡设计台.html`。
+- 用户规划（S229）：**所有想法和调研反馈优化都做完后再测一两轮**——测试不是开工前提；小镇心掉光 = 结算重开（不困死，但天灾真能打死人）。
 - 上次汇报推荐的下一步（用户说"继续"时做）：用户 S228 说"忽略试玩、先按调研做"→ 试玩不是开工前提。剩下只有：机器人手抖校准（需要反应时间数据，CSV 没有）、改键、牛群/停电（新 AI / 改日程，仍不做）。有新 CSV 就放 `repo/docs/step1/data/` 让体检出建议。新增"一次性起疑"类刺激时：确认它真的能到 `?`（sim S228 有正反测试）。
 - 用户要求（S217 起长期有效）：**每次升级都按本技能做安装包**，装到 `E:\BaiduNetdiskDownload\MarioTricksterGensparkAI\MarioTrickster`，bat 里选 Y 自动推到 GitHub；**测试流程不能有反复操作的阻碍**（新功能默认不弹窗、有快速测试模式、反馈走 F8 + 测试中心打包）。
 

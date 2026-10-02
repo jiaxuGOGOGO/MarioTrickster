@@ -692,6 +692,7 @@ public class OverworldTests
         var hurt = typeof(OverworldTown).GetMethod("HurtYou", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         var hit = typeof(OverworldTown).GetMethod("HitMario", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         // 1) 保护期 = 晕 + 站起来后 overworldHurtGraceSeconds：保护期里再挨打不掉心、也不再晕（以前照样晕 → 连控）
+        t.overworldDeathEndsDay = false; // S229：心掉光默认 = 这一天结束；这里测的是关掉后的"晕倒剩 1 颗"老规则（S229 测试另测新规则）
         OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇", "Town", 1); OverworldSession.Active = true;
         var town = new OverworldTown(StormTown(), t);
         OverworldSession.YouHearts = 1; hurt.Invoke(town, null);
@@ -831,5 +832,44 @@ public class OverworldTests
         Assert.AreEqual(t.snareSeconds, SnareTrap.HoldFor(true, t.snareSeconds, t.snareSelfSeconds), 1e-4f);
         Assert.Less(SnareTrap.HoldFor(false, t.snareSeconds, t.snareSelfSeconds), 10f, "宪法 P4：你自己不会干等 10 秒");
         Assert.LessOrEqual(SnareTrap.HoldFor(false, 2f, 5f), 2f, "你不会比马里奥吊得久");
+    }
+
+    // ═════════ S229：心掉光 = 这一天结束（结算 → 重开） ═════════
+    [Test]
+    public void S229_HeartsOut_EndsDay_WinLoseDraw()
+    {
+        var t = Tuning(); const float dt = 1f / 30;
+        var hurt = typeof(OverworldTown).GetMethod("HurtYouBy", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var hit = typeof(OverworldTown).GetMethod("HitMario", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.IsTrue(t.overworldDeathEndsDay, "默认开");
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇", "Town", 1); OverworldSession.Active = true;
+        var a = new OverworldTown(StormTown(), t); OverworldSession.MarioHearts = 1; hit.Invoke(a, new object[] { 'i', false }); a.Tick(dt, new OverworldTown.Input());
+        Assert.AreEqual(OverworldSession.DeathEnd.MarioDied, OverworldSession.Death); Assert.IsTrue(OverworldSession.DayOver);
+        Assert.IsTrue(OverworldSession.DayWon(a.stops.Count), "天灾打死他 = 你赢"); Assert.IsFalse(OverworldSession.DeathByYou);
+        StringAssert.Contains("天灾", OverworldSession.Summary(a.stops.Count));
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇", "Town", 1); OverworldSession.Active = true;
+        var b = new OverworldTown(StormTown(), t); OverworldSession.YouHearts = 1; hurt.Invoke(b, new object[] { 'O' }); b.Tick(dt, new OverworldTown.Input());
+        Assert.AreEqual(OverworldSession.DeathEnd.YouDied, OverworldSession.Death); Assert.AreEqual("lost", OverworldSession.Outcome(b.stops.Count));
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇", "Town", 1); OverworldSession.Active = true;
+        var c = new OverworldTown(StormTown(), t); OverworldSession.MarioHearts = 1; OverworldSession.YouHearts = 1;
+        hit.Invoke(c, new object[] { 'i', false }); hurt.Invoke(c, new object[] { 'i' }); c.Tick(dt, new OverworldTown.Input());
+        Assert.AreEqual(OverworldSession.DeathEnd.Both, OverworldSession.Death); Assert.AreEqual("draw", OverworldSession.Outcome(c.stops.Count), "同一下都没了 = 平局");
+        Assert.AreEqual(OverworldSession.DayCsvHeader.Split(',').Length, OverworldSession.DayCsvRow(System.DateTime.Now, c.stops.Count, 26).Split(',').Length, "town_days.csv 列数对齐");
+        OverworldSession.NewDay("星露雷镇", "Town", 2); Assert.AreEqual(OverworldSession.DeathEnd.None, OverworldSession.Death, "新的一天清掉");
+        t.overworldDeathEndsDay = false;
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇", "Town", 1); OverworldSession.Active = true;
+        var d = new OverworldTown(StormTown(), t); OverworldSession.YouHearts = 1; hurt.Invoke(d, new object[] { 'i' }); d.Tick(dt, new OverworldTown.Input());
+        Assert.IsFalse(OverworldSession.DayOver, "关掉 = 老规则（晕倒剩 1 颗，一天继续）"); Assert.AreEqual(1, OverworldSession.YouHearts);
+        OverworldSession.ResetStatics();
+    }
+
+    [Test]
+    public void S229_DeathScreen_AutoRestart_Wiring()
+    {
+        var t = Tuning(); Assert.Greater(t.overworldDeathRestartSeconds, 0f);
+        string g = Read("Scripts/Overworld/Runtime/OverworldGame.cs");
+        StringAssert.Contains("autoRestart", g); StringAssert.Contains("LogDay()", g); StringAssert.Contains("OverworldDeathSummary", g);
+        StringAssert.DoesNotContain("YouHearts", Read("Scripts/Overworld/OverworldMind.cs"), "H4：马里奥的脑子不读你的心");
+        StringAssert.Contains("秒后自动", Step1Text.OverworldDeathSummary(OverworldSession.DeathEnd.YouDied, ' ', 'i', false, 0, 0, 4, "09:00", 4f));
     }
 }

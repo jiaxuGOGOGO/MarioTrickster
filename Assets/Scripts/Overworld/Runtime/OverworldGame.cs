@@ -84,7 +84,9 @@ public sealed class OverworldGame : MonoBehaviour
         ZoomKeys();
         if (dayOver)
         {
-            if (Step1Keys.Down(KeyCode.R))
+            if (!dayLogged) { dayLogged = true; dayOverAt = Time.unscaledTime; LogDay(); }
+            bool autoRestart = OverworldSession.Death != OverworldSession.DeathEnd.None && tuning.overworldDeathRestartSeconds > 0f && Time.unscaledTime - dayOverAt >= tuning.overworldDeathRestartSeconds; // S229：被打死 → 几秒后自动重开（不用伸手）
+            if (Step1Keys.Down(KeyCode.R) || autoRestart)
             {
                 OverworldSession.NewDay(map.name, OverworldSession.TownScene, OverworldSession.Day + 1); // S218：第 N+1 天（天气换了）
                 if (!SceneTransit.Go(OverworldSession.TownScene, Step1Text.OverworldTransitNewDay(map.name))) SceneManager.LoadScene(OverworldSession.TownScene);
@@ -113,6 +115,24 @@ public sealed class OverworldGame : MonoBehaviour
                 SceneManager.LoadScene(OverworldSession.RoomScenes[d.n]);
         }
         UpdateVisuals();
+    }
+
+    // ── S229：一天结束写一行 town_days.csv（结算原因 + 你的反应时间）。写失败不影响游戏。 ──
+    private bool dayLogged; private float dayOverAt;
+    private void LogDay()
+    {
+        try
+        {
+            string folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder);
+            System.IO.Directory.CreateDirectory(folder);
+            string path = System.IO.Path.Combine(folder, OverworldSession.DayLogFile);
+            if (System.IO.File.Exists(path)) { string head; using (var r = new System.IO.StreamReader(path)) head = r.ReadLine() ?? ""; if (head != OverworldSession.DayCsvHeader) System.IO.File.Move(path, path.Replace(".csv", "_before_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".csv")); }
+            var sb = new System.Text.StringBuilder();
+            if (!System.IO.File.Exists(path)) sb.AppendLine(OverworldSession.DayCsvHeader);
+            sb.AppendLine(OverworldSession.DayCsvRow(System.DateTime.Now, stops.Count, tuning != null ? tuning.dataVersion : 0));
+            System.IO.File.AppendAllText(path, sb.ToString());
+        }
+        catch (System.Exception e) { Debug.LogWarning("[OverworldGame] Could not write town day log: " + e.Message); }
     }
 
     private static string NoteText(OverworldTown.Note n)
@@ -150,6 +170,9 @@ public sealed class OverworldGame : MonoBehaviour
             case OverworldTown.Note.YouHurt: return Step1Text.OverworldYouHurt;
             case OverworldTown.Note.YouKO: return Step1Text.OverworldYouKO;
             case OverworldTown.Note.MarioKO: return Step1Text.OverworldMarioKO;
+            case OverworldTown.Note.MarioDied: return Step1Text.OverworldMarioDied;
+            case OverworldTown.Note.YouDied: return Step1Text.OverworldYouDied;
+            case OverworldTown.Note.BothDied: return Step1Text.OverworldBothDied;
             case OverworldTown.Note.Heal: return Step1Text.OverworldHeal;
             case OverworldTown.Note.MarioHeal: return Step1Text.OverworldMarioHeal;
             case OverworldTown.Note.EnergyUp: return Step1Text.OverworldEnergyUp;
@@ -512,11 +535,15 @@ public sealed class OverworldGame : MonoBehaviour
         if (marioGo == null) return;
         marioGo.position = new Vector3((float)mario.x, (float)mario.y, 0);
         marioSr.sortingOrder = Order(mario.y) + 2;
-        marioSr.enabled = !marioInside && !dayOver;
+        bool marioDown = dayOver && (OverworldSession.Death == OverworldSession.DeathEnd.MarioDied || OverworldSession.Death == OverworldSession.DeathEnd.Both);
+        marioSr.enabled = !marioInside && (!dayOver || marioDown); // S229：他被打死 → 躺在原地（看得见是怎么输的）
+        marioSr.transform.localRotation = Quaternion.Euler(0, 0, marioDown ? 90f : 0f);
         if (marioTag != null) marioTag.gameObject.SetActive(marioSr.enabled);
         if (youTag != null) youTag.gameObject.SetActive(!disguised); // 伪装时不挂名字（名字是给你看的，不影响他——H4）
         trickGo.position = new Vector3((float)tx, (float)ty, 0);
         trickSr.enabled = !disguised; crateSr.enabled = disguised;
+        bool youDown = dayOver && (OverworldSession.Death == OverworldSession.DeathEnd.YouDied || OverworldSession.Death == OverworldSession.DeathEnd.Both);
+        trickSr.transform.localRotation = Quaternion.Euler(0, 0, youDown ? -90f : 0f); // S229：你被打死 → 躺倒
         trickSr.sortingOrder = crateSr.sortingOrder = Order(ty) + 2;
         if (frozen > 0f || town.YouGrace > 0f) trickSr.color = Color.Lerp(new Color(0.22f, 0.4f, 0.92f), Color.white, Mathf.PingPong(Time.time * (frozen > 0f ? 6f : 10f), 1f)); // S221：站起来后的保护期也闪（闪 = 打不到你）
         else trickSr.color = new Color(0.22f, 0.4f, 0.92f);
@@ -775,6 +802,13 @@ public sealed class OverworldGame : MonoBehaviour
         }
         if (helpOpen) GUI.Box(new Rect(Screen.width / 2f - 360, Screen.height / 2f - 210, 720, 420), Step1Text.OverworldHelp + "\n\n" + Step1Text.OverworldHelpClose, box);
         if (!Application.isFocused) GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height / 2f - 40, 520, 80), Step1Text.ClickGameWindow, big);
-        if (dayOver) GUI.Box(new Rect(Screen.width / 2f - 280, Screen.height / 2f - 90, 560, 180), OverworldSession.Summary(stops.Count), big);
+        if (dayOver)
+        {
+            string sum = OverworldSession.Death != OverworldSession.DeathEnd.None
+                ? Step1Text.OverworldDeathSummary(OverworldSession.Death, OverworldSession.DeathCause, OverworldSession.YouDeathCause, OverworldSession.DeathByYou, OverworldSession.Count(OverworldSession.DoorResult.Defended), OverworldSession.Count(OverworldSession.DoorResult.Looted), stops.Count, OverworldMap.Clock(OverworldSession.Minute),
+                    tuning.overworldDeathRestartSeconds > 0f ? Mathf.Max(0f, tuning.overworldDeathRestartSeconds - (Time.unscaledTime - dayOverAt)) : -1f)
+                : OverworldSession.Summary(stops.Count);
+            GUI.Box(new Rect(Screen.width / 2f - 280, Screen.height / 2f - 90, 560, 180), sum, big);
+        }
     }
 }

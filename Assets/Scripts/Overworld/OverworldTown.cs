@@ -47,7 +47,7 @@ public sealed class OverworldTown
     // ── 这一帧发生的事（驱动层读完就清）──
     /// <summary>这一帧要给玩家的提示（驱动层翻成 Step1Text 文字；纯逻辑这边不碰文字，sim 才能跑）。</summary>
     public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, /* S228 */ Bell, BellIgnored, WindowFling, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit,
-        /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt, /* S224 */ AmbushArmed }
+        /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt, /* S224 */ AmbushArmed, /* S229 */ MarioDied, YouDied, BothDied }
     public Note hint; public float hintSeconds;
     /// <summary>S222：他最后一次看见你的原因（被抓时告诉玩家，H4 同一组视线输入）。</summary>
     public OverworldMap.SeenWhy seenWhy, caughtWhy;
@@ -179,7 +179,49 @@ public sealed class OverworldTown
         Mario(gdt);
         ArmedAmbush();
         OverworldSession.NearMiss.Feed(!marioInside && !dayOver && mind.Meter.Level != SuspicionLevel.Calm, mind.Meter.Normalized, OverworldMap.Clock(OverworldSession.Minute), seenWhy == OverworldMap.SeenWhy.None ? "" : seenWhy.ToString());
+        TrackReaction(dt, i.h != 0f || i.v != 0f);
+        if (marioDies || youDies) { Die(); return; }
         if (OverworldSession.Minute >= OverworldMap.DayEnd) EndDay();
+    }
+
+    // ═════════ S229：心掉光 = 这一天立刻结束（结算 → 重开） ═════════
+    private bool marioDies, youDies, marioDeathByYou; private char marioDeathKind = ' ', youDeathKind = ' ';
+    /// <summary>同一帧里收集"谁的心掉光了"，帧末统一结算：只有他 = 你赢；只有你 = 他赢；同一下两人都没了 = 平局。
+    /// 不困死（H1/H9）：结束 = 结算画面，按 R 立刻重来（或几秒后自动重来）；而且死之前每一下都有 1.2 秒预警 + 保护期（S221），不会被连控打死。</summary>
+    private void Die()
+    {
+        OverworldSession.Death = marioDies && youDies ? OverworldSession.DeathEnd.Both : marioDies ? OverworldSession.DeathEnd.MarioDied : OverworldSession.DeathEnd.YouDied;
+        OverworldSession.DeathCause = marioDies ? marioDeathKind : youDeathKind; OverworldSession.YouDeathCause = youDies ? youDeathKind : ' ';
+        OverworldSession.DeathByYou = marioDies && marioDeathByYou;
+        Hint(marioDies && youDies ? Note.BothDied : marioDies ? Note.MarioDied : Note.YouDied, 4f);
+        dayOver = true; OverworldSession.DayOver = true;
+        OverworldSession.DelayedSeconds += mind.DelayedSeconds;
+    }
+
+    /// <summary>S229：反应时间 = 危险预警出现在你脚下（你没被定身、也没在按方向）→ 你第一次按方向键。只用现实秒（不受快进影响）。
+    /// 预警结束前没动 = 不算（量不到）。给机器人手抖校准用：sim 里机器人愣 0.15–0.6 秒，你的中位数写进 town_days.csv。</summary>
+    private float reactT = -1f; private bool youDangerPrev;
+    public float ReactingFor => reactT;
+    private void TrackReaction(float realDt, bool moved)
+    {
+        bool danger = !youFlying && frozen <= 0f && seat == null && YouInDanger();
+        if (reactT >= 0f)
+        {
+            reactT += realDt;
+            if (moved) { OverworldSession.Reactions.Add(reactT); reactT = -1f; }
+            else if (!danger) reactT = -1f;
+        }
+        else if (danger && !youDangerPrev && !moved) reactT = 0f;
+        youDangerPrev = danger;
+    }
+
+    /// <summary>你站的格子现在在不在某个预警里（闪电十字 / 大机关的危险格）。</summary>
+    public bool YouInDanger()
+    {
+        int x = (int)System.Math.Floor(tx), y = (int)System.Math.Floor(ty);
+        foreach (var st in strikes) if (OverworldStorm.InPlus(st.c, tx, ty)) return true;
+        foreach (var b in active) { if (b.kind == 'U' || b.kind == 'B') continue; foreach (var c in Danger(b)) if (c.x == x && c.y == y) return true; }
+        return false;
     }
 
     /// <summary>S224：预约埋伏——走开 / 被盯上就取消；他一走进埋伏范围就自动进门（同 TryDoor 的规则）。</summary>
@@ -641,7 +683,7 @@ public sealed class OverworldTown
         if (!bell) impacts.Add(new Impact3((float)x, (float)y, 1.5f));
     }
 
-    /// <summary>S220：马里奥被闪电 / 滚石 / 泥石流 / 被迫轰飞 打中：晕 2 秒 + 掉 1 颗心。掉光 = 晕倒 3 秒、剩 1 颗。
+    /// <summary>S220：马里奥被闪电 / 滚石 / 泥石流 / 被迫轰飞 打中：晕 2 秒 + 掉 1 颗心。掉光 = S229 起这一天结束（Die）；关掉开关 = 晕倒 3 秒、剩 1 颗。
     /// S221：保护期 = 晕的时间 + 站起来后 overworldHurtGraceSeconds 秒；保护期里什么都打不到他（不掉心、也不再晕）——
     /// 以前保护期在晕的时候就倒计时、而且照样晕 → 雷云里他 9 秒晕 8 秒（连控）。参考：塞尔达 / 马里奥受伤闪烁全无敌、格斗游戏起身无敌、DbD 挨打后加速逃开。</summary>
     private void HitMario(char kind, bool byYou = true)
@@ -654,6 +696,8 @@ public sealed class OverworldTown
         OverworldSession.MarioHearts--; OverworldSession.MarioHeartsLost++;
         hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 0 });
         if (byYou) GainEnergy();
+        if (OverworldSession.MarioHearts <= 0 && tuning.overworldDeathEndsDay)
+        { OverworldSession.MarioHearts = 0; marioDies = true; marioDeathKind = kind; marioDeathByYou = byYou; pendingMarioStun = Mathf.Max(pendingMarioStun, stun); return; } // S229：这一天结束（Tick 最后统一结算，同一下两人都死 = 平局）
         if (OverworldSession.MarioHearts <= 0)
         {
             OverworldSession.MarioHearts = 1; OverworldSession.Kos++;
@@ -670,14 +714,18 @@ public sealed class OverworldTown
     /// <summary>S221：受伤保护期 = 晕多久 + 站起来后还护多久（站起来那一刻一定有时间跑开）。</summary>
     public float GraceAfter(float stun) => stun + tuning.overworldHurtGraceSeconds;
 
-    /// <summary>S220：你被自己 / 天灾打中：晕 2 秒 + 掉 1 颗心。掉光 = 晕倒 3 秒、剩 1 颗（不回出生点、不算被抓）。S221：保护期同上（闪烁中全无敌）。</summary>
-    private void HurtYou()
+    /// <summary>S220：你被自己 / 天灾打中：晕 2 秒 + 掉 1 颗心。掉光 = S229 起这一天结束（Die）；关掉开关 = 晕倒 3 秒、剩 1 颗（不回出生点、不算被抓）。S221：保护期同上（闪烁中全无敌）。</summary>
+    private void HurtYou() => HurtYouBy('i');
+    /// <summary>S229：带上"被什么打中"（结算里说死因）。</summary>
+    private void HurtYouBy(char kind)
     {
         if (youGrace > 0f) { hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 1 }); return; }
         float stun = tuning.overworldBigStunSeconds;
         disguised = false;
         OverworldSession.YouHearts--; OverworldSession.YouHeartsLost++;
         hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 0 });
+        if (OverworldSession.YouHearts <= 0 && tuning.overworldDeathEndsDay)
+        { OverworldSession.YouHearts = 0; youDies = true; youDeathKind = kind; frozen = Mathf.Max(frozen, stun); return; } // S229：这一天结束（Tick 最后统一结算）
         if (OverworldSession.YouHearts <= 0) { OverworldSession.YouHearts = 1; OverworldSession.Kos++; stun = Mathf.Max(stun, tuning.overworldKoSeconds); Hint(Note.YouKO, 2.5f); }
         else Hint(Note.YouHurt, 2f);
         frozen = Mathf.Max(frozen, stun);
@@ -724,7 +772,7 @@ public sealed class OverworldTown
                 continue;
             }
             if (f.mario) { mario.x = f.tx; mario.y = f.ty; mario.Clear(); if (!f.ride || f.tampered) HitMario('K', f.byYou); } // S219：他自己坐炮、没被你拨歪 = 平稳落地
-            if (f.you) { tx = f.tx; ty = f.ty; frozen = Mathf.Max(frozen, 0.4f); if (seat != null) seat = null; if (f.hurt) HurtYou(); } // S220：自己坐炮不疼；站在炮口被轰 = 掉心
+            if (f.you) { tx = f.tx; ty = f.ty; frozen = Mathf.Max(frozen, 0.4f); if (seat != null) seat = null; if (f.hurt) HurtYouBy('K'); } // S220：自己坐炮不疼；站在炮口被轰 = 掉心
             if (f.shell) Impact(f.tx, f.ty, f.depth, new OverworldMap.Cell(-1, -1), f.byYou);
         }
         for (int i = active.Count - 1; i >= 0; i--)
@@ -738,7 +786,7 @@ public sealed class OverworldTown
             double p = b.rolled, sx = b.c.x + 0.5 + OverworldProps.DX[b.dir] * p, sy = b.c.y + 0.5 + OverworldProps.DY[b.dir] * p;
             b.rx = sx; b.ry = sy;
             if (!b.hitMario && !marioInside && !marioFlying && Dist(sx, sy, mario.x, mario.y) < 0.8f) { b.hitMario = true; HitMario('O', b.byYou); }
-            if (!b.hitYou && !youFlying && Dist(sx, sy, tx, ty) < 0.8f) { b.hitYou = true; HurtYou(); Hint(Note.BigSelf, 2f); }
+            if (!b.hitYou && !youFlying && Dist(sx, sy, tx, ty) < 0.8f) { b.hitYou = true; HurtYouBy('O'); Hint(Note.BigSelf, 2f); }
             if (b.rolled >= b.lane.Count) { active.RemoveAt(i); var end = b.lane.Count > 0 ? b.lane[b.lane.Count - 1] : b.c; Impact(end.x + 0.5, end.y + 0.5, b.depth, b.c, b.byYou); }
         }
     }
@@ -793,7 +841,7 @@ public sealed class OverworldTown
     {
         double cx = b.c.x + 0.5, cy = b.c.y + 0.5, r = OverworldProps.LightningRadius + 0.3;
         if (!marioInside && !marioFlying && !MarioSeated && Dist(cx, cy, mario.x, mario.y) <= r) HitMario('i', b.byYou);
-        if (!youFlying && seat == null && Dist(cx, cy, tx, ty) <= r) { HurtYou(); Hint(Note.BigSelf, 2f); }
+        if (!youFlying && seat == null && Dist(cx, cy, tx, ty) <= r) { HurtYouBy('i'); Hint(Note.BigSelf, 2f); }
         OverworldSession.Lightnings++; bolts.Add(new Impact3((float)cx, (float)cy, 1f));
         Impact(cx, cy, b.depth, b.c, b.byYou); impacts.Add(new Impact3((float)cx, (float)cy, (float)OverworldProps.LightningRadius));
         if (hint == Note.None || hint == Note.BigArmed) Hint(Note.Lightning, 2f);
@@ -808,7 +856,7 @@ public sealed class OverworldTown
         foreach (var q in lane)
         {
             if (!marioInside && !marioFlying && !MarioSeated && (int)System.Math.Floor(mario.x) == q.x && (int)System.Math.Floor(mario.y) == q.y) HitMario('^', b.byYou);
-            if (!youFlying && seat == null && (int)System.Math.Floor(tx) == q.x && (int)System.Math.Floor(ty) == q.y) { HurtYou(); Hint(Note.BigSelf, 2f); }
+            if (!youFlying && seat == null && (int)System.Math.Floor(tx) == q.x && (int)System.Math.Floor(ty) == q.y) { HurtYouBy('^'); Hint(Note.BigSelf, 2f); }
             if (OverworldProps.Muddable(map.At(q.x, q.y))) Change(q.x, q.y, 'g'); impacts.Add(new Impact3(q.x + 0.5f, q.y + 0.5f, 0.6f)); // 门 / 家 / 山洞 / 靶心 冲过但不改
         }
         OverworldSession.Mudslides++;
@@ -856,7 +904,7 @@ public sealed class OverworldTown
     {
         double cx = s.c.x + 0.5, cy = s.c.y + 0.5;
         if (!marioInside && !marioFlying && !MarioSeated && OverworldStorm.InPlus(s.c, mario.x, mario.y)) HitMario('i', s.byYou);
-        if (!youFlying && seat == null && OverworldStorm.InPlus(s.c, tx, ty)) HurtYou();
+        if (!youFlying && seat == null && OverworldStorm.InPlus(s.c, tx, ty)) HurtYouBy('i');
         OverworldSession.Lightnings++; OverworldSession.StormBolts++;
         bolts.Add(new Impact3((float)cx, (float)cy, 1f)); impacts.Add(new Impact3((float)cx, (float)cy, 1f));
         if (s.zone < 0) Impact(cx, cy, 1, new OverworldMap.Cell(-1, -1), s.byYou, false); // 雷云：完整冲击链（但只在召唤时响一声）

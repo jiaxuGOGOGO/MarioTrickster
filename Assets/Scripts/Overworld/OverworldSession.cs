@@ -47,11 +47,19 @@ public static class OverworldSession
     public static int CannonRides, Lightnings, Mudslides, CaveHops;
     // ── S220：心 / 能量 ──
     public const int MaxHearts = 3, MaxEnergy = 3;
-    /// <summary>小镇里的心（马里奥 / 你各 3 颗）。被劈 / 砸 / 冲到掉 1 颗；掉光 = 晕倒几秒、剩 1 颗站起来（一天不会因此结束）。进房间带进去，房间打完回满。</summary>
+    /// <summary>小镇里的心（马里奥 / 你各 3 颗）。被劈 / 砸 / 冲到掉 1 颗；掉光 = S229 起这一天立刻结束（结算 → 重开；调参 overworldDeathEndsDay 关掉 = 老规则：晕倒几秒、剩 1 颗）。进房间带进去，房间打完回满。</summary>
     public static int MarioHearts = MaxHearts, YouHearts = MaxHearts;
     /// <summary>你的能量（0–3）：捡 * +1，你的机关让他掉心 +1。满了按 Q 召唤雷云。</summary>
     public static int Energy;
     public static int MarioHeartsLost, YouHeartsLost, Kos, Clouds, StormBolts;
+    // ── S229：心掉光 = 这一天立刻结束（结算 → 重开）。用户："不能把人困死，但是确实要被天灾击杀直接重启，相当于游戏胜利结算重开了" ──
+    public enum DeathEnd { None, MarioDied, YouDied, Both }
+    /// <summary>这一天是不是因为有人心掉光而结束（None = 正常走完 / 时间到）。两人同一下被打死 = Both = 平局（炸弹人 / 万智牌同规则）。</summary>
+    public static DeathEnd Death;
+    /// <summary>致命一击是什么（i 闪电 / O 滚石 / ^ 泥石流 / K 巨炮），是不是你放的（雷区 = 天灾 = false）。</summary>
+    public static char DeathCause, YouDeathCause; public static bool DeathByYou;
+    /// <summary>S229：你的反应时间（秒）：危险预警出现在你脚下 → 你第一次按方向键。给"机器人手抖"校准用（S222 审计第 6 条）。</summary>
+    public static readonly List<float> Reactions = new List<float>();
 
     /// <summary>每次进入 Play 都重置（Unity 关了域重载时静态值会留着）。</summary>
     [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -63,7 +71,7 @@ public static class OverworldSession
     public static void NewDay(string map, string town, int day = 1)
     {
         NearMiss.Clear();
-        Day = System.Math.Max(1, day); Changed.Clear(); CannonAim.Clear(); CannonRides = Lightnings = Mudslides = CaveHops = 0; MarioHearts = YouHearts = MaxHearts; Energy = 0; MarioHeartsLost = YouHeartsLost = Kos = Clouds = StormBolts = 0; LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0; WindowFlingDoor = 0; WindowFlings = 0; BellRings = 0;
+        Day = System.Math.Max(1, day); Changed.Clear(); CannonAim.Clear(); CannonRides = Lightnings = Mudslides = CaveHops = 0; MarioHearts = YouHearts = MaxHearts; Energy = 0; MarioHeartsLost = YouHeartsLost = Kos = Clouds = StormBolts = 0; LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0; WindowFlingDoor = 0; WindowFlings = 0; BellRings = 0; Death = DeathEnd.None; DeathCause = YouDeathCause = ' '; DeathByYou = false; Reactions.Clear();
         MapName = map ?? ""; TownScene = town ?? ""; Minute = OverworldMap.DayStart;
         Results.Clear(); UsedCells.Clear(); DayOver = false; HasPositions = false; NextStop = 0; PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f; Caught = 0; TauntsUsed = 0; DelayedSeconds = 0f;
     }
@@ -81,6 +89,18 @@ public static class OverworldSession
     /// <summary>S228：房间里你的炮打中过他 → 记下这扇门，回到小镇时他从这扇门被轰出来。</summary>
     public static void RecordWindowFling(int door) { if (door > 0) WindowFlingDoor = door; }
 
+    // ── S229：每天一行记录（PlaytestLogs/town_days.csv）：怎么结束的 + 你的反应时间（给机器人手抖校准） ──
+    public const string DayLogFile = "town_days.csv";
+    public const string DayCsvHeader = "timestamp,map,day,outcome,death,cause,by_you,end_clock,defended,looted,missed,doors,caught,your_hearts_lost,mario_hearts_lost,big_hits,best_chain,reactions,reaction_median,tuning_version";
+    public static float ReactionMedian() { if (Reactions.Count == 0) return 0f; var l = new List<float>(Reactions); l.Sort(); return l.Count % 2 == 1 ? l[l.Count / 2] : (l[l.Count / 2 - 1] + l[l.Count / 2]) * 0.5f; }
+    public static string DayCsvRow(System.DateTime now, int doorCount, int tuningVersion)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        return string.Join(",", now.ToString("yyyy-MM-dd HH:mm:ss"), (MapName ?? "").Replace(",", ";"), Day, Outcome(doorCount), Death.ToString(), DeathCause == ' ' || DeathCause == '\0' ? "" : DeathCause.ToString(), DeathByYou ? "yes" : "no",
+            OverworldMap.Clock(Minute), Count(DoorResult.Defended), Count(DoorResult.Looted), Count(DoorResult.Missed), doorCount, Caught, YouHeartsLost, MarioHeartsLost, BigHits, BestChain,
+            Reactions.Count, ReactionMedian().ToString("0.00", inv), tuningVersion);
+    }
+
     public static void RecordMissed(int door) { if (door > 0) Results[door] = DoorResult.Missed; }
 
     public static DoorResult ResultOf(int door) => Results.TryGetValue(door, out var r) ? r : DoorResult.NotYet;
@@ -88,9 +108,14 @@ public static class OverworldSession
     public static int Count(DoorResult r) { int n = 0; foreach (var kv in Results) if (kv.Value == r) n++; return n; }
 
     /// <summary>一天的评价：守住的门 ≥ 一半 = 你赢这一天。</summary>
-    public static bool DayWon(int doorCount) => doorCount > 0 && Count(DoorResult.Defended) * 2 >= doorCount;
+    public static bool DayWon(int doorCount) => Death == DeathEnd.MarioDied || (Death == DeathEnd.None && doorCount > 0 && Count(DoorResult.Defended) * 2 >= doorCount);
 
-    public static string Summary(int doorCount) => Step1Text.OverworldDaySummary(Count(DoorResult.Defended), Count(DoorResult.Looted), Count(DoorResult.Missed), doorCount, Caught, DelayedSeconds, DayWon(doorCount))
+    /// <summary>S229：一天的结果（给结算 / 记录用）：won / lost / draw。</summary>
+    public static string Outcome(int doorCount) => Death == DeathEnd.Both ? "draw" : DayWon(doorCount) ? "won" : "lost";
+
+    public static string Summary(int doorCount) => Death != DeathEnd.None
+        ? Step1Text.OverworldDeathSummary(Death, DeathCause, YouDeathCause, DeathByYou, Count(DoorResult.Defended), Count(DoorResult.Looted), doorCount, OverworldMap.Clock(Minute))
+        : Step1Text.OverworldDaySummary(Count(DoorResult.Defended), Count(DoorResult.Looted), Count(DoorResult.Missed), doorCount, Caught, DelayedSeconds, DayWon(doorCount))
         + Step1Text.NearMissLines(NearMiss.Closest(3), NearMiss.NearMisses); // S224：SpyParty 式"事后告诉你他怀疑过你几次"
 }
 

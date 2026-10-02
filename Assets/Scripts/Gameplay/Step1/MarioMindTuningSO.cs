@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 25;
+    public const int CurrentDataVersion = 26;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -510,7 +510,7 @@ public class MarioMindTuningSO : ScriptableObject
     public float overworldBoltTelegraphSeconds = 1.2f;
     [Tooltip("S221：受伤后，站起来（晕完）之后还有几秒全无敌（身体闪烁；不掉心也不再晕）。保护期 = 晕的秒数 + 这个值，防止连控")]
     public float overworldHurtGraceSeconds = 1.5f;
-    [Tooltip("S220：心掉光 = 晕倒几秒，然后剩 1 颗心站起来（一天不会因此结束）")]
+    [Tooltip("S220：心掉光 = 晕倒几秒，然后剩 1 颗心站起来（只在关掉 overworldDeathEndsDay 时用；S229 起默认心掉光 = 这一天结束）")]
     public float overworldKoSeconds = 3f;
     [Tooltip("S220：雷云（能量满按 Q）持续几秒")]
     public float overworldCloudSeconds = 9f;
@@ -538,6 +538,10 @@ public class MarioMindTuningSO : ScriptableObject
     public float snareSelfSeconds = 3f;
     [Tooltip("S228：他在房间里挨了你的炮 → 回到小镇时从门口被轰出去几格（落地晕 overworldBigStunSeconds，不掉心）")]
     public int overworldWindowFlingCells = 6;
+    [Tooltip("S229：小镇里心掉光 = 这一天立刻结束（他掉光 = 你赢，你掉光 = 他赢，同一下都掉光 = 平局）→ 结算 → 重开。关掉 = 回到 S220 的'晕倒 3 秒剩 1 颗'")]
+    public bool overworldDeathEndsDay = true;
+    [Tooltip("S229：有人被打死后，结算画面停几秒自动开始新的一天（按 R 立刻开始；0 = 不自动，只能按 R）")]
+    public float overworldDeathRestartSeconds = 6f;
 
     [Header("S216: 手感 / 被弹飞的抛物线 / 特效")]
     [Tooltip("S216 被弹飞/打飞时的重力（格/秒²）。以前硬直期间往上飞没有重力 → 弹簧弹 11 格撞天花板、炸弹推 8 格像在月球。平时跳跃重力 80；这里略轻 → 有滞空感但仍是抛物线")]
@@ -695,6 +699,11 @@ public class MarioMindTuningSO : ScriptableObject
             minOmenSeconds = 0.45f;        // ? 到 ! 至少 0.45 秒 ≥ 二选一反应时间 ≈0.44 秒（Card/Moran/Newell 常数 + Hick 定律）
             reactionDelay = 0.2f;          // 马里奥躲机关的反应 ≥ 人的视觉简单反应 ≈0.19 秒（AI 不比人快）
             snareSelfSeconds = 3f; overworldWindowFlingCells = 6;
+        }
+        if (dataVersion < 26)
+        {
+            // S229：心掉光 = 结算重开（docs/step1/S229_DEATH_ENDS_DAY.md）。自动重开 6 秒 = 看清结算（≈3 行字）+ 不用伸手按键。
+            overworldDeathEndsDay = true; overworldDeathRestartSeconds = 6f;
         }
         dataVersion = CurrentDataVersion;
         return true;

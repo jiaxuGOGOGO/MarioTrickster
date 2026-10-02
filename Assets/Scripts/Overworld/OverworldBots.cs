@@ -36,6 +36,8 @@ public static class OverworldBots
         public const double DeadZoneRun = 10;
         public double DeadZoneShare => realSeconds > 0 ? deadZoneSeconds / realSeconds : 0;
         public bool dayEnded;
+        /// <summary>S229：这一天是不是有人心掉光结束的。</summary>
+        public OverworldSession.DeathEnd death;
         public readonly List<string> log = new List<string>();
         public override string ToString() => $"{kind}: 埋伏 {ambush} 迟到 {late} 没赶上 {missed} / {doors} 门，被抓 {caught}，用时 {realSeconds:0} 秒（干等 {idleSeconds:0} 秒，最长一次 {longestIdle:0} 秒，快进 {fastForwardSeconds:0} 秒）{(dayEnded ? "" : " ✗一天没结束")}";
     }
@@ -184,7 +186,7 @@ public static class OverworldBots
                 idleRun = 0;
             }
         }
-        rep.dayEnded = OverworldSession.DayOver;
+        rep.dayEnded = OverworldSession.DayOver; rep.death = OverworldSession.Death;
         return rep;
     }
 }

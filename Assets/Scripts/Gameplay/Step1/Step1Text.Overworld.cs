@@ -15,7 +15,7 @@ public static partial class Step1Text
         "巨炮：走到炮旁按 E 坐进去，方向键瞄准（落点画在地上），L 把自己轰过去；他也会坐炮抄近路——红圈是他的落点，跑过去按 L 拨歪\n" +
         "山丘 ^ 挡住平地上的视线（躲在后面），站上去看得远、L 够得远；山洞 h 两个一对，钻进去按 E 从另一头出来\n" +
         "每天早上公布天气：大风吹偏炮弹、雨天水更大、雾天他看得近、赶集日他晚出门；雷雨在路灯旁 L 召唤闪电；酸雨高草全枯；下雨天震到山坡 = 泥石流\n" +
-        "心：你和马里奥各 3 颗（左上）。被闪电 / 滚石 / 泥石流 / 被巨炮轰 打中 = 掉 1 颗心 + 晕 2 秒（身体一闪一闪 = 保护期：晕完再闪 1.5 秒，这期间什么都打不到你，赶紧跑）；香蕉皮只滑倒、水淹只变慢。心掉光 = 晕倒 3 秒、剩 1 颗站起来\n" +
+        "心：你和马里奥各 3 颗（左上）。被闪电 / 滚石 / 泥石流 / 被巨炮轰 打中 = 掉 1 颗心 + 晕 2 秒（身体一闪一闪 = 保护期：晕完再闪 1.5 秒，这期间什么都打不到你，赶紧跑）；香蕉皮只滑倒、水淹只变慢。心掉光 = 这一天马上结束：他掉光 = 你赢，你掉光 = 他赢，同一下都掉光 = 平局（结算后按 R 或等几秒重新开始）\n" +
         "雷区（地图上的蓝色虚线框）：每隔一会儿同时劈几道闪电——地上先闪 1.2 秒，变白 = 马上劈，十字形 1 格。+ 补心，* 能量（你的机关让他掉心也 +1）\n" +
         "能量满 3 格按 Q：在你头顶召唤雷云（停在原地 9 秒，冲着云里的他劈，但也会随机劈——快逃出来，别劈到自己）\n" +
         "看得懂他：视锥里的黄色越灌越长 = 他越起疑，灌满变红 = 认出你；蓝色圆圈 = 他听得见的范围（他在圈里就听见了）；一天结束会列出他差点发现你的时刻\n" +
@@ -84,6 +84,28 @@ public static partial class Step1Text
     public const string OverworldYouHurt = "你被打中了！掉 1 颗心，晕 2 秒\nYou got hit (-1 heart)";
     public const string OverworldYouKO = "你的心掉光了！晕倒 3 秒，剩 1 颗心站起来\nKnocked out!";
     public const string OverworldMarioKO = "马里奥的心掉光了！他晕倒 3 秒（进门时他只带 2 颗心）\nMario knocked out!";
+    // ── S229：心掉光 = 这一天结束 ──
+    public const string OverworldMarioDied = "马里奥倒下了！你赢了这一天\nMario is down — YOU WIN!";
+    public const string OverworldYouDied = "你倒下了……马里奥赢了这一天\nYou are down — Mario wins";
+    public const string OverworldBothDied = "同归于尽！平局\nBoth down — DRAW";
+    /// <summary>致命一击的名字（大白话）。</summary>
+    public static string KillerZh(char k, bool byYou)
+    {
+        switch (k)
+        {
+            case 'i': return byYou ? "你的雷云劈中" : "雷区的闪电劈中（天灾）";
+            case 'O': return byYou ? "你推的滚石碾到" : "被震下来的滚石碾到";
+            case '^': return byYou ? "你引来的泥石流冲到" : "泥石流冲到";
+            case 'K': return byYou ? "你的巨炮轰飞" : "巨炮轰飞";
+            default: return "被打中";
+        }
+    }
+    public static string OverworldDeathSummary(OverworldSession.DeathEnd d, char cause, char youCause, bool byYou, int defended, int looted, int total, string clock, float autoIn = -1f) =>
+        (d == OverworldSession.DeathEnd.MarioDied ? $"{clock} 马里奥倒下了 —— 你赢了这一天！\nMario is down — YOU WIN!\n他是被{KillerZh(cause, byYou)}的最后一颗心\n"
+        : d == OverworldSession.DeathEnd.YouDied ? $"{clock} 你倒下了 —— 马里奥赢了这一天\nYou are down — Mario wins\n你是被{KillerZh(youCause, false).Replace("你的", "自己的").Replace("你推的", "自己推的").Replace("你引来的", "自己引来的")}的最后一颗心（地上先闪 1.2 秒 = 快跑）\n"
+        : $"{clock} 同归于尽 —— 平局\nBoth down — DRAW\n同一下你们俩都没了最后一颗心\n") +
+        $"那之前：守住 {defended} / 被偷 {looted}（共 {total} 户）\n" +
+        (autoIn > 0f ? $"按 R 马上再来一天（{autoIn:0} 秒后自动开始）" : "按 R 再来一天");
     public const string OverworldHeal = "捡到补心 +1\n+1 heart";
     public const string OverworldMarioHeal = "马里奥路过捡了补心 +1\nMario healed";
     public const string OverworldEnergyUp = "能量 +1（满 3 格按 Q 召唤雷云）\n+1 energy";

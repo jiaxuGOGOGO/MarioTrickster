@@ -366,13 +366,13 @@ static class CHECK {
     { var town=Fresh(1); town.tx=3.5; town.ty=2.5; int bolts=0; for(int i=0;i<30*60;i++){ town.Tick(dt,new OverworldTown.Input{fastForward=true}); foreach(var s in town.strikes) if(s.zone==1) bolts++; }
       if(bolts>0){ rb++; Console.WriteLine($"     [FAIL] 晴天不该劈雷区 2（劈了 {bolts}）"); } else parts.Add("雷雨雷区晴天不劈"); }
     // 伤害表：i 帧 2.5 秒挡掉心不挡晕；心掉光 = 晕 3 秒剩 1 颗；香蕉皮/水淹不掉心
-    { var town=Fresh(1); var hurt=typeof(OverworldTown).GetMethod("HurtYou",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+    { t.overworldDeathEndsDay=false; var town=Fresh(1); var hurt=typeof(OverworldTown).GetMethod("HurtYou",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance); // S229：这里测老规则（关掉"心掉光结束"）
       hurt.Invoke(town,null); hurt.Invoke(town,null); bool grace=OverworldSession.YouHearts==2;
       for(int i=0;i<120;i++) town.Tick(dt,inp); hurt.Invoke(town,null); for(int i=0;i<120;i++) town.Tick(dt,inp); hurt.Invoke(town,null); // S221：保护期 = 晕 2 + 1.5 秒
       bool ko=OverworldSession.YouHearts==1&&town.frozen>=t.overworldKoSeconds-0.01f&&OverworldSession.Kos==1&&!OverworldSession.DayOver;
       var hm=typeof(OverworldTown).GetMethod("HitMario",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
       hm.Invoke(town,new object[]{'O',true}); bool mHurt=OverworldSession.MarioHearts==2&&OverworldSession.Energy==1; hm.Invoke(town,new object[]{'i',false}); bool mGrace=OverworldSession.MarioHearts==2;
-      if(!grace||!ko||!mHurt||!mGrace){ rb++; Console.WriteLine($"     [FAIL] 伤害：无敌时间={grace} 心掉光晕倒剩 1={ko} 他被你砸掉心+能量={mHurt} 他无敌时间={mGrace}"); } else parts.Add("保护期 晕+1.5 秒、掉光晕 3 秒剩 1 颗、你砸他 +能量"); }
+      if(!grace||!ko||!mHurt||!mGrace){ rb++; Console.WriteLine($"     [FAIL] 伤害：无敌时间={grace} 心掉光晕倒剩 1={ko} 他被你砸掉心+能量={mHurt} 他无敌时间={mGrace}"); } else parts.Add("保护期 晕+1.5 秒、掉光晕 3 秒剩 1 颗（关掉 S229 时）、你砸他 +能量"); t.overworldDeathEndsDay=true; }
     // 补心 / 能量：少了心才捡，每个一次；他路过顺手捡；能量满 3
     { var town=Fresh(1); var hp=OverworldMap.Find(town.map,'+')[0]; var ep=OverworldMap.Find(town.map,'*');
       town.tx=hp.x+0.5; town.ty=hp.y+0.5; town.Tick(dt,inp); bool notFull=!OverworldSession.UsedCells.Contains(hp.y*town.map.W+hp.x);
@@ -416,13 +416,14 @@ static class CHECK {
     OverworldTown Open(){ OverworldSession.ResetStatics(); var m=OverworldPack.Parse(OverworldPack.StormSampleText)[0]; m.storms.Clear(); OverworldSession.NewDay(m.name,"Town",1); OverworldSession.Active=true; return new OverworldTown(m,t); }
     List<OverworldMap.Cell> Open7(OverworldTown tw)=>OverworldMap.Find(tw.map,'.').Where(q=>{for(int dy=-3;dy<=3;dy++)for(int dx=-3;dx<=3;dx++) if(!OverworldMap.Walkable(tw.map,q.x+dx,q.y+dy)) return false; return true;}).ToList();
     // ① 你只剩 1 颗心、站在雷云中心不动：最长连续定身 ≤ 掉光晕倒秒数（不能被连着击倒）
-    { double worst=0, minFree=99; for(int k=0;k<40;k++){ var town=Open(); var cs=Open7(town); var c=cs[(k*37)%cs.Count]; OverworldSession.Minute=7*60; OverworldSession.Energy=3; OverworldSession.Clouds=k; OverworldSession.YouHearts=1;
+    { t.overworldDeathEndsDay=false; // S229：这条测"不连控"（掉光晕倒剩 1 颗的老规则）；心掉光 = 结束这一天另由 S229 门槛测
+      double worst=0, minFree=99; for(int k=0;k<40;k++){ var town=Open(); var cs=Open7(town); var c=cs[(k*37)%cs.Count]; OverworldSession.Minute=7*60; OverworldSession.Energy=3; OverworldSession.Clouds=k; OverworldSession.YouHearts=1;
         town.tx=c.x+0.5; town.ty=c.y+0.5; town.mario.x=3.5; town.mario.y=2.5; town.mario.Clear(); town.Tick(dt,new OverworldTown.Input{weather=true});
         double cur=0, free=0; bool was=false, seen=false; for(int i=0;i<30*12;i++){ town.Tick(dt,new OverworldTown.Input()); bool f=town.frozen>0;
           if(f){ if(!was&&seen) minFree=Math.Min(minFree,free); cur+=dt; worst=Math.Max(worst,cur); free=0; seen=true; } else { cur=0; free+=dt; } was=f; } }
       // 站着不动可以再挨一下（自己选的），但：一次最多定身 = 掉光晕倒秒数；两次之间至少有"站起来后的保护期"那么久能跑（1 格只要 0.2 秒）
       if(worst>t.overworldKoSeconds+0.05||minFree<t.overworldHurtGraceSeconds-0.05){ rb++; Console.WriteLine($"     [FAIL] 连控：最长连续定身 {worst:0.0}s（应 ≤ {t.overworldKoSeconds}） 两次定身之间最短能动 {minFree:0.00}s（应 ≥ {t.overworldHurtGraceSeconds}）"); }
-      else parts.Add($"不连控：站云心不动最长定身 {worst:0.0}s、两次之间至少能跑 {(minFree>90?0:minFree):0.0}s（修前 7.1s 连续定身）"); }
+      else parts.Add($"不连控：站云心不动最长定身 {worst:0.0}s、两次之间至少能跑 {(minFree>90?0:minFree):0.0}s（修前 7.1s 连续定身）");  t.overworldDeathEndsDay=true; }
     // 他 1 颗心被雷云罩：不会被连劈
     { int loops=0; for(int k=0;k<20;k++){ var town=Open(); var cs=Open7(town); var c=cs[(k*53)%cs.Count]; OverworldSession.Minute=7*60; OverworldSession.Energy=3; OverworldSession.Clouds=k; OverworldSession.MarioHearts=1;
         town.mario.x=c.x+0.5; town.mario.y=c.y+0.5; town.mario.Clear(); town.tx=c.x+0.5; town.ty=c.y+0.5; town.Tick(dt,new OverworldTown.Input{weather=true});
@@ -647,6 +648,60 @@ static class CHECK {
     if(!t.contextKeyBar||Math.Abs(t.roomGameSpeed-1f)>1e-4||MarioMindTuningSO.ClampRoomSpeed(0.2f)!=0.5f||MarioMindTuningSO.ClampRoomSpeed(3f)!=1f){ eb++; Console.WriteLine("     [FAIL] 默认值：按键条应开、游戏速度应 1，速度限制在 0.5~1"); }
     else parts.Add("游戏速度默认 1（不改手感），可调 0.5~1");
     Console.WriteLine($"[{(eb==0?"OK":"FAIL")}] S226 打击感 + 按键条 + 游戏速度：{string.Join("｜",parts)}"); fail+=eb; }
+  // S229：心掉光 = 这一天立刻结束（结算 → 重开）。用户："不能把人困死，但是确实要被天灾击杀直接重启，相当于游戏胜利结算重开了"
+  { int rb=0; var parts=new List<string>(); var t=MarioMindTuningSO.LoadOrDefault(); const float dt=1f/30;
+    var hurt=typeof(OverworldTown).GetMethod("HurtYouBy",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+    var hm=typeof(OverworldTown).GetMethod("HitMario",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+    OverworldTown Open(string txt, bool storms=true){ OverworldSession.ResetStatics(); var m=OverworldPack.Parse(txt)[0]; if(!storms) m.storms.Clear(); OverworldSession.NewDay(m.name,"Town",1); OverworldSession.Active=true; return new OverworldTown(m,t); }
+    // ① 他掉光 = 你赢；你掉光 = 他赢；同一下两人都掉光 = 平局；关掉开关 = 老规则（晕倒剩 1 颗，一天继续）
+    { var a=Open(OverworldPack.StormSampleText,false); OverworldSession.MarioHearts=1; hm.Invoke(a,new object[]{'O',true}); a.Tick(dt,new OverworldTown.Input());
+      bool mw=OverworldSession.Death==OverworldSession.DeathEnd.MarioDied&&OverworldSession.DayOver&&OverworldSession.DayWon(a.stops.Count)&&OverworldSession.Outcome(a.stops.Count)=="won"&&OverworldSession.DeathByYou&&OverworldSession.DeathCause=='O';
+      var b=Open(OverworldPack.StormSampleText,false); OverworldSession.YouHearts=1; hurt.Invoke(b,new object[]{'i'}); b.Tick(dt,new OverworldTown.Input());
+      bool yl=OverworldSession.Death==OverworldSession.DeathEnd.YouDied&&OverworldSession.DayOver&&!OverworldSession.DayWon(b.stops.Count)&&OverworldSession.Outcome(b.stops.Count)=="lost";
+      var c=Open(OverworldPack.StormSampleText,false); OverworldSession.Minute=7*60; OverworldSession.MarioHearts=1; OverworldSession.YouHearts=1; c.mario.Clear(); var mc=OverworldGuide.Near(c.map,c.mario.x,c.mario.y); c.tx=mc.x+0.5; c.ty=mc.y+0.5; c.mario.x=mc.x+0.5; c.mario.y=mc.y+0.5;
+      c.strikes.Add(new OverworldTown.Strike{c=mc,t=0.01f,total=1.2f,zone=0,byYou=false}); for(int i=0;i<3&&!OverworldSession.DayOver;i++) c.Tick(dt,new OverworldTown.Input());
+      bool draw=OverworldSession.Death==OverworldSession.DeathEnd.Both&&OverworldSession.Outcome(c.stops.Count)=="draw"&&!OverworldSession.DayWon(c.stops.Count);
+      t.overworldDeathEndsDay=false; var d=Open(OverworldPack.StormSampleText,false); OverworldSession.YouHearts=1; hurt.Invoke(d,new object[]{'i'}); d.Tick(dt,new OverworldTown.Input()); bool off=!OverworldSession.DayOver&&OverworldSession.YouHearts==1&&OverworldSession.Kos==1; t.overworldDeathEndsDay=true;
+      var e=Open(OverworldPack.StormSampleText,false); e.Tick(dt,new OverworldTown.Input()); bool after=true; for(int i=0;i<30;i++){ OverworldSession.YouHearts=1; } OverworldSession.MarioHearts=1; hm.Invoke(e,new object[]{'i',false}); e.Tick(dt,new OverworldTown.Input()); double m0=OverworldSession.Minute; e.Tick(dt,new OverworldTown.Input{h=1}); after=OverworldSession.Minute==m0; bool nature=!OverworldSession.DeathByYou&&OverworldSession.Death==OverworldSession.DeathEnd.MarioDied;
+      if(!mw||!yl||!draw||!off||!after||!nature){ rb++; Console.WriteLine($"     [FAIL] 结算：他掉光你赢={mw} 你掉光他赢={yl} 同归于尽平局={draw} 关掉=老规则={off} 结束后时间停={after} 天灾打死他也算你赢={nature}"); }
+      else parts.Add("他掉光 = 你赢、你掉光 = 他赢、同一下 = 平局；天灾打死他也算你赢；结束后不再走时间；开关关掉 = 老规则"); }
+    // ② 不会"冤死"：站在雷云中心一动不动，从 3 颗心到死至少要 2×(晕+保护期)，而且每一下前都有 ≥1.2 秒地面预警、两下之间站着能跑 ≥1.5 秒
+    { double fastest=1e9, minFree=1e9; int died=0; bool warned=true; var mm=OverworldPack.Parse(OverworldPack.StormSampleText)[0];
+      for(int k=0;k<20;k++){ var tw=Open(OverworldPack.StormSampleText,false); var cs=OverworldMap.Find(tw.map,'.').Where(q=>{for(int dy=-3;dy<=3;dy++)for(int dx=-3;dx<=3;dx++) if(!OverworldMap.Walkable(tw.map,q.x+dx,q.y+dy)) return false; return true;}).ToList();
+        var c0=cs[(k*37)%cs.Count]; OverworldSession.Minute=7*60; OverworldSession.Energy=3; OverworldSession.Clouds=k; tw.tx=c0.x+0.5; tw.ty=c0.y+0.5; tw.mario.x=3.5; tw.mario.y=2.5; tw.mario.Clear();
+        tw.Tick(dt,new OverworldTown.Input{weather=true}); double tt=0, free=0; bool was=false, seen=false; int h0=OverworldSession.YouHearts; double dangerFor=0;
+        for(int i=0;i<30*60&&!OverworldSession.DayOver;i++){ bool recast=tw.cloud==null&&tw.frozen<=0; if(recast) OverworldSession.Energy=3; tw.Tick(dt,new OverworldTown.Input{weather=recast}); tt+=dt; /* 云散了就再叫一朵（最坏情况：一直站在雷里） */ bool f=tw.frozen>0; if(tw.YouInDanger()) dangerFor+=dt;
+          if(OverworldSession.YouHearts<h0){ if(dangerFor<t.overworldBoltTelegraphSeconds-0.05) warned=false; dangerFor=0; h0=OverworldSession.YouHearts; }
+          if(f){ if(!was&&seen) minFree=Math.Min(minFree,free); free=0; seen=true; } else free+=dt; was=f; }
+        if(OverworldSession.Death==OverworldSession.DeathEnd.YouDied){ died++; fastest=Math.Min(fastest,tt); } }
+      double need=2*(t.overworldBigStunSeconds+t.overworldHurtGraceSeconds);
+      if(died<10||fastest<need-0.05||!warned||minFree<t.overworldHurtGraceSeconds-0.05){ rb++; Console.WriteLine($"     [FAIL] 冤死：最快 {fastest:0.0}s 死（应 ≥ {need:0.0}s） 每下都先预警={warned} 两下之间能跑 {minFree:0.0}s"); }
+      else parts.Add($"一直站在雷云里不动：{died}/20 次被劈死（规则真的会死），最快 {fastest:0.0}s（≥ {need:0.0}s），每一下都先闪 ≥{t.overworldBoltTelegraphSeconds}s、两下之间能跑 ≥{(minFree>1e8?0:minFree):0.0}s"); }
+    // ③ 不白赢 / 不白输（H10）：4 个样板镇 × 挂机 15 天（你不动、他自己走）：他被天灾打死 ≤ 5%（Wilson 上限 ≤ 15%），你 0 次；会躲 15 天：你被打死 0 次
+    { int idleDays=0, marioNat=0, youIdle=0, hideDays=0, youHide=0, ended=0;
+      foreach(var txt in new[]{OverworldPack.SampleText,OverworldPack.BigSampleText,OverworldPack.MountainSampleText,OverworldPack.StormSampleText}){ var m=OverworldPack.Parse(txt)[0];
+        for(int d=1;d<=15;d++){ OverworldSession.ResetStatics(); var r=OverworldBots.PlayDay(m,t,OverworldBots.Kind.Idle,true,d*7+1,d,true,true); idleDays++; if(r.dayEnded) ended++;
+          if(r.death==OverworldSession.DeathEnd.MarioDied||r.death==OverworldSession.DeathEnd.Both) marioNat++; if(r.death==OverworldSession.DeathEnd.YouDied||r.death==OverworldSession.DeathEnd.Both) youIdle++;
+          OverworldSession.ResetStatics(); var h=OverworldBots.PlayDay(m,t,OverworldBots.Kind.Hider,true,d*11+3,d,true,true); hideDays++; if(h.death==OverworldSession.DeathEnd.YouDied||h.death==OverworldSession.DeathEnd.Both) youHide++; } }
+      var w=Step1ExitReport.Wilson(marioNat,idleDays);
+      if(marioNat*20>idleDays||w.hi>0.15||youIdle>0||youHide>0||ended<idleDays){ rb++; Console.WriteLine($"     [FAIL] 挂机 {idleDays} 天：他被天灾打死 {marioNat}（上限 {w.hi:P0}）你被打死 {youIdle}｜会躲 {hideDays} 天你被打死 {youHide}｜一天结束 {ended}/{idleDays}"); }
+      else parts.Add($"挂机 {idleDays} 天他被天灾打死 {marioNat} 次（95% 上限 {w.hi:P0}）、你 0 次；会躲 {hideDays} 天你 0 次被打死"); }
+    // ④ 反应时间：预警出现在你脚下 → 0.3 秒后按方向 = 记 0.3 秒；预警前就在跑 = 不算
+    { var tw=Open(OverworldPack.StormSampleText,false); OverworldSession.Minute=7*60; var c0=OverworldGuide.Near(tw.map,tw.tx,tw.ty); tw.mario.x=3.5; tw.mario.y=2.5; tw.mario.Clear();
+      tw.Tick(dt,new OverworldTown.Input()); tw.strikes.Add(new OverworldTown.Strike{c=c0,t=1.2f,total=1.2f,zone=0,byYou=false});
+      for(int i=0;i<9;i++) tw.Tick(dt,new OverworldTown.Input()); tw.Tick(dt,new OverworldTown.Input{h=1});
+      bool one=OverworldSession.Reactions.Count==1&&Math.Abs(OverworldSession.Reactions[0]-0.3)<0.05;
+      var tw2=Open(OverworldPack.StormSampleText,false); OverworldSession.Minute=7*60; var c2=OverworldGuide.Near(tw2.map,tw2.tx,tw2.ty); tw2.mario.x=3.5; tw2.mario.y=2.5; tw2.mario.Clear(); tw2.Tick(dt,new OverworldTown.Input{h=1});
+      tw2.strikes.Add(new OverworldTown.Strike{c=OverworldGuide.Near(tw2.map,tw2.tx,tw2.ty),t=1.2f,total=1.2f,zone=0,byYou=false}); for(int i=0;i<9;i++) tw2.Tick(dt,new OverworldTown.Input{h=1}); bool none=OverworldSession.Reactions.Count==0;
+      int cols=OverworldSession.DayCsvHeader.Split(',').Length, rcols=OverworldSession.DayCsvRow(DateTime.Now,4,26).Split(',').Length;
+      if(!one||!none||cols!=rcols){ rb++; Console.WriteLine($"     [FAIL] 反应时间：0.3 秒={one}({string.Join(",",OverworldSession.Reactions)}) 早就在跑=不算 {none} CSV 列 {cols}/{rcols}"); }
+      else parts.Add($"反应时间 0.30 秒记对、早就在跑不算；town_days.csv {cols} 列"); }
+    // ⑤ 接线：结算文字有死因 + 自动重开倒计时；游戏里 R / 自动重开；H4（马里奥侧不读你的心）
+    { string g=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/Runtime/OverworldGame.cs")); string s1=Step1Text.OverworldDeathSummary(OverworldSession.DeathEnd.MarioDied,'i',' ',false,1,1,4,"10:00",5f);
+      string mind=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/OverworldMind.cs"));
+      bool ok=s1.Contains("天灾")&&s1.Contains("5 秒后自动")&&g.Contains("autoRestart")&&g.Contains("LogDay()")&&!mind.Contains("YouHearts")&&t.overworldDeathRestartSeconds>0&&t.overworldDeathEndsDay;
+      if(!ok){ rb++; Console.WriteLine("     [FAIL] 接线：结算死因 / 自动重开 / 记录 / H4"); } else parts.Add("结算写死因 + 倒计时、R 或 6 秒自动重开、每天记一行"); }
+    Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S229 心掉光 = 结算重开：{string.Join("｜",parts)}"); fail+=rb; }
   // S228：按调研定的数值 + 修"小镇声音永远到不了 ?" + 钟楼 B + 房间大炮轰出窗户
   //  ① 一次性起疑（声音 / 挑衅）不被同帧衰减抹掉：大机关的声音 → '?' 停下 ≈1 秒（反向：35 = 刚好阈值也必须到 ?）
   //  ② 调研数值：? → ! ≥ 二选一反应 0.44 秒；马里奥躲机关反应 ≥ 人的视觉反应 0.19 秒；小镇视野 ≤ 屏幕半高（他看不见屏幕外的你）

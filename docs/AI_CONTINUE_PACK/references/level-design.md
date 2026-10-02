@@ -86,3 +86,7 @@
 ## S228 钟楼 B / 轰出窗户
 - 钟楼 `B`：声音型大机关（IsBig），不伤人不改地形；放在他路线旁 3–5 格、离门远一点。每张图 1 个。
 - 房间炮打中他 → `OverworldSession.WindowFlingDoor` → 回小镇 `OverworldProps.WindowLanding`（背离房子 6 格、走得回家，否则不轰）。
+
+## S229 心掉光 = 这一天结束
+- 新伤害来源：调 `HurtYouBy(种类)` / `HitMario(种类, byYou)`，不要自己减心；死亡在 Tick 帧末 `Die()` 统一结算（同帧两人 = 平局）。死因文字加到 `Step1Text.KillerZh`。
+- 新天灾必须先预警（sim S229 逐下检查 ≥ overworldBoltTelegraphSeconds），并保证挂机时他被天灾打死 ≤5%。

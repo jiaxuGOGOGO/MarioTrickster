@@ -94,3 +94,6 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - 反应时间：视觉简单 ≈0.19 s https://pmc.ncbi.nlm.nih.gov/articles/PMC4456887/ ；Hick 定律 a=200ms b=150ms/bit https://reactscore.com/choice-reaction-test/
 - 速度：DbD 杀手 110–115% https://deadbydaylight.fandom.com/wiki/Movement_Speeds ；吃豆人 Dossier https://pacman.holenet.info/ ；DbD 木板晕 2 s https://deadbydaylight.wiki.gg/wiki/Pallets
 - 视野一致性：Shadow Tactics https://www.gamedeveloper.com/design/game-design-deep-dive-dynamic-detection-in-i-shadow-tactics-i- ；声音只引去看：Mark of the Ninja https://critpoints.net/2015/03/30/stealth-game-spotting-deconstruction/ ；Hitman 噪音气泡 https://www.polygon.com/hitman-distraction-world-of-assassination/ ；被耍过保持警觉 Invisible Inc https://www.gamedeveloper.com/design/lesson-the-problems-of-modern-stealth-design-and-how-invisible-inc-solves-them
+
+## S229 死亡与重开（docs/step1/S229_DEATH_ENDS_DAY.md）
+- 快速重开 https://game-design-snacks.fandom.com/wiki/Quick_restarts_keep_the_player_involved. ；Smash 自爆/击杀归属 https://www.ssbwiki.com/Self-destruct ；炸弹人平局 https://bomberman.fandom.com/wiki/Sudden_Death ；Spelunky 公平 = 危险看得见 https://www.gamedeveloper.com/design/a-spelunky-game-design-analysis-pt-2

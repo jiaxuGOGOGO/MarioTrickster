@@ -744,6 +744,31 @@ static class CHECK {
       bool ok=sn.Contains("holdFor = HoldFor(mario != null, holdSeconds, selfSeconds)")&&t.snareSelfSeconds<10f&&t.snareSelfSeconds<t.snareSeconds&&rl.Contains("CannonBall.HitMario += NoteCannonHit")&&rl.Contains("CannonBall.HitMario -= NoteCannonHit")&&rl.Contains("RecordWindowFling(door)");
       if(!ok){ sb++; Console.WriteLine($"     [FAIL] 接线：你自己被绳套吊 {t.snareSelfSeconds} 秒（应 <10，P4 死区）/ 房间炮打中 → 记下这扇门"); } else parts.Add($"你自己踩绳套吊 {t.snareSelfSeconds:0} 秒（马里奥仍 {t.snareSeconds:0} 秒）"); }
     Console.WriteLine($"[{(sb==0?"OK":"FAIL")}] S228 调研数值 + 钟楼 + 轰出窗户：{string.Join("｜",parts)}"); fail+=sb; }
+  // S230 小镇记录 → 体检：town_days.csv 列对齐、读取、天灾/反应时间结论；打包带上
+  { int tb=0; var parts=new List<string>();
+    if(OverworldSession.DayCsvHeader!=string.Join(",",Step1ExitReport.TownColumns)){ tb++; Console.WriteLine("     [FAIL] town_days 表头和 Step1ExitReport.TownColumns 不一致"); }
+    string H=OverworldSession.DayCsvHeader+"\n";
+    string Row(int i,string outc,string death,string by,int reac,string med)=>$"2026-10-0{1+i/20} 20:{i%20:00}:00,星露雷镇,{i+1},{outc},{death},i,{by},12:00,2,1,1,4,0,0,0,0,0,{reac},{med},26";
+    var fast=Step1ExitReport.ParseTown(new[]{H+string.Join("\n",Enumerable.Range(0,12).Select(i=>Row(i,"won","None","no",2,"0.35")))});
+    var md=Step1ExitReport.TownMarkdown(fast);
+    if(fast.Count!=12||!md.Contains("落在机器人")||md.Contains("⚠")){ tb++; Console.WriteLine("     [FAIL] 正常 12 天读错："+md); }
+    var slow=Step1ExitReport.TownMarkdown(Step1ExitReport.ParseTown(new[]{H+string.Join("\n",Enumerable.Range(0,12).Select(i=>Row(i,"won","MarioDied","no",2,"0.90")))}));
+    if(!slow.Contains("机器人太灵")||!slow.Contains("天灾替你赢了")){ tb++; Console.WriteLine("     [FAIL] 反应慢 / 天灾白赢没报："+slow); }
+    var few=Step1ExitReport.TownMarkdown(Step1ExitReport.ParseTown(new[]{H+Row(0,"lost","YouDied","no",3,"0.9")}));
+    if(!few.Contains("先不校准")){ tb++; Console.WriteLine("     [FAIL] 样本太少也下结论"); }
+    var dup=Step1ExitReport.ParseTown(new[]{H+Row(0,"draw","Both","no",0,"0.00"),H+Row(0,"draw","Both","no",0,"0.00")});
+    if(dup.Count!=1){ tb++; Console.WriteLine("     [FAIL] 重复行没去重"); }
+    if(Step1ExitReport.TownMarkdown(new List<Step1ExitReport.TownDay>()).IndexOf("还没有")<0){ tb++; Console.WriteLine("     [FAIL] 空记录"); }
+    // 真的一天写出来的行也能读回
+    OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇","Town",1); OverworldSession.Death=OverworldSession.DeathEnd.MarioDied; OverworldSession.DeathCause='i';
+    OverworldSession.Reactions.Add(0.3f); OverworldSession.Reactions.Add(0.5f);
+    var back=Step1ExitReport.ParseTown(new[]{H+OverworldSession.DayCsvRow(new DateTime(2026,10,2,23,0,0),4,26)}); OverworldSession.ResetStatics();
+    if(back.Count!=1||back[0].outcome!="won"||back[0].death!="MarioDied"||back[0].reactions!=2||Math.Abs(back[0].reactMedian-0.4f)>0.001f){ tb++; Console.WriteLine("     [FAIL] 游戏写出的行读不回来"); }
+    if(Math.Abs(Step1ExitReport.BotReactMin-0.15f)>1e-4||Math.Abs(Step1ExitReport.BotReactMax-0.6f)>1e-4||!File.ReadAllText(WsRepo("Assets/Scripts/Overworld/OverworldBots.cs")).Contains("0.15f + 0.45f")){ tb++; Console.WriteLine("     [FAIL] 体检里的机器人反应范围和 OverworldBots 不一致"); }
+    var hub=File.ReadAllText(WsRepo("Assets/Scripts/Editor/TestHubWindow.cs"));
+    if(!hub.Contains("\"town_days*.csv\").Select(File.ReadAllText)")||!hub.Contains("GetFiles(LogsRoot, \"town_days*.csv\")))")){ tb++; Console.WriteLine("     [FAIL] 体检 / F8 打包没带 town_days.csv"); }
+    if(tb==0) parts.Add("表头一致、游戏写出的行能读回、反应快慢 / 天灾白赢 / 样本太少 / 去重都判对、体检和打包都带上");
+    Console.WriteLine($"[{(tb==0?"OK":"FAIL")}] S230 小镇记录进体检：{string.Join("｜",parts)}"); fail+=tb; }
   // S227 阶段 D 填表：用你真实的试玩记录（docs/step1/data/*.csv）跑出口报告
   { int db=0; var parts=new List<string>();
     var hdr=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs")),"CsvHeader => \"([^\"]*)\" \\+\\s*\"([^\"]*)\"");

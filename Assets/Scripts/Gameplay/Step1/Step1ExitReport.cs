@@ -173,4 +173,64 @@ public static class Step1ExitReport
         sb.AppendLine("**下一步**：" + string.Join(" ", r.next.Select((x, i) => $"{i + 1}) {x}")));
         return sb.ToString();
     }
+
+    // ═════════ S230：小镇每天的记录（PlaytestLogs/town_days.csv，S229 起写）→ 体检里的"小镇"一段 ═════════
+    /// <summary>town_days.csv 的列，必须和 OverworldSession.DayCsvHeader 一致（sim 检查）。</summary>
+    public static readonly string[] TownColumns =
+    {
+        "timestamp", "map", "day", "outcome", "death", "cause", "by_you", "end_clock", "defended", "looted", "missed", "doors", "caught",
+        "your_hearts_lost", "mario_hearts_lost", "big_hits", "best_chain", "reactions", "reaction_median", "tuning_version"
+    };
+    /// <summary>机器人"看清新目标再动"的愣神范围（OverworldBots.humanNoise）。你的中位数落在外面 = 该校准。</summary>
+    public const float BotReactMin = 0.15f, BotReactMax = 0.6f;
+    /// <summary>少于这么多次反应不下结论（找问题 6 人 / 12 次以上才看得出中位数稳不稳）。</summary>
+    public const int MinReactSamples = 12;
+
+    public sealed class TownDay
+    {
+        public DateTime time; public string map = "", outcome = "", death = "", cause = ""; public bool byYou;
+        public int day, defended, looted, doors, caught, reactions, version; public float reactMedian;
+    }
+
+    public static List<TownDay> ParseTown(IEnumerable<string> csvTexts)
+    {
+        var seen = new HashSet<string>(); var all = new List<TownDay>();
+        foreach (var txt in csvTexts)
+            foreach (var line in (txt ?? "").Split('\n'))
+            {
+                var l = line.Trim('\r'); if (l.Length == 0 || l.StartsWith("timestamp")) continue;
+                var c = l.Split(','); if (c.Length < TownColumns.Length) continue;
+                if (!DateTime.TryParse(c[0], CultureInfo.InvariantCulture, DateTimeStyles.None, out var t)) continue;
+                if (!seen.Add(l)) continue;
+                all.Add(new TownDay { time = t, map = c[1], day = I(c[2]), outcome = c[3], death = c[4], cause = c[5], byYou = c[6] == "yes",
+                    defended = I(c[8]), looted = I(c[9]), doors = I(c[11]), caught = I(c[12]), reactions = I(c[17]), reactMedian = F(c[18]), version = I(c[19]) });
+            }
+        return all.OrderBy(d => d.time).ToList();
+    }
+
+    public static string TownMarkdown(IList<TownDay> days)
+    {
+        var sb = new StringBuilder();
+        if (days.Count == 0) { sb.AppendLine("还没有小镇记录（S229 起每天结束自动写 town_days.csv）"); return sb.ToString(); }
+        int n = days.Count, won = days.Count(d => d.outcome == "won"), lost = days.Count(d => d.outcome == "lost"), draw = days.Count(d => d.outcome == "draw");
+        sb.AppendLine($"· 一共 {n} 天：你赢 {Rate(won, n)}，输 {lost}，平 {draw}");
+        int md = days.Count(d => d.death == "MarioDied"), yd = days.Count(d => d.death == "YouDied"), bd = days.Count(d => d.death == "Both");
+        int nature = days.Count(d => d.death == "MarioDied" && !d.byYou);
+        sb.AppendLine($"· 心掉光结束的天：他倒下 {md}（其中天灾替你打死 {nature}），你倒下 {yd}，同归于尽 {bd}");
+        if (n >= 10 && nature * 5 > n) sb.AppendLine($"  ⚠ 天灾替你赢了 {Rate(nature, n)} 天 → 超过 1/5：调参 overworldBoltTelegraphSeconds 加长或雷区缩小（sim 门槛要求挂机 ≤6%）");
+        if (n >= 10 && yd * 3 > n) sb.AppendLine($"  ⚠ 你被打死 {Rate(yd, n)} 天 → 超过 1/3：先看死因，是预警没看见（F8 截图）还是躲不开（调保护期）");
+        // 反应时间：每天的中位数按次数加权展开成样本，再取总中位数（近似，只用来判断落没落在机器人范围里）
+        var samples = new List<float>(); foreach (var d in days) for (int i = 0; i < d.reactions; i++) samples.Add(d.reactMedian);
+        if (samples.Count == 0) sb.AppendLine("· 你的反应时间：还没量到（危险预警出现在你脚下 → 你第一次按方向键）");
+        else
+        {
+            samples.Sort(); float med = samples[samples.Count / 2];
+            string verdict = samples.Count < MinReactSamples ? $"样本 {samples.Count} 次 < {MinReactSamples}，先不校准"
+                : med < BotReactMin ? $"比机器人最快的 {BotReactMin}s 还快 → 机器人偏慢，sim 偏保守（不用改）"
+                : med > BotReactMax ? $"比机器人最慢的 {BotReactMax}s 还慢 → 机器人太灵，sim 的『会躲 60/60』对你偏乐观：把 OverworldBots 的愣神上限调到 {med:0.00}s 重跑门槛"
+                : $"落在机器人 {BotReactMin}–{BotReactMax}s 范围里 → 机器人手抖参数和你一致";
+            sb.AppendLine($"· 你的反应时间中位数 ≈ {med:0.00}s（{samples.Count} 次）：{verdict}");
+        }
+        return sb.ToString();
+    }
 }

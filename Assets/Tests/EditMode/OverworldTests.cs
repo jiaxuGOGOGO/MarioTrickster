@@ -872,4 +872,18 @@ public class OverworldTests
         StringAssert.DoesNotContain("YouHearts", Read("Scripts/Overworld/OverworldMind.cs"), "H4：马里奥的脑子不读你的心");
         StringAssert.Contains("秒后自动", Step1Text.OverworldDeathSummary(OverworldSession.DeathEnd.YouDied, ' ', 'i', false, 0, 0, 4, "09:00", 4f));
     }
+
+    // ═════════ S230：小镇记录进体检 ═════════
+    [Test]
+    public void S230_TownDays_ParseAndReport()
+    {
+        Assert.AreEqual(OverworldSession.DayCsvHeader, string.Join(",", Step1ExitReport.TownColumns));
+        OverworldSession.ResetStatics(); OverworldSession.NewDay("星露雷镇", "Town", 1);
+        OverworldSession.Death = OverworldSession.DeathEnd.YouDied; OverworldSession.YouDeathCause = 'i'; OverworldSession.Reactions.Add(0.4f);
+        var d = Step1ExitReport.ParseTown(new[] { OverworldSession.DayCsvHeader + "\n" + OverworldSession.DayCsvRow(new System.DateTime(2026, 10, 2, 23, 0, 0), 4, 26) });
+        OverworldSession.ResetStatics();
+        Assert.AreEqual(1, d.Count); Assert.AreEqual("lost", d[0].outcome); Assert.AreEqual(1, d[0].reactions);
+        StringAssert.Contains("先不校准", Step1ExitReport.TownMarkdown(d));
+        StringAssert.Contains("town_days*.csv", Read("Scripts/Editor/TestHubWindow.cs"));
+    }
 }

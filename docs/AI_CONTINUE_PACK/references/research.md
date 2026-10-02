@@ -97,3 +97,6 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 
 ## S229 死亡与重开（docs/step1/S229_DEATH_ENDS_DAY.md）
 - 快速重开 https://game-design-snacks.fandom.com/wiki/Quick_restarts_keep_the_player_involved. ；Smash 自爆/击杀归属 https://www.ssbwiki.com/Self-destruct ；炸弹人平局 https://bomberman.fandom.com/wiki/Sudden_Death ；Spelunky 公平 = 危险看得见 https://www.gamedeveloper.com/design/a-spelunky-game-design-analysis-pt-2
+
+## S230 调研落地核对表
+- docs/step1/S230_RESEARCH_VS_CODE_AUDIT.md §1：每条调研要求 → 代码证据 → 状态。新调研先查这张表，避免重复做或漏做。

@@ -141,6 +141,10 @@ public sealed class TestHubWindow : EditorWindow
             sb.Append(Step1ExitReport.Markdown(Step1ExitReport.ParseAll(Directory.Exists(LogsRoot)
                 ? Directory.GetFiles(LogsRoot, "step1_rounds*.csv").Select(File.ReadAllText) : new string[0])));
 
+            sb.AppendLine("\n## 小镇（从 town_days.csv 自动算，S230）");
+            sb.Append(Step1ExitReport.TownMarkdown(Step1ExitReport.ParseTown(Directory.Exists(LogsRoot)
+                ? Directory.GetFiles(LogsRoot, "town_days*.csv").Select(File.ReadAllText) : new string[0])));
+
             sb.AppendLine("\n## 上次测试");
             if (File.Exists(TestReportRunner.LastReportFile))
             {
@@ -169,11 +173,11 @@ public sealed class TestHubWindow : EditorWindow
         {
             if (Directory.Exists(stage)) Directory.Delete(stage, true);
             Directory.CreateDirectory(stage);
-            File.WriteAllText(Path.Combine(stage, "00_给AI的话.md"), "# MarioTrickster 试玩反馈包\n\n" + (note.Length > 0 ? note : "（没写）") + "\n\n里面：HealthCheck.md 体检、feedback.md + 截图、TestReport.txt、step1_rounds.csv（有的话）\n");
+            File.WriteAllText(Path.Combine(stage, "00_给AI的话.md"), "# MarioTrickster 试玩反馈包\n\n" + (note.Length > 0 ? note : "（没写）") + "\n\n里面：HealthCheck.md 体检、feedback.md + 截图、TestReport.txt、step1_rounds.csv、town_days.csv（有的话）\n");
             void Copy(string src, string name) { if (File.Exists(src)) File.Copy(src, Path.Combine(stage, name), true); }
             Copy(HealthPath, "HealthCheck.md");
             Copy(TestReportRunner.LastReportFile, "TestReport.txt");
-            if (Directory.Exists(LogsRoot)) foreach (var f in Directory.GetFiles(LogsRoot, "step1_rounds*.csv")) Copy(f, Path.GetFileName(f)); // S227：留档的旧记录也带上
+            if (Directory.Exists(LogsRoot)) foreach (var f in Directory.GetFiles(LogsRoot, "step1_rounds*.csv").Concat(Directory.GetFiles(LogsRoot, "town_days*.csv"))) Copy(f, Path.GetFileName(f)); // S227：留档的旧记录也带上；S230：小镇每天的记录（含反应时间）
             if (Directory.Exists(Step1Feedback.Root)) foreach (var f in Directory.GetFiles(Step1Feedback.Root)) Copy(f, Path.GetFileName(f));
             string zip = Path.Combine(LogsRoot, $"反馈包_{System.DateTime.Now:MMdd_HHmm}.zip");
             if (File.Exists(zip)) File.Delete(zip);

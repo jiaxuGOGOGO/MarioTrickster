@@ -57,7 +57,7 @@ public static partial class Step1Text
         if (intent == "READY...") return "准备\nREADY";
         if (intent == "DIZZY") return "晕了\nDIZZY";
         if (intent == "LOOK BACK") return "回头看\nLOOK";
-        if (intent == "CAREFUL") return "小心点\nCAREFUL";
+        if (intent == "CAREFUL") return "这儿坑过我…\nCAREFUL"; // S225：说出他记得什么（只记得位置，H4）
         if (intent == "DODGE") return "要炸了！\nDODGE";
         if (intent == "GRAB") return "捡道具\nGRAB";
         if (intent == "DETOUR") return "绕开\nDETOUR";
@@ -70,6 +70,76 @@ public static partial class Step1Text
             case MarioMindState.Searching: return "人呢？\nWHERE?";
             default: return intent == "RUN HOME" ? "回出口\nHOME" : "拿宝\nLOOT";
         }
+    }
+
+    /// <summary>
+    /// S225（Splinter Cell: Blacklist 分层台词 + F.E.A.R. "台词说明意图"）：他为什么起疑，就说为什么。
+    /// 同一个原因本局第 1、2 次说具体的，第 3 次起说短的"又来？"（老说同一句会烦）。只换文字，行为不变。
+    /// </summary>
+    public static string CauseIntent(MarioMindState state, SuspicionCause cause, int timesThisRound)
+    {
+        if (cause == SuspicionCause.None) return null;
+        bool tired = timesThisRound >= 3;
+        if (state == MarioMindState.Curious)
+        {
+            if (tired) return cause == SuspicionCause.Hurt ? "又中招？\nAGAIN?" : "又来？\nAGAIN?";
+            switch (cause)
+            {
+                case SuspicionCause.SawYou: return "那是谁？\nWHO'S THAT?";
+                case SuspicionCause.OddProp: return "那东西动了？\nDID IT MOVE?";
+                case SuspicionCause.SawTrap: return "机关自己动了？\nWHO DID THAT?";
+                case SuspicionCause.Rustle: return "草里有东西？\nIN THE BUSH?";
+                case SuspicionCause.Taunt: return "谁在叫我？\nWHO'S THERE?";
+                case SuspicionCause.Hurt: return "谁坑我？\nWHO DID THIS?";
+            }
+        }
+        if (state == MarioMindState.Investigating && !tired)
+        {
+            switch (cause)
+            {
+                case SuspicionCause.OddProp: return "去看看那东西\nCHECK IT";
+                case SuspicionCause.SawTrap: return "去看看机关\nCHECK TRAP";
+                case SuspicionCause.Rustle: return "去草丛看看\nCHECK BUSH";
+                case SuspicionCause.Taunt: return "去声音那边\nTHAT NOISE";
+            }
+        }
+        return null;
+    }
+
+    /// <summary>S225：卡住被挪开后，他头顶说一句（不出戏；顶部的"布局问题"提示照旧，方便你报位置）。</summary>
+    public const string StuckRescueHead = "哎呀，脚滑了\nOOPS";
+
+    /// <summary>
+    /// S225（樱井政博"消灭无反应"）：按 L 没成功时说清楚为什么。原来原因只发给旧界面，第 1 步房间把旧界面关了 → 按了什么都没有。
+    /// 输入 = TricksterController.GetAbilityFailReason 返回的英文原因；不认识的原因也给一句兜底，不会再"没反应"。
+    /// </summary>
+    public static string AbilityFailZh(string reason)
+    {
+        reason = reason ?? "";
+        if (reason.StartsWith("Too small")) return "缩小时不能触发机关（Z 变回来）  Can't while small";
+        if (reason.StartsWith("Must be disguised")) return "要先站到机关旁按 <b>P</b> 伪装，才能按 L  Disguise first (P)";
+        if (reason.StartsWith("Stay still")) return "伪装后<b>站着别动</b>一会儿，变实了才能按 L  Stand still to blend in";
+        if (reason.StartsWith("Ability not ready")) return "还没准备好，站稳再按  Not ready";
+        if (reason.StartsWith("No controls remaining")) return "这次伪装的触发次数用完了：P 取消再伪装  No controls left";
+        if (reason.StartsWith("No controllable prop")) return "附近没有能触发的机关：走近一点（5 格内）  No trap nearby";
+        if (reason.StartsWith("Possession gate blocked")) return "刚换目标 / 刚被发现，等一下再按  Wait a moment";
+        if (reason.StartsWith("No cannonballs")) return "炮弹打完了：站进炮口能把自己打出去  No cannonballs left";
+        if (reason.StartsWith("Prop on cooldown")) return "这个机关还在冷却，等它亮起来  Trap cooling down";
+        if (reason.StartsWith("Prop already active")) return "这个机关正在动，等它停  Trap already going";
+        if (reason.StartsWith("Prop uses exhausted")) return "这个机关这局用完了，换一个  Trap used up";
+        if (reason.StartsWith("Prop not ready")) return "这个机关还没准备好  Trap not ready";
+        if (reason.StartsWith("Not enough energy")) return "能量不够  Not enough energy";
+        return "现在按不了  Can't right now";
+    }
+
+    /// <summary>S225：按 P 没变成伪装时的原因（原来这几种情况直接 return，什么都不显示）。</summary>
+    public static string DisguiseFailZh(bool shrunk, bool justCaught, float cooldown, bool noDisguise)
+    {
+        if (shrunk) return "缩小时不能伪装（Z 变回来）  Can't disguise while small";
+        if (justCaught) return "刚被发现，先跑开，等一下才能再伪装  Just spotted — run first";
+        if (cooldown > 0f) return $"伪装冷却中，还要 {System.Math.Ceiling(cooldown):0} 秒  Disguise cooling down";
+        if (noDisguise) return "这里没有能变的东西  Nothing to disguise as";
+        return null;
     }
 
     public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   F 连锁   T 挑衅   ↓ 通风管   |   V 这是什么 Labels   C 镜头 Camera   H 帮助 Help   F8 记反馈   Esc 暂停";

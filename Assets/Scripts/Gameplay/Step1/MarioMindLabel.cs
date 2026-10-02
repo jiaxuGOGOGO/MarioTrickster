@@ -11,6 +11,12 @@ public class MarioMindLabel : MonoBehaviour
     private LineRenderer bar;
     private LineRenderer barBack;
     private MarioReactionView reaction; // S223：中招时头顶换成这种坑固定的台词
+    private float rescuedUntil; // S225：卡住被挪开后头顶说"哎呀，脚滑了"
+    public static event System.Action Rescued;
+    public static void RaiseRescued() => Rescued?.Invoke();
+    private void OnEnable() { Rescued += OnRescued; }
+    private void OnDisable() { Rescued -= OnRescued; }
+    private void OnRescued() { rescuedUntil = Time.time + 1.6f; }
 
     private void Start()
     {
@@ -59,7 +65,8 @@ public class MarioMindLabel : MonoBehaviour
         // S203：开局几秒大字亮出性格；之后意图前面一直带性格前缀（H6：你随时知道他是哪种）
         intent.text = driver.Mind.ShowingPersonality
             ? $"{tr.zh}\n{tr.en}"
-            : (driver.Mind.Personality == MarioPersonalityKind.Rush ? "" : tr.zh + "·") + Step1Text.HeadIntent(order.state, order.intent ?? "");
+            : (driver.Mind.Personality == MarioPersonalityKind.Rush ? "" : tr.zh + "·") + (Step1Text.CauseIntent(order.state, order.cause, order.causeTimes) ?? Step1Text.HeadIntent(order.state, order.intent ?? "")); // S225：起疑时说出原因
+        if (Time.time < rescuedUntil && !driver.Mind.ShowingPersonality) intent.text = Step1Text.StuckRescueHead;
         intent.color = new Color(1f, 1f, 1f, 0.85f);
         if (reaction == null && driver != null) reaction = driver.GetComponent<MarioReactionView>();
         if (reaction != null && reaction.Playing && !driver.Mind.ShowingPersonality) { intent.text = reaction.CurrentLine; intent.color = new Color(1f, 0.85f, 0.4f, 1f); }

@@ -98,6 +98,7 @@ public class Step1StuckRescue : MonoBehaviour
         anchor = target;
         hasBest = false;
         flashUntil = Time.time + 2.5f;
+        MarioMindLabel.RaiseRescued(); // S225：头顶说一句"哎呀，脚滑了"（不出戏；不改救援规则）
         Debug.LogWarning($"[Step1 H9] Mario stuck at ({pos.x:F1},{pos.y:F1}) for {tuning.stuckSeconds}s -> rescued to ({target.x:F1},{target.y:F1}). This is a layout bug; please report the spot.");
     }
 

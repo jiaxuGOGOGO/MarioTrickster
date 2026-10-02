@@ -526,6 +526,41 @@ static class CHECK {
       OverworldSession.ResetStatics();
       if(!ok||withLine!=days){ cb++; Console.WriteLine($"     [FAIL] 差点被发现：分段={ok} 结算里有这一行 {withLine}/{days}"); } else parts.Add("一天结束列出最险的 3 次"); }
     Console.WriteLine($"[{(cb==0?"OK":"FAIL")}] S224 少等待 + 阶段 C 可读性：{string.Join("｜",parts)}"); fail+=cb; }
+  // S225：① 房间死区（宪法 P4，S224 只量了小镇）：每个样板 / 监狱塔 / 向导房间，开局等待后"连续 ≥10 秒马里奥不经过任何机关"的时间占比 < 15%
+  //  ② 按 L / P 没成功一定有中文原因（樱井"消灭无反应"）：TricksterController 里每一条失败原因都翻译到，不落到兜底句；显示组件只听不改
+  //  ③ 起疑台词分层（Splinter Cell Blacklist）：每种原因有具体台词，第 3 次起换短句；原因只来自感知（H4）④ 卡住救援头顶一句话
+  { int eb=0; var parts=new List<string>(); var t=MarioMindTuningSO.LoadOrDefault();
+    var rooms=new List<(string,string[])>(); rooms.Add(("默认房间",Step1PrankRoomBuilderRoom())); foreach(var x in Samples()) rooms.Add(x);
+    for(int f=2;f<=6;f+=2) rooms.Add(($"监狱塔{f}层",FloorStacker.Build(f,0))); foreach(char star in LevelBlueprint.WizardStars) rooms.Add(($"向导{star}",LevelBlueprint.Wizard(star,30,"").grid));
+    double worstShare=0; float worstIdle=0; string worstName=""; int measured=0;
+    foreach(var (n,g) in rooms){ float speed=StrategySim.RunSpeed(9f,t.marioSpeedScale); var r=StrategySim.Analyze(g,speed,t.startDelaySeconds,3,1.6f,1.5f,3f,1.8f); if(r.route==null) continue; measured++;
+      var route=r.route.Select(c=>(c.x,c.y)).ToList(); var times=new List<float>{t.startDelaySeconds}; float len=0;
+      for(int i=1;i<route.Count;i++){ len+=(float)Math.Sqrt((route[i].x-route[i-1].x)*(route[i].x-route[i-1].x)+(route[i].y-route[i-1].y)*(route[i].y-route[i-1].y)); times.Add(t.startDelaySeconds+len/speed); }
+      var passes=LevelBlueprint.Passes(route,times,r.onRoute.Select(s=>(s.x,s.y))); var (segs,_)=LevelBlueprint.Rhythm(passes,r.routeSeconds);
+      float dead=0,idle=0; foreach(var sg in segs){ if(sg.busy) continue; float a=Math.Max(sg.a,LevelBlueprint.StartGrace), L=sg.b-a; if(L<=0) continue; idle=Math.Max(idle,L); if(L>=LevelBlueprint.MaxIdle) dead+=L; }
+      double share=dead/Math.Max(0.1f,r.routeSeconds); if(share>worstShare||idle>worstIdle){ worstName=n; } worstShare=Math.Max(worstShare,share); worstIdle=Math.Max(worstIdle,idle);
+      if(share>=0.15){ eb++; Console.WriteLine($"     [FAIL] {n}：死区 {share:P0}（应 <15%），最长 {idle:0.0} 秒没机关 → 路上加一个机关或缩短这段"); } }
+    if(measured<8){ eb++; Console.WriteLine($"     [FAIL] 只量到 {measured} 个房间（路线算不出来？）"); } else parts.Add($"{measured} 个房间死区最高 {worstShare:P0}、最长空档 {worstIdle:0.0} 秒（开局等待不算）");
+    // ②
+    var ctl=File.ReadAllText(WsRepo("Assets/Scripts/Enemy/TricksterController.cs")); int a0=ctl.IndexOf("private string GetAbilityFailReason()"); var body=ctl.Substring(a0,ctl.IndexOf("#endregion",a0)-a0);
+    var reasons=System.Text.RegularExpressions.Regex.Matches(body,"return \\$?\"([^\"]+)\"").Select(m=>m.Groups[1].Value.Replace("{abilitySystem.PossessionState}","Blending")).ToList();
+    reasons.Add("Not enough energy to disguise!"); string fb=Step1Text.AbilityFailZh("???"); int un=0;
+    foreach(var rs in reasons){ var z=Step1Text.AbilityFailZh(rs); if(z==fb||!System.Text.RegularExpressions.Regex.IsMatch(z,"[\u4e00-\u9fff]")){ un++; Console.WriteLine("     [FAIL] 按 L 失败原因没翻译："+rs); } }
+    var ff=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1FailFeedback.cs")); var combo=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1Combo.cs"));
+    bool wired=ff.Contains("OnAbilityFailed +=")&&ff.Contains("OnDisguiseFailed +=")&&ff.Contains("Step1Hint.Show")&&combo.Contains("AddComponent<Step1FailFeedback>()");
+    bool passive=!System.Text.RegularExpressions.Regex.IsMatch(ff,"OnAbilityPressed\\(|OnDisguisePressed\\(|ToggleDisguise|Disguise\\(\\)|cooldownTimer|TryConsume|velocity");
+    bool pReasons=Step1Text.DisguiseFailZh(false,false,2.2f,false).Contains("3 秒")&&Step1Text.DisguiseFailZh(true,false,0,false)!=null&&Step1Text.DisguiseFailZh(false,true,0,false)!=null&&Step1Text.DisguiseFailZh(false,false,0,false)==null;
+    if(un>0||reasons.Count<12||!wired||!passive||!pReasons){ eb++; Console.WriteLine($"     [FAIL] 失败原因：{reasons.Count} 条 未翻译 {un} 接线={wired} 只显示不改={passive} P 原因={pReasons}"); } else parts.Add($"按 L 的 {reasons.Count} 种失败 + 按 P 的 3 种静默失败都有中文原因");
+    // ③④
+    var causes=new[]{SuspicionCause.SawYou,SuspicionCause.OddProp,SuspicionCause.SawTrap,SuspicionCause.Rustle,SuspicionCause.Taunt,SuspicionCause.Hurt};
+    var first=new HashSet<string>(); bool tier=true; foreach(var c in causes){ var a=Step1Text.CauseIntent(MarioMindState.Curious,c,1); var b=Step1Text.CauseIntent(MarioMindState.Curious,c,3); first.Add(a); if(a==null||b==null||a==b||!a.Contains("\n")||b.Length>=a.Length+4) tier=false; }
+    tier&=first.Count==causes.Length&&Step1Text.CauseIntent(MarioMindState.Curious,SuspicionCause.None,1)==null&&Step1Text.CauseIntent(MarioMindState.Chasing,SuspicionCause.SawYou,1)==null;
+    var mind=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/RushMarioMind.cs")); int sc=mind.IndexOf("public static SuspicionCause StrongestCause"); var scBody=mind.Substring(sc,mind.IndexOf("}",mind.IndexOf("return SuspicionCause.None",sc))-sc);
+    bool h4=!System.Text.RegularExpressions.Regex.IsMatch(scBody,"Trickster(Controller|Possession)|Disguise|IsFullyBlended")&&mind.Contains("StrongestCause(seesTrickster, seesOddProp, p.witnessedActivation, p.sawRustle, p.heardTaunt, p.hurt)");
+    var lbl=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/MarioMindLabel.cs")); var resc=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1StuckRescue.cs"));
+    bool head=lbl.Contains("Step1Text.CauseIntent(order.state, order.cause, order.causeTimes)")&&lbl.Contains("Step1Text.StuckRescueHead")&&resc.Contains("MarioMindLabel.RaiseRescued()")&&Step1Text.HeadIntent(MarioMindState.Running,"CAREFUL").Contains("坑过");
+    if(!tier||!h4||!head){ eb++; Console.WriteLine($"     [FAIL] 分层台词={tier} 原因只来自感知={h4} 头顶接线/卡住一句话/小心说原因={head}"); } else parts.Add("6 种起疑原因各有台词、第 3 次换短句，原因只来自感知；卡住救援头顶一句话");
+    Console.WriteLine($"[{(eb==0?"OK":"FAIL")}] S225 房间死区 + 按了就有反应 + 他说为什么：{string.Join("｜",parts)}"); fail+=eb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

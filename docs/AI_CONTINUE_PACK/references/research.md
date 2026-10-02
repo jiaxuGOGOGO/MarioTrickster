@@ -78,3 +78,8 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - 喜剧：Polaris Mechanical Comedy 12 成分（https://polarisgamedesign.com/2025/mechanical-comedy-in-games/）、Bergson 机械镶嵌在活人身上、GDC Comedy Through Patterns、鹅鹅鹅。
 - 统计：NIST 推荐 Wilson（https://itl.nist.gov/div898/handbook/prc/section2/prc241.htm）；rule of three → 60 次全对 = 95% 把握失败率 < 5%；试玩 6 人找问题 / 12 人了解玩家 / 100 人量化（https://gamesuserresearch.com/how-many-players-do-i-need-for-a-playtest/）。
 - 做法教训：机器人必须先验证"不同种子 → 不同结果"再谈样本数。
+
+## S225 第二轮调研（方案：repo/docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md，§2 两轮来源表，**不要重复调研**）
+- 结论：房间没有干等问题（17 个房间死区 0%）；真问题是"按了没反应"（L/P 失败静默，已修）和"他只会说嗯？"（已修）。
+- 下一步只剩 E6 交互矩阵 / E7 无障碍 / E10 小镇系统可见度（文档或 sim 统计）；E9 情境按键栏要用户确认。
+- 搜过但没价值的（别再搜）：NDC 2026、韩国 Inven、知乎新手引导、あつ森落とし穴视频、itch prank 标签（反爬）。

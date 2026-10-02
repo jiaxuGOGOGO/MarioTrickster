@@ -3,6 +3,9 @@ using UnityEngine;
 
 public enum MarioMindState { Running, Curious, Investigating, Chasing, Searching }
 
+/// <summary>S225：他这次起疑的原因（只来自 MarioPercept：自己看见/听见/挨打，H4）。只用来换头顶台词。</summary>
+public enum SuspicionCause { None, SawYou, OddProp, SawTrap, Rustle, Taunt, Hurt }
+
 /// <summary>马里奥这一帧"知道"的全部信息。只能由 MarioEyes / 自身状态填写（H4）。</summary>
 public struct MarioPercept
 {
@@ -46,6 +49,9 @@ public struct MarioOrder
     public bool seesQuarry;
     public string mark;
     public string intent;
+    /// <summary>S225：这次起疑的原因 + 本局第几次因为它起疑（头顶分层台词用，纯表现）。</summary>
+    public SuspicionCause cause;
+    public int causeTimes;
 }
 
 /// <summary>
@@ -125,6 +131,21 @@ public sealed class RushMarioMind
     }
     public MarioMindState State { get; private set; } = MarioMindState.Running;
     public Vector2 Focus { get; private set; }
+    /// <summary>S225：最近一次让他起疑的原因（只来自感知）+ 本局每种原因的次数（进入 ? 时 +1）。</summary>
+    public SuspicionCause Cause { get; private set; }
+    private readonly int[] causeTimes = new int[7];
+    public int CauseTimes(SuspicionCause c) => causeTimes[(int)c];
+    /// <summary>S225 纯逻辑：这一帧的感知里最"具体"的原因（看见你 > 挨打 > 看见机关动 > 东西在动 > 挑衅 > 草晃）。</summary>
+    public static SuspicionCause StrongestCause(bool seesTrickster, bool seesOddProp, bool witnessed, bool rustle, bool taunt, bool hurt)
+    {
+        if (seesTrickster) return SuspicionCause.SawYou;
+        if (hurt) return SuspicionCause.Hurt;
+        if (witnessed) return SuspicionCause.SawTrap;
+        if (seesOddProp) return SuspicionCause.OddProp;
+        if (taunt) return SuspicionCause.Taunt;
+        if (rustle) return SuspicionCause.Rustle;
+        return SuspicionCause.None;
+    }
     public event Action<MarioMindState, MarioMindState> StateChanged;
 
     public RushMarioMind(MarioMindTuningSO tuning) { t = tuning; Meter = new SuspicionMeter(tuning); Traits = MarioPersonality.For(MarioPersonalityKind.Rush, tuning); }
@@ -138,6 +159,7 @@ public sealed class RushMarioMind
     {
         Seed = seed; dice = new System.Random(seed);
         Meter.Reset(); hurtFlash = celebrate = stun = glance = 0f;
+        System.Array.Clear(causeTimes, 0, causeTimes.Length); Cause = SuspicionCause.None;
         hurtSpots.Clear(); Cautious = false; skippedPickups.Clear(); grabTime = 0f; Dodging = false;
         Personality = ForcedPersonality ?? (t.personalitiesEnabled ? MarioPersonality.Roll(seed, t.rushWeight, t.cautiousWeight, t.greedyWeight) : MarioPersonalityKind.Rush);
         Traits = MarioPersonality.For(Personality, t);
@@ -183,6 +205,8 @@ public sealed class RushMarioMind
             Meter.Add(t.hurtByTrap); hurtFlash = t.hurtFlashSeconds; stun = t.hurtStunSeconds;
             if (!seesTrickster && !seesOddProp && !p.witnessedActivation) Focus = p.marioPos;
         }
+        var nowCause = StrongestCause(seesTrickster, seesOddProp, p.witnessedActivation, p.sawRustle, p.heardTaunt, p.hurt);
+        if (nowCause != SuspicionCause.None && (State == MarioMindState.Running || State == MarioMindState.Curious || nowCause == SuspicionCause.SawYou)) Cause = nowCause;
         bool greedyGrab = Personality == MarioPersonalityKind.Greedy && grabTime > 0f && p.seesPickup;
         Meter.Tick(dt, rise * Traits.suspicionScale * (greedyGrab ? 0.5f : 1f));
 
@@ -194,6 +218,7 @@ public sealed class RushMarioMind
                 {
                     float side = Mathf.Sign(Focus.x - p.marioPos.x);
                     lookPoint = new Vector2(p.marioPos.x + side * t.lookStep, p.marioPos.y);
+                    causeTimes[(int)Cause]++; // S225：本局第几次因为这个原因起疑（台词分层）
                     Enter(MarioMindState.Curious, Focus);
                 }
                 break;
@@ -221,7 +246,7 @@ public sealed class RushMarioMind
                 break;
         }
 
-        order.state = State;
+        order.state = State; order.cause = Cause; order.causeTimes = causeTimes[(int)Cause];
         if (State != MarioMindState.Running) { Cautious = false; Dodging = false; }
         switch (State)
         {

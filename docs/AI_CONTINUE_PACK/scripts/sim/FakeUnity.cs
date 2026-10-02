@@ -31,3 +31,4 @@ namespace UnityEngine { public struct Vector2Int { public int x,y; public Vector
 // S213：玩家视角模拟需要的桩（Step1Text / OverworldSession 编进 sim）
 namespace UnityEngine { public enum RuntimeInitializeLoadType { SubsystemRegistration, AfterAssembliesLoaded, BeforeSceneLoad, AfterSceneLoad } public class RuntimeInitializeOnLoadMethodAttribute:Attribute{ public RuntimeInitializeOnLoadMethodAttribute(){} public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType t){} } }
 public enum MarioMindState { Running, Curious, Investigating, Chasing, Searching }
+public enum SuspicionCause { None, SawYou, OddProp, SawTrap, Rustle, Taunt, Hurt } // S225：和 RushMarioMind.cs 同步

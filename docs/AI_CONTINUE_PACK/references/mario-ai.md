@@ -46,3 +46,7 @@ MarioMindDriver（接线、速度、楼层寻路）◄── MarioOrder ◄─�
 - 视锥灌注：房间 `MarioVisionConeView.DrawFill`、小镇 `OverworldGame.UpdateCone` 的 fillMesh；长度 `Step1Readability.FillReach(Meter.Normalized, 被墙挡住的距离, 视野)`。
 - 声音圈：房间 `Step1SoundRings` 订阅 Taunted/Exploded/Smashed/Clanged/Clicked（和 MarioMindDriver 喂给耳朵的同一组）；小镇 `OverworldTown.sounds`（Noise() 与挑衅时加）。新增会被听见的声音 = 两处都加，并且半径走 `Step1Readability`。
 - 差点被发现：`NearMissLog`（小镇 `OverworldSession.NearMiss`，在 Tick 末尾 Feed、Caught() 里记被抓）。
+
+## S225 起疑原因台词
+- `SuspicionCause` 只能由 `RushMarioMind.StrongestCause(...)` 从 MarioPercept 的布尔量得出（H4）；新感知来源 = 枚举加一项 + `Step1Text.CauseIntent` 加一句 + **sim/FakeUnity.cs 的同名枚举同步**。
+- 台词分层：同一原因本局第 1–2 次具体句，第 3 次起短句（Blacklist）。只换字，不改行为。

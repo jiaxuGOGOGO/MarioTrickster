@@ -2208,6 +2208,57 @@ public class Step1RushMarioTests
         OverworldSession.ResetStatics();
     }
 
+    // ── S225：按了就有反应 + 他说为什么起疑 + 卡住救援一句话 ──
+    [Test]
+    public void FailFeedback_EveryAbilityReasonHasChinese_DisplayOnly()
+    {
+        string fallback = Step1Text.AbilityFailZh("???");
+        foreach (var r in new[] { "Too small to trigger props!", "Must be disguised to control props!", "Stay still to blend in first!", "Ability not ready!", "No controls remaining!",
+            "No controllable prop nearby!", "Possession gate blocked: Blending", "No cannonballs left! Stand inside the cannon to launch yourself.", "Prop on cooldown!",
+            "Prop already active!", "Prop uses exhausted!", "Prop not ready!", "Not enough energy to disguise!" })
+        {
+            string z = Step1Text.AbilityFailZh(r);
+            Assert.AreNotEqual(fallback, z, "没翻译：" + r);
+            Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(z, "[\u4e00-\u9fff]"), r);
+        }
+        StringAssert.Contains("3 秒", Step1Text.DisguiseFailZh(false, false, 2.2f, false), "冷却说还要几秒");
+        Assert.IsNotNull(Step1Text.DisguiseFailZh(true, false, 0f, false), "缩小时");
+        Assert.IsNotNull(Step1Text.DisguiseFailZh(false, true, 0f, false), "刚被发现");
+        Assert.IsNull(Step1Text.DisguiseFailZh(false, false, 0f, false), "能变 = 不提示");
+        string ff = Read("Scripts/Gameplay/Step1/Step1FailFeedback.cs");
+        StringAssert.Contains("self.OnAbilityFailed += OnAbilityFailed", ff);
+        StringAssert.Contains("disguise.OnDisguiseFailed += OnAbilityFailed", ff);
+        foreach (var banned in new[] { "OnAbilityPressed(", "OnDisguisePressed(", "ToggleDisguise", "TryConsume", "velocity" })
+            StringAssert.DoesNotContain(banned, ff, "只显示原因，不按键、不改数值：" + banned);
+        StringAssert.Contains("AddComponent<Step1FailFeedback>()", Read("Scripts/Gameplay/Step1/Step1Combo.cs"), "旧场景自动挂上");
+    }
+
+    [Test]
+    public void Mind_SaysWhyItIsSuspicious_TieredAndFromPerceptOnly()
+    {
+        Assert.AreEqual(SuspicionCause.SawYou, RushMarioMind.StrongestCause(true, true, true, true, true, true), "看见你最具体");
+        Assert.AreEqual(SuspicionCause.Hurt, RushMarioMind.StrongestCause(false, false, true, true, true, true));
+        Assert.AreEqual(SuspicionCause.Rustle, RushMarioMind.StrongestCause(false, false, false, true, false, false));
+        Assert.AreEqual(SuspicionCause.None, RushMarioMind.StrongestCause(false, false, false, false, false, false));
+        var t = Tuning(); var mind = new RushMarioMind(t); mind.Reset(1);
+        MarioOrder o = default;
+        for (int i = 0; i < 10 && mind.State == MarioMindState.Running; i++)
+            o = mind.Tick(Dt, new MarioPercept { marioPos = Vector2.zero, heardTaunt = true, tauntPos = new Vector2(3f, 0f), facingRight = true });
+        Assert.AreEqual(MarioMindState.Curious, o.state, "挑衅 → ?");
+        Assert.AreEqual(SuspicionCause.Taunt, o.cause); Assert.AreEqual(1, o.causeTimes);
+        StringAssert.Contains("叫我", Step1Text.CauseIntent(o.state, o.cause, o.causeTimes), "说出原因");
+        Assert.AreNotEqual(Step1Text.CauseIntent(MarioMindState.Curious, SuspicionCause.Taunt, 1), Step1Text.CauseIntent(MarioMindState.Curious, SuspicionCause.Taunt, 3), "第 3 次起换短句");
+        Assert.IsNull(Step1Text.CauseIntent(MarioMindState.Chasing, SuspicionCause.SawYou, 1), "追人时照旧喊'站住'");
+        StringAssert.Contains("坑过", Step1Text.HeadIntent(MarioMindState.Running, "CAREFUL"), "小心时说他记得这儿挨过坑");
+        foreach (SuspicionCause c in System.Enum.GetValues(typeof(SuspicionCause)))
+            if (c != SuspicionCause.None) StringAssert.Contains("\n", Step1Text.CauseIntent(MarioMindState.Curious, c, 1), "两行：" + c);
+        string label = Read("Scripts/Gameplay/Step1/MarioMindLabel.cs");
+        StringAssert.Contains("Step1Text.CauseIntent(order.state, order.cause, order.causeTimes)", label);
+        StringAssert.Contains("MarioMindLabel.RaiseRescued()", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs"), "卡住救援头顶一句话");
+        foreach (var banned in new[] { "TricksterPossessionGate", "IsFullyBlended", "DisguiseSystem", "TricksterController" })
+            StringAssert.DoesNotContain(banned, Read("Scripts/Gameplay/Step1/RushMarioMind.cs"), "H4：原因只来自感知 " + banned);
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

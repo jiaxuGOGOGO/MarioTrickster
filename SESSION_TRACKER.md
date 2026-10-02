@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 224（少等待：小镇自动快进 + 预约埋伏 + 房间 Enter 开局；阶段 C：视锥灌注 / 声音圈 / 他差点发现你）。上一版 S223（阶段 B：马里奥中招三段式反应 Assets/Resources/MarioReactions.json + 问卷'笑了吗'）。上一版 S222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
+| **最新 Session** | Session 225（第二轮全项目调研 + 方案 docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md；按 L/P 失败说原因 Step1FailFeedback；马里奥起疑说原因 SuspicionCause + 分层台词；小心时"这儿坑过我"；卡住救援"哎呀，脚滑了"；sim 房间死区门槛）。上一版 S224（少等待：小镇自动快进 + 预约埋伏 + 房间 Enter 开局；阶段 C：视锥灌注 / 声音圈 / 他差点发现你）。上一版 S223（阶段 B：马里奥中招三段式反应 Assets/Resources/MarioReactions.json + 问卷'笑了吗'）。上一版 S222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,15 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S225] 用户："继续探索式针对目前项目的所有内容找网上所有涉及的内容……论文、itch、GDC、权威独立游戏网站、大学、专家原则、日本演讲、其他语种、GitHub、Reddit、书……切碎也整体研究……用成功与失败经验批评……形成不需要再反复大修大改的细致规划执行方案……执行后再去新网站核实、统计学检查、详细自我审计"
+
+- 方案：`docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md`（两轮资料表带链接、9 块对照批评、E1–E10 执行表、刻意不做、统计自查、自我审计、永久规则 5–7）。
+- E1 房间死区（P4）：sim 量 17 个房间（默认/全部样板/监狱塔/向导），开局后连续 ≥10 秒不经过机关的占比全 0%，最长空档 6.5 秒 → 进门槛。
+- E8 按了就有反应：L 的失败原因原来只发给被关掉的旧界面（GameUI/GlobalGameUICanvas）→ 第 1 步房间按 L 失败什么都不显示。新增 `Step1FailFeedback`（Step1Combo 运行时自动挂，只订阅 `OnAbilityFailed`/`OnDisguiseFailed` 并显示 `Step1Text.AbilityFailZh`）；P 在冷却/刚被发现/缩小时也提示（`DisguiseFailZh`）。不改任何按键规则。
+- E2 起疑说原因：`SuspicionCause`（只来自 MarioPercept，H4）+ `RushMarioMind.StrongestCause` + `MarioOrder.cause/causeTimes`；`Step1Text.CauseIntent` 6 种原因各一句，第 3 次起"又来？"。E3 小心："这儿坑过我…"。E4 卡住救援头顶"哎呀，脚滑了"（`MarioMindLabel.RaiseRescued`）。
+- sim S225 + EditMode 2 项；反向测试：删一条翻译 / 删自动挂载 → 报红。sim 桩 FakeUnity.cs 加 `SuspicionCause`（和 RushMarioMind 同步）。
+- 下一步：E6 交互矩阵审计 / E7 无障碍表 / E10 小镇系统可见度（都只写文档或 sim 统计）；E9 情境按键栏等你试玩说"键太多"再做。
 
 ### [S224] 用户："跳过我试玩的部分继续完成该完成的 我的思路是有些我都没耐心试玩下去先做的更值得我玩在继续。所以根据之前的调研继续调研完成未完成任务"
 

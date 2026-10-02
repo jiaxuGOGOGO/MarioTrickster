@@ -86,3 +86,6 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 
 ## S226 自我对照
 - 不再拿试玩当前提：S225 E5/E6/E7/E9/E10 已完成，结论在 repo/docs/step1/S226_SELF_AUDIT_AND_DEFERRED.md；仍不做的清单在 §1b。不要再调研同一批来源。
+
+## S227
+- 阶段 D 由 `Step1ExitReport` 自动出表（体检"第 1 步出口"）。新列加在 CSV 末尾时：同时加进 `Step1ExitReport.Columns`（sim 检查表头一致）。

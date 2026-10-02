@@ -250,7 +250,7 @@ public class Step1RushMarioTests
         StringAssert.Contains("Blocker:1 Fire:2", row);
         StringAssert.Contains("a;b", row);
         StringAssert.Contains("yes,no,unfair:couldnt_read_him,5,he; jumped late,0", row);
-        Assert.IsTrue(row.EndsWith(",yes"), "S223：最后一列 = 有没有笑出来");
+        Assert.IsTrue(row.EndsWith(",yes,0,"), "S223：laughed；S227：调参版本 + 模式");
         Assert.AreEqual(Step1PlaytestLog.CsvHeader.Split(',').Length, row.Split(',').Length);
     }
 
@@ -2286,5 +2286,28 @@ public class Step1RushMarioTests
     {
         Assert.AreEqual(0f, MarioReaction.Punch(0f), 1e-4f); Assert.AreEqual(1f, MarioReaction.Punch(MarioReaction.PunchPeak), 1e-4f); Assert.AreEqual(0f, MarioReaction.Punch(1f), 1e-4f);
         Assert.Greater(MarioReaction.Punch(0.2f), MarioReaction.Punch(0.6f), "前重后轻");
+    }
+
+    [Test]
+    public void S227_ExitReport_ReadsOldAndNewCsv_WithWilson()
+    {
+        string oldCsv = "timestamp,round,winner,reason,seconds\n2026-09-26 22:37:39,1,Mario,Route cleared.,10.7,1,2,2,2,Escape:2,1,no,no,unfair:couldnt_read_him,1,\n";
+        var rs = Step1ExitReport.ParseAll(new[] { oldCsv, oldCsv });
+        Assert.AreEqual(1, rs.Count, "同一局两个文件里都有 → 只算一次");
+        Assert.AreEqual("unfair:couldnt_read_him", rs[0].verdict); Assert.AreEqual(1, rs[0].wantAgain); Assert.AreEqual(0, rs[0].version);
+        var w = Step1ExitReport.Wilson(5, 5); Assert.Less(w.lo, 0.6, "5/5 的下限只有 ~0.57");
+        var r = Step1ExitReport.Analyze(rs);
+        Assert.IsFalse(r.exitMet); StringAssert.Contains("只改呈现", string.Join(" ", r.next));
+        CollectionAssert.AreEqual(Step1PlaytestLog.CsvHeader.Split(','), Step1ExitReport.Columns, "两边列名必须一致");
+        Assert.AreEqual(0, Step1ExitReport.Analyze(rs, 24).rounds, "旧版本的局不混进结论");
+        StringAssert.Contains("Step1ExitReport.Markdown", System.IO.File.ReadAllText("Assets/Scripts/Editor/TestHubWindow.cs"), "体检里有出口进度");
+        StringAssert.Contains("旧版本", string.Join(" ", r.lines), "没有版本号的旧局要说明");
+        Assert.AreEqual("Banana", Step1PlaytestLog.PrankKindOfCombo("slip")); Assert.AreEqual("Spring", Step1PlaytestLog.PrankKindOfCombo("launch"));
+        Assert.AreEqual("", Step1PlaytestLog.PrankKindOfCombo("hurt"), "受伤由机关归因，不重复记");
+        string log = System.IO.File.ReadAllText("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs");
+        StringAssert.Contains("combo.ComboRegistered += HandleCombo", log);
+        StringAssert.Contains("if (OverworldSession.Active || Step1QuickTest.On) { roundMode", log, "小镇房间 / 快速测试也要记一行");
+        var town = Step1ExitReport.Parse(Step1PlaytestLog.CsvHeader + "\n" + Step1PlaytestLog.CsvRow(new System.DateTime(2026, 10, 2), 1, "Mario", "x", 30f, 3, 0, 1, 0, new Dictionary<string, int> { { "Banana", 1 } }, null, 0, 0, 0, 0, "Rush", 24, "town"));
+        Assert.AreEqual(1, town.Count); Assert.AreEqual("town", town[0].mode); Assert.AreEqual(24, town[0].version); Assert.IsNull(town[0].calculated, "没答问卷 = 空，不当成「否」");
     }
 }

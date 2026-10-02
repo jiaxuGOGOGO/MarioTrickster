@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 226（自我对照审计 docs/step1/S226_SELF_AUDIT_AND_DEFERRED.md：房间马里奥统计门槛补上；E5 中招反应前重后轻；E6 交互矩阵；E7 无障碍表 + 游戏速度 roomGameSpeed；E9 看情况的按键条；E10 小镇可见度 + 门 4 山坡泥石流；数值版本 24）。上一版 S225（第二轮全项目调研 + 方案 docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md；按 L/P 失败说原因 Step1FailFeedback；马里奥起疑说原因 SuspicionCause + 分层台词；小心时"这儿坑过我"；卡住救援"哎呀，脚滑了"；sim 房间死区门槛）。上一版 S224（少等待：小镇自动快进 + 预约埋伏 + 房间 Enter 开局；阶段 C：视锥灌注 / 声音圈 / 他差点发现你）。上一版 S223（阶段 B：马里奥中招三段式反应 Assets/Resources/MarioReactions.json + 问卷'笑了吗'）。上一版 S222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
+| **最新 Session** | Session 227（阶段 D 填表自动化 docs/step1/S227_EXIT_REPORT_FROM_YOUR_DATA.md：Step1ExitReport 读试玩 CSV → 体检"第 1 步出口"；小镇房间/快速测试也记一行；香蕉皮/弹簧等算坑法；CSV 加 tuning_version、mode；用户 16 局旧数据：连玩 2/20、坑法 2/3 → 未到出口、不按旧数据调数值）。上一版 S226（自我对照审计 docs/step1/S226_SELF_AUDIT_AND_DEFERRED.md：房间马里奥统计门槛补上；E5 中招反应前重后轻；E6 交互矩阵；E7 无障碍表 + 游戏速度 roomGameSpeed；E9 看情况的按键条；E10 小镇可见度 + 门 4 山坡泥石流；数值版本 24）。上一版 S225（第二轮全项目调研 + 方案 docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md；按 L/P 失败说原因 Step1FailFeedback；马里奥起疑说原因 SuspicionCause + 分层台词；小心时"这儿坑过我"；卡住救援"哎呀，脚滑了"；sim 房间死区门槛）。上一版 S224（少等待：小镇自动快进 + 预约埋伏 + 房间 Enter 开局；阶段 C：视锥灌注 / 声音圈 / 他差点发现你）。上一版 S223（阶段 B：马里奥中招三段式反应 Assets/Resources/MarioReactions.json + 问卷'笑了吗'）。上一版 S222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,15 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S227] 用户："继续执行任务"
+
+- 剩余只有"要真人数据"的项 → 用户上传过的 fb.zip（16 局 09-26–27，已存 `docs/step1/data/step1_rounds_0926-0927.csv`）。
+- `Step1ExitReport`（纯逻辑，进 sim）：按列位置读新旧 CSV、去重、连玩判定（间隔 ≤30 分钟）、Wilson 区间、按各阶段证伪规则给下一步；TestHubWindow 体检加"第 1 步出口"，打包带上 step1_rounds*.csv。
+- 补漏记：`Step1PlaytestLog` 小镇房间 / 快速测试照样记一行（不弹问卷，mode=town/quick）；`PrankKindOfCombo` 连招种类算坑法；CSV 加 tuning_version、mode。
+- 用户数据：连玩最多 2 局、坑法 2 种（Cannon、Escape）、马里奥赢 14/16；全是旧版本 → 不调数值（理由见文档 §2）。
+- sim S227 门槛（真实 CSV + 造的达标/断开数据 + 表头一致；反向删列报红）；EditMode +1，旧 3 处断言同步。
+- 下一步：用户用新版本玩 5 局后点体检；有新 CSV 再按体检建议改（一次一个变量）。
 
 ### [S226] 用户："因为之前的任务存在我测试才执行的而忽略的 自我对照项目检查是否存在很多遗漏内容 不考虑我测试补充建议需要添加升级的所有内容 并继续完成本次任务还没完成的"
 

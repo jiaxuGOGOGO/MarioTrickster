@@ -60,3 +60,6 @@
 ## S225 "按了没反应"
 - 第 1 步房间关掉了旧界面（GlobalGameUICanvas/GameUI），它们原来接收 `TricksterController.OnAbilityFailed` / `DisguiseSystem.OnDisguiseFailed`。现在由 `Step1FailFeedback` 接收并 `Step1Hint.Show(Step1Text.AbilityFailZh(...))`。
 - 用户说"按 X 没反应"：先看该键的失败分支有没有 Hint；新失败原因必须在 `AbilityFailZh` 加一行（sim 会从 GetAbilityFailReason 源码抽取逐条检查）。
+
+## S227 反馈包里的 step1_rounds*.csv
+- 用 `Step1ExitReport.ParseAll` 读（按列位置，新旧表头都行）；把文件放进 `repo/docs/step1/data/` 后 sim 会跑出口报告。`tuning_version` 为 0 = S227 以前的旧版本局 → 只作参考，不据此调数值。`stuck_rescues` 很大 + 150 秒超时 = 卡住类 bug，先要 F8 截图定位。

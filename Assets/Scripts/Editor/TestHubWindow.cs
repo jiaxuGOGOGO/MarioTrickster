@@ -137,6 +137,10 @@ public sealed class TestHubWindow : EditorWindow
             string cur = OverworldBuilder.CurrentText;
             sb.AppendLine(OverworldBuilder.IsStale(cur) ? "· 小镇场景需要重建（点 ▶ 试玩小镇会自动做，不用管）" : "· 小镇场景已是最新");
 
+            sb.AppendLine("\n## 第 1 步出口（从你的试玩记录自动算）");
+            sb.Append(Step1ExitReport.Markdown(Step1ExitReport.ParseAll(Directory.Exists(LogsRoot)
+                ? Directory.GetFiles(LogsRoot, "step1_rounds*.csv").Select(File.ReadAllText) : new string[0])));
+
             sb.AppendLine("\n## 上次测试");
             if (File.Exists(TestReportRunner.LastReportFile))
             {
@@ -169,7 +173,7 @@ public sealed class TestHubWindow : EditorWindow
             void Copy(string src, string name) { if (File.Exists(src)) File.Copy(src, Path.Combine(stage, name), true); }
             Copy(HealthPath, "HealthCheck.md");
             Copy(TestReportRunner.LastReportFile, "TestReport.txt");
-            Copy(Path.Combine(LogsRoot, Step1PlaytestLog.LogFile), Step1PlaytestLog.LogFile);
+            if (Directory.Exists(LogsRoot)) foreach (var f in Directory.GetFiles(LogsRoot, "step1_rounds*.csv")) Copy(f, Path.GetFileName(f)); // S227：留档的旧记录也带上
             if (Directory.Exists(Step1Feedback.Root)) foreach (var f in Directory.GetFiles(Step1Feedback.Root)) Copy(f, Path.GetFileName(f));
             string zip = Path.Combine(LogsRoot, $"反馈包_{System.DateTime.Now:MMdd_HHmm}.zip");
             if (File.Exists(zip)) File.Delete(zip);

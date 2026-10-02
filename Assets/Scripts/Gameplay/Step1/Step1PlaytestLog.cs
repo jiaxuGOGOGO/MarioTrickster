@@ -59,6 +59,7 @@ public class Step1PlaytestLog : MonoBehaviour
     private string lastWinner = "";
     private bool savedThisRound;
     private string lastReason = "";
+    private string roundMode = "room";
     /// <summary>S224：这局他起疑过几次、最险一次到多少（问卷"差点被发现"题下面给参考）。</summary>
     private readonly NearMissLog roomNear = new NearMissLog();
 
@@ -88,6 +89,7 @@ public class Step1PlaytestLog : MonoBehaviour
         var figure = FindObjectOfType<TricksterController>();
         abilities = figure != null ? figure.AbilitySystem : null;
         if (abilities != null) abilities.OnPropActivated += HandleProp;
+        if (combo != null) combo.ComboRegistered += HandleCombo;
         if (driver != null)
         {
             driver.Hurt += HandleHurt;
@@ -103,6 +105,7 @@ public class Step1PlaytestLog : MonoBehaviour
     private void OnDestroy()
     {
         if (abilities != null) abilities.OnPropActivated -= HandleProp;
+        if (combo != null) combo.ComboRegistered -= HandleCombo;
         if (driver != null) { driver.Hurt -= HandleHurt; driver.Caught -= HandleCaught; if (driver.Mind != null) driver.Mind.StateChanged -= HandleState; }
         if (manager != null) { manager.OnRoundStart -= BeginRound; manager.OnGameOver -= HandleGameOver; }
         GameManager.BlockRoundOverKeys = null;
@@ -112,7 +115,7 @@ public class Step1PlaytestLog : MonoBehaviour
     private void BeginRound()
     {
         roundPranks.Clear(); roundOmens = roundAlerts = roundCaught = 0;
-        chaseOpen = false; awaitingRating = false; savedThisRound = false; survey = null; IsTyping = false; noteDraft = ""; lastPropKind = ""; lastPropTime = -999f;
+        chaseOpen = false; awaitingRating = false; savedThisRound = false; survey = null; IsTyping = false; noteDraft = ""; lastPropKind = ""; lastPropTime = -999f; lastComboCount = -999f;
         roomNear.Clear();
     }
 
@@ -122,6 +125,34 @@ public class Step1PlaytestLog : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(lastPropKind) && Time.time - lastPropTime <= tuning.prankAttributionSeconds)
         { Count(lastPropKind); lastPropKind = ""; }
+    }
+
+    /// <summary>
+    /// S227：以前"坑法"只认 会伤人的机关（火/挡板/塌桥/大炮）+ 甩掉追捕；香蕉皮、弹簧、裂缝、铁笼、绊线、绳套、掉坑、挡停
+    /// 都算"坑到"（连招计数里有），却进不了第 1 步出口的"≥3 种坑法"。这里把连招的种类也记进去（hurt 已由机关归因，不重复）。
+    /// </summary>
+    public static string PrankKindOfCombo(string comboKind)
+    {
+        switch (comboKind)
+        {
+            case "slip": return "Banana";
+            case "launch": return "Spring";
+            case "drop": return "CrackFloor";
+            case "cage": return "Cage";
+            case "trip": return "Tripwire";
+            case "snare": return "Snare";
+            case "pit": return "Pit";
+            case "stop": return "Blocker";
+            default: return ""; // hurt 由 HandleHurt 按机关归因
+        }
+    }
+
+    private float lastComboCount = -999f;
+    private void HandleCombo(int n, string kind)
+    {
+        string k = PrankKindOfCombo(kind);
+        if (k.Length == 0 || Time.time - lastComboCount < 0.25f) return; // 同一下（掉坑 + 裂缝）只算一次
+        lastComboCount = Time.time; Count(k);
     }
 
     private void HandleCaught() { roundCaught++; chaseOpen = false; roomNear.Caught(RoundClock, ""); }
@@ -152,9 +183,10 @@ public class Step1PlaytestLog : MonoBehaviour
         // 自动无干预检查（H10）时没人答题，由 Step1HandsOffCheck 记录。
         if (Step1HandsOffCheck.IsRunning) return;
         // S210：大地图一天里的房间不弹问卷（打完直接回小镇；问卷在单独试玩房间时照旧）
-        if (OverworldSession.Active) return;
         // S217：快速测试模式不弹 5 道问卷（结算直接按 R / N）；反馈改用 F8 随手记
-        if (Step1QuickTest.On) return;
+        // S227：这两种以前连一行都不记 → 第 1 步出口的局数/坑法一直停在 09-27。现在照样记一行（问卷列留空），不弹任何东西。
+        if (OverworldSession.Active || Step1QuickTest.On) { roundMode = OverworldSession.Active ? "town" : "quick"; WriteRow(null); return; }
+        roundMode = "room";
         awaitingRating = true;
         survey = new Step1RoundSurvey(CaughtThisRound > 0);
         noteDraft = "";
@@ -184,10 +216,10 @@ public class Step1PlaytestLog : MonoBehaviour
     }
 
     public static string CsvHeader => "timestamp,round,winner,reason,seconds,trickster_lives_left,times_caught,omens,alerts,pranks,distinct_kinds," +
-        "calculated_moment,near_miss_moment,caught_verdict,want_again_1to5,note,max_combo,layout_seed,stuck_rescues,combo_score,personality,laughed";
+        "calculated_moment,near_miss_moment,caught_verdict,want_again_1to5,note,max_combo,layout_seed,stuck_rescues,combo_score,personality,laughed,tuning_version,mode"; // S227：加了 tuning_version（旧局另列，不混进结论）
 
     public static string CsvRow(DateTime time, int round, string winner, string reason, float seconds, int livesLeft,
-        int caught, int omens, int alerts, IReadOnlyDictionary<string, int> pranks, Step1RoundSurvey answers, int maxCombo = 0, int layoutSeed = 0, int stuckRescues = 0, int comboScore = 0, string personality = "")
+        int caught, int omens, int alerts, IReadOnlyDictionary<string, int> pranks, Step1RoundSurvey answers, int maxCombo = 0, int layoutSeed = 0, int stuckRescues = 0, int comboScore = 0, string personality = "", int tuningVersion = 0, string mode = "")
     {
         var parts = new List<string>();
         foreach (var kv in pranks) parts.Add(kv.Key + ":" + kv.Value);
@@ -196,7 +228,7 @@ public class Step1PlaytestLog : MonoBehaviour
             seconds.ToString("F1", System.Globalization.CultureInfo.InvariantCulture), livesLeft, caught, omens, alerts,
             string.Join(" ", parts), pranks.Count,
             Step1RoundSurvey.YesNo(answers?.Calculated), Step1RoundSurvey.YesNo(answers?.NearMiss), Clean(answers?.CaughtVerdict),
-            answers != null ? answers.WantAgain : 0, Clean(answers?.Note), maxCombo, layoutSeed, stuckRescues, comboScore, Clean(personality), Step1RoundSurvey.YesNo(answers?.Laughed));
+            answers != null ? answers.WantAgain : 0, Clean(answers?.Note), maxCombo, layoutSeed, stuckRescues, comboScore, Clean(personality), Step1RoundSurvey.YesNo(answers?.Laughed), tuningVersion, Clean(mode));
     }
 
     private static string Clean(string s) => (s ?? "").Replace(",", ";").Replace("\n", " ").Replace("\r", " ");
@@ -220,7 +252,7 @@ public class Step1PlaytestLog : MonoBehaviour
             if (fresh) sb.AppendLine(CsvHeader);
             sb.AppendLine(CsvRow(DateTime.Now, manager != null ? manager.CurrentRound : 0, lastWinner,
                 manager != null ? manager.LastRoundReason : "", manager != null ? manager.RoundElapsed : 0f,
-                lives != null ? lives.Lives : 0, CaughtThisRound, roundOmens, roundAlerts, roundPranks, answers, combo != null ? combo.MaxThisRound : 0, layout != null ? layout.LastSeed : 0, rescue != null ? rescue.RescuesThisRound : 0, combo != null ? combo.ScoreThisRound : 0, driver != null ? driver.Mind.Personality.ToString() : ""));
+                lives != null ? lives.Lives : 0, CaughtThisRound, roundOmens, roundAlerts, roundPranks, answers, combo != null ? combo.MaxThisRound : 0, layout != null ? layout.LastSeed : 0, rescue != null ? rescue.RescuesThisRound : 0, combo != null ? combo.ScoreThisRound : 0, driver != null ? driver.Mind.Personality.ToString() : "", tuning != null ? tuning.dataVersion : 0, roundMode));
             File.AppendAllText(path, sb.ToString());
             roundsLogged++;
             Debug.Log($"[Step1PlaytestLog] Round logged ({roundsLogged}) -> {path}");

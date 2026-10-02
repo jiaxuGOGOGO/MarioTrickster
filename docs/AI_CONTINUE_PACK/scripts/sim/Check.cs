@@ -646,6 +646,26 @@ static class CHECK {
     if(!t.contextKeyBar||Math.Abs(t.roomGameSpeed-1f)>1e-4||MarioMindTuningSO.ClampRoomSpeed(0.2f)!=0.5f||MarioMindTuningSO.ClampRoomSpeed(3f)!=1f){ eb++; Console.WriteLine("     [FAIL] 默认值：按键条应开、游戏速度应 1，速度限制在 0.5~1"); }
     else parts.Add("游戏速度默认 1（不改手感），可调 0.5~1");
     Console.WriteLine($"[{(eb==0?"OK":"FAIL")}] S226 打击感 + 按键条 + 游戏速度：{string.Join("｜",parts)}"); fail+=eb; }
+  // S227 阶段 D 填表：用你真实的试玩记录（docs/step1/data/*.csv）跑出口报告
+  { int db=0; var parts=new List<string>();
+    var hdr=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs")),"CsvHeader => \"([^\"]*)\" \\+\\s*\"([^\"]*)\"");
+    string header=hdr.Groups[1].Value+hdr.Groups[2].Value;
+    if(!hdr.Success||header!=string.Join(",",Step1ExitReport.Columns)){ db++; Console.WriteLine($"     [FAIL] CSV 表头和 Step1ExitReport.Columns 不一致：{header}"); }
+    var files=Directory.GetFiles(WsRepo("docs/step1/data"),"step1_rounds*.csv"); var rs=Step1ExitReport.ParseAll(files.Select(File.ReadAllText));
+    int lines=files.Sum(f=>File.ReadAllLines(f).Count(l=>l.Length>0&&!l.StartsWith("timestamp")));
+    var r=Step1ExitReport.Analyze(rs);
+    if(rs.Count!=lines||rs.Count<16){ db++; Console.WriteLine($"     [FAIL] 读到 {rs.Count} 局（文件里 {lines} 行）"); }
+    if(r.exitMet||r.sessionRounds>=20||!r.lines.Any(l=>l.Contains("旧版本"))||!r.next.Any(x=>x.Contains("只改呈现"))||!r.lines.Any(l=>l.Contains("移动太快"))){ db++; Console.WriteLine("     [FAIL] 出口报告结论不对："+string.Join(" / ",r.lines.Concat(r.next))); }
+    var w=Step1ExitReport.Wilson(5,5); if(Math.Abs(w.lo-0.566)>0.01){ db++; Console.WriteLine($"     [FAIL] Wilson(5,5) 下限 {w.lo:0.000}，应 ≈0.566"); }
+    var dup=Step1ExitReport.ParseAll(files.Select(File.ReadAllText).Concat(files.Select(File.ReadAllText))); if(dup.Count!=rs.Count){ db++; Console.WriteLine("     [FAIL] 重复文件没去重"); }
+    if(Step1ExitReport.Analyze(rs,24).rounds!=0){ db++; Console.WriteLine("     [FAIL] 旧版本（没有 tuning_version）的局混进了新版本结论"); }
+    // 反向：造 20 局连玩、想再来 4、3 种坑法 → 必须判达到
+    var fake=Enumerable.Range(0,20).Select(i=>new Step1ExitReport.Round{time=new DateTime(2026,10,1,20,0,0).AddMinutes(i*2),winner=i%2==0?"Mario":"Trickster",reason="x",seconds=40,wantAgain=4,calculated=true,nearMiss=true,laughed=true,kinds=new List<string>{new[]{"Fire","Collapse","Escape"}[i%3]}}).ToList();
+    if(!Step1ExitReport.Analyze(fake).exitMet){ db++; Console.WriteLine("     [FAIL] 造的 20 局达标数据没判达到"); }
+    fake[19].time=fake[19].time.AddHours(5); if(Step1ExitReport.Analyze(fake).exitMet){ db++; Console.WriteLine("     [FAIL] 中间断了 5 小时也算连玩"); }
+    if(db==0) parts.Add($"你的 {rs.Count} 局：连玩最多 {Step1ExitReport.Analyze(rs).sessionRounds} 局、坑法 {r.kinds} 种、最后 5 局想再来 {r.wantLast5:0.0} → 未到出口；建议 {r.next.Count} 条、可疑局 {r.bugs.Count} 个｜造的达标数据判达到，断开 5 小时判没到｜表头一致");
+    Console.WriteLine($"[{(db==0?"OK":"FAIL")}] S227 第 1 步出口报告：{string.Join("｜",parts)}"); fail+=db;
+    File.WriteAllText("/tmp/opencode/exit_report.md", Step1ExitReport.Markdown(rs)); }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

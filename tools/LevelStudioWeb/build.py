@@ -66,6 +66,23 @@ room_names = [re.search(r'DefaultRoomName = "([^"]+)"', wm).group(1)] + re.finda
 sample_room = {n: names.get(f, f) for n, f in re.findall(r'\("([^"]+)", (\w+Sample)\)', wm)}
 sample_room[room_names[0]] = '默认恶作剧房间'
 data = 'const OW_TILES=' + json.dumps(ow_tiles, ensure_ascii=False, separators=(',', ':')) + ';\nconst OW_SAMPLE=' + json.dumps(ow_sample, ensure_ascii=False) + ';\nconst OW_BIG_SAMPLE=' + json.dumps(ow_big, ensure_ascii=False) + ';\nconst OW_MTN_SAMPLE=' + json.dumps(ow_mtn, ensure_ascii=False) + ';\nconst OW_STORM_SAMPLE=' + json.dumps(ow_storm, ensure_ascii=False) + ';\nconst OW_HARM=' + json.dumps(ow_harm, ensure_ascii=False) + ';\nconst OW_ART=' + json.dumps(ow_art, separators=(',', ':')) + ';\nconst OW_ROOMS=' + json.dumps(sample_room, ensure_ascii=False, separators=(',', ':')) + ';\n'
+# S232：小镇居民台词表（Assets/Resources/TownStories.json，和 Unity 读同一个文件）+ 调参默认值（MarioMindTuningSO.cs，网页只读、不另存一份）
+stories = json.load(open(os.path.join(HERE, '..', '..', 'Assets', 'Resources', 'TownStories.json'), encoding='utf-8'))['lines']
+for l in stories:
+    l.setdefault('needs', []); l.setdefault('once', False); l.setdefault('coolDays', 3); l.setdefault('tier', 2); l.setdefault('tone', 'comic'); l.setdefault('who', 'door'); l.setdefault('when', 'back')
+tsrc = rd('Gameplay/Step1/MarioMindTuningSO.cs'); tun = {}
+for m in re.finditer(r'(?:\[Tooltip\("((?:[^"\\]|\\.)*)"\)\]\s*)?(?:\[Range\(([-\d.f]+), ([-\d.f]+)\)\]\s*)?public (float|int|bool) (\w+) = ([^;]+);', tsrc):
+    tip, lo, hi, ty, name, val = m.groups(); val = val.strip().rstrip('f')
+    try: v = (val == 'true') if ty == 'bool' else (int(val) if ty == 'int' else float(val))
+    except ValueError: continue
+    e = {'t': ty, 'v': v}
+    if tip: e['tip'] = tip
+    if lo is not None: e['min'] = float(lo.rstrip('f')); e['max'] = float(hi.rstrip('f'))
+    tun[name] = e
+ta = rd('Gameplay/Step1/TuningAudit.cs'); ti = ta.index('public static readonly string[] Rules ='); tj = ta.index('};', ti)
+tu_rules = [x.encode('utf-8').decode('unicode_escape').encode('latin-1').decode('utf-8') for x in re.findall(r'"((?:[^"\\]|\\.)*)",', ta[ti:tj])]
+data += 'const TUNING_RULES=' + json.dumps(tu_rules, ensure_ascii=False) + ';\n'
+data += 'const TS_STORIES=' + json.dumps(stories, ensure_ascii=False, separators=(',', ':')) + ';\nconst TUNING=' + json.dumps(tun, ensure_ascii=False, separators=(',', ':')) + ';\n'
 data += 'const ELEMENTS=' + json.dumps(els, ensure_ascii=False, separators=(',', ':')) + ';\nconst SAMPLES=' + json.dumps(samples, ensure_ascii=False, separators=(',', ':')) + ';\n'
 logic = open(os.path.join(HERE, 'logic.js'), encoding='utf-8').read()
 logic = re.sub(r"if \(typeof module[^\n]*\n?", '', logic)
@@ -73,4 +90,4 @@ html = open(os.path.join(HERE, 'shell.html'), encoding='utf-8').read()
 ow = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'overworld.js'), encoding='utf-8').read())
 html = html.replace('/*DATA*/', data).replace('/*LOGIC*/', logic + '\n' + ow).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read())
 open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(html)
-print(f'index.html: {len(els)} 个元素, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(ow_harm)} 条伤害说明, {len(ow_icons)} 个像素图标, {len(html)//1024} KB')
+print(f'index.html: {len(stories)} 句居民台词, {len(tun)} 个调参值, {len(els)} 个元素, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(ow_harm)} 条伤害说明, {len(ow_icons)} 个像素图标, {len(html)//1024} KB')

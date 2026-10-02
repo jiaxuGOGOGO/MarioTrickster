@@ -89,5 +89,16 @@ for(let z=0;z<m.storms.length;z++)for(let v=0;v<12;v++)o.push('V '+z+' '+v+' '+X
 for(const mm of [360,399.9,400,455.5,800])for(let z=0;z<2;z++)o.push('I '+mm+' '+z+' '+X.owStormVolleyIndex(mm,z));
 o.push('T '+X.owToText(m).split('\n').join('/'));for(let d=1;d<=20;d++){const w=X.owDayOfMap(m,d);o.push('W '+d+' '+w.kind);}
 fs.writeFileSync('$WS/sim/ow_storm.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_storm.json"
+# S232：网页 居民台词彩排 / 道具箱洗牌袋 / 数值关系 / 住户文本，交给 C# TownStory / OverworldPickupBag / TuningAudit 逐字对照
+command -v node >/dev/null && (cd "$WS/repo/tools/LevelStudioWeb" && node -e "
+const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html','utf8');
+const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ── 状态'))+';this.X={RULES,OW,tuAudit,tsRehearse,tsRehearsalSummary,tsCoverage,TS_STORIES,owParse,owToText,owToJson,owFromJson,owParseResident,OW_SAMPLE,OW_BIG_SAMPLE,OW_MTN_SAMPLE,owBagPreview};',c);const X=c.X;const o=[];
+for(const s of [X.OW_SAMPLE,X.OW_BIG_SAMPLE,X.OW_MTN_SAMPLE]){const m=X.owParse(s);const r=X.tsRehearse(m,X.TS_STORIES,21);o.push('R '+X.tsRehearsalSummary(r,21));for(const l of r.lines)o.push('L '+l);for(const l of X.owBagPreview(m,1,12))o.push('B '+l);}
+for(const l of X.tsCoverage(X.TS_STORIES))o.push('C '+l);for(const r of X.tuAudit())o.push('T '+(r.ok?'ok':'bad')+' '+r.rule+' '+r.detail);
+o.push('S '+X.RULES.RunSpeed+' '+X.RULES.StartDelay+' '+X.OW.Rules.marioSpeed+' '+X.OW.Rules.tricksterSpeed+' '+X.OW.Rules.minutesPerSecond+' '+X.OW.Rules.visitMinutes);
+const m=X.owParse(X.OW_SAMPLE);m.residents.push(X.owParseResident(' 3 | 王|阿姨 | painter'),X.owParseResident('1|阿梅'));m.residents=m.residents.filter(Boolean);
+o.push('X '+X.owToText(X.owFromJson(JSON.parse(JSON.stringify(X.owToJson(m))))).split('\n').filter(l=>l.startsWith('# Resident')).join('/'));
+fs.writeFileSync('$WS/sim/ow_story.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_story.json"
 (cd "$WS/sim" && rm -rf obj bin && dotnet build -c Release -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error " | head -10; dotnet bin/Release/net8.0/sim.dll) || ok=0
 [ $ok = 1 ] && echo "VERIFY ALL GREEN（提醒：Unity 里的 EditMode 测试仍需用户跑）" || { echo "VERIFY FAILED"; exit 1; }

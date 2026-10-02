@@ -48,7 +48,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
     }
 
     private void Snapshot() { redo.Clear(); undo.Push(OverworldMap.ToText(map)); if (undo.Count > 60) { var a = undo.ToArray().Take(60).Reverse(); undo.Clear(); foreach (var s in a) undo.Push(s); } }
-    private void Recheck() { pendingRecheck = false; SyncDoors(); report = OverworldMap.Check(map, OverworldBuilder.RulesFromTuning(), OverworldBuilder.RoomProblem); string t = OverworldMap.ToText(map); scenesStale = OverworldBuilder.IsStale(t); SessionState.SetString(DraftKey, t); mapVersion++; Repaint(); }
+    private void Recheck() { pendingRecheck = false; storyC = null; SyncDoors(); report = OverworldMap.Check(map, OverworldBuilder.RulesFromTuning(), OverworldBuilder.RoomProblem); string t = OverworldMap.ToText(map); scenesStale = OverworldBuilder.IsStale(t); SessionState.SetString(DraftKey, t); mapVersion++; Repaint(); }
 
     // ═════ S220：防卡——画一格只改格子 + 重画；检查（读房间、验变体、算路线）等鼠标松开或停 0.12 秒再做 ═════
     // 以前：每拖过一格就把整张小镇检查一遍 + 读盘 → "拖半天没反应，然后突然拖下来"。
@@ -524,6 +524,41 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         }
     }
 
+    // ═════════ S232：住户与故事（TownStory；和网页"住户与故事"同一套）═════════
+    private bool storyOpen = true; private List<string> storyC;
+    private void ResidentPanel()
+    {
+        EditorGUILayout.Space();
+        storyOpen = EditorGUILayout.Foldout(storyOpen, "🏠 住户与故事（打完那一户，回到小镇时他说一句；常来往才说真心话）", true, EditorStyles.foldoutHeader);
+        if (!storyOpen) return;
+        var traitsZh = TownStory.Traits.Select(TownStory.TraitZh).ToArray();
+        foreach (var d in map.doors)
+        {
+            var r = TownStory.ResidentOf(map, d.n); bool own = map.residents.Any(x => x.door == d.n);
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("门 " + d.n, GUILayout.Width(40));
+            var oldC = GUI.color; if (!own) GUI.color = new Color(1, 1, 1, 0.7f);
+            string nm = EditorGUILayout.DelayedTextField(r.name);
+            GUI.color = oldC;
+            int ti = EditorGUILayout.Popup(System.Array.IndexOf(TownStory.Traits, r.trait), traitsZh, GUILayout.Width(80));
+            EditorGUILayout.EndHorizontal();
+            string nt = ti >= 0 ? TownStory.Traits[ti] : r.trait;
+            if (nm.Trim().Length > 0 && (nm.Trim() != r.name || nt != r.trait))
+            {
+                Snapshot(); map.residents.RemoveAll(x => x.door == d.n); map.residents.Add(new OverworldMap.Resident { door = d.n, name = nm.Trim().Replace("|", "/"), trait = nt });
+                map.residents.Sort((a, b) => a.door.CompareTo(b.door)); Recheck();
+            }
+        }
+        if (storyC == null) // S220 防卡规则：不在 OnGUI 里每帧做全图计算 —— 只在 Recheck（改了地图）之后重算一次
+        {
+            storyC = new List<string> { TownStory.RehearsalSummary(TownStory.Rehearse(map, TownStory.Table, 14), 14) };
+            storyC.AddRange(TownStory.Coverage(TownStory.Table)); storyC.AddRange(OverworldPickupBag.Preview(map, 1, 7));
+        }
+        foreach (var l in storyC) EditorGUILayout.LabelField(l, EditorStyles.wordWrappedMiniLabel);
+        if (GUILayout.Button(new GUIContent("改台词…", "打开 Assets/Resources/TownStories.json（文本文件，直接改中文 / 英文 / 条件）。网页设计台重建后也会用新台词"), EditorStyles.miniButton))
+        { var a = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Resources/" + TownStory.ResourceName + ".json"); if (a != null) AssetDatabase.OpenAsset(a); }
+    }
+
     private void PropsPanel()
     {
         EditorGUILayout.Space();
@@ -668,6 +703,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
             EditorGUILayout.EndHorizontal();
         }
         if (map.doors.Count == 0) EditorGUILayout.HelpBox("在画布上用 1–9 画门（画在房子最下面一排的下方一格）。", MessageType.Info);
+        ResidentPanel();
 
         StormPanel();
         LedgerPanel();

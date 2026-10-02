@@ -63,7 +63,7 @@ public static class OverworldSession
 
     /// <summary>每次进入 Play 都重置（Unity 关了域重载时静态值会留着）。</summary>
     [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
-    public static void ResetStatics() { Active = false; MarioWary.Clear(); NewDay("", ""); }
+    public static void ResetStatics() { Active = false; MarioWary.Clear(); NewDay("", ""); TownStory.Reset(); TownStory.PendingDoor = 0; } // S232：居民的记忆跨天保留，重新进 Play 才清空
 
     /// <summary>S224：今天他差点发现你的时刻（一天结束列最接近的 3 次）。</summary>
     public static readonly NearMissLog NearMiss = new NearMissLog();
@@ -84,6 +84,7 @@ public static class OverworldSession
         PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f; CarriedDaze = 0f;
         MarioHearts = YouHearts = MaxHearts; // S220：房间打完两人都回满心（房间里有自己的血量）
         if (playerWon) ReloadDoor = door; // S218：守住一户 → 回到小镇时那户旁边的大机关重新装填
+        TownStory.Record(door, Results[door]); // S232：这户人家记下这次来往（回到小镇时说一句）
     }
 
     /// <summary>S228：房间里你的炮打中过他 → 记下这扇门，回到小镇时他从这扇门被轰出来。</summary>
@@ -101,7 +102,7 @@ public static class OverworldSession
             Reactions.Count, ReactionMedian().ToString("0.00", inv), tuningVersion);
     }
 
-    public static void RecordMissed(int door) { if (door > 0) Results[door] = DoorResult.Missed; }
+    public static void RecordMissed(int door) { if (door > 0) { Results[door] = DoorResult.Missed; TownStory.Record(door, DoorResult.Missed); } }
 
     public static DoorResult ResultOf(int door) => Results.TryGetValue(door, out var r) ? r : DoorResult.NotYet;
 

@@ -1,5 +1,7 @@
 // ── 纯逻辑（与项目 C# 同规则的网页移植；最终以 Unity / 沙盒体检为准）──
 const RULES = { L2Up: 2, L2Side: 5, L2Fall: 30, JumpUp: 2, JumpSide: 4, JumpUpSide: 2, MaxFall: 30, SpringHeadroom: 4, MuzzleClear: 3, MaxPool: 3, RunSpeed: 4.95, StartDelay: 4 };
+// S232：跑速 / 开局等待从 Unity 调参默认值来（build.py 读 MarioMindTuningSO.cs → TUNING），不再在网页里另写一份
+if (typeof TUNING !== 'undefined') { RULES.RunSpeed = Math.round(9 * TUNING.marioSpeedScale.v * 100) / 100; RULES.StartDelay = TUNING.startDelaySeconds.v; }
 const SLOT_CHARS = { '1': 'cb', '2': 'b.', '3': '~.' };
 const OPENERS = 'Cx|%';
 

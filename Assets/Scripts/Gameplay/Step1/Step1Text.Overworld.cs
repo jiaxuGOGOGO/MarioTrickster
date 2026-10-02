@@ -120,6 +120,10 @@ public static partial class Step1Text
     public static string OverworldWeatherShort(int day, int kind) => $"D{day} " + (kind == 1 ? "🌬" : kind == 2 ? "🌧" : kind == 3 ? "🌫" : kind == 4 ? "🧺" : kind == 5 ? "⛈" : kind == 6 ? "☂" : "☀");
     public static string OverworldRoomDazed(float s) => $"他在小镇被砸晕了，进来还晕着（多等 {s:0} 秒）\nStill dazed from town";
     public const string OverworldPickup = "捡到炸弹 +1（下一个房间用）\n+1 bomb for next room";
+    // S232：道具箱洗牌袋（早上公布今天每个箱子里是什么）
+    public const string OverworldPickupTaunt = "捡到挑衅 +1（今天多喊一次）\n+1 taunt";
+    public const string OverworldPickupHeart = "捡到补心 +1\n+1 heart";
+    public const string OverworldPickupWasted = "已经满了，这个箱子浪费了（早上的公告里写着里面是什么）\nAlready full — wasted";
     public const string OverworldPeel = "香蕉皮变滑了（3 秒）\nPeel armed (3s)";
     public const string OverworldPeelNo = "附近 3 格内没有能用的香蕉皮\nNo peel within 3";
     public const string OverworldTauntNone = "今天挑衅用完了\nNo taunts left";

@@ -107,3 +107,8 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - 故事：Select the Unexpected https://www.researchgate.net/publication/365929507_Select_the_Unexpected_A_Statistical_Heuristic_for_Story_Sifting ；反面 Chroniqueur https://www.pcgworkshop.com/archive/lessard2026narrative.pdf
 - 美术：https://the-pixel.art/articles/pixel-art-character-design/ ；桜井ダメージモーション YouTube 9DBr7AtVh0c（E8 待用户看画面）
 - 没用上（别再搜）：韩国 슬랩스틱 论文（电视）、腾讯游戏学堂 AI（工具向）、B 站整蛊（视频）、GDC Vault Nemesis（会员墙）。
+
+## S232 第四轮（54 个新来源，全部读过原文；清单在 docs/step1/S232_STORIES_RANDOM_TUNING.md §2）
+- 方向：故事片段 / 动态对白（Emily Short、Ruskin GDC 2012、Hades、Yarn、Weather Factory、Wildermyth）；真诚 NPC（糸井重里 MOTHER、moon、动森、Undertale、Night in the Woods、Goose、洛奇 NDC 韩文）；随机（Burgun、Tetris 7-bag、Dota PRD、XCOM、FE 2RN、法文 GameCodeClub、Spelunky daily、德文 Ludologie）；编辑器 / 世界（BotW 化学引擎、Tiled world、LDtk、SMM2 Super World、LBP logic、Hollow Knight）；调参 / 统计（Schreiber、Luban、网易雷火、StS GDC 2019、Evan Miller 三篇、NN/g、Valve、Cerny）；失败（Radiant AI、FO4 无限任务）。
+- 不再搜：Valve Response System wiki（反爬墙）；Night in the Woods GDC 字幕（空）；PC Gamer Hollow Knight 原文（只有摘要）。
+- 规则落地：选句 = 条件数最多优先 + 冷却 + 真心话 once；真心话 = 小伤口 + 玩笑；输入随机（早上公布）；数值关系表两端同查。

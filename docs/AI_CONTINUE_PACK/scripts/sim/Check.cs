@@ -813,6 +813,78 @@ static class CHECK {
     if(!artOk||!at.Contains("OverworldArt.Audit(f, t.width)")){ qb++; Console.WriteLine($"     [FAIL] 换图自检：内置坏 {badIcons}｜满 {string.Join(",",full)}｜彩虹 {string.Join(",",rainbow)}｜浅 {string.Join(",",pale)}｜怪 {string.Join(",",odd)}"); }
     else parts.Add($"换图自检：内置 {OverworldArt.Icons.Count} 个图标全过；太满 / 颜色太多 / 没描边 / 尺寸不对 / 半透明 都能查出");
     Console.WriteLine($"[{(qb==0?"OK":"FAIL")}] S231 三段オチ + 改版对比 + 最稀罕一招 + 换图自检：{string.Join("｜",parts)}"); fail+=qb; }
+  // S232 居民故事 + 道具箱洗牌袋 + 数值关系 + 住户：C# 和网页逐字一致；真心话要"挣"；不重复；H4 马里奥读不到
+  { int sb2=0; var parts=new List<string>(); var T=TownStory.Default;
+    var jf=WsRepo("Assets/Resources/TownStories.json");
+    if(!File.Exists(jf)||File.ReadAllText(jf).Replace("\r","")!=TownStory.ToJson(T)){ sb2++; Console.WriteLine("     [FAIL] Resources/TownStories.json 和 TownStory.Default 不一致（改了一边没改另一边）"); }
+    var back=TownStory.Parse(TownStory.ToJson(T),out var perr); if(back.Length!=T.Length||perr!=""){ sb2++; Console.WriteLine($"     [FAIL] 台词表往返 {back.Length}/{T.Length} {perr}"); }
+    TownStory.Parse("{\"lines\":[{\"id\":\"a\",\"zh\":\"x\"},{\"id\":\"a\",\"zh\":\"y\"},{\"id\":\"b\",\"zh\":\"z\",\"when\":\"noon\"}]}",out var e1); if(!e1.Contains("重复")&&!e1.Contains("when")){ sb2++; Console.WriteLine("     [FAIL] 台词写错（id 重复 / when 不对）没报出来"); }
+    if(TownStory.Parse("not json",out var e2).Length!=T.Length||e2==""){ sb2++; Console.WriteLine("     [FAIL] 坏 JSON 没回到默认台词"); }
+    foreach(var l in T){ foreach(var n in l.needs) if(!System.Text.RegularExpressions.Regex.IsMatch(n,"^[a-z]+(>=|<=|!=|=)[a-z0-9]+$")){ sb2++; Console.WriteLine($"     [FAIL] {l.id} 条件写法不对：{n}"); }
+      if(l.Sincere&&!l.once){ sb2++; Console.WriteLine($"     [FAIL] {l.id}：真心话必须只说一次（once）"); }
+      if(l.Sincere&&l.who=="door"&&!l.needs.Any(n=>n.StartsWith("visits>=")||n.StartsWith("defended>="))){ sb2++; Console.WriteLine($"     [FAIL] {l.id}：住户的真心话要先来往几次才说"); }
+      if(l.en.Length==0){ sb2++; Console.WriteLine($"     [FAIL] {l.id} 没有英文"); } }
+    foreach(var tr in TownStory.Traits) foreach(var res in new[]{"defended","looted","missed"}) if(!T.Any(l=>l.who=="door"&&l.when=="back"&&!l.Sincere&&l.needs.Contains("trait="+tr)&&l.needs.Contains("result="+res))){ sb2++; Console.WriteLine($"     [FAIL] {TownStory.TraitZh(tr)} 没有'{res}'的专属话"); }
+    // 节奏：一天最多 1 句真心话；真心话之间至少 SincereEvery 句好笑的；早期（第 1–2 天）一句真心话都没有（还没来往够）
+    var mS=OverworldPack.Parse(OverworldPack.SampleText)[0];
+    foreach(var mp in new[]{OverworldPack.SampleText,OverworldPack.BigSampleText,OverworldPack.MountainSampleText}){ var mm=OverworldPack.Parse(mp)[0]; var rh=TownStory.Rehearse(mm,T,30);
+      var perDay=rh.lines.Where(x=>x.Contains("♥")).GroupBy(x=>x.Split(' ')[0]).Where(g=>g.Count()>1).ToList();
+      int gap=99,minGap=99; foreach(var x in rh.lines){ if(x.Contains("♥")){ minGap=Math.Min(minGap,gap); gap=0; } else if(x.Contains("·")) gap++; }
+      if(perDay.Count>0||minGap<TownStory.SincereEvery||rh.lines.Any(x=>(x.StartsWith("第1天")||x.StartsWith("第2天"))&&x.Contains("♥"))||rh.repeats3*50>rh.said||rh.lines.Any(x=>x.EndsWith(" —"))||rh.sincere<6){ sb2++; Console.WriteLine($"     [FAIL] {mm.name} 彩排节奏：一天多句真心 {perDay.Count}｜最小间隔 {minGap}｜3 天内重复 {rh.repeats3}｜没话说 {rh.lines.Count(x=>x.EndsWith(" —"))}｜真心 {rh.sincere}"); } }
+    var r30=TownStory.Rehearse(mS,T,30); parts.Add($"{T.Length} 句台词（6 种住户 × 守住/被偷/没赶上 都有专属话，真心话 {T.Count(l=>l.Sincere)} 段只说一次）｜{TownStory.RehearsalSummary(r30,30)}");
+    // 反向：去掉通用兜底 + 某住户全部 → 会出现"没话说"，覆盖率提醒
+    var thin=T.Where(l=>!l.id.StartsWith("any_")&&!l.id.StartsWith("baker_")).ToArray();
+    if(!TownStory.Coverage(thin).Any(x=>x.Contains("面包师")&&x.Contains("⚠"))||!TownStory.Rehearse(mS,thin,5).lines.Any(x=>x.EndsWith(" —"))){ sb2++; Console.WriteLine("     [FAIL] 反向：删掉面包师的话以后没报覆盖不够 / 彩排没出现空档"); }
+    // 选句规则：条件越多越优先；同 tier 内冷却；once 不重复
+    var mem=new TownStory.Memory(); var f=new Dictionary<string,string>{{"trait","baker"},{"result","looted"},{"looted","2"},{"visits","1"},{"defended","0"},{"weather","clear"},{"door","1"}};
+    var p1=TownStory.Pick(T,TownStory.When.Back,"door",f,mem,5); TownStory.Say(p1,mem,5); var p2=TownStory.Pick(T,TownStory.When.Back,"door",f,mem,6);
+    if(p1==null||p1.id!="baker_loot_2"||p2==null||p2.id=="baker_loot_2"||p2.id.StartsWith("any_")){ sb2++; Console.WriteLine($"     [FAIL] 选句：应先选最具体的 baker_loot_2，第二天换一句专属（{p1?.id} → {p2?.id}）"); }
+    else parts.Add("选句 = 条件最多的优先、说过的冷却 3 天、真心话只说一次（Valve L4D / Hades 规则）");
+    // 网页逐字对照
+    var wj="ow_story.json";
+    if(File.Exists(wj)){ var web=((List<object>)MiniJson.Parse(File.ReadAllText(wj),out _)).Select(x=>(string)x).ToList(); var mine=new List<string>();
+      foreach(var mp in new[]{OverworldPack.SampleText,OverworldPack.BigSampleText,OverworldPack.MountainSampleText}){ var mm=OverworldPack.Parse(mp)[0]; var rh=TownStory.Rehearse(mm,T,21); mine.Add("R "+TownStory.RehearsalSummary(rh,21)); mine.AddRange(rh.lines.Select(x=>"L "+x)); mine.AddRange(OverworldPickupBag.Preview(mm,1,12).Select(x=>"B "+x)); }
+      mine.AddRange(TownStory.Coverage(T).Select(x=>"C "+x)); var tun=MarioMindTuningSO.LoadOrDefault(); mine.AddRange(TuningAudit.Check(tun).Select(r=>"T "+(r.ok?"ok":"bad")+" "+r.rule+" "+r.detail));
+      mine.Add($"S {Math.Round(9*tun.marioSpeedScale*100)/100} {tun.startDelaySeconds} {tun.overworldMarioSpeed} {tun.overworldTricksterSpeed} {tun.overworldMinutesPerSecond} {tun.overworldVisitMinutes}");
+      var mx=OverworldPack.Parse(OverworldPack.SampleText)[0]; foreach(var q in new[]{" 3 | 王|阿姨 | painter","1|阿梅"}){ var rr=OverworldMap.ParseResident(q); if(rr!=null) mx.residents.Add(rr); } mx.residents.Sort((a,b)=>a.door.CompareTo(b.door));
+      var dj=MiniJson.Parse(OverworldMap.ToJson(mx),out _) as Dictionary<string,object>; mine.Add("X "+string.Join("/",OverworldMap.ToText(OverworldMap.FromJson(dj)).Replace("\r","").Split('\n').Where(l=>l.StartsWith("# Resident"))));
+      int diff=0; for(int i=0;i<Math.Max(web.Count,mine.Count);i++){ string a=i<web.Count?web[i]:"(缺)", b=i<mine.Count?mine[i]:"(缺)"; if(a!=b){ if(diff++<3) Console.WriteLine($"     [FAIL] 网页≠C# 第{i}行：\n        网页 {a}\n        C#   {b}"); } }
+      if(diff>0) sb2++; else parts.Add($"网页逐字一致 {mine.Count} 行（彩排 21 天 × 3 张样板图、道具箱 12 天、覆盖率、数值关系、跑速、住户往返）"); }
+    else parts.Add("（没装 node：跳过网页对照）");
+    // 道具箱洗牌袋：第 1 天全是炸弹；每连续一袋（5 个）里每种都有；100 天里炸弹约 40%；同一天永远一样
+    var cnt=new Dictionary<OverworldPickupBag.Kind,int>(); var seq=new List<OverworldPickupBag.Kind>();
+    for(int d=2;d<=101;d++) for(int b=0;b<3;b++){ var k=OverworldPickupBag.Of("星露小镇",d,b,3); seq.Add(k); cnt[k]=cnt.TryGetValue(k,out var c0)?c0+1:1; if(k!=OverworldPickupBag.Of("星露小镇",d,b,3)){ sb2++; } }
+    bool bagOk=Enumerable.Range(0,3).All(b=>OverworldPickupBag.Of("x",1,b,3)==OverworldPickupBag.Kind.Bomb);
+    for(int i=0;i+5<=seq.Count;i+=5){ var g=seq.Skip(i).Take(5).ToList(); if(g.Distinct().Count()!=4||g.Count(k=>k==OverworldPickupBag.Kind.Bomb)!=2) bagOk=false; }
+    double bomb=cnt[OverworldPickupBag.Kind.Bomb]/(double)seq.Count;
+    if(!bagOk||Math.Abs(bomb-0.4)>0.02){ sb2++; Console.WriteLine($"     [FAIL] 洗牌袋：第 1 天/每袋齐全 {bagOk}｜炸弹占 {bomb:P0}"); }
+    else parts.Add($"道具箱洗牌袋：第 1 天全是炸弹、之后每 5 个里 炸弹 2 能量 1 挑衅 1 补心 1（300 个里炸弹 {bomb:P0}）、早上公布");
+    // 道具箱在小镇里真的生效 + 满了提示浪费（上限不变）
+    { OverworldSession.ResetStatics(); var tm=OverworldPack.Parse(OverworldPack.SampleText)[0]; var tun=MarioMindTuningSO.LoadOrDefault(); OverworldSession.NewDay(tm.name,"Town",2); OverworldSession.Active=true;
+      var town=new OverworldTown(tm,tun); var boxes=OverworldMap.Find(tm,'?'); var got=new List<string>();
+      for(int b=0;b<boxes.Count;b++){ town.tx=boxes[b].x+0.5; town.ty=boxes[b].y+0.5; int bb=OverworldSession.BonusBombs, en=OverworldSession.Energy, ta=OverworldSession.TauntsUsed; OverworldSession.YouHearts=2; int hh=2;
+        town.Tick(1f/30f,new OverworldTown.Input()); var k=OverworldPickupBag.Of(tm.name,2,b,boxes.Count);
+        bool ok= k==OverworldPickupBag.Kind.Bomb?OverworldSession.BonusBombs==bb+1: k==OverworldPickupBag.Kind.Energy?OverworldSession.Energy==en+1: k==OverworldPickupBag.Kind.Taunt?OverworldSession.TauntsUsed==ta-1: OverworldSession.YouHearts==hh+1;
+        got.Add(k+(ok?"✓":"✗")); if(!ok) sb2++; }
+      OverworldSession.BonusBombs=OverworldTown.MaxBonusBombs; OverworldSession.NewDay(tm.name,"Town",1); OverworldSession.BonusBombs=OverworldTown.MaxBonusBombs; var t2=new OverworldTown(tm,tun); t2.tx=boxes[0].x+0.5; t2.ty=boxes[0].y+0.5; t2.Tick(1f/30f,new OverworldTown.Input());
+      if(OverworldSession.BonusBombs!=OverworldTown.MaxBonusBombs||t2.hint!=OverworldTown.Note.PickupWasted){ sb2++; Console.WriteLine("     [FAIL] 炸弹满了还能多捡 / 没提示浪费"); }
+      if(sb2==0) parts.Add("小镇里捡到 "+string.Join(" ",got)+"；满了 = 提示浪费、上限不变");
+      // 接线：房间打完 → 那户人家记下来，回小镇说一句
+      OverworldSession.ResetStatics(); OverworldSession.NewDay(tm.name,"Town",1); OverworldSession.RecordRoom(2,true); OverworldSession.RecordMissed(3);
+      if(TownStory.Mem.Get(TownStory.Mem.visits,2)!=1||TownStory.Mem.Get(TownStory.Mem.defended,2)!=1||TownStory.Mem.Get(TownStory.Mem.missed,3)!=1||TownStory.PendingDoor!=3){ sb2++; Console.WriteLine("     [FAIL] 房间结果没记进居民记忆"); }
+      string say=TownStory.Next(tm,TownStory.When.Back,3,OverworldEvents.Of(tm,1),4,out bool sin); if(!say.Contains("小豆")||sin||TownStory.PendingDoor!=0){ sb2++; Console.WriteLine($"     [FAIL] 回小镇那户人家没说话：{say}"); }
+      OverworldSession.ResetStatics(); if(TownStory.Mem.visits.Count!=0){ sb2++; Console.WriteLine("     [FAIL] 重新进 Play 没清空居民记忆"); } }
+    // 数值关系：默认全对；反向：追你比你快 → 报出来
+    { var tun=MarioMindTuningSO.CreateInstance<MarioMindTuningSO>(); var badT=TuningAudit.Check(tun).Where(r=>!r.ok).ToList();
+      tun.overworldChaseSpeed=tun.overworldTricksterSpeed+1; var bad2=TuningAudit.Check(tun).Where(r=>!r.ok).ToList();
+      if(badT.Count>0||bad2.Count!=1||!bad2[0].rule.Contains("overworldChaseSpeed")){ sb2++; Console.WriteLine($"     [FAIL] 数值关系：默认不对 {string.Join(";",badT.Select(r=>r.rule+" "+r.detail))}｜反向 {bad2.Count}"); }
+      else parts.Add($"数值关系 {TuningAudit.Rules.Length} 条（默认值全对；把'追你'调得比你快 → 立刻报）"); }
+    // H4：马里奥那边读不到居民的话；接线
+    foreach(var mf in new[]{"Assets/Scripts/Overworld/OverworldMind.cs","Assets/Scripts/Gameplay/Step1/RushMarioMind.cs","Assets/Scripts/Gameplay/Step1/MarioMindDriver.cs","Assets/Scripts/Gameplay/Step1/SuspicionMeter.cs"}) if(File.ReadAllText(WsRepo(mf)).Contains("TownStory")||File.ReadAllText(WsRepo(mf)).Contains("OverworldPickupBag")){ sb2++; Console.WriteLine($"     [FAIL] H4：{mf} 读了居民故事 / 道具箱"); }
+    var og=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/Runtime/OverworldGame.cs")); var th=File.ReadAllText(WsRepo("Assets/Scripts/Editor/TestHubWindow.cs")); var ww=File.ReadAllText(WsRepo("Assets/Scripts/Editor/OverworldWorkshopWindow.cs"));
+    if(!og.Contains("TownStory.Next(map, TownStory.When.Back")||!og.Contains("TownStory.When.Morning")||!og.Contains("TownStory.When.DayEnd")||!og.Contains("OverworldPickupBag.MorningLine")||!og.Contains("Resources.Load<TextAsset>(TownStory.ResourceName)")
+      ||!th.Contains("TuningAudit.Check(t)")||!th.Contains("TownStory.Rehearse")||!ww.Contains("ResidentPanel();")||!ww.Contains("storyC = null;")){ sb2++; Console.WriteLine("     [FAIL] 接线：小镇 / 体检 / 小镇工坊 没接上居民故事 / 洗牌袋 / 数值关系"); }
+    Console.WriteLine($"[{(sb2==0?"OK":"FAIL")}] S232 居民故事 + 道具箱洗牌袋 + 数值关系：{string.Join("｜",parts)}"); fail+=sb2; }
   // S227 阶段 D 填表：用你真实的试玩记录（docs/step1/data/*.csv）跑出口报告
   { int db=0; var parts=new List<string>();
     var hdr=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs")),"CsvHeader => \"([^\"]*)\" \\+\\s*\"([^\"]*)\"");

@@ -676,7 +676,7 @@ function owRender() {
   const sc = rep.schedule;
   $('#owSched').innerHTML = sc ? sc.stops.map((s, k) => `门 ${s.door.n}：${owClock(s.depart)} 出发 → ${owClock(s.arrive)} 到 → ${owClock(s.leave)} 出来　你能提前 ${Math.round(owLead(sc, k, OW.Rules.minutesPerSecond))} 秒`).join('<br>') + `<br>${owClock(sc.homeArrive)} 到家` : '（先把检查里的红色问题改掉）';
   $('#owSize').textContent = `${owW(m)}×${m.rows.length}`;
-  owStormsRender(); owHarmRender(); owLedgerRender(); owPropsRender(); owScrubText(); owPalette(); OWT.ver = (OWT.ver | 0) + 1; owDraw(); owSave();
+  owStormsRender(); owResRender(); owHarmRender(); owLedgerRender(); owPropsRender(); owScrubText(); owPalette(); OWT.ver = (OWT.ver | 0) + 1; owDraw(); owSave();
 }
 // ═════ S220：像素图标（和 Unity OverworldArt 同一套，build.py 生成 OW_ART）═════
 const OWIC = {};
@@ -690,6 +690,20 @@ function owIconCanvas(key) {
 const owIconKey = c => (typeof OW_ART !== 'undefined' && OW_ART.tile[c]) || null;
 const OWICU = {};
 function owIconUrl(c) { const k = owIconKey(c); if (!k) return null; if (OWICU[k]) return OWICU[k]; const cv = owIconCanvas(k); return OWICU[k] = cv ? cv.toDataURL() : null; }
+// ═════ S232：住户与故事（TownStory，和 Unity 小镇工坊同一套）═════
+function owResRender() {
+  const m = owM(), box = $('#owRes'); if (!box) return; m.residents = m.residents || [];
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  box.innerHTML = m.doors.map(d => { const r = tsResidentOf(m, d.n), own = m.residents.some(x => x.door === d.n);
+    return `<div class="owres"><b>门 ${d.n}</b><input value="${esc(r.name)}" data-n="${d.n}" aria-label="门 ${d.n} 住户名字"${own ? '' : ' style="opacity:.7" title="默认住户：改名字就记下来"'}><select data-n="${d.n}" aria-label="门 ${d.n} 性格">${TS_TRAITS.map(t => `<option value="${t}"${t === r.trait ? ' selected' : ''}>${tsTraitZh(t)}</option>`).join('')}</select></div>`; }).join('') || '<p class="hint">先在画布上画门。</p>';
+  const set = (n, f, v) => { owPush(); let r = m.residents.find(x => x.door === n); if (!r) { const d0 = tsResidentOf(m, n); r = { door: n, name: d0.name, trait: d0.trait }; m.residents.push(r); m.residents.sort((a, b) => a.door - b.door); } r[f] = owOne(v) || r[f]; owRender(); };
+  box.querySelectorAll('input').forEach(el => el.onchange = () => set(+el.dataset.n, 'name', el.value));
+  box.querySelectorAll('select').forEach(el => el.onchange = () => set(+el.dataset.n, 'trait', el.value));
+  const tu = tuAudit(), bad = tu.filter(r => !r.ok);
+  $('#owTune').innerHTML = (bad.length ? bad.map(r => `<div class="owiss Warn">⚠ ${esc(r.rule)}（现在 ${esc(r.detail)}）：${esc(r.why)}</div>`).join('') : `✓ 数值之间的 ${tu.length} 条关系都对`) + `<br>网页用的速度 = Unity 默认值：马里奥 ${OW.Rules.marioSpeed} 格/秒、你 ${OW.Rules.tricksterSpeed} 格/秒、房间里跑速 ${RULES.RunSpeed} 格/秒、开局等 ${RULES.StartDelay} 秒`;
+  const r14 = tsRehearse(m, TS_STORIES, 14);
+  $('#owStory').innerHTML = [tsRehearsalSummary(r14, 14), ...tsCoverage(TS_STORIES), ...owBagPreview(m, 1, 7)].map(esc).join('<br>');
+}
 // ═════ S220：雷区面板 + 伤害一览 ═════
 function owStormsRender() {
   const m = owM(), box = $('#owStorms'); if (!box) return;

@@ -886,4 +886,50 @@ public class OverworldTests
         StringAssert.Contains("先不校准", Step1ExitReport.TownMarkdown(d));
         StringAssert.Contains("town_days*.csv", Read("Scripts/Editor/TestHubWindow.cs"));
     }
+
+    // ── S232：小镇居民的话（故事片段）+ 道具箱洗牌袋 + 数值关系 ──
+    [Test]
+    public void S232_TownStories_PickupBag_TuningAudit()
+    {
+        var json = Read("Resources/TownStories.json");
+        var table = TownStory.Parse(json, out string err);
+        Assert.AreEqual("", err, "TownStories.json 不能有写错的句子");
+        Assert.AreEqual(TownStory.Default.Length, table.Length, "数据文件和内置默认台词一样多（sim 逐句对照）");
+        var m = OverworldMap.Parse(OverworldPack.SampleText);
+        var reh = TownStory.Rehearse(m, table, 30);
+        Assert.IsFalse(reh.lines.Exists(l => l.EndsWith(" —")), "30 天里每户人家每次都有话说");
+        Assert.IsFalse(reh.lines.Exists(l => (l.StartsWith("第1天") || l.StartsWith("第2天")) && l.Contains("♥")), "真心话要先来往几次才说（不在头两天）");
+        Assert.Greater(reh.sincere, 5, "30 天能听到好几段真心话");
+        // 选句：条件越多越优先；说过的冷却
+        var mem = new TownStory.Memory();
+        var f = new System.Collections.Generic.Dictionary<string, string> { { "trait", "baker" }, { "result", "looted" }, { "looted", "2" }, { "visits", "1" }, { "defended", "0" }, { "weather", "clear" }, { "door", "1" } };
+        var a = TownStory.Pick(table, TownStory.When.Back, "door", f, mem, 5); TownStory.Say(a, mem, 5);
+        Assert.AreEqual("baker_loot_2", a.id, "条件最多（最具体）的先说");
+        Assert.AreNotEqual("baker_loot_2", TownStory.Pick(table, TownStory.When.Back, "door", f, mem, 6).id, "说过的冷却几天");
+        // 住户：文本 / 关卡包往返
+        var mm = OverworldMap.Parse(OverworldPack.SampleText);
+        mm.residents.Add(OverworldMap.ParseResident("2 | 王阿姨 | painter"));
+        var back = OverworldMap.FromJson(MiniJson.Parse(OverworldMap.ToJson(OverworldMap.Parse(OverworldMap.ToText(mm))), out _) as System.Collections.Generic.Dictionary<string, object>);
+        Assert.AreEqual("王阿姨", TownStory.ResidentOf(back, 2).name); Assert.AreEqual("painter", TownStory.ResidentOf(back, 2).trait);
+        Assert.AreEqual("桂婆婆", TownStory.ResidentOf(OverworldMap.Parse(OverworldPack.SampleText), 2).name, "没写住户 = 默认住户");
+        // 洗牌袋：第 1 天全是炸弹；同一天永远一样；之后每 5 个一袋里四种都有
+        Assert.AreEqual(OverworldPickupBag.Kind.Bomb, OverworldPickupBag.Of("星露小镇", 1, 2, 3));
+        Assert.AreEqual(OverworldPickupBag.Of("星露小镇", 9, 1, 3), OverworldPickupBag.Of("星露小镇", 9, 1, 3));
+        var bag = new System.Collections.Generic.HashSet<OverworldPickupBag.Kind>(); for (int k = 0; k < 5; k++) bag.Add(OverworldPickupBag.Shuffled("星露小镇", 3)[k]);
+        Assert.AreEqual(4, bag.Count, "一袋里四种都有");
+        // 数值关系：默认全对；把"追你"调得比你快 → 报
+        var t = ScriptableObject.CreateInstance<MarioMindTuningSO>();
+        Assert.IsTrue(TuningAudit.Check(t).TrueForAll(r => r.ok), TuningAudit.Markdown(t));
+        t.overworldChaseSpeed = t.overworldTricksterSpeed + 1;
+        Assert.IsFalse(TuningAudit.Check(t).TrueForAll(r => r.ok));
+        Object.DestroyImmediate(t);
+        // 接线 + H4（马里奥那边读不到居民的话 / 道具箱）
+        var og = Read("Scripts/Overworld/Runtime/OverworldGame.cs");
+        StringAssert.Contains("TownStory.Next(map, TownStory.When.Back", og); StringAssert.Contains("OverworldPickupBag.MorningLine", og);
+        StringAssert.Contains("TownStory.Record(door, Results[door]);", Read("Scripts/Overworld/OverworldSession.cs"));
+        StringAssert.Contains("TuningAudit.Check(t)", Read("Scripts/Editor/TestHubWindow.cs"));
+        foreach (var f2 in new[] { "Scripts/Overworld/OverworldMind.cs", "Scripts/Gameplay/Step1/RushMarioMind.cs", "Scripts/Gameplay/Step1/SuspicionMeter.cs" })
+        { StringAssert.DoesNotContain("TownStory", Read(f2)); StringAssert.DoesNotContain("OverworldPickupBag", Read(f2)); }
+        OverworldSession.ResetStatics();
+    }
 }

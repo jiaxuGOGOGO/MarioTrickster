@@ -51,6 +51,7 @@ public sealed class OverworldGame : MonoBehaviour
     private void Start()
     {
         tuning = MarioMindTuningSO.LoadOrDefault();
+        LoadStories();
         map = OverworldMap.Parse(mapText);
         if (map.W == 0) { enabled = false; Debug.LogError("[Overworld] mapText 为空"); return; }
         string townScene = gameObject.scene.path; // S211：完整路径（切换用）；S212：用自己所在的场景，不依赖"当前激活场景"
@@ -66,7 +67,11 @@ public sealed class OverworldGame : MonoBehaviour
         UpdateVisuals(); SnapCamera(); // S212：镜头直接就位（以前从默认位置滑过来，揭幕时画面在"飘"）
         SceneTransit.RevealAt(new Vector3((float)tx, (float)ty, 0), cam); // 转场的圆在你身上展开
         // S218：早上公布今天的天气（输入随机：做决定之前就知道）；刚守住一户 → 旁边的大机关重新装填
-        if (OverworldSession.Minute <= OverworldMap.DayStart + 1) Hint(Step1Text.OverworldWeather(OverworldSession.Day, OverworldEvents.Zh(town.weather)), 5f);
+        if (OverworldSession.Minute <= OverworldMap.DayStart + 1)
+        {
+            Hint(Step1Text.OverworldWeather(OverworldSession.Day, OverworldEvents.Zh(town.weather)) + OverworldPickupBag.MorningLine(map, OverworldSession.Day), 5f); // S232：今天道具箱里是什么（输入随机：先知道再决定）
+            Story(TownStory.Next(map, TownStory.When.Morning, 0, town.weather, stops.Count, out bool s0), s0); // S232：早上镇上的闲话（昨天发生的事）
+        }
         else if (town.windowFlung) Hint(Step1Text.OverworldWindowFling, 3.5f); // S228：房间里挨了你的炮 → 被轰出窗户
         else if (town.reloaded.HasValue) Hint(Step1Text.OverworldBigReloaded, 3f);
         Step1Feedback.Context = () => $"小镇 {map.name} {OverworldMap.Clock(OverworldSession.Minute)} 下一扇门 {(NextStop != null ? NextStop.n.ToString() : "-")} 你({tx:0.0},{ty:0.0}) 马里奥({mario.x:0.0},{mario.y:0.0}) {town.mind.State}";
@@ -84,7 +89,7 @@ public sealed class OverworldGame : MonoBehaviour
         ZoomKeys();
         if (dayOver)
         {
-            if (!dayLogged) { dayLogged = true; dayOverAt = Time.unscaledTime; LogDay(); }
+            if (!dayLogged) { dayLogged = true; dayOverAt = Time.unscaledTime; LogDay(); dayEndLine = TownStory.Next(map, TownStory.When.DayEnd, 0, town.weather, stops.Count, out _) + TownStory.ProgressLine(TownStory.Table, TownStory.Mem); TownStory.CloseDay(TownStory.Mem, stops.Count); } // S232：马里奥的一句 + 真心话收集
             bool autoRestart = OverworldSession.Death != OverworldSession.DeathEnd.None && tuning.overworldDeathRestartSeconds > 0f && Time.unscaledTime - dayOverAt >= tuning.overworldDeathRestartSeconds; // S229：被打死 → 几秒后自动重开（不用伸手）
             if (Step1Keys.Down(KeyCode.R) || autoRestart)
             {
@@ -104,6 +109,7 @@ public sealed class OverworldGame : MonoBehaviour
             aim = Step1Keys.Down(KeyCode.RightArrow) || Step1Keys.Down(KeyCode.D) ? 1 : Step1Keys.Down(KeyCode.LeftArrow) || Step1Keys.Down(KeyCode.A) ? 2 : Step1Keys.Down(KeyCode.UpArrow) || Step1Keys.Down(KeyCode.W) ? 3 : Step1Keys.Down(KeyCode.DownArrow) || Step1Keys.Down(KeyCode.S) ? 4 : 0,
         };
         town.Tick(dt, input);
+        if (TownStory.PendingDoor > 0 && Time.unscaledTime >= storyUntil) { int sd = TownStory.PendingDoor; Story(TownStory.Next(map, TownStory.When.Back, sd, town.weather, stops.Count, out bool ss), ss); } // S232：刚打完 / 错过的那户人家说一句
         if (town.hint != OverworldTown.Note.None) Hint(town.hint == OverworldTown.Note.Caught ? Step1Text.OverworldCaughtWhy(town.caughtWhy) : NoteText(town.hint), town.hintSeconds); // S222：被抓说明原因
         BigFx();
         if (tuning.soundRings) foreach (var so in town.sounds) Step1Fx.SoundRing(new Vector2(so.x, so.y), so.z); // S224：声音圈 = 他真实的听力范围
@@ -181,6 +187,9 @@ public sealed class OverworldGame : MonoBehaviour
             case OverworldTown.Note.CloudLow: return Step1Text.OverworldCloudLow;
             case OverworldTown.Note.StormBolt: return Step1Text.OverworldStormBolt;
             case OverworldTown.Note.AmbushArmed: return Step1Text.OverworldAmbushArmed;
+            case OverworldTown.Note.PickupTaunt: return Step1Text.OverworldPickupTaunt;
+            case OverworldTown.Note.PickupHeart: return Step1Text.OverworldPickupHeart;
+            case OverworldTown.Note.PickupWasted: return Step1Text.OverworldPickupWasted;
             default: return "";
         }
     }
@@ -188,6 +197,20 @@ public sealed class OverworldGame : MonoBehaviour
     private OverworldMap.SightRules Sight() => town.Sight();
     private static float Dist(double ax, double ay, double bx, double by) => OverworldTown.Dist(ax, ay, bx, by);
     private void Hint(string s, float secs = 2f) { hint = s; hintUntil = Time.unscaledTime + secs; }
+
+    // ═════════ S232：居民的话（TownStory；纯文字，H4：马里奥 AI 不读）═════════
+    private string story = "", dayEndLine = ""; private float storyUntil; private bool storySincere;
+    /// <summary>好笑的话停 5 秒；真心话停 8 秒（慢一点，留给它被读完）。用现实秒，快进时也看得完。</summary>
+    public const float StorySeconds = 5f, SincereSeconds = 8f;
+    private void Story(string s, bool sincere) { if (string.IsNullOrEmpty(s)) return; story = s; storySincere = sincere; storyUntil = Time.unscaledTime + (sincere ? SincereSeconds : StorySeconds); }
+    private static void LoadStories()
+    {
+        if (TownStory.table != null) return;
+        var asset = Resources.Load<TextAsset>(TownStory.ResourceName);
+        if (asset == null) return;
+        TownStory.table = TownStory.Parse(asset.text, out string err);
+        if (!string.IsNullOrEmpty(err)) Debug.LogWarning("[TownStories] " + err);
+    }
 
     // ═════════════════════ 画面 ═════════════════════
     private static int Order(double y) => 1000 - (int)(y * 10); // 越靠下越在前（星露谷式 y 排序）
@@ -792,6 +815,7 @@ public sealed class OverworldGame : MonoBehaviour
         GuideGUI(box);
         if (!dayOver && !helpOpen) StormGUI();
         if (Time.unscaledTime < hintUntil) GUI.Box(new Rect(Screen.width / 2f - 220, 70, 440, 56), hint, big);
+        if (!helpOpen && !dayOver && Time.unscaledTime < storyUntil) { GUI.color = storySincere ? new Color(1f, 0.92f, 0.8f) : Color.white; GUI.Box(new Rect(10, Screen.height - 128, Mathf.Min(560, Screen.width - 20), 88), story, box); GUI.color = Color.white; } // S232：左下角，不挡提示
         // S217：底部常驻按键条 + 等他出门的提示 + 没点游戏窗口的提醒
         if (!helpOpen && !dayOver) GUI.Box(new Rect(0, Screen.height - 30, Screen.width, 30), town.Seated ? Step1Text.OverworldCannonBar : Step1Text.OverworldControlsBar, Step1Gui.Text(14, TextAnchor.MiddleCenter, false));
         if (town.Seated && !dayOver) { var a = town.Aims()[0]; GUI.Box(new Rect(Screen.width / 2f - 220, Screen.height - 94, 440, 56), Step1Text.OverworldCannonAim(OverworldProps.DirZh[town.seat.dir], town.seat.dist, a.land.x, a.land.y, a.ok, tuning.overworldCannonSeatSeconds - town.seat.t), big); }
@@ -808,7 +832,8 @@ public sealed class OverworldGame : MonoBehaviour
                 ? Step1Text.OverworldDeathSummary(OverworldSession.Death, OverworldSession.DeathCause, OverworldSession.YouDeathCause, OverworldSession.DeathByYou, OverworldSession.Count(OverworldSession.DoorResult.Defended), OverworldSession.Count(OverworldSession.DoorResult.Looted), stops.Count, OverworldMap.Clock(OverworldSession.Minute),
                     tuning.overworldDeathRestartSeconds > 0f ? Mathf.Max(0f, tuning.overworldDeathRestartSeconds - (Time.unscaledTime - dayOverAt)) : -1f)
                 : OverworldSession.Summary(stops.Count);
-            GUI.Box(new Rect(Screen.width / 2f - 280, Screen.height / 2f - 90, 560, 180), sum, big);
+            if (dayEndLine.Length > 0) sum += "\n\n" + dayEndLine; // S232
+            GUI.Box(new Rect(Screen.width / 2f - 300, Screen.height / 2f - 140, 600, 280), sum, big);
         }
     }
 }

@@ -26,6 +26,8 @@ public static class OverworldMap
     public sealed class Note { public int x, y; public string text = ""; }
     /// <summary>S220：雷区（关卡编辑时自己画范围）：x0..x1 × y0..y1（含两端），每一轮同时劈 min..max 道。always = 每天都劈（否则只在雷雨天）。</summary>
     public sealed class Storm { public int x0, y0, x1, y1, min = 1, max = 3; public bool always; }
+    /// <summary>S232：门 n 里住着谁（名字 + 性格，TownStory 按性格挑话）。没写 = TownStory.DefaultResident。格式：# Resident: 门 | 名字 | 性格</summary>
+    public sealed class Resident { public int door; public string name = "", trait = ""; }
 
     public sealed class Map
     {
@@ -34,6 +36,7 @@ public static class OverworldMap
         public readonly List<Door> doors = new List<Door>();
         public readonly List<Note> notes = new List<Note>();
         public readonly List<Storm> storms = new List<Storm>();
+        public readonly List<Resident> residents = new List<Resident>();
         public int W => rows.Length > 0 ? rows[0].Length : 0;
         public int H => rows.Length;
         public char At(int x, int y)
@@ -101,6 +104,7 @@ public static class OverworldMap
                         m.notes.Add(new Note { x = nx, y = ny, text = line.Substring(close + 1).Trim() });
                 }
                 else if (line.StartsWith("# Storm:")) { var st = ParseStorm(line.Substring(8)); if (st != null) m.storms.Add(st); }
+                else if (line.StartsWith("# Resident:")) { var rs = ParseResident(line.Substring(11)); if (rs != null) { m.residents.RemoveAll(o => o.door == rs.door); m.residents.Add(rs); } }
                 continue;
             }
             string row = raw.TrimEnd();
@@ -108,9 +112,18 @@ public static class OverworldMap
         }
         int w = grid.Count > 0 ? grid.Max(r => r.Length) : 0;
         m.rows = grid.Select(r => r.PadRight(w, '.')).ToArray();
-        m.doors.Sort((a, b) => a.n.CompareTo(b.n));
+        m.doors.Sort((a, b) => a.n.CompareTo(b.n)); m.residents.Sort((a, b) => a.door.CompareTo(b.door));
         return m;
     }
+
+    /// <summary>S232：住户一行：门 | 名字 | 性格（性格可省略）。门不是 1–9 或没名字 → null。网页 owParseResident 一样。</summary>
+    public static Resident ParseResident(string s)
+    {
+        var p = (s ?? "").Split('|'); if (p.Length < 2 || !int.TryParse(p[0].Trim(), out int n) || n < 1 || n > 9) return null;
+        string name = OneLine(p[1]); if (name.Length == 0) return null;
+        return new Resident { door = n, name = name, trait = p.Length >= 3 ? OneLine(p[2]) : "" };
+    }
+    public static string ResidentText(Resident r) => $"{r.door} | {OneLine(r.name).Replace("|", "/")} | {OneLine(r.trait).Replace("|", "/")}";
 
     public static string ToText(Map m)
     {
@@ -121,6 +134,7 @@ public static class OverworldMap
         foreach (var d in m.doors.OrderBy(d => d.n)) sb.Append("# Door: ").Append(d.n).Append(" | ").Append(Clock(d.minute)).Append(" | ").AppendLine(OneLine(d.room).Replace("|", "/"));
         foreach (var n in m.notes) sb.Append("# Note: (").Append(n.x).Append(',').Append(n.y).Append(") ").AppendLine(OneLine(n.text));
         foreach (var st in m.storms) sb.Append("# Storm: ").AppendLine(StormText(st));
+        foreach (var rs in m.residents.OrderBy(r => r.door)) sb.Append("# Resident: ").AppendLine(ResidentText(rs)); // S232
         foreach (var r in m.rows) sb.AppendLine(r);
         return sb.ToString();
     }
@@ -157,7 +171,9 @@ public static class OverworldMap
             foreach (var o in nl) if (o is Dictionary<string, object> nd) m.notes.Add(new Note { x = (int)Num(nd, "x"), y = (int)Num(nd, "y"), text = Str(nd, "text") });
         if (d.TryGetValue("storms", out var ss) && ss is List<object> sl)
             foreach (var o in sl) if (o is string line) { var st = ParseStorm(line); if (st != null) m.storms.Add(st); }
-        m.doors.Sort((a, b) => a.n.CompareTo(b.n));
+        if (d.TryGetValue("residents", out var rl) && rl is List<object> rll)
+            foreach (var o in rll) if (o is string line) { var rs = ParseResident(line); if (rs != null) { m.residents.RemoveAll(x => x.door == rs.door); m.residents.Add(rs); } }
+        m.doors.Sort((a, b) => a.n.CompareTo(b.n)); m.residents.Sort((a, b) => a.door.CompareTo(b.door));
         return m;
     }
 
@@ -168,6 +184,7 @@ public static class OverworldMap
         sb.Append(string.Join(",", m.doors.OrderBy(d => d.n).Select(d => $"{{\"n\":{d.n},\"time\":{Js(Clock(d.minute))},\"room\":{Js(d.room)}}}"))).Append("],\"notes\":[");
         sb.Append(string.Join(",", m.notes.Select(n => $"{{\"x\":{n.x},\"y\":{n.y},\"text\":{Js(n.text)}}}"))).Append(']');
         if (m.storms.Count > 0) sb.Append(",\"storms\":[").Append(string.Join(",", m.storms.Select(st => Js(StormText(st))))).Append(']'); // S220：没有雷区的旧图输出不变
+        if (m.residents.Count > 0) sb.Append(",\"residents\":[").Append(string.Join(",", m.residents.OrderBy(r => r.door).Select(r => Js(ResidentText(r))))).Append(']'); // S232：没写住户的旧图输出不变
         sb.Append('}');
         return sb.ToString();
     }

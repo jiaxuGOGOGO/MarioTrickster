@@ -47,7 +47,7 @@ public sealed class OverworldTown
     // ── 这一帧发生的事（驱动层读完就清）──
     /// <summary>这一帧要给玩家的提示（驱动层翻成 Step1Text 文字；纯逻辑这边不碰文字，sim 才能跑）。</summary>
     public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, /* S228 */ Bell, BellIgnored, WindowFling, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit,
-        /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt, /* S224 */ AmbushArmed, /* S229 */ MarioDied, YouDied, BothDied }
+        /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt, /* S224 */ AmbushArmed, /* S229 */ MarioDied, YouDied, BothDied, /* S232 */ PickupTaunt, PickupHeart, PickupWasted }
     public Note hint; public float hintSeconds;
     /// <summary>S222：他最后一次看见你的原因（被抓时告诉玩家，H4 同一组视线输入）。</summary>
     public OverworldMap.SeenWhy seenWhy, caughtWhy;
@@ -258,8 +258,7 @@ public sealed class OverworldTown
         if (map.At(cx, cy) == '?' && !OverworldSession.UsedCells.Contains(id))
         {
             OverworldSession.UsedCells.Add(id);
-            OverworldSession.BonusBombs = Mathf.Min(MaxBonusBombs, OverworldSession.BonusBombs + 1);
-            Hint(Note.Pickup);
+            Pickup(OverworldPickupBag.Of(map.name, OverworldSession.Day, OverworldPickupBag.IndexOf(map, cx, cy), OverworldMap.Find(map, '?').Count)); // S232：洗牌袋（早上已公布）
         }
         // S220：补心 +（少了心才捡，每天每个一次）、能量 *（只有你捡）
         if (map.At(cx, cy) == '+' && !OverworldSession.UsedCells.Contains(id) && OverworldSession.YouHearts < OverworldSession.MaxHearts)
@@ -730,6 +729,26 @@ public sealed class OverworldTown
         else Hint(Note.YouHurt, 2f);
         frozen = Mathf.Max(frozen, stun);
         youGrace = GraceAfter(stun);
+    }
+
+    /// <summary>S232：道具箱的效果（上限都不变：炸弹 ≤ MaxBonusBombs、心 ≤ 3、能量 ≤ 3）。满了就提示"浪费了"——你早上就知道里面是什么。</summary>
+    private void Pickup(OverworldPickupBag.Kind k)
+    {
+        switch (k)
+        {
+            case OverworldPickupBag.Kind.Energy:
+                if (OverworldSession.Energy >= OverworldSession.MaxEnergy) Hint(Note.PickupWasted); else GainEnergy(); break;
+            case OverworldPickupBag.Kind.Taunt:
+                OverworldSession.TauntsUsed--; Hint(Note.PickupTaunt); break;
+            case OverworldPickupBag.Kind.Heart:
+                if (OverworldSession.YouHearts >= OverworldSession.MaxHearts) Hint(Note.PickupWasted);
+                else { OverworldSession.YouHearts++; hurts.Add(new HurtFx { x = (float)tx, y = (float)ty, kind = 3 }); Hint(Note.PickupHeart); }
+                break;
+            default:
+                if (OverworldSession.BonusBombs >= MaxBonusBombs) Hint(Note.PickupWasted);
+                else { OverworldSession.BonusBombs = Mathf.Min(MaxBonusBombs, OverworldSession.BonusBombs + 1); Hint(Note.Pickup); }
+                break;
+        }
     }
 
     private void GainEnergy()

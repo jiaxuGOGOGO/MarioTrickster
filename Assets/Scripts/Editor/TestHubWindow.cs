@@ -137,6 +137,21 @@ public sealed class TestHubWindow : EditorWindow
             string cur = OverworldBuilder.CurrentText;
             sb.AppendLine(OverworldBuilder.IsStale(cur) ? "· 小镇场景需要重建（点 ▶ 试玩小镇会自动做，不用管）" : "· 小镇场景已是最新");
 
+            // S232：数值之间的关系（网页设计台同一张表）+ 小镇居民台词（覆盖 / 彩排 14 天 / 读文件有没有出错）
+            sb.AppendLine("\n## 数值关系（TuningAudit，S232）");
+            foreach (var r in TuningAudit.Check(t)) { if (r.ok) continue; Warn($"{r.rule}（现在 {r.detail}）：{r.why}"); }
+            if (TuningAudit.Check(t).All(r => r.ok)) Ok($"数值之间的 {TuningAudit.Rules.Length} 条关系都对");
+            sb.AppendLine("\n## 小镇居民的话（TownStories.json，S232）");
+            var storyAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Resources/" + TownStory.ResourceName + ".json");
+            string storyErr = "";
+            var stories = storyAsset != null ? TownStory.Parse(storyAsset.text, out storyErr) : TownStory.Default;
+            if (storyAsset == null) Warn("找不到 Assets/Resources/TownStories.json（游戏里用内置台词）");
+            else if (!string.IsNullOrEmpty(storyErr)) Warn("TownStories.json 有一处写错了：" + storyErr + "（这一句被跳过，其余照常）"); else Ok($"读到 {stories.Length} 句台词");
+            foreach (var l in TownStory.Coverage(stories)) { if (l.Contains("⚠")) Warn(l); else sb.AppendLine("· " + l); }
+            var sample = OverworldMap.Parse(OverworldPack.SampleText); var reh = TownStory.Rehearse(sample, stories, 14);
+            sb.AppendLine("· " + OverworldPack.SampleName + " " + TownStory.RehearsalSummary(reh, 14));
+            if (reh.repeats3 > 0) Warn($"彩排里 3 天内听到同一句 {reh.repeats3} 次：加几句台词，或把 coolDays 调大");
+
             sb.AppendLine("\n## 第 1 步出口（从你的试玩记录自动算）");
             sb.Append(Step1ExitReport.Markdown(Step1ExitReport.ParseAll(Directory.Exists(LogsRoot)
                 ? Directory.GetFiles(LogsRoot, "step1_rounds*.csv").Select(File.ReadAllText) : new string[0])));

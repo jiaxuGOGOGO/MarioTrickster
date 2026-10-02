@@ -2,6 +2,21 @@
 // OW_TILES 由 build.py 从 OverworldCatalog.cs 生成。
 const OW = { MinW: 16, MinH: 12, MaxW: 192, MaxH: 128, DayStart: 360, DayEnd: 1320, LatestDoor: 1200, NightStart: 1140, MaxPickups: 3, MaxHeartPickups: 3, MaxEnergyPickups: 4, MaxStorms: 4, MaxBolts: 6,
   Rules: { marioSpeed: 3.4, tricksterSpeed: 5.0, minutesPerSecond: 4.0, visitMinutes: 60.0 } };
+// S232：小镇速度 / 时间也从 Unity 调参默认值来（同上）
+if (typeof TUNING !== 'undefined') OW.Rules = { marioSpeed: TUNING.overworldMarioSpeed.v, tricksterSpeed: TUNING.overworldTricksterSpeed.v, minutesPerSecond: TUNING.overworldMinutesPerSecond.v, visitMinutes: TUNING.overworldVisitMinutes.v };
+// S232：数值关系检查（TuningAudit.cs 的同一张规则表）
+function tuValue(tok) { tok = tok.trim(); let mul = 1; const st = tok.indexOf('*'); if (st > 0) { mul = +tok.slice(st + 1).trim(); tok = tok.slice(0, st).trim(); } if (/^-?\d+(\.\d+)?$/.test(tok)) return +tok * mul; const e = typeof TUNING !== 'undefined' ? TUNING[tok] : null; if (!e) return null; return (e.t === 'bool' ? (e.v ? 1 : 0) : e.v) * mul; }
+const tuF = v => String(Math.round(v * 1000) / 1000);
+function tuAudit() {
+  return (typeof TUNING_RULES === 'undefined' ? [] : TUNING_RULES).map(line => {
+    const p = line.split('|'), ex = p[0].trim(), why = p.length > 1 ? p[1].trim() : '';
+    const op = ex.includes('<=') ? '<=' : ex.includes('>=') ? '>=' : ex.includes('<') ? '<' : '>', i = ex.indexOf(op);
+    const a = tuValue(ex.slice(0, i)), b = tuValue(ex.slice(i + op.length));
+    if (a === null || b === null) return { rule: ex, why, ok: false, detail: '规则里的名字找不到（字段改名了？）' };
+    const ok = op === '<' ? a < b : op === '<=' ? a <= b : op === '>' ? a > b : a >= b;
+    return { rule: ex, why, ok, detail: `${tuF(a)} ${op} ${tuF(b)}` };
+  });
+}
 const owTile = c => { if (c === ' ') c = '.'; if (c >= '1' && c <= '9') c = '1'; return OW_TILES.find(t => t.c === c) || null; };
 const owIsDoor = c => c >= '1' && c <= '9';
 const owSolid = c => { const t = owTile(c); return !t || t.solid; };
@@ -17,7 +32,7 @@ const owW = m => m.rows.length ? m.rows[0].length : 0;
 const owWalk = (m, x, y) => x >= 0 && y >= 0 && x < owW(m) && y < m.rows.length && !owSolid(owAt(m, x, y));
 
 function owParse(text) {
-  const m = { kind: 'overworld', name: '', goal: '', id: '', rows: [], doors: [], notes: [], storms: [] }; const grid = [];
+  const m = { kind: 'overworld', name: '', goal: '', id: '', rows: [], doors: [], notes: [], storms: [], residents: [] }; const grid = [];
   for (const raw of String(text || '').replace(/\r/g, '').replace(/\uFEFF/g, '').split('\n')) {
     if (raw.startsWith('#')) {
       const line = raw.trimEnd();
@@ -31,12 +46,13 @@ function owParse(text) {
         const close = line.indexOf(')'); const xy = close > 9 ? line.slice(9, close).split(',') : [];
         if (xy.length === 2 && /^-?\d+$/.test(xy[0]) && /^-?\d+$/.test(xy[1])) m.notes.push({ x: +xy[0], y: +xy[1], text: line.slice(close + 1).trim() });
       } else if (line.startsWith('# Storm:')) { const st = owParseStorm(line.slice(8)); if (st) m.storms.push(st); }
+      else if (line.startsWith('# Resident:')) { const rs = owParseResident(line.slice(11)); if (rs) { m.residents = m.residents.filter(o => o.door !== rs.door); m.residents.push(rs); } }
       continue;
     }
     const row = raw.trimEnd(); if (row.length) grid.push(row.replace(/ /g, '.'));
   }
   const w = grid.reduce((a, r) => Math.max(a, r.length), 0); m.rows = grid.map(r => r.padEnd(w, '.'));
-  m.doors.sort((a, b) => a.n - b.n); return m;
+  m.doors.sort((a, b) => a.n - b.n); m.residents.sort((a, b) => a.door - b.door); return m;
 }
 const owOne = s => String(s || '').replace(/[\r\n]/g, ' ').trim();
 function owToText(m) {
@@ -45,17 +61,25 @@ function owToText(m) {
   for (const d of m.doors.slice().sort((a, b) => a.n - b.n)) L.push(`# Door: ${d.n} | ${owClock(d.minute)} | ${owOne(d.room).replace(/\|/g, '/')}`);
   for (const n of m.notes) L.push(`# Note: (${n.x},${n.y}) ${owOne(n.text)}`);
   for (const st of m.storms || []) L.push(`# Storm: ${owStormText(st)}`);
+  for (const rs of (m.residents || []).slice().sort((a, b) => a.door - b.door)) L.push(`# Resident: ${owResidentText(rs)}`); // S232
   return L.concat(m.rows).join('\n') + '\n';
 }
 function owFromJson(d) {
-  const m = { kind: 'overworld', name: d.name || '', goal: d.goal || '', id: d.id || '', rows: (d.grid || []).map(r => String(r).replace(/ /g, '.')), doors: [], notes: [], storms: [] };
+  const m = { kind: 'overworld', name: d.name || '', goal: d.goal || '', id: d.id || '', rows: (d.grid || []).map(r => String(r).replace(/ /g, '.')), doors: [], notes: [], storms: [], residents: [] };
   const w = m.rows.reduce((a, r) => Math.max(a, r.length), 0); m.rows = m.rows.map(r => r.padEnd(w, '.'));
   for (const o of d.doors || []) { const n = Math.floor(+o.n || 0); if (n < 1 || n > 9) continue; const mm = owParseClock(o.time); m.doors = m.doors.filter(x => x.n !== n); m.doors.push({ n, minute: mm === null ? 480 : mm, room: o.room || '' }); }
   for (const o of d.notes || []) m.notes.push({ x: +o.x | 0, y: +o.y | 0, text: o.text || '' });
   for (const o of d.storms || []) { const st = owParseStorm(String(o)); if (st) m.storms.push(st); }
-  m.doors.sort((a, b) => a.n - b.n); return m;
+  for (const o of d.residents || []) { const rs = owParseResident(String(o)); if (rs) { m.residents = m.residents.filter(x => x.door !== rs.door); m.residents.push(rs); } }
+  m.doors.sort((a, b) => a.n - b.n); m.residents.sort((a, b) => a.door - b.door); return m;
 }
-const owToJson = m => { const j = { kind: 'overworld', id: m.id || '', name: m.name || '', goal: m.goal || '', grid: m.rows.slice(), doors: m.doors.slice().sort((a, b) => a.n - b.n).map(d => ({ n: d.n, time: owClock(d.minute), room: d.room || '' })), notes: m.notes.slice() }; if ((m.storms || []).length) j.storms = m.storms.map(owStormText); return j; };
+const owToJson = m => { const j = { kind: 'overworld', id: m.id || '', name: m.name || '', goal: m.goal || '', grid: m.rows.slice(), doors: m.doors.slice().sort((a, b) => a.n - b.n).map(d => ({ n: d.n, time: owClock(d.minute), room: d.room || '' })), notes: m.notes.slice() }; if ((m.storms || []).length) j.storms = m.storms.map(owStormText); if ((m.residents || []).length) j.residents = m.residents.slice().sort((a, b) => a.door - b.door).map(owResidentText); return j; };
+// S232：住户（和 C# OverworldMap.ParseResident / ResidentText 一样）
+function owParseResident(s) {
+  const p = String(s || '').split('|'); if (p.length < 2 || !/^\s*\d+\s*$/.test(p[0])) return null; const n = +p[0].trim(); if (n < 1 || n > 9) return null;
+  const name = owOne(p[1]); if (!name) return null; return { door: n, name, trait: p.length >= 3 ? owOne(p[2]) : '' };
+}
+const owResidentText = r => `${r.door} | ${owOne(r.name).replace(/\|/g, '/')} | ${owOne(r.trait).replace(/\|/g, '/')}`;
 // S220：雷区（和 C# OverworldMap.ParseStorm / StormText 一样）
 function owParseStorm(s) {
   const p = String(s || '').split('|'); if (p.length < 3) return null;
@@ -471,3 +495,89 @@ function owStormCheck(m, E, W, I) {
 }
 // S220：伤害说明（由 build.py 从 OverworldCatalog.Harm 生成 OW_HARM；没生成时为空）
 const owHarm = c => (typeof OW_HARM !== 'undefined' && OW_HARM[c]) || '';
+
+// ═════════ S232：小镇居民的话（TownStory.cs 逐行移植：同样的选句、同样的哈希；verify 逐字对照）+ 道具箱洗牌袋（OverworldPickupBag.cs）═════════
+const TS_TRAITS = ['baker', 'granny', 'kid', 'mayor', 'painter', 'guard'];
+const TS_TRAIT_ZH = { baker: '面包师', granny: '老奶奶', kid: '小孩', mayor: '镇长', painter: '画家', guard: '守夜人' };
+const tsTraitZh = t => TS_TRAIT_ZH[t] || '居民';
+const TS_NAMES = ['阿梅', '桂婆婆', '小豆', '老镇长', '小林', '大熊', '阿梅二号', '桂婆婆的妹妹', '小豆的哥哥'];
+const TS_SINCERE_EVERY = 3, TS_MIN_BACK = 5;
+function tsDefaultResident(door) { const i = Math.max(1, Math.min(9, door)) - 1; return { door, name: TS_NAMES[i], trait: TS_TRAITS[i % TS_TRAITS.length] }; }
+function tsResidentOf(m, door) { const r = (m.residents || []).find(x => x.door === door); if (!r || !r.name) return tsDefaultResident(door); return { door, name: r.name, trait: TS_TRAITS.includes(r.trait) ? r.trait : tsDefaultResident(door).trait }; }
+function tsMatch(need, f) {
+  const op = need.includes('>=') ? '>=' : need.includes('<=') ? '<=' : need.includes('!=') ? '!=' : '='; const i = need.indexOf(op); if (i <= 0) return false;
+  const k = need.slice(0, i).trim(), v = need.slice(i + op.length).trim(), x = f[k] === undefined ? '' : String(f[k]);
+  if (op === '=') return x === v; if (op === '!=') return x !== v;
+  if (!/^-?\d+$/.test(x) || !/^-?\d+$/.test(v)) return false; return op === '>=' ? +x >= +v : +x <= +v;
+}
+const tsSincere = l => l.tone === 'sincere';
+function tsMem() { return { lastDay: {}, said: new Set(), visits: {}, defended: {}, looted: {}, missed: {}, comic: TS_SINCERE_EVERY, sincereDay: -1, yDay: 0, yOutcome: '', yDefended: 0, yLooted: 0 }; }
+function tsPick(table, when, who, f, mem, day) {
+  let best = null, bT = 1e9, bS = -1, bL = 1e9, bH = 0; const ok = mem.comic >= TS_SINCERE_EVERY && mem.sincereDay !== day;
+  for (const l of table) {
+    if (l.when !== when || l.who !== who) continue; if (l.once && mem.said.has(l.id)) continue;
+    if (mem.lastDay[l.id] !== undefined && day - mem.lastDay[l.id] < Math.max(1, l.coolDays)) continue;
+    if (tsSincere(l) && !ok) continue; if (!l.needs.every(n => tsMatch(n, f))) continue;
+    const sc = l.needs.length, last = mem.lastDay[l.id] !== undefined ? mem.lastDay[l.id] : -1, tie = owHash(l.id + '|' + day + '|' + (f.door !== undefined ? f.door : ''));
+    const better = l.tier < bT || (l.tier === bT && (sc > bS || (sc === bS && (last < bL || (last === bL && tie < bH)))));
+    if (!best || better) { best = l; bT = l.tier; bS = sc; bL = last; bH = tie; }
+  }
+  if (!best) { let fb = null, fL = 1e9, fS = -1; // 兜底：冷却中的好笑话挑最久没说的（和 C# PickFallback 一样）
+    for (const l of table) { if (l.when !== when || l.who !== who || l.once || tsSincere(l) || !l.needs.every(n => tsMatch(n, f))) continue; const last = mem.lastDay[l.id] !== undefined ? mem.lastDay[l.id] : -1, sc = l.needs.length; if (!fb || last < fL || (last === fL && sc > fS)) { fb = l; fL = last; fS = sc; } }
+    return fb; }
+  return best;
+}
+function tsSay(l, mem, day) { mem.lastDay[l.id] = day; mem.said.add(l.id); if (tsSincere(l)) { mem.comic = 0; mem.sincereDay = day; } else mem.comic++; }
+const tsGet = (d, n) => d[n] || 0;
+function tsCoverage(t) {
+  const out = [];
+  for (const tr of TS_TRAITS) {
+    const mine = t.filter(x => x.who === 'door' && x.when === 'back' && (x.needs.length === 0 || x.needs.includes('trait=' + tr) || !x.needs.some(n => n.startsWith('trait='))));
+    const own = mine.filter(x => x.needs.includes('trait=' + tr)).length, sin = mine.filter(tsSincere).length;
+    out.push(`${tsTraitZh(tr)}：回小镇 ${mine.length} 句（专属 ${own}、真情 ${sin}）` + (own < TS_MIN_BACK ? ` ⚠ 专属少于 ${TS_MIN_BACK} 句，玩几天就会听到重复` : ''));
+  }
+  for (const w of ['morning', 'dayend']) out.push(`${w === 'morning' ? '早上闲话' : '一天结束'}：${t.filter(x => x.when === w).length} 句`);
+  return out;
+}
+function tsRehearseResult(map, day, door) { const h = owHash('rehearse|' + map + '|' + day + '|' + door) % 5; return h < 2 ? 'defended' : h < 4 ? 'looted' : 'missed'; }
+function tsRehearse(m, t, days) {
+  const rep = { lines: [], said: 0, sincere: 0, repeats3: 0, distinct: 0, first: {} }, mem = tsMem(), heard = {}, firstOrder = [];
+  const doors = m.doors.slice().sort((a, b) => a.minute - b.minute || a.n - b.n).filter(d => owFind(m, String(d.n)).length === 1);
+  const hear = (l, day, where) => {
+    if (!l) { rep.lines.push(`第${day}天 ${where} —`); return; }
+    tsSay(l, mem, day); rep.said++; if (tsSincere(l)) rep.sincere++;
+    if (heard[l.id] !== undefined && day - heard[l.id] < 3) rep.repeats3++; heard[l.id] = day;
+    rep.lines.push(`第${day}天 ${where} ${tsSincere(l) ? '♥' : '·'}${l.id}`);
+  };
+  for (let day = 1; day <= days; day++) {
+    const w = OW_WEATHER[owDayOfMap(m, day).kind].toLowerCase();
+    hear(tsPick(t, 'morning', 'town', { yesterday: mem.yDay > 0 ? mem.yOutcome : 'none', ydeath: 'none', ybighits: '0', ydefended: String(mem.yDefended), ylooted: String(mem.yLooted), weather: w, day: String(day) }, mem, day), day, '早上');
+    let def = 0, loot = 0;
+    for (const d of doors) {
+      const res = tsRehearseResult(m.name, day, d.n), r = tsResidentOf(m, d.n);
+      mem.visits[d.n] = tsGet(mem.visits, d.n) + 1;
+      if (res === 'defended') { mem.defended[d.n] = tsGet(mem.defended, d.n) + 1; def++; } else if (res === 'looted') { mem.looted[d.n] = tsGet(mem.looted, d.n) + 1; loot++; } else mem.missed[d.n] = tsGet(mem.missed, d.n) + 1;
+      const f = { door: String(d.n), trait: r.trait, result: res, weather: w, visits: String(tsGet(mem.visits, d.n)), defended: String(tsGet(mem.defended, d.n)), looted: String(tsGet(mem.looted, d.n)), missed: String(tsGet(mem.missed, d.n)), day: String(day), n: String(tsGet(mem.visits, d.n)), bighit: 'no', bells: '0' };
+      const l = tsPick(t, 'back', 'door', f, mem, day);
+      if (l && tsSincere(l) && rep.first[r.trait] === undefined) { rep.first[r.trait] = day; firstOrder.push(r.trait); }
+      hear(l, day, '门' + d.n + tsTraitZh(r.trait));
+    }
+    const outcome = doors.length > 0 && def * 2 >= doors.length ? 'won' : 'lost';
+    hear(tsPick(t, 'dayend', 'mario', { outcome, death: 'none', byyou: 'no', cause: '', bighits: '0', chain: '0', caught: '0', defendedtoday: String(def), lootedtoday: String(loot), weather: w, day: String(day), bells: '0' }, mem, day), day, '结束');
+    mem.yDay = day; mem.yOutcome = outcome; mem.yDefended = def; mem.yLooted = loot;
+  }
+  rep.distinct = Object.keys(heard).length; rep.firstOrder = firstOrder.map((k, i) => [k, rep.first[k], i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(x => x[0]);
+  return rep;
+}
+const tsRehearsalSummary = (r, days) => `彩排 ${days} 天：说了 ${r.said} 句（不同的 ${r.distinct} 句），真心话 ${r.sincere} 句；3 天内重复 ${r.repeats3} 次` +
+  (r.firstOrder.length ? '；第一次真心话：' + r.firstOrder.map(k => `${tsTraitZh(k)} 第${r.first[k]}天`).join('、') : '；还没有人说真心话');
+// 道具箱洗牌袋
+const OW_BAG = ['Bomb', 'Bomb', 'Energy', 'Taunt', 'Heart'];
+const owBagZh = k => k === 'Energy' ? '◆能量 +1' : k === 'Taunt' ? '📣挑衅 +1' : k === 'Heart' ? '❤补心 +1' : '💣炸弹 +1';
+function owBagShuffled(name, cycle) {
+  const b = OW_BAG.slice(); let x = (owHash(name || '') ^ (Math.imul(cycle, 2654435761 | 0) >>> 0)) >>> 0; if (x === 0) x = 1;
+  for (let i = b.length - 1; i > 0; i--) { x = (x ^ (x << 13)) >>> 0; x = (x ^ (x >>> 17)) >>> 0; x = (x ^ (x << 5)) >>> 0; const j = x % (i + 1); const t = b[i]; b[i] = b[j]; b[j] = t; }
+  return b;
+}
+function owBagOf(name, day, box, count) { if (day <= 1) return 'Bomb'; const k = (day - 2) * Math.max(1, count) + box; return owBagShuffled(name, Math.floor(k / OW_BAG.length))[k % OW_BAG.length]; }
+function owBagPreview(m, from, n) { const l = owFind(m, '?'), out = []; if (!l.length) return out; for (let d = from; d < from + n; d++) out.push(`第 ${d} 天 道具箱：` + l.map((_, i) => owBagZh(owBagOf(m.name, d, i, l.length))).join(' / ')); return out; }

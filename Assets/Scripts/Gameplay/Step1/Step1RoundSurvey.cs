@@ -1,11 +1,11 @@
 /// <summary>
 /// S181：宪法第 3 层"每局填写"的游戏内问卷（纯逻辑，无 Unity 依赖，可直接测试）。
-/// 顺序：算准了？→ 差点被发现？→（本局被抓过才问）服气吗/原因 → 还想再来 1–5 → 一句话备注（可跳过）。
+/// 顺序：算准了？→ 差点被发现？→ 笑出来了吗（S223 阶段 B 验收）？→（本局被抓过才问）服气吗/原因 → 还想再来 1–5 → 一句话备注（可跳过）。
 /// 原因标签照抄宪法：没预兆 / 看不懂他 / 手滑 / 我露馅。
 /// </summary>
 public sealed class Step1RoundSurvey
 {
-    public enum Step { Calculated, NearMiss, CaughtVerdict, WantAgain, Note, Done }
+    public enum Step { Calculated, NearMiss, Laughed, CaughtVerdict, WantAgain, Note, Done }
 
     /// <summary>被抓判定选项：1 = 服气，2–5 = 不服气 + 宪法原因标签。</summary>
     public static readonly string[] CaughtVerdicts = { "fair", "unfair:no_warning", "unfair:couldnt_read_him", "unfair:slipped", "unfair:gave_myself_away" };
@@ -15,6 +15,8 @@ public sealed class Step1RoundSurvey
     public Step Current { get; private set; } = Step.Calculated;
     public bool? Calculated { get; private set; }
     public bool? NearMiss { get; private set; }
+    /// <summary>S223：这局有没有被他的反应逗笑（总方案阶段 B 的验收：5 局里 0 次 = 反应不好笑/拖沓）。</summary>
+    public bool? Laughed { get; private set; }
     public string CaughtVerdict { get; private set; } = "";
     public int WantAgain { get; private set; }
     public string Note { get; private set; } = "";
@@ -31,6 +33,7 @@ public sealed class Step1RoundSurvey
             {
                 case Step.Calculated: return "这局有没有「我算准了他会走那里」的时刻？\nDid you have an \"I knew he'd go there\" moment?";
                 case Step.NearMiss: return "这局有没有「差点被他发现」的时刻？\nDid he ALMOST spot you this round?";
+                case Step.Laughed: return "这局有没有被马里奥中招的样子逗笑？\nDid his reaction make you laugh?";
                 case Step.CaughtVerdict: return "你被抓了。服气吗？\nYou got caught. Was it fair?";
                 case Step.WantAgain: return "还想再来一局吗？\nWant to play another round?";
                 case Step.Note: return "一句话（可跳过）：马里奥最蠢或最聪明的一下？\nOptional: dumbest or smartest thing Mario did?";
@@ -40,7 +43,7 @@ public sealed class Step1RoundSurvey
     }
 
     public int StepNumber => (int)Current + 1 - (!wasCaught && Current > Step.CaughtVerdict ? 1 : 0);
-    public int StepCount => wasCaught ? 5 : 4;
+    public int StepCount => wasCaught ? 6 : 5;
 
     private static readonly string[] YesNoOptions = { "是 Yes  [Y]", "否 No  [N]" };
     private static readonly string[] VerdictOptions =
@@ -62,7 +65,8 @@ public sealed class Step1RoundSurvey
             switch (Current)
             {
                 case Step.Calculated:
-                case Step.NearMiss: return YesNoOptions;
+                case Step.NearMiss:
+                case Step.Laughed: return YesNoOptions;
                 case Step.CaughtVerdict: return VerdictOptions;
                 case Step.WantAgain: return AgainOptions;
                 default: return NoOptions;
@@ -73,7 +77,7 @@ public sealed class Step1RoundSurvey
     /// <summary>点第 index 个按钮（0 起）。</summary>
     public bool Choose(int index)
     {
-        if (Current == Step.Calculated || Current == Step.NearMiss)
+        if (Current == Step.Calculated || Current == Step.NearMiss || Current == Step.Laughed)
             return index >= 0 && index <= 1 && AnswerYesNo(index == 0);
         return AnswerNumber(index + 1);
     }
@@ -81,7 +85,8 @@ public sealed class Step1RoundSurvey
     public bool AnswerYesNo(bool yes)
     {
         if (Current == Step.Calculated) { Calculated = yes; Current = Step.NearMiss; return true; }
-        if (Current == Step.NearMiss) { NearMiss = yes; Current = wasCaught ? Step.CaughtVerdict : Step.WantAgain; return true; }
+        if (Current == Step.NearMiss) { NearMiss = yes; Current = Step.Laughed; return true; }
+        if (Current == Step.Laughed) { Laughed = yes; Current = wasCaught ? Step.CaughtVerdict : Step.WantAgain; return true; }
         return false;
     }
 

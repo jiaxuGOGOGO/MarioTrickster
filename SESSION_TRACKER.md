@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
+| **最新 Session** | Session 223（阶段 B：马里奥中招三段式反应 Assets/Resources/MarioReactions.json + 问卷'笑了吗'）。上一版 S222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S223] 用户："继续。并告诉我之前这些任务都完成了是么"
+
+- 按 S222 总方案阶段 B：马里奥中招三段式反应（愣住 → 动作 → 恢复），纯画面。`MarioReaction`（纯逻辑表 + 采样 + JSON 读写）+ `MarioReactionView`（只动 visualTransform，由 Step1Combo.ComboRegistered 驱动，运行时自动挂）+ 数据文件 `Assets/Resources/MarioReactions.json`（9 种坑）。MarioMindLabel 中招时头顶显示该坑固定台词。
+- 每局问卷加"有没有被逗笑"（Step.Laughed），CSV 加 laughed 列，表头变了旧文件自动改名。
+- sim S223：演戏 ≤ 原晕眩（反向测试 1.9 秒能抓到）、逐帧连续、回原样、连锁跳过愣住、数据文件 = 默认表、坏文件回退、组件禁用词。EditMode 新增 4 项，问卷 3 项测试随新步骤更新。
+- 下一步：用户玩 5 局答"笑了吗"→ ≥1 次进阶段 C（视锥填充 / 声音圈 / 一天结束列 3 个可疑时刻）；0 次先缩短 freeze/act。
 
 ### [S222] 用户："继续探索式针对目前项目的所有内容找网上所有涉及的内容……以项目整体切碎去调研……形成详细方案 必须是不需要在反复大修大改的细致规划执行方案……执行完后继续去新的网站或者资料细节调查确认是否搜集足够科学合理结合统计学分析角度确认 并进行详细的自我审计"
 

@@ -36,3 +36,8 @@ MarioMindDriver（接线、速度、楼层寻路）◄── MarioOrder ◄─�
 
 ## S213 小镇 AI 改动先跑玩家模拟
 - 改 OverworldMind / OverworldTown 后看 verify 里 S213 那行：会躲的玩家要全埋伏、站着不躲不能全胜、反应慢的 3 天被抓 ≤3、乱按 100 天全部结束。
+
+## S223 中招反应（纯画面）
+- `MarioReaction`（纯逻辑：表 / Sample 三段 / Parse·ToJson）+ `MarioReactionView`（挂马里奥，只动 `MarioController.visualTransform`，由 `Step1Combo.ComboRegistered(n, kind)` 驱动）。
+- 新的"坑到了"事件 kind → 必须在 `MarioReaction.Default` 和 `Assets/Resources/MarioReactions.json` 各加一行（sim 对照两者），并在 sim S223 的 stun 字典里写它本来晕几秒。
+- 禁止在 MarioReactionView 里出现 ApplyKnockbackStun / ExtendStun / velocity / MarioSpeedScale / TricksterController / Rigidbody。

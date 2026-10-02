@@ -44,13 +44,14 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 
 ## 0.6 进度快照（打包时写入，以 SESSION_TRACKER 为准）
 
-- 最新交付：**S222**（全项目切碎调研 + 总方案 `repo/docs/step1/S222_RESEARCH_MASTERPLAN.md`——**以后开工先读它的 §4 阶段表**；机器人手抖模式 `PlayDay(...,humanNoise:true)` + sim 统计门槛（每镇 60 天、Wilson 95% 下限 ≥ 0.935）；被抓说原因 `OverworldMap.WhySeen` / `Step1Text.OverworldCaughtWhy`；雷云最后 1.5 秒闪烁）。上一版 S221（连控修正 GraceAfter、雷云外等待、机器人按 Q）。
+- 最新交付：**S223**（总方案阶段 B：马里奥中招三段式反应——`MarioReaction` 纯逻辑表 + `MarioReactionView` 只动外观 + 数据文件 `Assets/Resources/MarioReactions.json`；问卷加"笑了吗"→ CSV `laughed` 列）。上一版 S222（总方案 `repo/docs/step1/S222_RESEARCH_MASTERPLAN.md`——**以后开工先读它的 §4 阶段表**；机器人 humanNoise + 每镇 60 天 Wilson 门槛；被抓说原因；雷云结束闪烁）。
 - 数值版本 `MarioMindTuningSO.CurrentDataVersion = 22`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
 - 近几次做了什么（详情看 `repo/docs/step1/S21x_*.md`）：
   - S210 星露谷视角小镇大地图（门 = 恶作剧房间）；S211 场景转场；S212 圆形转场 + 指引箭头 + 编辑器快捷键；
   - S213 小镇规则纯逻辑化 + 7 种机器人玩家模拟；S214 网页 ↔ Unity 自动同步（Inbox 文件夹、▶ 在 Unity 试玩、PageUp/PageDown 切关）；
   - S215 一天总览（CampaignLedger，Unity 小镇工坊 + 网页大地图逐字一致）、小镇房间按 3+3 颗炸弹加固、14 个旧菜单收进"旧工具 (Legacy)"；
   - S217 小镇"↔ 扩展"（C# Resize = 网页 owResize）、上限 192×128；说明面板任意键关、进 Play 自动切 Game 窗口、全局键两套输入、转场保险丝、等出门提示；测试中心（一键体检 / 快速测试模式 / F8 反馈 / 打包 zip）；
+  - S223 阶段 B 反应：新坑种类 = 在 MarioReactions.json + MarioReaction.Default 各加一行（sim 逐项对照），愣住+动作 ≤ 该坑晕眩秒数；
   - S222 审计：旧机器人除 Chaos/Slow 外完全确定（N 天 = 1 个样本）→ 统计门槛必须开 humanNoise；方案阶段 B 马里奥中招反应 → C 可读性收尾 → D 第 1 步出口验证（用户 20 局）→ E 美术/UGC；B–D 期间冻结横向加系统；
   - S221 探针全流程模拟 → 修连控（GraceAfter）/ 雷云等待（StormBlocksRoute）/ 机器人按 Q；
   - S220 心/伤害表/雷区/补心能量/Q 雷云/带心进房间（OverworldStorm；OverworldTown TickStorms/FireStrike/TryCloud/HurtYou/HitMario/GainEnergy；OverworldRoomCarry；OverworldArt + Editor/OverworldArtTools；工坊 Touch/Recheck 防卡规则：OnGUI 里不做读盘/全图检查）；
@@ -58,7 +59,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
   - S218 小镇大机关（OverworldProps + OverworldEvents；OverworldTown Arm/Fire/Impact；马里奥听见起疑、吃过亏会躲；砸晕带进房间、守住一户重新装填；天气第 1 天晴；网页逐字对照）；
   - S216 修复"硬直期往上飞没有重力"（Step1Feel.StunStep，全程重力 40、落地才恢复），受伤红白闪 + 小跳、Step1Fx 冲击环/尘土/连锁火花线、预警越来越急、平滑震屏。
 - 交付包固定结构（`out/D<N>/`）：`00_先看我_怎么用.md`、`01_安装到项目`（全部补丁 + `install_and_upload.bat`）、`02_接续包_换账号用`（本 .skill）、`03_说明文档`（S21x_*.md）、`04_关卡设计台网页/MarioTrickster关卡设计台.html`。
-- 上次汇报推荐的下一步（用户说"继续"时做）：按 S222 总方案**阶段 B**：马里奥中招三段式反应（愣住→夸张动作→恢复，反应表放数据文件，同坑同反应 H6，不延长晕眩 H9），房间 RushMarioMind 也加手抖 + 60 次统计门槛。用户若要新系统：先指出总方案"冻结横向扩展"及宪法"不得跳步"，用户坚持再做。
+- 上次汇报推荐的下一步（用户说"继续"时做）：先问/看用户 5 局"笑了吗"结果（CSV laughed 列或反馈包）。≥1 次笑 → 总方案**阶段 C**（视锥里起疑填充 Shadow Tactics / 挑衅·草晃画声音圈 Mark of the Ninja / 一天结束列"他怀疑过你的 3 个时刻" SpyParty；不加新感知通道）；0 次 → 只缩短 MarioReactions.json 的 freeze/act，不加特效。用户没试玩就说"继续" → 做阶段 C 中不依赖验收的部分，并提醒还欠 5 局。
 - 用户要求（S217 起长期有效）：**每次升级都按本技能做安装包**，装到 `E:\BaiduNetdiskDownload\MarioTricksterGensparkAI\MarioTrickster`，bat 里选 Y 自动推到 GitHub；**测试流程不能有反复操作的阻碍**（新功能默认不弹窗、有快速测试模式、反馈走 F8 + 测试中心打包）。
 
 ## 1. 设计宪法硬规则（违反 = 不许交付）

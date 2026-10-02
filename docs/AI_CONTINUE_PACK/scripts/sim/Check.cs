@@ -466,8 +466,32 @@ static class CHECK {
       if(nowhy>0){ sb++; Console.WriteLine($"     [FAIL] 被抓却没有原因 {nowhy} 次"); } else parts.Add("冲向他被抓每次都有原因"); }
     OverworldSession.ResetStatics();
     Console.WriteLine($"[{(sb==0?"OK":"FAIL")}] S222 统计门槛 + 被抓原因：{string.Join("｜",parts)}"); fail+=sb; }
+  // S223（总方案阶段 B）：马里奥中招反应 = 纯画面。① 每种连招事件都有一种固定反应 ② 演戏时间 ≤ 这种坑本来就晕的秒数（H9 不延长）
+  // ③ 三段都连续（逐帧不跳变）、最后回到原样 ④ 连锁跳过"愣住" ⑤ 数据文件 = 默认表、写坏能回退 ⑥ 画面组件不碰晕眩/速度/捣蛋者
+  { int rb=0; var t=MarioMindTuningSO.LoadOrDefault(); var parts=new List<string>(); var D=MarioReaction.Default;
+    var stun=new Dictionary<string,float>{{"hurt",t.hurtStunSeconds},{"trip",t.tripStunSeconds},{"slip",t.bananaSlipSeconds},{"launch",t.springAirStunSeconds},{"cage",t.cageSeconds},{"snare",t.snareSeconds}};
+    foreach(var k in new[]{"hurt","trip","slip","launch","cage","snare","drop","pit","stop"}){
+      if(!MarioReaction.TryGet(D,k,out var b)){ rb++; Console.WriteLine($"     [FAIL] {k} 没有反应"); continue; }
+      if(stun.TryGetValue(k,out float st)){ if(b.Held>st+1e-4f){ rb++; Console.WriteLine($"     [FAIL] {k} 演 {b.Held:0.00} 秒 > 本来晕 {st:0.00} 秒（会让玩家觉得他被多控了）"); } }
+      else if(b.Total>MarioReaction.MaxUnstunnedTotal+1e-4f){ rb++; Console.WriteLine($"     [FAIL] {k} 不晕的坑演了 {b.Total:0.00} 秒（> {MarioReaction.MaxUnstunnedTotal}）"); }
+      foreach(float face in new[]{1f,-1f}){ var prev=MarioReaction.Sample(b,0f,face); double jump=0; bool oob=false;
+        for(float x=1f/60f;x<=b.Total+0.05f;x+=1f/60f){ var f=MarioReaction.Sample(b,x,face); if(float.IsNaN(f.sx)||f.sx<0.6f||f.sx>1.5f||f.sy<0.6f||f.sy>1.5f||Math.Abs(f.dx)>0.5f||Math.Abs(f.dy)>0.5f) oob=true;
+          double dr=Math.Abs(MarioReaction.Wrap(f.rotDeg-prev.rotDeg)); jump=Math.Max(jump,Math.Max(dr/30.0,Math.Max(Math.Abs(f.sx-prev.sx),Math.Abs(f.sy-prev.sy))/0.1)); jump=Math.Max(jump,Math.Max(Math.Abs(f.dx-prev.dx),Math.Abs(f.dy-prev.dy))/0.1); prev=f; }
+        var end=MarioReaction.Sample(b,b.Total+0.01f,face);
+        if(oob||jump>1.0||end.sx!=1f||end.sy!=1f||end.rotDeg!=0f||end.dx!=0f||end.dy!=0f){ rb++; Console.WriteLine($"     [FAIL] {k} 朝向{face}：越界={oob} 最大单帧跳变={jump:0.00}（应 ≤ 1：转 30° / 缩放 0.1 / 位移 0.1） 回原样={(end.sx==1f&&end.rotDeg==0f)}"); } }
+      if(MarioReaction.StartTime(b,true)!=b.freeze||MarioReaction.StartTime(b,false)!=0f){ rb++; Console.WriteLine($"     [FAIL] {k} 连锁没跳过愣住"); } }
+    parts.Add($"{D.Length} 种坑各一种固定反应，演戏 ≤ 原本晕眩，逐帧连续、回原样");
+    var file=File.Exists(WsRepo("Assets/Resources/MarioReactions.json"))?File.ReadAllText(WsRepo("Assets/Resources/MarioReactions.json")):null;
+    if(file==null){ rb++; Console.WriteLine("     [FAIL] 找不到 Assets/Resources/MarioReactions.json"); }
+    else { var ft=MarioReaction.Parse(file,out string err); if(err!=""||MarioReaction.ToJson(ft)!=MarioReaction.ToJson(D)){ rb++; Console.WriteLine($"     [FAIL] 数据文件 ≠ 默认表 {err}"); } else parts.Add("数据文件 = 默认表"); }
+    var bad2=MarioReaction.Parse("{oops",out string e2); var part=MarioReaction.Parse("{\"reactions\":[{\"kind\":\"hurt\",\"act\":9,\"pose\":\"Nope\"}]}",out string e3); MarioReaction.TryGet(part,"hurt",out var hh);
+    if(e2==""||bad2.Length!=D.Length||part.Length!=D.Length||hh.act>4f||e3==""){ rb++; Console.WriteLine("     [FAIL] 写坏的数据文件没有安全回退"); } else parts.Add("写坏/缺项/超范围都安全回退");
+    var view=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/MarioReactionView.cs"));
+    foreach(var w in new[]{"ApplyKnockbackStun","ExtendStun","velocity","MarioSpeedScale","TricksterController","Rigidbody"}) if(view.Contains(w)){ rb++; Console.WriteLine("     [FAIL] 反应画面组件出现 "+w+"（只能动外观）"); }
+    Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S223 马里奥中招反应：{string.Join("｜",parts)}"); fail+=rb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);
+  static string WsRepo(string rel)=>System.IO.Path.Combine("/home/user/workspace/repo",rel);
   static string[] Step1PrankRoomBuilderRoom()=>File.ReadAllText("room_template.txt").Replace("\r","").Split('\n').Where(l=>l.Length>0).ToArray();
  }}

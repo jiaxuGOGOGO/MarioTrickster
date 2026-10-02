@@ -245,11 +245,12 @@ public class Step1RushMarioTests
         Assert.AreEqual("", Step1PlaytestLog.PrankKindOf(null));
         var dict = new Dictionary<string, int> { { "Fire", 2 }, { "Blocker", 1 } };
         var survey = new Step1RoundSurvey(true);
-        survey.AnswerYesNo(true); survey.AnswerYesNo(false); survey.AnswerNumber(3); survey.AnswerNumber(5); survey.SubmitNote("he, jumped\nlate");
+        survey.AnswerYesNo(true); survey.AnswerYesNo(false); survey.AnswerYesNo(true); survey.AnswerNumber(3); survey.AnswerNumber(5); survey.SubmitNote("he, jumped\nlate");
         string row = Step1PlaytestLog.CsvRow(new System.DateTime(2026, 1, 1), 3, "Trickster", "a,b", 12.3f, 2, 1, 4, 2, dict, survey);
         StringAssert.Contains("Blocker:1 Fire:2", row);
         StringAssert.Contains("a;b", row);
         StringAssert.Contains("yes,no,unfair:couldnt_read_him,5,he; jumped late,0", row);
+        Assert.IsTrue(row.EndsWith(",yes"), "S223：最后一列 = 有没有笑出来");
         Assert.AreEqual(Step1PlaytestLog.CsvHeader.Split(',').Length, row.Split(',').Length);
     }
 
@@ -261,6 +262,8 @@ public class Step1RushMarioTests
         Assert.AreEqual(Step1RoundSurvey.Step.Calculated, s.Current);
         Assert.IsFalse(s.AnswerNumber(4), "是/否题不接受数字");
         s.AnswerYesNo(true); s.AnswerYesNo(true);
+        Assert.AreEqual(Step1RoundSurvey.Step.Laughed, s.Current, "S223：差点被发现之后问有没有笑出来");
+        s.AnswerYesNo(false);
         Assert.AreEqual(Step1RoundSurvey.Step.WantAgain, s.Current, "没被抓就不问服不服气");
         Assert.IsFalse(s.AnswerNumber(0)); Assert.IsFalse(s.AnswerNumber(6));
         s.AnswerNumber(2);
@@ -277,7 +280,7 @@ public class Step1RushMarioTests
         // 宪法第 3 层：服气 + 四个不服气原因（没预兆 / 看不懂他 / 手滑 / 我露馅）
         Assert.AreEqual(5, Step1RoundSurvey.CaughtVerdicts.Length);
         var s = new Step1RoundSurvey(true);
-        s.AnswerYesNo(false); s.AnswerYesNo(false);
+        s.AnswerYesNo(false); s.AnswerYesNo(false); s.AnswerYesNo(false);
         Assert.AreEqual(Step1RoundSurvey.Step.CaughtVerdict, s.Current);
         s.AnswerNumber(2);
         Assert.AreEqual("unfair:no_warning", s.CaughtVerdict);
@@ -381,21 +384,23 @@ public class Step1RushMarioTests
     public void SurveyButtonsWalkTheSameSteps()
     {
         var s = new Step1RoundSurvey(true);
-        Assert.AreEqual(5, s.StepCount); Assert.AreEqual(1, s.StepNumber);
+        Assert.AreEqual(6, s.StepCount); Assert.AreEqual(1, s.StepNumber);
         Assert.AreEqual(2, s.Options.Length);
         Assert.IsTrue(s.Choose(0)); Assert.AreEqual(true, s.Calculated);
         Assert.IsTrue(s.Choose(1)); Assert.AreEqual(false, s.NearMiss);
+        Assert.AreEqual(2, s.Options.Length, "S223：笑了吗 = 是/否");
+        Assert.IsTrue(s.Choose(0)); Assert.AreEqual(true, s.Laughed);
         Assert.AreEqual(5, s.Options.Length, "服气 + 4 个宪法原因");
         Assert.IsTrue(s.Choose(3)); Assert.AreEqual("unfair:slipped", s.CaughtVerdict);
         Assert.AreEqual(5, s.Options.Length);
         Assert.IsTrue(s.Choose(4)); Assert.AreEqual(5, s.WantAgain);
         Assert.AreEqual(0, s.Options.Length, "一句话步骤用输入框");
-        Assert.AreEqual(5, s.StepNumber);
+        Assert.AreEqual(6, s.StepNumber);
 
         var n = new Step1RoundSurvey(false);
-        n.Choose(0); n.Choose(0);
+        n.Choose(0); n.Choose(0); n.Choose(1);
         Assert.AreEqual(Step1RoundSurvey.Step.WantAgain, n.Current);
-        Assert.AreEqual(3, n.StepNumber); Assert.AreEqual(4, n.StepCount);
+        Assert.AreEqual(4, n.StepNumber); Assert.AreEqual(5, n.StepCount);
         StringAssert.Contains("\n", n.Prompt, "中英两行");
     }
 
@@ -2059,6 +2064,68 @@ public class Step1RushMarioTests
         foreach (var f in new[] { "RushMarioMind", "MarioMindDriver", "MarioEyes", "MarioVision" })
             StringAssert.DoesNotContain("Step1Fx", CodeOnly(Read("Scripts/Gameplay/Step1/" + f + ".cs")), "H4：马里奥不看特效");
         Assert.LessOrEqual(Step1Fx.MaxAlive, 120, "同屏特效上限");
+    }
+
+    // ── S223：马里奥中招反应（总方案阶段 B，纯画面）──────────────────────
+    [Test]
+    public void Reaction_EveryComboKindHasOneFixedBeat_AndNeverOutlastsItsStun()
+    {
+        var t = MarioMindTuningSO.LoadOrDefault();
+        foreach (var kind in new[] { "hurt", "trip", "slip", "launch", "cage", "snare", "drop", "pit", "stop" })
+        {
+            Assert.IsTrue(MarioReaction.TryGet(MarioReaction.Default, kind, out var b), kind + " 没有反应（H6：每种坑一种固定反应）");
+            Assert.IsTrue(MarioReaction.TryGet(MarioReaction.Default, kind, out var b2) && b2.pose == b.pose, "同一种坑永远同一个动作");
+            StringAssert.Contains("\n", MarioReaction.Line(b), "台词中英两行");
+        }
+        Assert.LessOrEqual(MarioReaction.Default[0].Held, t.hurtStunSeconds, "被烧到：演戏不超过本来就晕的时间（H9 不延长）");
+        MarioReaction.TryGet(MarioReaction.Default, "trip", out var trip); Assert.LessOrEqual(trip.Held, t.tripStunSeconds);
+        MarioReaction.TryGet(MarioReaction.Default, "slip", out var slip); Assert.LessOrEqual(slip.Held, t.bananaSlipSeconds);
+        MarioReaction.TryGet(MarioReaction.Default, "launch", out var launch); Assert.LessOrEqual(launch.Held, t.springAirStunSeconds);
+        MarioReaction.TryGet(MarioReaction.Default, "cage", out var cage); Assert.LessOrEqual(cage.Held, t.cageSeconds);
+        MarioReaction.TryGet(MarioReaction.Default, "snare", out var snare); Assert.LessOrEqual(snare.Held, t.snareSeconds);
+        foreach (var k in new[] { "drop", "pit", "stop" }) { MarioReaction.TryGet(MarioReaction.Default, k, out var b); Assert.LessOrEqual(b.Total, MarioReaction.MaxUnstunnedTotal, k + "：边走边演，不能长"); }
+    }
+
+    [Test]
+    public void Reaction_ThreeBeats_EndAtIdentity_AndChainSkipsFreeze()
+    {
+        MarioReaction.TryGet(MarioReaction.Default, "hurt", out var b);
+        Assert.AreEqual(0, MarioReaction.Sample(b, 0.1f, 1f).phase, "先愣住");
+        Assert.Greater(MarioReaction.Sample(b, 0.1f, 1f).sx, 1f, "愣住 = 压扁");
+        Assert.AreEqual(1, MarioReaction.Sample(b, b.freeze + 0.1f, 1f).phase);
+        Assert.AreEqual(2, MarioReaction.Sample(b, b.Held + 0.05f, 1f).phase);
+        var end = MarioReaction.Sample(b, b.Total + 0.01f, 1f);
+        Assert.AreEqual(1f, end.sx); Assert.AreEqual(1f, end.sy); Assert.AreEqual(0f, end.rotDeg);
+        Assert.AreEqual(b.freeze, MarioReaction.StartTime(b, true), "连锁中跳过愣住，不越连越拖");
+        Assert.AreEqual(0f, MarioReaction.StartTime(b, false));
+        MarioReaction.TryGet(MarioReaction.Default, "launch", out var spin);
+        Assert.AreEqual(-MarioReaction.Sample(spin, spin.freeze + spin.act * 0.5f, 1f).rotDeg, MarioReaction.Sample(spin, spin.freeze + spin.act * 0.5f, -1f).rotDeg, 0.001f, "按朝向转");
+    }
+
+    [Test]
+    public void Reaction_DataFileMatchesDefaults_AndBadFileFallsBack()
+    {
+        var file = MarioReaction.Parse(File.ReadAllText(Path.Combine(Application.dataPath, "Resources/MarioReactions.json")), out string err);
+        Assert.AreEqual("", err);
+        Assert.AreEqual(MarioReaction.ToJson(MarioReaction.Default), MarioReaction.ToJson(file), "数据文件 = 默认表");
+        var bad = MarioReaction.Parse("{oops", out string e2);
+        Assert.AreNotEqual("", e2); Assert.AreEqual(MarioReaction.Default.Length, bad.Length, "写坏了也不会让游戏坏");
+        var part = MarioReaction.Parse("{\"reactions\":[{\"kind\":\"hurt\",\"act\":0.5}]}", out _);
+        Assert.AreEqual(MarioReaction.Default.Length, part.Length, "缺的种类用默认补上");
+        MarioReaction.TryGet(part, "hurt", out var h); Assert.AreEqual(0.5f, h.act, 0.001f);
+    }
+
+    [Test]
+    public void Reaction_IsVisualOnly_WiredThroughComboEvent()
+    {
+        string view = Read("Scripts/Gameplay/Step1/MarioReactionView.cs");
+        StringAssert.Contains("ComboRegistered += HandleCombo", view);
+        StringAssert.Contains("visual == transform) visual = null", view, "外观 = 身体时不演（不动碰撞体）");
+        foreach (var banned in new[] { "ApplyKnockbackStun", "ExtendStun", "velocity", "MarioSpeedScale", "TricksterController" })
+            StringAssert.DoesNotContain(banned, view, "反应只是画面：" + banned);
+        StringAssert.Contains("AddComponent<MarioReactionView>()", Read("Scripts/Gameplay/Step1/Step1Combo.cs"), "旧场景自动挂上");
+        StringAssert.Contains("reaction.CurrentLine", Read("Scripts/Gameplay/Step1/MarioMindLabel.cs"));
+        StringAssert.Contains("laughed", Step1PlaytestLog.CsvHeader);
     }
 
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)

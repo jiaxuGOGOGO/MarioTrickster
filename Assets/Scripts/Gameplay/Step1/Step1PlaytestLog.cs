@@ -8,7 +8,7 @@ using UnityEngine;
 /// 设计宪法第 1 步退出条件的记录工具：连玩 20 局还想玩 + 至少 3 种不同的恶作剧方式。
 /// - 恶作剧归因：捣蛋者触发某个机关后 prankAttributionSeconds 内马里奥受伤 → 记一次该机关类型的恶作剧；
 ///   马里奥追丢（Chasing → Searching → Running 且没抓到）→ 记一次 "Escape"。
-/// - 回合结束：屏幕上答宪法第 3 层每局问卷（Step1RoundSurvey：算准了/差点被发现/被抓服气吗/想再来 1–5/一句话），
+/// - 回合结束：屏幕上答宪法第 3 层每局问卷（Step1RoundSurvey：算准了/差点被发现/笑出来了吗(S223)/被抓服气吗/想再来 1–5/一句话），
 ///   写入 PlaytestLogs/step1_rounds.csv（在 Assets 外，不进 git）。问卷答完之前 R/N 被屏蔽，避免误开下一局。
 /// - S182：界面中英对照、只留必要信息（左上角 3 行状态 + 底部 1 行按键），结算用按钮/按键作答，答完才显示 N/R。
 /// 本类只做记录与显示，不影响马里奥决策。
@@ -162,7 +162,7 @@ public class Step1PlaytestLog : MonoBehaviour
     }
 
     public static string CsvHeader => "timestamp,round,winner,reason,seconds,trickster_lives_left,times_caught,omens,alerts,pranks,distinct_kinds," +
-        "calculated_moment,near_miss_moment,caught_verdict,want_again_1to5,note,max_combo,layout_seed,stuck_rescues,combo_score,personality";
+        "calculated_moment,near_miss_moment,caught_verdict,want_again_1to5,note,max_combo,layout_seed,stuck_rescues,combo_score,personality,laughed";
 
     public static string CsvRow(DateTime time, int round, string winner, string reason, float seconds, int livesLeft,
         int caught, int omens, int alerts, IReadOnlyDictionary<string, int> pranks, Step1RoundSurvey answers, int maxCombo = 0, int layoutSeed = 0, int stuckRescues = 0, int comboScore = 0, string personality = "")
@@ -174,7 +174,7 @@ public class Step1PlaytestLog : MonoBehaviour
             seconds.ToString("F1", System.Globalization.CultureInfo.InvariantCulture), livesLeft, caught, omens, alerts,
             string.Join(" ", parts), pranks.Count,
             Step1RoundSurvey.YesNo(answers?.Calculated), Step1RoundSurvey.YesNo(answers?.NearMiss), Clean(answers?.CaughtVerdict),
-            answers != null ? answers.WantAgain : 0, Clean(answers?.Note), maxCombo, layoutSeed, stuckRescues, comboScore, Clean(personality));
+            answers != null ? answers.WantAgain : 0, Clean(answers?.Note), maxCombo, layoutSeed, stuckRescues, comboScore, Clean(personality), Step1RoundSurvey.YesNo(answers?.Laughed));
     }
 
     private static string Clean(string s) => (s ?? "").Replace(",", ";").Replace("\n", " ").Replace("\r", " ");
@@ -186,6 +186,13 @@ public class Step1PlaytestLog : MonoBehaviour
             string folder = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", LogFolder);
             Directory.CreateDirectory(folder);
             string path = Path.Combine(folder, LogFile);
+            // S223：表头加了列（laughed）→ 旧文件改名留档，新文件重新写表头（不让新旧列错位）
+            if (File.Exists(path))
+            {
+                string head;
+                using (var r = new StreamReader(path)) head = r.ReadLine() ?? "";
+                if (head != CsvHeader) File.Move(path, Path.Combine(folder, "step1_rounds_before_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".csv"));
+            }
             bool fresh = !File.Exists(path);
             var sb = new StringBuilder();
             if (fresh) sb.AppendLine(CsvHeader);

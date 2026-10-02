@@ -10,10 +10,12 @@ public class MarioMindLabel : MonoBehaviour
     private TextMesh intent;
     private LineRenderer bar;
     private LineRenderer barBack;
+    private MarioReactionView reaction; // S223：中招时头顶换成这种坑固定的台词
 
     private void Start()
     {
         if (driver == null) driver = GetComponentInParent<MarioMindDriver>();
+        reaction = GetComponentInParent<MarioReactionView>();
         mark = MakeText("MindMark", 90, 0.07f, new Vector3(0f, height + 0.75f, 0f));
         intent = MakeText("MindIntent", 40, 0.045f, new Vector3(0f, height, 0f));
         barBack = MakeBar("MindBarBack", new Color(0f, 0f, 0f, 0.5f), 10);
@@ -59,6 +61,8 @@ public class MarioMindLabel : MonoBehaviour
             ? $"{tr.zh}\n{tr.en}"
             : (driver.Mind.Personality == MarioPersonalityKind.Rush ? "" : tr.zh + "·") + Step1Text.HeadIntent(order.state, order.intent ?? "");
         intent.color = new Color(1f, 1f, 1f, 0.85f);
+        if (reaction == null && driver != null) reaction = driver.GetComponent<MarioReactionView>();
+        if (reaction != null && reaction.Playing && !driver.Mind.ShowingPersonality) { intent.text = reaction.CurrentLine; intent.color = new Color(1f, 0.85f, 0.4f, 1f); }
 
         float n = driver.Mind.Meter.Normalized;
         Vector3 left = transform.position + new Vector3(-0.5f, height - 0.15f, 0f);

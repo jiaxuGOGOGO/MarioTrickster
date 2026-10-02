@@ -386,6 +386,18 @@ public static class OverworldMap
         return LineOfSight(m, ex, ey, tx, ty);
     }
 
+    /// <summary>S222：他为什么看得见你（SpyParty 教训：被抓要告诉玩家"凭什么"）。只用 CanSee 同一组输入（H4），不新增感知。</summary>
+    public enum SeenWhy { None, Near, GrassClose, Lamp, Open, DisguiseMoved, Rustle, Taunt }
+    public static SeenWhy WhySeen(Map m, IList<Cell> lamps, double ex, double ey, double tx, double ty, SightRules r, bool disguised)
+    {
+        double dx = tx - ex, dy = ty - ey, d = Math.Sqrt(dx * dx + dy * dy);
+        if (disguised) return SeenWhy.DisguiseMoved;
+        if (OverworldCatalog.Hides(m.At((int)Math.Floor(tx), (int)Math.Floor(ty)))) return SeenWhy.GrassClose;
+        if (d <= r.nearRadius) return SeenWhy.Near;
+        if (r.night && Lit(lamps, tx, ty, r.lampRadius) && d > Math.Min(r.range, r.nightRange)) return SeenWhy.Lamp;
+        return SeenWhy.Open;
+    }
+
     /// <summary>"草晃了"：你在高草里走动，在他视锥和距离内（草本身不挡这次判定）。只知道位置，不知道是谁（H4）。</summary>
     public static bool SeesRustle(Map m, IList<Cell> lamps, double ex, double ey, double fx, double fy, double tx, double ty, SightRules r)
     {

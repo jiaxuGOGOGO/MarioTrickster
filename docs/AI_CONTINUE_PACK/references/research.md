@@ -70,3 +70,11 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - 连控：https://www.g2a.com/news/glossary/what-is-stun-lock-in-gaming/ ；起身无敌：https://wiki.supercombo.gg/w/The_Wakeup_Game
 - 吃豆人能量豆：https://pacman.fandom.com/wiki/Power_Pellet ；Spy vs Spy 自伤陷阱：https://en.wikipedia.org/wiki/Spy_vs._Spy_(1984_video_game)
 - 结论：保护期从站起来算；学会 = 用时间躲（等），不是免疫。
+
+## S222 全项目切碎调研（总方案：repo/docs/step1/S222_RESEARCH_MASTERPLAN.md，§2 有全部来源表，**不要重复调研**）
+- 9 块：核心幻想 / AI 可读性 / 关卡 UGC / 小镇 / 喜剧 / 手感 / 美术 / 自定义 / 统计试玩。
+- 失败教训：Hello Neighbor（学习看不见）、Neighbours from Hell（固定线不耐玩）、Dreams / Zucconi（编辑器没人用）、Loop Hero / Legend of Keepers（重复）。
+- 可读性：Thief 离散警觉、Shadow Tactics 视锥填充、Mark of the Ninja 声音圈、Invisible Inc 被看见不立刻输、SpyParty 解释为什么被抓、Reddit "可读 > 复杂"（Half-Life 包抄被删）。
+- 喜剧：Polaris Mechanical Comedy 12 成分（https://polarisgamedesign.com/2025/mechanical-comedy-in-games/）、Bergson 机械镶嵌在活人身上、GDC Comedy Through Patterns、鹅鹅鹅。
+- 统计：NIST 推荐 Wilson（https://itl.nist.gov/div898/handbook/prc/section2/prc241.htm）；rule of three → 60 次全对 = 95% 把握失败率 < 5%；试玩 6 人找问题 / 12 人了解玩家 / 100 人量化（https://gamesuserresearch.com/how-many-players-do-i-need-for-a-playtest/）。
+- 做法教训：机器人必须先验证"不同种子 → 不同结果"再谈样本数。

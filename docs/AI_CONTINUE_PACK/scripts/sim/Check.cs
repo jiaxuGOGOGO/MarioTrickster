@@ -442,6 +442,30 @@ static class CHECK {
       if(clouds<4||!ended||am<doors){ rb++; Console.WriteLine($"     [FAIL] 捣蛋型：雷云 {clouds} 次（应每天 1 次） 结束={ended} 埋伏 {am}/{doors}"); } else parts.Add($"捣蛋型 4 天按 Q {clouds} 次、埋伏 {am}/{doors}"); }
     OverworldSession.ResetStatics();
     Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S221 全流程模拟修正：{string.Join("｜",parts)}"); fail+=rb; }
+  // S222：统计门槛——以前每种机器人 3–12 天是"同一天复制 N 遍"（除乱按/反应慢外完全确定）。现在开手抖模式（humanNoise），
+  // 每个样板镇 60 天（规则 of three：60 次全对 → 95% 把握失败率 < 5%）+ Wilson 95% 区间（NIST 推荐）。
+  { int sb=0; var t=MarioMindTuningSO.LoadOrDefault(); var parts=new List<string>(); const int N=60;
+    (double lo,double hi) W(int k,int n){ double z=1.96,p=(double)k/n,d=1+z*z/n,c=p+z*z/(2*n),h=z*Math.Sqrt(p*(1-p)/n+z*z/(4.0*n*n)); return (Math.Max(0,(c-h)/d),Math.Min(1,(c+h)/d)); }
+    foreach(var (nm,txt) in new[]{("小镇",OverworldPack.SampleText),("大镇",OverworldPack.BigSampleText),("山镇",OverworldPack.MountainSampleText),("雷镇",OverworldPack.StormSampleText)}){
+      int full=0,ended=0; var times=new HashSet<double>();
+      for(int s=1;s<=N;s++){ var r=OverworldBots.PlayDay(OverworldPack.Parse(txt)[0],t,OverworldBots.Kind.Hider,true,s,1+(s-1)%4,true); if(r.ambush==r.doors) full++; if(r.dayEnded) ended++; times.Add(Math.Round(r.realSeconds,1)); }
+      var w=W(full,N); if(w.lo<0.935||ended<N||times.Count<5){ sb++; Console.WriteLine($"     [FAIL] {nm} 会躲的玩家 {full}/{N} 天全埋伏 Wilson 下限 {w.lo:0.000}（应 ≥ 0.935：60 天全对时 = 0.940） 结束 {ended}/{N} 不同用时 {times.Count}（应 ≥ 5，否则样本不独立）"); }
+      else parts.Add($"{nm} 会躲 {full}/{N}（下限 {w.lo:0.000}，{times.Count} 种用时）"); }
+    { int full=0; for(int s=1;s<=N;s++){ var r=OverworldBots.PlayDay(OverworldPack.Parse(OverworldPack.SampleText)[0],t,OverworldBots.Kind.Follower,true,s,1,true); if(r.ambush==r.doors) full++; }
+      var w=W(full,N); if(w.hi>0.5){ sb++; Console.WriteLine($"     [FAIL] 不躲也能全胜 {full}/{N}（上限 {w.hi:0.00}，应 ≤ 0.5）：躲藏没意义"); } else parts.Add($"不躲 {full}/{N} 天全胜（上限 {w.hi:0.00}）"); }
+    OverworldSession.ResetStatics();
+    // 被抓说明原因：空地正面 = 视线里；伪装还在动 = 木箱动了；路灯下 = 路灯
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; var r=new OverworldMap.SightRules{range=8,nightRange=3,halfAngleDeg=60,nearRadius=1.2,grassRadius=1,lampRadius=2.5,night=true};
+      var lamps=new List<OverworldMap.Cell>{new OverworldMap.Cell(10,5)};
+      var a=OverworldMap.WhySeen(m,lamps,4.5,5.5,10.5,5.5,r,false); var b=OverworldMap.WhySeen(m,lamps,4.5,5.5,6.5,5.5,r,true); var c=OverworldMap.WhySeen(m,lamps,4.5,5.5,5.2,5.5,r,false);
+      if(a!=OverworldMap.SeenWhy.Lamp||b!=OverworldMap.SeenWhy.DisguiseMoved||c!=OverworldMap.SeenWhy.Near){ sb++; Console.WriteLine($"     [FAIL] 被抓原因：路灯={a} 伪装={b} 贴身={c}"); }
+      else parts.Add("被抓说原因（路灯/伪装在动/贴身）");
+      int nowhy=0; for(int s=1;s<=20;s++){ OverworldSession.ResetStatics(); OverworldSession.NewDay(m.name,"Town",1); OverworldSession.Active=true; var town=new OverworldTown(m,t); int c0=0;
+        for(int i=0;i<30*90&&!OverworldSession.DayOver;i++){ var inp=new OverworldTown.Input{h=(float)Math.Sign(town.mario.x-town.tx),v=(float)Math.Sign(town.mario.y-town.ty),fastForward=true}; town.Tick(1f/30f,inp); if(OverworldSession.Caught>c0){ c0=OverworldSession.Caught; if(town.caughtWhy==OverworldMap.SeenWhy.None) nowhy++; } }
+        if(c0==0&&s==1){ sb++; Console.WriteLine("     [FAIL] 冲向他的玩家一次都没被抓（测试无效）"); } }
+      if(nowhy>0){ sb++; Console.WriteLine($"     [FAIL] 被抓却没有原因 {nowhy} 次"); } else parts.Add("冲向他被抓每次都有原因"); }
+    OverworldSession.ResetStatics();
+    Console.WriteLine($"[{(sb==0?"OK":"FAIL")}] S222 统计门槛 + 被抓原因：{string.Join("｜",parts)}"); fail+=sb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

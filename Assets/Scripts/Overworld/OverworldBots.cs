@@ -37,7 +37,9 @@ public static class OverworldBots
     }
 
     /// <summary>玩完一天。useFastForward = 机器人在"没事可干"时按住快进（S213 新功能）。房间里的时间不计入。</summary>
-    public static Report PlayDay(OverworldMap.Map m, MarioMindTuningSO t, Kind kind, bool useFastForward, int seed = 1, int day = 1)
+    /// <param name="humanNoise">S222：像真人一样有手抖——每到新目标先愣 0.15–0.6 秒、偶尔停 0.2–0.5 秒、按 E 不是每帧都按。
+    /// 不开时（默认）除 Chaos/Slow 外每个种子结果完全一样（S222 审计发现：12 次 = 1 个样本复制 12 遍），统计门槛必须开。</param>
+    public static Report PlayDay(OverworldMap.Map m, MarioMindTuningSO t, Kind kind, bool useFastForward, int seed = 1, int day = 1, bool humanNoise = false)
     {
         OverworldSession.NewDay(m.name, "Town", day); OverworldSession.Active = true; // S218：day 决定天气
         var rep = new Report { kind = kind, doors = 0 };
@@ -46,7 +48,7 @@ public static class OverworldBots
         const float dt = 1f / 30f;
         var rng = new System.Random(seed);
         double idleRun = 0; float react = 0f, chaosH = 0f, chaosV = 0f; int pickupsLeft = OverworldMap.Find(m, '?').Count;
-        int guard = 0; OverworldMap.Cell? energyGoal = null;
+        int guard = 0; OverworldMap.Cell? energyGoal = null, lastGoal = null;
         while (!OverworldSession.DayOver && guard++ < 30 * 60 * 30)
         {
             var next = town.NextStop;
@@ -116,6 +118,12 @@ public static class OverworldBots
                 }
                 if (best.HasValue) goal = best;
             }
+            if (humanNoise && kind != Kind.Chaos)
+            {
+                if (goal.HasValue && !goal.Equals(lastGoal)) react = System.Math.Max(react, 0.15f + 0.45f * (float)rng.NextDouble()); // 看清新目标再动
+                else if (rng.NextDouble() < 0.004) react = System.Math.Max(react, 0.2f + 0.3f * (float)rng.NextDouble()); // 偶尔走神
+                lastGoal = goal;
+            }
             if (react > 0f) { react -= dt; goal = null; }
             if (goal.HasValue)
             {
@@ -138,7 +146,7 @@ public static class OverworldBots
                 input.h = input.v = 0f; // 到门口就站住
                 bool hides = kind == Kind.Hider || kind == Kind.Prankster || kind == Kind.Slow;
                 if (hides && !town.disguised && !town.marioInside) input.disguise = true;
-                input.door = true; // 真人会一直按 E（没到时机只会看到"等他走近"）
+                input.door = !humanNoise || rng.NextDouble() < 0.35; // 真人会一直按 E（没到时机只会看到"等他走近"）；S222 手抖模式：大约每 3 帧按到一次
             }
             bool atDoor = next != null && town.NearDoor(next.n);
             bool idle = kind != Kind.Chaos && input.h == 0 && input.v == 0 && !input.peel && (!input.door || !town.AmbushReady);

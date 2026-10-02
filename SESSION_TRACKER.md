@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 219（巨炮能坐能瞄：你 / 马里奥都能 E 坐进去，方向键瞄准、落点先画在地上，落点走不回家不许打；马里奥省 ≥10 格才坐，瞄准 1.6 秒时你按 L 拨歪 → 他飞错落地晕、以后不坐；山地：山丘 ^ 挡平地视线 / 站上去看得远、山 A、山洞 h 两个一对 E 钻过去；天气池按格局：有路灯才有 ⛈ 雷雨（路灯旁 L 召唤闪电）、有山洞才有 ☂ 酸雨（高草全枯）；湿的天冲击震到山坡 = 泥石流、水塔淹山坡 = 山洪；样板"星露山镇"；调参 v20） |
+| **最新 Session** | Session 222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S222] 用户："继续探索式针对目前项目的所有内容找网上所有涉及的内容……以项目整体切碎去调研……形成详细方案 必须是不需要在反复大修大改的细致规划执行方案……执行完后继续去新的网站或者资料细节调查确认是否搜集足够科学合理结合统计学分析角度确认 并进行详细的自我审计"
+
+- 调研：项目切 9 块，约 60 个来源（Thief / Shadow Tactics / Mark of the Ninja / Invisible Inc / SpyParty / Alien Isolation / Hello Neighbor / Neighbours from Hell / 鹅鹅鹅 / Polaris Mechanical Comedy / Bergson / Levelhead / 马造 / Dreams / Zucconi / LDtk / Celeste / 樱井 / 19 特征论文 / NIST Wilson / rule of three …），二轮查 itch.io / GitHub / Reddit / NIST / arXiv。总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md（阶段 A–E + 永久规则 + 统计自查 + 自我审计）。
+- 审计发现：机器人除 Chaos/Slow 外完全确定 → 旧"12/12"= 1 个样本。修：`OverworldBots.PlayDay(..., humanNoise)`（愣 0.15–0.6 秒 / 偶尔走神 / E 约每 3 帧按到）；sim 新增 S222 统计门槛：4 个样板镇 × 会躲 60 天 Wilson 下限 ≥ 0.935 + 不同用时 ≥ 5；不躲 60 天上限 ≤ 0.5。实测 60/60 ×4（14–30 种用时），不躲 0/60。
+- 被抓说原因：`OverworldMap.WhySeen`（只用 CanSee 同组输入，H4）+ `OverworldTown.seenWhy/caughtWhy`（记从平静变起疑的那一刻）+ `Step1Text.OverworldCaughtWhy`（视线里 / 路灯下 / 贴身 / 草晃了 / 伪装还在动 / 挑衅引来）。
+- 雷云最后 1.5 秒闪烁（结束也要预告）。进度表顶行从 S219 修到 S222。
+- 新测试 `CaughtReason_UsesSameSightInputs`、`Bots_HumanNoise_GivesIndependentDays_AndHiderStillWins`。自我审计：S210–S221 在第 1 步未通过时持续加系统（违反不得跳步）→ 方案阶段 B–D 冻结横向扩展。下一步：阶段 B 马里奥中招反应。
 
 ### [S221] 用户："参考优秀类似角度形式的2d游戏优秀设计经验和案例进行自我全流程模拟测试检验 是否还存在需要改进的地方边检查变搜集资料校验 尊重第一性原理"
 

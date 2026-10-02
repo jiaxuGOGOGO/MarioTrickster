@@ -736,4 +736,33 @@ public class OverworldTests
         Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 21);
         var t = Tuning(); Assert.Greater(t.overworldBoltTelegraphSeconds, 0.9f, "闪电预警够看清"); Assert.Greater(t.overworldHurtGraceSeconds, 1f);
     }
+
+    // S222：被抓要说原因（SpyParty 教训）；机器人手抖模式让每个种子真的不一样（统计样本独立）
+    [Test]
+    public void CaughtReason_UsesSameSightInputs()
+    {
+        var m = Sample();
+        var r = new OverworldMap.SightRules { range = 8, nightRange = 3, halfAngleDeg = 60, nearRadius = 1.2, grassRadius = 1, lampRadius = 2.5, night = true };
+        var lamps = new System.Collections.Generic.List<OverworldMap.Cell> { new OverworldMap.Cell(10, 5) };
+        Assert.AreEqual(OverworldMap.SeenWhy.Lamp, OverworldMap.WhySeen(m, lamps, 4.5, 5.5, 10.5, 5.5, r, false));
+        Assert.AreEqual(OverworldMap.SeenWhy.DisguiseMoved, OverworldMap.WhySeen(m, lamps, 4.5, 5.5, 6.5, 5.5, r, true));
+        Assert.AreEqual(OverworldMap.SeenWhy.Near, OverworldMap.WhySeen(m, lamps, 4.5, 5.5, 5.2, 5.5, r, false));
+        StringAssert.Contains("路灯", Step1Text.OverworldCaughtWhy(OverworldMap.SeenWhy.Lamp));
+        StringAssert.Contains("木箱", Step1Text.OverworldCaughtWhy(OverworldMap.SeenWhy.DisguiseMoved));
+    }
+
+    [Test]
+    public void Bots_HumanNoise_GivesIndependentDays_AndHiderStillWins()
+    {
+        var t = Tuning(); var times = new System.Collections.Generic.HashSet<double>(); int full = 0;
+        for (int s = 1; s <= 10; s++)
+        {
+            var r = OverworldBots.PlayDay(Sample(), t, OverworldBots.Kind.Hider, true, s, 1, true);
+            times.Add(System.Math.Round(r.realSeconds, 1)); if (r.ambush == r.doors) full++;
+            Assert.IsTrue(r.dayEnded);
+        }
+        OverworldSession.ResetStatics();
+        Assert.Greater(times.Count, 2, "手抖模式下不同种子应该玩出不同的一天");
+        Assert.AreEqual(10, full, "会躲的玩家每天都能全部埋伏（H10）");
+    }
 }

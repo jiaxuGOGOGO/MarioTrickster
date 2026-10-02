@@ -99,7 +99,7 @@ public sealed class OverworldGame : MonoBehaviour
             aim = Step1Keys.Down(KeyCode.RightArrow) || Step1Keys.Down(KeyCode.D) ? 1 : Step1Keys.Down(KeyCode.LeftArrow) || Step1Keys.Down(KeyCode.A) ? 2 : Step1Keys.Down(KeyCode.UpArrow) || Step1Keys.Down(KeyCode.W) ? 3 : Step1Keys.Down(KeyCode.DownArrow) || Step1Keys.Down(KeyCode.S) ? 4 : 0,
         };
         town.Tick(dt, input);
-        if (town.hint != OverworldTown.Note.None) Hint(NoteText(town.hint), town.hintSeconds);
+        if (town.hint != OverworldTown.Note.None) Hint(town.hint == OverworldTown.Note.Caught ? Step1Text.OverworldCaughtWhy(town.caughtWhy) : NoteText(town.hint), town.hintSeconds); // S222：被抓说明原因
         BigFx();
         if (town.wantsEnter)
         {
@@ -311,7 +311,8 @@ public sealed class OverworldGame : MonoBehaviour
         if (town.cloud != null)
         {
             if (cloudSr == null) { cloudSr = Quad(null, "stormCloud", 0, 0, 1, 1, Color.white, 4050); cloudSr.sprite = IconSprite("Cloud"); }
-            float r = tuning.overworldCloudRadius; cloudSr.enabled = true; cloudSr.color = new Color(1f, 1f, 1f, 0.85f);
+            float r = tuning.overworldCloudRadius; cloudSr.enabled = true; float left = tuning.overworldCloudSeconds - town.cloud.t; // S222：最后 1.5 秒闪烁 = 快散了（Telegraph：结束也要预告）
+            cloudSr.color = new Color(1f, 1f, 1f, left < 1.5f ? 0.35f + 0.5f * Mathf.PingPong(Time.time * 6f, 1f) : 0.85f);
             cloudSr.transform.position = new Vector3((float)town.cloud.x, (float)town.cloud.y + 2.2f, 0); cloudSr.transform.localScale = new Vector3(r * 1.6f, r * 1.6f, 1);
             if (Time.frameCount % 20 == 0) Step1Fx.Ring(new Vector2((float)town.cloud.x, (float)town.cloud.y), r, new Color(0.6f, 0.75f, 1f, 0.6f)); // 范围圈
         }

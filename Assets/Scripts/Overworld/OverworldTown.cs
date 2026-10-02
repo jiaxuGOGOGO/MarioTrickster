@@ -40,6 +40,8 @@ public sealed class OverworldTown
     public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit,
         /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt }
     public Note hint; public float hintSeconds;
+    /// <summary>S222：他最后一次看见你的原因（被抓时告诉玩家，H4 同一组视线输入）。</summary>
+    public OverworldMap.SeenWhy seenWhy, caughtWhy;
     public bool wantsEnter; public OverworldMap.Door enterDoor; public OverworldMind.DoorOutcome enterOutcome;
 
     private readonly System.Func<int, bool> roomReady;
@@ -472,6 +474,7 @@ public sealed class OverworldTown
         var r = Sight();
         bool blind = exitGrace > 0f; // 出门缓冲：他在清点战利品，不看不听（头上有 '…' 标记，H6）
         bool sees = !blind && OverworldMap.CanSee(map, lamps, mario.x, mario.y, mario.fx, mario.fy, tx, ty, r);
+        var why = sees && (!(disguised || seat != null) || lastMoved) ? OverworldMap.WhySeen(map, lamps, mario.x, mario.y, tx, ty, r, disguised || seat != null) : OverworldMap.SeenWhy.None;
         var p = new OverworldPercept
         {
             marioPos = new Vector2((float)mario.x, (float)mario.y),
@@ -493,7 +496,12 @@ public sealed class OverworldTown
         if (map.At(mid % map.W, mid / map.W) == '+' && !OverworldSession.UsedCells.Contains(mid) && OverworldSession.MarioHearts < OverworldSession.MaxHearts) // S220：他路过补心就顺手捡（不绕路）
         { OverworldSession.UsedCells.Add(mid); OverworldSession.MarioHearts++; hurts.Add(new HurtFx { x = (float)mario.x, y = (float)mario.y, mario = true, kind = 3 }); Hint(Note.MarioHeal); }
 
+        if (why == OverworldMap.SeenWhy.None && p.sawRustle) why = OverworldMap.SeenWhy.Rustle;
+        if (why == OverworldMap.SeenWhy.None && p.heardTaunt) why = OverworldMap.SeenWhy.Taunt;
+        bool wasCalm = mind.Meter.Level == SuspicionLevel.Calm;
         var o = mind.Tick(dt, p);
+        if (why != OverworldMap.SeenWhy.None && (wasCalm || seenWhy == OverworldMap.SeenWhy.None)) seenWhy = why; // S222：记"他是怎么注意到你的"（从平静变起疑那一刻）
+        if (mind.Meter.Level == SuspicionLevel.Calm && !Spotted) seenWhy = OverworldMap.SeenWhy.None;
         if (blind && string.IsNullOrEmpty(o.mark)) o.mark = "…";
         lastOrder = o;
         // S218：他吃过亏的大机关在预警 / 正在滚，而且他看得见 → 先闪开（只躲几格、只在危险期间，H10 不会停住）
@@ -885,6 +893,7 @@ public sealed class OverworldTown
 
     private void Caught()
     {
+        caughtWhy = seenWhy == OverworldMap.SeenWhy.None ? OverworldMap.SeenWhy.Open : seenWhy;
         OverworldSession.Caught++;
         tx = spawn.x + 0.5; ty = spawn.y + 0.5; disguised = false;
         frozen = tuning.overworldCaughtPenaltySeconds;

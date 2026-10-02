@@ -41,6 +41,20 @@ public static partial class Step1Text
     public const string OverworldLateHint = "他刚进去了！快按 E 跟进\nHe just went in — press E!";
     public const string OverworldTooEarly = "这扇门今天不是他下一站\nNot his next stop";
     public const string OverworldCaught = "被马里奥抓住了！送回出生点\nCaught! Back to start";
+    /// <summary>S222：被抓时多一行"他是怎么注意到你的"（SpyParty：解释被抓的原因 → 下次知道怎么躲）。</summary>
+    public static string OverworldCaughtWhy(OverworldMap.SeenWhy why)
+    {
+        switch (why)
+        {
+            case OverworldMap.SeenWhy.Near: return OverworldCaught + "\n原因：贴得太近，背后也能察觉 Too close";
+            case OverworldMap.SeenWhy.GrassClose: return OverworldCaught + "\n原因：草里也挡不住贴身的他 Grass can't hide you up close";
+            case OverworldMap.SeenWhy.Lamp: return OverworldCaught + "\n原因：你站在路灯下，夜里照样看得远 You stood under a lamp";
+            case OverworldMap.SeenWhy.DisguiseMoved: return OverworldCaught + "\n原因：伪装成木箱时还在动 The crate moved";
+            case OverworldMap.SeenWhy.Rustle: return OverworldCaught + "\n原因：你在高草里走动，草晃了 The grass rustled";
+            case OverworldMap.SeenWhy.Taunt: return OverworldCaught + "\n原因：挑衅把他引过来了 Your taunt drew him in";
+            default: return OverworldCaught + "\n原因：你在他正前方的视线里 In plain sight";
+        }
+    }
     public const string OverworldMissed = "他在里面安心偷完了——这户被偷\nToo late, that house got robbed";
     // S218：大机关 / 天气 / 联动
     public const string OverworldBigArmed = "大机关预警中……（1.2 秒后发动，红格 = 危险）\nBig prank armed";

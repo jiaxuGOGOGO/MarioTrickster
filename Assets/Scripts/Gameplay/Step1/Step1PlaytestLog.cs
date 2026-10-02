@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using UnityEngine;
 
@@ -114,7 +115,7 @@ public class Step1PlaytestLog : MonoBehaviour
 
     private void BeginRound()
     {
-        roundPranks.Clear(); roundOmens = roundAlerts = roundCaught = 0;
+        rareLine = ""; roundPranks.Clear(); roundOmens = roundAlerts = roundCaught = 0;
         chaseOpen = false; awaitingRating = false; savedThisRound = false; survey = null; IsTyping = false; noteDraft = ""; lastPropKind = ""; lastPropTime = -999f; lastComboCount = -999f;
         roomNear.Clear();
     }
@@ -176,8 +177,26 @@ public class Step1PlaytestLog : MonoBehaviour
         sessionKinds.Add(kind);
     }
 
+    /// <summary>S231：结算时"最稀罕的一招"（和以前所有局比；只在真稀罕时有字）。</summary>
+    private string rareLine = "";
+    public string RareLine => rareLine;
+
+    private void ComputeRareLine()
+    {
+        rareLine = "";
+        try
+        {
+            string folder = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", LogFolder);
+            if (!Directory.Exists(folder)) return;
+            var history = Step1ExitReport.ParseAll(Directory.GetFiles(folder, "step1_rounds*.csv").Select(File.ReadAllText));
+            rareLine = Step1ExitReport.RarestLine(history, roundPranks.Keys);
+        }
+        catch (Exception e) { Debug.LogWarning("[Step1PlaytestLog] rare line: " + e.Message); }
+    }
+
     private void HandleGameOver(string winner)
     {
+        ComputeRareLine(); // 先算（这局还没写进文件）
         lastWinner = winner;
         lastReason = manager != null ? manager.LastRoundReason : "";
         // 自动无干预检查（H10）时没人答题，由 Step1HandsOffCheck 记录。
@@ -295,6 +314,7 @@ public class Step1PlaytestLog : MonoBehaviour
         GUI.Label(new Rect(box.x, box.y + 24f, box.width, 100f), $"<color={color}><b>{Step1Text.Headline(outcome)}</b></color>",
             Step1Gui.Text(34, TextAnchor.MiddleCenter));
         var inner = new Rect(box.x + 40f, box.y + 150f, box.width - 80f, box.height - 180f);
+        if (rareLine.Length > 0) GUI.Label(new Rect(box.x, box.y + 104f, box.width, 36f), "<color=#FFD966>" + rareLine + "</color>", Step1Gui.Text(22, TextAnchor.MiddleCenter));
 
         if (savedThisRound || survey == null)
         {

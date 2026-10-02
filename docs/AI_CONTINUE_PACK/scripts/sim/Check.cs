@@ -769,6 +769,50 @@ static class CHECK {
     if(!hub.Contains("\"town_days*.csv\").Select(File.ReadAllText)")||!hub.Contains("GetFiles(LogsRoot, \"town_days*.csv\")))")){ tb++; Console.WriteLine("     [FAIL] 体检 / F8 打包没带 town_days.csv"); }
     if(tb==0) parts.Add("表头一致、游戏写出的行能读回、反应快慢 / 天灾白赢 / 样本太少 / 去重都判对、体检和打包都带上");
     Console.WriteLine($"[{(tb==0?"OK":"FAIL")}] S230 小镇记录进体检：{string.Join("｜",parts)}"); fail+=tb; }
+  // S231 第三轮调研落地：三段オチ台词 / 改版前后对比（中位数 + A12）/ 最稀罕的一招 / 换图自检
+  { int qb=0; var parts=new List<string>(); var D=MarioReaction.Default;
+    foreach(var b in D){ if(MarioReaction.Line(b,1)!=MarioReaction.Line(b)||MarioReaction.Line(b,2)!=MarioReaction.Line(b)||!MarioReaction.Line(b,3).Contains("又是这个")||!MarioReaction.Line(b,5).Contains("第 5 次")){ qb++; Console.WriteLine($"     [FAIL] {b.kind} 第 1/2/3/5 次台词不对"); break; } }
+    var rv=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/MarioReactionView.cs"));
+    if(!rv.Contains("MarioReaction.Line(beat, nth)")||!rv.Contains("timesThisRound.Clear()")||!rv.Contains("OnRoundStart += NewRound")){ qb++; Console.WriteLine("     [FAIL] 接线：头顶台词没用第几次 / 新一局没清零"); }
+    else parts.Add($"同一种坑第 {MarioReaction.EscalateFrom} 次起换台词（动作不变）");
+    // 统计小工具：手算对照
+    var A=new List<int>{5,5}; var B=new List<int>{1,1};
+    bool st=Math.Abs(Step1ExitReport.A12(A,B)-1)<1e-9&&Math.Abs(Step1ExitReport.A12(B,A))<1e-9&&Math.Abs(Step1ExitReport.A12(new List<int>{3,3},new List<int>{3,3})-0.5)<1e-9
+      &&Math.Abs(Step1ExitReport.A12(new List<int>{3,4},new List<int>{3,2})-0.875)<1e-9&&Step1ExitReport.Median(new List<int>{1,5,2})==2f&&Step1ExitReport.Median(new List<int>{1,2,3,4})==2.5f
+      &&Step1ExitReport.A12Size(0.55)=="几乎没有"&&Step1ExitReport.A12Size(0.57)=="小"&&Step1ExitReport.A12Size(0.36)=="中"&&Step1ExitReport.A12Size(0.72)=="大";
+    if(!st){ qb++; Console.WriteLine("     [FAIL] A12 / 中位数 / 档位和手算不一致"); }
+    Step1ExitReport.Round R(int v,int want,int min,params string[] ks)=>new Step1ExitReport.Round{time=new DateTime(2026,10,1,20,0,0).AddMinutes(min),winner="Mario",reason="x",seconds=40,wantAgain=want,version=v,kinds=ks.ToList()};
+    var few=Enumerable.Range(0,4).Select(i=>R(27,4,i)).Concat(Enumerable.Range(0,6).Select(i=>R(26,2,10+i))).ToList();
+    var big=Enumerable.Range(0,6).Select(i=>R(27,4+(i%2),i)).Concat(Enumerable.Range(0,6).Select(i=>R(26,2+(i%2),10+i))).ToList();
+    var same=Enumerable.Range(0,6).Select(i=>R(27,3,i)).Concat(Enumerable.Range(0,6).Select(i=>R(26,3,10+i))).ToList();
+    string cf=Step1ExitReport.CompareVersions(few), cb=Step1ExitReport.CompareVersions(big), cs=Step1ExitReport.CompareVersions(same);
+    if(!cf.Contains("每边要")||!cb.Contains("差别大")||!cb.Contains("新版本更想再玩")||!cs.Contains("看不出变化")||Step1ExitReport.CompareVersions(few.Where(r=>r.version==27).ToList())!=""){ qb++; Console.WriteLine($"     [FAIL] 改版对比：{cf} / {cb} / {cs}"); }
+    var files=Directory.GetFiles(WsRepo("docs/step1/data"),"step1_rounds*.csv"); var mine=Step1ExitReport.ParseAll(files.Select(File.ReadAllText));
+    if(Step1ExitReport.CompareVersions(mine)!=""){ qb++; Console.WriteLine("     [FAIL] 你的旧数据（没记版本）不该出对比"); }
+    if(!Step1ExitReport.Analyze(big).lines.Any(l=>l.Contains("改版前后"))||!Step1ExitReport.Analyze(big).lines.Any(l=>l.Contains("中位数"))){ qb++; Console.WriteLine("     [FAIL] 体检里没有改版对比 / 中位数"); }
+    if(qb==0) parts.Add($"改版对比：每边 ≥{Step1ExitReport.MinPhaseRounds} 局才比；中位数 + A12（手算 4 例一致）；4 vs 6 局 → 先不比；全一样 → 看不出变化");
+    // 最稀罕的一招
+    var hist=Enumerable.Range(0,10).Select(i=>R(27,3,i,i==0?new[]{"Fire","Banana"}:new[]{"Fire"})).ToList();
+    var r1=Step1ExitReport.RarestKind(hist,new[]{"Fire","Banana"}); string l1=Step1ExitReport.RarestLine(hist,new[]{"Fire","Banana"});
+    string l2=Step1ExitReport.RarestLine(hist,new[]{"Cage","Fire"}), l3=Step1ExitReport.RarestLine(hist,new[]{"Fire"}), l4=Step1ExitReport.RarestLine(hist.Take(3).ToList(),new[]{"Cage"});
+    if(r1==null||r1.Value.kind!="Banana"||r1.Value.before!=1||!l1.Contains("少见")||!l1.Contains("香蕉皮")||!l2.Contains("新招")||!l2.Contains("铁笼")||l3!=""||l4!=""||Step1ExitReport.RarestKind(hist,new string[0])!=null){ qb++; Console.WriteLine($"     [FAIL] 最稀罕的一招：{l1} / {l2} / {l3} / {l4}"); }
+    var pl=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs"));
+    if(!pl.Contains("Step1ExitReport.RarestLine(history, roundPranks.Keys)")||!pl.Contains("ComputeRareLine(); // 先算")||!pl.Contains("if (rareLine.Length > 0) GUI.Label")){ qb++; Console.WriteLine("     [FAIL] 接线：结算没显示最稀罕的一招"); }
+    foreach(var k in new[]{"Fire","Blocker","Collapse","Cannon","Escape"}.Concat(new[]{"slip","launch","drop","cage","trip","snare","pit","stop"}.Select(Step1PlaytestLog_Kind)))
+      if(Step1ExitReport.KindZh(k)==k){ qb++; Console.WriteLine($"     [FAIL] 坑法 {k} 没有中文名"); }
+    if(qb==0) parts.Add("结算『最稀罕的一招』：只在第一次用 / 用过的局 ≤1/5 时出现，13 种坑法都有中文名");
+    // 换图自检
+    int badIcons=0; foreach(var key in OverworldArt.Icons.Keys){ var iss=OverworldArt.Audit(OverworldArt.Pixels(key),OverworldArt.Size); if(iss.Count>0){ badIcons++; Console.WriteLine($"     [FAIL] 内置图标 {key}：{string.Join("；",iss)}"); } }
+    float[] Solid(int n,Func<int,int,float[]> c){ var f=new float[n*n*4]; for(int y=0;y<n;y++)for(int x=0;x<n;x++){ var v=c(x,y); Array.Copy(v,0,f,(y*n+x)*4,4);} return f; }
+    var full=OverworldArt.Audit(Solid(16,(x,y)=>new[]{0.05f,0.05f,0.05f,1f}),16);
+    var rainbow=OverworldArt.Audit(Solid(16,(x,y)=>(x<2||y<2||x>13||y>13)?new[]{0f,0f,0f,0f}:(x==2||y==2||x==13||y==13)?new[]{0.05f,0.05f,0.05f,1f}:new[]{x/16f,y/16f,0.9f,1f}),16);
+    var pale=OverworldArt.Audit(Solid(16,(x,y)=>(x<4||y<4||x>11||y>11)?new[]{0f,0f,0f,0f}:new[]{0.9f,0.9f,0.9f,1f}),16);
+    var odd=OverworldArt.Audit(Solid(24,(x,y)=>(x<6||y<6||x>17||y>17)?new[]{0f,0f,0f,0f}:new[]{0.05f,0.05f,0.05f,0.5f}),24);
+    bool artOk=badIcons==0&&full.Any(i=>i.Contains("太满"))&&rainbow.Any(i=>i.Contains("种颜色"))&&!rainbow.Any(i=>i.Contains("描边"))&&pale.Any(i=>i.Contains("描边"))&&odd.Any(i=>i.Contains("尺寸"))&&odd.Any(i=>i.Contains("半透明"))&&OverworldArt.Audit(null,16).Count==1;
+    var at=File.ReadAllText(WsRepo("Assets/Scripts/Editor/OverworldArtTools.cs"));
+    if(!artOk||!at.Contains("OverworldArt.Audit(f, t.width)")){ qb++; Console.WriteLine($"     [FAIL] 换图自检：内置坏 {badIcons}｜满 {string.Join(",",full)}｜彩虹 {string.Join(",",rainbow)}｜浅 {string.Join(",",pale)}｜怪 {string.Join(",",odd)}"); }
+    else parts.Add($"换图自检：内置 {OverworldArt.Icons.Count} 个图标全过；太满 / 颜色太多 / 没描边 / 尺寸不对 / 半透明 都能查出");
+    Console.WriteLine($"[{(qb==0?"OK":"FAIL")}] S231 三段オチ + 改版对比 + 最稀罕一招 + 换图自检：{string.Join("｜",parts)}"); fail+=qb; }
   // S227 阶段 D 填表：用你真实的试玩记录（docs/step1/data/*.csv）跑出口报告
   { int db=0; var parts=new List<string>();
     var hdr=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs")),"CsvHeader => \"([^\"]*)\" \\+\\s*\"([^\"]*)\"");
@@ -792,6 +836,7 @@ static class CHECK {
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);
+  static string Step1PlaytestLog_Kind(string c){ switch(c){ case "slip": return "Banana"; case "launch": return "Spring"; case "drop": return "CrackFloor"; case "cage": return "Cage"; case "trip": return "Tripwire"; case "snare": return "Snare"; case "pit": return "Pit"; case "stop": return "Blocker"; default: return ""; } }
   static string WsRepo(string rel)=>System.IO.Path.Combine("/home/user/workspace/repo",rel);
   static string[] Step1PrankRoomBuilderRoom()=>File.ReadAllText("room_template.txt").Replace("\r","").Split('\n').Where(l=>l.Length>0).ToArray();
  }}

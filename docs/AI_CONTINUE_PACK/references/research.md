@@ -100,3 +100,10 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 
 ## S230 调研落地核对表
 - docs/step1/S230_RESEARCH_VS_CODE_AUDIT.md §1：每条调研要求 → 代码证据 → 状态。新调研先查这张表，避免重复做或漏做。
+
+## S231 第三轮调研（方案 repo/docs/step1/S231_RESEARCH_V3_PLAN.md，§2 两轮来源表，**不要重复调研**）
+- 喜剧时间结构：漫才三段オチ / 天丼（第 3 次要变）https://note.com/pukaowhotakeit/n/nb1af5874d3a4 ；Chuck Jones 规则 https://kottke.org/12/03/the-rules-of-road-runner-and-wile-e-coyote-cartoons ；Benign Violation https://humorresearchlab.com/benign-violation-theory/ ；Hitchcock 炸弹 https://www.davidbordwell.net/blog/2013/11/29/hitchcock-lessing-and-the-bomb-under-the-table/
+- 统计：Ratings are Overrated https://www.frontiersin.org/journals/ict/articles/10.3389/fict.2015.00013/full ；A12 档位 https://pmc.ncbi.nlm.nih.gov/articles/PMC12701665/ ；单人每段 ≥5 点 https://hdsr.mitpress.mit.edu/pub/nqvadq0w ；别偷看 https://www.evanmiller.org/sequential-ab-testing.html
+- 故事：Select the Unexpected https://www.researchgate.net/publication/365929507_Select_the_Unexpected_A_Statistical_Heuristic_for_Story_Sifting ；反面 Chroniqueur https://www.pcgworkshop.com/archive/lessard2026narrative.pdf
+- 美术：https://the-pixel.art/articles/pixel-art-character-design/ ；桜井ダメージモーション YouTube 9DBr7AtVh0c（E8 待用户看画面）
+- 没用上（别再搜）：韩国 슬랩스틱 论文（电视）、腾讯游戏学堂 AI（工具向）、B 站整蛊（视频）、GDC Vault Nemesis（会员墙）。

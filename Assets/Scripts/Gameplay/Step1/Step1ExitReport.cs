@@ -82,7 +82,9 @@ public static class Step1ExitReport
 
     public sealed class Result
     {
-        public int rounds, sessionRounds, kinds; public float wantLast5; public bool exitMet;
+        public int rounds, sessionRounds, kinds; public float wantLast5, wantMedianLast5; public bool exitMet;
+        /// <summary>S231：最新两个调参版本「还想再来」的比较（不够样本 = 空）。</summary>
+        public string versionCompare = "";
         public List<string> lines = new List<string>();
         /// <summary>按已有证伪规则得出的下一步（第一条最重要）。</summary>
         public List<string> next = new List<string>();
@@ -112,7 +114,9 @@ public static class Step1ExitReport
         res.wantLast5 = last5.Count == 0 ? 0 : (float)last5.Average(r => r.wantAgain);
         res.exitMet = session.Count >= ExitRounds && res.wantLast5 >= ExitWantAgainLast5 && kinds.Count >= ExitKinds;
 
-        res.lines.Add($"**出口进度**：最近一次连着玩了 {session.Count}/{ExitRounds} 局｜坑法 {kinds.Count}/{ExitKinds} 种（{(kinds.Count == 0 ? "还没有" : string.Join("、", kinds.OrderBy(k => k)))}）｜最后 5 局「还想再来」平均 {res.wantLast5:0.0}（要 ≥{ExitWantAgainLast5:0}）→ " + (res.exitMet ? "**✓ 达到第 1 步出口**" : "还没到"));
+        var last5All = rs.Skip(Math.Max(0, rs.Count - 5)).Where(r => r.wantAgain > 0).Select(r => r.wantAgain).ToList();
+        if (last5All.Count > 0) res.wantMedianLast5 = Median(last5All);
+        res.lines.Add($"**出口进度**：最近一次连着玩了 {session.Count}/{ExitRounds} 局｜坑法 {kinds.Count}/{ExitKinds} 种（{(kinds.Count == 0 ? "还没有" : string.Join("、", kinds.OrderBy(k => k)))}）｜最后 5 局「还想再来」平均 {res.wantLast5:0.0}（要 ≥{ExitWantAgainLast5:0}；中位数 {res.wantMedianLast5:0.#}）→ " + (res.exitMet ? "**✓ 达到第 1 步出口**" : "还没到"));
         int town = rs.Count(r => r.mode == "town"), quick = rs.Count(r => r.mode == "quick");
         if (town + quick > 0) res.lines.Add($"其中小镇里的房间 {town} 局、快速测试 {quick} 局（这些不弹问卷：局数和坑法照算，「算准了 / 想再来」只看答过问卷的局）。");
         int n = rs.Count, mario = rs.Count(r => r.MarioWon);
@@ -125,6 +129,10 @@ public static class Step1ExitReport
         var notes = rs.Where(r => r.note.Length > 0).Select(r => $"「{r.note}」").ToList();
         if (notes.Count > 0) res.lines.Add("你写的话：" + string.Join(" ", notes.Skip(Math.Max(0, notes.Count - 6))));
 
+        // S231：改了数值以后到底变好没有 —— 最新版本 vs 上一个版本的「还想再来」。打分是"顺序"不是"距离"（Yannakakis：Ratings are Overrated），
+        // 所以用中位数 + A12（随手挑一局新版本、一局旧版本，新的分更高的概率；0.5 = 没区别），每边至少 MinPhaseRounds 局才下结论（单人实验每段 ≥5 个点）。
+        res.versionCompare = CompareVersions(all);
+        if (res.versionCompare.Length > 0) res.lines.Add(res.versionCompare);
         // S227：旧版本（S227 以前没记版本号）的问题大多已修过 → 单独说明，不当成现在的问题
         var cur = rs.Where(r => r.version > 0).ToList();
         bool stale = cur.Count == 0;
@@ -148,6 +156,87 @@ public static class Step1ExitReport
         if (res.exitMet) res.next.Insert(0, "第 1 步出口达到 → 可以开始第 2 步（3 个手工房间 + 谨慎型 / 贪财型）。");
         else if (res.next.Count == 0) res.next.Add(session.Count < ExitRounds ? $"没发现要改的；继续连着玩到 {ExitRounds} 局（还差 {ExitRounds - session.Count} 局）。" : "20 局够了，但「还想再来」偏低 → 写一句最想改的事发给 AI。");
         return res;
+    }
+
+    // ═════════ S231：统计小工具（纯函数，sim 逐项验算） ═════════
+    /// <summary>单人实验每段至少几局才比较（Kratochwill 等：每段 ≥5 个数据点 https://hdsr.mitpress.mit.edu/pub/nqvadq0w ）。</summary>
+    public const int MinPhaseRounds = 5;
+
+    public static float Median(IList<int> xs)
+    {
+        if (xs == null || xs.Count == 0) return 0f;
+        var o = xs.OrderBy(x => x).ToList(); int m = o.Count / 2;
+        return o.Count % 2 == 1 ? o[m] : (o[m - 1] + o[m]) / 2f;
+    }
+
+    /// <summary>Vargha–Delaney A12：随机挑一个 a、一个 b，a 比 b 大的概率（相等算一半）。= Mann–Whitney U / (n1·n2)。</summary>
+    public static double A12(IList<int> a, IList<int> b)
+    {
+        if (a == null || b == null || a.Count == 0 || b.Count == 0) return 0.5;
+        double win = 0; foreach (var x in a) foreach (var y in b) win += x > y ? 1 : x == y ? 0.5 : 0;
+        return win / (a.Count * (double)b.Count);
+    }
+
+    /// <summary>A12 的大小档（Vargha & Delaney 2000：|A−0.5| ≥0.06 小、≥0.14 中、≥0.21 大）。</summary>
+    public static string A12Size(double a)
+    {
+        double d = Math.Abs(a - 0.5);
+        return d >= 0.21 ? "大" : d >= 0.14 ? "中" : d >= 0.06 ? "小" : "几乎没有";
+    }
+
+    /// <summary>最新调参版本 vs 上一个有问卷的版本。样本不够 → 说还差几局；够了 → 中位数 + A12 + 档位。</summary>
+    public static string CompareVersions(IList<Round> all)
+    {
+        var rated = all.Where(r => r.version > 0 && r.wantAgain > 0).ToList();
+        var vers = rated.Select(r => r.version).Distinct().OrderByDescending(v => v).ToList();
+        if (vers.Count < 2) return "";
+        var a = rated.Where(r => r.version == vers[0]).Select(r => r.wantAgain).ToList();
+        var b = rated.Where(r => r.version == vers[1]).Select(r => r.wantAgain).ToList();
+        string head = $"**改版前后**（v{vers[1]} → v{vers[0]}，「还想再来」）：";
+        if (a.Count < MinPhaseRounds || b.Count < MinPhaseRounds)
+            return head + $"新版本 {a.Count} 局、旧版本 {b.Count} 局，每边要 ≥{MinPhaseRounds} 局才比较（少了看到的多半是运气）。";
+        double p = A12(a, b);
+        string dir = p > 0.5 ? "新版本更想再玩" : p < 0.5 ? "旧版本更想再玩" : "一样";
+        return head + $"中位数 {Median(b):0.#} → {Median(a):0.#}；新版本某局比旧版本某局分高的概率 {p:P0}（差别{A12Size(p)}：{dir}）。" +
+            (A12Size(p) == "几乎没有" ? "看不出变化 → 这次改动可能不是关键，别再朝同一方向加码。" : "");
+    }
+
+    /// <summary>恶作剧种类的中文名（结算"最稀罕的一招"用）。</summary>
+    public static string KindZh(string k)
+    {
+        switch (k)
+        {
+            case "Fire": return "火焰"; case "Blocker": return "挡板"; case "Collapse": return "塌桥"; case "Cannon": return "大炮";
+            case "Banana": return "香蕉皮"; case "Spring": return "弹簧"; case "CrackFloor": return "裂缝"; case "Cage": return "铁笼";
+            case "Tripwire": return "绊线"; case "Snare": return "绳套"; case "Pit": return "掉坑"; case "Escape": return "甩掉追捕";
+            default: return k;
+        }
+    }
+
+    /// <summary>
+    /// S231（Select the Unexpected：越少见的事越像"故事" https://www.researchgate.net/publication/365929507_Select_the_Unexpected_A_Statistical_Heuristic_for_Story_Sifting ）：
+    /// 这局用到的坑法里，以前的局用得最少的那个。history 不含这局。没有坑法 = null。
+    /// 返回 (种类, 以前多少局用过, 以前一共多少局)。同样少见按名字排，结果固定。
+    /// </summary>
+    public static (string kind, int before, int total)? RarestKind(IList<Round> history, IEnumerable<string> thisRound)
+    {
+        var ks = (thisRound ?? Enumerable.Empty<string>()).Where(k => !string.IsNullOrEmpty(k)).Distinct().ToList();
+        if (ks.Count == 0) return null;
+        int total = history?.Count ?? 0;
+        var best = ks.Select(k => (k, before: history == null ? 0 : history.Count(r => r.kinds.Contains(k))))
+                     .OrderBy(x => x.before).ThenBy(x => x.k, StringComparer.Ordinal).First();
+        return (best.k, best.before, total);
+    }
+
+    /// <summary>结算画面的一行（只在真的稀罕时说：以前一次没用过，或用过的局 ≤ 1/5）。</summary>
+    public static string RarestLine(IList<Round> history, IEnumerable<string> thisRound)
+    {
+        var r = RarestKind(history, thisRound);
+        if (r == null || r.Value.total < MinPhaseRounds) return "";
+        var (k, before, total) = r.Value;
+        if (before == 0) return $"★ 新招：第一次用「{KindZh(k)}」坑到他！  New trick!";
+        if (before * 5 <= total) return $"★ 少见的一招：「{KindZh(k)}」（以前 {total} 局里只有 {before} 局用过）";
+        return "";
     }
 
     public static string VerdictName(string v)

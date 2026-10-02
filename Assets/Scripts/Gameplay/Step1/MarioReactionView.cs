@@ -33,9 +33,11 @@ public class MarioReactionView : MonoBehaviour
     private Step1Combo combo;
     private MarioReaction.Beat beat;
     private float t = -1f;
+    private int nth = 1;
+    private readonly System.Collections.Generic.Dictionary<string, int> timesThisRound = new System.Collections.Generic.Dictionary<string, int>(); // S231：同一种坑本局第几次
 
     public bool Playing => t >= 0f && t < beat.Total;
-    public string CurrentLine => Playing ? MarioReaction.Line(beat) : "";
+    public string CurrentLine => Playing ? MarioReaction.Line(beat, nth) : "";
 
     private void Start()
     {
@@ -45,13 +47,13 @@ public class MarioReactionView : MonoBehaviour
         if (visual != null) { baseScale = visual.localScale; basePos = visual.localPosition; baseRot = visual.localRotation; }
         combo = FindObjectOfType<Step1Combo>();
         if (combo != null) combo.ComboRegistered += HandleCombo;
-        if (GameManager.Instance != null) GameManager.Instance.OnRoundStart += Stop;
+        if (GameManager.Instance != null) GameManager.Instance.OnRoundStart += NewRound;
     }
 
     private void OnDestroy()
     {
         if (combo != null) combo.ComboRegistered -= HandleCombo;
-        if (GameManager.Instance != null) GameManager.Instance.OnRoundStart -= Stop;
+        if (GameManager.Instance != null) GameManager.Instance.OnRoundStart -= NewRound;
     }
 
     private void HandleCombo(int n, string kind)
@@ -59,8 +61,11 @@ public class MarioReactionView : MonoBehaviour
         if (!MarioReaction.TryGet(Table, kind, out var next)) return;
         bool chaining = Playing;
         beat = next;
+        timesThisRound.TryGetValue(kind, out int seen); nth = seen + 1; timesThisRound[kind] = nth;
         t = MarioReaction.StartTime(beat, chaining);
     }
+
+    private void NewRound() { timesThisRound.Clear(); nth = 1; Stop(); }
 
     public void Stop()
     {

@@ -401,6 +401,44 @@ public static class OverworldArt
         } },
     };
 
+    // ═════════ S231：换图自检（美术把 PNG 放进来之前/之后都能查） ═════════
+    // 规则来自像素画可读性经验（https://the-pixel.art/articles/pixel-art-character-design/ ）：小图用深色描边、整体颜色少、先看剪影；
+    // 尺寸沿用 S220（16 或 32）。只给提示，不拦截（美术可以故意打破）。
+    public const int ArtMaxColors = 16;          // 一张图最多几种颜色
+    public const float ArtMinDarkOutline = 0.75f; // 外轮廓上深色像素至少占多少
+    public const float ArtMinFill = 0.15f, ArtMaxFill = 0.85f; // 剪影：太空 = 看不见，太满 = 方块
+    public const float DarkLuma = 0.3f;
+
+    public static float Luma(float r, float g, float b) => 0.299f * r + 0.587f * g + 0.114f * b;
+
+    /// <summary>RGBA 像素（任意顺序，长度 = size²×4）→ 问题列表（空 = 通过）。半透明（0&lt;a&lt;1）也算问题：像素风要么有要么没有。</summary>
+    public static List<string> Audit(float[] rgba, int size)
+    {
+        var issues = new List<string>();
+        if (rgba == null || size <= 0 || rgba.Length != size * size * 4) { issues.Add("读不到像素"); return issues; }
+        if (size != 16 && size != 32) issues.Add($"尺寸 {size}×{size}（要 16×16 或 32×32）");
+        var colors = new HashSet<int>(); int filled = 0, edge = 0, darkEdge = 0, semi = 0;
+        bool On(int x, int y) => x >= 0 && y >= 0 && x < size && y < size && rgba[(y * size + x) * 4 + 3] > 0.5f;
+        for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+        {
+            int i = (y * size + x) * 4; float a = rgba[i + 3];
+            if (a > 0.01f && a < 0.99f) semi++;
+            if (a <= 0.5f) continue;
+            filled++;
+            colors.Add(((int)(rgba[i] * 255) << 16) | ((int)(rgba[i + 1] * 255) << 8) | (int)(rgba[i + 2] * 255));
+            if (!On(x - 1, y) || !On(x + 1, y) || !On(x, y - 1) || !On(x, y + 1))
+            { edge++; if (Luma(rgba[i], rgba[i + 1], rgba[i + 2]) < DarkLuma) darkEdge++; }
+        }
+        float fill = filled / (float)(size * size);
+        if (semi > 0) issues.Add($"{semi} 个半透明像素（像素风建议只用全透明或不透明）");
+        if (filled == 0) { issues.Add("整张图是空的"); return issues; }
+        if (colors.Count > ArtMaxColors) issues.Add($"用了 {colors.Count} 种颜色（建议 ≤{ArtMaxColors}，小图颜色多会糊）");
+        if (fill < ArtMinFill) issues.Add($"剪影太小（只占 {fill:P0}，小于 {ArtMinFill:P0} 远看会找不到）");
+        if (fill > ArtMaxFill) issues.Add($"剪影太满（占 {fill:P0}，像个方块，认不出形状）");
+        if (edge > 0 && darkEdge / (float)edge < ArtMinDarkOutline) issues.Add($"外轮廓深色只占 {darkEdge / (float)edge:P0}（建议 ≥{ArtMinDarkOutline:P0}：深色描边让小图在草地/路面上都看得清）");
+        return issues;
+    }
+
     public static string IconOf(char tile) => TileIcon.TryGetValue(tile, out var k) ? k : null;
 
     /// <summary>RGBA 像素（从左下角开始，和 Unity Texture2D.SetPixels 顺序一致）。没有这个图标 = null。</summary>

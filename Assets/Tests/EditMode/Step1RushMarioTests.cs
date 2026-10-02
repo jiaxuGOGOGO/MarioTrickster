@@ -2259,6 +2259,26 @@ public class Step1RushMarioTests
             StringAssert.DoesNotContain(banned, Read("Scripts/Gameplay/Step1/RushMarioMind.cs"), "H4：原因只来自感知 " + banned);
     }
 
+    // ═════════ S231：第三轮调研落地 ═════════
+    [Test]
+    public void S231_ThirdTimeLine_VersionCompare_RarestTrick_ArtAudit()
+    {
+        MarioReaction.TryGet(MarioReaction.Default, "slip", out var b);
+        Assert.AreEqual(MarioReaction.Line(b), MarioReaction.Line(b, 2));
+        StringAssert.Contains("又是这个", MarioReaction.Line(b, 3));
+        Assert.AreEqual(0.875, Step1ExitReport.A12(new[] { 3, 4 }, new[] { 3, 2 }), 1e-9);
+        Assert.AreEqual(2.5f, Step1ExitReport.Median(new[] { 1, 2, 3, 4 }));
+        Step1ExitReport.Round R(int v, int w, params string[] k) => new Step1ExitReport.Round { time = System.DateTime.Now, winner = "Mario", wantAgain = w, version = v, kinds = new System.Collections.Generic.List<string>(k) };
+        var few = new System.Collections.Generic.List<Step1ExitReport.Round> { R(27, 5), R(26, 1) };
+        StringAssert.Contains("每边要", Step1ExitReport.CompareVersions(few));
+        var hist = new System.Collections.Generic.List<Step1ExitReport.Round>(); for (int i = 0; i < 6; i++) hist.Add(R(27, 3, "Fire"));
+        StringAssert.Contains("铁笼", Step1ExitReport.RarestLine(hist, new[] { "Fire", "Cage" }));
+        Assert.AreEqual("", Step1ExitReport.RarestLine(hist, new[] { "Fire" }));
+        foreach (var key in OverworldArt.Icons.Keys) CollectionAssert.IsEmpty(OverworldArt.Audit(OverworldArt.Pixels(key), OverworldArt.Size), key);
+        var view = File.ReadAllText(Path.Combine(Application.dataPath, "Scripts/Gameplay/Step1/MarioReactionView.cs"));
+        StringAssert.Contains("MarioReaction.Line(beat, nth)", view);
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

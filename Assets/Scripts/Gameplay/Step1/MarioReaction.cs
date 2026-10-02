@@ -158,6 +158,19 @@ public static class MarioReaction
     /// <summary>头顶台词（两行，中文在上）。</summary>
     public static string Line(Beat b) => b.zh + "\n" + b.en;
 
+    /// <summary>
+    /// S231（天丼 / 三段オチ）：同一种坑本局第几次。第 1、2 次照常（先建立模式），第 3 次起换成"又是这个？！"（打破模式 = 笑点）。
+    /// 只换台词，动作/时长不变（H6：同一种坑永远同一种动作；H9 不延长）。参考：お笑い「三段オチ」——前两次是フリ，第 3 次是オチ
+    /// （https://note.com/pukaowhotakeit/n/nb1af5874d3a4 ）；游戏 AI 反应要防重复（https://www.gamedeveloper.com/design/you-had-me-at-aaaahhh-on-the-importance-of-reactions-in-game-ai ）。
+    /// </summary>
+    public const int EscalateFrom = 3;
+    public static string Line(Beat b, int nthThisRound)
+    {
+        if (nthThisRound < EscalateFrom) return Line(b);
+        if (nthThisRound == EscalateFrom) return "又是这个？！\nNOT AGAIN?!";
+        return $"第 {nthThisRound} 次了……\nx{nthThisRound}...";
+    }
+
     // ── 数据文件 ─────────────────────────────────────────
     /// <summary>读 MarioReactions.json。格式：{"reactions":[{"kind":"hurt","freeze":0.2,"act":0.7,"recover":0.3,"pose":"Flail","zh":"哎哟！","en":"OUCH!"}, …]}。
     /// 读不到 / 写错 → 返回 Default，error 写原因（不会让游戏坏掉）。缺的种类用 Default 补上。</summary>

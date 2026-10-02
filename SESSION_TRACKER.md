@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 230（调研×代码×GitHub 三方审计 docs/step1/S230_RESEARCH_VS_CODE_AUDIT.md：唯一缺口 = town_days.csv 体检不读/打包不带 → 已接上；GitHub 开发分支仍停在 S220，master 落后 81 个提交）。上一版 Session 229（小镇心掉光 = 这一天结束 docs/step1/S229_DEATH_ENDS_DAY.md：他掉光 = 你赢、你掉光 = 他赢、同一下 = 平局；结算写死因、6 秒自动重开；town_days.csv 记反应时间；数值版本 26）。上一版 Session 228（查漏 + 调研定值 + 钟楼 + 轰出窗户 docs/step1/S228_RESEARCHED_NUMBERS_BELL_WINDOW.md：修小镇声音永远到不了 ?（SuspicionMeter 一次性加值那帧不衰减）；小镇 ? 时转头；你自己踩绳套 3 秒；minOmen 0.45 / reactionDelay 0.2 / 大机关声音 50；钟楼 B；房间炮打中 → 回小镇从门口轰出；数值版本 25）。上一版 S227（阶段 D 填表自动化 docs/step1/S227_EXIT_REPORT_FROM_YOUR_DATA.md：Step1ExitReport 读试玩 CSV → 体检"第 1 步出口"；小镇房间/快速测试也记一行；香蕉皮/弹簧等算坑法；CSV 加 tuning_version、mode；用户 16 局旧数据：连玩 2/20、坑法 2/3 → 未到出口、不按旧数据调数值）。上一版 S226（自我对照审计 docs/step1/S226_SELF_AUDIT_AND_DEFERRED.md：房间马里奥统计门槛补上；E5 中招反应前重后轻；E6 交互矩阵；E7 无障碍表 + 游戏速度 roomGameSpeed；E9 看情况的按键条；E10 小镇可见度 + 门 4 山坡泥石流；数值版本 24）。上一版 S225（第二轮全项目调研 + 方案 docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md；按 L/P 失败说原因 Step1FailFeedback；马里奥起疑说原因 SuspicionCause + 分层台词；小心时"这儿坑过我"；卡住救援"哎呀，脚滑了"；sim 房间死区门槛）。上一版 S224（少等待：小镇自动快进 + 预约埋伏 + 房间 Enter 开局；阶段 C：视锥灌注 / 声音圈 / 他差点发现你）。上一版 S223（阶段 B：马里奥中招三段式反应 Assets/Resources/MarioReactions.json + 问卷'笑了吗'）。上一版 S222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
+| **最新 Session** | Session 231（第三轮调研 + 方案 docs/step1/S231_RESEARCH_V3_PLAN.md：第 3 次同种坑换台词、体检中位数 + 改版对比 A12、结算最稀罕的一招、换图自检菜单）。上一版 Session 230（调研×代码×GitHub 三方审计 docs/step1/S230_RESEARCH_VS_CODE_AUDIT.md：唯一缺口 = town_days.csv 体检不读/打包不带 → 已接上；GitHub 开发分支仍停在 S220，master 落后 81 个提交）。上一版 Session 229（小镇心掉光 = 这一天结束 docs/step1/S229_DEATH_ENDS_DAY.md：他掉光 = 你赢、你掉光 = 他赢、同一下 = 平局；结算写死因、6 秒自动重开；town_days.csv 记反应时间；数值版本 26）。上一版 Session 228（查漏 + 调研定值 + 钟楼 + 轰出窗户 docs/step1/S228_RESEARCHED_NUMBERS_BELL_WINDOW.md：修小镇声音永远到不了 ?（SuspicionMeter 一次性加值那帧不衰减）；小镇 ? 时转头；你自己踩绳套 3 秒；minOmen 0.45 / reactionDelay 0.2 / 大机关声音 50；钟楼 B；房间炮打中 → 回小镇从门口轰出；数值版本 25）。上一版 S227（阶段 D 填表自动化 docs/step1/S227_EXIT_REPORT_FROM_YOUR_DATA.md：Step1ExitReport 读试玩 CSV → 体检"第 1 步出口"；小镇房间/快速测试也记一行；香蕉皮/弹簧等算坑法；CSV 加 tuning_version、mode；用户 16 局旧数据：连玩 2/20、坑法 2/3 → 未到出口、不按旧数据调数值）。上一版 S226（自我对照审计 docs/step1/S226_SELF_AUDIT_AND_DEFERRED.md：房间马里奥统计门槛补上；E5 中招反应前重后轻；E6 交互矩阵；E7 无障碍表 + 游戏速度 roomGameSpeed；E9 看情况的按键条；E10 小镇可见度 + 门 4 山坡泥石流；数值版本 24）。上一版 S225（第二轮全项目调研 + 方案 docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md；按 L/P 失败说原因 Step1FailFeedback；马里奥起疑说原因 SuspicionCause + 分层台词；小心时"这儿坑过我"；卡住救援"哎呀，脚滑了"；sim 房间死区门槛）。上一版 S224（少等待：小镇自动快进 + 预约埋伏 + 房间 Enter 开局；阶段 C：视锥灌注 / 声音圈 / 他差点发现你）。上一版 S223（阶段 B：马里奥中招三段式反应 Assets/Resources/MarioReactions.json + 问卷'笑了吗'）。上一版 S222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S231] 用户："在之前搜集探索的基础上 继续探索式针对目前项目的所有内容找网上所有涉及的内容……论文和itch.还有gdc……日本……语言不限英文……形成详细方案……执行完后继续去新的网站或者资料细节调查……统计学……自我审计……忽略我测试反馈直接执行优化升级"
+
+- 第三轮调研（新来源约 40 个，不重复前两轮）→ docs/step1/S231_RESEARCH_V3_PLAN.md（§3 E1–E9 执行表）。
+- 已做：E1 `MarioReaction.Line(b, nth)` + MarioReactionView 记本局第几次；E3 `Step1ExitReport.Median/A12/A12Size/CompareVersions/MinPhaseRounds`，体检显示中位数和改版对比；E4 `RarestKind/RarestLine/KindZh`，结算显示；E7 `OverworldArt.Audit` + 菜单"检查换上的像素图"。
+- sim S231 门槛 + 2 个反向测试；EditMode +1。数值版本不变（26）。
+- 不做：E2/E6/E9（新系统，冻结）、E5（要录像系统）、E8（受击第 1 帧姿势，要用户看画面）。
 
 ### [S230] 用户："目前调研搜集的信息资源和我的项目与打补丁到GitHub的效果是否满足调研分析的效果和要求 是否还需要补充编码安装"
 

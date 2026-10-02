@@ -44,13 +44,14 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 
 ## 0.6 进度快照（打包时写入，以 SESSION_TRACKER 为准）
 
-- 最新交付：**S223**（总方案阶段 B：马里奥中招三段式反应——`MarioReaction` 纯逻辑表 + `MarioReactionView` 只动外观 + 数据文件 `Assets/Resources/MarioReactions.json`；问卷加"笑了吗"→ CSV `laughed` 列）。上一版 S222（总方案 `repo/docs/step1/S222_RESEARCH_MASTERPLAN.md`——**以后开工先读它的 §4 阶段表**；机器人 humanNoise + 每镇 60 天 Wilson 门槛；被抓说原因；雷云结束闪烁）。
-- 数值版本 `MarioMindTuningSO.CurrentDataVersion = 22`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
+- 最新交付：**S224**（少等待：小镇不碰键盘 1.5 秒自动快进 `overworldAutoFastIdleSeconds` + 门口按一次 E 预约埋伏 `OverworldTown.ambushArmed` + 房间开局 Enter 马上开始；总方案阶段 C：视锥灌注 `Step1Readability.FillReach` / 声音圈 `Step1Fx.SoundRing`+`Step1SoundRings` / "他差点发现你" `NearMissLog`）。上一版 S223 阶段 B 中招反应（`Assets/Resources/MarioReactions.json`）；S222 总方案 `repo/docs/step1/S222_RESEARCH_MASTERPLAN.md`——**以后开工先读它的 §4 阶段表和 §7 更正**。
+- 数值版本 `MarioMindTuningSO.CurrentDataVersion = 23`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
 - 近几次做了什么（详情看 `repo/docs/step1/S21x_*.md`）：
   - S210 星露谷视角小镇大地图（门 = 恶作剧房间）；S211 场景转场；S212 圆形转场 + 指引箭头 + 编辑器快捷键；
   - S213 小镇规则纯逻辑化 + 7 种机器人玩家模拟；S214 网页 ↔ Unity 自动同步（Inbox 文件夹、▶ 在 Unity 试玩、PageUp/PageDown 切关）；
   - S215 一天总览（CampaignLedger，Unity 小镇工坊 + 网页大地图逐字一致）、小镇房间按 3+3 颗炸弹加固、14 个旧菜单收进"旧工具 (Legacy)"；
   - S217 小镇"↔ 扩展"（C# Resize = 网页 owResize）、上限 192×128；说明面板任意键关、进 Play 自动切 Game 窗口、全局键两套输入、转场保险丝、等出门提示；测试中心（一键体检 / 快速测试模式 / F8 反馈 / 打包 zip）；
+  - S224 少等待 + 可读性：sim 有宪法 P4 死区统计（`OverworldBots.Report.deadZoneSeconds`，连续 ≥10 秒干等）；`PlayDay(..., autoFast:true)` = 游戏里的默认；新声音要画圈 → 半径必须调用 `Step1Readability` 里和判定同一个函数（sim 字符串检查）；草晃不画声音圈（是看见不是听见）；
   - S223 阶段 B 反应：新坑种类 = 在 MarioReactions.json + MarioReaction.Default 各加一行（sim 逐项对照），愣住+动作 ≤ 该坑晕眩秒数；
   - S222 审计：旧机器人除 Chaos/Slow 外完全确定（N 天 = 1 个样本）→ 统计门槛必须开 humanNoise；方案阶段 B 马里奥中招反应 → C 可读性收尾 → D 第 1 步出口验证（用户 20 局）→ E 美术/UGC；B–D 期间冻结横向加系统；
   - S221 探针全流程模拟 → 修连控（GraceAfter）/ 雷云等待（StormBlocksRoute）/ 机器人按 Q；
@@ -59,7 +60,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
   - S218 小镇大机关（OverworldProps + OverworldEvents；OverworldTown Arm/Fire/Impact；马里奥听见起疑、吃过亏会躲；砸晕带进房间、守住一户重新装填；天气第 1 天晴；网页逐字对照）；
   - S216 修复"硬直期往上飞没有重力"（Step1Feel.StunStep，全程重力 40、落地才恢复），受伤红白闪 + 小跳、Step1Fx 冲击环/尘土/连锁火花线、预警越来越急、平滑震屏。
 - 交付包固定结构（`out/D<N>/`）：`00_先看我_怎么用.md`、`01_安装到项目`（全部补丁 + `install_and_upload.bat`）、`02_接续包_换账号用`（本 .skill）、`03_说明文档`（S21x_*.md）、`04_关卡设计台网页/MarioTrickster关卡设计台.html`。
-- 上次汇报推荐的下一步（用户说"继续"时做）：先问/看用户 5 局"笑了吗"结果（CSV laughed 列或反馈包）。≥1 次笑 → 总方案**阶段 C**（视锥里起疑填充 Shadow Tactics / 挑衅·草晃画声音圈 Mark of the Ninja / 一天结束列"他怀疑过你的 3 个时刻" SpyParty；不加新感知通道）；0 次 → 只缩短 MarioReactions.json 的 freeze/act，不加特效。用户没试玩就说"继续" → 做阶段 C 中不依赖验收的部分，并提醒还欠 5 局。
+- 上次汇报推荐的下一步（用户说"继续"时做）：用户 S224 说"没耐心试玩，先做得更值得玩"——**不要再把试玩当开工前提**。下一步：① 房间死区测量（房间还没有 P4 统计：开局等待、晕眩、马里奥走远时你没事做的时间——用 LevelRouteFollower/StrategySim 估算或做房间机器人），超 15% 就砍等待；② 有用户反馈包/CSV 再按阶段 D 填表。仍冻结横向加系统。
 - 用户要求（S217 起长期有效）：**每次升级都按本技能做安装包**，装到 `E:\BaiduNetdiskDownload\MarioTricksterGensparkAI\MarioTrickster`，bat 里选 Y 自动推到 GitHub；**测试流程不能有反复操作的阻碍**（新功能默认不弹窗、有快速测试模式、反馈走 F8 + 测试中心打包）。
 
 ## 1. 设计宪法硬规则（违反 = 不许交付）
@@ -85,7 +86,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 - **数值不写死在玩法代码里**：全部进 `MarioMindTuningSO`（资产 `Resources/Step1/RushMarioTuning`），带中文 Tooltip。
 - **重玩变化来自马里奥的性格/目标/学习状态，不来自地图平移。**
 - 实现者不能宣称"好玩"——只能说"具备条件"，好不好玩由用户试玩判断。
-- 用户已明确：**忽略"连玩 20 局"门槛**（S195）；要**魂系/艾尔登法环式箱庭**；借鉴只借规则不借素材。
+- 用户已明确：**忽略"连玩 20 局"门槛**（S195），并且 S224 说"先做得更值得玩再试玩"——试玩是验收参考，不是开工前提；要**魂系/艾尔登法环式箱庭**；借鉴只借规则不借素材。
 
 ## 2. 质量红线（历次踩坑总结）
 

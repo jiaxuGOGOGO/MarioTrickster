@@ -91,7 +91,7 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 223（阶段 B：马里奥中招三段式反应 Assets/Resources/MarioReactions.json + 问卷'笑了吗'）。上一版 S222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
+| **最新 Session** | Session 224（少等待：小镇自动快进 + 预约埋伏 + 房间 Enter 开局；阶段 C：视锥灌注 / 声音圈 / 他差点发现你）。上一版 S223（阶段 B：马里奥中招三段式反应 Assets/Resources/MarioReactions.json + 问卷'笑了吗'）。上一版 S222（全项目切碎调研 + 总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md；统计门槛：机器人手抖模式 + 每镇 60 天 + Wilson 95% 下限；被抓说原因（视线里/路灯/贴身/草晃/伪装在动/挑衅）；雷云最后 1.5 秒闪烁；本行以前停在 219 已修） |
 | **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
 | **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
 | **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
@@ -120,6 +120,13 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
+
+### [S224] 用户："跳过我试玩的部分继续完成该完成的 我的思路是有些我都没耐心试玩下去先做的更值得我玩在继续。所以根据之前的调研继续调研完成未完成任务"
+
+- 实测死区（宪法 P4）：小镇不按空格时一天 81% 是"连续 10 秒没事做"。→ 不碰键盘 1.5 秒自动快进（`overworldAutoFastIdleSeconds`，数值版本 23）+ 门口按一次 E 预约埋伏（`OverworldTown.ambushArmed`，他走近自动进门，规则仍是 AmbushReady）+ 房间开局 Enter 马上开始。死区 81% → 0%，会躲 60/60（Wilson 0.940）。
+- 总方案阶段 C：视锥灌注（`Step1Readability.FillReach`，房间 MarioVisionConeView + 小镇 VisionConeFill）；声音圈（`Step1Fx.SoundRing` + `Step1SoundRings` 运行时自动挂；小镇 `OverworldTown.sounds`，判定和圈共用 `Step1Readability.TownTauntRadius/TownNoiseRadius`）；"他差点发现你"（`NearMissLog`；小镇结算列最险 3 次；房间问卷 NearMiss 题给参考，不加题）。
+- sim S224 + EditMode 4 项；反向测试：关自动快进 → 报红。
+- 下一步：房间死区测量（房间 sim 还没有 P4）；有用户试玩数据后进阶段 D。
 
 ### [S223] 用户："继续。并告诉我之前这些任务都完成了是么"
 

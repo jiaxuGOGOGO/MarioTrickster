@@ -69,6 +69,8 @@ public class Step1Combo : MonoBehaviour
         if (driver != null) driver.Hurt += HandleHurt;
         // S223：中招反应（纯画面）。运行时自动挂上 → 旧场景不用重建
         if (driver != null && driver.GetComponent<MarioReactionView>() == null) driver.gameObject.AddComponent<MarioReactionView>();
+        // S224：声音圈（纯画面）。运行时自动挂上 → 旧场景不用重建
+        if (GetComponent<Step1SoundRings>() == null) gameObject.AddComponent<Step1SoundRings>();
         manager = GameManager.Instance;
         if (manager != null) manager.OnRoundStart += ResetRound;
         roomCamera = FindObjectOfType<Step1RoomCamera>();

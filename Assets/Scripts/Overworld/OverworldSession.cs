@@ -54,8 +54,12 @@ public static class OverworldSession
     [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.SubsystemRegistration)]
     public static void ResetStatics() { Active = false; MarioWary.Clear(); NewDay("", ""); }
 
+    /// <summary>S224：今天他差点发现你的时刻（一天结束列最接近的 3 次）。</summary>
+    public static readonly NearMissLog NearMiss = new NearMissLog();
+
     public static void NewDay(string map, string town, int day = 1)
     {
+        NearMiss.Clear();
         Day = System.Math.Max(1, day); Changed.Clear(); CannonAim.Clear(); CannonRides = Lightnings = Mudslides = CaveHops = 0; MarioHearts = YouHearts = MaxHearts; Energy = 0; MarioHeartsLost = YouHeartsLost = Kos = Clouds = StormBolts = 0; LastBigHitMinute = -9999; CarriedDaze = 0f; ReloadDoor = 0; BigHits = 0; BestChain = 0;
         MapName = map ?? ""; TownScene = town ?? ""; Minute = OverworldMap.DayStart;
         Results.Clear(); UsedCells.Clear(); DayOver = false; HasPositions = false; NextStop = 0; PendingDoor = 0; BonusBombs = 0; CarriedSuspicion = 0f; Caught = 0; TauntsUsed = 0; DelayedSeconds = 0f;
@@ -80,7 +84,8 @@ public static class OverworldSession
     /// <summary>一天的评价：守住的门 ≥ 一半 = 你赢这一天。</summary>
     public static bool DayWon(int doorCount) => doorCount > 0 && Count(DoorResult.Defended) * 2 >= doorCount;
 
-    public static string Summary(int doorCount) => Step1Text.OverworldDaySummary(Count(DoorResult.Defended), Count(DoorResult.Looted), Count(DoorResult.Missed), doorCount, Caught, DelayedSeconds, DayWon(doorCount));
+    public static string Summary(int doorCount) => Step1Text.OverworldDaySummary(Count(DoorResult.Defended), Count(DoorResult.Looted), Count(DoorResult.Missed), doorCount, Caught, DelayedSeconds, DayWon(doorCount))
+        + Step1Text.NearMissLines(NearMiss.Closest(3), NearMiss.NearMisses); // S224：SpyParty 式"事后告诉你他怀疑过你几次"
 }
 
 /// <summary>S220：小镇的心带进横版房间（纯逻辑，沙盒可测）。马里奥至少带 overworldRoomHeartFloor 颗（小镇被打得再惨，房间里也要能打）；你的心 = 房间命数（至少 1）。</summary>

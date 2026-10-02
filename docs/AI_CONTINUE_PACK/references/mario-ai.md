@@ -41,3 +41,8 @@ MarioMindDriver（接线、速度、楼层寻路）◄── MarioOrder ◄─�
 - `MarioReaction`（纯逻辑：表 / Sample 三段 / Parse·ToJson）+ `MarioReactionView`（挂马里奥，只动 `MarioController.visualTransform`，由 `Step1Combo.ComboRegistered(n, kind)` 驱动）。
 - 新的"坑到了"事件 kind → 必须在 `MarioReaction.Default` 和 `Assets/Resources/MarioReactions.json` 各加一行（sim 对照两者），并在 sim S223 的 stun 字典里写它本来晕几秒。
 - 禁止在 MarioReactionView 里出现 ApplyKnockbackStun / ExtendStun / velocity / MarioSpeedScale / TricksterController / Rigidbody。
+
+## S224 可读性（纯画面，不改感知）
+- 视锥灌注：房间 `MarioVisionConeView.DrawFill`、小镇 `OverworldGame.UpdateCone` 的 fillMesh；长度 `Step1Readability.FillReach(Meter.Normalized, 被墙挡住的距离, 视野)`。
+- 声音圈：房间 `Step1SoundRings` 订阅 Taunted/Exploded/Smashed/Clanged/Clicked（和 MarioMindDriver 喂给耳朵的同一组）；小镇 `OverworldTown.sounds`（Noise() 与挑衅时加）。新增会被听见的声音 = 两处都加，并且半径走 `Step1Readability`。
+- 差点被发现：`NearMissLog`（小镇 `OverworldSession.NearMiss`，在 Tick 末尾 Feed、Caught() 里记被抓）。

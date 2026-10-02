@@ -44,7 +44,8 @@ public sealed class OverworldGame : MonoBehaviour
     private SpriteRenderer marioSr, trickSr, crateSr;
     private readonly Dictionary<int, SpriteRenderer> tileSr = new Dictionary<int, SpriteRenderer>();
     private Camera cam;
-    private Mesh coneMesh;
+    private Mesh coneMesh, fillMesh;
+    private MeshRenderer fillMr;
     private Texture2D nightTex;
 
     private void Start()
@@ -57,6 +58,7 @@ public sealed class OverworldGame : MonoBehaviour
         OverworldSession.Active = true;
         for (int i = 0; i < doorNumbers.Length && i < doorScenes.Length; i++) OverworldSession.RoomScenes[doorNumbers[i]] = doorScenes[i];
         town = new OverworldTown(map, tuning, n => OverworldSession.RoomScenes.TryGetValue(n, out var sc) && SceneTransit.CanLoad(sc));
+        town.autoFastIdleSeconds = tuning.overworldAutoFastIdleSeconds; // S224：不碰键盘 1.5 秒自动快进
         map = town.map; // S218：小镇自己那份（今天被大机关改过的地形、赶集日的新时间都在里面）
         Time.timeScale = 1f; // S217：从暂停中的房间/测试回来也不会"画面不动"
         helpOpen = !helpSeenThisPlay && !Step1QuickTest.On; helpSeenThisPlay = true; // S217：快速测试模式不弹说明
@@ -101,6 +103,7 @@ public sealed class OverworldGame : MonoBehaviour
         town.Tick(dt, input);
         if (town.hint != OverworldTown.Note.None) Hint(town.hint == OverworldTown.Note.Caught ? Step1Text.OverworldCaughtWhy(town.caughtWhy) : NoteText(town.hint), town.hintSeconds); // S222：被抓说明原因
         BigFx();
+        if (tuning.soundRings) foreach (var so in town.sounds) Step1Fx.SoundRing(new Vector2(so.x, so.y), so.z); // S224：声音圈 = 他真实的听力范围
         if (town.wantsEnter)
         {
             var d = town.enterDoor; var c = doorCells[d.n];
@@ -150,6 +153,7 @@ public sealed class OverworldGame : MonoBehaviour
             case OverworldTown.Note.Cloud: return Step1Text.OverworldCloud;
             case OverworldTown.Note.CloudLow: return Step1Text.OverworldCloudLow;
             case OverworldTown.Note.StormBolt: return Step1Text.OverworldStormBolt;
+            case OverworldTown.Note.AmbushArmed: return Step1Text.OverworldAmbushArmed;
             default: return "";
         }
     }
@@ -249,6 +253,12 @@ public sealed class OverworldGame : MonoBehaviour
         var sh = Shader.Find("Sprites/Default");
         if (sh != null) mr.sharedMaterial = new Material(sh) { color = new Color(1f, 0.95f, 0.4f, 0.16f) };
         mr.sortingOrder = 2500;
+        // S224：视锥里按起疑程度灌注（Shadow Tactics），叠在视锥上
+        var fillGo = new GameObject("VisionConeFill");
+        fillMesh = new Mesh(); fillGo.AddComponent<MeshFilter>().sharedMesh = fillMesh;
+        fillMr = fillGo.AddComponent<MeshRenderer>();
+        if (sh != null) fillMr.sharedMaterial = new Material(sh) { color = Color.white };
+        fillMr.sortingOrder = 2501;
 
         nightTex = new Texture2D(1, 1); nightTex.SetPixel(0, 0, Color.white); nightTex.Apply();
 
@@ -592,7 +602,7 @@ public sealed class OverworldGame : MonoBehaviour
             GUI.backgroundColor = old;
         }
         GUI.Label(new Rect(10, 98, 340, 22), Step1Text.OverworldGuideKeys, Step1Gui.Text(13));
-        if (town.timeScale > 1f) GUI.Box(new Rect(Screen.width / 2f - 150, 14, 300, 30), Step1Text.OverworldFastForward, box);
+        if (town.timeScale > 1f) GUI.Box(new Rect(Screen.width / 2f - 230, 14, 460, 30), Step1Keys.Held(KeyCode.Space) ? Step1Text.OverworldFastForward : Step1Text.OverworldAutoFast, box);
         if (next == null || !doorCells.TryGetValue(next.n, out var dc)) return;
         // 门头上的倒计时（门在屏幕里才画）
         foreach (var d in stops)
@@ -680,14 +690,17 @@ public sealed class OverworldGame : MonoBehaviour
     private void UpdateCone()
     {
         if (coneMesh == null) return;
-        coneMesh.Clear();
+        coneMesh.Clear(); if (fillMesh != null) fillMesh.Clear();
         if (marioInside || dayOver) return;
+        float fillN = tuning.visionConeFill && town.mind.Meter.Level != SuspicionLevel.Calm ? town.mind.Meter.Normalized : 0f;
+
         var r = Sight();
         bool night = r.night;
         float range = (float)(night ? System.Math.Min(r.range, r.nightRange) : r.range);
         float baseAng = Mathf.Atan2((float)mario.fy, (float)mario.fx), half = (float)r.halfAngleDeg * Mathf.Deg2Rad;
         const int seg = 18;
         var v = new Vector3[seg + 2]; var tri = new int[seg * 3];
+        Vector3[] fv = fillN > 0f && fillMesh != null ? new Vector3[seg + 2] : null;
         v[0] = new Vector3((float)mario.x, (float)mario.y, 0);
         for (int i = 0; i <= seg; i++)
         {
@@ -700,9 +713,15 @@ public sealed class OverworldGame : MonoBehaviour
                 len = nl;
             }
             v[i + 1] = new Vector3((float)mario.x + dx * len, (float)mario.y + dy * len, 0);
+            if (fv != null) { float fl = Step1Readability.FillReach(fillN, len, range); fv[i + 1] = new Vector3((float)mario.x + dx * fl, (float)mario.y + dy * fl, 0); }
             if (i < seg) { tri[i * 3] = 0; tri[i * 3 + 1] = i + 2; tri[i * 3 + 2] = i + 1; }
         }
         coneMesh.vertices = v; coneMesh.triangles = tri;
+        if (fv != null)
+        {
+            fv[0] = v[0]; fillMesh.vertices = fv; fillMesh.triangles = tri;
+            var fc = Step1Readability.FillColor(town.mind.Meter.Level); var cols = new Color[fv.Length]; for (int k = 0; k < cols.Length; k++) cols[k] = fc; fillMesh.colors = cols;
+        }
     }
 
     private GUIStyle boxStyle, bigStyle, markStyle;

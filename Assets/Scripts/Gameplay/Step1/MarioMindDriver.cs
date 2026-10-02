@@ -221,6 +221,8 @@ public class MarioMindDriver : MonoBehaviour
 
         if (startDelay > 0f)
         {
+            // S224 少等待：准备好了按 Enter 马上开始（开局 0.3 秒后才认，免得关说明面板那一下误触；自动检查时不认）
+            if (!Step1HandsOffCheck.IsRunning && !Step1Screen.HelpOpen && !Step1PlaytestLog.IsTyping && startDelay < tuning.startDelaySeconds - 0.3f && Step1Keys.Down(KeyCode.Return)) startDelay = 0f;
             startDelay -= Time.deltaTime;
             hybrid.Bot.ExplorationTarget = (Vector2)transform.position;
             LastOrder = new MarioOrder { state = MarioMindState.Running, mark = "", intent = "READY..." };

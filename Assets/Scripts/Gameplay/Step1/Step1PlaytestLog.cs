@@ -43,6 +43,8 @@ public class Step1PlaytestLog : MonoBehaviour
     private string lastWinner = "";
     private bool savedThisRound;
     private string lastReason = "";
+    /// <summary>S224：这局他起疑过几次、最险一次到多少（问卷"差点被发现"题下面给参考）。</summary>
+    private readonly NearMissLog roomNear = new NearMissLog();
 
     public IReadOnlyDictionary<string, int> RoundPranks => roundPranks;
     public int DistinctKindsThisSession => sessionKinds.Count;
@@ -95,6 +97,7 @@ public class Step1PlaytestLog : MonoBehaviour
     {
         roundPranks.Clear(); roundOmens = roundAlerts = roundCaught = 0;
         chaseOpen = false; awaitingRating = false; savedThisRound = false; survey = null; IsTyping = false; noteDraft = ""; lastPropKind = ""; lastPropTime = -999f;
+        roomNear.Clear();
     }
 
     private void HandleProp(IControllableProp prop) { lastPropKind = PrankKindOf(prop); lastPropTime = Time.time; }
@@ -105,7 +108,8 @@ public class Step1PlaytestLog : MonoBehaviour
         { Count(lastPropKind); lastPropKind = ""; }
     }
 
-    private void HandleCaught() { roundCaught++; chaseOpen = false; }
+    private void HandleCaught() { roundCaught++; chaseOpen = false; roomNear.Caught(RoundClock, ""); }
+    private string RoundClock => (manager != null ? manager.RoundElapsed : 0f).ToString("0") + "s";
 
     // [AI防坑警告] 第 3 次被抓时 TricksterLives 先 EndRound 再返回，Caught 事件晚于 OnGameOver；以裁判计数为准。
     private int CaughtThisRound => lives != null ? Mathf.Max(roundCaught, lives.TimesCaught) : roundCaught;
@@ -142,6 +146,8 @@ public class Step1PlaytestLog : MonoBehaviour
 
     private void Update()
     {
+        if (!awaitingRating && driver != null && driver.Mind != null && (manager == null || manager.CurrentState == GameState.Playing))
+            roomNear.Feed(driver.Mind.Meter.Level != SuspicionLevel.Calm, driver.Mind.Meter.Normalized, RoundClock, "");
         if (!awaitingRating || survey == null) return;
         IsTyping = survey.Current == Step1RoundSurvey.Step.Note;
         if (IsTyping) return; // 文本在 OnGUI 里收
@@ -251,6 +257,11 @@ public class Step1PlaytestLog : MonoBehaviour
         GUI.Label(new Rect(inner.x, inner.y - 10f, inner.width, 30f), $"<color=#AAAAAA>记录这一局 Quick feedback   {survey.StepNumber} / {survey.StepCount}</color>",
             Step1Gui.Text(20, TextAnchor.MiddleCenter));
         GUI.Label(new Rect(inner.x, inner.y + 30f, inner.width, 90f), "<b>" + survey.Prompt + "</b>", Step1Gui.Text(28, TextAnchor.MiddleCenter));
+        if (survey.Current == Step1RoundSurvey.Step.NearMiss) // S224：给参考（他这局起疑过几次），答案还是你自己选
+        {
+            var top = roomNear.Closest(1);
+            GUI.Label(new Rect(inner.x, inner.y + 118f, inner.width, 30f), "<color=#FFD966>" + Step1Text.RoomNearMissHint(roomNear.NearMisses, top.Count > 0 ? top[0].peak : 0f) + "</color>", Step1Gui.Text(20, TextAnchor.MiddleCenter));
+        }
 
         if (survey.Current == Step1RoundSurvey.Step.Note)
         {

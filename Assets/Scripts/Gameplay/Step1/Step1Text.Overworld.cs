@@ -6,7 +6,7 @@ public static partial class Step1Text
         "马里奥今天按时间表去几户人家偷宝贝（门上的数字 = 顺序，右上角有时间）。\n" +
         "方向键/WASD 走路   P 伪装成木箱（伪装时被看见还在动 = 可疑）\n" +
         "L 靠近地上的香蕉皮（3 格内）让它变滑：闪一下后滑 3 秒，他踩上去晕 1.5 秒   T 挑衅（把他引过来，每天 3 次）\n" +
-        "E 埋伏：先到门口躲好（高草 / P 伪装），等他走到离门 8 格内再按 E（进屋开打，还多 1 枚炸弹）；按住空格快进等他\n" +
+        "E 埋伏：先到门口躲好（高草 / P 伪装）按一次 E = 预约，他走到离门 8 格内自动进屋开打（还多 1 枚炸弹）；不碰键盘时自动快进\n" +
         "他先进门：6 秒内跟进去 = 迟到（照样打，但他不等你）；再晚 = 这户被偷\n" +
         "躲进高草/房子后面他就看不见；晚上 19:00 后他看得近，路灯下除外\n" +
         "? 木盒：捡到 +1 枚炸弹，带进下一个房间\n" +
@@ -17,13 +17,14 @@ public static partial class Step1Text
         "心：你和马里奥各 3 颗（左上）。被闪电 / 滚石 / 泥石流 / 被巨炮轰 打中 = 掉 1 颗心 + 晕 2 秒（身体一闪一闪 = 保护期：晕完再闪 1.5 秒，这期间什么都打不到你，赶紧跑）；香蕉皮只滑倒、水淹只变慢。心掉光 = 晕倒 3 秒、剩 1 颗站起来\n" +
         "雷区（地图上的蓝色虚线框）：每隔一会儿同时劈几道闪电——地上先闪 1.2 秒，变白 = 马上劈，十字形 1 格。+ 补心，* 能量（你的机关让他掉心也 +1）\n" +
         "能量满 3 格按 Q：在你头顶召唤雷云（停在原地 9 秒，冲着云里的他劈，但也会随机劈——快逃出来，别劈到自己）\n" +
+        "看得懂他：视锥里的黄色越灌越长 = 他越起疑，灌满变红 = 认出你；蓝色圆圈 = 他听得见的范围（他在圈里就听见了）；一天结束会列出他差点发现你的时刻\n" +
         "指引：屏幕边上的箭头 = 下一扇门；左上会算好\"你几秒 / 他几秒\"来不来得及；按住 Tab 看去门的路线，M 小地图   H 关闭/打开说明";
 
     // S217：测试不卡人——底部常驻按键、等他出门的提示、没点游戏窗口的提醒、快速测试、F8 反馈
     public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   Q 雷云(能量满)   E 门口埋伏/坐炮/钻洞   空格(按住) 快进   Tab 路线   M 小地图   - / = 镜头远近   H 说明   F8 记反馈";
     public const string OverworldHelpClose = "按任意键关闭说明（H 随时再打开）  Press any key";
     public static string OverworldWaitDepart(int door, string clock, double realSeconds) =>
-        $"马里奥 {clock} 才出门去门 {door}（还有约 {realSeconds:0} 秒）\n先去门口躲好，或按住空格快进";
+        $"马里奥 {clock} 才出门去门 {door}（还有约 {realSeconds:0} 秒）\n先去门口躲好（不碰键盘会自动快进）";
     public const string ClickGameWindow = "先用鼠标点一下游戏画面，键盘才有反应\nClick the Game view first";
     public const string QuickTestRoundOver = "快速测试模式：不弹问卷（F8 随手记反馈）\n\n<b>N</b> = 下一局 Next round        <b>R</b> = 从头开始 Restart";
     public static string FeedbackSaved(int n) => $"✓ 已记下第 {n} 条反馈（截图 + 当时情况）\n测试中心 → 打包反馈 发给 AI";
@@ -37,7 +38,7 @@ public static partial class Step1Text
     public const string OverworldAmbushWait = "他还远：先躲好（高草 / 按 P 伪装），等他走近再按 E\nWait for him — hide first";
     public const string OverworldSpotted = "他盯上你了！先甩掉他（躲进高草 / 绕到房子后面），再回来埋伏\nHe spotted you — lose him first";
     public static string OverworldAmbushCountdown(int steps, int need, bool disguised) =>
-        (steps < 0 ? "他还没出发" : $"他还有 {steps} 格（{need} 格内按 E 埋伏）") + (disguised ? "\n伪装中，别动" : "\n先躲进高草或按 P 伪装；按住空格快进");
+        (steps < 0 ? "他还没出发" : $"他还有 {steps} 格（{need} 格内按 E 埋伏）") + (disguised ? "\n伪装中，别动" : "\n先躲进高草或按 P 伪装，按一次 E 预约（会自动快进）");
     public const string OverworldLateHint = "他刚进去了！快按 E 跟进\nHe just went in — press E!";
     public const string OverworldTooEarly = "这扇门今天不是他下一站\nNot his next stop";
     public const string OverworldCaught = "被马里奥抓住了！送回出生点\nCaught! Back to start";
@@ -136,4 +137,40 @@ public static partial class Step1Text
         (won ? "一天结束 —— 你守住了小镇！\nDay over — YOU WIN!\n" : "一天结束 —— 马里奥满载而归\nDay over — Mario wins\n") +
         $"守住 {defended} / 被偷 {looted} / 没赶上 {missed}（共 {total} 户）\n" +
         $"在镇上被抓 {caught} 次，把他拖住了 {delayedSeconds:0} 秒\n按 R 再来一天";
+    // ── S224 阶段 C：少等待 + 可读性 ──
+    public const string OverworldAmbushArmed = "✓ 已预约埋伏：躲着别走开，他一走近就自动进门（等的时候自动快进）\nAmbush set — stay hidden, it starts by itself";
+    public const string OverworldAutoFast = ">> 自动快进 ×4（没事发生时；按任意键 / 有动静自动停）";
+
+    /// <summary>"他是怎么注意到你的"（OverworldMap.SeenWhy 的名字 → 一句中文）。房间里没有原因 = 空。</summary>
+    public static string WhyZh(string why)
+    {
+        switch (why)
+        {
+            case "Near": return "贴太近";
+            case "GrassClose": return "草里贴身";
+            case "Lamp": return "站在路灯下";
+            case "DisguiseMoved": return "伪装时在动";
+            case "Rustle": return "草晃了";
+            case "Taunt": return "你挑衅了";
+            case "Open": return "在他视线里";
+            default: return "";
+        }
+    }
+
+    /// <summary>S224（SpyParty：事后告诉你他怀疑过你）：结算时列出最接近被发现的几次。空 = 他今天一次都没起疑。</summary>
+    public static string NearMissLines(System.Collections.Generic.IList<NearMissLog.Moment> closest, int total)
+    {
+        if (total <= 0) return "\n他今天一次都没怀疑过你 Never suspected you";
+        var sb = new System.Text.StringBuilder($"\n他差点发现你 {total} 次，最险的：");
+        foreach (var m in closest)
+        {
+            string why = WhyZh(m.why);
+            sb.Append($"\n  {m.clock}  起疑到 {m.peak * 100f:0}%{(why.Length > 0 ? "（" + why + "）" : "")}");
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>房间问卷"差点被发现"题下面的参考行（只是提醒，答案还是你自己选）。</summary>
+    public static string RoomNearMissHint(int total, float peak) =>
+        total <= 0 ? "参考：这局他没起疑过 He never got suspicious" : $"参考：这局他起疑 {total} 次，最险一次到 {peak * 100f:0}%（100% = 认出你）";
 }

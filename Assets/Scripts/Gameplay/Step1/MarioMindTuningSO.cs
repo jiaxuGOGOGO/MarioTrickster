@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 22;
+    public const int CurrentDataVersion = 23;
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -519,6 +519,14 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("S220：马里奥带进房间至少几颗心（小镇里被打得再惨，房间里也要能打）")]
     public int overworldRoomHeartFloor = 2;
 
+    [Header("S224: 少等待 + 可读性（总方案阶段 C）")]
+    [Tooltip("S224：小镇里你多少秒（真实秒）不碰键盘就自动快进 ×4（只在没事发生时；他起疑 / 快到门口 / 附近有闪电立刻恢复）。0 = 关（只能按住空格）。实测：不快进时一天 79% 时间在干等")]
+    public float overworldAutoFastIdleSeconds = 1.5f;
+    [Tooltip("S224：视锥里按起疑程度灌黄色（Shadow Tactics：灌到你 = 被发现）。只是把已有的起疑值画出来，不改规则")]
+    public bool visionConeFill = true;
+    [Tooltip("S224：马里奥听得见的声音画成圈（Mark of the Ninja）：圈的大小 = 他真实的听力范围")]
+    public bool soundRings = true;
+
     [Header("S216: 手感 / 被弹飞的抛物线 / 特效")]
     [Tooltip("S216 被弹飞/打飞时的重力（格/秒²）。以前硬直期间往上飞没有重力 → 弹簧弹 11 格撞天花板、炸弹推 8 格像在月球。平时跳跃重力 80；这里略轻 → 有滞空感但仍是抛物线")]
     public float launchGravity = 40f;
@@ -659,6 +667,10 @@ public class MarioMindTuningSO : ScriptableObject
         if (dataVersion < 22)
         {
             overworldHurtGraceSeconds = 1.5f; // S221：含义改为"站起来后还护几秒"（总保护 = 晕 2 + 1.5 = 3.5 秒；掉光 = 3 + 1.5 = 4.5 秒）
+        }
+        if (dataVersion < 23)
+        {
+            overworldAutoFastIdleSeconds = 1.5f; visionConeFill = true; soundRings = true; // S224：少等待 + 视锥灌注 + 声音圈
         }
         dataVersion = CurrentDataVersion;
         return true;

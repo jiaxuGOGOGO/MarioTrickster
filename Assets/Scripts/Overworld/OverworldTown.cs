@@ -34,11 +34,20 @@ public sealed class OverworldTown
     public float exitGrace;
     /// <summary>S213：这一帧时间走得多快（快进时 &gt;1）。</summary>
     public float timeScale = 1f;
+    /// <summary>S224 少等待：你不碰键盘这么多秒（真实秒）后自动快进（0 = 关）。驱动层按调参设；纯逻辑默认关，老的模拟不受影响。
+    /// 自动快进和按住空格完全一样：只在"没事"时生效（CanFastForward），他一起疑 / 快到门口 / 附近有闪电就立刻恢复。</summary>
+    public float autoFastIdleSeconds;
+    /// <summary>S224：在门口按过 E 但他还远 = 预约埋伏：躲着别走开，他一走进埋伏范围就自动进门（不用一直按 E），等的时候自动快进。
+    /// 走开门口 / 被他盯上 = 取消（和以前"必须他快到了才算埋伏"同一条规则，只是不用你掐着时间按）。</summary>
+    public bool ambushArmed;
+    private float idleReal;
+    /// <summary>S224 声音圈（Mark of the Ninja）：这一帧发出的声音（x, y, 他多远听得见）。圈的大小 = 判定用的同一个数。</summary>
+    public readonly List<Impact3> sounds = new List<Impact3>();
 
     // ── 这一帧发生的事（驱动层读完就清）──
     /// <summary>这一帧要给玩家的提示（驱动层翻成 Step1Text 文字；纯逻辑这边不碰文字，sim 才能跑）。</summary>
     public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit,
-        /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt }
+        /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt, /* S224 */ AmbushArmed }
     public Note hint; public float hintSeconds;
     /// <summary>S222：他最后一次看见你的原因（被抓时告诉玩家，H4 同一组视线输入）。</summary>
     public OverworldMap.SeenWhy seenWhy, caughtWhy;
@@ -135,9 +144,12 @@ public sealed class OverworldTown
 
     public void Tick(float dt, Input i)
     {
-        hint = Note.None; wantsEnter = false; changedCells.Clear(); impacts.Clear(); bolts.Clear(); hurts.Clear();
+        hint = Note.None; wantsEnter = false; changedCells.Clear(); impacts.Clear(); bolts.Clear(); hurts.Clear(); sounds.Clear();
         if (dayOver) return;
-        timeScale = i.fastForward && CanFastForward ? FastForwardScale : 1f;
+        bool touched = i.h != 0f || i.v != 0f || i.disguise || i.peel || i.taunt || i.weather || i.aim != 0 || (i.door && !ambushArmed);
+        idleReal = touched ? 0f : idleReal + dt;
+        bool autoFast = ambushArmed || (autoFastIdleSeconds > 0f && idleReal >= autoFastIdleSeconds);
+        timeScale = (i.fastForward || autoFast) && CanFastForward ? FastForwardScale : 1f;
         float gdt = dt * timeScale; // 游戏时间（人和马里奥都按它走：快进 = 整个世界快放，公平）
         OverworldSession.Minute += gdt * tuning.overworldMinutesPerSecond;
         if (exitGrace > 0f) exitGrace -= dt;
@@ -149,7 +161,19 @@ public sealed class OverworldTown
         TickStorms(gdt);
         if (marioGrace > 0f) marioGrace -= gdt; if (youGrace > 0f) youGrace -= gdt;
         Mario(gdt);
+        ArmedAmbush();
+        OverworldSession.NearMiss.Feed(!marioInside && !dayOver && mind.Meter.Level != SuspicionLevel.Calm, mind.Meter.Normalized, OverworldMap.Clock(OverworldSession.Minute), seenWhy == OverworldMap.SeenWhy.None ? "" : seenWhy.ToString());
         if (OverworldSession.Minute >= OverworldMap.DayEnd) EndDay();
+    }
+
+    /// <summary>S224：预约埋伏——走开 / 被盯上就取消；他一走进埋伏范围就自动进门（同 TryDoor 的规则）。</summary>
+    private void ArmedAmbush()
+    {
+        if (!ambushArmed || wantsEnter) return;
+        var next = NextStop;
+        if (next == null || !NearDoor(next.n) || marioInside || dayOver || frozen > 0f) { ambushArmed = false; return; }
+        if (Spotted) { ambushArmed = false; Hint(Note.Spotted); return; }
+        if (AmbushReady) { ambushArmed = false; EnterRoom(next, OverworldMind.DoorOutcome.Ambush); }
     }
 
     private void Hint(Note n, float secs = 2f) { hint = n; hintSeconds = secs; }
@@ -170,7 +194,7 @@ public sealed class OverworldTown
         if (i.taunt)
         {
             if (OverworldSession.TauntsUsed >= tuning.overworldTaunts) Hint(Note.TauntNone);
-            else { OverworldSession.TauntsUsed++; tauntedThisFrame = true; }
+            else { OverworldSession.TauntsUsed++; tauntedThisFrame = true; sounds.Add(new Impact3((float)tx, (float)ty, Step1Readability.TownTauntRadius(tuning))); }
         }
         int cx = (int)System.Math.Floor(tx), cy = (int)System.Math.Floor(ty), id = cy * map.W + cx;
         if (map.At(cx, cy) == '?' && !OverworldSession.UsedCells.Contains(id))
@@ -258,7 +282,12 @@ public sealed class OverworldTown
             var outcome = OverworldMind.AtDoor(!marioInside, insideSeconds, tuning.overworldLateWindowSeconds);
             if (outcome == OverworldMind.DoorOutcome.Missed) return true;
             // S213：埋伏 = 他快到了你已经守在门口。他还远 → 不进门，告诉你等（躲草丛 / P 伪装 / 空格快进）
-            if (outcome == OverworldMind.DoorOutcome.Ambush && !AmbushReady) { Hint(Spotted ? Note.Spotted : Note.AmbushWait); return true; }
+            if (outcome == OverworldMind.DoorOutcome.Ambush && !AmbushReady)
+            {
+                if (Spotted) { Hint(Note.Spotted); return true; }
+                if (!ambushArmed) { ambushArmed = true; Hint(Note.AmbushArmed, 3f); } // S224：预约埋伏（不用一直按 E）
+                return true;
+            }
             EnterRoom(next, outcome);
             return true;
         }
@@ -484,7 +513,7 @@ public sealed class OverworldTown
             figureMoving = lastMoved || aimedThisFrame,
             sawRustle = !blind && !sees && lastMoved && OverworldMap.SeesRustle(map, lamps, mario.x, mario.y, mario.fx, mario.fy, tx, ty, r),
             rustlePos = new Vector2((float)tx, (float)ty),
-            heardTaunt = !blind && tauntedThisFrame && Dist(mario.x, mario.y, tx, ty) <= tuning.overworldVisionRange * 1.5f,
+            heardTaunt = !blind && tauntedThisFrame && Dist(mario.x, mario.y, tx, ty) <= Step1Readability.TownTauntRadius(tuning), // S224：圈和判定同一个数
             tauntPos = new Vector2((float)tx, (float)ty),
             scheduleTarget = blind ? (Vector2?)null : schedule,
             heardNoise = !blind && heardNoise.HasValue, noisePos = heardNoise ?? default, noiseSuspicion = tuning.overworldNoiseSuspicion,
@@ -577,7 +606,8 @@ public sealed class OverworldTown
 
     private void Noise(double x, double y)
     {
-        if (!marioInside && Dist(x, y, mario.x, mario.y) <= tuning.overworldNoiseRange) heardNoise = new Vector2((float)x, (float)y);
+        if (!marioInside && Dist(x, y, mario.x, mario.y) <= Step1Readability.TownNoiseRadius(tuning)) heardNoise = new Vector2((float)x, (float)y);
+        sounds.Add(new Impact3((float)x, (float)y, Step1Readability.TownNoiseRadius(tuning)));
         impacts.Add(new Impact3((float)x, (float)y, 1.5f));
     }
 
@@ -896,7 +926,8 @@ public sealed class OverworldTown
         caughtWhy = seenWhy == OverworldMap.SeenWhy.None ? OverworldMap.SeenWhy.Open : seenWhy;
         OverworldSession.Caught++;
         tx = spawn.x + 0.5; ty = spawn.y + 0.5; disguised = false;
-        frozen = tuning.overworldCaughtPenaltySeconds;
+        frozen = tuning.overworldCaughtPenaltySeconds; ambushArmed = false;
+        OverworldSession.NearMiss.Caught(OverworldMap.Clock(OverworldSession.Minute), caughtWhy.ToString()); // S224：这段起疑算"被抓"，不算差点
         mind.OnCaught();
         Hint(Note.Caught, 2.5f);
     }

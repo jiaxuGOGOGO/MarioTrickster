@@ -2128,6 +2128,86 @@ public class Step1RushMarioTests
         StringAssert.Contains("laughed", Step1PlaytestLog.CsvHeader);
     }
 
+    // ── S224：总方案阶段 C（可读性收尾）+ 少等待 ──
+    [Test]
+    public void Readability_ConeFillGrowsWithSuspicion_NeverPastWalls()
+    {
+        Assert.AreEqual(0f, Step1Readability.FillReach(0f, 9f, 9f), 1e-4f, "平静 = 不灌");
+        Assert.AreEqual(4.5f, Step1Readability.FillReach(0.5f, 9f, 9f), 1e-4f, "一半起疑 = 灌一半");
+        Assert.AreEqual(3f, Step1Readability.FillReach(1f, 3f, 9f), 1e-4f, "墙后面不灌");
+        Assert.AreEqual(9f, Step1Readability.FillReach(2f, 9f, 9f), 1e-4f, "超过 1 按 1");
+        Assert.AreNotEqual(Step1Readability.FillColor(SuspicionLevel.Curious), Step1Readability.FillColor(SuspicionLevel.Alert), "黄 = ?，红 = !");
+        var t = Tuning();
+        Assert.AreEqual(t.hearingRange, Step1Readability.SoundRadius(Step1Readability.Sound.Taunt, t), 1e-4f, "声音圈 = MarioEyes 的听力范围");
+        Assert.AreEqual(t.hearingRange / 3f, Step1Readability.SoundRadius(Step1Readability.Sound.Vent, t), 1e-4f, "通风管咣当 = NoteNoiseNear 的 1/3");
+        StringAssert.Contains("hearingRange / 3f", Read("Scripts/Gameplay/Step1/MarioEyes.cs"), "圈和判定同一个数");
+    }
+
+    [Test]
+    public void Readability_SoundRingsAndFill_AreVisualOnly()
+    {
+        string rings = Read("Scripts/Gameplay/Step1/Step1SoundRings.cs");
+        foreach (var ev in new[] { "TauntAbility.Taunted +=", "TricksterBomb.Exploded +=", "CrackedWall.Smashed +=", "Vent.Clanged +=", "ChainPlan.Clicked +=" })
+            StringAssert.Contains(ev, rings, "和 MarioMindDriver 喂给 MarioEyes 的是同一组声音事件");
+        StringAssert.DoesNotContain("RustleOnPass", rings, "草晃是看见，不是听见：不画声音圈");
+        foreach (var banned in new[] { "MarioEyes", "Meter.Add", "NoteNoise", "Collider", "Rigidbody" })
+            StringAssert.DoesNotContain(banned, rings, "声音圈只是画面：" + banned);
+        StringAssert.Contains("AddComponent<Step1SoundRings>()", Read("Scripts/Gameplay/Step1/Step1Combo.cs"), "旧场景自动挂上");
+        string cone = Read("Scripts/Gameplay/Step1/MarioVisionConeView.cs");
+        StringAssert.Contains("Step1Readability.FillReach(meter.Normalized, clear[i], t.visionRange)", cone);
+        StringAssert.DoesNotContain("Meter.Set", cone); StringAssert.DoesNotContain("Meter.Add", cone);
+        // H4：马里奥侧代码不因为画面而读捣蛋者
+        foreach (var f in new[] { "Scripts/Gameplay/Step1/MarioEyes.cs", "Scripts/Gameplay/Step1/RushMarioMind.cs" })
+            StringAssert.DoesNotContain("Step1SoundRings", Read(f));
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 23);
+        Assert.IsTrue(Tuning().visionConeFill && Tuning().soundRings);
+    }
+
+    [Test]
+    public void NearMiss_SegmentsPeaksAndCaught()
+    {
+        var log = new NearMissLog();
+        log.Feed(false, 0f, "06:00", "");
+        log.Feed(true, 0.4f, "07:00", ""); log.Feed(true, 0.7f, "07:01", "Rustle"); log.Feed(false, 0f, "07:02", "");
+        log.Feed(true, 0.5f, "09:00", "Open"); log.Caught("09:01", "Open");
+        log.Feed(true, 0.9f, "11:00", "Lamp"); log.Feed(false, 0f, "11:01", "");
+        log.Feed(true, 0.36f, "12:00", ""); log.Feed(false, 0f, "12:01", "");
+        Assert.AreEqual(4, log.All.Count);
+        Assert.AreEqual(3, log.NearMisses, "被抓那段不算差点");
+        var top = log.Closest(2);
+        Assert.AreEqual("11:00", top[0].clock); Assert.AreEqual(0.9f, top[0].peak, 1e-4f);
+        Assert.AreEqual("07:00", top[1].clock); Assert.AreEqual("Rustle", top[1].why, "原因取第一次有的");
+        StringAssert.Contains("草晃了", Step1Text.NearMissLines(top, log.NearMisses));
+        StringAssert.Contains("没怀疑过", Step1Text.NearMissLines(new List<NearMissLog.Moment>(), 0));
+        StringAssert.Contains("NearMiss.Caught(", Read("Scripts/Overworld/OverworldTown.cs"));
+        StringAssert.Contains("Step1Text.NearMissLines(", Read("Scripts/Overworld/OverworldSession.cs"));
+        StringAssert.Contains("RoomNearMissHint(", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs"), "房间问卷'差点被发现'题给参考");
+    }
+
+    [Test]
+    public void LessWaiting_AutoFastArmedAmbushAndEnterToStart()
+    {
+        // 小镇：不碰键盘一会儿自动快进；在门口按过一次 E = 预约，他走近自动进门（规则还是 AmbushReady）
+        var m = OverworldPack.Parse(OverworldPack.SampleText)[0];
+        var t = Tuning();
+        OverworldSession.NewDay(m.name, "Town", 1); OverworldSession.Active = true;
+        var town = new OverworldTown(m, t) { autoFastIdleSeconds = t.overworldAutoFastIdleSeconds };
+        bool sped = false;
+        for (int i = 0; i < 30 * 5; i++) { town.Tick(1f / 30f, new OverworldTown.Input()); if (town.timeScale > 1f) sped = true; }
+        Assert.IsTrue(sped, "不碰键盘 1.5 秒后自动快进");
+        town.Tick(1f / 30f, new OverworldTown.Input { h = 1f });
+        Assert.AreEqual(1f, town.timeScale, "一碰方向键立刻恢复正常速度");
+        string src = Read("Scripts/Overworld/OverworldTown.cs");
+        StringAssert.Contains("if (AmbushReady) { ambushArmed = false; EnterRoom(next, OverworldMind.DoorOutcome.Ambush); }", src, "预约埋伏用的还是同一条埋伏规则");
+        StringAssert.Contains("if (Spotted) { ambushArmed = false; Hint(Note.Spotted); return; }", src, "被盯上就取消预约");
+        StringAssert.Contains("town.autoFastIdleSeconds = tuning.overworldAutoFastIdleSeconds", Read("Scripts/Overworld/Runtime/OverworldGame.cs"));
+        // 房间：开局等待按 Enter 马上开始（自动检查时不认）
+        string drv = Read("Scripts/Gameplay/Step1/MarioMindDriver.cs");
+        StringAssert.Contains("!Step1HandsOffCheck.IsRunning && !Step1Screen.HelpOpen && !Step1PlaytestLog.IsTyping && startDelay < tuning.startDelaySeconds - 0.3f && Step1Keys.Down(KeyCode.Return)", drv);
+        StringAssert.Contains("Enter", Step1Text.MarioStateText(MarioMindState.Running, true, false, 3f));
+        OverworldSession.ResetStatics();
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

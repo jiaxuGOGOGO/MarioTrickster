@@ -489,6 +489,43 @@ static class CHECK {
     var view=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/MarioReactionView.cs"));
     foreach(var w in new[]{"ApplyKnockbackStun","ExtendStun","velocity","MarioSpeedScale","TricksterController","Rigidbody"}) if(view.Contains(w)){ rb++; Console.WriteLine("     [FAIL] 反应画面组件出现 "+w+"（只能动外观）"); }
     Console.WriteLine($"[{(rb==0?"OK":"FAIL")}] S223 马里奥中招反应：{string.Join("｜",parts)}"); fail+=rb; }
+  // S224：总方案阶段 C + 少等待（用户："有些我都没耐心试玩下去"）。宪法 P4：死区（10 秒没事可做）< 15%。
+  //  ① 挂机/干等的人：以前一天 81% 是死区 → 自动快进后必须 < 15%；② 会躲的玩家照样 60/60 全埋伏（Wilson 下限 ≥ 0.935），自动快进不让人错过门；
+  //  ③ 门口按一次 E = 预约，他走近自动进门；④ 视锥灌注 / 声音圈 = 判定用的同一个数；⑤ 差点被发现的时刻：分段、被抓不算、最险排前。
+  { int cb=0; var parts=new List<string>(); var t=MarioMindTuningSO.LoadOrDefault(); const int N=60;
+    (double lo,double hi) W(int k,int n){ double z=1.96,p=(double)k/n,d=1+z*z/n,c=p+z*z/(2*n),h=z*Math.Sqrt(p*(1-p)/n+z*z/(4.0*n*n)); return (Math.Max(0,(c-h)/d),Math.Min(1,(c+h)/d)); }
+    foreach(var (nm,txt) in new[]{("小镇",OverworldPack.SampleText),("大镇",OverworldPack.BigSampleText),("山镇",OverworldPack.MountainSampleText),("雷镇",OverworldPack.StormSampleText)}){
+      double rOld=0,dOld=0,rNew=0,dNew=0; for(int s=1;s<=10;s++){ var a=OverworldBots.PlayDay(OverworldPack.Parse(txt)[0],t,OverworldBots.Kind.Idle,false,s,1+(s-1)%4,true,false); rOld+=a.realSeconds; dOld+=a.deadZoneSeconds;
+        var b=OverworldBots.PlayDay(OverworldPack.Parse(txt)[0],t,OverworldBots.Kind.Idle,false,s,1+(s-1)%4,true,true); rNew+=b.realSeconds; dNew+=b.deadZoneSeconds; if(!b.dayEnded){ cb++; Console.WriteLine($"     [FAIL] {nm} 自动快进后挂机一天没结束"); } }
+      int full=0; var times=new HashSet<double>(); double dz=0,rr=0;
+      for(int s=1;s<=N;s++){ var r=OverworldBots.PlayDay(OverworldPack.Parse(txt)[0],t,OverworldBots.Kind.Hider,false,s,1+(s-1)%4,true,true); if(r.ambush==r.doors) full++; times.Add(Math.Round(r.realSeconds,1)); dz+=r.deadZoneSeconds; rr+=r.realSeconds; }
+      var w=W(full,N);
+      if(dNew/rNew>=0.15||w.lo<0.935||times.Count<5||dz/rr>=0.15){ cb++; Console.WriteLine($"     [FAIL] {nm}：挂机死区 {dOld/rOld:P0}→{dNew/rNew:P0}（应 <15%）｜会躲+自动快进 {full}/{N} 下限 {w.lo:0.000}（应 ≥0.935） 不同用时 {times.Count} 死区 {dz/rr:P0}"); }
+      else parts.Add($"{nm} 干等死区 {dOld/rOld:P0}→{dNew/rNew:P0}，会躲 {full}/{N}（下限 {w.lo:0.000}）");
+      OverworldSession.ResetStatics(); }
+    // ③ 预约埋伏：走到门口、伪装、只按一次 E → 他走近自动进门（埋伏）
+    { int ok=0; foreach(var txt in new[]{OverworldPack.SampleText,OverworldPack.StormSampleText}){ var m=OverworldPack.Parse(txt)[0]; OverworldSession.ResetStatics(); OverworldSession.NewDay(m.name,"Town",1); OverworldSession.Active=true;
+        var town=new OverworldTown(m,t){autoFastIdleSeconds=t.overworldAutoFastIdleSeconds}; var dc=town.doorCells[town.NextStop.n]; bool pressed=false;
+        for(int i=0;i<30*400&&!OverworldSession.DayOver;i++){ var inp=new OverworldTown.Input();
+          if(!town.NearDoor(town.NextStop.n)){ var path=OverworldMap.Path(town.map,OverworldGuide.Near(town.map,town.tx,town.ty),dc); if(path!=null&&path.Count>1){ var c=path[1]; double dx=c.x+.5-town.tx,dy=c.y+.5-town.ty,d=Math.Sqrt(dx*dx+dy*dy); inp.h=(float)(dx/d); inp.v=(float)(dy/d);} }
+          else if(!town.disguised) inp.disguise=true; else if(!pressed){ inp.door=true; pressed=true; }
+          town.Tick(1f/30f,inp); if(town.wantsEnter){ if(town.enterOutcome==OverworldMind.DoorOutcome.Ambush) ok++; break; } } }
+      OverworldSession.ResetStatics();
+      if(ok!=2){ cb++; Console.WriteLine($"     [FAIL] 门口只按一次 E 没有自动埋伏：{ok}/2"); } else parts.Add("按一次 E 预约 → 他走近自动埋伏"); }
+    // ④ 圈 / 灌注 = 判定
+    { bool a=Math.Abs(Step1Readability.FillReach(0.5f,9,9)-4.5f)<1e-4&&Step1Readability.FillReach(1,3,9)==3&&Step1Readability.FillReach(0,9,9)==0;
+      bool b=Step1Readability.SoundRadius(Step1Readability.Sound.Taunt,t)==t.hearingRange&&Math.Abs(Step1Readability.SoundRadius(Step1Readability.Sound.Vent,t)-t.hearingRange/3f)<1e-4&&Step1Readability.TownTauntRadius(t)==t.overworldVisionRange*1.5f;
+      var town=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/OverworldTown.cs")); var eyes=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/MarioEyes.cs")); var rings=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1SoundRings.cs"));
+      bool c=town.Contains("<= Step1Readability.TownTauntRadius(tuning)")&&town.Contains("<= Step1Readability.TownNoiseRadius(tuning)")&&eyes.Contains("t.hearingRange / 3f")&&!rings.Contains("MarioEyes")&&!rings.Contains("Meter.")&&!rings.Contains("RustleOnPass");
+      bool d=t.overworldAutoFastIdleSeconds>0&&t.visionConeFill&&t.soundRings&&MarioMindTuningSO.CurrentDataVersion>=23;
+      if(!(a&&b&&c&&d)){ cb++; Console.WriteLine($"     [FAIL] 灌注={a} 声音圈半径={b} 圈和判定同一个数/只是画面={c} 默认开={d}"); } else parts.Add("视锥灌注 + 声音圈 = 判定同一个数"); }
+    // ⑤ 差点被发现
+    { var log=new NearMissLog(); log.Feed(true,0.4f,"07:00",""); log.Feed(true,0.7f,"07:01","Rustle"); log.Feed(false,0,"",""); log.Feed(true,0.5f,"09:00","Open"); log.Caught("09:01","Open"); log.Feed(true,0.9f,"11:00","Lamp"); log.Feed(false,0,"","");
+      var top=log.Closest(3); bool ok=log.NearMisses==2&&top.Count==2&&top[0].clock=="11:00"&&top[1].why=="Rustle"&&Step1Text.NearMissLines(top,2).Contains("草晃了");
+      int days=0,withLine=0; for(int s=1;s<=20;s++){ OverworldSession.ResetStatics(); var r=OverworldBots.PlayDay(OverworldPack.Parse(OverworldPack.SampleText)[0],t,OverworldBots.Kind.Follower,true,s,1,true,true); days++; if(OverworldSession.Summary(r.doors).Contains("他差点发现你")||OverworldSession.Summary(r.doors).Contains("没怀疑过")) withLine++; }
+      OverworldSession.ResetStatics();
+      if(!ok||withLine!=days){ cb++; Console.WriteLine($"     [FAIL] 差点被发现：分段={ok} 结算里有这一行 {withLine}/{days}"); } else parts.Add("一天结束列出最险的 3 次"); }
+    Console.WriteLine($"[{(cb==0?"OK":"FAIL")}] S224 少等待 + 阶段 C 可读性：{string.Join("｜",parts)}"); fail+=cb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

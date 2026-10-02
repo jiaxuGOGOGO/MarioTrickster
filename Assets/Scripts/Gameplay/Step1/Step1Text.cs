@@ -39,7 +39,7 @@ public static partial class Step1Text
     public static string MarioStateText(MarioMindState state, bool waiting, bool carryingLoot, float waitSeconds = 0f, bool stunned = false)
     {
         int secs = (int)System.Math.Ceiling(waitSeconds);
-        if (waiting) return secs > 0 ? $"{secs} 秒后出发，快去埋伏！ Starts in {secs}s — get ready!" : "准备中 Getting ready";
+        if (waiting) return secs > 0 ? $"{secs} 秒后出发，快去埋伏！（Enter 马上开始） Starts in {secs}s — Enter = go now" : "准备中 Getting ready";
         if (stunned) return "被坑晕了！ Dizzy!";
         switch (state)
         {
@@ -97,6 +97,7 @@ public static partial class Step1Text
         "<b>铁笼</b>：伪装在旁按 L 落下，关住下面的人 3 秒。  <b>Cage</b>: L drops it on whoever is below\n" +
         "<b>绳套</b>：谁踩到谁被倒吊 10 秒——你也会中！  <b>Snare</b>: anyone who steps in hangs for 10s\n" +
         "<b>? 道具箱</b>：谁先碰到归谁，同一个箱子给你和给他效果不同。  <b>?</b> = random pickup for whoever grabs it\n" +
+        "<b>看得懂他</b>：视锥里灌黄色 = 他在起疑（灌到你 = 发现你，变红 = 认出你）；蓝色圆圈 = 声音传多远（他在圈里就听见了）。开局等他时按 <b>Enter</b> 马上开始。  Yellow fill = suspicion, blue ring = how far he hears. Enter = start now\n" +
         "<b>Z 缩小</b>（每局 2 次）：钻窄缝、跑得快，但不能伪装/触发机关。  <b>Z</b> = shrink\n" +
         "<b>通风管</b>：站在管口按 <b>↓</b> 钻到配对的管口（马里奥进不去，但近处听得见咣当声）。  <b>↓</b> on a vent = travel\n" +
         "<b>马里奥会停止时间</b>（每局 1 次）：屏幕边缘变蓝 = 快躲！   Blue edges = Mario is about to stop time!\n" +

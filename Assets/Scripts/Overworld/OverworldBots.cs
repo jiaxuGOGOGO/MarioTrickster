@@ -31,6 +31,10 @@ public static class OverworldBots
         public int ambush, late, missed, caught, doors, maxCaughtStreak;
         public double longestFrozenGap = double.MaxValue;
         public double realSeconds, idleSeconds, longestIdle, fastForwardSeconds;
+        /// <summary>S224：宪法 P4 "死区"——连续 ≥ DeadZoneRun 秒没有任何可做的事（干等）的总秒数。</summary>
+        public double deadZoneSeconds;
+        public const double DeadZoneRun = 10;
+        public double DeadZoneShare => realSeconds > 0 ? deadZoneSeconds / realSeconds : 0;
         public bool dayEnded;
         public readonly List<string> log = new List<string>();
         public override string ToString() => $"{kind}: 埋伏 {ambush} 迟到 {late} 没赶上 {missed} / {doors} 门，被抓 {caught}，用时 {realSeconds:0} 秒（干等 {idleSeconds:0} 秒，最长一次 {longestIdle:0} 秒，快进 {fastForwardSeconds:0} 秒）{(dayEnded ? "" : " ✗一天没结束")}";
@@ -39,11 +43,13 @@ public static class OverworldBots
     /// <summary>玩完一天。useFastForward = 机器人在"没事可干"时按住快进（S213 新功能）。房间里的时间不计入。</summary>
     /// <param name="humanNoise">S222：像真人一样有手抖——每到新目标先愣 0.15–0.6 秒、偶尔停 0.2–0.5 秒、按 E 不是每帧都按。
     /// 不开时（默认）除 Chaos/Slow 外每个种子结果完全一样（S222 审计发现：12 次 = 1 个样本复制 12 遍），统计门槛必须开。</param>
-    public static Report PlayDay(OverworldMap.Map m, MarioMindTuningSO t, Kind kind, bool useFastForward, int seed = 1, int day = 1, bool humanNoise = false)
+    /// <param name="autoFast">S224：打开"不碰键盘自动快进"（游戏里默认开，tuning.overworldAutoFastIdleSeconds）。默认关 = 老的模拟结果不变。</param>
+    public static Report PlayDay(OverworldMap.Map m, MarioMindTuningSO t, Kind kind, bool useFastForward, int seed = 1, int day = 1, bool humanNoise = false, bool autoFast = false)
     {
         OverworldSession.NewDay(m.name, "Town", day); OverworldSession.Active = true; // S218：day 决定天气
         var rep = new Report { kind = kind, doors = 0 };
         var town = new OverworldTown(m, t);
+        if (autoFast) town.autoFastIdleSeconds = t.overworldAutoFastIdleSeconds;
         rep.doors = town.stops.Count;
         const float dt = 1f / 30f;
         var rng = new System.Random(seed);
@@ -158,7 +164,12 @@ public static class OverworldBots
             rep.realSeconds += stepReal;
             if (town.timeScale > 1f) rep.fastForwardSeconds += stepReal;
             bool reallyIdle = idle && town.timeScale <= 1f && !town.marioInside;
-            if (reallyIdle) { idleRun += stepReal; rep.idleSeconds += stepReal; if (idleRun > rep.longestIdle) rep.longestIdle = idleRun; } else idleRun = 0;
+            if (reallyIdle)
+            {
+                idleRun += stepReal; rep.idleSeconds += stepReal; if (idleRun > rep.longestIdle) rep.longestIdle = idleRun;
+                if (idleRun >= Report.DeadZoneRun) rep.deadZoneSeconds += idleRun - stepReal < Report.DeadZoneRun ? idleRun : stepReal; // 跨过 10 秒那一刻把前 10 秒一起算进去
+            }
+            else idleRun = 0;
             if (OverworldSession.Caught > prevCaught) { rep.caught++; rep.log.Add($"{OverworldMap.Clock(OverworldSession.Minute)} 被抓"); }
             if (town.hint == OverworldTown.Note.Missed) { rep.missed++; rep.log.Add($"{OverworldMap.Clock(OverworldSession.Minute)} 没赶上门 {town.stops[prevStop].n}"); }
             if (town.wantsEnter)
@@ -168,6 +179,7 @@ public static class OverworldBots
                 OverworldSession.RecordRoom(town.enterDoor.n, true);
                 if (town.disguised) { } // 新场景里默认不伪装
                 town = new OverworldTown(m, t); // 回到小镇（和真游戏一样：新场景、从门口开始）
+                if (autoFast) town.autoFastIdleSeconds = t.overworldAutoFastIdleSeconds;
                 if (kind == Kind.Slow) react = 1.5f;
                 idleRun = 0;
             }

@@ -8,7 +8,7 @@ using UnityEngine;
 /// </summary>
 public class Step1Fx : MonoBehaviour
 {
-    private enum Kind { Ring, Particle, Line }
+    private enum Kind { Ring, Particle, Line, Sound }
     private Kind kind;
     private float life, age;
     private Color color;
@@ -92,6 +92,33 @@ public class Step1Fx : MonoBehaviour
 
     private Vector2 linkFrom;
 
+    /// <summary>S224 声音圈（Mark of the Ninja：声音 = 画面上的圆，静音也能读）：从发声点扩散到 radius（= 马里奥真实的听力范围）再淡出。
+    /// 他在圈里 = 他听见了（只知道位置，H4）。只是画面，没有碰撞体。</summary>
+    public static void SoundRing(Vector2 at, float radius) => SoundRing(at, radius, Step1Readability.SoundColor);
+    public static void SoundRing(Vector2 at, float radius, Color c)
+    {
+        if (!Enabled || alive >= MaxAlive || radius <= 0f) return;
+        var go = new GameObject("Fx_Sound");
+        go.transform.position = at;
+        var fx = go.AddComponent<Step1Fx>();
+        fx.kind = Kind.Sound; fx.life = 0.9f; fx.color = c; fx.size = radius; fx.linkFrom = at;
+        var lr = go.AddComponent<LineRenderer>();
+        lr.useWorldSpace = true; lr.loop = true; lr.positionCount = SoundSegments; lr.startWidth = lr.endWidth = 0.08f; lr.sortingOrder = 42;
+        lr.material = new Material(Shader.Find("Sprites/Default"));
+        lr.startColor = lr.endColor = c;
+        fx.line = lr;
+        fx.DrawCircle(0.15f * radius);
+    }
+    private const int SoundSegments = 40;
+    private void DrawCircle(float r)
+    {
+        for (int i = 0; i < SoundSegments; i++)
+        {
+            float a = i * Mathf.PI * 2f / SoundSegments;
+            line.SetPosition(i, linkFrom + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
+        }
+    }
+
     private void OnEnable() { alive++; }
     private void OnDisable() { alive--; }
 
@@ -112,6 +139,11 @@ public class Step1Fx : MonoBehaviour
                 transform.position += (Vector3)(vel * Time.deltaTime);
                 var pc = color; pc.a *= 1f - t * t; sr.color = pc;
                 transform.localScale = Vector3.one * size * (1f - 0.5f * t);
+                break;
+            case Kind.Sound:
+                // 前 60% 扩散到真实范围（缓出），后面停在边上淡出 → 最后看到的就是"他能听见的边界"
+                DrawCircle(size * Mathf.Lerp(0.15f, 1f, Step1Feel.SmoothStep01(Mathf.Clamp01(t / 0.6f))));
+                var sc = color; sc.a *= 1f - Mathf.Clamp01((t - 0.6f) / 0.4f); line.startColor = sc; line.endColor = sc;
                 break;
             case Kind.Line:
                 // 前 40% 时间火花从起点"烧"到终点，然后整条线淡出

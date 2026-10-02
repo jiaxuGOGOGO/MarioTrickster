@@ -17,7 +17,7 @@ namespace UnityEngine {
   public struct Vector2 { public float x,y; public Vector2(float x,float y){this.x=x;this.y=y;} public static Vector2 zero=>new Vector2(0,0); public static Vector2 one=>new Vector2(1,1);
     public static Vector2 operator*(Vector2 a,float b)=>new Vector2(a.x*b,a.y*b); public static Vector2 operator+(Vector2 a,Vector2 b)=>new Vector2(a.x+b.x,a.y+b.y);
     public static Vector2 operator-(Vector2 a,Vector2 b)=>new Vector2(a.x-b.x,a.y-b.y); public static Vector2 operator/(Vector2 a,float b)=>new Vector2(a.x/b,a.y/b);
-    public float magnitude=>(float)Math.Sqrt(x*x+y*y); public static float Distance(Vector2 a,Vector2 b)=>(a-b).magnitude; public static Vector2 right=>new Vector2(1,0); public static Vector2 left=>new Vector2(-1,0);
+    public float magnitude=>(float)Math.Sqrt(x*x+y*y); public float sqrMagnitude=>x*x+y*y; public static float Distance(Vector2 a,Vector2 b)=>(a-b).magnitude; public static Vector2 right=>new Vector2(1,0); public static Vector2 left=>new Vector2(-1,0);
     public static bool operator==(Vector2 a,Vector2 b)=>a.x==b.x&&a.y==b.y; public static bool operator!=(Vector2 a,Vector2 b)=>!(a==b); public override bool Equals(object o)=>o is Vector2 v&&v==this; public override int GetHashCode()=>0; public override string ToString()=>$"({x},{y})";}
   public struct Color { public float r,g,b,a; public static bool operator==(Color x,Color y)=>x.r==y.r&&x.g==y.g&&x.b==y.b&&x.a==y.a; public static bool operator!=(Color x,Color y)=>!(x==y); public override bool Equals(object o)=>o is Color c&&c==this; public override int GetHashCode()=>0; public Color(float r,float g,float b,float a=1){this.r=r;this.g=g;this.b=b;this.a=a;} public static Color white=>new Color(1,1,1);}
   public class HeaderAttribute:Attribute{public HeaderAttribute(string s){}} public class TooltipAttribute:Attribute{public TooltipAttribute(string s){}}
@@ -30,5 +30,6 @@ namespace UnityEngine { public class Transform {} }
 namespace UnityEngine { public struct Vector2Int { public int x,y; public Vector2Int(int x,int y){this.x=x;this.y=y;} } }
 // S213：玩家视角模拟需要的桩（Step1Text / OverworldSession 编进 sim）
 namespace UnityEngine { public enum RuntimeInitializeLoadType { SubsystemRegistration, AfterAssembliesLoaded, BeforeSceneLoad, AfterSceneLoad } public class RuntimeInitializeOnLoadMethodAttribute:Attribute{ public RuntimeInitializeOnLoadMethodAttribute(){} public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType t){} } }
-public enum MarioMindState { Running, Curious, Investigating, Chasing, Searching }
-public enum SuspicionCause { None, SawYou, OddProp, SawTrap, Rustle, Taunt, Hurt } // S225：和 RushMarioMind.cs 同步
+// S226：MarioMindState / SuspicionCause 不再在这里抄一份——RushMarioMind.cs 直接编进 sim（房间马里奥统计门槛），以前要手动同步
+// MarioMindDriver 是 MonoBehaviour，sim 只需要它的一个纯函数（谨慎型绕路的兜底路点）
+public static class MarioMindDriver { public static UnityEngine.Vector2? PlanWaypoint(string[] rows, UnityEngine.Vector2 from, UnityEngine.Vector2 target){ var p=LevelPathPlanner.Path(rows,new LevelPathPlanner.Cell(UnityEngine.Mathf.RoundToInt(from.x),UnityEngine.Mathf.RoundToInt(from.y)),new LevelPathPlanner.Cell(UnityEngine.Mathf.RoundToInt(target.x),UnityEngine.Mathf.RoundToInt(target.y))); if(p==null||p.Count<2) return null; var w=LevelPathPlanner.NextWaypoint(p,from.x); return new UnityEngine.Vector2(w.x,w.y);} }

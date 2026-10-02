@@ -44,7 +44,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 
 ## 0.6 进度快照（打包时写入，以 SESSION_TRACKER 为准）
 
-- 最新交付：**S225**（第二轮调研 + 方案 `repo/docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md`——**开工先读它的 §3 E 表**；按 L/P 失败说原因 `Step1FailFeedback`；起疑说原因 `SuspicionCause`/`Step1Text.CauseIntent`；sim 房间死区门槛）。上一版 S224 少等待 + 阶段 C 可读性；S222 总方案 `repo/docs/step1/S222_RESEARCH_MASTERPLAN.md`（§4 阶段表、§7–8 更正）。
+- 最新交付：**S226**（自我对照审计 `repo/docs/step1/S226_SELF_AUDIT_AND_DEFERRED.md`：S225 E5/E6/E7/E9/E10 全做完 + 补房间马里奥统计门槛；看情况的按键条 `Step1Text.ControlsBarFor`；游戏速度 `roomGameSpeed`；中招反应 `MarioReaction.Punch`；门 4 山坡；数值版本 24）。上一版 **S225**（第二轮调研 + 方案 `repo/docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md`——**开工先读它的 §3 E 表**；按 L/P 失败说原因 `Step1FailFeedback`；起疑说原因 `SuspicionCause`/`Step1Text.CauseIntent`；sim 房间死区门槛）。上一版 S224 少等待 + 阶段 C 可读性；S222 总方案 `repo/docs/step1/S222_RESEARCH_MASTERPLAN.md`（§4 阶段表、§7–8 更正）。
 - 数值版本 `MarioMindTuningSO.CurrentDataVersion = 23`；房间构建器 `Step1PrankRoomBuilder.BuilderVersion = 20`。
 - 近几次做了什么（详情看 `repo/docs/step1/S21x_*.md`）：
   - S210 星露谷视角小镇大地图（门 = 恶作剧房间）；S211 场景转场；S212 圆形转场 + 指引箭头 + 编辑器快捷键；
@@ -60,7 +60,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
   - S218 小镇大机关（OverworldProps + OverworldEvents；OverworldTown Arm/Fire/Impact；马里奥听见起疑、吃过亏会躲；砸晕带进房间、守住一户重新装填；天气第 1 天晴；网页逐字对照）；
   - S216 修复"硬直期往上飞没有重力"（Step1Feel.StunStep，全程重力 40、落地才恢复），受伤红白闪 + 小跳、Step1Fx 冲击环/尘土/连锁火花线、预警越来越急、平滑震屏。
 - 交付包固定结构（`out/D<N>/`）：`00_先看我_怎么用.md`、`01_安装到项目`（全部补丁 + `install_and_upload.bat`）、`02_接续包_换账号用`（本 .skill）、`03_说明文档`（S21x_*.md）、`04_关卡设计台网页/MarioTrickster关卡设计台.html`。
-- 上次汇报推荐的下一步（用户说"继续"时做）：S225 方案 §3 里剩下的 E6 交互矩阵审计（哪些机关组合从没被用到）/ E7 无障碍表 / E10 小镇系统可见度（sim 统计每个系统一天被看见几次）——都只写文档或 sim 统计，不加系统；E9 情境按键栏等用户说"键太多"再做；有用户反馈包/CSV 再按阶段 D 填表。仍冻结横向加系统，试玩不是开工前提。
+- 上次汇报推荐的下一步（用户说"继续"时做）：S225/S226 能自己做的都做完了。剩下的只有要真人数据的项：阶段 D 按反馈包/CSV 填表、机器人手抖校准、马里奥速度/视野/晕眩调参。没数据时：先读 S226 文档 §1b 的"仍不做"清单，不要重复调研；仍冻结横向加系统。
 - 用户要求（S217 起长期有效）：**每次升级都按本技能做安装包**，装到 `E:\BaiduNetdiskDownload\MarioTricksterGensparkAI\MarioTrickster`，bat 里选 Y 自动推到 GitHub；**测试流程不能有反复操作的阻碍**（新功能默认不弹窗、有快速测试模式、反馈走 F8 + 测试中心打包）。
 
 ## 1. 设计宪法硬规则（违反 = 不许交付）

@@ -23,6 +23,22 @@ public class Step1PlaytestLog : MonoBehaviour
     [SerializeField] private MarioMindTuningSO tuning;
 
     private MarioMindDriver driver;
+    private TricksterController barFigure; private MarioMindTuningSO barTuning; private DecoyAbility barDecoy; private TauntAbility barTaunt;
+    /// <summary>S226 E9：看情况的按键条（调参 contextKeyBar 关掉 = 回到以前那一整行）。</summary>
+    private string CurrentControlsBar()
+    {
+        if (barTuning == null) barTuning = MarioMindTuningSO.LoadOrDefault();
+        if (!barTuning.contextKeyBar) return Step1Text.ControlsBar;
+        if (barFigure == null) { barFigure = FindObjectOfType<TricksterController>(); if (barFigure != null) { barDecoy = barFigure.GetComponent<DecoyAbility>(); barTaunt = barFigure.GetComponent<TauntAbility>(); } }
+        if (barFigure == null) return Step1Text.ControlsBar;
+        var kit = TricksterKit.Instance; bool dis = barFigure.IsDisguised, sh = kit != null && kit.Shrunk;
+        return Step1Text.ControlsBarFor(dis, sh,
+            kit != null && TricksterKit.CanBomb(dis, sh, kit.BombsLeft, kit.BombCooldown),
+            barDecoy != null && DecoyAbility.CanDecoy(dis, sh, barDecoy.DecoysLeft, DecoyAbility.Active != null),
+            barTaunt != null && TauntAbility.CanTaunt(dis, barTaunt.TauntsLeft, barTaunt.Cooldown),
+            kit != null && TricksterKit.CanShrink(sh, kit.ShrinksLeft),
+            Vent.AnyWithin(barFigure.transform.position, 1.2f));
+    }
     private TricksterLives lives;
     private TricksterAbilitySystem abilities;
     private Step1RoomCamera roomCamera;
@@ -235,7 +251,7 @@ public class Step1PlaytestLog : MonoBehaviour
         if (!roundOver)
         {
             Step1Gui.Panel(new Rect(0f, h - 54f, w, 54f), 0.6f);
-            GUI.Label(new Rect(0f, h - 54f, w, 54f), Step1Text.ControlsBar, Step1Gui.Text(22, TextAnchor.MiddleCenter, false));
+            GUI.Label(new Rect(0f, h - 54f, w, 54f), CurrentControlsBar(), Step1Gui.Text(22, TextAnchor.MiddleCenter, false));
             return;
         }
 

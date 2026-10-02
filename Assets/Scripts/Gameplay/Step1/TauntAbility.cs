@@ -14,6 +14,7 @@ public class TauntAbility : MonoBehaviour
     private int left; private float cooldown, bubble;
     public static event System.Action<Vector2> Taunted;
     public int TauntsLeft => left;
+    public float Cooldown => cooldown;
 
     public void SetTuning(MarioMindTuningSO t) { tuning = t; }
 

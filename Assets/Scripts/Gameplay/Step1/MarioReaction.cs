@@ -100,7 +100,7 @@ public static class MarioReaction
         // 愣住时的压扁在动作前 20% 里慢慢松开（不跳变）；没有愣住段的直接从原样开始
         float squash = b.freeze > 0f ? FreezeSquash * (1f - Step1Feel.SmoothStep01(u * 5f)) : 0f;
         var f = new Frame { sx = 1f + squash, sy = 1f - squash, phase = 1 };
-        float s = (float)Math.Sin(Math.PI * u);
+        float s = PunchScale * Punch(u); // S226 E5（Juice it or lose it / 打击感）：前重后轻——20% 处到顶再慢慢回，比对称正弦更"挨了一下"
         switch (b.pose)
         {
             case Pose.Flail: // 被烫到：原地蹦一下 + 手忙脚乱地晃
@@ -137,6 +137,14 @@ public static class MarioReaction
                 break;
         }
         return f;
+    }
+
+    /// <summary>S226 E5：一次性动作的包络。0→PunchPeak 快速到顶（平滑），之后慢慢回到 0。两端都是 0、到顶时斜率为 0（不跳变）。</summary>
+    public const float PunchPeak = 0.25f, PunchScale = 1.25f;
+    public static float Punch(float u)
+    {
+        u = Mathf.Clamp01(u);
+        return u < PunchPeak ? Step1Feel.SmoothStep01(u / PunchPeak) : 1f - Step1Feel.SmoothStep01((u - PunchPeak) / (1f - PunchPeak));
     }
 
     public static float Wrap(float deg)

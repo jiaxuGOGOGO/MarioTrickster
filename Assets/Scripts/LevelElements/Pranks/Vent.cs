@@ -14,6 +14,12 @@ public class Vent : LevelElementBase
     [SerializeField] private float enterSeconds = 0.35f;
     [SerializeField] private float cooldown = 3f;
     private static readonly List<Vent> all = new List<Vent>();
+    /// <summary>S226 E9：p 附近 r 格内有没有通风管（按键条用来决定要不要显示"↓ 钻通风管"）。</summary>
+    public static bool AnyWithin(Vector2 p, float r)
+    {
+        foreach (var v in all) if (v != null && ((Vector2)v.transform.position - p).sqrMagnitude <= r * r) return true;
+        return false;
+    }
     private static float sharedCooldown;
     private TricksterController loading;
     private float timer;

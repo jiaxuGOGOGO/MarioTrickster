@@ -78,3 +78,7 @@
 - 天气池 `OverworldEvents.Pool(map)`：基础 5 种 + 有路灯 → Storm + ≥2 山洞 → Acid。**一定用 `Of(map, day)`**（旧 `Of(name, day)` = 基础 5 种，只给老测试用）。网页 `owDayOfMap`。酸雨 ApplyTo：高草 → 草。
 - 样板 `OverworldPack.MountainSampleText`（星露山镇）；build.py 读成 `OW_MTN_SAMPLE`；sim 块 "S219"，verify 生成 ow_mtn.json（检查 + 总览 + 天气 30 天 + 预览 14 天 + 24 步瞄准 + 5 条山丘视线）。
 - 调参 v20：overworldCannonSeatSeconds 6、overworldCannonFireSeconds 0.6、overworldMarioCannonAimSeconds 1.6、overworldMarioCannonSaveSteps 10、overworldAcidSight 0.7。
+
+## S226 机关浪费门槛
+- 样板房间：马里奥所有可能路线（含捷径打开/掉落/谨慎绕开）3 格外的机关算浪费，每个房间 ≤15%；每种机关 ≥2 个搭档。
+- 小镇：每个镇泥石流至少 1 处冲到他每天走的路、滚石/水塔至少一半碰得到、至少 1 门炮罩住他的路。新增小镇地图前先跑 sim。

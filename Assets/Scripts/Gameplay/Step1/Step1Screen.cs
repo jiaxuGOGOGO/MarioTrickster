@@ -66,6 +66,18 @@ public class Step1Screen : MonoBehaviour
             return;
         }
         if (!Step1PlaytestLog.IsTyping && Step1Keys.Down(KeyCode.H)) HelpOpen = true;
+        ApplyRoomSpeed();
+    }
+
+    /// <summary>S226 E7（无障碍：游戏速度）：调参 roomGameSpeed（0.5~1，默认 1 = 不变）。只在正常进行中套用；
+    /// 暂停、说明、顿帧、连锁回放各自管 timeScale，结束后回到 1，下一帧这里再套回去。</summary>
+    private void ApplyRoomSpeed()
+    {
+        float sp = MarioMindTuningSO.ClampRoomSpeed(tuning.roomGameSpeed);
+        if (sp >= 1f || HelpOpen || ChainReplay.Playing) return;
+        if (manager == null || manager.CurrentState != GameState.Playing) return;
+        if (Step1Hitstop.Instance != null && Step1Hitstop.Instance.Active) return;
+        if (Mathf.Approximately(Time.timeScale, 1f)) Time.timeScale = sp;
     }
 
     private void Close()

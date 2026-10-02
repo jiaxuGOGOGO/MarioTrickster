@@ -1,6 +1,6 @@
 // MarioTrickster 纯逻辑快速体检（不需要 Unity）：样板/默认房间可玩性、寻路、连招路线、说明书一致性、文字对比度、监狱塔。
 // 用法：bash verify.sh 会自动编译运行。新增样板后在 Samples() 里加一行。
-using System; using System.IO; using System.Linq; using System.Collections.Generic;
+using System; using Vector2 = UnityEngine.Vector2; using System.IO; using System.Linq; using System.Collections.Generic;
 static class CHECK {
  static LevelPathPlanner.Cell F(string[] g,char c){ for(int r=0;r<g.Length;r++){int x=g[r].IndexOf(c); if(x>=0) return new LevelPathPlanner.Cell(x,g.Length-1-r);} return new LevelPathPlanner.Cell(-1,-1);}
  static IEnumerable<(string,string[])> Samples(){
@@ -561,6 +561,91 @@ static class CHECK {
     bool head=lbl.Contains("Step1Text.CauseIntent(order.state, order.cause, order.causeTimes)")&&lbl.Contains("Step1Text.StuckRescueHead")&&resc.Contains("MarioMindLabel.RaiseRescued()")&&Step1Text.HeadIntent(MarioMindState.Running,"CAREFUL").Contains("坑过");
     if(!tier||!h4||!head){ eb++; Console.WriteLine($"     [FAIL] 分层台词={tier} 原因只来自感知={h4} 头顶接线/卡住一句话/小心说原因={head}"); } else parts.Add("6 种起疑原因各有台词、第 3 次换短句，原因只来自感知；卡住救援头顶一句话");
     Console.WriteLine($"[{(eb==0?"OK":"FAIL")}] S225 房间死区 + 按了就有反应 + 他说为什么：{string.Join("｜",parts)}"); fail+=eb; }
+  // S226：房间马里奥（RushMarioMind）统计门槛——S222 自我审计第 4 条"房间里的马里奥没有同样的统计门槛"，当时写"阶段 B 一起做"但一直没做（漏项）。
+  //  直接把 RushMarioMind.cs 编进 sim（以前只在 Unity 里测），喂随机感知（每个种子事件时机都不同 = 独立样本），3 种性格 × 60 局：
+  //  ① 躲好的你（伪装静止、只有草晃/看见机关动/挨打）→ 60×3 局一次都不能被追（H2/H4：没看见你就不能追你）
+  //  ② 现形乱跑的你 → 每次追之前都先 '?' ≥ minOmenSeconds（H2 预兆）；'?' 时一定有原因（H6，S225 台词）
+  //  ③ 所有刺激停止后 25 秒内一定回到"赶路"、不晕（H9：任何控制都有结束）④ 性格随机：3 种各占 25–42%
+  { int mb=0; var parts=new List<string>(); var t=MarioMindTuningSO.LoadOrDefault(); const int N=60; float dt=1f/30f;
+    (double lo,double hi) W(int k,int n){ double z=1.96,p=(double)k/n,d=1+z*z/n,c=p+z*z/(2*n),h=z*Math.Sqrt(p*(1-p)/n+z*z/(4.0*n*n)); return (Math.Max(0,(c-h)/d),Math.Min(1,(c+h)/d)); }
+    int hiddenChased=0, runs=0, omenBad=0, noCause=0, stuck=0, exposedChases=0; var sigs=new HashSet<string>();
+    foreach(var pk in new[]{MarioPersonalityKind.Rush,MarioPersonalityKind.Cautious,MarioPersonalityKind.Greedy})
+     foreach(bool exposed in new[]{false,true})
+      for(int s=1;s<=N;s++){ var mind=new RushMarioMind(t){ForcedPersonality=pk}; mind.Reset(s); var rng=new Random(s*7919+(exposed?1:0)+(int)pk*101); runs++;
+        float seeLeft=0, curiousAt=-1, time=0; var prev=MarioMindState.Running; int chases=0; bool quietRunning=false; float quietSince=-1;
+        for(int f=0;f<30*90;f++){ time+=dt; bool live=time<60f; var p=new MarioPercept{marioPos=new Vector2(10+time*0.5f,1),facingRight=true,scanReady=true};
+          if(live){ if(seeLeft<=0&&rng.NextDouble()<0.6*dt) seeLeft=(float)(0.2+rng.NextDouble()*2.5); if(seeLeft>0){ seeLeft-=dt; p.seesFigure=true; p.figurePos=new Vector2(p.marioPos.x+3,1); p.figureLooksLikeProp=!exposed; p.figureMoving=exposed&&rng.NextDouble()<0.7; p.figureVelocity=p.figureMoving?new Vector2(2,0):Vector2.zero; }
+            if(rng.NextDouble()<0.25*dt){ p.sawRustle=true; p.rustlePos=new Vector2(p.marioPos.x+2,1); }
+            if(rng.NextDouble()<0.15*dt){ p.witnessedActivation=true; p.activationPos=new Vector2(p.marioPos.x+2,1); }
+            if(rng.NextDouble()<0.1*dt) p.hurt=true;
+            if(exposed&&rng.NextDouble()<0.08*dt){ p.heardTaunt=true; p.tauntPos=new Vector2(p.marioPos.x-4,1); } }
+          var o=mind.Tick(dt,p);
+          if(o.state==MarioMindState.Curious&&prev!=MarioMindState.Curious) curiousAt=time;
+          if(o.state==MarioMindState.Chasing&&prev!=MarioMindState.Chasing){ chases++; if(!exposed) hiddenChased++; if(prev==MarioMindState.Running||(prev==MarioMindState.Curious&&time-curiousAt<t.minOmenSeconds-dt-1e-4f)) omenBad++; }
+          if(o.state==MarioMindState.Curious&&o.cause==SuspicionCause.None) noCause++;
+          if(!live){ bool calm=o.state==MarioMindState.Running&&!mind.IsStunned; if(calm&&quietSince<0) quietSince=time; if(!calm) quietSince=-1; }
+          prev=o.state; }
+        if(quietSince<0||quietSince>60f+25f) stuck++; if(exposed) exposedChases+=chases; sigs.Add(pk+":"+exposed+":"+chases+":"+mind.Meter.OmenCount); }
+    var wh=W(hiddenChased,N*3);
+    if(hiddenChased>0||omenBad>0||noCause>0||stuck>0||exposedChases==0||sigs.Count<20){ mb++; Console.WriteLine($"     [FAIL] 躲好被追 {hiddenChased}/{N*3}（应 0）｜跳过 ? 预兆直接追 {omenBad}｜? 没有原因 {noCause} 帧｜刺激停了 25 秒还没恢复 {stuck}/{runs}｜现形被追总数 {exposedChases}（应 >0，否则测试无效）｜不同结果 {sigs.Count}（应 ≥20）"); }
+    else parts.Add($"躲好的你 {N*3} 局被追 0 次（Wilson 上限 {wh.hi:0.000}）｜现形 {N*3} 局被追 {exposedChases} 次，每次先 ? ≥{t.minOmenSeconds} 秒｜{runs} 局刺激停后 25 秒内全部恢复｜{sigs.Count} 种不同结果");
+    var cnt=new int[3]; for(int s=1;s<=600;s++) cnt[(int)MarioPersonality.Roll(s,t.rushWeight,t.cautiousWeight,t.greedyWeight)]++;
+    if(cnt.Any(c=>c<150||c>252)){ mb++; Console.WriteLine($"     [FAIL] 性格随机不均：冲冲 {cnt[0]} 谨慎 {cnt[1]} 贪财 {cnt[2]} / 600"); } else parts.Add($"性格 600 局：{cnt[0]}/{cnt[1]}/{cnt[2]}");
+    Console.WriteLine($"[{(mb==0?"OK":"FAIL")}] S226 房间马里奥统计门槛：{string.Join("｜",parts)}"); fail+=mb; }
+  // S226 E6（Blow 交互矩阵 + Evil Genius "大部分陷阱没人用"）：每个样板房间里，马里奥任何一条可能的路（原路 / 打开捷径·裂墙·裂缝·塌桥后 / 掉下去之后 / 谨慎型绕开机关）
+  //  都离它 > 3 格的机关 = 浪费。门槛：每个房间浪费 ≤ 15%；每种机关在样板里至少能和 2 种别的机关连成连招；11 种机关两两组合覆盖 ≥ 50%。
+  //  E10（Tynan "看不见的系统 = 浪费"）：小镇大机关 / 泥石流的作用范围有没有碰到马里奥每天真走的路。S226 实测山镇 / 雷镇 26 个山坡的泥石流 0 个碰到他 → 门 4 旁加一个山坡（水塔淹到 = 山洪）。
+  { int xb=0; var parts=new List<string>(); var t=MarioMindTuningSO.LoadOrDefault();
+    var pairs=new HashSet<string>(); var partners=new Dictionary<string,HashSet<string>>(); var kinds=new HashSet<string>(); var worst=("",0.0);
+    foreach(var (n,g0) in Samples()){ var g=g0.Select(Step1Layout.StripSlots).ToArray(); int h=g.Length; var routes=new List<List<LevelPathPlanner.Cell>>();
+      List<LevelPathPlanner.Cell> Route(string[] gg, LevelPathPlanner.Cell from, ICollection<int> avoid){ var o=F(gg,'o'); var G=F(gg,'G'); var a=LevelPathPlanner.Path(gg,from,o,avoid); var b=a==null?null:LevelPathPlanner.Path(gg,o,G,avoid); if(a==null||b==null) return null; var r=new List<LevelPathPlanner.Cell>(a); r.AddRange(b.Skip(1)); return r; }
+      var variants=new List<string[]>{g}; foreach(char open in new[]{'x','C','%','|'}) variants.Add(g.Select(r=>r.Replace(open,'.')).ToArray()); variants.Add(g.Select(r=>r.Replace('x','.').Replace('C','.').Replace('%','.').Replace('|','.')).ToArray());
+      var traps=new List<(char c,int x,int y)>(); for(int row=0;row<h;row++) for(int x=0;x<g[row].Length;x++){ char c=g[row][x]; var e=ElementCatalog.Get(c); if(e!=null&&(e.role==ElementCatalog.Role.PlayerPrank||ComboRouteAnalyzer.IsChainPart(c))) traps.Add((c,x,h-1-row)); }
+      foreach(var gg in variants){ var r0=Route(gg,F(gg,'M'),null); if(r0==null) continue; routes.Add(r0); var avoid=new HashSet<int>(); foreach(var tr in traps) if(r0.Any(q=>Math.Abs(q.x-tr.x)+Math.Abs(q.y-tr.y)<=1)) avoid.Add(tr.x*1000+tr.y); var r1=Route(gg,F(gg,'M'),avoid); if(r1!=null) routes.Add(r1); }
+      foreach(var gg in variants.Skip(1).Take(2)) foreach(var tr in traps.Where(q=>q.c=='x'||q.c=='C')){ var st=new LevelPathPlanner.Cell(tr.x,tr.y); var r=Route(gg,st,null); if(r!=null) routes.Add(r); var home=LevelPathPlanner.Path(gg,st,F(gg,'G')); if(home!=null) routes.Add(home); }
+      var wasted=traps.Where(tr=>routes.Min(r=>r.Min(q=>Math.Sqrt((q.x-tr.x)*(q.x-tr.x)+(q.y-tr.y)*(q.y-tr.y))))>3+(tr.c=='K'||tr.c=='k'?4:0)).ToList();
+      double share=traps.Count==0?0:(double)wasted.Count/traps.Count; if(share>worst.Item2) worst=(n,share);
+      if(share>0.15){ xb++; Console.WriteLine($"     [FAIL] {n}：{wasted.Count}/{traps.Count} 个机关马里奥怎么走都碰不到（{share:P0}，应 ≤15%）："+string.Join(" ",wasted.Select(w=>w.c+"("+w.x+","+w.y+")"))+" → 挪到路线 3 格内"); }
+      var cr=ComboRouteAnalyzer.Analyze(g,t.comboRouteCells); foreach(var nd in cr.nodes) kinds.Add(ComboRouteAnalyzer.Kind(nd.ch));
+      foreach(var l in cr.links){ var a=ComboRouteAnalyzer.Kind(cr.nodes[l.a].ch); var b=ComboRouteAnalyzer.Kind(cr.nodes[l.b].ch); if(a==b) continue; pairs.Add(string.CompareOrdinal(a,b)<0?a+"+"+b:b+"+"+a); foreach(var (u,v) in new[]{(a,b),(b,a)}){ if(!partners.ContainsKey(u)) partners[u]=new HashSet<string>(); partners[u].Add(v);} } }
+    var lonely=kinds.Where(k=>!partners.ContainsKey(k)||partners[k].Count<2).ToList(); int all=kinds.Count*(kinds.Count-1)/2; double cover=(double)pairs.Count/Math.Max(1,all);
+    if(lonely.Count>0||cover<0.5||kinds.Count<10){ xb++; Console.WriteLine($"     [FAIL] 交互矩阵：{kinds.Count} 种机关，两两组合 {pairs.Count}/{all}（{cover:P0}，应 ≥50%）；只能和 <2 种机关连的："+string.Join(" ",lonely)); }
+    else parts.Add($"样板房间浪费机关最多 {worst.Item2:P0}（{worst.Item1}，≤15%）｜{kinds.Count} 种机关两两能连 {pairs.Count}/{all}（{cover:P0}），每种至少 {partners.Values.Min(v=>v.Count)} 个搭档");
+    // E10：小镇
+    foreach(var (nm,txt) in new[]{("大镇",OverworldPack.BigSampleText),("山镇",OverworldPack.MountainSampleText),("雷镇",OverworldPack.StormSampleText)}){
+      var m=OverworldPack.Parse(txt)[0]; var walked=new HashSet<(int,int)>();
+      for(int s=1;s<=4;s++){ OverworldSession.ResetStatics(); OverworldSession.NewDay(m.name,"Town",s); OverworldSession.Active=true; var town=new OverworldTown(m,t){autoFastIdleSeconds=t.overworldAutoFastIdleSeconds};
+        for(int k=0;k<30*400&&!OverworldSession.DayOver;k++){ town.Tick(1f/30f,new OverworldTown.Input()); if(!town.marioInside) walked.Add(((int)Math.Floor(town.mario.x),(int)Math.Floor(town.mario.y))); } }
+      int touch=0, total=0; foreach(var c in OverworldProps.All(m)){ char ch=m.At(c.x,c.y); if(ch=='K') continue; total++; var area=ch=='O'?Enumerable.Range(0,4).SelectMany(d=>OverworldProps.Lane(m,c,d)).ToList():OverworldProps.Flood(m,c,OverworldProps.FloodRadius); if(area.Any(a=>walked.Contains((a.x,a.y)))) touch++; }
+      int hills=OverworldMap.Find(m,'^').Count(c=>OverworldProps.MudDir(m,c)>=0), mudTouch=OverworldMap.Find(m,'^').Count(c=>OverworldProps.MudLane(m,c).Any(a=>walked.Contains((a.x,a.y))));
+      bool cannon=OverworldProps.All(m).Any(c=>m.At(c.x,c.y)=='K'&&OverworldProps.Aim(m,c,out _,out int dd,out _)&&OverworldProps.MuzzleCells(m,c,dd).Any(a=>walked.Contains((a.x,a.y))));
+      if((hills>0&&mudTouch==0)||touch*2<total||!cannon){ xb++; Console.WriteLine($"     [FAIL] {nm}：会泥石流的山坡 {hills} 个、冲到他路上的 {mudTouch} 个（应 ≥1）｜滚石/水塔 {touch}/{total} 个碰得到他（应 ≥一半）｜有巨炮炮口罩住他的路={cannon}"); }
+      else parts.Add($"{nm} 滚石/水塔 {touch}/{total} 碰得到他、巨炮炮口在他路上"+(hills>0?$"、泥石流 {mudTouch}/{hills} 冲得到他":""));
+    }
+    { var m=OverworldPack.Parse(OverworldPack.MountainSampleText)[0]; var u=new OverworldMap.Cell(32,17); var hill=new OverworldMap.Cell(33,16);
+      bool flood=Math.Pow(hill.x-u.x,2)+Math.Pow(hill.y-u.y,2)<=OverworldProps.FloodRadius*OverworldProps.FloodRadius&&m.At(u.x,u.y)=='U'&&OverworldProps.MudDir(m,hill)>=0;
+      OverworldSession.ResetStatics(); OverworldSession.NewDay(m.name,"Town",1); OverworldSession.Active=true; var town=new OverworldTown(m,t); town.tx=u.x+0.5; town.ty=u.y+1.5; town.Tick(1f/30f,new OverworldTown.Input{peel=true}); for(int k=0;k<30*6;k++) town.Tick(1f/30f,new OverworldTown.Input());
+      int mud=OverworldSession.Mudslides; OverworldSession.ResetStatics();
+      if(!flood||mud<1){ xb++; Console.WriteLine($"     [FAIL] 门 4 山坡：水塔淹得到={flood} 晴天按水塔 → 泥石流 {mud} 次（应 ≥1）"); } else parts.Add("门 4 山坡：晴天按水塔也会山洪（连锁 2 段）"); }
+    Console.WriteLine($"[{(xb==0?"OK":"FAIL")}] S226 交互矩阵 + 小镇可见度：{string.Join("｜",parts)}"); fail+=xb; }
+  // S226 E5（打击感：前重后轻）+ E9（看情况的按键条）+ E7（游戏速度）
+  { int eb=0; var parts=new List<string>(); var D=MarioReaction.Default; var t=MarioMindTuningSO.LoadOrDefault();
+    foreach(var b in D){ if(b.pose!=MarioReaction.Pose.Flail&&b.pose!=MarioReaction.Pose.Slip&&b.pose!=MarioReaction.Pose.Surprise) continue;
+      float best=-1,at=0; for(int i=0;i<=200;i++){ float x=b.act*i/200f; var f=MarioReaction.Sample(b,b.freeze+x,1f); float m=Math.Abs(f.sy-1f)+Math.Abs(f.dy)+Math.Abs(f.rotDeg)/100f; if(m>best){best=m;at=i/200f;} }
+      if(at>0.30f){ eb++; Console.WriteLine($"     [FAIL] {b.kind} 反应在动作 {at:P0} 处才到最大（应在前 30%，前重后轻）"); } }
+    if(Math.Abs(MarioReaction.Punch(0))>1e-4||Math.Abs(MarioReaction.Punch(1))>1e-4||Math.Abs(MarioReaction.Punch(MarioReaction.PunchPeak)-1)>1e-4){ eb++; Console.WriteLine("     [FAIL] 包络两端应为 0、顶点为 1"); }
+    else parts.Add($"中招反应前重后轻（{MarioReaction.PunchPeak:P0} 处到顶，幅度 ×{MarioReaction.PunchScale}）");
+    int maxItems=0; bool core=true; var seen=new HashSet<string>();
+    for(int m=0;m<128;m++){ bool[] q=Enumerable.Range(0,7).Select(i=>(m>>i&1)==1).ToArray(); var bar=Step1Text.ControlsBarFor(q[0],q[1],q[2],q[3],q[4],q[5],q[6]);
+      var items=bar.Split(new[]{"   "},StringSplitOptions.RemoveEmptyEntries).Where(x=>x!="|").ToList(); maxItems=Math.Max(maxItems,items.Count);
+      foreach(var k in new[]{"← →","↑ 跳","L 触发","H ","Esc"}) if(!bar.Contains(k)) core=false; foreach(var it in items) seen.Add(it.Split(' ')[0]); }
+    var all=new[]{"B","G","T","Z","↓"}; var missing=all.Where(k=>!seen.Contains(k)).ToList();
+    bool helpHasAll=new[]{"B","Z","G","F","T","V ","C ","F8","Esc","↓"}.All(k=>Step1Text.Help.Contains(k));
+    if(maxItems>Step1Text.ControlsBarMaxItems||!core||missing.Count>0||!helpHasAll){ eb++; Console.WriteLine($"     [FAIL] 按键条：最多 {maxItems} 项（应 ≤{Step1Text.ControlsBarMaxItems}）核心键都在={core} 能力键从没出现过={string.Join(",",missing)} 帮助页列全={helpHasAll}"); }
+    else parts.Add($"按键条 128 种情况最多 {maxItems} 项（以前 15 项），核心键一直在，能力键只在能用时出现，帮助页列全");
+    if(!t.contextKeyBar||Math.Abs(t.roomGameSpeed-1f)>1e-4||MarioMindTuningSO.ClampRoomSpeed(0.2f)!=0.5f||MarioMindTuningSO.ClampRoomSpeed(3f)!=1f){ eb++; Console.WriteLine("     [FAIL] 默认值：按键条应开、游戏速度应 1，速度限制在 0.5~1"); }
+    else parts.Add("游戏速度默认 1（不改手感），可调 0.5~1");
+    Console.WriteLine($"[{(eb==0?"OK":"FAIL")}] S226 打击感 + 按键条 + 游戏速度：{string.Join("｜",parts)}"); fail+=eb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

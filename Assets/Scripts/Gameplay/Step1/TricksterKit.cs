@@ -26,6 +26,7 @@ public class TricksterKit : MonoBehaviour
     public void AddShrinks(int n) { shrinksLeft += Mathf.Max(0, n); }
     public int ShrinksLeft => shrinksLeft;
     public bool Shrunk => shrunk;
+    public float BombCooldown => bombCooldown;
     public float ShrinkRemaining => Mathf.Max(0f, shrinkTimer);
     public static TricksterKit Instance { get; private set; }
 

@@ -765,4 +765,13 @@ public class OverworldTests
         Assert.Greater(times.Count, 2, "手抖模式下不同种子应该玩出不同的一天");
         Assert.AreEqual(10, full, "会躲的玩家每天都能全部埋伏（H10）");
     }
+
+    [Test]
+    public void S226_MountainGate4Hill_MudslideReachesMariosRoad()
+    {
+        var m = OverworldPack.Parse(OverworldPack.MountainSampleText)[0];
+        var hill = new OverworldMap.Cell(33, 16);
+        Assert.AreEqual('^', m.At(33, 16)); Assert.GreaterOrEqual(OverworldProps.MudDir(m, hill), 0, "门 4 旁的山坡会流泥");
+        Assert.Greater(OverworldProps.MudLane(m, hill).Count, 0, "泥冲到大路上（他每天都走）");
+    }
 }

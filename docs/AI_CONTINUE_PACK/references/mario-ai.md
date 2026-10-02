@@ -50,3 +50,7 @@ MarioMindDriver（接线、速度、楼层寻路）◄── MarioOrder ◄─�
 ## S225 起疑原因台词
 - `SuspicionCause` 只能由 `RushMarioMind.StrongestCause(...)` 从 MarioPercept 的布尔量得出（H4）；新感知来源 = 枚举加一项 + `Step1Text.CauseIntent` 加一句 + **sim/FakeUnity.cs 的同名枚举同步**。
 - 台词分层：同一原因本局第 1–2 次具体句，第 3 次起短句（Blacklist）。只换字，不改行为。
+
+## S226
+- 房间马里奥统计门槛在 sim（Check.cs "S226 房间马里奥统计门槛"），FakeUnity 不再复制 MarioMindState/SuspicionCause 枚举，直接编译 RushMarioMind.cs + MarioPersonality.cs。改马里奥大脑后这个门槛会自动重跑。
+- 中招反应包络 MarioReaction.Punch（PunchPeak 0.25 / PunchScale 1.25），sim 要求一次性动作前 30% 到顶。

@@ -2266,4 +2266,25 @@ public class Step1RushMarioTests
     }
 
     static AsciiElementRegistry reg() => AsciiElementRegistry.GetDefault();
+
+    [Test]
+    public void S226_ContextKeyBar_ShowsOnlyUsableKeys_CoreAlwaysThere()
+    {
+        string idle = Step1Text.ControlsBarFor(false, false, false, false, false, false, false);
+        foreach (var core in new[] { "← →", "↑ 跳", "P 伪装", "L 触发", "H ", "Esc" }) StringAssert.Contains(core, idle);
+        StringAssert.DoesNotContain("B 炸弹", idle, "炸弹用完/冷却 → 不显示");
+        string all = Step1Text.ControlsBarFor(false, false, true, true, true, true, true);
+        Assert.AreEqual(3, new[] { "↓ 钻", "B 炸弹", "G 诱饵", "T 挑衅", "Z 缩小" }.Count(x => all.Contains(x)), "能力键最多 3 个");
+        StringAssert.Contains("P 变回", Step1Text.ControlsBarFor(true, false, false, false, false, false, false));
+        var t = ScriptableObject.CreateInstance<MarioMindTuningSO>();
+        Assert.IsTrue(t.contextKeyBar); Assert.AreEqual(1f, t.roomGameSpeed, "默认速度不改手感");
+        Assert.AreEqual(0.5f, MarioMindTuningSO.ClampRoomSpeed(0.1f)); Assert.AreEqual(1f, MarioMindTuningSO.ClampRoomSpeed(2f));
+    }
+
+    [Test]
+    public void S226_ReactionPunch_FrontLoaded()
+    {
+        Assert.AreEqual(0f, MarioReaction.Punch(0f), 1e-4f); Assert.AreEqual(1f, MarioReaction.Punch(MarioReaction.PunchPeak), 1e-4f); Assert.AreEqual(0f, MarioReaction.Punch(1f), 1e-4f);
+        Assert.Greater(MarioReaction.Punch(0.2f), MarioReaction.Punch(0.6f), "前重后轻");
+    }
 }

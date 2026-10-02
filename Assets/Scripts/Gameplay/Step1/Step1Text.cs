@@ -181,7 +181,7 @@ public static partial class Step1Text
         "马里奥头顶  Above Mario:   <b>?</b> 起疑   <b>!</b> 来查看   <b>!!</b> 看见你在追   <b>?!</b> 追丢了\n" +
         "白色扇形 = 他的视野，墙会挡住。   White cone = his view (walls block it).\n\n" +
         "<b>大房间</b>：镜头会跟着你走（死亡细胞式）；马里奥不在屏幕里时，屏幕边缘的<color=#FF6B6B><b>红箭头</b></color>指着他（带 ? ! 和距离），右上角有<b>小地图</b>。  Big rooms: camera follows you; red edge arrow = Mario off-screen.\n\n" +
-        "<color=#BBBBBB>V 显示每个东西是什么 labels    H 关闭帮助 help    C 换镜头 camera</color>";
+        "<color=#BBBBBB>V 显示每个东西是什么 labels    H 关闭帮助 help    C 换镜头 camera    F8 记反馈 feedback    Esc 暂停 pause</color>";
 
     public const string BombNeedUndisguise = "要先<b>现形</b>（P 取消伪装）才能放炸弹  Undisguise to place a bomb";
     public const string BombWhileSmall = "缩小时拿不动炸弹  Can't bomb while small";
@@ -248,6 +248,24 @@ public static partial class Step1Text
             default: return "整个房间 Whole room";
         }
     }
+
+    /// <summary>S226 E9（看情况的按键条）：底部只放"现在按了有用"的键。核心键永远在；炸弹/缩小/诱饵/挑衅/通风管最多再加 3 个，
+    /// 只有当下能用才出现（用完、冷却中、伪装中不能用 → 不显示）。全部按键仍在 H 帮助页。</summary>
+    public static string ControlsBarFor(bool disguised, bool shrunk, bool canBomb, bool canDecoy, bool canTaunt, bool canShrink, bool nearVent)
+    {
+        var extra = new System.Collections.Generic.List<string>();
+        if (nearVent) extra.Add("↓ 钻通风管 Vent");
+        if (canBomb) extra.Add("B 炸弹 Bomb");
+        if (canDecoy) extra.Add("G 诱饵 Decoy");
+        if (canTaunt) extra.Add("T 挑衅 Taunt");
+        if (canShrink) extra.Add("Z 缩小 Shrink");
+        if (extra.Count > 3) extra.RemoveRange(3, extra.Count - 3);
+        string p = disguised ? "P 变回 Undisguise" : shrunk ? "(缩小中 shrunk)" : "P 伪装 Disguise";
+        string s = "← → 移动 Move   ↑ 跳 Jump   " + p + "   L 触发 Trigger";
+        foreach (var e in extra) s += "   " + e;
+        return s + "   |   H 全部按键 Help   F8 记反馈   Esc 暂停";
+    }
+    public const int ControlsBarMaxItems = 10;
 
     public const string Paused = "已暂停  Paused\n<size=22>Esc 继续 Resume</size>";
     public const string AfterSurvey = "✓ 已保存 Saved\n\n<b>N</b> = 下一局 Next round        <b>R</b> = 从头开始 Restart";

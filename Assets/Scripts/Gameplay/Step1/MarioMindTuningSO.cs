@@ -14,7 +14,9 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 23;
+    public const int CurrentDataVersion = 24;
+    /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
+    public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
 
     [Header("Identity")]
@@ -526,6 +528,10 @@ public class MarioMindTuningSO : ScriptableObject
     public bool visionConeFill = true;
     [Tooltip("S224：马里奥听得见的声音画成圈（Mark of the Ninja）：圈的大小 = 他真实的听力范围")]
     public bool soundRings = true;
+    [Tooltip("S226 E9 底部按键条只显示现在能用的键（核心键 + 最多 3 个能力键）。关掉 = 以前那一整行全部按键")]
+    public bool contextKeyBar = true;
+    [Tooltip("S226 E7 无障碍：房间游戏速度 0.5~1（1 = 正常；0.7 = 慢三成，反应慢/手不方便时用）。只影响房间玩法，不影响暂停/回放")]
+    [Range(0.5f, 1f)] public float roomGameSpeed = 1f;
 
     [Header("S216: 手感 / 被弹飞的抛物线 / 特效")]
     [Tooltip("S216 被弹飞/打飞时的重力（格/秒²）。以前硬直期间往上飞没有重力 → 弹簧弹 11 格撞天花板、炸弹推 8 格像在月球。平时跳跃重力 80；这里略轻 → 有滞空感但仍是抛物线")]
@@ -671,6 +677,10 @@ public class MarioMindTuningSO : ScriptableObject
         if (dataVersion < 23)
         {
             overworldAutoFastIdleSeconds = 1.5f; visionConeFill = true; soundRings = true; // S224：少等待 + 视锥灌注 + 声音圈
+        }
+        if (dataVersion < 24)
+        {
+            contextKeyBar = true; roomGameSpeed = 1f; // S226：看情况的按键条 + 游戏速度（默认不变）
         }
         dataVersion = CurrentDataVersion;
         return true;

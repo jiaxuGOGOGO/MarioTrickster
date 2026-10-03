@@ -10,6 +10,8 @@ public class MarioReactionView : MonoBehaviour
     public const string ResourceName = "MarioReactions";
 
     private static MarioReaction.Beat[] table;
+    public static void Reload() { table = null; } // S234：台词编辑器保存后
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)] private static void ResetTable() { table = null; }
     public static MarioReaction.Beat[] Table
     {
         get
@@ -22,6 +24,9 @@ public class MarioReactionView : MonoBehaviour
                 if (!string.IsNullOrEmpty(err)) Debug.LogWarning("[MarioReactions] " + err + "（用默认值补上）");
             }
             else table = (MarioReaction.Beat[])MarioReaction.Default.Clone();
+            var mine = Resources.Load<TextAsset>(MarioReaction.UserResourceName); // S234：你改的字
+            if (mine != null) { table = MarioReaction.ApplyUserLines(table, mine.text, out string ue); MarioReaction.ApplyUserAgain(mine.text); if (ue.Length > 0) Debug.LogWarning("[MyMarioReactions] " + ue); }
+            else MarioReaction.ApplyUserAgain("");
             return table;
         }
     }

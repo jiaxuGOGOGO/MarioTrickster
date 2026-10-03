@@ -222,10 +222,13 @@ public sealed class OverworldGame : MonoBehaviour
     {
         if (TownStory.table != null) return;
         var asset = Resources.Load<TextAsset>(TownStory.ResourceName);
-        if (asset == null) return;
-        TownStory.table = TownStory.Parse(asset.text, out string err);
+        var mine = Resources.Load<TextAsset>(TownStory.UserResourceName); // S234：你的台词（MyTownStories.json）叠在内置上
+        TownStory.table = TownStory.Load(asset != null ? asset.text : null, mine != null ? mine.text : null, out string err);
         if (!string.IsNullOrEmpty(err)) Debug.LogWarning("[TownStories] " + err);
     }
+    /// <summary>S234：台词编辑器保存后调用——Play 中下一句就用新台词（不用重进 Play）。</summary>
+    public static void ReloadStories() { TownStory.table = null; LoadStories(); }
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)] private static void ResetStoryTable() { TownStory.table = null; }
 
     // ═════════════════════ 画面 ═════════════════════
     private static int Order(double y) => 1000 - (int)(y * 10); // 越靠下越在前（星露谷式 y 排序）

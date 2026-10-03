@@ -937,8 +937,48 @@ static class CHECK {
     var og=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/Runtime/OverworldGame.cs")); var th=File.ReadAllText(WsRepo("Assets/Scripts/Editor/TestHubWindow.cs")); var ww=File.ReadAllText(WsRepo("Assets/Scripts/Editor/OverworldWorkshopWindow.cs")); var app=File.ReadAllText(WsRepo("tools/LevelStudioWeb/app.js"));
     if(!og.Contains("TownStory.Witness(map, TownStory.NearestDoor(")||!og.Contains("LoadStories(); LoadMemory();")||!og.Contains("SaveMemory(); }")||!og.Contains("Step1Keys.Down(KeyCode.N)")||!og.Contains("TownStory.NotebookText(")
       ||!th.Contains("TownStory.Validate(stories)")||!th.Contains("TuningAudit.FromYaml(")||!th.Contains("OverworldGame.MemoryKey")||!ww.Contains("IdeaDice.Rolls(")||!ww.Contains("TownStory.NotebookText(")
-      ||!app.Contains("await syReadTuning();")||!app.Contains("tsToJson(TSW())")||!File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1Text.Overworld.cs")).Contains("N 居民笔记本")){ sc++; Console.WriteLine("     [FAIL] 接线：小镇 / 体检 / 小镇工坊 / 网页 没接上 S233"); }
+      ||!app.Contains("await syReadTuning();")||!app.Contains("tsOverlayToJson(TS_MY)")||!File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1Text.Overworld.cs")).Contains("N 居民笔记本")){ sc++; Console.WriteLine("     [FAIL] 接线：小镇 / 体检 / 小镇工坊 / 网页 没接上 S233"); }
     Console.WriteLine($"[{(sc==0?"OK":"FAIL")}] S233 当场喊 + 居民笔记本 + 存档 + 台词本 + 灵感骰子 + 网页读调参文件：{string.Join("｜",parts)}"); fail+=sc; }
+  // S234 你的台词：MyTownStories.json 叠在内置上（同 id 换、新 id 加、off 关）；升级不碰；网页 ↔ C# 逐字；马里奥喊的字也能改（动作不能改）
+  { int ub=0; var parts=new List<string>(); var B=TownStory.Default.ToArray(); var mine=new List<string>();
+    var cases=new[]{"","{bad","{\"lines\":[{\"id\":\"baker_def_1\",\"zh\":\"我改的 {name}\"},{\"id\":\"my_line_1\",\"when\":\"witness\",\"who\":\"door\",\"tier\":1,\"needs\":[\"trait=kid\",\" visits>=1 \"],\"zh\":\"新的！\",\"en\":\"\"},{\"id\":\"any_def_1\",\"off\":true},{\"id\":\"bad\"},{\"id\":\"my_line_1\",\"zh\":\"dup\"},{\"id\":\"m_any_1\",\"zh\":\"早上好 {day}\",\"once\":true,\"coolDays\":5,\"tone\":\"sincere\"}]}"};
+    foreach(var j in cases){ var ov=TownStory.ParseOverlay(j,B,out string er); var M=TownStory.Merge(B,ov); mine.Add($"E {(er.Length>0?"err":"ok")} {ov.lines.Count} {ov.off.Count} {M.Length} {string.Join(",",M.Select(l=>l.id)).Length}");
+      var js=TownStory.OverlayToJson(ov); mine.AddRange(js.Split('\n').Select(l=>"J "+l)); mine.Add("RT "+(TownStory.OverlayToJson(TownStory.ParseOverlay(js,B,out _))==js?"true":"false")); mine.Add("D "+(TownStory.OverlayToJson(TownStory.Diff(B,M))==js?"true":"false"));
+      foreach(var l in M.Where(l=>l.id.StartsWith("my_")||l.id=="baker_def_1"||l.id=="m_any_1")) mine.Add($"L {l.id}|{l.who}|{l.when}|{l.tier}|{l.tone}|{l.coolDays}|{(l.once?"true":"false")}|{string.Join(";",l.needs)}|{l.zh}|{l.en}|{TownStory.Show(l,TownStory.DefaultResident(1),null).Replace("\n","/")}");
+      mine.AddRange(TownStory.Validate(M).Select(v=>"V "+v)); mine.Add("N "+TownStory.NewId(M,"line"));
+      foreach(var mp in new[]{OverworldPack.SampleText,OverworldPack.BigSampleText}){ var m=OverworldPack.Parse(mp)[0]; foreach(var id in new[]{"baker_def_1","my_line_1","granny_arc_2","painter_def_1","w_kid_arc","e_sincere_2","m_any_1","any_def_1"}) mine.Add("H "+id+" "+TownStory.WhenHeard(m,M,id,30)); } }
+    { var ov=TownStory.ParseOverlay(cases[2],B,out string er); var M=TownStory.Merge(B,ov);
+      bool ok= er.Length>0 && M.First(l=>l.id=="baker_def_1").zh=="我改的 {name}" && M.First(l=>l.id=="baker_def_1").en==B.First(l=>l.id=="baker_def_1").en && !M.Any(l=>l.id=="any_def_1") && M.Any(l=>l.id=="my_line_1") && M.First(l=>l.id=="my_line_1").zh=="新的！" && M.First(l=>l.id=="my_line_1").needs[1]=="visits>=1" && !M.Any(l=>l.id=="bad") && M.Length==B.Length+1-1;
+      if(!ok){ ub++; Console.WriteLine("     [FAIL] 你的台词：换 / 新加 / 关掉 / 跳过写错的 不对"); } else parts.Add("同 id 换掉（没写的沿用内置）、新 id 加、off 关、写坏的句子跳过并报原因、坏文件 = 照常用内置");
+      if(!TownStory.Validate(M).Any(v=>v.Contains("m_any_1")&&v.Contains("要挣"))){ ub++; Console.WriteLine("     [FAIL] 你把早上的话改成真心话却没有'要挣'的条件，没提醒"); } }
+    // 沉默检查：默认表每种住户 × 每种结果都有一句"一定能说"的；你把面包师的全关掉 → 提醒
+    { if(TownStory.Validate(B).Any(v=>v.Contains("沉默")||v.Contains("没人说话"))){ ub++; Console.WriteLine("     [FAIL] 默认台词就有人会沉默"); }
+      var offB=new TownStory.Overlay(); foreach(var l in B.Where(l=>l.needs.Contains("trait=baker")||(l.when=="back"&&!l.needs.Any(n=>n.StartsWith("trait="))))) offB.off.Add(l.id);
+      var vv=TownStory.Validate(TownStory.Merge(B,offB)); if(vv.Count(v=>v.Contains("面包师")&&v.Contains("沉默"))!=3){ ub++; Console.WriteLine("     [FAIL] 关掉面包师全部的话没提醒会沉默"); } else parts.Add("关掉太多 → 提醒\"那时他会沉默\"（默认表 0 处）"); }
+    // 占位符检查（反向）：写错的 {lootd}、镇上闲话用 {name}
+    { var x=TownStory.Clone(B.First(l=>l.when=="morning")); x.zh="第 {lootd} 次 {name}"; var vv=TownStory.Validate(new[]{x}); if(vv.Count(v=>v.StartsWith("✗"))!=2){ ub++; Console.WriteLine("     [FAIL] 占位符写错没查出来"); } else parts.Add("占位符写错 / 用错人都能查出"); }
+    // 升级不碰你的文件：所有补丁、sim、build 都不写 MyTownStories / MyMarioReactions；内置文件仍 = Default
+    foreach(var f in new[]{"tools/LevelStudioWeb/build.py"}){ if(File.ReadAllText(WsRepo(f)).Contains("MyTownStories")){ ub++; Console.WriteLine("     [FAIL] build.py 碰了你的台词文件"); } }
+    if(File.Exists(WsRepo("Assets/Resources/MyTownStories.json"))||File.Exists(WsRepo("Assets/Resources/MyMarioReactions.json"))){ ub++; Console.WriteLine("     [FAIL] 补丁里带了 MyTownStories / MyMarioReactions（那是用户的文件，AI 不许提交）"); }
+    else parts.Add("补丁里没有你的台词文件（升级永远不覆盖）");
+    // 马里奥喊的字：能改字、动作时长不变、第 3 次那句也能改、改回默认 = 空文件
+    { var rj="{\"lines\":[{\"kind\":\"hurt\",\"zh\":\"烫烫烫！\",\"en\":\"\"},{\"kind\":\"nope\",\"zh\":\"x\"}],\"again\":\"又来？！\",\"againEn\":\"\"}";
+      var rt=MarioReaction.ApplyUserLines((MarioReaction.Beat[])MarioReaction.Default.Clone(),rj,out var re); MarioReaction.ApplyUserAgain(rj); MarioReaction.TryGet(rt,"hurt",out var hb); MarioReaction.TryGet(MarioReaction.Default,"hurt",out var hd);
+      bool ok=MarioReaction.Line(hb)=="烫烫烫！"&&MarioReaction.Line(hb,3)=="又来？！"&&hb.act==hd.act&&hb.freeze==hd.freeze&&hb.pose==hd.pose&&re.Contains("nope")&&rt.Length==MarioReaction.Default.Length;
+      MarioReaction.ApplyUserAgain(""); bool back=MarioReaction.Line(hd,3).Contains("又是这个");
+      bool empty=!MarioReaction.UserToJson(MarioReaction.Default,"又是这个？！","NOT AGAIN?!").Contains("\"kind\"");
+      if(!ok||!back||!empty){ ub++; Console.WriteLine($"     [FAIL] 马里奥喊的字：改字 {ok} 恢复 {back} 没改 = 空 {empty}"); } else parts.Add("马里奥喊的字能改（动作 / 时长 / 晕多久不变）、第 3 次那句也能改"); }
+    var wj="ow_s234.json";
+    if(File.Exists(wj)){ var web=((List<object>)MiniJson.Parse(File.ReadAllText(wj),out _)).Select(x=>(string)x).ToList(); int diff=0;
+      for(int i=0;i<Math.Max(web.Count,mine.Count);i++){ string a=i<web.Count?web[i]:"(缺)", b=i<mine.Count?mine[i]:"(缺)"; if(a!=b){ if(diff++<3) Console.WriteLine($"     [FAIL] 网页≠C# 第{i}行：\n        网页 {a}\n        C#   {b}"); } }
+      if(diff>0) ub++; else parts.Add($"网页逐字一致 {mine.Count} 行（读 / 合并 / 反算 / 导出 / 什么时候会说 / 检查 / 显示，3 种文件 × 2 张图）"); }
+    else parts.Add("（没装 node：跳过网页对照）");
+    // 接线：游戏、工坊、体检、F8 包都用"内置 + 你的"；Play 中保存立即生效；bat 把你的文件也传上 GitHub
+    var og=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/Runtime/OverworldGame.cs")); var ww=File.ReadAllText(WsRepo("Assets/Scripts/Editor/OverworldWorkshopWindow.cs")); var th=File.ReadAllText(WsRepo("Assets/Scripts/Editor/TestHubWindow.cs")); var ed=File.ReadAllText(WsRepo("Assets/Scripts/Editor/TownStoryEditorWindow.cs")); var rv=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/MarioReactionView.cs")); var mp2=File.ReadAllText(Path.Combine(Environment.GetEnvironmentVariable("HOME")??"/home/user",".opencode/skills/mariotrickster-continue/scripts/make_patch.sh"));
+    if(!og.Contains("Resources.Load<TextAsset>(TownStory.UserResourceName)")||!og.Contains("TownStory.Load(")||!og.Contains("public static void ReloadStories()")||!ww.Contains("TownStoryEditorWindow.Effective()")||!th.Contains("TownStoryEditorWindow.Effective(out string storyErr)")||!th.Contains("Copy(TownStoryEditorWindow.UserPath")
+      ||!ed.Contains("OverworldGame.ReloadStories()")||!ed.Contains("%&l")||!ed.Contains("MoveHandEdits")||!rv.Contains("MarioReaction.UserResourceName")||!mp2.Contains("MyTownStories.json MyMarioReactions.json")||!File.ReadAllText(WsRepo("tools/LevelStudioWeb/app.js")).Contains("syReadMyStories")){ ub++; Console.WriteLine("     [FAIL] 接线：游戏 / 工坊 / 体检 / 台词编辑器 / 网页 / bat 没接上你的台词"); }
+    else parts.Add("游戏 / 小镇工坊 / 体检 / F8 反馈包 / 网页都读\"内置 + 你的\"；Play 中保存下一句就生效；bat 上传时把你的台词也提交");
+    Console.WriteLine($"[{(ub==0?"OK":"FAIL")}] S234 你的台词（可改、可加、可关，升级不覆盖）：{string.Join("｜",parts)}"); fail+=ub; }
   // S227 阶段 D 填表：用你真实的试玩记录（docs/step1/data/*.csv）跑出口报告
   { int db=0; var parts=new List<string>();
     var hdr=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs")),"CsvHeader => \"([^\"]*)\" \\+\\s*\"([^\"]*)\"");

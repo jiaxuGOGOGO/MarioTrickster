@@ -37,6 +37,10 @@ for p in "$OUT"/*.patch; do
   echo "  git -c user.name=MarioTrickster -c user.email=local@mariotrickster am --whitespace=nowarn \"%PKG%$pn\" || (git am --abort & echo [X] part $i apply failed, send a screenshot. & pause & exit /b 1)"
   echo ")"
 done
+echo 'rem S234: your own lines (MyTownStories.json / MyMarioReactions.json) go to GitHub too, as your own commit'
+echo 'for %%F in (MyTownStories.json MyMarioReactions.json) do if exist "Assets\Resources\%%F" git add "Assets\Resources\%%F"'
+echo 'for %%F in (MyTownStories.json.meta MyMarioReactions.json.meta) do if exist "Assets\Resources\%%F" git add "Assets\Resources\%%F"'
+echo 'git diff --cached --quiet || git -c user.name=MarioTrickster -c user.email=local@mariotrickster commit -m "User-written lines (my own edits)"'
 echo 'git log --oneline -3'
 echo 'echo.'; echo 'echo Upload to GitHub now? Y/N'; echo 'set /p ANS='; echo 'if /I "%ANS%"=="Y" git push'
 echo 'echo.'; echo "echo Done. $HINT"; echo 'pause'

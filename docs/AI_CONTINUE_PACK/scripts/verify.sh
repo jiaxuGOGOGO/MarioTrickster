@@ -116,5 +116,17 @@ o.push('J '+(X.tsToJson(X.TS_STORIES)===fs.readFileSync('../../Assets/Resources/
 const y='%YAML 1.1\nMonoBehaviour:\n  m_Name: RushMarioTuning\n  dataVersion: 26\n  overworldMarioSpeed: 3.9\n  overworldChaseSpeed: 4.25\n  soundRings: 0\n  nested:\n    x: 1\n  weird name: 3\n  overworldVisionRange: 1e1\n';
 const a=X.tuFromYaml(y);o.push('Y '+Object.keys(a).map(k=>k+'='+a[k]).join(','));for(const d of X.tuDiff(a))o.push('YD '+d);
 fs.writeFileSync('$WS/sim/ow_s233.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_s233.json"
+# S234：网页 你的台词（叠加 / 合并 / 反算 / 导出 / 什么时候会说 / 占位符检查 / 显示），交给 C# 逐字对照
+command -v node >/dev/null && (cd "$WS/repo/tools/LevelStudioWeb" && node -e "
+const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html','utf8');
+const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ── 状态'))+';this.X={tsParseOverlay,tsMerge,tsDiff,tsOverlayToJson,tsWhenHeard,tsValidate,tsShow,tsDefaultResident,tsNewId,TS_STORIES,owParse,OW_SAMPLE,OW_BIG_SAMPLE};',c);const X=c.X;const o=[];const B=X.TS_STORIES;
+const cases=['','{bad','{\"lines\":[{\"id\":\"baker_def_1\",\"zh\":\"我改的 {name}\"},{\"id\":\"my_line_1\",\"when\":\"witness\",\"who\":\"door\",\"tier\":1,\"needs\":[\"trait=kid\",\" visits>=1 \"],\"zh\":\"新的！\",\"en\":\"\"},{\"id\":\"any_def_1\",\"off\":true},{\"id\":\"bad\"},{\"id\":\"my_line_1\",\"zh\":\"dup\"},{\"id\":\"m_any_1\",\"zh\":\"早上好 {day}\",\"once\":true,\"coolDays\":5,\"tone\":\"sincere\"}]}'];
+for(const j of cases){const ov=X.tsParseOverlay(j,B);const M=X.tsMerge(B,ov);o.push('E '+(ov.error?'err':'ok')+' '+ov.lines.length+' '+ov.off.length+' '+M.length+' '+M.map(l=>l.id).join(',').length);
+ const js=X.tsOverlayToJson(ov);for(const l of js.split('\n'))o.push('J '+l);o.push('RT '+(X.tsOverlayToJson(X.tsParseOverlay(js,B))===js));o.push('D '+(X.tsOverlayToJson(X.tsDiff(B,M))===js));
+ for(const l of M.filter(l=>l.id.startsWith('my_')||l.id==='baker_def_1'||l.id==='m_any_1'))o.push('L '+l.id+'|'+l.who+'|'+l.when+'|'+l.tier+'|'+l.tone+'|'+l.coolDays+'|'+l.once+'|'+l.needs.join(';')+'|'+l.zh+'|'+l.en+'|'+X.tsShow(l,X.tsDefaultResident(1)).split('\n').join('/'));
+ for(const v of X.tsValidate(M))o.push('V '+v);o.push('N '+X.tsNewId(M,'line'));
+ for(const s of [X.OW_SAMPLE,X.OW_BIG_SAMPLE]){const m=X.owParse(s);for(const id of ['baker_def_1','my_line_1','granny_arc_2','painter_def_1','w_kid_arc','e_sincere_2','m_any_1','any_def_1'])o.push('H '+id+' '+X.tsWhenHeard(m,M,id,30));}}
+fs.writeFileSync('$WS/sim/ow_s234.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_s234.json"
 (cd "$WS/sim" && rm -rf obj bin && dotnet build -c Release -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error " | head -10; dotnet bin/Release/net8.0/sim.dll) || ok=0
 [ $ok = 1 ] && echo "VERIFY ALL GREEN（提醒：Unity 里的 EditMode 测试仍需用户跑）" || { echo "VERIFY FAILED"; exit 1; }

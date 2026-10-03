@@ -957,4 +957,25 @@ public class OverworldTests
         { StringAssert.DoesNotContain("hitSerial", Read(f2)); StringAssert.DoesNotContain("IdeaDice", Read(f2)); }
         OverworldSession.ResetStatics();
     }
+
+    // ── S234：你的台词（MyTownStories.json 叠在内置上，升级不覆盖）+ 马里奥喊的字 ──
+    [Test]
+    public void S234_MyTownStories_Overlay_And_MarioLines()
+    {
+        var B = TownStory.Parse(Read("Resources/TownStories.json"), out string err); Assert.AreEqual("", err);
+        var o = TownStory.ParseOverlay("{\"lines\":[{\"id\":\"baker_def_1\",\"zh\":\"我改的\"},{\"id\":\"my_line_1\",\"when\":\"witness\",\"needs\":[\"trait=kid\"],\"zh\":\"新的\"},{\"id\":\"any_def_1\",\"off\":true}]}", B, out string ue);
+        Assert.AreEqual("", ue);
+        var M = TownStory.Merge(B, o);
+        Assert.AreEqual("我改的", System.Array.Find(M, l => l.id == "baker_def_1").zh, "同 id = 换掉内置那句");
+        Assert.IsNotNull(System.Array.Find(M, l => l.id == "my_line_1"), "新 id = 新加");
+        Assert.IsNull(System.Array.Find(M, l => l.id == "any_def_1"), "off = 关掉");
+        Assert.AreEqual(TownStory.OverlayToJson(o), TownStory.OverlayToJson(TownStory.Diff(B, M)), "反算回来一模一样");
+        Assert.IsFalse(File.Exists(Path.Combine(Application.dataPath, "Resources/MyTownStories.json.patchmarker")));
+        StringAssert.Contains("TownStory.UserResourceName", Read("Scripts/Overworld/Runtime/OverworldGame.cs"));
+        StringAssert.Contains("%&l", Read("Scripts/Editor/TownStoryEditorWindow.cs"));
+        var rt = MarioReaction.ApplyUserLines((MarioReaction.Beat[])MarioReaction.Default.Clone(), "{\"lines\":[{\"kind\":\"hurt\",\"zh\":\"烫！\",\"en\":\"\"}]}", out _);
+        MarioReaction.TryGet(rt, "hurt", out var hb); MarioReaction.TryGet(MarioReaction.Default, "hurt", out var hd);
+        Assert.AreEqual("烫！", MarioReaction.Line(hb)); Assert.AreEqual(hd.act, hb.act, "只改字，动作时长不变");
+        MarioReaction.ApplyUserAgain("");
+    }
 }

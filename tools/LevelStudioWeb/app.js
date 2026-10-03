@@ -727,29 +727,82 @@ function owIdeaRender() {
   const box = $('#owIdea'); if (!box) return; const m = owM(), esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   box.innerHTML = idRolls(m, ID_SEED, 3).map(esc).join('<br>') + `<br><button class="btn small" id="btnIdea">🎲 再掷一次</button> <button class="btn small" id="btnIdeaLine">把第一题变成一句新台词 →</button>`;
   $('#btnIdea').onclick = () => { ID_SEED++; owIdeaRender(); };
-  $('#btnIdeaLine').onclick = () => { const it = idRoll(m, ID_SEED, 0); TS_EDIT.push(JSON.parse(it.lineStub)); tsEditSave(); owLinesRender(); toast('加了一句当场喊的模板：在下面的台词本里改中文'); };
+  $('#btnIdeaLine').onclick = () => { const it = idRoll(m, ID_SEED, 0), l = JSON.parse(it.lineStub); l.id = tsNewId(TSW(), 'idea'); l.once = false; l.note = ''; TS_MY.lines.push(l); TS_SEL = l.id; tsMyWrite(); owResRender(); toast('加了一句当场喊的模板：在下面的台词本里改中文'); };
 }
-// ═════ S233：台词本（不用打开 JSON：改中文 / 条件 → 检查 → 导出替换 Assets/Resources/TownStories.json）═════
-const LSTS = 'mariotrickster.townstories.edit';
-var TS_EDIT = null; try { TS_EDIT = JSON.parse(localStorage.getItem(LSTS) || 'null'); } catch (e) { } if (!Array.isArray(TS_EDIT)) TS_EDIT = null;
-const TSW = () => TS_EDIT || TS_STORIES;
-function tsEditStart() { if (!TS_EDIT) TS_EDIT = JSON.parse(JSON.stringify(TS_STORIES)); }
-function tsEditSave() { try { localStorage.setItem(LSTS, JSON.stringify(TS_EDIT)); } catch (e) { } }
-var TS_FILTER = '';
+// ═════ S234：台词本 = 你的台词（MyTownStories.json）。内置台词不动；连上 Unity 项目 → 直接读写 Assets/Resources/MyTownStories.json ═════
+const LSTS = 'mariotrickster.townstories.edit', LSMY = 'mariotrickster.mytownstories';
+var TS_MY = { lines: [], off: [], error: '' };
+(function tsInitMine() {
+  try { const j = localStorage.getItem(LSMY); if (j) { TS_MY = tsParseOverlay(j, TS_STORIES); return; }
+    const old = JSON.parse(localStorage.getItem(LSTS) || 'null'); if (Array.isArray(old)) { TS_MY = tsDiff(TS_STORIES, old); localStorage.setItem(LSMY, tsOverlayToJson(TS_MY)); localStorage.removeItem(LSTS); } } catch (e) { } // S233 旧草稿（整张表）→ 只留改动
+})();
+const TSW = () => tsMerge(TS_STORIES, TS_MY);
+async function tsMyWrite() {
+  const j = tsOverlayToJson(TS_MY); try { localStorage.setItem(LSMY, j); } catch (e) { }
+  if (SY && SY.dir) { try { const res = await (await SY.dir.getDirectoryHandle('Assets')).getDirectoryHandle('Resources', { create: true }); const f = await res.getFileHandle('MyTownStories.json', { create: true }); const w = await f.createWritable(); await w.write(j); await w.close(); TS_SYNCED = j; return true; } catch (e) { toast('写进 Unity 项目失败：' + e.message); } }
+  return false;
+}
+var TS_SYNCED = null;
+async function syReadMyStories() { // 连上时：Unity 那边的 MyTownStories.json 为准（Unity 台词编辑器改过也能看到）
+  try { const res = await (await SY.dir.getDirectoryHandle('Assets')).getDirectoryHandle('Resources'); const f = await res.getFileHandle('MyTownStories.json'); const j = await (await f.getFile()).text();
+    if (j !== TS_SYNCED) { TS_MY = tsParseOverlay(j, TS_STORIES); TS_SYNCED = j; try { localStorage.setItem(LSMY, j); } catch (e) { } if ($('#owLines')) owResRender(); } } catch (e) { if (TS_MY.lines.length || TS_MY.off.length) tsMyWrite(); }
+}
+function tsMyEdit(id, fn) { const t = TSW(), cur = t.find(l => l.id === id); if (!cur) return; const e = tsClone(cur); fn(e); TS_MY.lines = TS_MY.lines.filter(x => x.id !== id); const b = TS_STORIES.find(x => x.id === id); if (!b || !tsSame(b, e)) TS_MY.lines.push(e); tsMyWrite(); }
+var TS_FILTER = '', TS_SEL = '', TS_HEARD = '';
+const TS_WHEN_ZH = { back: '回到小镇时', witness: '门口砸中时', morning: '早上闲话', dayend: '一天结束' };
 function owLinesRender() {
   const box = $('#owLines'); if (!box) return; const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-  const t = TSW(), v = tsValidate(t), f = TS_FILTER.trim();
-  const rows = t.map((l, i) => [l, i]).filter(([l]) => !f || (l.id + l.zh + l.needs.join(';') + l.when).includes(f)).slice(0, 60);
-  box.innerHTML = `<div class="hint">${TS_EDIT ? '✎ 你改过（存在这个浏览器里）' : '和 Unity 同一份（还没改过）'} · 共 ${t.length} 句 · ${v.filter(x => x[0] === '✗').length} 处写错 · ${v.filter(x => x[0] === '⚠').length} 处提醒</div>`
-    + `<input class="f" id="tsFilter" placeholder="搜：baker / 真心 / witness / 宝贝…" value="${esc(TS_FILTER)}">`
-    + rows.map(([l, i]) => `<div class="tsl"><b>${esc(l.id)}</b> <small>${esc(l.when)}${l.tone === 'sincere' ? ' ♥真心' : ''}${l.once ? ' 只说一次' : ''}</small><br><input class="f" data-i="${i}" data-f="zh" value="${esc(l.zh)}" aria-label="中文"><input class="f" data-i="${i}" data-f="needs" value="${esc(l.needs.join(';'))}" aria-label="条件（分号隔开）" title="条件，分号隔开：trait=baker;visits>=3"></div>`).join('')
-    + (v.length ? `<details><summary>检查（${v.length}）</summary>${v.map(esc).join('<br>')}</details>` : '<div>✓ 没发现问题</div>')
-    + `<button class="btn small" id="btnTsExport">⬇ 导出 TownStories.json</button> <button class="btn small" id="btnTsReset">↺ 恢复成 Unity 那份</button>`
-    + `<p class="hint">导出后替换 Unity 项目里的 Assets/Resources/TownStories.json（Unity 一键体检会再检查一遍）。条件写法：key=值 / key&gt;=数字；能用哪些 key 见"检查"。</p>`;
+  const t = TSW(), v = tsValidate(t).filter(x => x[0] !== '·'), f = TS_FILTER.trim(), changed = id => TS_MY.lines.some(l => l.id === id);
+  const rows = (f === '关掉的' ? TS_STORIES.filter(l => TS_MY.off.includes(l.id)) : t.filter(l => !f || (f === '我改过的' ? changed(l.id) : f === '真心' ? tsSincere(l) : (l.id + l.zh + (l.en || '') + l.needs.join(';') + l.when).includes(f)))).slice(0, 200);
+  const sel = t.find(l => l.id === TS_SEL);
+  box.innerHTML = `<div class="hint">${SY && SY.dir ? '🔗 改了就直接写进 Unity 项目 Assets/Resources/MyTownStories.json' : '没连 Unity：改动存在这个浏览器里，点 ⬇ 导出，或点 🔗 连上项目就自动写进去'} · 共 ${t.length} 句（我改过 / 新加 ${TS_MY.lines.length}，关掉 ${TS_MY.off.length}）· ${v.length ? '⚠ ' + v.length + ' 处要看看' : '✓ 没发现写错'}</div>`
+    + (TS_MY.error ? `<div class="owiss Warn">${esc(TS_MY.error)}</div>` : '')
+    + `<input class="f" id="tsFilter" placeholder="搜：面包 / baker / 真心 / 我改过的 / 关掉的" value="${esc(TS_FILTER)}"> <button class="btn small" id="btnTsNew">＋ 新加一句</button>`
+    + (sel ? tsEditorHtml(sel, esc) : (TS_MY.off.includes(TS_SEL) ? `<div class="card">${esc(TS_SEL)} 已关掉 <button class="btn small" id="tsOn">重新打开</button></div>` : '<p class="hint">点下面一句来改（改好的那句会出现在这里）。</p>'))
+    + `<div class="tslist">` + rows.map(l => `<div class="tsl${l.id === TS_SEL ? ' on' : ''}" data-id="${esc(l.id)}">${TS_MY.off.includes(l.id) ? '✕ ' : changed(l.id) ? '✎ ' : ''}${tsSincere(l) ? '♥' : '·'} <small>${esc(TS_WHEN_ZH[l.when] || l.when)}</small> ${esc(l.zh)}</div>`).join('') + `</div>`
+    + (v.length ? `<details><summary>检查（${v.length}）</summary>${v.map(esc).join('<br>')}</details>` : '')
+    + `<button class="btn small" id="btnTsExport">⬇ 导出 MyTownStories.json</button> <button class="btn small" id="btnTsReset">↺ 清空我的台词</button>`
+    + `<p class="hint">导出的文件放进 Unity 项目的 Assets/Resources/（和 TownStories.json 同一个文件夹）。升级补丁只改内置的 TownStories.json，不碰你的文件。</p>`;
   $('#tsFilter').oninput = e => { TS_FILTER = e.target.value; owLinesRender(); const el = $('#tsFilter'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); };
-  box.querySelectorAll('input[data-i]').forEach(el => el.onchange = () => { tsEditStart(); const l = TS_EDIT[+el.dataset.i]; if (el.dataset.f === 'zh') l.zh = el.value; else l.needs = el.value.split(';').map(x => x.trim()).filter(Boolean); tsEditSave(); owResRender(); });
-  $('#btnTsExport').onclick = () => { const bad = tsValidate(TSW()).filter(x => x[0] === '✗'); if (bad.length && !confirm(`还有 ${bad.length} 处写错（那几句游戏里永远不会说）。仍然导出？`)) return; download('TownStories.json', tsToJson(TSW()), 'application/json'); };
-  $('#btnTsReset').onclick = () => { if (!confirm('丢掉网页里改过的台词，恢复成 Unity 那份？')) return; TS_EDIT = null; localStorage.removeItem(LSTS); owResRender(); };
+  box.querySelectorAll('.tsl').forEach(el => el.onclick = () => { TS_SEL = el.dataset.id; TS_HEARD = ''; owLinesRender(); });
+  $('#btnTsNew').onclick = () => { const l = { id: tsNewId(t, 'line'), who: 'door', when: 'back', tier: 1, tone: 'comic', coolDays: 3, once: false, needs: ['trait=baker'], zh: '（写你想让他说的话）', en: '', note: '' }; TS_MY.lines.push(l); TS_SEL = l.id; TS_FILTER = ''; tsMyWrite(); owResRender(); };
+  if ($('#tsOn')) $('#tsOn').onclick = () => { TS_MY.off = TS_MY.off.filter(x => x !== TS_SEL); tsMyWrite(); owResRender(); };
+  if (sel) tsEditorBind(sel);
+  $('#btnTsExport').onclick = () => download('MyTownStories.json', tsOverlayToJson(TS_MY), 'application/json');
+  $('#btnTsReset').onclick = () => { if (!confirm('清空你改过 / 新加 / 关掉的全部台词，回到内置那份？')) return; TS_MY = { lines: [], off: [], error: '' }; tsMyWrite(); owResRender(); };
+}
+function tsEditorHtml(l, esc) {
+  const isBuilt = TS_STORIES.some(b => b.id === l.id), ch = TS_MY.lines.some(x => x.id === l.id), tr = (l.needs.find(n => n.startsWith('trait=')) || '').slice(6);
+  const keys = TS_FACT_KEYS[l.when] || [], issues = tsValidate([l]).filter(x => x[0] !== '·' && x.includes(l.id));
+  return `<div class="card tsed"><b>${esc(l.id)}</b> <small>${isBuilt ? (ch ? '内置，你改过' : '内置') : '你新加的'}</small>
+    <label class="f">中文（{name} = 住户名字）<textarea class="f" id="tsZh" rows="2">${esc(l.zh)}</textarea></label>
+    <label class="f">英文（可以空着）<input class="f" id="tsEn" value="${esc(l.en || '')}"></label>
+    <label class="f">什么时候说 <select id="tsWhen">${Object.keys(TS_WHEN_ZH).map(w => `<option value="${w}"${w === l.when ? ' selected' : ''}>${TS_WHEN_ZH[w]}</option>`).join('')}</select></label>
+    ${l.who === 'door' ? `<label class="f">谁说 <select id="tsTrait"><option value="">（任何住户）</option>${TS_TRAITS.map(x => `<option value="${x}"${x === tr ? ' selected' : ''}>${tsTraitZh(x)}</option>`).join('')}</select></label>` : ''}
+    <label class="f">条件（分号隔开）<input class="f" id="tsNeeds" value="${esc(l.needs.join(';'))}"></label><div class="hint">能用：${keys.join(' ')}</div>
+    <label class="toggle"><input type="checkbox" id="tsSin"${tsSincere(l) ? ' checked' : ''}>真心话 ♥</label> <label class="toggle"><input type="checkbox" id="tsOnce"${l.once ? ' checked' : ''}>只说一次</label>
+    <label class="f">说过后几天内不再说 <input type="number" min="1" max="14" id="tsCool" value="${l.coolDays}" style="width:52px"></label>
+    <label class="f">优先级 <select id="tsTier"><option value="0"${l.tier === 0 ? ' selected' : ''}>0 最优先</option><option value="1"${l.tier === 1 ? ' selected' : ''}>1 这个人专属</option><option value="2"${l.tier === 2 ? ' selected' : ''}>2 通用</option></select></label>
+    ${issues.map(x => `<div class="owiss Warn">${esc(x)}</div>`).join('')}
+    <div class="hint">游戏里看起来：<br>${esc(tsShow(l, tsDefaultResident(1))).replace(/\n/g, '<br>')}</div>
+    <button class="btn small" id="tsHeard">这句什么时候会说？</button> ${isBuilt && ch ? '<button class="btn small" id="tsRevert">恢复成内置</button>' : ''} ${isBuilt ? '<button class="btn small" id="tsOff">关掉这句</button>' : '<button class="btn small" id="tsDel">删掉</button>'}
+    ${TS_HEARD ? `<div class="owsched">${esc(TS_HEARD)}</div>` : ''}</div>`;
+}
+function tsEditorBind(l) {
+  const id = l.id, upd = fn => { tsMyEdit(id, fn); owResRender(); };
+  $('#tsZh').onchange = e => { if (e.target.value.trim()) upd(x => x.zh = e.target.value); };
+  $('#tsEn').onchange = e => upd(x => x.en = e.target.value);
+  $('#tsWhen').onchange = e => upd(x => { x.when = e.target.value; x.who = tsWhoFor(x.when); });
+  if ($('#tsTrait')) $('#tsTrait').onchange = e => upd(x => { x.needs = x.needs.filter(n => !n.startsWith('trait=')); if (e.target.value) x.needs.unshift('trait=' + e.target.value); });
+  $('#tsNeeds').onchange = e => upd(x => x.needs = e.target.value.split(';').map(q => q.trim()).filter(Boolean));
+  $('#tsSin').onchange = e => upd(x => { x.tone = e.target.checked ? 'sincere' : 'comic'; if (e.target.checked) { x.once = true; x.tier = Math.min(x.tier, 1); } });
+  $('#tsOnce').onchange = e => upd(x => x.once = e.target.checked);
+  $('#tsCool').onchange = e => upd(x => x.coolDays = Math.max(1, Math.min(14, +e.target.value | 0)));
+  $('#tsTier').onchange = e => upd(x => x.tier = +e.target.value);
+  $('#tsHeard').onclick = () => { TS_HEARD = tsWhenHeard(owM(), TSW(), id, 30); owLinesRender(); };
+  if ($('#tsRevert')) $('#tsRevert').onclick = () => { TS_MY.lines = TS_MY.lines.filter(x => x.id !== id); tsMyWrite(); owResRender(); };
+  if ($('#tsOff')) $('#tsOff').onclick = () => { TS_MY.lines = TS_MY.lines.filter(x => x.id !== id); TS_MY.off.push(id); tsMyWrite(); owResRender(); };
+  if ($('#tsDel')) $('#tsDel').onclick = () => { TS_MY.lines = TS_MY.lines.filter(x => x.id !== id); TS_SEL = ''; tsMyWrite(); owResRender(); };
 }
 // ═════ S220：雷区面板 + 伤害一览 ═════
 function owStormsRender() {
@@ -990,7 +1043,7 @@ async function syConnect(reuse) {
     SY = { dir, name: dir.name, levels, synced: JSON.parse(localStorage.getItem(SYKEY) || '{}'), timer: 0, busy: false };
     await syIdb('readwrite', s => s.put(dir, 'dir'));
     syStatus('🔗 ' + dir.name, 'gold'); $('#btnPlayUnity').hidden = false;
-    await syPull(true); await syPush(); await syReadTuning(); // S233：读你在 Inspector 里改过的数值
+    await syPull(true); await syPush(); await syReadTuning(); await syReadMyStories(); // S233：读你在 Inspector 里改过的数值；S234：你的台词
   } catch (e) { if (e.name !== 'AbortError') toast('连接失败：' + e.message); }
 }
 function sySaveHashes() { try { localStorage.setItem(SYKEY, JSON.stringify(SY.synced)); } catch (e) { } }
@@ -1065,7 +1118,7 @@ async function syPlayInUnity() {
   await syWriteInbox({ type: 'mariotrickster-play', v: 1, play: town ? { town: owM().name } : { level: S.name }, at: Date.now() }, 'play');
   toast(`切到 Unity 就开始试玩「${town ? owM().name : S.name}」（Unity 在 Play 中时会等它停下）`);
 }
-window.addEventListener('focus', () => syPull(false));
+window.addEventListener('focus', () => { syPull(false); if (SY && SY.dir) syReadMyStories(); }); // S234：Unity 台词编辑器改过 → 切回网页就看到
 document.addEventListener('visibilitychange', () => { if (!document.hidden) syPull(false); });
 $('#btnSync').onclick = () => SY && SY.dir ? syPull(false) : syConnect(SY && SY.pendingDir);
 $('#btnPlayUnity').onclick = syPlayInUnity;

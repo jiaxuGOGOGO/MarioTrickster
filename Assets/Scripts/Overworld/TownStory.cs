@@ -149,7 +149,8 @@ public static class TownStory
     {
         if (l == null) return "";
         string who = l.who == "door" && r != null ? $"{TraitZh(r.trait)}·{r.name}" : l.who == "mario" ? "马里奥" : "镇上的闲话";
-        return $"{who}：{Fill(l.zh, r, facts)}\n{Fill(l.en, r, facts)}";
+        string en = Fill(l.en, r, facts);
+        return en.Length > 0 ? $"{who}：{Fill(l.zh, r, facts)}\n{en}" : $"{who}：{Fill(l.zh, r, facts)}"; // S234：英文空着就不显示空行
     }
 
     // ── 事实（facts）：只描述已经发生的事 ─────────────────────
@@ -361,7 +362,9 @@ public static class TownStory
         uint h = Hash("rehearse|" + map + "|" + day + "|" + door) % 5;
         return h < 2 ? OverworldSession.DoorResult.Defended : h < 4 ? OverworldSession.DoorResult.Looted : OverworldSession.DoorResult.Missed;
     }
-    public static Rehearsal Rehearse(OverworldMap.Map m, IList<Line> t, int days)
+    public static Rehearsal Rehearse(OverworldMap.Map m, IList<Line> t, int days) => Rehearse(m, t, days, false);
+    /// <summary>witness = 每天每户回小镇之后，在他家门口砸一次（当场喊的话也排进去；只给"这句什么时候会说"用）。</summary>
+    public static Rehearsal Rehearse(OverworldMap.Map m, IList<Line> t, int days, bool witness)
     {
         var rep = new Rehearsal(); var mem = new Memory(); var heard = new Dictionary<string, int>();
         var doors = m.doors.OrderBy2().Where(d => OverworldMap.Find(m, (char)('0' + d.n)).Count == 1).ToList();
@@ -389,6 +392,7 @@ public static class TownStory
                 var l = Pick(t, When.Back, "door", f, mem, day);
                 if (l != null && l.Sincere && !rep.firstSincereDay.ContainsKey(r.trait)) rep.firstSincereDay[r.trait] = day;
                 Hear(l, day, "门" + d.n + TraitZh(r.trait));
+                if (witness) { var wl = WitnessOn(m, t, mem, d.n, 'O', w, day); if (wl != null) rep.lines.Add($"第{day}天 门{d.n}{TraitZh(r.trait)}当场 {(wl.Sincere ? "♥" : "·")}{wl.id}"); } // WitnessOn 自己会 Say（只记一行，不进统计）
             }
             string outcome = doors.Count > 0 && def * 2 >= doors.Count ? "won" : "lost";
             var ef = new Dictionary<string, string> { { "outcome", outcome }, { "death", "none" }, { "byyou", "no" }, { "cause", "" }, { "bighits", "0" }, { "chain", "0" }, { "caught", "0" }, { "defendedtoday", def.ToString() }, { "lootedtoday", loot.ToString() }, { "weather", w.kind.ToString().ToLowerInvariant() }, { "day", day.ToString() }, { "bells", "0" } };
@@ -422,6 +426,90 @@ public static class TownStory
         return l;
     }
 
+    // ── S234：你的台词（Assets/Resources/MyTownStories.json）——只属于你，升级补丁永远不改它 ──────────
+    // 内置台词 TownStories.json 归 AI 维护（sim 要求它 = Default）；你的改动全部放在 MyTownStories.json：
+    //   同 id = 换掉内置那句（没写的字段沿用内置）；新 id = 新加；{"id": "...", "off": true} = 关掉内置那句。
+    public const string UserResourceName = "MyTownStories";
+    public sealed class Overlay { public readonly List<Line> lines = new List<Line>(); public readonly List<string> off = new List<string>(); }
+    public static Line Clone(Line l) => new Line { id = l.id, who = l.who, when = l.when, tone = l.tone, zh = l.zh, en = l.en, note = l.note, tier = l.tier, coolDays = l.coolDays, once = l.once, needs = (string[])l.needs.Clone() };
+    public static bool Same(Line a, Line b) => a.id == b.id && a.who == b.who && a.when == b.when && a.tone == b.tone && a.zh == b.zh && a.en == b.en && a.note == b.note && a.tier == b.tier && a.coolDays == b.coolDays && a.once == b.once && a.needs.SequenceEqual(b.needs);
+    public static Overlay ParseOverlay(string json, IList<Line> baseT, out string error)
+    {
+        error = ""; var o = new Overlay();
+        if (string.IsNullOrWhiteSpace(json)) return o;
+        var root = MiniJson.Parse(json, out string je) as Dictionary<string, object>;
+        if (root == null) { error = "你的台词文件写坏了：" + (je.Length > 0 ? je : "不是 JSON") + "（游戏照常，用内置台词）"; return o; }
+        if (!root.TryGetValue("lines", out var lo) || !(lo is List<object> list)) return o;
+        var seen = new HashSet<string>();
+        foreach (var x in list)
+        {
+            if (!(x is Dictionary<string, object> d)) continue;
+            string id = S(d, "id").Trim(); if (id.Length == 0) { error = "你的台词里有一句没写 id"; continue; }
+            if (!seen.Add(id)) { error = "你的台词里 id 重复：" + id; continue; }
+            if (d.TryGetValue("off", out var ob) && ob is bool obb && obb) { o.off.Add(id); continue; }
+            var b0 = baseT.FirstOrDefault(l => l.id == id);
+            var l2 = b0 != null ? Clone(b0) : new Line { id = id };
+            if (d.ContainsKey("who")) l2.who = S(d, "who", l2.who); if (d.ContainsKey("when")) l2.when = S(d, "when", l2.when); if (d.ContainsKey("tone")) l2.tone = S(d, "tone", l2.tone);
+            if (d.ContainsKey("zh")) l2.zh = S(d, "zh"); if (d.ContainsKey("en")) l2.en = S(d, "en"); if (d.ContainsKey("note")) l2.note = S(d, "note");
+            if (d.ContainsKey("tier")) l2.tier = (int)N(d, "tier", l2.tier); if (d.ContainsKey("coolDays")) l2.coolDays = (int)N(d, "coolDays", l2.coolDays);
+            if (d.TryGetValue("once", out var oc) && oc is bool occ) l2.once = occ;
+            if (d.TryGetValue("needs", out var nn) && nn is List<object> nl) l2.needs = nl.OfType<string>().Select(q => q.Trim()).Where(q => q.Length > 0).ToArray();
+            if (l2.zh.Length == 0) { error = $"{id}：没写中文（这句先跳过）"; continue; }
+            o.lines.Add(l2);
+        }
+        return o;
+    }
+    /// <summary>内置 + 你的 = 游戏里真正用的表：同 id 换掉、off 去掉、新的接在最后（按你文件里的顺序）。</summary>
+    public static Line[] Merge(IList<Line> baseT, Overlay o)
+    {
+        var mine = o.lines.ToDictionary(l => l.id); var res = new List<Line>();
+        foreach (var l in baseT) { if (o.off.Contains(l.id)) continue; res.Add(mine.TryGetValue(l.id, out var m) ? m : l); }
+        foreach (var l in o.lines) if (!baseT.Any(b => b.id == l.id)) res.Add(l);
+        return res.ToArray();
+    }
+    /// <summary>反过来：一张改过的完整表 → 只记"和内置不一样的"（搬家 / 网页旧草稿用）。</summary>
+    public static Overlay Diff(IList<Line> baseT, IList<Line> edited)
+    {
+        var o = new Overlay();
+        foreach (var b in baseT) if (!edited.Any(e => e.id == b.id)) o.off.Add(b.id);
+        foreach (var e in edited) { var b = baseT.FirstOrDefault(x => x.id == e.id); if (b == null || !Same(b, e)) o.lines.Add(Clone(e)); }
+        return o;
+    }
+    public const string OverlayHelp = "这是你自己的台词（升级补丁永远不改这个文件）。同 id = 换掉内置那句；新 id = 新加；off = 关掉内置那句。最方便：Unity 菜单 MarioTrickster/台词编辑器（Ctrl+Alt+L），或网页设计台 大地图 → 台词本。";
+    public static string OverlayToJson(Overlay o)
+    {
+        var sb = new System.Text.StringBuilder("{\n  \"version\": 1,\n  \"help\": ").Append(J(OverlayHelp)).Append(",\n  \"lines\": [");
+        var items = new List<string>();
+        foreach (var l in o.lines)
+            items.Add("    {\"id\": " + J(l.id) + ", \"who\": " + J(l.who) + ", \"when\": " + J(l.when) + ", \"tier\": " + l.tier + ", \"tone\": " + J(l.tone) + ", \"coolDays\": " + l.coolDays + (l.once ? ", \"once\": true" : "") +
+                      ", \"needs\": [" + string.Join(", ", l.needs.Select(J)) + "], \"zh\": " + J(l.zh) + ", \"en\": " + J(l.en) + (l.note.Length > 0 ? ", \"note\": " + J(l.note) : "") + "}");
+        foreach (var id in o.off) items.Add("    {\"id\": " + J(id) + ", \"off\": true}");
+        sb.Append(items.Count == 0 ? "]\n}\n" : "\n" + string.Join(",\n", items) + "\n  ]\n}\n");
+        return sb.ToString();
+    }
+    /// <summary>游戏 / 编辑器 / 体检读台词的唯一入口：内置 JSON（读不到 = Default）+ 你的 JSON。</summary>
+    public static Line[] Load(string builtJson, string userJson, out string error)
+    {
+        error = ""; var b = string.IsNullOrEmpty(builtJson) ? Default.ToArray() : Parse(builtJson, out error);
+        var o = ParseOverlay(userJson, b, out string ue); if (ue.Length > 0) error = error.Length > 0 ? error + "；" + ue : ue;
+        return Merge(b, o);
+    }
+    /// <summary>新加一句时给的 id（my_性格_序号，不和现有重复）。</summary>
+    public static string NewId(IList<Line> t, string stem) { for (int i = 1; ; i++) { string id = $"my_{stem}_{i}"; if (!t.Any(l => l.id == id)) return id; } }
+    public static string WhoFor(string when) => when == "morning" ? "town" : when == "dayend" ? "mario" : "door";
+
+    // ── S234："这句什么时候会说？"——在这张地图上彩排 N 天（门口每天砸一次，当场喊的话也算），找它第一次出现的那天 ──
+    public static string WhenHeard(OverworldMap.Map m, IList<Line> t, string id, int days)
+    {
+        var l = t.FirstOrDefault(x => x.id == id); if (l == null) return "（这句被关掉了 / 找不到）";
+        string trait = l.needs.FirstOrDefault(n => n.StartsWith("trait=")); trait = trait != null ? trait.Substring(6) : "";
+        if (l.who == "door" && trait.Length > 0 && !m.doors.Any(d => OverworldMap.Find(m, (char)('0' + d.n)).Count == 1 && ResidentOf(m, d.n).trait == trait))
+            return $"这张地图上没有{TraitZh(trait)}：在\"住户\"里把某扇门改成{TraitZh(trait)}，这句才有机会说";
+        var r = Rehearse(m, t, days, true);
+        foreach (var x in r.lines) if (x.EndsWith("·" + id) || x.EndsWith("♥" + id)) return $"彩排里第一次听到：{x.Substring(0, x.Length - id.Length - 1).Trim()}";
+        return $"彩排 {days} 天里没轮到它（条件：{(l.needs.Length == 0 ? "无" : NeedHint(l))}；彩排里每户 守住 / 被偷 / 没赶上 按 4:4:2 轮着来、每天每户门口砸一次）——可能是条件太难，或总有更具体 / 更优先的话先说";
+    }
+
     // ── S233：写台词时的检查（Unity 体检 / 小镇工坊 / 网页"台词本"同一套话）──────────
     /// <summary>每个时机能用哪些条件（写错名字 = 这句永远不会说）。</summary>
     public static readonly Dictionary<string, string[]> FactKeys = new Dictionary<string, string[]>
@@ -445,8 +533,19 @@ public static class TownStory
             if (l.Sincere && !l.once) o.Add($"⚠ {l.id}：真心话没勾\"只说一次\"（说两遍就不真心了）");
             if (l.Sincere && !l.needs.Any(n => n.Contains(">="))) o.Add($"⚠ {l.id}：真心话没有\"要挣\"的条件（例如 visits>=3）——第一天就会说");
             if (l.en.Length == 0) o.Add($"· {l.id}：还没写英文（可以先空着）");
+            foreach (System.Text.RegularExpressions.Match mt in System.Text.RegularExpressions.Regex.Matches(l.zh + " " + l.en, @"\{([^{}]*)\}")) // S234：{name} 这种占位符写错 = 屏幕上原样显示
+            { string k = mt.Groups[1].Value; if (k != "name" && k != "trait" && !keys.Contains(k)) o.Add($"✗ {l.id}：{{{k}}} 填不进去（能用：{{name}} {{trait}} {string.Join(" ", keys.Select(q => "{" + q + "}"))}）"); }
+            if (l.who != "door" && (l.zh.Contains("{name}") || l.zh.Contains("{trait}"))) o.Add($"✗ {l.id}：{{name}} / {{trait}} 只有住户说的话能用");
             if (l.zh.Length > 70) o.Add($"· {l.id}：中文 {l.zh.Length} 字，屏幕上 5 秒读不完（建议 ≤ 70）");
+            else if (l.when == "witness" && !l.Sincere && l.zh.Length > 30) o.Add($"· {l.id}：当场喊的话只停 3.5 秒，{l.zh.Length} 字有点长（建议 ≤ 30）");
         }
+        // S234：会不会有人"没话说"——每种住户 × 每种结果，至少要有一句"一定能说"的（只看性格 / 结果、不只说一次）；早上 / 结束也要各有一句没有条件的
+        bool Sure(Line l, string tr, string res) => !l.once && l.needs.All(n => n == "trait=" + tr || n == "result=" + res);
+        foreach (var tr in Traits) foreach (var res in new[] { "defended", "looted", "missed" })
+            if (!t.Any(l => l.when == "back" && l.who == "door" && Sure(l, tr, res)))
+                o.Add($"⚠ {TraitZh(tr)}在\"{(res == "defended" ? "守住" : res == "looted" ? "被偷" : "没赶上")}\"之后没有一句一定能说的话（你关掉了太多？）——那时他会沉默");
+        foreach (var w in new[] { "morning", "dayend" })
+            if (!t.Any(l => l.when == w && !l.once && l.needs.Length == 0)) o.Add($"⚠ {(w == "morning" ? "早上闲话" : "一天结束")}没有一句\"没有条件\"的话——有的早上 / 晚上会没人说话");
         return o;
     }
 

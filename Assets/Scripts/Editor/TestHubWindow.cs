@@ -143,11 +143,10 @@ public sealed class TestHubWindow : EditorWindow
             foreach (var r in TuningAudit.Check(t)) { if (r.ok) continue; Warn($"{r.rule}（现在 {r.detail}）：{r.why}"); }
             if (TuningAudit.Check(t).All(r => r.ok)) Ok($"数值之间的 {TuningAudit.Rules.Length} 条关系都对");
             sb.AppendLine("\n## 小镇居民的话（TownStories.json，S232）");
-            var storyAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Resources/" + TownStory.ResourceName + ".json");
-            string storyErr = "";
-            var stories = storyAsset != null ? TownStory.Parse(storyAsset.text, out storyErr) : TownStory.Default;
-            if (storyAsset == null) Warn("找不到 Assets/Resources/TownStories.json（游戏里用内置台词）");
-            else if (!string.IsNullOrEmpty(storyErr)) Warn("TownStories.json 有一处写错了：" + storyErr + "（这一句被跳过，其余照常）"); else Ok($"读到 {stories.Length} 句台词");
+            var stories = TownStoryEditorWindow.Effective(out string storyErr); // S234：内置 + 你的台词
+            if (!File.Exists(TownStoryEditorWindow.BuiltPath)) Warn("找不到 Assets/Resources/TownStories.json（游戏里用内置台词）");
+            if (!string.IsNullOrEmpty(storyErr)) Warn("台词文件有一处写错了：" + storyErr + "（这一句被跳过，其余照常）"); else Ok($"读到 {stories.Length} 句台词");
+            { var ov = TownStory.ParseOverlay(TownStoryEditorWindow.UserJson(), TownStoryEditorWindow.BuiltIn(out _), out _); sb.AppendLine(ov.lines.Count + ov.off.Count == 0 ? "· 你的台词：还没改过（Ctrl+Alt+L 打开台词编辑器）" : $"· 你的台词 MyTownStories.json：改过 / 新加 {ov.lines.Count} 句、关掉 {ov.off.Count} 句"); }
             foreach (var l in TownStory.Coverage(stories)) { if (l.Contains("⚠")) Warn(l); else sb.AppendLine("· " + l); }
             var sample = OverworldMap.Parse(OverworldPack.SampleText); var reh = TownStory.Rehearse(sample, stories, 14);
             sb.AppendLine("· " + OverworldPack.SampleName + " " + TownStory.RehearsalSummary(reh, 14));
@@ -194,10 +193,11 @@ public sealed class TestHubWindow : EditorWindow
         {
             if (Directory.Exists(stage)) Directory.Delete(stage, true);
             Directory.CreateDirectory(stage);
-            File.WriteAllText(Path.Combine(stage, "00_给AI的话.md"), "# MarioTrickster 试玩反馈包\n\n" + (note.Length > 0 ? note : "（没写）") + "\n\n里面：HealthCheck.md 体检、feedback.md + 截图、TestReport.txt、step1_rounds.csv、town_days.csv（有的话）\n");
+            File.WriteAllText(Path.Combine(stage, "00_给AI的话.md"), "# MarioTrickster 试玩反馈包\n\n" + (note.Length > 0 ? note : "（没写）") + "\n\n里面：HealthCheck.md 体检、feedback.md + 截图、TestReport.txt、step1_rounds.csv、town_days.csv、MyTownStories.json / MyMarioReactions.json（你写的台词，有的话）\n");
             void Copy(string src, string name) { if (File.Exists(src)) File.Copy(src, Path.Combine(stage, name), true); }
             Copy(HealthPath, "HealthCheck.md");
             Copy(TestReportRunner.LastReportFile, "TestReport.txt");
+            Copy(TownStoryEditorWindow.UserPath, "MyTownStories.json"); Copy(MarioReactionEditor.UserPath, "MyMarioReactions.json"); // S234：你写的台词（AI 照你的语气补）
             if (Directory.Exists(LogsRoot)) foreach (var f in Directory.GetFiles(LogsRoot, "step1_rounds*.csv").Concat(Directory.GetFiles(LogsRoot, "town_days*.csv"))) Copy(f, Path.GetFileName(f)); // S227：留档的旧记录也带上；S230：小镇每天的记录（含反应时间）
             if (Directory.Exists(Step1Feedback.Root)) foreach (var f in Directory.GetFiles(Step1Feedback.Root)) Copy(f, Path.GetFileName(f));
             string zip = Path.Combine(LogsRoot, $"反馈包_{System.DateTime.Now:MMdd_HHmm}.zip");

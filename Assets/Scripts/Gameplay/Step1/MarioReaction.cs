@@ -156,7 +156,7 @@ public static class MarioReaction
     }
 
     /// <summary>头顶台词（两行，中文在上）。</summary>
-    public static string Line(Beat b) => b.zh + "\n" + b.en;
+    public static string Line(Beat b) => string.IsNullOrEmpty(b.en) ? b.zh : b.zh + "\n" + b.en;
 
     /// <summary>
     /// S231（天丼 / 三段オチ）：同一种坑本局第几次。第 1、2 次照常（先建立模式），第 3 次起换成"又是这个？！"（打破模式 = 笑点）。
@@ -167,7 +167,7 @@ public static class MarioReaction
     public static string Line(Beat b, int nthThisRound)
     {
         if (nthThisRound < EscalateFrom) return Line(b);
-        if (nthThisRound == EscalateFrom) return "又是这个？！\nNOT AGAIN?!";
+        if (nthThisRound == EscalateFrom) return AgainEn.Length > 0 ? AgainZh + "\n" + AgainEn : AgainZh; // S234：你可以改
         return $"第 {nthThisRound} 次了……\nx{nthThisRound}...";
     }
 
@@ -234,4 +234,35 @@ public static class MarioReaction
     }
 
     private static string F(float v) => v.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+    // ── S234：你的台词（Assets/Resources/MyMarioReactions.json）——只改他喊的字，动作 / 时长不能改（H6 同一种坑同一种动作、H9 不延长）──
+    // 格式：{"lines":[{"kind":"hurt","zh":"烫烫烫！","en":"HOT!"}], "again":"又是这个？！", "againEn":"NOT AGAIN?!"}
+    public const string UserResourceName = "MyMarioReactions";
+    public static string AgainZh = "又是这个？！", AgainEn = "NOT AGAIN?!";
+    public static Beat[] ApplyUserLines(Beat[] table, string json, out string error)
+    {
+        error = ""; var res = (Beat[])table.Clone();
+        if (string.IsNullOrWhiteSpace(json)) return res;
+        if (!(MiniJson.Parse(json, out string je) is Dictionary<string, object> root)) { error = "你的马里奥台词文件写坏了：" + je; return res; }
+        if (root.TryGetValue("lines", out var lo) && lo is List<object> list)
+            foreach (var x in list)
+            {
+                if (!(x is Dictionary<string, object> d)) continue; string k = Str(d, "kind"); int i = Array.FindIndex(res, b => b.kind == k);
+                if (i < 0) { error = "不认识的坑：" + k; continue; }
+                if (d.ContainsKey("zh") && Str(d, "zh").Length > 0) res[i].zh = Str(d, "zh"); if (d.ContainsKey("en")) res[i].en = Str(d, "en");
+            }
+        return res;
+    }
+    public static void ApplyUserAgain(string json)
+    {
+        AgainZh = "又是这个？！"; AgainEn = "NOT AGAIN?!";
+        if (MiniJson.Parse(json ?? "", out _) is Dictionary<string, object> root) { var a = Str(root, "again"); if (a.Length > 0) AgainZh = a; if (root.ContainsKey("againEn")) AgainEn = Str(root, "againEn"); }
+    }
+    public static string UserToJson(IList<Beat> edited, string again, string againEn)
+    {
+        var items = new List<string>();
+        foreach (var b in edited) { TryGet(Default, b.kind, out var d); if (b.zh != d.zh || b.en != d.en) items.Add("    {\"kind\": \"" + b.kind + "\", \"zh\": \"" + Esc(b.zh) + "\", \"en\": \"" + Esc(b.en) + "\"}"); }
+        return "{\n  \"version\": 1,\n  \"help\": \"马里奥中招时头顶喊的字（你的文件，升级不覆盖）。只能改字，动作和时长不能改。\",\n  \"again\": \"" + Esc(again) + "\",\n  \"againEn\": \"" + Esc(againEn) + "\",\n  \"lines\": [" + (items.Count == 0 ? "]\n}\n" : "\n" + string.Join(",\n", items) + "\n  ]\n}\n");
+    }
+    static string Esc(string s) => (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", " ");
 }

@@ -547,7 +547,7 @@ function tsCoverage(t) {
   return out;
 }
 function tsRehearseResult(map, day, door) { const h = owHash('rehearse|' + map + '|' + day + '|' + door) % 5; return h < 2 ? 'defended' : h < 4 ? 'looted' : 'missed'; }
-function tsRehearse(m, t, days) {
+function tsRehearse(m, t, days, witness) {
   const rep = { lines: [], said: 0, sincere: 0, repeats3: 0, distinct: 0, first: {} }, mem = tsMem(), heard = {}, firstOrder = [];
   const doors = m.doors.slice().sort((a, b) => a.minute - b.minute || a.n - b.n).filter(d => owFind(m, String(d.n)).length === 1);
   const hear = (l, day, where) => {
@@ -568,6 +568,7 @@ function tsRehearse(m, t, days) {
       const l = tsPick(t, 'back', 'door', f, mem, day);
       if (l && tsSincere(l) && rep.first[r.trait] === undefined) { rep.first[r.trait] = day; firstOrder.push(r.trait); }
       hear(l, day, '门' + d.n + tsTraitZh(r.trait));
+      if (witness) { const wl = tsWitness(m, t, mem, d.n, 'O', w, day); if (wl) rep.lines.push(`第${day}天 门${d.n}${tsTraitZh(r.trait)}当场 ${tsSincere(wl) ? '♥' : '·'}${wl.id}`); }
     }
     const outcome = doors.length > 0 && def * 2 >= doors.length ? 'won' : 'lost';
     hear(tsPick(t, 'dayend', 'mario', { outcome, death: 'none', byyou: 'no', cause: '', bighits: '0', chain: '0', caught: '0', defendedtoday: String(def), lootedtoday: String(loot), weather: w, day: String(day), bells: '0' }, mem, day), day, '结束');
@@ -621,8 +622,15 @@ function tsValidate(t) {
     if (tsSincere(l) && !l.once) o.push(`⚠ ${l.id}：真心话没勾"只说一次"（说两遍就不真心了）`);
     if (tsSincere(l) && !l.needs.some(n => n.includes('>='))) o.push(`⚠ ${l.id}：真心话没有"要挣"的条件（例如 visits>=3）——第一天就会说`);
     if (!(l.en || '').length) o.push(`· ${l.id}：还没写英文（可以先空着）`);
+    for (const mt of ((l.zh || '') + ' ' + (l.en || '')).matchAll(/\{([^{}]*)\}/g)) { const k = mt[1]; if (k !== 'name' && k !== 'trait' && !keys.includes(k)) o.push(`✗ ${l.id}：{${k}} 填不进去（能用：{name} {trait} ${keys.map(q => '{' + q + '}').join(' ')}）`); }
+    if (l.who !== 'door' && ((l.zh || '').includes('{name}') || (l.zh || '').includes('{trait}'))) o.push(`✗ ${l.id}：{name} / {trait} 只有住户说的话能用`);
     if ((l.zh || '').length > 70) o.push(`· ${l.id}：中文 ${l.zh.length} 字，屏幕上 5 秒读不完（建议 ≤ 70）`);
+    else if (l.when === 'witness' && !tsSincere(l) && (l.zh || '').length > 30) o.push(`· ${l.id}：当场喊的话只停 3.5 秒，${l.zh.length} 字有点长（建议 ≤ 30）`);
   }
+  const sure = (l, tr, res) => !l.once && l.needs.every(n => n === 'trait=' + tr || n === 'result=' + res);
+  for (const tr of TS_TRAITS) for (const res of ['defended', 'looted', 'missed'])
+    if (!t.some(l => l.when === 'back' && l.who === 'door' && sure(l, tr, res))) o.push(`⚠ ${tsTraitZh(tr)}在"${res === 'defended' ? '守住' : res === 'looted' ? '被偷' : '没赶上'}"之后没有一句一定能说的话（你关掉了太多？）——那时他会沉默`);
+  for (const w of ['morning', 'dayend']) if (!t.some(l => l.when === w && !l.once && l.needs.length === 0)) o.push(`⚠ ${w === 'morning' ? '早上闲话' : '一天结束'}没有一句"没有条件"的话——有的早上 / 晚上会没人说话`);
   return o;
 }
 // 台词表导出（和 C# TownStory.ToJson 逐字一致 → 直接替换 Assets/Resources/TownStories.json）
@@ -646,6 +654,46 @@ function idRoll(m, seed, i) {
   return it;
 }
 const idRolls = (m, seed, n) => Array.from({ length: n }, (_, i) => idRoll(m, seed, i).text);
+
+// ═════════ S234：你的台词（MyTownStories.json）= 内置 + 改动；和 C# TownStory.ParseOverlay / Merge / Diff / OverlayToJson / WhenHeard 逐字一致 ═════════
+const TS_OVERLAY_HELP = '这是你自己的台词（升级补丁永远不改这个文件）。同 id = 换掉内置那句；新 id = 新加；off = 关掉内置那句。最方便：Unity 菜单 MarioTrickster/台词编辑器（Ctrl+Alt+L），或网页设计台 大地图 → 台词本。';
+const tsClone = l => ({ id: l.id, who: l.who, when: l.when, tone: l.tone, zh: l.zh, en: l.en || '', note: l.note || '', tier: l.tier, coolDays: l.coolDays, once: !!l.once, needs: l.needs.slice() });
+const tsSame = (a, b) => a.id === b.id && a.who === b.who && a.when === b.when && a.tone === b.tone && a.zh === b.zh && (a.en || '') === (b.en || '') && (a.note || '') === (b.note || '') && a.tier === b.tier && a.coolDays === b.coolDays && !!a.once === !!b.once && a.needs.join('\u0001') === b.needs.join('\u0001');
+const tsWhoFor = w => w === 'morning' ? 'town' : w === 'dayend' ? 'mario' : 'door';
+function tsParseOverlay(json, base) {
+  const o = { lines: [], off: [], error: '' }; if (!json || !String(json).trim()) return o;
+  let root; try { root = JSON.parse(json); } catch (e) { o.error = '你的台词文件写坏了：' + e.message + '（游戏照常，用内置台词）'; return o; }
+  if (!root || !Array.isArray(root.lines)) return o; const seen = new Set();
+  for (const d of root.lines) {
+    if (!d || typeof d !== 'object') continue; const id = String(d.id || '').trim(); if (!id) { o.error = '你的台词里有一句没写 id'; continue; }
+    if (seen.has(id)) { o.error = '你的台词里 id 重复：' + id; continue; } seen.add(id);
+    if (d.off === true) { o.off.push(id); continue; }
+    const b0 = base.find(l => l.id === id), l2 = b0 ? tsClone(b0) : { id, who: 'door', when: 'back', tone: 'comic', zh: '', en: '', note: '', tier: 2, coolDays: 3, once: false, needs: [] };
+    for (const k of ['who', 'when', 'tone', 'zh', 'en', 'note']) if (k in d && typeof d[k] === 'string') l2[k] = d[k]; else if (k in d && (k === 'zh' || k === 'en' || k === 'note')) l2[k] = '';
+    if (typeof d.tier === 'number') l2.tier = Math.trunc(d.tier); if (typeof d.coolDays === 'number') l2.coolDays = Math.trunc(d.coolDays);
+    if (typeof d.once === 'boolean') l2.once = d.once;
+    if (Array.isArray(d.needs)) l2.needs = d.needs.filter(q => typeof q === 'string').map(q => q.trim()).filter(Boolean);
+    if (!l2.zh.length) { o.error = `${id}：没写中文（这句先跳过）`; continue; }
+    o.lines.push(l2);
+  }
+  return o;
+}
+function tsMerge(base, o) { const mine = {}; for (const l of o.lines) mine[l.id] = l; const res = []; for (const l of base) { if (o.off.includes(l.id)) continue; res.push(mine[l.id] || l); } for (const l of o.lines) if (!base.some(b => b.id === l.id)) res.push(l); return res; }
+function tsDiff(base, edited) { const o = { lines: [], off: [], error: '' }; for (const b of base) if (!edited.some(e => e.id === b.id)) o.off.push(b.id); for (const e of edited) { const b = base.find(x => x.id === e.id); if (!b || !tsSame(b, e)) o.lines.push(tsClone(e)); } return o; }
+function tsOverlayToJson(o) {
+  const items = o.lines.map(l => `    {"id": ${tsJ(l.id)}, "who": ${tsJ(l.who)}, "when": ${tsJ(l.when)}, "tier": ${l.tier}, "tone": ${tsJ(l.tone)}, "coolDays": ${l.coolDays}${l.once ? ', "once": true' : ''}, "needs": [${l.needs.map(tsJ).join(', ')}], "zh": ${tsJ(l.zh)}, "en": ${tsJ(l.en)}${(l.note || '').length ? ', "note": ' + tsJ(l.note) : ''}}`).concat(o.off.map(id => `    {"id": ${tsJ(id)}, "off": true}`));
+  return '{\n  "version": 1,\n  "help": ' + tsJ(TS_OVERLAY_HELP) + ',\n  "lines": [' + (items.length ? '\n' + items.join(',\n') + '\n  ]\n}\n' : ']\n}\n');
+}
+function tsNewId(t, stem) { for (let i = 1; ; i++) { const id = `my_${stem}_${i}`; if (!t.some(l => l.id === id)) return id; } }
+function tsWhenHeard(m, t, id, days) {
+  const l = t.find(x => x.id === id); if (!l) return '（这句被关掉了 / 找不到）';
+  let tr = l.needs.find(n => n.startsWith('trait=')); tr = tr ? tr.slice(6) : '';
+  if (l.who === 'door' && tr && !m.doors.some(d => owFind(m, String(d.n)).length === 1 && tsResidentOf(m, d.n).trait === tr)) return `这张地图上没有${tsTraitZh(tr)}：在"住户"里把某扇门改成${tsTraitZh(tr)}，这句才有机会说`;
+  const r = tsRehearse(m, t, days, true);
+  for (const x of r.lines) if (x.endsWith('·' + id) || x.endsWith('♥' + id)) return `彩排里第一次听到：${x.slice(0, x.length - id.length - 1).trim()}`;
+  return `彩排 ${days} 天里没轮到它（条件：${l.needs.length === 0 ? '无' : tsNeedHint(l)}；彩排里每户 守住 / 被偷 / 没赶上 按 4:4:2 轮着来、每天每户门口砸一次）——可能是条件太难，或总有更具体 / 更优先的话先说`;
+}
+function tsShow(l, r) { const who = l.who === 'door' && r ? `${tsTraitZh(r.trait)}·${r.name}` : l.who === 'mario' ? '马里奥' : '镇上的闲话'; const en = tsFill(l.en, r); return en.length ? `${who}：${tsFill(l.zh, r)}\n${en}` : `${who}：${tsFill(l.zh, r)}`; }
 
 // 道具箱洗牌袋
 const OW_BAG = ['Bomb', 'Bomb', 'Energy', 'Taunt', 'Heart'];

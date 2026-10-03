@@ -525,7 +525,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
     }
 
     // ═════════ S232：住户与故事（TownStory；和网页"住户与故事"同一套）═════════
-    private bool storyOpen = true; private List<string> storyC;
+    private bool storyOpen = true; private List<string> storyC; private int ideaSeed = 1; // S233
     private void ResidentPanel()
     {
         EditorGUILayout.Space();
@@ -551,12 +551,18 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         }
         if (storyC == null) // S220 防卡规则：不在 OnGUI 里每帧做全图计算 —— 只在 Recheck（改了地图）之后重算一次
         {
-            storyC = new List<string> { TownStory.RehearsalSummary(TownStory.Rehearse(map, TownStory.Table, 14), 14) };
+            var reh = TownStory.Rehearse(map, TownStory.Table, 14);
+            storyC = new List<string> { TownStory.RehearsalSummary(reh, 14) };
             storyC.AddRange(TownStory.Coverage(TownStory.Table)); storyC.AddRange(OverworldPickupBag.Preview(map, 1, 7));
+            storyC.AddRange(TownStory.Validate(TownStory.Table).Where(v => !v.StartsWith("·"))); // S233：台词写错的地方
+            storyC.Add("— 彩排 14 天后的居民笔记本（游戏里按 N）—"); storyC.AddRange(TownStory.NotebookText(map, TownStory.Table, reh.mem).Split('\n').Where(x => x.Length > 0).Take(24));
+            storyC.Add("— 🎲 灵感骰子（点下面按钮换一组）—"); storyC.AddRange(IdeaDice.Rolls(map, ideaSeed, 3));
         }
         foreach (var l in storyC) EditorGUILayout.LabelField(l, EditorStyles.wordWrappedMiniLabel);
         if (GUILayout.Button(new GUIContent("改台词…", "打开 Assets/Resources/TownStories.json（文本文件，直接改中文 / 英文 / 条件）。网页设计台重建后也会用新台词"), EditorStyles.miniButton))
         { var a = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Resources/" + TownStory.ResourceName + ".json"); if (a != null) AssetDatabase.OpenAsset(a); }
+        if (GUILayout.Button(new GUIContent("🎲 再掷一次灵感骰子", "随机给一个'谁家门口 + 天气 + 机关 + 限制'的题目（不改地图）。复制下面那行，可以直接当新台词的起点"), EditorStyles.miniButton)) { ideaSeed++; storyC = null; }
+        if (GUILayout.Button(new GUIContent("复制一句当场喊的台词模板", "贴进 TownStories.json 的 lines 里，改中文就行"), EditorStyles.miniButton)) EditorGUIUtility.systemCopyBuffer = IdeaDice.Roll(map, ideaSeed, 0).lineStub;
     }
 
     private void PropsPanel()

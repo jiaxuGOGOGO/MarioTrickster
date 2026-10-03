@@ -699,10 +699,57 @@ function owResRender() {
   const set = (n, f, v) => { owPush(); let r = m.residents.find(x => x.door === n); if (!r) { const d0 = tsResidentOf(m, n); r = { door: n, name: d0.name, trait: d0.trait }; m.residents.push(r); m.residents.sort((a, b) => a.door - b.door); } r[f] = owOne(v) || r[f]; owRender(); };
   box.querySelectorAll('input').forEach(el => el.onchange = () => set(+el.dataset.n, 'name', el.value));
   box.querySelectorAll('select').forEach(el => el.onchange = () => set(+el.dataset.n, 'trait', el.value));
+  owTuneRender();
+  const r14 = tsRehearse(m, TSW(), 14);
+  $('#owStory').innerHTML = [tsRehearsalSummary(r14, 14), ...tsCoverage(TSW()), ...owBagPreview(m, 1, 7)].map(esc).join('<br>')
+    + `<details><summary>📖 彩排 14 天后的居民笔记本（游戏里按 N）</summary><pre class="owpre">${esc(tsNotebookText(m, TSW(), r14.mem))}</pre></details>`;
+  owIdeaRender(); owLinesRender();
+}
+// ═════ S233：数值关系（连上 Unity 文件夹 → 读你在 Inspector 里改过的 RushMarioTuning.asset）═════
+var TU_DIFF = null;
+function owTuneRender() {
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const tu = tuAudit(), bad = tu.filter(r => !r.ok);
-  $('#owTune').innerHTML = (bad.length ? bad.map(r => `<div class="owiss Warn">⚠ ${esc(r.rule)}（现在 ${esc(r.detail)}）：${esc(r.why)}</div>`).join('') : `✓ 数值之间的 ${tu.length} 条关系都对`) + `<br>网页用的速度 = Unity 默认值：马里奥 ${OW.Rules.marioSpeed} 格/秒、你 ${OW.Rules.tricksterSpeed} 格/秒、房间里跑速 ${RULES.RunSpeed} 格/秒、开局等 ${RULES.StartDelay} 秒`;
-  const r14 = tsRehearse(m, TS_STORIES, 14);
-  $('#owStory').innerHTML = [tsRehearsalSummary(r14, 14), ...tsCoverage(TS_STORIES), ...owBagPreview(m, 1, 7)].map(esc).join('<br>');
+  $('#owTune').innerHTML = (bad.length ? bad.map(r => `<div class="owiss Warn">⚠ ${esc(r.rule)}（现在 ${esc(r.detail)}）：${esc(r.why)}</div>`).join('') : `✓ 数值之间的 ${tu.length} 条关系都对`)
+    + `<br>${TU_OVR ? '网页用的速度 = 你 Unity 项目里的值' : '网页用的速度 = Unity 默认值（点 🔗 连上 Unity 项目文件夹 → 读你手动改过的值）'}：马里奥 ${OW.Rules.marioSpeed} 格/秒、你 ${OW.Rules.tricksterSpeed} 格/秒、房间里跑速 ${RULES.RunSpeed} 格/秒、开局等 ${RULES.StartDelay} 秒`
+    + (TU_DIFF ? `<br>${TU_DIFF.length ? `你手动改过 ${TU_DIFF.length} 个：` + TU_DIFF.slice(0, 12).map(esc).join('；') : '调参文件 = 全部默认值'}` : '');
+}
+async function syReadTuning() {
+  try { const res = await (await SY.dir.getDirectoryHandle('Assets')).getDirectoryHandle('Resources'); const st = await res.getDirectoryHandle('Step1'); const f = await st.getFileHandle('RushMarioTuning.asset');
+    const a = tuFromYaml(await (await f.getFile()).text()); tuApply(a); TU_DIFF = tuDiff(a);
+    if (a.marioSpeedScale !== undefined) RULES.RunSpeed = Math.round(9 * a.marioSpeedScale * 100) / 100; if (a.startDelaySeconds !== undefined) RULES.StartDelay = a.startDelaySeconds;
+  } catch (e) { TU_DIFF = null; }
+  if ($('#owTune')) owTuneRender();
+}
+// ═════ S233：灵感骰子 ═════
+var ID_SEED = 1;
+function owIdeaRender() {
+  const box = $('#owIdea'); if (!box) return; const m = owM(), esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  box.innerHTML = idRolls(m, ID_SEED, 3).map(esc).join('<br>') + `<br><button class="btn small" id="btnIdea">🎲 再掷一次</button> <button class="btn small" id="btnIdeaLine">把第一题变成一句新台词 →</button>`;
+  $('#btnIdea').onclick = () => { ID_SEED++; owIdeaRender(); };
+  $('#btnIdeaLine').onclick = () => { const it = idRoll(m, ID_SEED, 0); TS_EDIT.push(JSON.parse(it.lineStub)); tsEditSave(); owLinesRender(); toast('加了一句当场喊的模板：在下面的台词本里改中文'); };
+}
+// ═════ S233：台词本（不用打开 JSON：改中文 / 条件 → 检查 → 导出替换 Assets/Resources/TownStories.json）═════
+const LSTS = 'mariotrickster.townstories.edit';
+var TS_EDIT = null; try { TS_EDIT = JSON.parse(localStorage.getItem(LSTS) || 'null'); } catch (e) { } if (!Array.isArray(TS_EDIT)) TS_EDIT = null;
+const TSW = () => TS_EDIT || TS_STORIES;
+function tsEditStart() { if (!TS_EDIT) TS_EDIT = JSON.parse(JSON.stringify(TS_STORIES)); }
+function tsEditSave() { try { localStorage.setItem(LSTS, JSON.stringify(TS_EDIT)); } catch (e) { } }
+var TS_FILTER = '';
+function owLinesRender() {
+  const box = $('#owLines'); if (!box) return; const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  const t = TSW(), v = tsValidate(t), f = TS_FILTER.trim();
+  const rows = t.map((l, i) => [l, i]).filter(([l]) => !f || (l.id + l.zh + l.needs.join(';') + l.when).includes(f)).slice(0, 60);
+  box.innerHTML = `<div class="hint">${TS_EDIT ? '✎ 你改过（存在这个浏览器里）' : '和 Unity 同一份（还没改过）'} · 共 ${t.length} 句 · ${v.filter(x => x[0] === '✗').length} 处写错 · ${v.filter(x => x[0] === '⚠').length} 处提醒</div>`
+    + `<input class="f" id="tsFilter" placeholder="搜：baker / 真心 / witness / 宝贝…" value="${esc(TS_FILTER)}">`
+    + rows.map(([l, i]) => `<div class="tsl"><b>${esc(l.id)}</b> <small>${esc(l.when)}${l.tone === 'sincere' ? ' ♥真心' : ''}${l.once ? ' 只说一次' : ''}</small><br><input class="f" data-i="${i}" data-f="zh" value="${esc(l.zh)}" aria-label="中文"><input class="f" data-i="${i}" data-f="needs" value="${esc(l.needs.join(';'))}" aria-label="条件（分号隔开）" title="条件，分号隔开：trait=baker;visits>=3"></div>`).join('')
+    + (v.length ? `<details><summary>检查（${v.length}）</summary>${v.map(esc).join('<br>')}</details>` : '<div>✓ 没发现问题</div>')
+    + `<button class="btn small" id="btnTsExport">⬇ 导出 TownStories.json</button> <button class="btn small" id="btnTsReset">↺ 恢复成 Unity 那份</button>`
+    + `<p class="hint">导出后替换 Unity 项目里的 Assets/Resources/TownStories.json（Unity 一键体检会再检查一遍）。条件写法：key=值 / key&gt;=数字；能用哪些 key 见"检查"。</p>`;
+  $('#tsFilter').oninput = e => { TS_FILTER = e.target.value; owLinesRender(); const el = $('#tsFilter'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); };
+  box.querySelectorAll('input[data-i]').forEach(el => el.onchange = () => { tsEditStart(); const l = TS_EDIT[+el.dataset.i]; if (el.dataset.f === 'zh') l.zh = el.value; else l.needs = el.value.split(';').map(x => x.trim()).filter(Boolean); tsEditSave(); owResRender(); });
+  $('#btnTsExport').onclick = () => { const bad = tsValidate(TSW()).filter(x => x[0] === '✗'); if (bad.length && !confirm(`还有 ${bad.length} 处写错（那几句游戏里永远不会说）。仍然导出？`)) return; download('TownStories.json', tsToJson(TSW()), 'application/json'); };
+  $('#btnTsReset').onclick = () => { if (!confirm('丢掉网页里改过的台词，恢复成 Unity 那份？')) return; TS_EDIT = null; localStorage.removeItem(LSTS); owResRender(); };
 }
 // ═════ S220：雷区面板 + 伤害一览 ═════
 function owStormsRender() {
@@ -943,7 +990,7 @@ async function syConnect(reuse) {
     SY = { dir, name: dir.name, levels, synced: JSON.parse(localStorage.getItem(SYKEY) || '{}'), timer: 0, busy: false };
     await syIdb('readwrite', s => s.put(dir, 'dir'));
     syStatus('🔗 ' + dir.name, 'gold'); $('#btnPlayUnity').hidden = false;
-    await syPull(true); await syPush();
+    await syPull(true); await syPush(); await syReadTuning(); // S233：读你在 Inspector 里改过的数值
   } catch (e) { if (e.name !== 'AbortError') toast('连接失败：' + e.message); }
 }
 function sySaveHashes() { try { localStorage.setItem(SYKEY, JSON.stringify(SY.synced)); } catch (e) { } }

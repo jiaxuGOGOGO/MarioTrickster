@@ -78,4 +78,37 @@ public static class TuningAudit
         foreach (var r in rs) if (!r.ok) { bad++; sb.AppendLine($"⚠ {r.rule}（现在 {r.detail}）：{r.why}"); }
         return (bad == 0 ? $"✓ 数值之间的 {rs.Count} 条关系都对（追人比你慢、晚上看得近、预警够长……）\n" : $"{bad} / {rs.Count} 条数值关系不对：\n") + sb;
     }
+
+    // ── S233：读 Unity 的 .asset（YAML）——网页连上项目文件夹后读 Assets/Resources/Step1/RushMarioTuning.asset，看到你在 Inspector 里手动改过的值 ──
+    /// <summary>只认"两个空格 + 字段名: 数字/true/false"的行（Unity 序列化单个数值的格式，见 Unity 手册 "Format of Text Serialized files"）。
+    /// 返回 字段名 → 数值（bool 记为 1/0）。网页 tuFromYaml 逐字一致。</summary>
+    public static SortedDictionary<string, double> FromYaml(string yaml)
+    {
+        var o = new SortedDictionary<string, double>(StringComparer.Ordinal);
+        foreach (var raw in (yaml ?? "").Replace("\r", "").Split('\n'))
+        {
+            if (!raw.StartsWith("  ") || raw.StartsWith("   ")) continue;
+            int c = raw.IndexOf(": ", StringComparison.Ordinal); if (c < 3) continue;
+            string k = raw.Substring(2, c - 2), v = raw.Substring(c + 2).Trim();
+            if (k.Length == 0 || k.StartsWith("m_")) continue;
+            bool okName = true; foreach (char ch in k) if (!(char.IsLetterOrDigit(ch) || ch == '_')) okName = false; if (!okName) continue;
+            if (double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out double d)) o[k] = d;
+        }
+        return o;
+    }
+    /// <summary>和默认值比：哪些字段被你改过（网页"📐 数值关系"会列出来）。</summary>
+    public static List<string> DiffFromDefault(MarioMindTuningSO def, IDictionary<string, double> asset)
+    {
+        var o = new List<string>();
+        foreach (var f in typeof(MarioMindTuningSO).GetFields(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (!asset.TryGetValue(f.Name, out double a)) continue;
+            double v = f.FieldType == typeof(bool) ? ((bool)f.GetValue(def) ? 1 : 0) : f.FieldType == typeof(int) ? (int)f.GetValue(def) : f.FieldType == typeof(float) ? (float)f.GetValue(def) : double.NaN;
+            if (double.IsNaN(v) || f.Name == "dataVersion") continue;
+            if (Math.Abs(a - v) > 1e-4) o.Add($"{f.Name}: 默认 {Fm(v)} → 你改成 {Fm(a)}");
+        }
+        return o;
+    }
+
+    static string Fm(double v) => (Math.Round(v * 1000) / 1000).ToString(CultureInfo.InvariantCulture);
 }

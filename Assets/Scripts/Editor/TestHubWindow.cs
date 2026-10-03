@@ -63,6 +63,7 @@ public sealed class TestHubWindow : EditorWindow
                 if (GUILayout.Button("🏘 小镇工坊")) OverworldWorkshopWindow.Open();
                 if (GUILayout.Button("🏠 关卡工坊")) LevelWorkshopWindow.Open();
                 if (GUILayout.Button(new GUIContent("🧪 跑 EditMode 测试", "结果写进 TestReport.txt，打包反馈会带上"))) TestReportRunner.RunEditModeTests();
+                if (GUILayout.Button(new GUIContent("🏠 忘掉居民记忆", "S233：居民记得你来往了几次、听过哪些真心话（跨次保留）。点这里 = 从头再认识一遍"))) { PlayerPrefs.DeleteKey(OverworldGame.MemoryKey); PlayerPrefs.Save(); TownStory.Reset(); ShowNotification(new GUIContent("居民记忆已清空")); }
                 if (GUILayout.Button("📂 打开记录文件夹")) { Directory.CreateDirectory(LogsRoot); EditorUtility.RevealInFinder(LogsRoot); }
             }
         }
@@ -151,6 +152,11 @@ public sealed class TestHubWindow : EditorWindow
             var sample = OverworldMap.Parse(OverworldPack.SampleText); var reh = TownStory.Rehearse(sample, stories, 14);
             sb.AppendLine("· " + OverworldPack.SampleName + " " + TownStory.RehearsalSummary(reh, 14));
             if (reh.repeats3 > 0) Warn($"彩排里 3 天内听到同一句 {reh.repeats3} 次：加几句台词，或把 coolDays 调大");
+            foreach (var v in TownStory.Validate(stories)) { if (v.StartsWith("✗") || v.StartsWith("⚠")) Warn(v); } // S233：写台词的检查（条件写错 = 永远不说）
+            if (PlayerPrefs.HasKey(OverworldGame.MemoryKey)) { var mm = TownStory.MemFromJson(PlayerPrefs.GetString(OverworldGame.MemoryKey)); var pr = TownStory.SincereProgress(stories, mm); sb.AppendLine($"· 居民记忆（存档）：累计 {mm.totalDays} 天，真心话 {pr.got}/{pr.total} 段"); }
+            // S233：你在 Inspector 里手动改过的数值（网页连上项目文件夹后也读同一个文件）
+            var tunPath = "Assets/Resources/" + MarioMindTuningSO.ResourcePath + ".asset";
+            if (File.Exists(tunPath)) { var diff = TuningAudit.DiffFromDefault(CreateInstance<MarioMindTuningSO>(), TuningAudit.FromYaml(File.ReadAllText(tunPath))); sb.AppendLine(diff.Count == 0 ? "· 调参文件 = 全部默认值" : $"· 你手动改过 {diff.Count} 个数值：" + string.Join("；", diff.Take(12))); }
 
             sb.AppendLine("\n## 第 1 步出口（从你的试玩记录自动算）");
             sb.Append(Step1ExitReport.Markdown(Step1ExitReport.ParseAll(Directory.Exists(LogsRoot)

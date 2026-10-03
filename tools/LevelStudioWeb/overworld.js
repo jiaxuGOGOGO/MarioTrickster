@@ -5,7 +5,12 @@ const OW = { MinW: 16, MinH: 12, MaxW: 192, MaxH: 128, DayStart: 360, DayEnd: 13
 // S232：小镇速度 / 时间也从 Unity 调参默认值来（同上）
 if (typeof TUNING !== 'undefined') OW.Rules = { marioSpeed: TUNING.overworldMarioSpeed.v, tricksterSpeed: TUNING.overworldTricksterSpeed.v, minutesPerSecond: TUNING.overworldMinutesPerSecond.v, visitMinutes: TUNING.overworldVisitMinutes.v };
 // S232：数值关系检查（TuningAudit.cs 的同一张规则表）
-function tuValue(tok) { tok = tok.trim(); let mul = 1; const st = tok.indexOf('*'); if (st > 0) { mul = +tok.slice(st + 1).trim(); tok = tok.slice(0, st).trim(); } if (/^-?\d+(\.\d+)?$/.test(tok)) return +tok * mul; const e = typeof TUNING !== 'undefined' ? TUNING[tok] : null; if (!e) return null; return (e.t === 'bool' ? (e.v ? 1 : 0) : e.v) * mul; }
+// S233：TU_OVR = 从 Unity 项目里读到的 RushMarioTuning.asset（你在 Inspector 手动改过的值）；没连 = null，用默认值
+var TU_OVR = null;
+function tuFromYaml(yaml) { const o = {}; for (const raw of String(yaml || '').replace(/\r/g, '').split('\n')) { if (!raw.startsWith('  ') || raw.startsWith('   ')) continue; const c = raw.indexOf(': '); if (c < 3) continue; const k = raw.slice(2, c), v = raw.slice(c + 2).trim(); if (!k || k.startsWith('m_') || !/^[A-Za-z0-9_]+$/.test(k)) continue; if (/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(v)) o[k] = +v; } return Object.keys(o).sort().reduce((a, k) => (a[k] = o[k], a), {}); }
+function tuDiff(asset) { const o = []; if (typeof TUNING === 'undefined') return o; for (const k of Object.keys(TUNING)) { if (asset[k] === undefined || k === 'dataVersion') continue; const e = TUNING[k], v = e.t === 'bool' ? (e.v ? 1 : 0) : e.v; if (Math.abs(asset[k] - v) > 1e-4) o.push(`${k}: 默认 ${tuF(v)} → 你改成 ${tuF(asset[k])}`); } return o; }
+function tuApply(asset) { TU_OVR = asset; const g = (k, d) => asset && asset[k] !== undefined ? asset[k] : d; if (typeof TUNING === 'undefined') return; OW.Rules = { marioSpeed: g('overworldMarioSpeed', TUNING.overworldMarioSpeed.v), tricksterSpeed: g('overworldTricksterSpeed', TUNING.overworldTricksterSpeed.v), minutesPerSecond: g('overworldMinutesPerSecond', TUNING.overworldMinutesPerSecond.v), visitMinutes: g('overworldVisitMinutes', TUNING.overworldVisitMinutes.v) }; }
+function tuValue(tok) { tok = tok.trim(); let mul = 1; const st = tok.indexOf('*'); if (st > 0) { mul = +tok.slice(st + 1).trim(); tok = tok.slice(0, st).trim(); } if (/^-?\d+(\.\d+)?$/.test(tok)) return +tok * mul; if (TU_OVR && TU_OVR[tok] !== undefined) return TU_OVR[tok] * mul; const e = typeof TUNING !== 'undefined' ? TUNING[tok] : null; if (!e) return null; return (e.t === 'bool' ? (e.v ? 1 : 0) : e.v) * mul; }
 const tuF = v => String(Math.round(v * 1000) / 1000);
 function tuAudit() {
   return (typeof TUNING_RULES === 'undefined' ? [] : TUNING_RULES).map(line => {
@@ -511,7 +516,7 @@ function tsMatch(need, f) {
   if (!/^-?\d+$/.test(x) || !/^-?\d+$/.test(v)) return false; return op === '>=' ? +x >= +v : +x <= +v;
 }
 const tsSincere = l => l.tone === 'sincere';
-function tsMem() { return { lastDay: {}, said: new Set(), visits: {}, defended: {}, looted: {}, missed: {}, comic: TS_SINCERE_EVERY, sincereDay: -1, yDay: 0, yOutcome: '', yDefended: 0, yLooted: 0 }; }
+function tsMem() { return { lastDay: {}, said: new Set(), visits: {}, defended: {}, looted: {}, missed: {}, witnessed: {}, unlock: {}, totalDays: 0, comic: TS_SINCERE_EVERY, sincereDay: -1, yDay: 0, yOutcome: '', yDefended: 0, yLooted: 0 }; }
 function tsPick(table, when, who, f, mem, day) {
   let best = null, bT = 1e9, bS = -1, bL = 1e9, bH = 0; const ok = mem.comic >= TS_SINCERE_EVERY && mem.sincereDay !== day;
   for (const l of table) {
@@ -522,12 +527,13 @@ function tsPick(table, when, who, f, mem, day) {
     const better = l.tier < bT || (l.tier === bT && (sc > bS || (sc === bS && (last < bL || (last === bL && tie < bH)))));
     if (!best || better) { best = l; bT = l.tier; bS = sc; bL = last; bH = tie; }
   }
+  if (!best && when === 'witness') return null; // S233：当场喊的话不兜底
   if (!best) { let fb = null, fL = 1e9, fS = -1; // 兜底：冷却中的好笑话挑最久没说的（和 C# PickFallback 一样）
     for (const l of table) { if (l.when !== when || l.who !== who || l.once || tsSincere(l) || !l.needs.every(n => tsMatch(n, f))) continue; const last = mem.lastDay[l.id] !== undefined ? mem.lastDay[l.id] : -1, sc = l.needs.length; if (!fb || last < fL || (last === fL && sc > fS)) { fb = l; fL = last; fS = sc; } }
     return fb; }
   return best;
 }
-function tsSay(l, mem, day) { mem.lastDay[l.id] = day; mem.said.add(l.id); if (tsSincere(l)) { mem.comic = 0; mem.sincereDay = day; } else mem.comic++; }
+function tsSay(l, mem, day) { mem.lastDay[l.id] = day; mem.said.add(l.id); if (tsSincere(l)) { mem.comic = 0; mem.sincereDay = day; if (mem.unlock[l.id] === undefined) mem.unlock[l.id] = mem.totalDays + 1; } else mem.comic++; }
 const tsGet = (d, n) => d[n] || 0;
 function tsCoverage(t) {
   const out = [];
@@ -536,6 +542,7 @@ function tsCoverage(t) {
     const own = mine.filter(x => x.needs.includes('trait=' + tr)).length, sin = mine.filter(tsSincere).length;
     out.push(`${tsTraitZh(tr)}：回小镇 ${mine.length} 句（专属 ${own}、真情 ${sin}）` + (own < TS_MIN_BACK ? ` ⚠ 专属少于 ${TS_MIN_BACK} 句，玩几天就会听到重复` : ''));
   }
+  out.push(`当场喊：${t.filter(x => x.when === 'witness').length} 句（大机关在他家门口砸中马里奥时）`);
   for (const w of ['morning', 'dayend']) out.push(`${w === 'morning' ? '早上闲话' : '一天结束'}：${t.filter(x => x.when === w).length} 句`);
   return out;
 }
@@ -557,20 +564,89 @@ function tsRehearse(m, t, days) {
       const res = tsRehearseResult(m.name, day, d.n), r = tsResidentOf(m, d.n);
       mem.visits[d.n] = tsGet(mem.visits, d.n) + 1;
       if (res === 'defended') { mem.defended[d.n] = tsGet(mem.defended, d.n) + 1; def++; } else if (res === 'looted') { mem.looted[d.n] = tsGet(mem.looted, d.n) + 1; loot++; } else mem.missed[d.n] = tsGet(mem.missed, d.n) + 1;
-      const f = { door: String(d.n), trait: r.trait, result: res, weather: w, visits: String(tsGet(mem.visits, d.n)), defended: String(tsGet(mem.defended, d.n)), looted: String(tsGet(mem.looted, d.n)), missed: String(tsGet(mem.missed, d.n)), day: String(day), n: String(tsGet(mem.visits, d.n)), bighit: 'no', bells: '0' };
+      const f = { door: String(d.n), trait: r.trait, result: res, weather: w, visits: String(tsGet(mem.visits, d.n)), defended: String(tsGet(mem.defended, d.n)), looted: String(tsGet(mem.looted, d.n)), missed: String(tsGet(mem.missed, d.n)), witnessed: String(tsGet(mem.witnessed, d.n)), day: String(day), n: String(tsGet(mem.visits, d.n)), bighit: 'no', bells: '0' };
       const l = tsPick(t, 'back', 'door', f, mem, day);
       if (l && tsSincere(l) && rep.first[r.trait] === undefined) { rep.first[r.trait] = day; firstOrder.push(r.trait); }
       hear(l, day, '门' + d.n + tsTraitZh(r.trait));
     }
     const outcome = doors.length > 0 && def * 2 >= doors.length ? 'won' : 'lost';
     hear(tsPick(t, 'dayend', 'mario', { outcome, death: 'none', byyou: 'no', cause: '', bighits: '0', chain: '0', caught: '0', defendedtoday: String(def), lootedtoday: String(loot), weather: w, day: String(day), bells: '0' }, mem, day), day, '结束');
-    mem.yDay = day; mem.yOutcome = outcome; mem.yDefended = def; mem.yLooted = loot;
+    mem.yDay = day; mem.yOutcome = outcome; mem.yDefended = def; mem.yLooted = loot; mem.totalDays = day;
   }
-  rep.distinct = Object.keys(heard).length; rep.firstOrder = firstOrder.map((k, i) => [k, rep.first[k], i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(x => x[0]);
+  rep.mem = mem; rep.distinct = Object.keys(heard).length; rep.firstOrder = firstOrder.map((k, i) => [k, rep.first[k], i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(x => x[0]);
   return rep;
 }
 const tsRehearsalSummary = (r, days) => `彩排 ${days} 天：说了 ${r.said} 句（不同的 ${r.distinct} 句），真心话 ${r.sincere} 句；3 天内重复 ${r.repeats3} 次` +
   (r.firstOrder.length ? '；第一次真心话：' + r.firstOrder.map(k => `${tsTraitZh(k)} 第${r.first[k]}天`).join('、') : '；还没有人说真心话');
+// ═════════ S233：当场喊 / 居民笔记本 / 台词检查 / 灵感骰子 / 存档（TownStory.cs、IdeaDice.cs 逐行移植；verify 逐字对照）═════════
+const TS_WITNESS_RANGE = 7;
+function tsNearestDoor(m, x, y, maxDist) { let best = 0, bd = maxDist * maxDist + 1e-9; for (const d of m.doors.slice().sort((a, b) => a.n - b.n)) { const c = owFind(m, String(d.n)); if (c.length !== 1) continue; const dx = c[0][0] + 0.5 - x, dy = c[0][1] + 0.5 - y, dd = dx * dx + dy * dy; if (dd < bd) { bd = dd; best = d.n; } } return best; }
+function tsWitnessFacts(r, cause, w, mem, day) { return { door: String(r.door), trait: r.trait, cause: cause === ' ' ? '' : cause, weather: w, witnessed: String(tsGet(mem.witnessed, r.door)), visits: String(tsGet(mem.visits, r.door)), day: String(day) }; }
+function tsWitness(m, t, mem, door, cause, w, day) { if (door <= 0) return null; mem.witnessDay = mem.witnessDay || {}; if (mem.witnessDay[door] === day) return null; mem.witnessed[door] = tsGet(mem.witnessed, door) + 1; const r = tsResidentOf(m, door), l = tsPick(t, 'witness', 'door', tsWitnessFacts(r, cause, w, mem, day), mem, day); mem.witnessDay[door] = day; if (l) tsSay(l, mem, day); return l; }
+function tsNeedHint(l) {
+  const p = [];
+  for (const n of l.needs) {
+    if (n.startsWith('trait=')) continue;
+    if (n.startsWith('visits>=')) p.push('来往 ' + n.slice(8) + ' 次'); else if (n.startsWith('defended>=')) p.push('守住 ' + n.slice(10) + ' 次'); else if (n.startsWith('looted>=')) p.push('被偷 ' + n.slice(8) + ' 次');
+    else if (n.startsWith('witnessed>=')) p.push('在他家门口闹出 ' + n.slice(11) + ' 次大动静'); else if (n.startsWith('day>=')) p.push('第 ' + n.slice(5) + ' 天以后');
+    else if (n === 'outcome=won') p.push('那天你赢了'); else if (n === 'outcome=lost') p.push('那天你输了');
+    else if (n.startsWith('weather=')) { const w = n.slice(8); p.push(w === 'rain' ? '下雨天' : w === 'fog' ? '大雾天' : w === 'storm' ? '雷雨天' : w === 'wind' ? '大风天' : '特别的天气'); }
+    else p.push('某个特别的日子');
+  }
+  return p.length ? p.join('、') : '多来几次';
+}
+const tsFill = (s, r) => String(s || '').replace(/\{name\}/g, r ? r.name : '').replace(/\{trait\}/g, r ? tsTraitZh(r.trait) : '');
+function tsNotebookText(m, t, mem) {
+  const got = t.filter(l => tsSincere(l) && mem.said.has(l.id)).length, tot = t.filter(tsSincere).length;
+  let s = `居民笔记本  真心话 ${got}/${tot} 段　累计 ${mem.totalDays} 天\n`;
+  for (const d of m.doors.slice().sort((a, b) => a.n - b.n)) {
+    if (owFind(m, String(d.n)).length !== 1) continue; const r = tsResidentOf(m, d.n), n = d.n;
+    s += `\n门${n} ${tsTraitZh(r.trait)}·${r.name}　来往 ${tsGet(mem.visits, n)}　守住 ${tsGet(mem.defended, n)}　被偷 ${tsGet(mem.looted, n)}　没赶上 ${tsGet(mem.missed, n)}　门口大动静 ${tsGet(mem.witnessed, n)}\n`;
+    for (const l of t.filter(x => tsSincere(x) && x.who === 'door' && x.needs.includes('trait=' + r.trait))) s += '  ' + (mem.said.has(l.id) ? `♥ ${tsFill(l.zh, r)}` + (mem.unlock[l.id] !== undefined ? `（第 ${mem.unlock[l.id]} 天）` : '') : `？ 还没听过——${tsNeedHint(l)}`) + '\n';
+  }
+  s += '\n镇上 / 马里奥\n';
+  for (const l of t.filter(x => tsSincere(x) && x.who !== 'door')) s += '  ' + (mem.said.has(l.id) ? `♥ ${l.who === 'mario' ? '马里奥' : '镇上'}：${tsFill(l.zh, null)}` : `？ 还没听过——${tsNeedHint(l)}`) + '\n';
+  return s;
+}
+const TS_FACT_KEYS = { back: ['door', 'trait', 'result', 'weather', 'visits', 'defended', 'looted', 'missed', 'witnessed', 'day', 'n', 'bighit', 'bells'], witness: ['door', 'trait', 'cause', 'weather', 'witnessed', 'visits', 'day'], morning: ['yesterday', 'ydeath', 'ybighits', 'ydefended', 'ylooted', 'weather', 'day'], dayend: ['outcome', 'death', 'byyou', 'cause', 'bighits', 'chain', 'caught', 'defendedtoday', 'lootedtoday', 'weather', 'day', 'bells'] };
+function tsNeedKey(n) { for (const op of ['>=', '<=', '!=', '=']) { const i = n.indexOf(op); if (i > 0) return n.slice(0, i).trim(); } return ''; }
+function tsValidate(t) {
+  const o = [], ids = new Set();
+  for (const l of t) {
+    if (ids.has(l.id)) o.push(`✗ ${l.id}：id 重复`); ids.add(l.id);
+    const keys = TS_FACT_KEYS[l.when]; if (!keys) { o.push(`✗ ${l.id}：时机 ${l.when} 不认识（morning / back / dayend / witness）`); continue; }
+    const who = l.when === 'morning' ? 'town' : l.when === 'dayend' ? 'mario' : 'door';
+    if (l.who !== who) o.push(`✗ ${l.id}：${l.when} 的话只能由 ${who} 说（现在写的是 ${l.who}）`);
+    for (const n of l.needs) { const k = tsNeedKey(n); if (!k || !keys.includes(k)) o.push(`✗ ${l.id}：条件 ${n} 用不了（${l.when} 能用：${keys.join(' ')}）`); }
+    if (tsSincere(l) && !l.once) o.push(`⚠ ${l.id}：真心话没勾"只说一次"（说两遍就不真心了）`);
+    if (tsSincere(l) && !l.needs.some(n => n.includes('>='))) o.push(`⚠ ${l.id}：真心话没有"要挣"的条件（例如 visits>=3）——第一天就会说`);
+    if (!(l.en || '').length) o.push(`· ${l.id}：还没写英文（可以先空着）`);
+    if ((l.zh || '').length > 70) o.push(`· ${l.id}：中文 ${l.zh.length} 字，屏幕上 5 秒读不完（建议 ≤ 70）`);
+  }
+  return o;
+}
+// 台词表导出（和 C# TownStory.ToJson 逐字一致 → 直接替换 Assets/Resources/TownStories.json）
+function tsJ(s) { return '"' + String(s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"'; }
+function tsToJson(t) {
+  let s = '{\n  "version": 1,\n  "lines": [\n';
+  t.forEach((l, i) => { s += `    {"id": ${tsJ(l.id)}, "who": ${tsJ(l.who)}, "when": ${tsJ(l.when)}, "tier": ${l.tier}, "tone": ${tsJ(l.tone)}, "coolDays": ${l.coolDays}${l.once ? ', "once": true' : ''}, "needs": [${l.needs.map(tsJ).join(', ')}], "zh": ${tsJ(l.zh)}, "en": ${tsJ(l.en)}${(l.note || '').length ? ', "note": ' + tsJ(l.note) : ''}}${i < t.length - 1 ? ',\n' : '\n'}`; });
+  return s + '  ]\n}\n';
+}
+// 灵感骰子（IdeaDice.cs）
+const ID_PROPS = ['巨炮 K', '滚石 O', '水塔 U', '钟楼 B'], ID_SMALLS = ['香蕉皮 L', '高草（躲）', '雷区', '山丘 ^（挡视线）', '山洞 h（一对）', '木箱伪装 P', '挑衅 T', '道具箱 ?'];
+const ID_WEATHERS = ['晴天', '大风', '雨天', '雾天', '赶集日', '雷雨', '酸雨'];
+const ID_TWISTS = ['让他背对这户人家的门', '两个机关连成一串（冲击 1.5 格内）', '全程只许用一次挑衅', '让这户人家当场看见他被砸', '门口 5 格内没有草可躲', '他坐炮抄近路时你去拨歪', '你得先绕到他身后', '让他差点发现你（视锥擦过）', '这户人家今天第 3 次来往（准备说真心话）', '宝贝被偷也要好笑', '下一扇门只差 30 秒', '用天气替你出手（你不按 L）'];
+const idPick = (a, k) => a[owHash(k) % a.length];
+function idRoll(m, seed, i) {
+  const doors = (m ? m.doors : []).filter(d => owFind(m, String(d.n)).length === 1).map(d => d.n).sort((a, b) => a - b); if (!doors.length) doors.push(1);
+  const k = (m ? m.name : '') + '|' + seed + '|' + i, door = doors[owHash(k + '|door') % doors.length], r = tsResidentOf(m, door);
+  const it = { door, trait: r.trait, prop: idPick(ID_PROPS, k + '|prop'), small: idPick(ID_SMALLS, k + '|small'), weather: idPick(ID_WEATHERS, k + '|w'), twist: idPick(ID_TWISTS, k + '|t') };
+  it.text = `🎲 门${door} ${tsTraitZh(r.trait)}·${r.name}家门口｜${it.weather}｜${it.prop} + ${it.small}｜限制：${it.twist}`;
+  it.lineStub = `{"id": "idea_${r.trait}_${seed}_${i}", "who": "door", "when": "witness", "tier": 1, "tone": "comic", "coolDays": 2, "needs": ["trait=${r.trait}"], "zh": "（${tsTraitZh(r.trait)}看见这一下会说什么？）", "en": ""}`;
+  return it;
+}
+const idRolls = (m, seed, n) => Array.from({ length: n }, (_, i) => idRoll(m, seed, i).text);
+
 // 道具箱洗牌袋
 const OW_BAG = ['Bomb', 'Bomb', 'Energy', 'Taunt', 'Heart'];
 const owBagZh = k => k === 'Energy' ? '◆能量 +1' : k === 'Taunt' ? '📣挑衅 +1' : k === 'Heart' ? '❤补心 +1' : '💣炸弹 +1';

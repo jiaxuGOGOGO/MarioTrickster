@@ -17,7 +17,7 @@ using System.Linq;
 /// </summary>
 public static class TownStory
 {
-    public enum When { Morning, Back, DayEnd }
+    public enum When { Morning, Back, DayEnd, Witness } // S233：Witness = 大机关砸中马里奥时，旁边那户人家当场喊一句
 
     public sealed class Line
     {
@@ -59,9 +59,12 @@ public static class TownStory
     {
         public readonly Dictionary<string, int> lastDay = new Dictionary<string, int>();
         public readonly HashSet<string> said = new HashSet<string>();
-        public readonly Dictionary<int, int> visits = new Dictionary<int, int>(), defended = new Dictionary<int, int>(), looted = new Dictionary<int, int>(), missed = new Dictionary<int, int>();
+        public readonly Dictionary<int, int> visits = new Dictionary<int, int>(), defended = new Dictionary<int, int>(), looted = new Dictionary<int, int>(), missed = new Dictionary<int, int>(), witnessed = new Dictionary<int, int>(); // S233：witnessed = 在他家门口看到过几次大动静
+        public readonly Dictionary<string, int> unlockDay = new Dictionary<string, int>(); // S233：真心话第一次听到是"累计第几天"（笔记本用）
+        public int totalDays; // S233：累计玩过几天（跨次存档）
         public readonly List<string> today = new List<string>();
         public int comicSinceSincere = SincereEvery, sincereDay = -1, sincereTotal;
+        public readonly Dictionary<int, int> witnessDay = new Dictionary<int, int>(); // 今天这户人家喊过没有（不存档）
         // 昨天（早上的闲话用）
         public string yOutcome = "", yDeath = ""; public int yBigHits, yDefended, yLooted, yDay;
         public int Get(Dictionary<int, int> d, int door) => d.TryGetValue(door, out var v) ? v : 0;
@@ -109,7 +112,7 @@ public static class TownStory
             bool better = l.tier < bestTier || (l.tier == bestTier && (score > bestScore || (score == bestScore && (last < bestLast || (last == bestLast && tie < bestTie)))));
             if (best == null || better) { best = l; bestTier = l.tier; bestScore = score; bestLast = last; bestTie = tie; }
         }
-        if (best == null) return PickFallback(table, w, who, facts, mem, day);
+        if (best == null) return w == "witness" ? null : PickFallback(table, w, who, facts, mem, day); // S233：当场喊的话不兜底（宁可不说，也不重复）
         return best;
     }
     /// <summary>兜底：冷却中的好笑话也可以说（挑最久没说的那句）——宁可重复，也不让人家门口没话说。真心话 / 只说一次的不兜底。</summary>
@@ -130,7 +133,7 @@ public static class TownStory
     {
         if (l == null) return;
         mem.lastDay[l.id] = day; mem.said.Add(l.id); mem.today.Add(l.id);
-        if (l.Sincere) { mem.comicSinceSincere = 0; mem.sincereDay = day; mem.sincereTotal++; }
+        if (l.Sincere) { mem.comicSinceSincere = 0; mem.sincereDay = day; mem.sincereTotal++; if (!mem.unlockDay.ContainsKey(l.id)) mem.unlockDay[l.id] = mem.totalDays + 1; }
         else mem.comicSinceSincere++;
     }
 
@@ -157,7 +160,7 @@ public static class TownStory
         {
             { "door", n.ToString() }, { "trait", r.trait }, { "result", result == OverworldSession.DoorResult.Defended ? "defended" : result == OverworldSession.DoorResult.Looted ? "looted" : result == OverworldSession.DoorResult.Missed ? "missed" : "" },
             { "weather", weather.kind.ToString().ToLowerInvariant() }, { "visits", mem.Get(mem.visits, n).ToString() },
-            { "defended", mem.Get(mem.defended, n).ToString() }, { "looted", mem.Get(mem.looted, n).ToString() }, { "missed", mem.Get(mem.missed, n).ToString() },
+            { "defended", mem.Get(mem.defended, n).ToString() }, { "looted", mem.Get(mem.looted, n).ToString() }, { "missed", mem.Get(mem.missed, n).ToString() }, { "witnessed", mem.Get(mem.witnessed, n).ToString() },
             { "day", OverworldSession.Day.ToString() }, { "n", mem.Get(mem.visits, n).ToString() },
         };
     }
@@ -187,6 +190,7 @@ public static class TownStory
     /// <summary>一天结束：把今天记成"昨天"（第二天早上的闲话用）。</summary>
     public static void CloseDay(Memory mem, int doorCount)
     {
+        mem.totalDays++;
         mem.yDay = OverworldSession.Day; mem.yOutcome = OverworldSession.Outcome(doorCount); mem.yDeath = OverworldSession.Death.ToString().ToLowerInvariant();
         mem.yBigHits = OverworldSession.BigHits; mem.yDefended = OverworldSession.Count(OverworldSession.DoorResult.Defended); mem.yLooted = OverworldSession.Count(OverworldSession.DoorResult.Looted);
     }
@@ -227,6 +231,119 @@ public static class TownStory
         return Show(l, r, facts);
     }
 
+    // ── S233：当场喊一句（大机关砸中马里奥，离他最近的那户人家看见了）──────────
+    /// <summary>离 (x,y) 最近、且在 maxDist 格以内的门（按门格中心算）；没有 = 0。纯函数，网页 tsNearestDoor 一样。</summary>
+    public static int NearestDoor(OverworldMap.Map m, double x, double y, double maxDist)
+    {
+        int best = 0; double bd = maxDist * maxDist + 1e-9;
+        foreach (var d in m.doors.OrderBy(d => d.n))
+        {
+            var c = OverworldMap.Find(m, (char)('0' + d.n)); if (c.Count != 1) continue;
+            double dx = c[0].x + 0.5 - x, dy = c[0].y + 0.5 - y, dd = dx * dx + dy * dy;
+            if (dd < bd) { bd = dd; best = d.n; }
+        }
+        return best;
+    }
+    /// <summary>看见的范围（格）。在这以内的人家才"看得见"。</summary>
+    public const double WitnessRange = 7;
+    public static Dictionary<string, string> WitnessFacts(Resident r, char cause, OverworldEvents.Day weather, Memory mem, int day)
+    {
+        return new Dictionary<string, string>
+        {
+            { "door", r.door.ToString() }, { "trait", r.trait }, { "cause", cause == ' ' || cause == '\0' ? "" : cause.ToString() },
+            { "weather", weather.kind.ToString().ToLowerInvariant() }, { "witnessed", mem.Get(mem.witnessed, r.door).ToString() },
+            { "visits", mem.Get(mem.visits, r.door).ToString() }, { "day", day.ToString() },
+        };
+    }
+    /// <summary>纯函数版（彩排 / sim / 网页 tsWitness 同一套）：记一次"在他家门口看见"，挑一句当场喊的。一户人家一天最多喊一次（不兜底）。</summary>
+    public static Line WitnessOn(OverworldMap.Map m, IList<Line> t, Memory mem, int door, char cause, OverworldEvents.Day weather, int day)
+    {
+        if (door <= 0) return null;
+        if (mem.witnessDay.TryGetValue(door, out int wd) && wd == day) return null;
+        mem.Add(mem.witnessed, door);
+        var l = Pick(t, When.Witness, "door", WitnessFacts(ResidentOf(m, door), cause, weather, mem, day), mem, day);
+        mem.witnessDay[door] = day;
+        if (l != null) Say(l, mem, day);
+        return l;
+    }
+    /// <summary>OverworldGame 调用（大机关砸中马里奥那一帧）：返回屏幕上的文字；没话说 = ""。</summary>
+    public static string Witness(OverworldMap.Map m, int door, char cause, OverworldEvents.Day weather, out bool sincere)
+    {
+        sincere = false;
+        var l = WitnessOn(m, Table, Mem, door, cause, weather, OverworldSession.Day);
+        if (l == null) return "";
+        sincere = l.Sincere;
+        return Show(l, ResidentOf(m, door), WitnessFacts(ResidentOf(m, door), cause, weather, Mem, OverworldSession.Day));
+    }
+
+    // ── S233：居民笔记本（N 键；Bombers' Notebook：每户一行 + 解锁过的真心话原文，没解锁的只给提示）──────────
+    public sealed class NotePage { public int door; public string head = ""; public readonly List<string> rows = new List<string>(); }
+    /// <summary>"还差什么"的提示：把 needs 里的数字条件翻成人话（只说条件，不剧透原文）。</summary>
+    public static string NeedHint(Line l)
+    {
+        var parts = new List<string>();
+        foreach (var n in l.needs)
+        {
+            if (n.StartsWith("trait=")) continue;
+            if (n.StartsWith("visits>=")) parts.Add("来往 " + n.Substring(8) + " 次");
+            else if (n.StartsWith("defended>=")) parts.Add("守住 " + n.Substring(10) + " 次");
+            else if (n.StartsWith("looted>=")) parts.Add("被偷 " + n.Substring(8) + " 次");
+            else if (n.StartsWith("witnessed>=")) parts.Add("在他家门口闹出 " + n.Substring(11) + " 次大动静");
+            else if (n.StartsWith("day>=")) parts.Add("第 " + n.Substring(5) + " 天以后");
+            else if (n == "outcome=won") parts.Add("那天你赢了");
+            else if (n == "outcome=lost") parts.Add("那天你输了");
+            else if (n.StartsWith("weather=")) parts.Add(n.Substring(8) == "rain" ? "下雨天" : n.Substring(8) == "fog" ? "大雾天" : n.Substring(8) == "storm" ? "雷雨天" : n.Substring(8) == "wind" ? "大风天" : "特别的天气");
+            else parts.Add("某个特别的日子");
+        }
+        return parts.Count == 0 ? "多来几次" : string.Join("、", parts);
+    }
+    public static List<NotePage> Notebook(OverworldMap.Map m, IList<Line> t, Memory mem)
+    {
+        var pages = new List<NotePage>();
+        foreach (var d in m.doors.OrderBy(d => d.n))
+        {
+            if (OverworldMap.Find(m, (char)('0' + d.n)).Count != 1) continue;
+            var r = ResidentOf(m, d.n); int n = d.n;
+            var p = new NotePage { door = n, head = $"门{n} {TraitZh(r.trait)}·{r.name}　来往 {mem.Get(mem.visits, n)}　守住 {mem.Get(mem.defended, n)}　被偷 {mem.Get(mem.looted, n)}　没赶上 {mem.Get(mem.missed, n)}　门口大动静 {mem.Get(mem.witnessed, n)}" };
+            foreach (var l in t.Where(x => x.Sincere && x.who == "door" && x.needs.Contains("trait=" + r.trait)))
+                p.rows.Add(mem.said.Contains(l.id) ? $"♥ {Fill(l.zh, r, null)}" + (mem.unlockDay.TryGetValue(l.id, out int ud) ? $"（第 {ud} 天）" : "") : $"？ 还没听过——{NeedHint(l)}");
+            pages.Add(p);
+        }
+        var town = new NotePage { door = 0, head = "镇上 / 马里奥" };
+        foreach (var l in t.Where(x => x.Sincere && x.who != "door"))
+            town.rows.Add(mem.said.Contains(l.id) ? $"♥ {(l.who == "mario" ? "马里奥" : "镇上")}：{Fill(l.zh, null, null)}" : $"？ 还没听过——{NeedHint(l)}");
+        pages.Add(town);
+        return pages;
+    }
+    public static string NotebookText(OverworldMap.Map m, IList<Line> t, Memory mem)
+    {
+        var sb = new System.Text.StringBuilder(); var pr = SincereProgress(t, mem);
+        sb.Append($"居民笔记本  真心话 {pr.got}/{pr.total} 段　累计 {mem.totalDays} 天\n");
+        foreach (var p in Notebook(m, t, mem)) { sb.Append('\n').Append(p.head).Append('\n'); foreach (var r in p.rows) sb.Append("  ").Append(r).Append('\n'); }
+        return sb.ToString();
+    }
+
+    // ── S233：存档（跨次进 Play 保留"来往了几次、听过哪些真心话"；冷却按天数，读档时清空）──────────
+    public static string MemToJson(Memory mem)
+    {
+        string D(Dictionary<int, int> d) => "{" + string.Join(",", d.OrderBy(k => k.Key).Select(k => $"\"{k.Key}\":{k.Value}")) + "}";
+        return "{\"v\":1,\"totalDays\":" + mem.totalDays + ",\"comic\":" + mem.comicSinceSincere + ",\"visits\":" + D(mem.visits) + ",\"defended\":" + D(mem.defended) + ",\"looted\":" + D(mem.looted) +
+               ",\"missed\":" + D(mem.missed) + ",\"witnessed\":" + D(mem.witnessed) + ",\"said\":[" + string.Join(",", mem.said.OrderBy(x => x, StringComparer.Ordinal).Select(J)) + "],\"unlock\":{" +
+               string.Join(",", mem.unlockDay.OrderBy(k => k.Key, StringComparer.Ordinal).Select(k => J(k.Key) + ":" + k.Value)) + "}}";
+    }
+    public static Memory MemFromJson(string json)
+    {
+        var mem = new Memory();
+        if (!(MiniJson.Parse(json ?? "", out _) is Dictionary<string, object> d)) return mem;
+        void Ints(string k, Dictionary<int, int> to) { if (d.TryGetValue(k, out var o) && o is Dictionary<string, object> m) foreach (var kv in m) if (int.TryParse(kv.Key, out int n) && kv.Value is double v) to[n] = (int)v; }
+        Ints("visits", mem.visits); Ints("defended", mem.defended); Ints("looted", mem.looted); Ints("missed", mem.missed); Ints("witnessed", mem.witnessed);
+        if (d.TryGetValue("said", out var so) && so is List<object> sl) foreach (var x in sl.OfType<string>()) mem.said.Add(x);
+        if (d.TryGetValue("unlock", out var uo) && uo is Dictionary<string, object> um) foreach (var kv in um) if (kv.Value is double v) mem.unlockDay[kv.Key] = (int)v;
+        if (d.TryGetValue("totalDays", out var td) && td is double tdv) mem.totalDays = (int)tdv;
+        if (d.TryGetValue("comic", out var co) && co is double cv) mem.comicSinceSincere = (int)cv;
+        return mem;
+    }
+
     /// <summary>收集进度：解锁过几段真心话 / 一共几段（结算显示，给"再来一天看看还有什么"一个理由）。</summary>
     public static (int got, int total) SincereProgress(IList<Line> t, Memory mem) => (t.Count(l => l.Sincere && mem.said.Contains(l.id)), t.Count(l => l.Sincere));
     public static string ProgressLine(IList<Line> t, Memory mem) { var p = SincereProgress(t, mem); return p.total == 0 ? "" : $"\n镇上的真心话 {p.got}/{p.total} 段（常来往的人家才会说）"; }
@@ -236,6 +353,7 @@ public static class TownStory
     {
         public readonly List<string> lines = new List<string>();
         public int said, sincere, repeats3, distinct; public readonly Dictionary<string, int> firstSincereDay = new Dictionary<string, int>();
+        public Memory mem; // S233：彩排结束时的记忆（笔记本预览用）
     }
     /// <summary>每扇门每天的结果按哈希定（守 40% / 被偷 40% / 没赶上 20%），不走玩法、不用 OverworldSession。网页 tsRehearse 逐字一致。</summary>
     public static OverworldSession.DoorResult RehearseResult(string map, int day, int door)
@@ -275,9 +393,9 @@ public static class TownStory
             string outcome = doors.Count > 0 && def * 2 >= doors.Count ? "won" : "lost";
             var ef = new Dictionary<string, string> { { "outcome", outcome }, { "death", "none" }, { "byyou", "no" }, { "cause", "" }, { "bighits", "0" }, { "chain", "0" }, { "caught", "0" }, { "defendedtoday", def.ToString() }, { "lootedtoday", loot.ToString() }, { "weather", w.kind.ToString().ToLowerInvariant() }, { "day", day.ToString() }, { "bells", "0" } };
             Hear(Pick(t, When.DayEnd, "mario", ef, mem, day), day, "结束");
-            mem.yDay = day; mem.yOutcome = outcome; mem.yDefended = def; mem.yLooted = loot;
+            mem.yDay = day; mem.yOutcome = outcome; mem.yDefended = def; mem.yLooted = loot; mem.totalDays = day;
         }
-        rep.distinct = heard.Count;
+        rep.distinct = heard.Count; rep.mem = mem;
         return rep;
     }
     public static string RehearsalSummary(Rehearsal r, int days) =>
@@ -295,12 +413,41 @@ public static class TownStory
             int own = mine.Count(x => x.needs.Contains("trait=" + t)), sincere = mine.Count(x => x.Sincere);
             l.Add($"{TraitZh(t)}：回小镇 {mine.Count} 句（专属 {own}、真情 {sincere}）" + (own < MinBackLinesPerTrait ? $" ⚠ 专属少于 {MinBackLinesPerTrait} 句，玩几天就会听到重复" : ""));
         }
+        l.Add($"当场喊：{table.Count(x => x.when == "witness")} 句（大机关在他家门口砸中马里奥时）");
         foreach (var w in new[] { "morning", "dayend" })
         {
             int c = table.Count(x => x.when == w);
             l.Add($"{(w == "morning" ? "早上闲话" : "一天结束")}：{c} 句");
         }
         return l;
+    }
+
+    // ── S233：写台词时的检查（Unity 体检 / 小镇工坊 / 网页"台词本"同一套话）──────────
+    /// <summary>每个时机能用哪些条件（写错名字 = 这句永远不会说）。</summary>
+    public static readonly Dictionary<string, string[]> FactKeys = new Dictionary<string, string[]>
+    {
+        { "back", new[] { "door", "trait", "result", "weather", "visits", "defended", "looted", "missed", "witnessed", "day", "n", "bighit", "bells" } },
+        { "witness", new[] { "door", "trait", "cause", "weather", "witnessed", "visits", "day" } },
+        { "morning", new[] { "yesterday", "ydeath", "ybighits", "ydefended", "ylooted", "weather", "day" } },
+        { "dayend", new[] { "outcome", "death", "byyou", "cause", "bighits", "chain", "caught", "defendedtoday", "lootedtoday", "weather", "day", "bells" } },
+    };
+    public static string NeedKey(string need) { foreach (var op in new[] { ">=", "<=", "!=", "=" }) { int i = need.IndexOf(op, StringComparison.Ordinal); if (i > 0) return need.Substring(0, i).Trim(); } return ""; }
+    public static List<string> Validate(IList<Line> t)
+    {
+        var o = new List<string>(); var ids = new HashSet<string>();
+        foreach (var l in t)
+        {
+            if (!ids.Add(l.id)) o.Add($"✗ {l.id}：id 重复");
+            if (!FactKeys.TryGetValue(l.when, out var keys)) { o.Add($"✗ {l.id}：时机 {l.when} 不认识（morning / back / dayend / witness）"); continue; }
+            string who = l.when == "morning" ? "town" : l.when == "dayend" ? "mario" : "door";
+            if (l.who != who) o.Add($"✗ {l.id}：{l.when} 的话只能由 {who} 说（现在写的是 {l.who}）");
+            foreach (var n in l.needs) { string k = NeedKey(n); if (k.Length == 0 || !keys.Contains(k)) o.Add($"✗ {l.id}：条件 {n} 用不了（{l.when} 能用：{string.Join(" ", keys)}）"); }
+            if (l.Sincere && !l.once) o.Add($"⚠ {l.id}：真心话没勾\"只说一次\"（说两遍就不真心了）");
+            if (l.Sincere && !l.needs.Any(n => n.Contains(">="))) o.Add($"⚠ {l.id}：真心话没有\"要挣\"的条件（例如 visits>=3）——第一天就会说");
+            if (l.en.Length == 0) o.Add($"· {l.id}：还没写英文（可以先空着）");
+            if (l.zh.Length > 70) o.Add($"· {l.id}：中文 {l.zh.Length} 字，屏幕上 5 秒读不完（建议 ≤ 70）");
+        }
+        return o;
     }
 
     // ── 数据文件 ─────────────────────────────────────────
@@ -323,7 +470,7 @@ public static class TownStory
             if (d.TryGetValue("needs", out var nn) && nn is List<object> nl) l.needs = nl.OfType<string>().ToArray();
             if (l.id.Length == 0 || l.zh.Length == 0) { error = "有一句没写 id 或 zh"; continue; }
             if (!ids.Add(l.id)) { error = "id 重复：" + l.id; continue; }
-            if (l.when != "morning" && l.when != "back" && l.when != "dayend") { error = $"{l.id}：when 只能是 morning / back / dayend"; continue; }
+            if (l.when != "morning" && l.when != "back" && l.when != "dayend" && l.when != "witness") { error = $"{l.id}：when 只能是 morning / back / dayend / witness"; continue; }
             res.Add(l);
         }
         return res.ToArray();
@@ -445,5 +592,19 @@ public static class TownStory
         L("e_chain", "mario", "dayend", 1, "comic", "chain>=3", "今天那一串连锁……我要承认，挺好看的。", "That chain today... I'll admit, it was beautiful."),
         L("e_sincere_1", "mario", "dayend", 1, "sincere", "day>=3", "你知道吗，以前我每天都是一个人跑来跑去。现在至少有人在等我。……明天见，捣蛋鬼。", "You know, I used to run around alone every day. Now someone's waiting for me. See you tomorrow, prankster.", 30, true),
         L("e_sincere_2", "mario", "dayend", 1, "sincere", "day>=6;outcome=won", "我不是真的想要那些宝贝。我只是想让大家记得有我这个人。……你好像也一样？", "I don't really want the treasures. I just want people to remember I'm here. ...You too, maybe?", 30, true),
+
+        // S233：当场喊（大机关在他家门口砸中马里奥）。一户一天最多一次；不兜底。真心话要"门口闹过 ≥3 次"才有。
+        L("w_any_1", "door", "witness", 2, "comic", "", "我的窗户！……啊，没碎。那就——再来一次！", "My window! ...Oh, it's fine. Then — again!", 2),
+        L("w_any_2", "door", "witness", 2, "comic", "", "刚才那一下我在屋里都感觉到了。谁家的锅掉了？哦，是马里奥。", "Felt that from inside. Whose pot fell? Oh. Mario.", 2),
+        L("w_any_storm", "door", "witness", 1, "comic", "cause=i", "老天爷都站你这边了。我去给老天爷倒杯茶。", "Even the sky's on your side. I'll make the sky some tea.", 2),
+        L("w_baker", "door", "witness", 1, "comic", "trait=baker", "你砸他的时候小心点！我的面团正在发——好吧，已经塌了。", "Careful! My dough was rising — okay, it collapsed.", 2),
+        L("w_granny", "door", "witness", 1, "comic", "trait=granny", "哎哟哎哟——再砸一下，奶奶刚才没看清。", "Oh my — do it again, Granny didn't see properly.", 2),
+        L("w_kid", "door", "witness", 1, "comic", "trait=kid", "哇啊啊啊！！！我要告诉全班！！！", "WHOAAA!!! I'm telling the whole class!!!", 2),
+        L("w_mayor", "door", "witness", 1, "comic", "trait=mayor", "这条路是上个月刚修的……算了，记在马里奥账上。", "This road was just repaved... Fine. Bill it to Mario.", 2),
+        L("w_painter", "door", "witness", 1, "comic", "trait=painter", "别动！保持这个姿势！……他晕着呢，正好。", "Don't move! Hold that pose! ...He's dazed. Perfect.", 2),
+        L("w_guard", "door", "witness", 1, "comic", "trait=guard", "我什么都没看见。我在打盹。（其实看见了，挺爽的。）", "Saw nothing. Was napping. (I saw. It was great.)", 2),
+        L("w_kid_arc", "door", "witness", 0, "sincere", "trait=kid;witnessed>=3", "我以前以为大人都很无聊。你们俩让我想快点长大——然后每天在别人家门口闹。", "I thought grown-ups were boring. You two make me want to grow up fast — and cause trouble at doors.", 3, true),
+        L("w_granny_arc", "door", "witness", 0, "sincere", "trait=granny;witnessed>=3", "他倒下的时候，我差点想去扶。……我老伴摔倒那次，也是这么不服气地爬起来的。", "When he fell I nearly ran to help. ...My husband got up just as stubbornly, once.", 3, true),
+        L("w_guard_arc", "door", "witness", 0, "sincere", "trait=guard;witnessed>=3", "你知道吗，被砸了还能笑着爬起来，是本事。他有，你也有。别把对方弄丢了。", "Getting knocked down and getting up laughing — that's a gift. He has it. So do you. Don't lose each other.", 3, true),
     };
 }

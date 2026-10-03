@@ -685,8 +685,11 @@ public sealed class OverworldTown
     /// <summary>S220：马里奥被闪电 / 滚石 / 泥石流 / 被迫轰飞 打中：晕 2 秒 + 掉 1 颗心。掉光 = S229 起这一天结束（Die）；关掉开关 = 晕倒 3 秒、剩 1 颗。
     /// S221：保护期 = 晕的时间 + 站起来后 overworldHurtGraceSeconds 秒；保护期里什么都打不到他（不掉心、也不再晕）——
     /// 以前保护期在晕的时候就倒计时、而且照样晕 → 雷云里他 9 秒晕 8 秒（连控）。参考：塞尔达 / 马里奥受伤闪烁全无敌、格斗游戏起身无敌、DbD 挨打后加速逃开。</summary>
+    /// <summary>S233：最近一次大机关砸中马里奥（位置 + 种类；序号变了 = 新的一下）。只给"居民当场喊一句"用，马里奥 AI 不读（H4）。</summary>
+    public int hitSerial; public float hitX, hitY; public char hitKind = ' ';
     private void HitMario(char kind, bool byYou = true)
     {
+        hitSerial++; hitX = (float)mario.x; hitY = (float)mario.y; hitKind = kind;
         OverworldSession.MarioWary.Add(kind); OverworldSession.BigHits++; OverworldSession.LastBigHitMinute = OverworldSession.Minute;
         if (BellFooled(OverworldSession.Minute, bellHeardMinute, tuning.overworldMinutesPerSecond)) OverworldSession.MarioWary.Add('B'); // S228：钟一响就挨砸 = 他记住"钟声是圈套"
         Hint(Note.BigHit, 2f);

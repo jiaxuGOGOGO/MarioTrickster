@@ -932,4 +932,29 @@ public class OverworldTests
         { StringAssert.DoesNotContain("TownStory", Read(f2)); StringAssert.DoesNotContain("OverworldPickupBag", Read(f2)); }
         OverworldSession.ResetStatics();
     }
+
+    // ── S233：大机关在门口砸中马里奥 → 那户人家当场喊 + 居民笔记本 + 跨次存档 + 台词检查 + 灵感骰子 + 读调参文件 ──
+    [Test]
+    public void S233_Witness_Notebook_Save_Validate_Ideas()
+    {
+        var t = TownStory.Parse(Read("Resources/TownStories.json"), out string err);
+        Assert.AreEqual("", err);
+        Assert.IsFalse(TownStory.Validate(t).Exists(v => v.StartsWith("✗") || v.StartsWith("⚠")), "默认台词没有写错的条件");
+        var m = OverworldMap.Parse(OverworldPack.SampleText);
+        var reh = TownStory.Rehearse(m, t, 10); var mem = reh.mem;
+        int door = m.doors[0].n;
+        Assert.IsNotNull(TownStory.WitnessOn(m, t, mem, door, 'O', OverworldEvents.Of(m, 11), 11), "门口第一次大动静有话说");
+        Assert.IsNull(TownStory.WitnessOn(m, t, mem, door, 'O', OverworldEvents.Of(m, 11), 11), "同一户人家一天只喊一次");
+        StringAssert.Contains("居民笔记本", TownStory.NotebookText(m, t, mem));
+        var json = TownStory.MemToJson(mem);
+        Assert.AreEqual(json, TownStory.MemToJson(TownStory.MemFromJson(json)), "存档往返一致");
+        Assert.AreEqual(IdeaDice.Roll(m, 5, 0).text, IdeaDice.Roll(m, 5, 0).text, "灵感骰子同一种子同一题");
+        var y = TuningAudit.FromYaml("MonoBehaviour:\n  m_Name: X\n  overworldMarioSpeed: 3.9\n");
+        Assert.IsTrue(y.ContainsKey("overworldMarioSpeed")); Assert.IsFalse(y.ContainsKey("m_Name"));
+        var og = Read("Scripts/Overworld/Runtime/OverworldGame.cs");
+        StringAssert.Contains("TownStory.Witness(map, TownStory.NearestDoor(", og); StringAssert.Contains("SaveMemory();", og); StringAssert.Contains("Step1Keys.Down(KeyCode.N)", og);
+        foreach (var f2 in new[] { "Scripts/Overworld/OverworldMind.cs", "Scripts/Gameplay/Step1/RushMarioMind.cs", "Scripts/Gameplay/Step1/SuspicionMeter.cs" })
+        { StringAssert.DoesNotContain("hitSerial", Read(f2)); StringAssert.DoesNotContain("IdeaDice", Read(f2)); }
+        OverworldSession.ResetStatics();
+    }
 }

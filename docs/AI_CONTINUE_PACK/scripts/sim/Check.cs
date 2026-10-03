@@ -822,7 +822,7 @@ static class CHECK {
     if(TownStory.Parse("not json",out var e2).Length!=T.Length||e2==""){ sb2++; Console.WriteLine("     [FAIL] 坏 JSON 没回到默认台词"); }
     foreach(var l in T){ foreach(var n in l.needs) if(!System.Text.RegularExpressions.Regex.IsMatch(n,"^[a-z]+(>=|<=|!=|=)[a-z0-9]+$")){ sb2++; Console.WriteLine($"     [FAIL] {l.id} 条件写法不对：{n}"); }
       if(l.Sincere&&!l.once){ sb2++; Console.WriteLine($"     [FAIL] {l.id}：真心话必须只说一次（once）"); }
-      if(l.Sincere&&l.who=="door"&&!l.needs.Any(n=>n.StartsWith("visits>=")||n.StartsWith("defended>="))){ sb2++; Console.WriteLine($"     [FAIL] {l.id}：住户的真心话要先来往几次才说"); }
+      if(l.Sincere&&l.who=="door"&&!l.needs.Any(n=>n.StartsWith("visits>=")||n.StartsWith("defended>=")||n.StartsWith("witnessed>="))){ sb2++; Console.WriteLine($"     [FAIL] {l.id}：住户的真心话要先来往几次才说"); }
       if(l.en.Length==0){ sb2++; Console.WriteLine($"     [FAIL] {l.id} 没有英文"); } }
     foreach(var tr in TownStory.Traits) foreach(var res in new[]{"defended","looted","missed"}) if(!T.Any(l=>l.who=="door"&&l.when=="back"&&!l.Sincere&&l.needs.Contains("trait="+tr)&&l.needs.Contains("result="+res))){ sb2++; Console.WriteLine($"     [FAIL] {TownStory.TraitZh(tr)} 没有'{res}'的专属话"); }
     // 节奏：一天最多 1 句真心话；真心话之间至少 SincereEvery 句好笑的；早期（第 1–2 天）一句真心话都没有（还没来往够）
@@ -885,6 +885,60 @@ static class CHECK {
     if(!og.Contains("TownStory.Next(map, TownStory.When.Back")||!og.Contains("TownStory.When.Morning")||!og.Contains("TownStory.When.DayEnd")||!og.Contains("OverworldPickupBag.MorningLine")||!og.Contains("Resources.Load<TextAsset>(TownStory.ResourceName)")
       ||!th.Contains("TuningAudit.Check(t)")||!th.Contains("TownStory.Rehearse")||!ww.Contains("ResidentPanel();")||!ww.Contains("storyC = null;")){ sb2++; Console.WriteLine("     [FAIL] 接线：小镇 / 体检 / 小镇工坊 没接上居民故事 / 洗牌袋 / 数值关系"); }
     Console.WriteLine($"[{(sb2==0?"OK":"FAIL")}] S232 居民故事 + 道具箱洗牌袋 + 数值关系：{string.Join("｜",parts)}"); fail+=sb2; }
+  // S233 当场喊 + 居民笔记本 + 存档 + 台词本检查/导出 + 灵感骰子 + 网页读 .asset：C# 和网页逐字一致
+  { int sc=0; var parts=new List<string>(); var T=TownStory.Default; var mine=new List<string>();
+    foreach(var mp in new[]{OverworldPack.SampleText,OverworldPack.BigSampleText}){ var m=OverworldPack.Parse(mp)[0]; var r=TownStory.Rehearse(m,T,21); var mem=r.mem;
+      for(int d=22;d<=27;d++) foreach(var dr in m.doors.OrderBy(x=>x.n)){ var w=OverworldEvents.Of(m,d); var l=TownStory.WitnessOn(m,T,mem,dr.n,d%2==1?'K':'i',w,d); var l2=TownStory.WitnessOn(m,T,mem,dr.n,'K',w,d); mine.Add($"W {d} {dr.n} {(l==null?"-":l.id)} {(l2!=null?"DUP":"")}");
+        if(l2!=null){ sc++; Console.WriteLine("     [FAIL] 同一户人家一天喊了两次"); }
+        if(l!=null&&l.Sincere&&mem.Get(mem.witnessed,dr.n)<3){ sc++; Console.WriteLine("     [FAIL] 门口大动静不到 3 次就说了当场的真心话"); } }
+      mine.AddRange(TownStory.NotebookText(m,T,mem).Split('\n').Select(x=>"N "+x));
+      foreach(var q in new[]{(3.5,3.5),(20.0,10.0),(0.0,0.0),(50.5,30.5)}) mine.Add("D "+TownStory.NearestDoor(m,q.Item1,q.Item2,TownStory.WitnessRange));
+      foreach(var dr in m.doors.OrderBy(x=>x.n)){ var c=OverworldMap.Find(m,(char)('0'+dr.n)); if(c.Count!=1) continue; foreach(var e in new[]{6.9,7.1}) mine.Add($"DE {dr.n} {e.ToString(System.Globalization.CultureInfo.InvariantCulture)} {TownStory.NearestDoor(m,c[0].x+0.5+e,c[0].y+0.5,TownStory.WitnessRange)}"); }
+      mine.AddRange(IdeaDice.Rolls(m,7,4).Select(x=>"I "+x)); mine.Add("IS "+IdeaDice.Roll(m,7,0).lineStub);
+      // 存档往返：读回来一模一样；冷却不存（读档后第一天照样有话说）
+      var j=TownStory.MemToJson(mem); var back=TownStory.MemFromJson(j);
+      if(TownStory.MemToJson(back)!=j||back.totalDays!=21||back.said.Count!=mem.said.Count||back.lastDay.Count!=0){ sc++; Console.WriteLine("     [FAIL] 居民记忆存档往返不一致"); }
+      if(TownStory.Pick(T,TownStory.When.Morning,"town",TownStory.MorningFacts(OverworldEvents.Of(m,22),back),back,1)==null){ sc++; Console.WriteLine("     [FAIL] 读档后早上没话说"); } }
+    var val=TownStory.Validate(T); mine.AddRange(val.Select(x=>"V "+x));
+    if(val.Any(x=>x.StartsWith("✗")||x.StartsWith("⚠"))){ sc++; Console.WriteLine("     [FAIL] 默认台词表有写错的地方："+string.Join("；",val.Where(x=>!x.StartsWith("·")).Take(3))); }
+    var badL=TownStory.Parse(TownStory.ToJson(T.Take(3).ToList()),out _); badL[0].needs=new[]{"frends>=2"}; badL[1].tone="sincere"; badL[1].once=false; badL[2].when="noon";
+    var vb=TownStory.Validate(badL); mine.AddRange(vb.Select(x=>"VB "+x));
+    if(vb.Count(x=>x.StartsWith("✗"))<2||!vb.Any(x=>x.Contains("只说一次"))){ sc++; Console.WriteLine("     [FAIL] 反向：写错的台词没被查出来"); }
+    mine.Add("J "+(TownStory.ToJson(T)==File.ReadAllText(WsRepo("Assets/Resources/TownStories.json"))?"same":"diff"));
+    var y="%YAML 1.1\nMonoBehaviour:\n  m_Name: RushMarioTuning\n  dataVersion: 26\n  overworldMarioSpeed: 3.9\n  overworldChaseSpeed: 4.25\n  soundRings: 0\n  nested:\n    x: 1\n  weird name: 3\n  overworldVisionRange: 1e1\n";
+    var ya=TuningAudit.FromYaml(y); mine.Add("Y "+string.Join(",",ya.Select(kv=>kv.Key+"="+kv.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+    var yd=TuningAudit.DiffFromDefault(MarioMindTuningSO.CreateInstance<MarioMindTuningSO>(),ya); mine.AddRange(yd.Select(x=>"YD "+x));
+    if(!yd.Any(x=>x.StartsWith("overworldMarioSpeed"))||ya.ContainsKey("m_Name")||ya.ContainsKey("x")){ sc++; Console.WriteLine("     [FAIL] 读 .asset：改过的值没认出来 / 读进了不该读的行"); }
+    var wj="ow_s233.json";
+    if(File.Exists(wj)){ var web=((List<object>)MiniJson.Parse(File.ReadAllText(wj),out _)).Select(x=>(string)x).ToList(); int diff=0;
+      for(int i=0;i<Math.Max(web.Count,mine.Count);i++){ string a=i<web.Count?web[i]:"(缺)", b=i<mine.Count?mine[i]:"(缺)"; if(a!=b){ if(diff++<3) Console.WriteLine($"     [FAIL] 网页≠C# 第{i}行：\n        网页 {a}\n        C#   {b}"); } }
+      if(diff>0) sc++; else parts.Add($"网页逐字一致 {mine.Count} 行（当场喊 6 天 × 2 张图、笔记本、最近的门、灵感骰子、台词检查 + 反向、导出 = 原文件、读 .asset）"); }
+    else parts.Add("（没装 node：跳过网页对照）");
+    if(!mine.Contains("J same")){ sc++; Console.WriteLine("     [FAIL] 台词导出和 TownStories.json 不一样"); }
+    // 彩排 30 天 + 每天每户门口砸一次：当场喊的真心话第几天出现、不抢一天一段的配额
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; var mem=new TownStory.Memory(); int wsin=0, perDayBad=0, wsaid=0;
+      var r=TownStory.Rehearse(m,T,3); mem=r.mem;
+      for(int d=4;d<=30;d++){ int sinToday=0; foreach(var dr in m.doors){ var l=TownStory.WitnessOn(m,T,mem,dr.n,'O',OverworldEvents.Of(m,d),d); if(l!=null){ wsaid++; if(l.Sincere){ wsin++; sinToday++; } } } if(sinToday>1) perDayBad++; }
+      if(perDayBad>0||wsin==0){ sc++; Console.WriteLine($"     [FAIL] 当场喊的真心话：出现 {wsin} 段，一天超过 1 段 {perDayBad} 次"); }
+      else parts.Add($"每天每户门口砸一次 × 27 天：喊了 {wsaid} 句，当场真心话 {wsin} 段（每天最多 1 段，门口闹满 3 次才有）"); }
+    // 灵感骰子：200 题里每种大机关 15–35%，门都是地图上真的门
+    { var m=OverworldPack.Parse(OverworldPack.BigSampleText)[0]; var ids=Enumerable.Range(0,200).Select(i=>IdeaDice.Roll(m,3,i)).ToList(); var doorsOk=ids.All(x=>m.doors.Any(d=>d.n==x.door));
+      var share=IdeaDice.Props.Select(p=>ids.Count(x=>x.prop==p)/200.0).ToList();
+      if(!doorsOk||share.Any(v=>v<0.15||v>0.35)){ sc++; Console.WriteLine($"     [FAIL] 灵感骰子：门不对 {!doorsOk}｜大机关占比 {string.Join(",",share.Select(v=>v.ToString("P0")))}"); }
+      else parts.Add($"灵感骰子 200 题：大机关各占 {string.Join("/",share.Select(v=>v.ToString("P0")))}"); }
+    // 小镇里真的触发：大机关砸中马里奥 → hitSerial 变（只给居民用）
+    { OverworldSession.ResetStatics(); var tm=OverworldPack.Parse(OverworldPack.SampleText)[0]; OverworldSession.NewDay(tm.name,"Town",1); OverworldSession.Active=true; var town=new OverworldTown(tm,MarioMindTuningSO.LoadOrDefault());
+      typeof(OverworldTown).GetMethod("HitMario",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance).Invoke(town,new object[]{'O',true});
+      if(town.hitSerial!=1||town.hitKind!='O'){ sc++; Console.WriteLine("     [FAIL] 大机关砸中马里奥没有记下位置"); }
+      int nd=TownStory.NearestDoor(tm,town.hitX,town.hitY,999); string say=TownStory.Witness(tm,nd,'O',OverworldEvents.Of(tm,1),out _);
+      if(nd==0||say.Length==0||TownStory.Witness(tm,nd,'O',OverworldEvents.Of(tm,1),out _).Length!=0){ sc++; Console.WriteLine($"     [FAIL] 当场喊：门 {nd}｜{say}"); } else parts.Add("小镇里砸中 → 最近那户喊："+say.Split('\n')[0]); OverworldSession.ResetStatics(); }
+    // H4 + 接线
+    foreach(var mf in new[]{"Assets/Scripts/Overworld/OverworldMind.cs","Assets/Scripts/Gameplay/Step1/RushMarioMind.cs","Assets/Scripts/Gameplay/Step1/MarioMindDriver.cs","Assets/Scripts/Gameplay/Step1/SuspicionMeter.cs"}){ var tx=File.ReadAllText(WsRepo(mf)); if(tx.Contains("hitSerial")||tx.Contains("IdeaDice")||tx.Contains("TownStory")){ sc++; Console.WriteLine($"     [FAIL] H4：{mf} 读了居民 / 灵感骰子"); } }
+    var og=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/Runtime/OverworldGame.cs")); var th=File.ReadAllText(WsRepo("Assets/Scripts/Editor/TestHubWindow.cs")); var ww=File.ReadAllText(WsRepo("Assets/Scripts/Editor/OverworldWorkshopWindow.cs")); var app=File.ReadAllText(WsRepo("tools/LevelStudioWeb/app.js"));
+    if(!og.Contains("TownStory.Witness(map, TownStory.NearestDoor(")||!og.Contains("LoadStories(); LoadMemory();")||!og.Contains("SaveMemory(); }")||!og.Contains("Step1Keys.Down(KeyCode.N)")||!og.Contains("TownStory.NotebookText(")
+      ||!th.Contains("TownStory.Validate(stories)")||!th.Contains("TuningAudit.FromYaml(")||!th.Contains("OverworldGame.MemoryKey")||!ww.Contains("IdeaDice.Rolls(")||!ww.Contains("TownStory.NotebookText(")
+      ||!app.Contains("await syReadTuning();")||!app.Contains("tsToJson(TSW())")||!File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1Text.Overworld.cs")).Contains("N 居民笔记本")){ sc++; Console.WriteLine("     [FAIL] 接线：小镇 / 体检 / 小镇工坊 / 网页 没接上 S233"); }
+    Console.WriteLine($"[{(sc==0?"OK":"FAIL")}] S233 当场喊 + 居民笔记本 + 存档 + 台词本 + 灵感骰子 + 网页读调参文件：{string.Join("｜",parts)}"); fail+=sc; }
   // S227 阶段 D 填表：用你真实的试玩记录（docs/step1/data/*.csv）跑出口报告
   { int db=0; var parts=new List<string>();
     var hdr=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs")),"CsvHeader => \"([^\"]*)\" \\+\\s*\"([^\"]*)\"");

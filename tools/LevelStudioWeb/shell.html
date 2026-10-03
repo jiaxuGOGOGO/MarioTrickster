@@ -177,6 +177,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 @media (max-width:1100px){.ow{grid-template-columns:1fr}}
 @media (max-width:760px){main{grid-template-columns:1fr}aside{border-right:0}.grid2{grid-template-columns:1fr}.brand span{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  .owpre{white-space:pre-wrap;font-size:12px;margin:4px 0}.tsl{border-top:1px solid #0002;padding:4px 0}.tsl input.f{width:100%;margin:2px 0}
 </style>
 </head>
 <body>
@@ -334,6 +335,10 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
       <h3>🏠 住户与故事 <small class="hint">每扇门住着谁（名字 + 性格）；打完那一户，回到小镇时他说一句。常来往才会说真心话（和 Unity 同一张台词表）</small></h3>
       <div id="owRes"></div>
       <div id="owStory" class="owsched"></div>
+      <h3>🎲 灵感骰子 <small class="hint">随机一个"谁家门口 + 天气 + 机关 + 限制"的题目，卡住的时候掷一下（不改地图）</small></h3>
+      <div id="owIdea" class="owsched"></div>
+      <h3>✎ 台词本 <small class="hint">直接改居民说的话和条件；导出替换 Unity 的 TownStories.json（两边同一份）</small></h3>
+      <div id="owLines" class="owsched"></div>
       <h3>📐 数值关系 <small class="hint">Unity 调参默认值之间必须满足的关系（和 Unity 一键体检同一张表）</small></h3>
       <div id="owTune" class="owsched"></div>
       <h3>⛈ 雷区 <small class="hint">按 Z 在画布上拖框；每次随机劈 最少–最多 道（先蓝色闪 1.2 秒预警）</small></h3>

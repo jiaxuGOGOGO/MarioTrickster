@@ -51,7 +51,7 @@ public sealed class OverworldGame : MonoBehaviour
     private void Start()
     {
         tuning = MarioMindTuningSO.LoadOrDefault();
-        LoadStories();
+        LoadStories(); LoadMemory(); // S233：上次玩到哪了（居民还记得你）
         map = OverworldMap.Parse(mapText);
         if (map.W == 0) { enabled = false; Debug.LogError("[Overworld] mapText 为空"); return; }
         string townScene = gameObject.scene.path; // S211：完整路径（切换用）；S212：用自己所在的场景，不依赖"当前激活场景"
@@ -86,10 +86,11 @@ public sealed class OverworldGame : MonoBehaviour
         // S217：说明面板按任意键关闭（以前只有 H 能关，而且说明开着时时间、走路全停 → "画面固定不动、控制不了"）
         if (helpOpen) { if (Step1Keys.AnyDown()) helpOpen = false; UpdateVisuals(); return; }
         if (Step1Keys.Down(KeyCode.H)) { helpOpen = true; UpdateVisuals(); return; }
+        if (Step1Keys.Down(KeyCode.N)) { notebookOpen = !notebookOpen; if (notebookOpen) notebookText = TownStory.NotebookText(map, TownStory.Table, TownStory.Mem); } // S233：居民笔记本（开着时时间照走，不挡玩）
         ZoomKeys();
         if (dayOver)
         {
-            if (!dayLogged) { dayLogged = true; dayOverAt = Time.unscaledTime; LogDay(); dayEndLine = TownStory.Next(map, TownStory.When.DayEnd, 0, town.weather, stops.Count, out _) + TownStory.ProgressLine(TownStory.Table, TownStory.Mem); TownStory.CloseDay(TownStory.Mem, stops.Count); } // S232：马里奥的一句 + 真心话收集
+            if (!dayLogged) { dayLogged = true; dayOverAt = Time.unscaledTime; LogDay(); dayEndLine = TownStory.Next(map, TownStory.When.DayEnd, 0, town.weather, stops.Count, out _) + TownStory.ProgressLine(TownStory.Table, TownStory.Mem); TownStory.CloseDay(TownStory.Mem, stops.Count); SaveMemory(); } // S232：马里奥的一句 + 真心话收集
             bool autoRestart = OverworldSession.Death != OverworldSession.DeathEnd.None && tuning.overworldDeathRestartSeconds > 0f && Time.unscaledTime - dayOverAt >= tuning.overworldDeathRestartSeconds; // S229：被打死 → 几秒后自动重开（不用伸手）
             if (Step1Keys.Down(KeyCode.R) || autoRestart)
             {
@@ -109,6 +110,7 @@ public sealed class OverworldGame : MonoBehaviour
             aim = Step1Keys.Down(KeyCode.RightArrow) || Step1Keys.Down(KeyCode.D) ? 1 : Step1Keys.Down(KeyCode.LeftArrow) || Step1Keys.Down(KeyCode.A) ? 2 : Step1Keys.Down(KeyCode.UpArrow) || Step1Keys.Down(KeyCode.W) ? 3 : Step1Keys.Down(KeyCode.DownArrow) || Step1Keys.Down(KeyCode.S) ? 4 : 0,
         };
         town.Tick(dt, input);
+        if (town.hitSerial != lastHitSerial) { lastHitSerial = town.hitSerial; Story(TownStory.Witness(map, TownStory.NearestDoor(map, town.hitX, town.hitY, TownStory.WitnessRange), town.hitKind, town.weather, out bool ws), ws, true); } // S233：旁边那户人家当场喊一句
         if (TownStory.PendingDoor > 0 && Time.unscaledTime >= storyUntil) { int sd = TownStory.PendingDoor; Story(TownStory.Next(map, TownStory.When.Back, sd, town.weather, stops.Count, out bool ss), ss); } // S232：刚打完 / 错过的那户人家说一句
         if (town.hint != OverworldTown.Note.None) Hint(town.hint == OverworldTown.Note.Caught ? Step1Text.OverworldCaughtWhy(town.caughtWhy) : NoteText(town.hint), town.hintSeconds); // S222：被抓说明原因
         BigFx();
@@ -202,7 +204,20 @@ public sealed class OverworldGame : MonoBehaviour
     private string story = "", dayEndLine = ""; private float storyUntil; private bool storySincere;
     /// <summary>好笑的话停 5 秒；真心话停 8 秒（慢一点，留给它被读完）。用现实秒，快进时也看得完。</summary>
     public const float StorySeconds = 5f, SincereSeconds = 8f;
-    private void Story(string s, bool sincere) { if (string.IsNullOrEmpty(s)) return; story = s; storySincere = sincere; storyUntil = Time.unscaledTime + (sincere ? SincereSeconds : StorySeconds); }
+    private void Story(string s, bool sincere, bool witness = false)
+    {
+        if (string.IsNullOrEmpty(s)) return;
+        if (witness && storySincere && Time.unscaledTime < storyUntil) return; // S233：真心话正在显示时，不被当场喊的话盖掉
+        story = s; storySincere = sincere; storyUntil = Time.unscaledTime + (sincere ? SincereSeconds : witness ? WitnessSeconds : StorySeconds);
+    }
+    public const float WitnessSeconds = 3.5f; // S233：当场喊的话短一点（正在打，别挡眼）
+    private int lastHitSerial; private bool notebookOpen; private string notebookText = "";
+    // S233：居民记忆跨次存档（PlayerPrefs；只存"来往几次、听过哪些真心话"）。测试中心可以清空。
+    public const string MemoryKey = "MarioTrickster.TownStoryMemory";
+    private static bool memLoaded;
+    public static void LoadMemory() { if (memLoaded) return; memLoaded = true; if (PlayerPrefs.HasKey(MemoryKey)) TownStory.Mem = TownStory.MemFromJson(PlayerPrefs.GetString(MemoryKey)); }
+    public static void SaveMemory() { PlayerPrefs.SetString(MemoryKey, TownStory.MemToJson(TownStory.Mem)); PlayerPrefs.Save(); }
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)] private static void ResetMemFlag() { memLoaded = false; }
     private static void LoadStories()
     {
         if (TownStory.table != null) return;
@@ -825,6 +840,7 @@ public sealed class OverworldGame : MonoBehaviour
             GUI.Box(new Rect(Screen.width / 2f - 230, Screen.height - 94, 460, 56), Step1Text.OverworldWaitDepart(next.n, OverworldMap.Clock(next.minute), wait), big);
         }
         if (helpOpen) GUI.Box(new Rect(Screen.width / 2f - 360, Screen.height / 2f - 210, 720, 420), Step1Text.OverworldHelp + "\n\n" + Step1Text.OverworldHelpClose, box);
+        if (notebookOpen && !helpOpen) GUI.Box(new Rect(Screen.width / 2f - 380, 60, 760, Mathf.Min(Screen.height - 110, 640)), notebookText + "\n" + Step1Text.OverworldNotebookClose, box); // S233
         if (!Application.isFocused) GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height / 2f - 40, 520, 80), Step1Text.ClickGameWindow, big);
         if (dayOver)
         {

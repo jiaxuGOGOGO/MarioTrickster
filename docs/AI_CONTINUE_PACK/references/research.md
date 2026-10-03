@@ -112,3 +112,7 @@ S207 后"关卡设计从哪下手"调研（报告已交付给用户，4 个入�
 - 方向：故事片段 / 动态对白（Emily Short、Ruskin GDC 2012、Hades、Yarn、Weather Factory、Wildermyth）；真诚 NPC（糸井重里 MOTHER、moon、动森、Undertale、Night in the Woods、Goose、洛奇 NDC 韩文）；随机（Burgun、Tetris 7-bag、Dota PRD、XCOM、FE 2RN、法文 GameCodeClub、Spelunky daily、德文 Ludologie）；编辑器 / 世界（BotW 化学引擎、Tiled world、LDtk、SMM2 Super World、LBP logic、Hollow Knight）；调参 / 统计（Schreiber、Luban、网易雷火、StS GDC 2019、Evan Miller 三篇、NN/g、Valve、Cerny）；失败（Radiant AI、FO4 无限任务）。
 - 不再搜：Valve Response System wiki（反爬墙）；Night in the Woods GDC 字幕（空）；PC Gamer Hollow Knight 原文（只有摘要）。
 - 规则落地：选句 = 条件数最多优先 + 冷却 + 真心话 once；真心话 = 小伤口 + 玩笑；输入随机（早上公布）；数值关系表两端同查。
+
+## S233 第五轮（23 个来源读过原文；清单在 docs/step1/S233_WITNESS_NOTEBOOK_AUTHORING.md §2）
+- 方向：笔记本（炸弹人笔记本）、好感（星露谷 250 点/心、动森 0–255 隐藏值——只借"按次数解锁"，不借点数）、反应式叙事（Hades 三档、Nemesis "记住并说出来"）、写作工具（Yarn Spinner 默认 = 最相关 + 最久没看 + 同分随机；Twine；Disco Elysium 写太多）、灵感（Oblique Strategies、提示卡、ABA Games 随机组合、2dgames.jp 曼陀罗/每天一个点子）、Unity YAML（只读不写）、联动（LBP 逻辑、SMM2 ON/OFF、TotK 一套物理）、世界（Tiled .world、LDtk 布局）、失败（任务日志变购物清单、星露谷抖动 ?、动森刷好感）。
+- 不再搜：GDC Vault 视频页（只有标题）；inkle 官网 / GitHub issue（取不到正文）；后台子任务的 crawl 全空 → 自己用 crawl-and-answer 分 4 批读。

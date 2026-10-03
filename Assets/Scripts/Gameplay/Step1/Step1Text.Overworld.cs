@@ -19,10 +19,12 @@ public static partial class Step1Text
         "雷区（地图上的蓝色虚线框）：每隔一会儿同时劈几道闪电——地上先闪 1.2 秒，变白 = 马上劈，十字形 1 格。+ 补心，* 能量（你的机关让他掉心也 +1）\n" +
         "能量满 3 格按 Q：在你头顶召唤雷云（停在原地 9 秒，冲着云里的他劈，但也会随机劈——快逃出来，别劈到自己）\n" +
         "看得懂他：视锥里的黄色越灌越长 = 他越起疑，灌满变红 = 认出你；蓝色圆圈 = 他听得见的范围（他在圈里就听见了）；一天结束会列出他差点发现你的时刻\n" +
+        "居民：每扇门住着一个人。打完那一户回小镇，他会说一句；大机关在他家门口砸中马里奥，他当场喊一句；常来往才说真心话（每段只说一次）。N 打开居民笔记本（谁说过什么、还差什么）\n" +
         "指引：屏幕边上的箭头 = 下一扇门；左上会算好\"你几秒 / 他几秒\"来不来得及；按住 Tab 看去门的路线，M 小地图   H 关闭/打开说明";
 
     // S217：测试不卡人——底部常驻按键、等他出门的提示、没点游戏窗口的提醒、快速测试、F8 反馈
-    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   Q 雷云(能量满)   E 门口埋伏/坐炮/钻洞   空格(按住) 快进   Tab 路线   M 小地图   - / = 镜头远近   H 说明   F8 记反馈";
+    public const string OverworldNotebookClose = "N 关上笔记本 Close notebook（打开时时间照走）";
+    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   Q 雷云(能量满)   E 门口埋伏/坐炮/钻洞   空格(按住) 快进   Tab 路线   M 小地图   N 居民笔记本   - / = 镜头远近   H 说明   F8 记反馈";
     public const string OverworldHelpClose = "按任意键关闭说明（H 随时再打开）  Press any key";
     public static string OverworldWaitDepart(int door, string clock, double realSeconds) =>
         $"马里奥 {clock} 才出门去门 {door}（还有约 {realSeconds:0} 秒）\n先去门口躲好（不碰键盘会自动快进）";

@@ -100,5 +100,21 @@ o.push('S '+X.RULES.RunSpeed+' '+X.RULES.StartDelay+' '+X.OW.Rules.marioSpeed+' 
 const m=X.owParse(X.OW_SAMPLE);m.residents.push(X.owParseResident(' 3 | 王|阿姨 | painter'),X.owParseResident('1|阿梅'));m.residents=m.residents.filter(Boolean);
 o.push('X '+X.owToText(X.owFromJson(JSON.parse(JSON.stringify(X.owToJson(m))))).split('\n').filter(l=>l.startsWith('# Resident')).join('/'));
 fs.writeFileSync('$WS/sim/ow_story.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_story.json"
+# S233：网页 当场喊 / 居民笔记本 / 台词检查 / 台词导出 / 灵感骰子 / 读 .asset，交给 C# 逐字对照
+command -v node >/dev/null && (cd "$WS/repo/tools/LevelStudioWeb" && node -e "
+const fs=require('fs'),vm=require('vm');const html=fs.readFileSync('index.html','utf8');
+const src=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+const c={};vm.createContext(c);vm.runInContext(src.slice(0,src.indexOf('// ── 状态'))+';this.X={tsRehearse,tsWitness,tsNearestDoor,tsNotebookText,tsValidate,tsToJson,idRolls,idRoll,owFind,tuFromYaml,tuDiff,TS_STORIES,owParse,owDayOfMap,OW_WEATHER,OW_SAMPLE,OW_BIG_SAMPLE};',c);const X=c.X;const o=[];
+for(const s of [X.OW_SAMPLE,X.OW_BIG_SAMPLE]){const m=X.owParse(s);const r=X.tsRehearse(m,X.TS_STORIES,21);const mem=r.mem;
+ for(let d=22;d<=27;d++)for(const dr of m.doors.slice().sort((a,b)=>a.n-b.n)){const w=X.OW_WEATHER[X.owDayOfMap(m,d).kind].toLowerCase();const l=X.tsWitness(m,X.TS_STORIES,mem,dr.n,d%2?'K':'i',w,d);const l2=X.tsWitness(m,X.TS_STORIES,mem,dr.n,'K',w,d);o.push('W '+d+' '+dr.n+' '+(l?l.id:'-')+' '+(l2?'DUP':''));}
+ for(const l of X.tsNotebookText(m,X.TS_STORIES,mem).split('\n'))o.push('N '+l);
+ for(const q of [[3.5,3.5],[20,10],[0,0],[50.5,30.5]])o.push('D '+X.tsNearestDoor(m,q[0],q[1],7));for(const dr of m.doors.slice().sort((a,b)=>a.n-b.n)){const c=X.owFind(m,String(dr.n));if(c.length!==1)continue;for(const e of [6.9,7.1])o.push('DE '+dr.n+' '+e+' '+X.tsNearestDoor(m,c[0][0]+0.5+e,c[0][1]+0.5,7));}
+ for(const l of X.idRolls(m,7,4))o.push('I '+l);o.push('IS '+X.idRoll(m,7,0).lineStub);}
+for(const v of X.tsValidate(X.TS_STORIES))o.push('V '+v);
+const bad=JSON.parse(JSON.stringify(X.TS_STORIES.slice(0,3)));bad[0].needs=['frends>=2'];bad[1].tone='sincere';bad[1].once=false;bad[2].when='noon';for(const v of X.tsValidate(bad))o.push('VB '+v);
+o.push('J '+(X.tsToJson(X.TS_STORIES)===fs.readFileSync('../../Assets/Resources/TownStories.json','utf8')?'same':'diff'));
+const y='%YAML 1.1\nMonoBehaviour:\n  m_Name: RushMarioTuning\n  dataVersion: 26\n  overworldMarioSpeed: 3.9\n  overworldChaseSpeed: 4.25\n  soundRings: 0\n  nested:\n    x: 1\n  weird name: 3\n  overworldVisionRange: 1e1\n';
+const a=X.tuFromYaml(y);o.push('Y '+Object.keys(a).map(k=>k+'='+a[k]).join(','));for(const d of X.tuDiff(a))o.push('YD '+d);
+fs.writeFileSync('$WS/sim/ow_s233.json',JSON.stringify(o));") || rm -f "$WS/sim/ow_s233.json"
 (cd "$WS/sim" && rm -rf obj bin && dotnet build -c Release -nologo -v q -p:Version=1.0.0 2>&1 | grep -E " error " | head -10; dotnet bin/Release/net8.0/sim.dll) || ok=0
 [ $ok = 1 ] && echo "VERIFY ALL GREEN（提醒：Unity 里的 EditMode 测试仍需用户跑）" || { echo "VERIFY FAILED"; exit 1; }

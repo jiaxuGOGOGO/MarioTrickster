@@ -18,7 +18,6 @@ public class Step1Screen : MonoBehaviour
     {
         if (tuning == null) tuning = MarioMindTuningSO.LoadOrDefault();
         manager = GameManager.Instance;
-        HideLegacyHud();
         foreach (var text in FindObjectsOfType<TextMesh>()) Step1Gui.ApplyFont(text);
         var figure = FindObjectOfType<TricksterController>();
         if (figure != null) { figure.SetShowDebugStatus(false); AddYouTag(figure.transform); }
@@ -27,14 +26,6 @@ public class Step1Screen : MonoBehaviour
     }
 
     private void OnDestroy() { HelpOpen = false; }
-
-    private static void HideLegacyHud()
-    {
-        var canvas = FindObjectOfType<GlobalGameUICanvas>();
-        if (canvas != null) canvas.gameObject.SetActive(false);
-        foreach (var hud in FindObjectsOfType<LootEscapeHUD>()) hud.enabled = false;
-        foreach (var hud in FindObjectsOfType<SuspicionHUD>()) hud.enabled = false;
-    }
 
     private static void AddYouTag(Transform figure)
     {

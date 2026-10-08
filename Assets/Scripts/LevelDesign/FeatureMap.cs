@@ -103,7 +103,7 @@ public static class FeatureMap
 
         // ⑦ 给 AI · 换账号
         F("ai.pack", "⑦ 给 AI · 换账号", "常用", "安装包 · 接续包（换账号也能接上）", "每次升级的 zip：01 双击 bat 选 Y 上传；02 接续包 .skill 发给新账号的 AI", "AI 不靠记忆，靠接续包和仓库里的文档接着做", "换账号、换电脑时把 .skill 和网页设计单一起发", 200, "DESIGN_CONSTITUTION", "", "", "", "../../docs/AI_CONTINUE_PACK/SKILL.md", "name: mariotrickster-continue"),
-        F("ai.research", "⑦ 给 AI · 换账号", "参考", "调研与总方案文档", "docs/step1 里的 S222 / S225 / S230 / S231 等", "网上资料对照、批评、执行方案；每次「继续」AI 都按这些走", "想知道「为什么这样设计」时读", 222, "S222 S225 S230 S231", "", "", "", "../../docs/step1/S222_RESEARCH_MASTERPLAN.md", "S222"),
+        F("ai.research", "⑦ 给 AI · 换账号", "参考", "调研与总方案文档", "docs/step1 里的 S222 / S225 / S230 / S231 / S239 等", "网上资料对照、批评、执行方案；S239 = 按好玩整合、删掉了哪些重复系统以及为什么；每次「继续」AI 都按这些走", "想知道「为什么这样设计」「某个旧系统去哪了」时读", 239, "S222 S225 S230 S231 S239", "", "", "", "../../docs/step1/S222_RESEARCH_MASTERPLAN.md", "S222"),
 
         // ⑧ 安全网（S238：旧工具已删）
         F("old.redline", "⑧ 安全网", "自动", "红线巡检（碰撞体 / 缩放不许乱改）", "自动；菜单 安全网 → 红线巡检 / 红线自动修复", "防止换美术时把角色碰撞体改坏", "不用管；报警了截图给 AI", 50, "", "MarioTrickster/安全网 Safety/红线巡检 Red Line Check|MarioTrickster/安全网 Safety/红线自动修复 Red Line Auto-Fix|MarioTrickster/安全网 Safety/启用红线自动修复", "", "", "Editor/RedLineGuard.cs", "public static class RedLineGuard"),

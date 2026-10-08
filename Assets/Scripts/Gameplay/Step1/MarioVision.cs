@@ -17,11 +17,11 @@ public static class MarioVision
         return Vector2.Angle(forward, d) <= halfAngleDeg;
     }
 
-    /// <summary>视锥 && 无遮挡（遮挡规则复用第 0 步的 MarioSuspicionTracker.CanWitness）。</summary>
+    /// <summary>视锥 && 无遮挡（遮挡规则 = SightLine.CanWitness）。</summary>
     public static bool CanSee(Vector2 eye, bool facingRight, Vector2 target, Transform targetRoot, MarioMindTuningSO t)
     {
         if (!InCone(eye, facingRight, target, t.visionRange, t.visionHalfAngle, t.nearSenseRadius)) return false;
-        return MarioSuspicionTracker.CanWitness(eye, target, t.visionRange, targetRoot);
+        return SightLine.CanWitness(eye, target, t.visionRange, targetRoot);
     }
 
     public static Vector2 EyeOf(Transform mario, MarioMindTuningSO t) => (Vector2)mario.position + Vector2.up * t.eyeHeight;

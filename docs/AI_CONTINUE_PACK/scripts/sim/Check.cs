@@ -980,6 +980,38 @@ static class CHECK {
     else parts.Add("游戏 / 小镇工坊 / 体检 / F8 反馈包 / 网页都读\"内置 + 你的\"；Play 中保存下一句就生效；bat 上传时把你的台词也提交");
     Console.WriteLine($"[{(ub==0?"OK":"FAIL")}] S234 你的台词（可改、可加、可关，升级不覆盖）：{string.Join("｜",parts)}"); fail+=ub; }
 
+  // S239 按"好玩"整合：用户"不考虑任何宪法 只考虑游戏好玩的初衷对系统进行整合 玩的过程中已经重复的可以考虑删除"。玩法和现役机制重复、房间/小镇里根本不运行的旧系统整个删掉：① 文件没了、代码没人再用 ② 视线检测搬到 SightLine 行为不变 ③ 建场景不再装/剥离它们，BuilderVersion ≥ 22 ④ 没留孤儿 .meta（含 Prefabs）
+  { int fr=0; var parts=new List<string>();
+    var root=WsRepo("Assets");
+    string[] goneTypes={"TricksterHeatMeter","HeatBreachHint","HeatSuspicionBridge","AlarmCrisisDirector","PropComboTracker","RepeatInterferenceStack","RouteBudgetService","InterferenceCompensationPolicy","CounterRevealReward","MarioSuspicionTracker","AnchorSuspicionData","SilentMarkSensor","MarioCounterplayProbe","ResidueVisualHint","SuspicionHUD","LootEscapeHUD","InteractionLogSink","GlobalGameUICanvas","GameUI","GlobalGameUICanvasPrefabBuilder","UIWorldSpaceLayerSetup"};
+    string[] goneSymbols={"CoreLoopOnly","ExtendedSystems","RemoveExtendedSystems","StripUnusedLegacy","Step1Unused","NeedsGameplayLoopAutoFix","HeatTierChangedPayload","OnHeatTierChanged","TricksterRevealedPayload","OnTricksterRevealed","comboPreference","DebugGodMode","DebugInfiniteEnergy","DebugInstantBlend","HideLegacyHud","EnsureGlobalGameUICanvas","HeatPerActivation"};
+    var stillFiles=Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories).Where(f=>goneTypes.Contains(Path.GetFileNameWithoutExtension(f))).Select(Path.GetFileName).ToList();
+    bool prefabGone=!File.Exists(Path.Combine(root,"Prefabs/UI/GlobalGameUICanvas.prefab"));
+    string Code(string x)=>string.Join("\n",x.Split('\n').Select(l=>{int i=l.IndexOf("//");return i>=0?l.Substring(0,i):l;}));
+    // 测试里专门写"这些已删、别加回来"的字符串断言可以出现，所以只扫正式代码 + PlayMode 测试
+    var scan=Directory.GetFiles(Path.Combine(root,"Scripts"),"*.cs",SearchOption.AllDirectories).Concat(Directory.GetFiles(Path.Combine(root,"Tests/PlayMode"),"*.cs",SearchOption.AllDirectories));
+    var refs=new List<string>();
+    foreach(var f in scan){ var c=Code(File.ReadAllText(f)); foreach(var n in goneTypes.Concat(goneSymbols)) if(System.Text.RegularExpressions.Regex.IsMatch(c,"\\b"+n+"\\b")) refs.Add(Path.GetFileName(f)+":"+n); }
+    if(stillFiles.Count>0||!prefabGone||refs.Count>0){ fr++; Console.WriteLine($"     [FAIL] 重复旧系统：文件还在 {string.Join(",",stillFiles)}｜旧界面 prefab 删了 {prefabGone}｜代码还在用 {string.Join(",",refs.Take(10))}"); }
+    else parts.Add($"{goneTypes.Length} 个重复旧系统（热度/警报导演/连击追踪/重复干扰/路线预算/补偿/反揭露奖励/锚点起疑层/旧界面）已删，正式代码没有一处再用它们");
+    // ② 视线检测
+    var sl=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/SightLine.cs"));
+    bool slOk=sl.Contains("public static bool CanWitness(")&&sl.Contains("public static bool IsOneWayPlatform(")&&!sl.Contains("LinecastAll(");
+    var users=new[]{"Gameplay/Step1/MarioVision.cs","Gameplay/Step1/MarioVisionConeView.cs","Gameplay/Step1/TricksterKit.cs","Enemy/TricksterController.cs","LevelElements/Traps/CannonBall.cs"}.Where(u=>!File.ReadAllText(WsRepo("Assets/Scripts/"+u)).Contains("SightLine.")).ToList();
+    if(!slOk||users.Count>0){ fr++; Console.WriteLine($"     [FAIL] 视线检测：SightLine 完整 {slOk}｜没改过来 {string.Join(",",users)}"); }
+    else parts.Add("视线检测原样搬进 SightLine（马里奥视野/视野锥/捣蛋者/炮弹都改用它），不分配数组");
+    // ③ 建场景
+    var boot=File.ReadAllText(WsRepo("Assets/Scripts/Editor/GameplayLoopSceneBootstrapper.cs"));
+    string bootCode=string.Join("\n",boot.Split('\n').Select(l=>{int i=l.IndexOf("//");return i>=0?l.Substring(0,i):l;})); bool bootOk=!bootCode.Contains("MarioSuspicionTracker")&&!bootCode.Contains("CoreLoopOnly")&&!bootCode.Contains("GlobalGameUICanvas");
+    var bvm=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/Editor/Step1PrankRoomBuilder.cs")),@"public const int BuilderVersion = (\d+);"); int bv=bvm.Success?int.Parse(bvm.Groups[1].Value):0;
+    if(bv<22||!bootOk){ fr++; Console.WriteLine($"     [FAIL] 建场景：BuilderVersion {bv}｜装配干净 {bootOk}"); }
+    else parts.Add($"建场景不再装/剥离旧系统，BuilderVersion {bv}（旧房间自动重建一次）");
+    // ④ 孤儿 .meta
+    var orphans=new[]{"Scripts","Tests","Resources","Prefabs"}.Where(d=>Directory.Exists(Path.Combine(root,d))).SelectMany(d=>Directory.GetFiles(Path.Combine(root,d),"*.meta",SearchOption.AllDirectories)).Where(m=>!File.Exists(m.Substring(0,m.Length-5))&&!Directory.Exists(m.Substring(0,m.Length-5))).Select(Path.GetFileName).ToList();
+    var topMeta=Directory.GetFiles(root,"*.meta").Where(m=>!File.Exists(m.Substring(0,m.Length-5))&&!Directory.Exists(m.Substring(0,m.Length-5))).Select(Path.GetFileName).ToList();
+    if(orphans.Count+topMeta.Count>0){ fr++; Console.WriteLine($"     [FAIL] 孤儿 .meta：{string.Join(",",orphans.Concat(topMeta).Take(8))}"); }
+    else parts.Add("没有孤儿 .meta");
+    Console.WriteLine($"[{(fr==0?"OK":"FAIL")}] S239 按好玩整合、删重复旧系统：{string.Join("｜",parts)}"); fail+=fr; }
   // S238 删旧工具 + 只留一个调参文件 + 性格一个下拉：用户 "D1 D2 D3 D4 M1 M2 M3 都做"。① 旧工具文件真的没了、没有代码再引用它们 ② 调参文件只有一个（GameplayLoopConfig 没了；扫描/能量/附身 20 个数值在 RushMarioTuning，默认值 = 旧文件）③ 性格：旧两个设置换算正确 ④ 菜单里没有「旧工具」⑤ docs 根目录只留现役文档
   { int fr=0; var parts=new List<string>();
     var root=WsRepo("Assets"); string[] gone={"Scripts/Editor/TestConsoleWindow.cs","Scripts/Editor/StudioExplorationRunner.cs","Scripts/Editor/MechanismExplorationPlan.cs","Scripts/Editor/ExplorationTrialObserver.cs","Scripts/Editor/TestSceneBuilder.cs","Scripts/Editor/LevelStudioPlaySession.cs","Scripts/Editor/AITestAnalystWindow.cs","Scripts/Editor/DocsAutomatorWindow.cs","Scripts/Editor/PlannerProductionAssistant.cs","Scripts/Editor/LevelSnippetLibrary.cs","Scripts/Editor/LevelBrushTool.cs","Scripts/Editor/GameplayBoxVisualizer.cs","Scripts/Gameplay/AutoTestAnalytics.cs","Scripts/Core/InputRecorder.cs","Scripts/Core/MemoryGuard.cs","Scripts/Gameplay/PropComboHUD.cs","Scripts/Gameplay/ScanWaveHUD.cs","Scripts/Gameplay/RouteBudgetHUD.cs","Scripts/Gameplay/TricksterHeatHUD.cs","Scripts/LevelDesign/GameplayLoopConfigSO.cs","Resources/GameplayLoopConfig.asset","Tests/PlayMode/S50_AutoRunE2ETests.cs","Tests/PlayMode/S51_DataDrivenTasTests.cs","Tests/EditMode/ExplorationIntegrationContractTests.cs","Tests/EditMode/MechanismExplorationPlanTests.cs"};

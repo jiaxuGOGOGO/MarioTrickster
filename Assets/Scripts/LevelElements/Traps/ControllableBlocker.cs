@@ -9,21 +9,15 @@ using UnityEngine;
 ///   - Active：转为实心碰撞，临时封住一条路线；若 Mario 已在范围内，则平滑挤出。
 ///   - Recovery/Cooldown：恢复可通过半透明状态。
 ///
-/// S53 薄层原则：只复用 ControllableLevelElement 状态机、RouteBudgetService 和 ScanAbility 事件，
+/// S53 薄层原则：只复用 ControllableLevelElement 状态机和 ScanAbility 事件（S239：旧路线预算已删，H1 由死局检查保证），
 /// 不改 MarioController、TricksterAbilitySystem 或 AsciiLevelGenerator 核心流程。
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class ControllableBlocker : ControllableLevelElement
 {
     [Header("=== 封路设置 ===")]
-    [Tooltip("关联路线 ID；留空时按 Y 坐标自动映射 route_upper / route_lower。")]
-    [SerializeField] private string routeId = "";
-
     [Tooltip("扫描命中 Windup 后，Active 持续时间倍率。0.5 = 减半。")]
     [SerializeField, Range(0.1f, 1f)] private float scannedActiveDurationMultiplier = 0.5f;
-
-    [Tooltip("路线预算拒绝时，是否额外扣一次操控能量作为失败代价。")]
-    [SerializeField] private bool consumeEnergyOnRouteFail = true;
 
     [Header("=== 视觉设置 ===")]
     [Tooltip("Idle/冷却时的半透明可通过颜色。")]
@@ -44,16 +38,12 @@ public class ControllableBlocker : ControllableLevelElement
 
     private BoxCollider2D boxCollider;
     private SpriteRenderer sr;
-    private RouteBudgetService routeBudgetService;
     private ScanAbility marioScanAbility;
-    private EnergySystem tricksterEnergySystem;
 
     private bool originalColliderEnabled;
     private bool originalIsTrigger;
     // 使用基类 ControllablePropBase.originalColor (protected)，不再重复声明
     private bool scanCounteredThisWindup;
-    private bool activationBlockedByRouteBudget;
-    private string activeRouteId;
 
     protected override void Awake()
     {
@@ -71,9 +61,7 @@ public class ControllableBlocker : ControllableLevelElement
         originalIsTrigger = boxCollider.isTrigger;
         originalColor = sr != null ? sr.color : Color.white;
 
-        routeBudgetService = FindObjectOfType<RouteBudgetService>();
         marioScanAbility = FindObjectOfType<ScanAbility>();
-        tricksterEnergySystem = FindObjectOfType<EnergySystem>();
 
         SetPassableState();
     }
@@ -87,7 +75,7 @@ public class ControllableBlocker : ControllableLevelElement
     {
         base.Update();
 
-        if (currentState == PropControlState.Active && !activationBlockedByRouteBudget)
+        if (currentState == PropControlState.Active)
         {
             SqueezeMarioOutIfOverlapping();
         }
@@ -107,8 +95,6 @@ public class ControllableBlocker : ControllableLevelElement
     protected override void OnTelegraphStart()
     {
         scanCounteredThisWindup = false;
-        activationBlockedByRouteBudget = false;
-        activeRouteId = ResolveRouteId();
         EnsureScanSubscription();
         SetWindupState();
     }
@@ -125,16 +111,6 @@ public class ControllableBlocker : ControllableLevelElement
             ? activeDuration * scannedActiveDurationMultiplier
             : activeDuration;
 
-        activationBlockedByRouteBudget = !TryReserveRouteBudget(effectiveActiveDuration);
-        if (activationBlockedByRouteBudget)
-        {
-            ConsumeRouteFailEnergyPenalty();
-            SetPassableState();
-            stateTimer = 0f;
-            Debug.Log($"[ControllableBlocker] {gameObject.name} route budget rejected, blocker failed.");
-            return;
-        }
-
         stateTimer = Mathf.Min(stateTimer, effectiveActiveDuration);
         SetActiveState();
         SqueezeMarioOutIfOverlapping();
@@ -144,15 +120,12 @@ public class ControllableBlocker : ControllableLevelElement
     {
         SetPassableState();
         scanCounteredThisWindup = false;
-        activationBlockedByRouteBudget = false;
     }
 
     public override void OnLevelReset()
     {
         base.OnLevelReset();
         scanCounteredThisWindup = false;
-        activationBlockedByRouteBudget = false;
-        activeRouteId = "";
 
         boxCollider.enabled = originalColliderEnabled;
         boxCollider.isTrigger = originalIsTrigger;
@@ -194,75 +167,6 @@ public class ControllableBlocker : ControllableLevelElement
             scanCounteredThisWindup = true;
             if (sr != null) sr.color = Color.Lerp(windupHintColor, Color.white, 0.45f);
             Debug.Log($"[ControllableBlocker] {gameObject.name} scanned during Windup, Active duration halved.");
-        }
-    }
-
-    private bool TryReserveRouteBudget(float duration)
-    {
-        if (routeBudgetService == null)
-        {
-            routeBudgetService = FindObjectOfType<RouteBudgetService>();
-        }
-
-        if (routeBudgetService == null)
-        {
-            // 没有路线预算服务的测试场景中，不阻断机关自身功能。
-            return true;
-        }
-
-        string targetRoute = string.IsNullOrEmpty(activeRouteId) ? ResolveRouteId() : activeRouteId;
-        string source = ResolveBudgetSource();
-
-        if (IsRouteAlreadyReservedByThisBlocker(targetRoute, source))
-        {
-            return true;
-        }
-
-        return routeBudgetService.TryDegradeRoute(targetRoute, source, duration);
-    }
-
-    private bool IsRouteAlreadyReservedByThisBlocker(string targetRoute, string source)
-    {
-        var routes = routeBudgetService.GetAllRoutes();
-        for (int i = 0; i < routes.Count; i++)
-        {
-            var route = routes[i];
-            if (route.RouteId == targetRoute && route.Status != RouteBudgetService.RouteStatus.Available)
-            {
-                return route.DegradedBy == source || route.DegradedBy == gameObject.name;
-            }
-        }
-        return false;
-    }
-
-    private string ResolveRouteId()
-    {
-        if (!string.IsNullOrEmpty(routeId)) return routeId;
-        return transform.position.y > 0f ? "route_upper" : "route_lower";
-    }
-
-    private string ResolveBudgetSource()
-    {
-        PossessionAnchor anchor = GetComponent<PossessionAnchor>();
-        if (anchor != null && !string.IsNullOrEmpty(anchor.AnchorId))
-        {
-            return anchor.AnchorId;
-        }
-        return gameObject.name;
-    }
-
-    private void ConsumeRouteFailEnergyPenalty()
-    {
-        if (!consumeEnergyOnRouteFail) return;
-
-        if (tricksterEnergySystem == null)
-        {
-            tricksterEnergySystem = FindObjectOfType<EnergySystem>();
-        }
-
-        if (tricksterEnergySystem != null)
-        {
-            tricksterEnergySystem.TryConsumeControlCost();
         }
     }
 

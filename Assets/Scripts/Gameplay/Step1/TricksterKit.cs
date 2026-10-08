@@ -122,7 +122,7 @@ public class TricksterKit : MonoBehaviour
         {
             var c = s_hits[i];
             if (c == null || c.isTrigger || c.transform.IsChildOf(transform)) continue;
-            if (MarioSuspicionTracker.IsOneWayPlatform(c)) continue;
+            if (SightLine.IsOneWayPlatform(c)) continue;
             return false;
         }
         return true;

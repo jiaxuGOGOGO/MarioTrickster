@@ -424,11 +424,12 @@ public class Step1RushMarioTests
     }
 
     [Test]
-    public void CleanScreenHidesLegacyHudOnlyVisually()
+    public void CleanScreenHasNoLegacyHud()
     {
         string src = Read("Scripts/Gameplay/Step1/Step1Screen.cs");
-        StringAssert.Contains("GlobalGameUICanvas", src);
-        StringAssert.Contains("LootEscapeHUD", src);
+        // S239：旧界面（GlobalGameUICanvas / LootEscapeHUD / SuspicionHUD）已整个删掉，干净界面不用再去藏它们
+        foreach (string gone in new[] { "GlobalGameUICanvas", "LootEscapeHUD", "SuspicionHUD", "HideLegacyHud" })
+            StringAssert.DoesNotContain(gone, CodeOnly(src));
         foreach (string token in new[] { "ExplorationTarget", "RushMarioMind", "SetInputProvider", "TryCatch" })
             StringAssert.DoesNotContain(token, src, "界面层不能碰玩法/马里奥决策");
     }
@@ -671,11 +672,11 @@ public class Step1RushMarioTests
             bush.AddComponent<SightBlocker>();
             target.transform.position = at + new Vector2(4f, 0f);
             Physics2D.SyncTransforms();
-            Assert.IsFalse(MarioSuspicionTracker.CanWitness(at, target.transform.position, 8f, target.transform), "草丛挡视线");
-            Assert.IsTrue(MarioSuspicionTracker.CanWitness(at + new Vector2(2f, 0f), target.transform.position, 8f, target.transform), "走进草丛就看得见");
+            Assert.IsFalse(SightLine.CanWitness(at, target.transform.position, 8f, target.transform), "草丛挡视线");
+            Assert.IsTrue(SightLine.CanWitness(at + new Vector2(2f, 0f), target.transform.position, 8f, target.transform), "走进草丛就看得见");
             Object.DestroyImmediate(bush.GetComponent<SightBlocker>());
             Physics2D.SyncTransforms();
-            Assert.IsTrue(MarioSuspicionTracker.CanWitness(at, target.transform.position, 8f, target.transform), "普通触发器仍不挡视线（旧规则不变）");
+            Assert.IsTrue(SightLine.CanWitness(at, target.transform.position, 8f, target.transform), "普通触发器仍不挡视线（旧规则不变）");
         }
         finally { Object.DestroyImmediate(bush); Object.DestroyImmediate(target); }
     }
@@ -825,10 +826,10 @@ public class Step1RushMarioTests
         string legend = ElementLegendExporter.Build();
         foreach (var info in ElementCatalog.All)
             if (info.ch != '.' && info.ch != ' ') StringAssert.Contains("`" + info.ch + "`", legend);
-        string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
-        StringAssert.Contains("StripUnusedLegacy(gm.gameObject)", builder, "减法：第 1 步房间不跑用不到的旧系统");
-        foreach (var t in Step1PrankRoomBuilder.Step1Unused)
-            StringAssert.DoesNotContain(t.Name, CodeOnly(Read("Scripts/Gameplay/Step1/MarioEyes.cs")), "第 1 步马里奥感知不依赖被移除的系统");
+        // S239：旧系统已从代码里整个删掉，不再需要构建时剥离
+        foreach (string gone in new[] { "Scripts/Gameplay/MarioSuspicionTracker.cs", "Scripts/Gameplay/TricksterHeatMeter.cs", "Scripts/Gameplay/AlarmCrisisDirector.cs", "Scripts/Gameplay/PropComboTracker.cs", "Scripts/UI/GlobalGameUICanvas.cs" })
+            Assert.IsFalse(System.IO.File.Exists(System.IO.Path.Combine(Application.dataPath, gone)), gone + " 已删（S239），别加回来");
+        StringAssert.DoesNotContain("StripUnusedLegacy", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
     }
 
     // ── S189：死局分析 / 防卡死 / 关卡工坊 ─────────────────────
@@ -1065,7 +1066,7 @@ public class Step1RushMarioTests
     [Test]
     public void PerFrameCodePathsDoNotAllocate()
     {
-        string tracker = CodeOnly(Read("Scripts/Gameplay/MarioSuspicionTracker.cs"));
+        string tracker = CodeOnly(Read("Scripts/Gameplay/SightLine.cs"));
         StringAssert.DoesNotContain("Physics2D.LinecastAll(", tracker, "视线检测每帧多次调用，不能用会分配数组的 LinecastAll");
         StringAssert.DoesNotContain("Physics2D.RaycastAll(", CodeOnly(Read("Scripts/Gameplay/Step1/MarioVisionConeView.cs")));
         StringAssert.Contains("textCache", Read("Scripts/Gameplay/Step1/Step1Gui.cs"), "界面文字样式要缓存");
@@ -2415,7 +2416,6 @@ public class Step1RushMarioTests
             Assert.AreEqual(5f, t.scanRadius); Assert.AreEqual(8f, t.scanCooldown); Assert.AreEqual(100f, t.energyMaxEnergy); Assert.AreEqual(15f, t.energyControlCost); Assert.AreEqual(0.8f, t.possessionRevealDuration);
             GameplayMetrics.SetTuning(t); t.scanRadius = 7f;
             Assert.AreEqual(7f, GameplayMetrics.ScanRadius(5f), "改 RushMarioTuning 的扫描半径 → 马里奥的 Q 扫描跟着变");
-            Assert.AreEqual(12f, GameplayMetrics.HeatPerActivation(12f), "关掉的扩展系统用组件自己的默认值");
         }
         finally { GameplayMetrics.SetTuning(null); Object.DestroyImmediate(t); }
         StringAssert.Contains("GameManager.EditorRestartHandler = Retry;", Read("Scripts/Editor/PlayRetry.cs"), "F5 / R 在编辑器里仍然 = 停止再进 Play");

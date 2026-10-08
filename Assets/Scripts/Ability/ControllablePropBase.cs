@@ -69,7 +69,6 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     protected Color originalColor;
     private Vector3 originalLocalPosition;
     private float _telegraphPhase; // S216
-    protected MarioSuspicionTracker suspicionTracker;
 
     // Session 20: 高亮状态
     private bool _isHighlighted;
@@ -87,7 +86,6 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
             originalColor = spriteRenderer.color;
         }
         remainingUses = maxUses;
-        suspicionTracker = FindObjectOfType<MarioSuspicionTracker>();
     }
 
     protected virtual void Update()
@@ -266,8 +264,6 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         currentState = PropControlState.Recovery;
         stateTimer = recoveryDuration;
 
-        ApplyRecoveryCounterplayCost();
-
         if (stateTimer <= 0f)
         {
             EnterCooldown();
@@ -282,25 +278,6 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         {
             EnterCooldown();
         }
-    }
-
-    private void ApplyRecoveryCounterplayCost()
-    {
-        PossessionAnchor anchor = GetComponent<PossessionAnchor>();
-        if (anchor == null) return;
-
-        if (suspicionTracker == null)
-        {
-            suspicionTracker = FindObjectOfType<MarioSuspicionTracker>();
-        }
-        if (suspicionTracker == null) return;
-
-        AnchorSuspicionData data = suspicionTracker.GetOrCreateData(anchor);
-        if (data == null) return;
-
-        data.AddSuspicion(AnchorSuspicionData.MaxSuspicion);
-        data.AddEvidence(AnchorSuspicionData.MaxEvidence);
-        data.MarkUsed();
     }
 
     private void EnterCooldown()

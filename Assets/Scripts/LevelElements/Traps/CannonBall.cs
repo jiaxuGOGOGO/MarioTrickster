@@ -72,7 +72,7 @@ public class CannonBall : MonoBehaviour
         }
 
         // 撞到实体（墙/地面/箱子）就碎；触发器与单向台面穿过
-        if (!other.isTrigger && !MarioSuspicionTracker.IsOneWayPlatform(other)) Pop();
+        if (!other.isTrigger && !SightLine.IsOneWayPlatform(other)) Pop();
     }
 
     private void Pop()

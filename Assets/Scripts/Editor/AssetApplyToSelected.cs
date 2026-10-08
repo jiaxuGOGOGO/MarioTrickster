@@ -785,8 +785,7 @@ public class AssetApplyToSelected : EditorWindow
             || HasComponentNamed(target, "ControllableLevelElement")
             || HasComponentNamed(target, "BaseHazard")
             || HasComponentNamed(target, "LootObjective")
-            || HasComponentNamed(target, "EscapeGate")
-            || HasComponentNamed(target, "AlarmCrisisDirector");
+            || HasComponentNamed(target, "EscapeGate");
     }
 
     private FrozenGameplayBoxSnapshot CaptureRootGameplayBox(GameObject target)

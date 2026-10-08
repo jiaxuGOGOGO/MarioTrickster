@@ -121,6 +121,14 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 | **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
 | **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
 
+### [S239] 用户："不考虑任何宪法 只考虑游戏好玩的初衷对系统进行整合 玩的过程中已经重复的可以考虑删除其他考虑整合 基于此看是否删除"
+
+- docs/step1/S239_FUN_FIRST_MERGE.md（§2：每个旧系统对应现在哪个机制；§3：残留痕迹 / 越坑越警觉 2 个点子**等用户拍板**）。
+- 删 21 个重复旧系统（热度、警报导演、连锁追踪、重复叠加、路线预算、补偿、反揭露奖励、第 0 步锚点起疑层、旧 UGUI 界面 + 预制体），约 7000 行；房间 / 小镇里本来就不运行，玩法不变。
+- 视线检测一字不改搬到 `Gameplay/SightLine.cs`；删 3 个 Debug 开关、性格 comboPreference、事件 HeatTierChanged / TricksterRevealed；CrisisWarning 的 director 改成 source。
+- BuilderVersion 21 → 22（场景重建一次）；DataVersion 仍 28；PlayMode 34 → 33；Step0CoreLoopTests 删除。
+- **用户决定**：这些系统不按宪法第 4 步加回；新点子在现有系统上做。
+
 ### [S238] 用户："D1 D2 D3 D4 M1 M2 M3 都做 做之前在从第一性原理看现在的项目是否这么做是最优解 然后开始执行"
 
 - docs/step1/S238_CLEANUP_DONE.md（§1 上次清单 4 处更正：VisualFeedbackBridge 保留、MemoryGuard 是活的、LevelStudioPlaySession 管 F5、GameplayTests 34 条保留）。

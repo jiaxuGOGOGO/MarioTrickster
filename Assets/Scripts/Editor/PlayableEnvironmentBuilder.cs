@@ -228,9 +228,6 @@ public static class PlayableEnvironmentBuilder
             Debug.Log("[TestConsole] Created Managers (GameManager + InputManager + LevelManager)");
         }
 
-        // UGUI HUD：优先实例化标准 GlobalGameUICanvas Prefab，替代旧 OnGUI 灰盒 HUD。
-        EnsureGlobalGameUICanvas(gameManager != null ? gameManager.transform : null);
-
         // ═══════════════════════════════════════════════════
         // Camera
         // ═══════════════════════════════════════════════════
@@ -287,31 +284,6 @@ public static class PlayableEnvironmentBuilder
     // ═══════════════════════════════════════════════════
     // EnsurePlayableEnvironment 辅助方法
     // ═══════════════════════════════════════════════════
-
-    /// <summary>确保标准 UGUI HUD Canvas 存在。</summary>
-    private static void EnsureGlobalGameUICanvas(Transform parent)
-    {
-        GlobalGameUICanvas existing = Object.FindObjectOfType<GlobalGameUICanvas>();
-        if (existing != null) return;
-
-        GameObject prefab = GlobalGameUICanvasPrefabBuilder.EnsurePrefabAsset();
-        GameObject uiObject = prefab != null
-            ? (GameObject)PrefabUtility.InstantiatePrefab(prefab)
-            : new GameObject("GlobalGameUICanvas");
-
-        if (uiObject.GetComponent<GlobalGameUICanvas>() == null)
-        {
-            uiObject.AddComponent<GlobalGameUICanvas>();
-        }
-
-        if (parent != null)
-        {
-            uiObject.transform.SetParent(parent, false);
-        }
-
-        Undo.RegisterCreatedObjectUndo(uiObject, "Create GlobalGameUICanvas");
-        Debug.Log("[TestConsole] Created GlobalGameUICanvas UGUI HUD");
-    }
 
     /// <summary>确保 Layer 存在，不存在则创建</summary>
     private static int EnsureLayerForPlayable(string layerName)

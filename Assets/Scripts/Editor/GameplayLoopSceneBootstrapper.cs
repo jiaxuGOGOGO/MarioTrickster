@@ -15,32 +15,6 @@ public static class GameplayLoopSceneBootstrapper
     private const string DefaultTricksterSpawnName = "TricksterSpawnPoint";
 
     /// <summary>
-    /// 设计宪法 v1.0 第 0 步：默认只装核心循环（跑+扫描+附身+触发+残留）。
-    /// 扩展系统（热度/警报/路线预算/补偿/重复惩罚/反揭穿奖励/连击）代码保留，
-    /// 按宪法开发顺序逐个加回时把本开关设为 false 或改为逐项开启。
-    /// </summary>
-    public static bool CoreLoopOnly = true;
-
-    /// <summary>第 0 步被关闭的扩展系统（顺序即加回参考顺序的逆序，残留不在此列）。</summary>
-    public static readonly System.Type[] ExtendedSystems =
-    {
-        typeof(RouteBudgetService), typeof(InterferenceCompensationPolicy), typeof(RepeatInterferenceStack),
-        typeof(CounterRevealReward), typeof(PropComboTracker), typeof(TricksterHeatMeter),
-        typeof(HeatBreachHint), typeof(HeatSuspicionBridge), typeof(AlarmCrisisDirector)
-    };
-
-    public static void RemoveExtendedSystems(GameObject managers)
-    {
-        if (managers == null) return;
-        foreach (System.Type type in ExtendedSystems)
-        {
-            Component c = managers.GetComponent(type);
-            if (c == null) continue;
-            if (Application.isPlaying) Object.Destroy(c); else Object.DestroyImmediate(c);
-        }
-    }
-
-    /// <summary>
     /// 为当前 root 补齐 Gameplay Loop 所需服务。该方法只做“缺什么补什么”，不会重建现有核心对象。
     /// </summary>
     public static void EnsureGameplayLoopServices(GameObject root)
@@ -48,36 +22,12 @@ public static class GameplayLoopSceneBootstrapper
         root = ResolveRoot(root);
         GameObject managers = FindOrCreateManagers(root);
 
-        // 原 TestSceneBuilder（S238 已删）中 Managers_GameplayLoop 的服务清单：按原顺序补齐，避免重构底层生命周期。
-        // 设计宪法第 0 步：核心循环（跑+扫描+附身+触发+残留）必装。
-        EnsureComponent<MarioSuspicionTracker>(managers);
-        EnsureComponent<ResidueVisualHint>(managers);
-        EnsureComponent<SuspicionHUD>(managers);
-        EnsureComponent<LootEscapeHUD>(managers);
-        if (CoreLoopOnly)
-        {
-            // 已存在的扩展系统也移除，保证场景里真的只剩核心循环。
-            RemoveExtendedSystems(managers);
-        }
-        else
-        {
-            EnsureComponent<RouteBudgetService>(managers);
-            EnsureComponent<InterferenceCompensationPolicy>(managers);
-            EnsureComponent<RepeatInterferenceStack>(managers);
-            EnsureComponent<CounterRevealReward>(managers);
-            EnsureComponent<PropComboTracker>(managers);
-            EnsureComponent<TricksterHeatMeter>(managers);
-            EnsureComponent<HeatBreachHint>(managers);
-            EnsureComponent<HeatSuspicionBridge>(managers);
-            EnsureComponent<AlarmCrisisDirector>(managers);
-        }
-
+        // S239：旧的锚点起疑 / 热度 / 警报 / 路线预算 / 补偿 / 连击系统已全部删掉（第 1 步的马里奥只用 MarioEyes + RushMarioMind），这里只装核心管理器。
         GameManager gameManager = EnsureComponent<GameManager>(managers);
         InputManager inputManager = EnsureComponent<InputManager>(managers);
         LevelManager levelManager = EnsureComponent<LevelManager>(managers);
 
         BindCoreManagers(root, managers, gameManager, inputManager, levelManager);
-        EnsureGlobalGameUICanvas(managers.transform);
 
         // [BugFix] 补齐 PossessionAnchor：确保所有 IControllableProp 都有锡点，
         // 否则 Trickster AI 的 FindAmbushAnchor() 返回 null 导致原地不动。
@@ -130,30 +80,6 @@ public static class GameplayLoopSceneBootstrapper
 
         EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
         Debug.Log($"[GameplayLoopSceneBootstrapper] Combat semantics ensured. LootObjective added: {lootFixCount}, EscapeGate added: {gateFixCount}.");
-    }
-
-    /// <summary>
-    /// 供 Level Studio 面板判断是否显示 Auto-Fix 按钮。
-    /// </summary>
-    public static bool NeedsGameplayLoopAutoFix(GameObject root)
-    {
-        root = root != null ? root : ResolveActiveLevelRoot();
-        if (root == null) return false;
-
-        bool hasCombatSemantics = root.GetComponentInChildren<Collectible>(true) != null
-            || root.GetComponentInChildren<GoalZone>(true) != null
-            || FindComponentInScope<LootObjective>(root) != null
-            || FindComponentInScope<EscapeGate>(root) != null;
-
-        if (!hasCombatSemantics) return false;
-
-        if (FindComponentInScope<RouteBudgetService>(root) == null) return true;
-        if (FindComponentInScope<TricksterHeatMeter>(root) == null) return true;
-        if (FindComponentInScope<AlarmCrisisDirector>(root) == null) return true;
-        if (FindComponentInScope<PropComboTracker>(root) == null) return true;
-        if (FindComponentInScope<LootObjective>(root) == null && root.GetComponentInChildren<Collectible>(true) != null) return true;
-        if (FindComponentInScope<EscapeGate>(root) == null && root.GetComponentInChildren<GoalZone>(true) != null) return true;
-        return false;
     }
 
     /// <summary>
@@ -344,24 +270,6 @@ public static class GameplayLoopSceneBootstrapper
         if (collider == null)
             collider = Undo.AddComponent<BoxCollider2D>(go);
         collider.isTrigger = true;
-    }
-
-    private static void EnsureGlobalGameUICanvas(Transform parent)
-    {
-        GlobalGameUICanvas existing = Object.FindObjectOfType<GlobalGameUICanvas>();
-        if (existing != null) return;
-
-        GameObject prefab = GlobalGameUICanvasPrefabBuilder.EnsurePrefabAsset(false);
-        GameObject uiObject = prefab != null
-            ? PrefabUtility.InstantiatePrefab(prefab) as GameObject
-            : new GameObject("GlobalGameUICanvas", typeof(RectTransform));
-
-        if (uiObject == null) return;
-        Undo.RegisterCreatedObjectUndo(uiObject, "Create Global Game UI Canvas");
-        if (uiObject.GetComponent<GlobalGameUICanvas>() == null)
-            Undo.AddComponent<GlobalGameUICanvas>(uiObject);
-        if (parent != null)
-            Undo.SetTransformParent(uiObject.transform, parent, "Parent Global Game UI Canvas");
     }
 
     private static void SetSerializedField(Object target, string fieldName, object value)

@@ -320,7 +320,7 @@ public class TricksterController : MonoBehaviour
         {
             var c = s_wallHits[i].collider;
             if (c == null || c == boxCollider || c.isTrigger) continue;
-            if (MarioSuspicionTracker.IsOneWayPlatform(c)) continue;
+            if (SightLine.IsOneWayPlatform(c)) continue;
             if (Mathf.Abs(s_wallHits[i].normal.x) > 0.5f) return true;
         }
         return false;

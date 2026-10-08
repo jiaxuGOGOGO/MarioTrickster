@@ -46,39 +46,6 @@ public class H4PerceptionHonestyTests
     }
 
     [Test]
-    public void PassiveSensorOnlyReadsWorldEvidence()
-    {
-        string src = Read("Scripts/Gameplay/SilentMarkSensor.cs");
-        AssertNoTruthReads(Slice(src, "private void Update()", "private void RefreshAnchors"), "SilentMarkSensor.Update");
-    }
-
-    [Test]
-    public void TrackerAddsSuspicionOnlyAfterWitnessCheck()
-    {
-        string src = Read("Scripts/Gameplay/MarioSuspicionTracker.cs");
-
-        string activation = Slice(src, "private void HandlePropActivated", "private void HandlePossessionStateChanged");
-        int witness = activation.IndexOf("MarioWitnesses(anchor)");
-        Assert.Greater(witness, 0, "[H4] 出手处理必须先做目击判定");
-        Assert.Greater(activation.IndexOf("data.AddSuspicion"), witness, "[H4] 出手可疑度必须在目击判定之后");
-        Assert.Greater(activation.IndexOf("data.AddEvidence"), witness, "[H4] 出手证据必须在目击判定之后");
-
-        string possession = Slice(src, "private void HandlePossessionStateChanged", "private void HandleAnchorChanged");
-        StringAssert.Contains("anchor != null && MarioWitnesses(anchor)", possession, "[H4] 附身可疑度必须以目击为前提");
-
-        StringAssert.Contains("requireMarioWitness = true", src, "[H4] 目击门禁默认必须开启");
-    }
-
-    [Test]
-    public void OtherSuspicionWritersAskTrackerForWitness()
-    {
-        string comp = Slice(Read("Scripts/Gameplay/InterferenceCompensationPolicy.cs"), "private void HandlePropActivated", "data.AddSuspicion");
-        StringAssert.Contains("IsWitnessedByMario(anchor)", comp);
-        string stack = Read("Scripts/Gameplay/RepeatInterferenceStack.cs");
-        StringAssert.Contains("suspicionTracker.IsWitnessedByMario(anchor)", stack);
-    }
-
-    [Test]
     public void WitnessRequiresRangeAndClearLine()
     {
         var target = new GameObject("H4Target");
@@ -89,19 +56,19 @@ public class H4PerceptionHonestyTests
             target.transform.position = new Vector3(47004, 1, 0);
             target.AddComponent<BoxCollider2D>(); // 目标自身碰撞体不算遮挡
             Physics2D.SyncTransforms();
-            Assert.IsTrue(MarioSuspicionTracker.CanWitness(viewer, target.transform.position, 8f, target.transform));
+            Assert.IsTrue(SightLine.CanWitness(viewer, target.transform.position, 8f, target.transform));
 
-            Assert.IsFalse(MarioSuspicionTracker.CanWitness(viewer, target.transform.position, 3f, target.transform), "超出距离不能目击");
+            Assert.IsFalse(SightLine.CanWitness(viewer, target.transform.position, 3f, target.transform), "超出距离不能目击");
 
             wall.transform.position = new Vector3(47002, 1, 0);
             var body = wall.AddComponent<BoxCollider2D>(); body.size = new Vector2(0.2f, 3f);
             Physics2D.SyncTransforms();
-            Assert.IsFalse(MarioSuspicionTracker.CanWitness(viewer, target.transform.position, 8f, target.transform), "实体墙后不能目击");
+            Assert.IsFalse(SightLine.CanWitness(viewer, target.transform.position, 8f, target.transform), "实体墙后不能目击");
 
             body.isTrigger = true; Physics2D.SyncTransforms();
-            Assert.IsTrue(MarioSuspicionTracker.CanWitness(viewer, target.transform.position, 8f, target.transform), "触发器不挡视线");
+            Assert.IsTrue(SightLine.CanWitness(viewer, target.transform.position, 8f, target.transform), "触发器不挡视线");
 
-            Assert.IsFalse(MarioSuspicionTracker.CanWitness(new Vector2(float.NaN, 1), target.transform.position, 8f, target.transform));
+            Assert.IsFalse(SightLine.CanWitness(new Vector2(float.NaN, 1), target.transform.position, 8f, target.transform));
         }
         finally { Object.DestroyImmediate(target); Object.DestroyImmediate(wall); }
     }

@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// S187：标记——这个物体（即使碰撞体是 Trigger、人可以穿过）也挡住马里奥的视线。
-/// 用于草丛等"藏身处"。MarioSuspicionTracker.CanWitness 与视锥显示都会遵守它。
+/// 用于草丛等"藏身处"。SightLine.CanWitness 与视锥显示都会遵守它。
 /// 只会让马里奥看得更少，不给他任何额外信息（宪法 H4 安全方向）。
 /// </summary>
 public class SightBlocker : MonoBehaviour

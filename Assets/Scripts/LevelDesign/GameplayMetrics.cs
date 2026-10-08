@@ -5,9 +5,8 @@ using UnityEngine;
 ///
 /// S238：以前有第二个调参文件 Assets/Resources/GameplayLoopConfig.asset（54 个数值）。查下来第 1 步真正用到的只有
 /// 扫描 8 + 能量 10 + 附身 2 = 20 个 → 搬进唯一的调参文件 RushMarioTuning（「你的技能」组），默认值一模一样。
-/// 另外 34 个（热度 / 警报扫描波 / 连锁倍率 / 路线预算 / 补偿）属于设计宪法第 0 步关掉的扩展系统（CoreLoopOnly = true，
-/// 第 1 步房间根本不装这些组件）→ 直接用各组件自己的默认值（和旧文件里的值相同，sim 检查过）。以后真要打开扩展系统，
-/// 再把它们的数值加进 RushMarioTuning，不要再建第二个调参文件。
+/// 另外 34 个属于热度 / 警报扫描波 / 连锁倍率 / 路线预算 / 补偿这些旧系统 —— S239 已整个删掉（玩法和现有的起疑条、
+/// 连击计分、警报事件重复）。以后要加新数值，加进 RushMarioTuning，不要再建第二个调参文件。
 /// </summary>
 public static class GameplayMetrics
 {
@@ -53,38 +52,4 @@ public static class GameplayMetrics
     public static float PossessionRevealDuration(float fallback) => Tuning != null ? Tuning.possessionRevealDuration : fallback;
     public static float PossessionEscapeDuration(float fallback) => Tuning != null ? Tuning.possessionEscapeDuration : fallback;
 
-    // 扩展系统（第 0 步已关；用组件自己的默认值）：热度 / 警报扫描波 / 路线预算 / 连锁倍率 / 补偿
-    public static float AlarmWarningDuration(float fallback) => fallback;
-    public static float AlarmScanSpeed(float fallback) => fallback;
-    public static float AlarmScanWidth(float fallback) => fallback;
-    public static float AlarmEvidenceAmplifyFactor(float fallback) => fallback;
-    public static float AlarmScanSuspicionBonus(float fallback) => fallback;
-    public static TricksterHeatMeter.HeatTier AlarmTriggerTier(TricksterHeatMeter.HeatTier fallback) => fallback;
-    public static float AlarmScanCooldown(float fallback) => fallback;
-    public static bool AlarmLockdownForcesScan(bool fallback) => fallback;
-    public static float RouteAutoRecoveryTime(float fallback) => fallback;
-    public static int RouteMaxSimultaneousDegraded(int fallback) => fallback;
-    public static float HeatPerPossession(float fallback) => fallback;
-    public static float HeatPerActivation(float fallback) => fallback;
-    public static float HeatComboHeatFactor(float fallback) => fallback;
-    public static float HeatComboBreakHeatPerChain(float fallback) => fallback;
-    public static float HeatDecayPerSecond(float fallback) => fallback;
-    public static float HeatLockdownFallbackHeat(float fallback) => fallback;
-    public static float HeatLockdownCooldown(float fallback) => fallback;
-    public static float HeatToDecaySlowdown(float fallback) => fallback;
-    public static float HeatSuspiciousThreshold(float fallback) => fallback;
-    public static float HeatAlertThreshold(float fallback) => fallback;
-    public static float HeatLockdownThreshold(float fallback) => fallback;
-    public static float ComboWindow(float fallback) => fallback;
-    public static float ComboDifferentAnchorMultiplier(float fallback) => fallback;
-    public static float ComboDifferentPropTypeMultiplier(float fallback) => fallback;
-    public static float ComboSameAnchorMultiplier(float fallback) => fallback;
-    public static float ComboSamePropMultiplier(float fallback) => fallback;
-    public static float ComboSameAnchorSuspicionBonus(float fallback) => fallback;
-    public static float ComboBreakCooldown(float fallback) => fallback;
-    public static float CompensationRouteDegradeResidueBonus(float fallback) => fallback;
-    public static int CompensationRouteDegradeEvidenceBonus(int fallback) => fallback;
-    public static float CompensationPropActivateSuspicionBonus(float fallback) => fallback;
-    public static float CompensationProgressBoostDuration(float fallback) => fallback;
-    public static float CompensationProgressBoostMultiplier(float fallback) => fallback;
 }

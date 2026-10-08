@@ -49,7 +49,8 @@ public static class Step1PrankRoomBuilder
     /// S215 = 19：小镇房间按"最多带进来的炸弹"加固（ExtraBombs），以前按 3 颗算，带满 6 颗能把马里奥困死（H1/H9）。
     /// S216 = 20：弹簧板弹速按新调参（15，被弹飞全程有重力）写进场景 → 旧房间自动重建。
     /// S235 = 21：房间守卫 Step1RoomGuard（外圈外面看不见的墙 + 掉出房间回出生点掉 1 命 + 推出墙只往里推）→ 旧房间（含小镇房间）自动重建。
-    public const int BuilderVersion = 21;
+    /// S239 = 22：删掉旧的锚点起疑/热度/警报/连击/旧 UGUI 等重复系统（场景里不再装它们）→ 旧房间自动重建一次。
+    public const int BuilderVersion = 22;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -166,26 +167,6 @@ public static class Step1PrankRoomBuilder
                 result.Add(new VariantSlot { cell = cell, options = options, objects = objects });
             }
         return result;
-    }
-
-    /// <summary>
-    /// S188 减法：第 1 步房间不用的旧系统在构建时直接移除（代码保留给其他场景，这里不再运行、不再占屏幕）。
-    /// 旧 UGUI 总 HUD、旧起疑/拿宝 HUD、第 0 步锚点起疑追踪与残留提示——第 1 步的马里奥只用 MarioEyes/RushMarioMind。
-    /// </summary>
-    public static readonly System.Type[] Step1Unused =
-    {
-        typeof(SuspicionHUD), typeof(LootEscapeHUD), typeof(ResidueVisualHint), typeof(MarioSuspicionTracker)
-    };
-
-    public static int StripUnusedLegacy(GameObject managers)
-    {
-        int removed = 0;
-        foreach (var type in Step1Unused)
-            foreach (var c in Object.FindObjectsOfType(type))
-            { Object.DestroyImmediate(c); removed++; }
-        foreach (var canvas in Object.FindObjectsOfType<GlobalGameUICanvas>())
-        { Object.DestroyImmediate(canvas.gameObject); removed++; }
-        return removed;
     }
 
     /// <summary>S187：大炮每回合炮弹数来自调参数据。</summary>
@@ -416,7 +397,6 @@ public static class Step1PrankRoomBuilder
         handsOffSo.FindProperty("roomTimeoutSeconds").floatValue = StrategySim.HandsOffTimeout(tuning.autoCheckRoundTimeoutSeconds, routeSeconds, tuning.handsOffTimePerRouteSecond, tuning.handsOffTimeMargin);
         handsOffSo.ApplyModifiedPropertiesWithoutUndo();
         gm.gameObject.AddComponent<Step1ElementLabels>();
-        StripUnusedLegacy(gm.gameObject);
         gm.gameObject.AddComponent<Step1Hint>();
         gm.gameObject.AddComponent<Step1HakoniwaEvents>().SetTuning(tuning);
         trickster.gameObject.AddComponent<TricksterKit>().SetTuning(tuning);          // S197：B 炸弹 / Z 缩小

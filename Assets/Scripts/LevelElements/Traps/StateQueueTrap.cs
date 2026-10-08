@@ -7,8 +7,8 @@ using UnityEngine;
 /// Trickster 的操控不再直接触发攻击，而是强行跳过当前队列状态；这种打乱规律的下注
 /// 会给当前锚点追加高 Suspicion / Evidence / Heat，并让机关进入较长 Recovery 破绽期。
 ///
-/// S53 薄层原则：只复用 ControllableLevelElement 状态、TextMesh、MarioSuspicionTracker
-/// 与 TricksterHeatMeter，不引入复杂特效或新系统。
+/// S53 薄层原则：只复用 ControllableLevelElement 状态与 TextMesh，不引入复杂特效或新系统。
+/// （S239：旧起疑追踪器 / 热度已删，强制跳过的代价只剩更长的恢复时间。）
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class StateQueueTrap : ControllableLevelElement
@@ -60,15 +60,6 @@ public class StateQueueTrap : ControllableLevelElement
     [Tooltip("Trickster 强行跳状态后，机关进入的长 Recovery 破绽期。")]
     [SerializeField] private float forcedSkipRecoveryDuration = 3.2f;
 
-    [Tooltip("强行跳状态追加给锚点的可疑度。")]
-    [SerializeField] private float forcedSkipSuspicionPenalty = 90f;
-
-    [Tooltip("强行跳状态追加给锚点的证据层数。")]
-    [SerializeField] private int forcedSkipEvidencePenalty = 3;
-
-    [Tooltip("强行跳状态追加给 Trickster 的热度。")]
-    [SerializeField] private float forcedSkipHeatPenalty = 45f;
-
     [Header("=== 视觉颜色 ===")]
     [SerializeField] private Color leftAttackColor = new Color(1f, 0.35f, 0.25f, 0.95f);
     [SerializeField] private Color rightAttackColor = new Color(1f, 0.55f, 0.20f, 0.95f);
@@ -88,7 +79,6 @@ public class StateQueueTrap : ControllableLevelElement
 
     private BoxCollider2D boxCollider;
     private SpriteRenderer sr;
-    private TricksterHeatMeter heatMeter;
     // 使用基类 ControllablePropBase.originalColor (protected)，不再重复声明
 
     // The bot reads the same state/countdown/reach that the world label displays.
@@ -143,8 +133,6 @@ public class StateQueueTrap : ControllableLevelElement
         sr = GetComponentInChildren<SpriteRenderer>();
         originalColor = sr != null ? sr.color : Color.white;
 
-        // suspicionTracker 已由 base.Awake() 初始化（ControllablePropBase.protected）
-        heatMeter = FindObjectOfType<TricksterHeatMeter>();
 
         if (boxCollider != null)
         {
@@ -197,7 +185,6 @@ public class StateQueueTrap : ControllableLevelElement
         }
 
         AdvanceQueueState();
-        ApplyForcedSkipPenalty();
         EnterForcedRecovery();
     }
 
@@ -315,35 +302,6 @@ public class StateQueueTrap : ControllableLevelElement
         rb.velocity = Vector2.zero;
         rb.AddForce(knockback, ForceMode2D.Impulse);
         KnockbackHelper.NotifyKnockbackStun(hit);
-    }
-
-    private void ApplyForcedSkipPenalty()
-    {
-        PossessionAnchor anchor = GetComponent<PossessionAnchor>();
-
-        if (suspicionTracker == null)
-        {
-            suspicionTracker = FindObjectOfType<MarioSuspicionTracker>();
-        }
-
-        if (suspicionTracker != null && anchor != null)
-        {
-            suspicionTracker.ApplySuspicionEvidencePenalty(
-                anchor,
-                forcedSkipSuspicionPenalty,
-                forcedSkipEvidencePenalty,
-                "StateQueueTrapForceSkip");
-        }
-
-        if (heatMeter == null)
-        {
-            heatMeter = FindObjectOfType<TricksterHeatMeter>();
-        }
-
-        if (heatMeter != null)
-        {
-            heatMeter.AddHeat(forcedSkipHeatPenalty);
-        }
     }
 
     private void EnterForcedRecovery()

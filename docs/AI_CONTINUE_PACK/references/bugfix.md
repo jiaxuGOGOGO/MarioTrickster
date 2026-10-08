@@ -73,7 +73,7 @@
 - 新的伤害源都走 HitMario / HurtYou，不要自己写扣心或定身。
 
 ## S225 "按了没反应"
-- 第 1 步房间关掉了旧界面（GlobalGameUICanvas/GameUI），它们原来接收 `TricksterController.OnAbilityFailed` / `DisguiseSystem.OnDisguiseFailed`。现在由 `Step1FailFeedback` 接收并 `Step1Hint.Show(Step1Text.AbilityFailZh(...))`。
+- 旧界面（GlobalGameUICanvas/GameUI）S239 已删，它们原来接收 `TricksterController.OnAbilityFailed` / `DisguiseSystem.OnDisguiseFailed`。现在由 `Step1FailFeedback` 接收并 `Step1Hint.Show(Step1Text.AbilityFailZh(...))`。
 - 用户说"按 X 没反应"：先看该键的失败分支有没有 Hint；新失败原因必须在 `AbilityFailZh` 加一行（sim 会从 GetAbilityFailReason 源码抽取逐条检查）。
 
 ## S227 反馈包里的 step1_rounds*.csv

@@ -10,7 +10,7 @@ using UnityEngine;
 ///   - CameraController.Shake 相机震动
 ///
 /// [AI防坑警告]
-///   1. 禁止在陷阱、平台、热度、危机等核心逻辑脚本中直接调用 SEF 或 Camera Shake。
+///   1. 禁止在陷阱、平台等核心逻辑脚本中直接调用 SEF 或 Camera Shake。
 ///   2. 本类不得修改 Rigidbody2D、Collider2D、MarioController、TricksterController 等核心物理 / 输入状态。
 ///   3. 若未来更换美术表现，只修改本桥接层或 SEF 预设，不回写机制脚本。
 /// </summary>
@@ -36,16 +36,10 @@ public sealed class VisualFeedbackBridge : MonoBehaviour
 
     [Header("=== 残留 / 破绽表现 ===")]
     [SerializeField] private Color residueOutlineColor = new Color(1f, 0.3f, 0.9f, 1f);
-    [SerializeField] private Color highHeatOutlineColor = new Color(1f, 0.75f, 0.15f, 1f);
     [SerializeField] private float residuePulseDuration = 0.35f;
     [SerializeField] private float residueOutlineThickness = 3f;
     [SerializeField] private float residueOutlineGlow = 1.25f;
 
-    [Header("=== 揭露 / 危机表现 ===")]
-    [SerializeField] private Color revealFlashColor = new Color(1f, 0.1f, 0.1f, 1f);
-    [SerializeField] private float revealFlashDuration = 0.18f;
-    [SerializeField] private Color crisisFlashColor = new Color(1f, 0.35f, 0.05f, 1f);
-    [SerializeField] private float crisisFlashDuration = 0.12f;
 
     private readonly Dictionary<SpriteEffectController, ResidueEffectState> _residueStates = new Dictionary<SpriteEffectController, ResidueEffectState>();
 
@@ -75,8 +69,6 @@ public sealed class VisualFeedbackBridge : MonoBehaviour
     {
         GameplayEventBus.OnTrapTriggered += HandleTrapTriggered;
         GameplayEventBus.OnBouncyPlatformLaunched += HandleBouncyPlatformLaunched;
-        GameplayEventBus.OnTricksterRevealed += HandleTricksterRevealed;
-        GameplayEventBus.OnHeatTierChanged += HandleHeatTierChanged;
         GameplayEventBus.OnCrisisWarning += HandleCrisisWarning;
         GameplayEventBus.OnResidueSpotted += HandleResidueSpotted;
     }
@@ -85,8 +77,6 @@ public sealed class VisualFeedbackBridge : MonoBehaviour
     {
         GameplayEventBus.OnTrapTriggered -= HandleTrapTriggered;
         GameplayEventBus.OnBouncyPlatformLaunched -= HandleBouncyPlatformLaunched;
-        GameplayEventBus.OnTricksterRevealed -= HandleTricksterRevealed;
-        GameplayEventBus.OnHeatTierChanged -= HandleHeatTierChanged;
         GameplayEventBus.OnCrisisWarning -= HandleCrisisWarning;
         GameplayEventBus.OnResidueSpotted -= HandleResidueSpotted;
     }
@@ -112,35 +102,11 @@ public sealed class VisualFeedbackBridge : MonoBehaviour
         ShakeCamera(payload.shakeDuration, payload.shakeMagnitude);
     }
 
-    private void HandleTricksterRevealed(GameplayEventBus.TricksterRevealedPayload payload)
-    {
-        if (payload == null || payload.trickster == null) return;
-
-        PlayHitFlash(payload.trickster.gameObject, revealFlashDuration, revealFlashColor);
-        ShakeCamera(0.16f, 0.08f);
-    }
-
-    private void HandleHeatTierChanged(GameplayEventBus.HeatTierChangedPayload payload)
-    {
-        if (payload == null || payload.heatMeter == null) return;
-
-        // 热度变为高压档位时给热度拥有者一个短促 SEF 提示；只做表现，不影响热度模型。
-        if (payload.newTier == TricksterHeatMeter.HeatTier.Alert || payload.newTier == TricksterHeatMeter.HeatTier.Lockdown)
-        {
-            Color color = payload.newTier == TricksterHeatMeter.HeatTier.Lockdown ? crisisFlashColor : highHeatOutlineColor;
-            PlayHitFlash(payload.heatMeter.gameObject, crisisFlashDuration, color);
-        }
-    }
-
     private void HandleCrisisWarning(GameplayEventBus.CrisisWarningPayload payload)
     {
         if (payload == null) return;
 
         ShakeCamera(payload.shakeDuration, payload.shakeMagnitude);
-        if (payload.director != null)
-        {
-            PlayHitFlash(payload.director.gameObject, crisisFlashDuration, crisisFlashColor);
-        }
     }
 
     private void HandleResidueSpotted(GameplayEventBus.ResidueSpottedPayload payload)
@@ -160,7 +126,7 @@ public sealed class VisualFeedbackBridge : MonoBehaviour
             return;
         }
 
-        Color color = payload.heatTier == TricksterHeatMeter.HeatTier.Lockdown ? crisisFlashColor : residueOutlineColor;
+        Color color = residueOutlineColor;
         float duration = Mathf.Max(0.05f, residuePulseDuration * Mathf.Lerp(0.75f, 1.5f, payload.intensity));
         float thickness = Mathf.Lerp(1f, residueOutlineThickness, payload.intensity);
         float glow = Mathf.Lerp(0.25f, residueOutlineGlow, payload.intensity);

@@ -93,7 +93,7 @@ public class MarioVisionConeView : MonoBehaviour
         {
             var hit = s_hits[i];
             var c = hit.collider;
-            if (c == null || MarioSuspicionTracker.IsOneWayPlatform(c)) continue;
+            if (c == null || SightLine.IsOneWayPlatform(c)) continue;
             if (c.isTrigger && !SightBlocker.Blocks(c, eye)) continue; // 草丛挡视线（S187）
             if (c.GetComponentInParent<MarioController>() != null || c.GetComponentInParent<TricksterController>() != null) continue;
             if (hit.distance < best) best = hit.distance;

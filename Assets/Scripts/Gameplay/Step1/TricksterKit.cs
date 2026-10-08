@@ -52,6 +52,7 @@ public class TricksterKit : MonoBehaviour
 
     private void Update()
     {
+        if (Step1QuickTest.NoLimits) { bombsLeft = Mathf.Max(bombsLeft, 1); shrinksLeft = Mathf.Max(shrinksLeft, 1); bombCooldown = 0f; } // S236：F9 测试
         if (bombCooldown > 0f) bombCooldown -= Time.deltaTime;
         if (shrunk)
         {

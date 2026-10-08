@@ -4,12 +4,15 @@
 
 本文档是仓库首页，也是**唯一用户入口 README**。如果你在 GitHub 文件搜索里搜 `read`，只需要打开仓库根目录这个 `README.md`；旧的目录级 README 已改名为内部指南或迁移指针，避免同一套规则散落在多个长文档中反复维护。[1] [3]
 
+> **🆕 2026-10 起先看这里（S236）**：Unity 里按 **Ctrl+Alt+H** 打开「📖 开始页」= 全部功能在哪、创作时怎么用、「我想…」按目标走；同一份内容在 [docs/FEATURE_MAP.md](./docs/FEATURE_MAP.md) 和网页设计台「功能地图」页。日常测试用 **Ctrl+Alt+T 测试中心**。下面第 2 节的 Ctrl+T 旧测试台流程是 S153 以前的，已归入「旧工具」。
+
 ---
 
 ## 1. 先看哪一个文档
 
 | 你的目标 | 权威入口 | 说明 |
 | --- | --- | --- |
+| 项目能做什么 / 在哪打开（全部功能） | [docs/FEATURE_MAP.md](./docs/FEATURE_MAP.md) | 自动生成；Unity 开始页 Ctrl+Alt+H 同一份。 |
 | 继续开发、让 AI 接手、提交测试反馈 | [SESSION_TRACKER.md](./SESSION_TRACKER.md) | 当前进度、待办队列、防坑规则与推送前更新点都以这里为准。 |
 | 新 AI 第一次接管项目 | [docs/AI_TAKEOVER_PROTOCOL.md](./docs/AI_TAKEOVER_PROTOCOL.md) | 极简接管协议，保留“后台读档、少打扰、自动落库”的协作方式。 |
 | 做关卡、换素材、接机制 | [docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md](./docs/PLANNER_FAST_LEVEL_PRODUCTION_GUIDE.md) | 面向策划的一页式工作流，优先从这里开始日常制作。 |
@@ -25,7 +28,7 @@
 
 ---
 
-## 2. 当前最短使用路径
+## 2. 当前最短使用路径（S153 旧流程，已归入旧工具；新流程看开始页）
 
 ### AI 自动测试：你只需启动并体验结果
 

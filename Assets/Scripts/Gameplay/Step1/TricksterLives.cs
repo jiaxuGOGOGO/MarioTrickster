@@ -76,12 +76,14 @@ public class TricksterLives : MonoBehaviour
         Lives = Mathf.Max(0, Lives - n);
         LivesChanged?.Invoke(Lives);
         invulnerable = tuning.respawnInvulnerableSeconds;
-        if (Lives <= 0 && gm != null) gm.EndRound("Mario", "Trickster blew themselves up.");
+        if (Lives <= 0 && gm != null) gm.EndRound("Mario", SelfHitReason);
         return true;
     }
 
     /// <summary>S235 本局结束原因（Step1Text.Classify 认这个前缀）。</summary>
     public const string FellOutReason = "Trickster fell out of the room.";
+    /// <summary>S236：被自己的炸弹 / 油桶等炸光命（以前结算标题错写成"马里奥带着宝物逃走了"）。</summary>
+    public const string SelfHitReason = "Trickster blew themselves up.";
 
     /// <summary>
     /// S235：你掉出房间（被炮/炸弹轰出去、被挤出外墙、从会塌的外圈掉下去）→ 回出生点 + 掉 n 条命（无敌期内不掉，也照样回出生点）。

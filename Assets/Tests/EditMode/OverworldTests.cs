@@ -139,7 +139,7 @@ public class OverworldTests
         StringAssert.Contains("SceneTransit.Go(town,", Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs"));
         StringAssert.Contains("OverworldSession.RecordRoom(door, won)", Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs"));
         StringAssert.Contains("driver.SkipStartDelay()", Read("Scripts/Overworld/Runtime/OverworldRoomLink.cs"));
-        StringAssert.Contains("if (OverworldSession.Active || Step1QuickTest.On) { roundMode", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs")); // S227：不弹问卷，但照样记一行
+        StringAssert.Contains("if (OverworldSession.Active || Step1QuickTest.On || Step1QuickTest.UsedThisRound) { roundMode", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs")); // S227：不弹问卷，但照样记一行
         StringAssert.Contains("if (RoomOverride != null && RoomOverride.Length > 0) return RoomOverride;", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
         StringAssert.Contains("AddComponent<OverworldRoomLink>()", Read("Scripts/Editor/OverworldBuilder.cs"));
         StringAssert.Contains("EditorBuildSettings.scenes = list.ToArray()", Read("Scripts/Editor/OverworldBuilder.cs"));
@@ -437,7 +437,7 @@ public class OverworldTests
         StringAssert.DoesNotContain("Input.anyKeyDown", screen);
         StringAssert.Contains("kb.anyKey.wasPressedThisFrame", keys);
         StringAssert.Contains("case KeyCode.R: return kb.rKey.wasPressedThisFrame;", keys);
-        StringAssert.Contains("if (OverworldSession.Active || Step1QuickTest.On) { roundMode", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs")); // S227
+        StringAssert.Contains("if (OverworldSession.Active || Step1QuickTest.On || Step1QuickTest.UsedThisRound) { roundMode", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs")); // S227
         StringAssert.Contains("!Step1QuickTest.On", screen);
         StringAssert.Contains("ExecuteMenuItem(\"Window/General/Game\")", Read("Scripts/Editor/PlayFocus.cs"));
         StringAssert.Contains("WatchdogSeconds", Read("Scripts/Overworld/Runtime/SceneTransit.cs"));

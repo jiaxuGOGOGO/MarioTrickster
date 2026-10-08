@@ -412,6 +412,7 @@ public class GameManager : MonoBehaviour
     private void ToggleNoCooldown()
     {
         noCooldownMode = !noCooldownMode;
+        Step1QuickTest.NoLimits = noCooldownMode; if (noCooldownMode) Step1QuickTest.UsedThisRound = true; // S236：第 1 步技能也无限
         Debug.Log($"[GameManager] 无冷却模式: {(noCooldownMode ? "ON" : "OFF")}");
         if (noCooldownMode)
         {

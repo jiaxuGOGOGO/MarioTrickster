@@ -3,7 +3,7 @@
 /// </summary>
 public static partial class Step1Text
 {
-    public enum Outcome { MarioEscaped, TricksterCaughtOut, TimeUp, MarioKnockedOut, HandsOffTimeout, Other, /* S235 */ TricksterFellOut }
+    public enum Outcome { MarioEscaped, TricksterCaughtOut, TimeUp, MarioKnockedOut, HandsOffTimeout, Other, /* S235 */ TricksterFellOut, /* S236 */ TricksterSelfHit }
 
     public const string HandsOffTimeoutReason = "HandsOffTimeout";
 
@@ -13,6 +13,7 @@ public static partial class Step1Text
         reason = reason ?? "";
         if (reason == HandsOffTimeoutReason) return Outcome.HandsOffTimeout;
         if (winner == "Mario" && reason.StartsWith("Trickster fell out")) return Outcome.TricksterFellOut; // S235
+        if (winner == "Mario" && reason.StartsWith("Trickster blew")) return Outcome.TricksterSelfHit; // S236
         if (winner == "Mario") return reason.StartsWith("Trickster caught") ? Outcome.TricksterCaughtOut : Outcome.MarioEscaped;
         if (winner == "Trickster")
         {
@@ -34,6 +35,7 @@ public static partial class Step1Text
             case Outcome.MarioKnockedOut: return "马里奥被机关打倒 —— 你赢了！\nMario was knocked out — YOU WIN!";
             case Outcome.HandsOffTimeout: return "马里奥卡住了（超时）\nMario got stuck (timeout)";
             case Outcome.TricksterFellOut: return "你掉出房间，命用完了\nYou fell out of the room — no lives left";
+            case Outcome.TricksterSelfHit: return "你被自己的机关炸光了命\nYou blew yourself up — no lives left";
             default: return "本局结束\nRound over";
         }
     }
@@ -176,15 +178,14 @@ public static partial class Step1Text
         "<b>掉出房间</b>（被炮/炸弹轰出去）= 回出生点、<b>-1 条命</b>。  Falling out of the room = back to start, -1 life\n" +
         "<b>M</b> 或 <b>Tab</b> = 地图图例（哪些是墙、哪些能炸）   <b>M/Tab</b> = legend\n" +
         "<b>捷径门</b>：只能从一边推开，开了就一直开着。  <b>Shortcut door</b>: opens from one side only.\n" +
-        "<b>大炮</b>（深色方块）：伪装在旁边按 L 开一炮（每局 1 发）；打完后<b>站进炮口</b>会把你打飞出去逃跑。\n" +
-        "<b>Cannon</b>: disguise next to it, L = fire (1 shot/round). Then stand inside it to launch yourself away.\n" +
         "躲在<b>箱子后</b>、<b>草丛里</b>或<b>高墙另一边</b>，他就看不见你。草丛会晃——有时是风。\n" +
         "Hide behind crates, inside bushes, or behind tall walls. Bushes shake — sometimes it's just wind.\n" +
         "每局<b>藏身处和火会随机变化</b>。   Hiding spots and some fires change every round.\n" +
         "马里奥头顶  Above Mario:   <b>?</b> 起疑   <b>!</b> 来查看   <b>!!</b> 看见你在追   <b>?!</b> 追丢了\n" +
         "白色扇形 = 他的视野，墙会挡住。   White cone = his view (walls block it).\n\n" +
         "<b>大房间</b>：镜头会跟着你走（死亡细胞式）；马里奥不在屏幕里时，屏幕边缘的<color=#FF6B6B><b>红箭头</b></color>指着他（带 ? ! 和距离），右上角有<b>小地图</b>。  Big rooms: camera follows you; red edge arrow = Mario off-screen.\n\n" +
-        "<color=#BBBBBB>V 显示每个东西是什么 labels    H 关闭帮助 help    C 换镜头 camera    F8 记反馈 feedback    Esc 暂停 pause</color>";
+        "<color=#BBBBBB>V 显示每个东西是什么 labels    H 关闭帮助 help    C 换镜头 camera    F8 记反馈 feedback    Esc 暂停 pause</color>\n" +
+        "<color=#BBBBBB>测试用：F9 技能无限（不算进出口）   F5 马上重开   编辑器里 Ctrl+Alt+H = 开始页（全部功能在哪）</color>";
 
     public const string BombNeedUndisguise = "要先<b>现形</b>（P 取消伪装）才能放炸弹  Undisguise to place a bomb";
     public const string BombWhileSmall = "缩小时拿不动炸弹  Can't bomb while small";

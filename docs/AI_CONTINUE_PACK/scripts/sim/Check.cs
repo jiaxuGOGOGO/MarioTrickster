@@ -979,6 +979,60 @@ static class CHECK {
       ||!ed.Contains("OverworldGame.ReloadStories()")||!ed.Contains("%&l")||!ed.Contains("MoveHandEdits")||!rv.Contains("MarioReaction.UserResourceName")||!mp2.Contains("MyTownStories.json MyMarioReactions.json")||!File.ReadAllText(WsRepo("tools/LevelStudioWeb/app.js")).Contains("syReadMyStories")){ ub++; Console.WriteLine("     [FAIL] 接线：游戏 / 工坊 / 体检 / 台词编辑器 / 网页 / bat 没接上你的台词"); }
     else parts.Add("游戏 / 小镇工坊 / 体检 / F8 反馈包 / 网页都读\"内置 + 你的\"；Play 中保存下一句就生效；bat 上传时把你的台词也提交");
     Console.WriteLine($"[{(ub==0?"OK":"FAIL")}] S234 你的台词（可改、可加、可关，升级不覆盖）：{string.Join("｜",parts)}"); fail+=ub; }
+
+  // S236 功能地图 = 防遗忘：用户"功能做了却渐渐被迭代遗忘在角落"。① 每个 MarioTrickster 菜单 ② 每个游戏按键 ③ 网页每个面板 ④ docs/step1 每篇说明 都被某项登记
+  // ⑤ 每项的锚点代码还在 ⑥ docs/FEATURE_MAP.md = FeatureMap.Markdown() ⑦ 网页 FEATURE_MAP 和 C# 一致 ⑧ 「我想…」引用的都存在 ⑨ 交互修复接线（问卷数字两套输入、F9 无限、自爆标题、冻住不下沉）
+  { int fm=0; var parts=new List<string>(); var root=WsRepo("Assets/Scripts");
+    var ids=FeatureMap.All.Select(f=>f.id).ToList(); if(ids.Distinct().Count()!=ids.Count){ fm++; Console.WriteLine("     [FAIL] 功能地图有重复 id"); }
+    foreach(var f in FeatureMap.All){ if(!FeatureMap.Areas.Contains(f.area)||!FeatureMap.Tiers.Contains(f.tier)){ fm++; Console.WriteLine($"     [FAIL] {f.id} 区/级别写错：{f.area}/{f.tier}"); }
+      if(new[]{f.name,f.how,f.what,f.create}.Any(x=>string.IsNullOrWhiteSpace(x)||x.Contains("\""))){ fm++; Console.WriteLine($"     [FAIL] {f.id}：名字/怎么打开/能做什么/创作时 有空的或用了英文双引号"); }
+      var ap=Path.GetFullPath(Path.Combine(root,f.anchorFile)); if(!File.Exists(ap)||!File.ReadAllText(ap).Contains(f.anchorText)){ fm++; Console.WriteLine($"     [FAIL] {f.id} 锚点找不到：{f.anchorFile} 里没有「{f.anchorText}」（功能删了就把这一项也删掉）"); } }
+    parts.Add($"{FeatureMap.All.Length} 项、{FeatureMap.Areas.Length} 区，锚点全在");
+    // ① 菜单
+    var menus=new List<string>(); foreach(var cs in Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories)) foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(cs),"\\[MenuItem\\(\"(MarioTrickster/[^\"]+)\"(?!\\s*,\\s*true)")) menus.Add(m.Groups[1].Value);
+    menus=menus.Distinct().ToList(); var um=menus.Where(m=>!FeatureMap.Covers(m)).ToList(); foreach(var m in um){ fm++; Console.WriteLine("     [FAIL] 菜单没登记进功能地图："+m); }
+    foreach(var f in FeatureMap.All) foreach(var m in f.Menus) if(!m.EndsWith("/")&&!menus.Any(x=>FeatureMap.StripShortcut(x)==m)){ fm++; Console.WriteLine($"     [FAIL] {f.id} 登记的菜单不存在：{m}"); }
+    parts.Add($"{menus.Count} 个菜单都登记了");
+    // ② 游戏按键（运行时代码里 Step1Keys.Down/Held(KeyCode.X)）
+    var keys=new HashSet<string>(); foreach(var dir in new[]{"Gameplay","Overworld","LevelElements","Core"}) foreach(var cs in Directory.GetFiles(Path.Combine(root,dir),"*.cs",SearchOption.AllDirectories)) foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(cs),"Step1Keys\\.(?:Down|Held)\\(KeyCode\\.(\\w+)\\)")) keys.Add(m.Groups[1].Value);
+    keys.ExceptWith(new[]{"Alpha1","Alpha2","Alpha3","Alpha4","Alpha5"}); // 问卷数字由 room.survey 说明
+    foreach(var k in keys.Where(k=>!FeatureMap.CoversKey(k))){ fm++; Console.WriteLine("     [FAIL] 游戏按键没登记进功能地图："+k); }
+    parts.Add($"{keys.Count} 个游戏按键都登记了");
+    // ③ 网页面板（shell.html 的页签 + 每个 h3 标题）
+    var shell=File.ReadAllText(WsRepo("tools/LevelStudioWeb/shell.html")); var panels=new List<string>();
+    foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(shell,"data-page=\"\\w+\"[^>]*>([^<]+)<")) panels.Add(m.Groups[1].Value.Trim());
+    foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(shell,"<h3[^>]*>(.*?)</h3>",System.Text.RegularExpressions.RegexOptions.Singleline)){ var t=m.Groups[1].Value.Split('<')[0].Trim(); t=System.Text.RegularExpressions.Regex.Replace(t,"^[^\\w\\u4e00-\\u9fff]+","").Trim(); if(t.Length>0) panels.Add(t); }
+    foreach(var w in panels.Distinct().Where(w=>!FeatureMap.CoversWeb(w))){ fm++; Console.WriteLine("     [FAIL] 网页面板没登记进功能地图："+w); }
+    parts.Add($"网页 {panels.Distinct().Count()} 个面板都登记了");
+    // ④ 说明文档
+    var docs=Directory.GetFiles(WsRepo("docs/step1"),"*.md").Select(Path.GetFileName).ToList();
+    foreach(var d in docs.Where(d=>!FeatureMap.CoversDoc(d))){ fm++; Console.WriteLine("     [FAIL] 说明文档没被功能地图引用："+d); }
+    foreach(var f in FeatureMap.All) foreach(var t in f.DocTokens) if(!Directory.GetFiles(WsRepo("docs/step1"),t+"*.md").Any()&&!Directory.GetFiles(WsRepo("docs"),t+"*.md").Any()){ fm++; Console.WriteLine($"     [FAIL] {f.id} 引用的文档不存在：{t}"); }
+    parts.Add($"{docs.Count} 篇说明都有入口");
+    // ⑥⑦⑧
+    if(!File.Exists(WsRepo("docs/FEATURE_MAP.md"))||File.ReadAllText(WsRepo("docs/FEATURE_MAP.md")).Replace("\r","")!=FeatureMap.Markdown().Replace("\r","")){ fm++; Console.WriteLine("     [FAIL] docs/FEATURE_MAP.md 不是最新（用 FeatureMap.Markdown() 重新生成）"); File.WriteAllText("/tmp/opencode/FEATURE_MAP.md",FeatureMap.Markdown()); }
+    var html=File.ReadAllText(WsRepo("tools/LevelStudioWeb/index.html")); int hi=html.IndexOf("const FEATURE_MAP=");
+    if(hi<0){ fm++; Console.WriteLine("     [FAIL] 网页没有功能地图（重跑 build.py）"); }
+    else { var js=html.Substring(hi+18,html.IndexOf(";\n",hi)-hi-18); var o=MiniJson.Parse(js,out _) as Dictionary<string,object>; var wa=o==null?null:(List<object>)o["all"];
+      if(wa==null||wa.Count!=FeatureMap.All.Length||!wa.Select(x=>(string)((Dictionary<string,object>)x)["name"]).SequenceEqual(FeatureMap.All.Select(f=>f.name))){ fm++; Console.WriteLine($"     [FAIL] 网页功能地图 {wa?.Count} 项 ≠ C# {FeatureMap.All.Length} 项（build.py 解析不对或没重建）"); }
+      else if(((List<object>)o["goals"]).Count!=FeatureMap.Goals.Length){ fm++; Console.WriteLine("     [FAIL] 网页「我想…」条数和 C# 不一样"); } }
+    foreach(var g in FeatureMap.Goals) foreach(var id in g.ids) if(FeatureMap.Get(id)==null){ fm++; Console.WriteLine($"     [FAIL] 「我想{g.title}」引用了不存在的 {id}"); }
+    if(FeatureMap.Search("炸弹").Count()<1||FeatureMap.Search("F9").Count()<1||FeatureMap.Search("台词").Count()<2){ fm++; Console.WriteLine("     [FAIL] 搜索搜不到"); }
+    if(!FeatureMap.Covers("MarioTrickster/Level Workshop (关卡工坊) %&w")||FeatureMap.Covers("MarioTrickster/不存在的菜单")){ fm++; Console.WriteLine("     [FAIL] 菜单匹配规则不对"); }
+    parts.Add("文档/网页/「我想…」一致");
+    // ⑨ 交互修复
+    if(Step1Text.Classify("Mario","Trickster blew themselves up.")!=Step1Text.Outcome.TricksterSelfHit||Step1Text.Headline(Step1Text.Outcome.TricksterSelfHit).Contains("逃走")){ fm++; Console.WriteLine("     [FAIL] 被自己炸光命，结算标题还是'马里奥带着宝物逃走了'"); }
+    var f9rounds=Enumerable.Range(0,6).Select(i=>new Step1ExitReport.Round{time=new DateTime(2026,10,8,20,0,0).AddMinutes(i),winner="Mario",reason="x",seconds=30,wantAgain=0,mode=i<4?"f9":"room",version=27}).ToList();
+    var fr=Step1ExitReport.Analyze(f9rounds); if(fr.rounds!=2||!fr.lines.Any(l=>l.Contains("F9"))){ fm++; Console.WriteLine($"     [FAIL] F9 测试的局混进了出口（算了 {fr.rounds} 局）"); }
+    string R(string rel)=>File.ReadAllText(WsRepo("Assets/Scripts/"+rel));
+    if(R("Gameplay/Step1/Step1PlaytestLog.cs").Contains("Input.GetKeyDown(KeyCode.Alpha0")||!R("Gameplay/Step1/Step1PlaytestLog.cs").Contains("Step1Keys.Digit1to5()")){ fm++; Console.WriteLine("     [FAIL] 问卷数字键还只读旧输入（有的机器按了没反应）"); }
+    if(!R("Core/GameManager.cs").Contains("Step1QuickTest.NoLimits = noCooldownMode")||!R("Gameplay/Step1/TricksterKit.cs").Contains("if (Step1QuickTest.NoLimits)")||!R("Gameplay/Step1/DecoyAbility.cs").Contains("Step1QuickTest.NoLimits")||!R("Gameplay/Step1/TauntAbility.cs").Contains("Step1QuickTest.NoLimits")){ fm++; Console.WriteLine("     [FAIL] F9 没接到第 1 步技能"); }
+    foreach(var c in new[]{"Enemy/TricksterController.cs","Player/MarioController.cs"}) if(!R(c).Contains("if (rb.isKinematic && _isKnockbackStunned) { _frameVelocity = Vector2.zero; rb.velocity = Vector2.zero; return; }")){ fm++; Console.WriteLine("     [FAIL] 冻住的身体还会沉进地板："+c); }
+    foreach(var m in new[]{"RushMarioMind.cs","MarioMindDriver.cs","SuspicionMeter.cs","MarioVision.cs","MarioEyes.cs"}) if(R("Gameplay/Step1/"+m).Contains("Step1QuickTest")||R("Gameplay/Step1/"+m).Contains("FeatureMap")){ fm++; Console.WriteLine("     [FAIL] H4：马里奥侧读了测试开关 "+m); }
+    if(!R("Editor/TestHubWindow.cs").Contains("Step1PrankRoomBuilder.HandsOffMenu")||!R("Editor/TestHubWindow.cs").Contains("StartHereWindow.Open()")||!R("Editor/LevelWorkshopWindow.cs").Contains("StartHereWindow.Open()")||!R("Editor/OverworldWorkshopWindow.cs").Contains("StartHereWindow.Open()")){ fm++; Console.WriteLine("     [FAIL] 测试中心/工坊没接开始页或自动检查按钮"); }
+    if(Step1Text.Help.Split('\n').Count(l=>l.Contains("<b>大炮</b>"))!=1){ fm++; Console.WriteLine("     [FAIL] 帮助里大炮说明重复"); }
+    parts.Add("问卷数字两套输入、F9 技能无限不算出口、自爆结算标题、冻住不下沉、测试中心补齐");
+    Console.WriteLine($"[{(fm==0?"OK":"FAIL")}] S236 功能地图 + 防遗忘：{string.Join("｜",parts)}"); fail+=fm; }
   // S235 掉出房间：用户实测"捣蛋者掉出游戏范围之外就回不来了，血也没掉，马里奥还在继续"。① 每个样板/塔/向导房间外圈只用 W # =（没有会塌/能穿的口子）② 看不见的墙把外面一圈全挡住、房间里一格不挡 ③ 出界判定：贴墙站不算、越过墙中线才算 ④ 推出墙只往里推 ⑤ 小镇压进墙/地图外 → 挪到最近能站的格，四张样板图每个不能站的格都能救出来 ⑥ 接线
   { int fb=0; var parts=new List<string>(); var rooms=Samples().ToList(); for(int f=2;f<=FloorStacker.MaxFloors;f++) rooms.Add(("塔"+f,FloorStacker.Build(f,0))); foreach(char star in LevelBlueprint.WizardStars) rooms.Add(("向导"+star,LevelBlueprint.Wizard(star,30,"").grid));
     int leaks=0; foreach(var (n,g) in rooms){ var l=Step1Bounds.BorderLeaks(g); if(l.Count>0){ leaks++; Console.WriteLine($"     [FAIL] {n} 外圈有 {l.Count} 个会塌/能穿的格（{l[0].c} 在 {l[0].x},{l[0].y}）"); } }

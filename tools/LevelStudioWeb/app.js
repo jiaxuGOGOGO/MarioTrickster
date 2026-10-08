@@ -535,6 +535,7 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
   const p = t.dataset.page; $('#pageDesign').style.display = p === 'design' ? '' : 'none';
   $('#pageMech').classList.toggle('on', p === 'mech'); $('#pageHandoff').classList.toggle('on', p === 'handoff'); $('#pageOverworld').classList.toggle('on', p === 'overworld');
+  $('#pageMap').classList.toggle('on', p === 'map'); if (p === 'map') fmRender(); // S236 功能地图
   if (p === 'overworld') owRender();
   if (p === 'handoff') $('#handoffText').textContent = handoff();
   if (p === 'mech') { renderPropList(); renderCuts(); renderLaws(); }
@@ -1132,3 +1133,21 @@ window.addEventListener('keydown', e => {
   e.preventDefault(); const d = e.key === 'PageUp' ? -1 : 1;
   if ($('#pageOverworld').classList.contains('on')) stepTown(d); else if ($('#pageDesign').style.display !== 'none') stepLevel(d);
 }, true);
+
+// ── S236：功能地图（FEATURE_MAP 由 build.py 从 FeatureMap.cs 生成，和 Unity 开始页同一份）──
+function fmRender() {
+  if (typeof FEATURE_MAP === 'undefined') return;
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const sel = $('#fmTier'); if (sel.options.length === 1) for (const t of FEATURE_MAP.tiers) sel.add(new Option(t, t));
+  const q = ($('#fmSearch').value || '').trim().toLowerCase(), tier = sel.value;
+  const byId = Object.fromEntries(FEATURE_MAP.all.map(f => [f.id, f]));
+  $('#fmGoals').innerHTML = q || tier ? '' : FEATURE_MAP.goals.map(g => `<div class="fmgoal"><b>我想${esc(g.title)}</b><p>${esc(g.steps)}</p><p>用到：${g.ids.map(i => esc((byId[i] || {}).name || i)).join(' · ')}</p></div>`).join('');
+  const hits = FEATURE_MAP.all.filter(f => (!tier || f.tier === tier) && (!q || (f.name + f.how + f.what + f.create + f.keys + f.web + f.menu + f.id).toLowerCase().includes(q)));
+  let h = q || tier ? `<p class="hint">找到 ${hits.length} 项</p>` : '';
+  for (const a of FEATURE_MAP.areas) {
+    const list = hits.filter(f => f.area === a); if (!list.length) continue;
+    h += `<div class="fmarea">${esc(a)}</div>` + list.map(f => `<div class="fmrow"><div class="n"><b>${esc(f.name)}</b><i>${esc(f.tier)}</i> <i>S${f.since}</i></div><div class="t"><b>怎么打开：</b>${esc(f.how)}<br><b>能做什么：</b>${esc(f.what)}</div><div class="t"><b>创作时：</b>${esc(f.create)}</div></div>`).join('');
+  }
+  $('#fmList').innerHTML = h;
+}
+$('#fmSearch').oninput = fmRender; $('#fmTier').onchange = fmRender;

@@ -9,7 +9,7 @@ namespace UnityEngine.InputSystem {
   public class KeyControl : ButtonControl {}
   public class Keyboard { public static Keyboard current;
     public KeyControl aKey,bKey,cKey,dKey,eKey,fKey,gKey,hKey,iKey,jKey,kKey,lKey,mKey,nKey,oKey,pKey,qKey,rKey,sKey,tKey,uKey,vKey,wKey,xKey,yKey,zKey,
-      tabKey,spaceKey,shiftKey,downArrowKey,upArrowKey,leftArrowKey,rightArrowKey,escapeKey,enterKey,numpadEnterKey,f8Key,f5Key,f9Key,minusKey,equalsKey;
+      tabKey,spaceKey,shiftKey,downArrowKey,upArrowKey,leftArrowKey,rightArrowKey,escapeKey,enterKey,numpadEnterKey,f8Key,f5Key,f9Key,minusKey,equalsKey,digit1Key,digit2Key,digit3Key,digit4Key,digit5Key,numpad1Key,numpad2Key,numpad3Key,numpad4Key,numpad5Key;
     public ButtonControl anyKey; }
 }
 namespace UnityEngine.UI {

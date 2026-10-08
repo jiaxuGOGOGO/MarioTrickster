@@ -99,8 +99,10 @@ public static class Step1ExitReport
     public static Result Analyze(IList<Round> all, int minVersion = 0, float gapMinutes = 30f)
     {
         var res = new Result();
-        var rs = all.Where(r => minVersion <= 0 || r.version >= minVersion).ToList();
-        int old = all.Count - rs.Count;
+        int f9 = all.Count(r => r.mode == "f9"); // S236：F9 测试（技能无限）的局不算出口
+        var rs = all.Where(r => r.mode != "f9" && (minVersion <= 0 || r.version >= minVersion)).ToList();
+        int old = all.Count - f9 - rs.Count;
+        if (f9 > 0) res.lines.Add($"另有 {f9} 局开了 F9 测试（技能无限），不算进出口。");
         res.rounds = rs.Count;
         if (old > 0) res.lines.Add($"另有 {old} 局是旧版本（调参 v{minVersion} 以前）玩的，下面不算进去。");
         if (rs.Count == 0) { res.lines.Add("还没有记录：在恶作剧房间玩一局、答完结算的几个问题，就会自动记下来。"); res.next.Add("先玩 5 局（快速测试模式要关掉，否则不记问卷）。"); return res; }

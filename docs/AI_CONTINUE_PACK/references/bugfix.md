@@ -30,6 +30,14 @@
 | 回出生点后又被拽回绳套/铁笼/炮口 | 控制机关每帧锁位置 | `Step1Bounds.Teleported(...)` → 放人 |
 | 小镇里动不了 | 身体压进不可走格 → Move 每步被挡 | `OverworldTown.Unstick` / `OverworldMap.Unstick` |
 
+## S236 交互 / 测试别扭
+| 现象 | 根因 | 修法 |
+|---|---|---|
+| 问卷按数字没反应 | 只读旧 Input | `Step1Keys.Digit1to5()`（新键都要两套输入） |
+| F9 按了像没反应 | 只清旧系统冷却 | `Step1QuickTest.NoLimits` 接到 TricksterKit/Decoy/Taunt |
+| 自爆输了显示"马里奥逃走了" | Classify 没有这一类 | `Outcome.TricksterSelfHit` |
+| 停时间时你沉进地板 | isKinematic 时硬直分支仍写速度 | 冻住时零速度返回 |
+
 ## 性能问题
 工坊卡：检查放到停笔后（`EditorApplication.update` 延迟 0.35s）、按物理签名去重、只在格子变化时重绘。游戏卡：去掉 Update 里的 Find、GUIStyle 缓存、NonAlloc 物理查询。
 

@@ -84,10 +84,22 @@ tu_rules = [x.encode('utf-8').decode('unicode_escape').encode('latin-1').decode(
 data += 'const TUNING_RULES=' + json.dumps(tu_rules, ensure_ascii=False) + ';\n'
 data += 'const TS_STORIES=' + json.dumps(stories, ensure_ascii=False, separators=(',', ':')) + ';\nconst TUNING=' + json.dumps(tun, ensure_ascii=False, separators=(',', ':')) + ';\n'
 data += 'const ELEMENTS=' + json.dumps(els, ensure_ascii=False, separators=(',', ':')) + ';\nconst SAMPLES=' + json.dumps(samples, ensure_ascii=False, separators=(',', ':')) + ';\n'
+# S236：功能地图（FeatureMap.cs，和 Unity 开始页同一份）
+fm = rd('LevelDesign/FeatureMap.cs')
+Q = r'"((?:[^"\\]|\\.)*)"'
+un = lambda x: x.replace('\\"', '"')
+fm_all = []
+for m in re.finditer(r'\n        F\(' + ', '.join([Q] * 7) + r', (\d+), ' + ', '.join([Q] * 6) + r'\),', fm):
+    g = [un(x) for x in m.groups()]
+    fm_all.append(dict(id=g[0], area=g[1], tier=g[2], name=g[3], how=g[4], what=g[5], create=g[6], since=int(g[7]), docs=g[8], menu=g[9], keys=g[10], web=g[11]))
+def fm_list(name):
+    i = fm.index(name); j = fm.index('};', i); return [un(x) for x in re.findall(Q, fm[i:j])]
+fm_goals = [dict(title=un(a), ids=b.split(' '), steps=un(c)) for a, b, c in re.findall(r'G\(' + Q + ', ' + Q + ', ' + Q + r'\)', fm)]
+data += 'const FEATURE_MAP=' + json.dumps(dict(areas=fm_list('Areas ='), tiers=fm_list('Tiers ='), all=fm_all, goals=fm_goals), ensure_ascii=False, separators=(',', ':')) + ';\n'
 logic = open(os.path.join(HERE, 'logic.js'), encoding='utf-8').read()
 logic = re.sub(r"if \(typeof module[^\n]*\n?", '', logic)
 html = open(os.path.join(HERE, 'shell.html'), encoding='utf-8').read()
 ow = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'overworld.js'), encoding='utf-8').read())
 html = html.replace('/*DATA*/', data).replace('/*LOGIC*/', logic + '\n' + ow).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read())
 open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(html)
-print(f'index.html: {len(stories)} 句居民台词, {len(tun)} 个调参值, {len(els)} 个元素, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(ow_harm)} 条伤害说明, {len(ow_icons)} 个像素图标, {len(html)//1024} KB')
+print(f'index.html: {len(fm_all)} 项功能地图, {len(stories)} 句居民台词, {len(tun)} 个调参值, {len(els)} 个元素, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(ow_harm)} 条伤害说明, {len(ow_icons)} 个像素图标, {len(html)//1024} KB')

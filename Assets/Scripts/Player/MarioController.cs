@@ -361,6 +361,9 @@ public class MarioController : MonoBehaviour
         // ── 击退 stun 分支：不覆盖 rb.velocity，让击退速度按抛物线自然走完 ──
         // S216：以前只有往下掉才有重力 → 被弹簧/炸弹/大炮弄飞时匀速往上飘（弹簧 11 格撞天花板、炸弹推 8 格）。
         // 现在全程有重力（LaunchFeel.gravity）+ 空中阻力 + 落地摩擦，并检测落地/撞头（落地会压扁、出尘土）。
+        // S236：身体被冻住（马里奥停时间 / 弹跳台蓄力 → isKinematic）时不写速度。以前硬直分支照样每帧写重力速度，
+        // 冻住的身体会慢慢"沉"进地板（2 秒约 3 格），解冻后掉到房间外面（S235 掉出房间的根因之一）。
+        if (rb.isKinematic && _isKnockbackStunned) { _frameVelocity = Vector2.zero; rb.velocity = Vector2.zero; return; }
         if (_isKnockbackStunned)
         {
             _lastPlatformVelocity = Vector2.zero;

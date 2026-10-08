@@ -34,6 +34,7 @@ public class TauntAbility : MonoBehaviour
 
     private void Update()
     {
+        if (Step1QuickTest.NoLimits) { left = Mathf.Max(left, 1); cooldown = 0f; } // S236：F9 测试
         if (cooldown > 0f) cooldown -= Time.deltaTime;
         if (bubble > 0f) bubble -= Time.deltaTime;
         if (self == null || Step1HandsOffCheck.IsRunning || Step1PlaytestLog.IsTyping || Step1Screen.HelpOpen || Time.timeScale <= 0f) return;

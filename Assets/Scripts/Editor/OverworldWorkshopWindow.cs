@@ -335,6 +335,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         GUILayout.FlexibleSpace();
         if (GUILayout.Button(new GUIContent("🏠 关卡工坊", "做门里面的横版房间"), EditorStyles.toolbarButton, GUILayout.Width(80))) LevelWorkshopWindow.Open();
         if (GUILayout.Button(new GUIContent("🧪 测试中心", "一键体检全项目 / 快速测试模式 / 打包反馈（Ctrl+Alt+T）"), EditorStyles.toolbarButton, GUILayout.Width(80))) TestHubWindow.Open();
+        if (GUILayout.Button(new GUIContent("📖", "开始页（Ctrl+Alt+H）：全部功能在哪、创作时怎么用"), EditorStyles.toolbarButton, GUILayout.Width(26))) StartHereWindow.Open();
         GUI.backgroundColor = report != null && report.Playable ? new Color(0.5f, 1f, 0.5f) : Color.white;
         if (GUILayout.Button(new GUIContent("▶ 试玩小镇", "F5"), EditorStyles.toolbarButton, GUILayout.Width(80))) PlayTown();
         GUI.backgroundColor = Color.white;

@@ -33,6 +33,7 @@ public sealed class TestHubWindow : EditorWindow
     {
         EditorGUILayout.LabelField("测试中心：按顺序点 ①②③ 就是一次完整测试", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox("① 一键体检（几秒，不用进 Play）→ ② 试玩（小镇 / 房间，按 F8 随手截图记反馈）→ ③ 打包反馈，把 zip 发给 AI。\n" +
+                                "反复试一个坑：开 ⚡ 快速测试，进房间按 F9 = 技能无限（不算进出口）。\n" +
                                 "游戏里按键没反应：先用鼠标点一下 Game 画面（现在进 Play 会自动切到 Game 窗口）。", MessageType.Info);
 
         EditorGUILayout.Space();
@@ -65,6 +66,14 @@ public sealed class TestHubWindow : EditorWindow
                 if (GUILayout.Button(new GUIContent("🧪 跑 EditMode 测试", "结果写进 TestReport.txt，打包反馈会带上"))) TestReportRunner.RunEditModeTests();
                 if (GUILayout.Button(new GUIContent("🏠 忘掉居民记忆", "S233：居民记得你来往了几次、听过哪些真心话（跨次保留）。点这里 = 从头再认识一遍"))) { PlayerPrefs.DeleteKey(OverworldGame.MemoryKey); PlayerPrefs.Save(); TownStory.Reset(); ShowNotification(new GUIContent("居民记忆已清空")); }
                 if (GUILayout.Button("📂 打开记录文件夹")) { Directory.CreateDirectory(LogsRoot); EditorUtility.RevealInFinder(LogsRoot); }
+            }
+            // S236：以前只在菜单深处的自动检查 + 开始页 + 网页，都放到这里（一处找齐）
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(new GUIContent("📖 开始页（全部功能）", "Ctrl+Alt+H：项目能做什么、在哪打开、创作时怎么用"))) StartHereWindow.Open();
+                if (GUILayout.Button(new GUIContent("🤖 马里奥自己跑", "你不操作，连跑几局看马里奥能不能自己拿宝回家（宪法 H10，要 ≥95%）"))) EditorApplication.delayCall += Step1PrankRoomBuilder.HandsOffMenu;
+                if (GUILayout.Button(new GUIContent("🧪 陷阱试探", "AI 捣蛋者替你在马里奥走到时触发每个机关：会不会把他坑死 / 卡住。跑完开关卡工坊「检查轨迹」看"))) EditorApplication.delayCall += Step1PrankRoomBuilder.TrapProbeMenu;
+                if (GUILayout.Button(new GUIContent("🌐 网页设计台", "打开 tools/LevelStudioWeb/index.html"))) StartHereWindow.OpenWeb();
             }
         }
         if (EditorApplication.isPlaying) EditorGUILayout.HelpBox("正在试玩：按 F8 记反馈（截图 + 当时情况）。停止 Play 后再打包。", MessageType.None);
@@ -156,6 +165,10 @@ public sealed class TestHubWindow : EditorWindow
             // S233：你在 Inspector 里手动改过的数值（网页连上项目文件夹后也读同一个文件）
             var tunPath = "Assets/Resources/" + MarioMindTuningSO.ResourcePath + ".asset";
             if (File.Exists(tunPath)) { var diff = TuningAudit.DiffFromDefault(CreateInstance<MarioMindTuningSO>(), TuningAudit.FromYaml(File.ReadAllText(tunPath))); sb.AppendLine(diff.Count == 0 ? "· 调参文件 = 全部默认值" : $"· 你手动改过 {diff.Count} 个数值：" + string.Join("；", diff.Take(12))); }
+
+            sb.AppendLine("\n## 功能地图（S236，Ctrl+Alt+H 开始页）");
+            { int miss = 0; foreach (var f in FeatureMap.All) { var path = Path.Combine(Application.dataPath, "Scripts", f.anchorFile); if (!File.Exists(path) || !File.ReadAllText(path).Contains(f.anchorText)) { miss++; Warn($"功能地图「{f.name}」找不到它的代码了（{f.anchorFile}）——功能被删了就把这一项也删掉"); } }
+              if (miss == 0) Ok($"{FeatureMap.All.Length} 项功能都在（{FeatureMap.Areas.Length} 个区，「我想…」{FeatureMap.Goals.Length} 条）"); }
 
             sb.AppendLine("\n## 第 1 步出口（从你的试玩记录自动算）");
             sb.Append(Step1ExitReport.Markdown(Step1ExitReport.ParseAll(Directory.Exists(LogsRoot)

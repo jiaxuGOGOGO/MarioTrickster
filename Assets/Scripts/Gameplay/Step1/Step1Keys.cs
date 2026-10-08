@@ -16,6 +16,18 @@ public static class Step1Keys
         return kb != null && kb.shiftKey.isPressed;
     }
 
+    /// <summary>S236：数字 1–5（主键盘或小键盘，两套输入都读）。没按 = 0。</summary>
+    public static int Digit1to5()
+    {
+        for (int i = 1; i <= 5; i++)
+        {
+            bool legacy = false;
+            try { legacy = Input.GetKeyDown(KeyCode.Keypad0 + i); } catch (System.InvalidOperationException) { }
+            if (legacy || Down(KeyCode.Alpha0 + i)) return i;
+        }
+        return 0;
+    }
+
     public static bool Down(KeyCode key)
     {
         bool legacy = false;
@@ -61,6 +73,11 @@ public static class Step1Keys
             case KeyCode.F8: return kb.f8Key.wasPressedThisFrame;
             case KeyCode.F5: return kb.f5Key.wasPressedThisFrame;
             case KeyCode.F9: return kb.f9Key.wasPressedThisFrame;       // S217：F8 = 记一条试玩反馈（截图 + 当时情况）
+            case KeyCode.Alpha1: return kb.digit1Key.wasPressedThisFrame || kb.numpad1Key.wasPressedThisFrame; // S236：问卷 1–5（以前只读旧输入 → 有的机器按数字没反应，问卷卡住）
+            case KeyCode.Alpha2: return kb.digit2Key.wasPressedThisFrame || kb.numpad2Key.wasPressedThisFrame;
+            case KeyCode.Alpha3: return kb.digit3Key.wasPressedThisFrame || kb.numpad3Key.wasPressedThisFrame;
+            case KeyCode.Alpha4: return kb.digit4Key.wasPressedThisFrame || kb.numpad4Key.wasPressedThisFrame;
+            case KeyCode.Alpha5: return kb.digit5Key.wasPressedThisFrame || kb.numpad5Key.wasPressedThisFrame;
             case KeyCode.Minus: return kb.minusKey.wasPressedThisFrame; // S217：小镇镜头缩小 / 放大
             case KeyCode.Equals: return kb.equalsKey.wasPressedThisFrame;
             default: return false;

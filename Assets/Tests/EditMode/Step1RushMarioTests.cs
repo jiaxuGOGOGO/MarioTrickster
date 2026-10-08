@@ -2322,6 +2322,44 @@ public class Step1RushMarioTests
         StringAssert.Contains("Unstick();", Read("Scripts/Overworld/OverworldTown.cs"));
     }
 
+    // ═════════ S236：功能地图（防遗忘）+ 交互修复 ═════════
+    [Test]
+    public void S236_FeatureMap_CoversEveryMenu_AndInteractionFixes()
+    {
+        // 每个 MarioTrickster 菜单都被功能地图登记（新加菜单不登记 = 红）
+        var root = Path.Combine(Application.dataPath, "Scripts");
+        foreach (var cs in Directory.GetFiles(root, "*.cs", SearchOption.AllDirectories))
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(cs), "\\[MenuItem\\(\"(MarioTrickster/[^\"]+)\"(?!\\s*,\\s*true)"))
+                Assert.IsTrue(FeatureMap.Covers(m.Groups[1].Value), "菜单没登记进功能地图：" + m.Groups[1].Value);
+        // 每项的锚点代码都还在
+        foreach (var f in FeatureMap.All)
+        {
+            var path = Path.GetFullPath(Path.Combine(root, f.anchorFile));
+            Assert.IsTrue(File.Exists(path) && File.ReadAllText(path).Contains(f.anchorText), "功能地图锚点找不到：" + f.id);
+        }
+        Assert.AreEqual(FeatureMap.All.Length, FeatureMap.All.Select(f => f.id).Distinct().Count(), "id 不重复");
+        foreach (var g in FeatureMap.Goals) foreach (var id in g.ids) Assert.IsNotNull(FeatureMap.Get(id), g.title + " → " + id);
+        StringAssert.Contains("MarioTrickster/📖 开始页 Start Here %&h", Read("Scripts/Editor/StartHereWindow.cs"));
+        StringAssert.Contains("StartHereWindow.Open()", Read("Scripts/Editor/TestHubWindow.cs"));
+        StringAssert.Contains("Step1PrankRoomBuilder.HandsOffMenu", Read("Scripts/Editor/TestHubWindow.cs"));
+        // 交互修复：被自己炸光命不再显示"马里奥带着宝物逃走了"
+        Assert.AreEqual(Step1Text.Outcome.TricksterSelfHit, Step1Text.Classify("Mario", TricksterLives.SelfHitReason));
+        StringAssert.DoesNotContain("逃走", Step1Text.Headline(Step1Text.Outcome.TricksterSelfHit));
+        // 问卷数字两套输入都读；F9 = 技能无限，且不算进出口
+        StringAssert.Contains("Step1Keys.Digit1to5()", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs"));
+        StringAssert.DoesNotContain("Input.GetKeyDown(KeyCode.Alpha0", Read("Scripts/Gameplay/Step1/Step1PlaytestLog.cs"));
+        StringAssert.Contains("Step1QuickTest.NoLimits = noCooldownMode", Read("Scripts/Core/GameManager.cs"));
+        var rs = new List<Step1ExitReport.Round>();
+        for (int i = 0; i < 6; i++) rs.Add(new Step1ExitReport.Round { time = new System.DateTime(2026, 10, 8, 20, i, 0), winner = "Mario", reason = "x", seconds = 30, mode = i < 4 ? "f9" : "room", version = 27 });
+        Assert.AreEqual(2, Step1ExitReport.Analyze(rs).rounds, "F9 测试的局不算出口");
+        // 冻住的身体不再沉进地板
+        StringAssert.Contains("if (rb.isKinematic && _isKnockbackStunned) { _frameVelocity = Vector2.zero; rb.velocity = Vector2.zero; return; }", Read("Scripts/Enemy/TricksterController.cs"));
+        StringAssert.Contains("if (rb.isKinematic && _isKnockbackStunned) { _frameVelocity = Vector2.zero; rb.velocity = Vector2.zero; return; }", Read("Scripts/Player/MarioController.cs"));
+        // H4：马里奥侧不读测试开关
+        foreach (var f in new[] { "RushMarioMind.cs", "MarioMindDriver.cs", "SuspicionMeter.cs", "MarioVision.cs", "MarioEyes.cs" })
+            StringAssert.DoesNotContain("Step1QuickTest", Read("Scripts/Gameplay/Step1/" + f));
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }
@@ -2369,7 +2407,7 @@ public class Step1RushMarioTests
         Assert.AreEqual("", Step1PlaytestLog.PrankKindOfCombo("hurt"), "受伤由机关归因，不重复记");
         string log = System.IO.File.ReadAllText("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs");
         StringAssert.Contains("combo.ComboRegistered += HandleCombo", log);
-        StringAssert.Contains("if (OverworldSession.Active || Step1QuickTest.On) { roundMode", log, "小镇房间 / 快速测试也要记一行");
+        StringAssert.Contains("if (OverworldSession.Active || Step1QuickTest.On || Step1QuickTest.UsedThisRound) { roundMode", log, "小镇房间 / 快速测试也要记一行");
         var town = Step1ExitReport.Parse(Step1PlaytestLog.CsvHeader + "\n" + Step1PlaytestLog.CsvRow(new System.DateTime(2026, 10, 2), 1, "Mario", "x", 30f, 3, 0, 1, 0, new Dictionary<string, int> { { "Banana", 1 } }, null, 0, 0, 0, 0, "Rush", 24, "town"));
         Assert.AreEqual(1, town.Count); Assert.AreEqual("town", town[0].mode); Assert.AreEqual(24, town[0].version); Assert.IsNull(town[0].calculated, "没答问卷 = 空，不当成「否」");
     }

@@ -118,6 +118,7 @@ public class Step1PlaytestLog : MonoBehaviour
         rareLine = ""; roundPranks.Clear(); roundOmens = roundAlerts = roundCaught = 0;
         chaseOpen = false; awaitingRating = false; savedThisRound = false; survey = null; IsTyping = false; noteDraft = ""; lastPropKind = ""; lastPropTime = -999f; lastComboCount = -999f;
         roomNear.Clear();
+        Step1QuickTest.UsedThisRound = Step1QuickTest.NoLimits; // S236：这一局一开始就开着 F9 = 这局算 F9
     }
 
     private void HandleProp(IControllableProp prop) { lastPropKind = PrankKindOf(prop); lastPropTime = Time.time; }
@@ -204,7 +205,7 @@ public class Step1PlaytestLog : MonoBehaviour
         // S210：大地图一天里的房间不弹问卷（打完直接回小镇；问卷在单独试玩房间时照旧）
         // S217：快速测试模式不弹 5 道问卷（结算直接按 R / N）；反馈改用 F8 随手记
         // S227：这两种以前连一行都不记 → 第 1 步出口的局数/坑法一直停在 09-27。现在照样记一行（问卷列留空），不弹任何东西。
-        if (OverworldSession.Active || Step1QuickTest.On) { roundMode = OverworldSession.Active ? "town" : "quick"; WriteRow(null); return; }
+        if (OverworldSession.Active || Step1QuickTest.On || Step1QuickTest.UsedThisRound) { roundMode = OverworldSession.Active ? "town" : Step1QuickTest.UsedThisRound ? "f9" : "quick"; WriteRow(null); return; } // S236：开过 F9 的局只记一行（mode=f9），不弹问卷、不算出口
         roundMode = "room";
         awaitingRating = true;
         survey = new Step1RoundSurvey(CaughtThisRound > 0);
@@ -221,8 +222,8 @@ public class Step1PlaytestLog : MonoBehaviour
         if (Step1Screen.HelpOpen) return;
         if (Step1Keys.Down(KeyCode.Y)) survey.AnswerYesNo(true);
         else if (Step1Keys.Down(KeyCode.N)) survey.AnswerYesNo(false);
-        for (int i = 1; i <= 5; i++)
-            if (Input.GetKeyDown(KeyCode.Alpha0 + i) || Input.GetKeyDown(KeyCode.Keypad0 + i)) { survey.AnswerNumber(i); break; }
+        int d = Step1Keys.Digit1to5(); // S236：两套输入都读（以前只读旧输入 → 有的机器按数字没反应，问卷卡住）
+        if (d > 0) survey.AnswerNumber(d);
     }
 
     private void FinishSurvey()
@@ -295,6 +296,7 @@ public class Step1PlaytestLog : MonoBehaviour
         if (gm != null) sb.AppendLine($"剩余时间 Time  <b>{Mathf.CeilToInt(Mathf.Max(0f, gm.GameTimer))}s</b>     第 {gm.CurrentRound} 局 Round");
         if (driver != null && driver.Mind != null)
             sb.Append("马里奥 Mario  <b>" + Step1Text.MarioStateText(driver.Mind.State, driver.IsWaitingToStart, LootObjective.IsLootCarried, driver.StartDelayRemaining, driver.Mind.IsStunned) + "</b>");
+        if (Step1QuickTest.NoLimits) sb.Append("\n" + Step1QuickTest.NoLimitsBadge); // S236
         Step1Gui.Panel(new Rect(16f, 16f, 760f, 120f));
         GUI.Label(new Rect(32f, 24f, 740f, 110f), sb.ToString(), Step1Gui.Text(24));
 

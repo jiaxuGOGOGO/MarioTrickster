@@ -256,6 +256,9 @@ public class TricksterController : MonoBehaviour
             jumpPressedThisFrame = false;
         }
         // 击退 stun 期间：不覆盖 rb.velocity，让物理引擎的 AddForce 击退力自然衰减
+        // S236：身体被冻住（马里奥停时间 / 弹跳台蓄力 → isKinematic）时不写速度。以前硬直分支照样每帧写重力速度，
+        // 冻住的身体会慢慢"沉"进地板（2 秒约 3 格），解冻后掉到房间外面（S235 掉出房间的根因之一）。
+        if (rb.isKinematic && _isKnockbackStunned) { _frameVelocity = Vector2.zero; rb.velocity = Vector2.zero; return; }
         if (_isKnockbackStunned)
         {
             _lastPlatformVelocity = Vector2.zero;

@@ -55,7 +55,7 @@ public class MarioTimeStop : MonoBehaviour
     private void Update()
     {
         if (tuning == null || driver == null || figure == null || Step1HandsOffCheck.IsRunning || UsesLeft <= 0 && warn <= 0f && freeze <= 0f) return;
-        if (manager != null && manager.CurrentState != GameState.Playing) return;
+        if (manager != null && manager.CurrentState != GameState.Playing) { if (freeze > 0f || warn > 0f) { warn = freeze = -1f; Unfreeze(); } return; } // S236：一局在冻住时结束 → 马上解冻（以前要等下一局才解，结算时你一直是冻着的）
         if (cooldown > 0f) cooldown -= Time.deltaTime;
         if (warn > 0f)
         {

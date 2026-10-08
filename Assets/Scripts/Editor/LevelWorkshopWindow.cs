@@ -330,6 +330,7 @@ public class LevelWorkshopWindow : EditorWindow
         GUILayout.Label(new GUIContent(string.IsNullOrEmpty(libraryName) ? "（未存入关卡库）" : libraryName, "Ctrl+S 存；网页连接了项目文件夹时，两边改动自动同步"), EditorStyles.toolbarButton, GUILayout.MaxWidth(120));
         if (GUILayout.Button(new GUIContent("▶", "下一关（PageDown）"), EditorStyles.toolbarButton, GUILayout.Width(22))) StepLibrary(1);
         if (GUILayout.Button(new GUIContent("🏘 小镇", "S210：打开小镇工坊（星露谷视角大地图，门连到这里做的房间）"), EditorStyles.toolbarButton, GUILayout.Width(54))) OverworldWorkshopWindow.Open();
+        if (GUILayout.Button(new GUIContent("📖", "开始页（Ctrl+Alt+H）：全部功能在哪、创作时怎么用"), EditorStyles.toolbarButton, GUILayout.Width(26))) StartHereWindow.Open();
         if (GUILayout.Button("导入", EditorStyles.toolbarButton, GUILayout.Width(44))) Import();
         if (GUILayout.Button("导出", EditorStyles.toolbarButton, GUILayout.Width(44))) Export();
         GUILayout.Space(10);

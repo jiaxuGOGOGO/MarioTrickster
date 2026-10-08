@@ -82,6 +82,7 @@ public class IronCage : ControllableLevelElement
     {
         if (prisoner == null) return;
         timer -= Time.fixedDeltaTime;
+        if (Step1Bounds.Teleported(prisoner.position, transform.position, 1.5f)) { Release(); return; } // S235：被传送走（回出生点 / 救援）= 放人，不再拽回笼子
         var p = prisoner.position; p.x = transform.position.x; prisoner.position = p; // 关在笼里：水平锁定
         var rb = prisoner.GetComponent<Rigidbody2D>(); if (rb != null) rb.velocity = new Vector2(0f, Mathf.Min(0f, rb.velocity.y));
         if (timer <= 0f) Release();

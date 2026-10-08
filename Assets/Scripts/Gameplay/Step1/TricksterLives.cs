@@ -80,6 +80,30 @@ public class TricksterLives : MonoBehaviour
         return true;
     }
 
+    /// <summary>S235 本局结束原因（Step1Text.Classify 认这个前缀）。</summary>
+    public const string FellOutReason = "Trickster fell out of the room.";
+
+    /// <summary>
+    /// S235：你掉出房间（被炮/炸弹轰出去、被挤出外墙、从会塌的外圈掉下去）→ 回出生点 + 掉 n 条命（无敌期内不掉，也照样回出生点）。
+    /// 命没了 = 本局马里奥赢（结算写"你掉出房间"）。以前：底下的深渊只认马里奥，你掉出去就一直在外面，血不掉、马里奥照样跑（用户实测）。
+    /// 返回实际掉了几条命。
+    /// </summary>
+    public int FellOut(int n)
+    {
+        if (trickster == null || Lives <= 0) return 0;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.CurrentState != GameState.Playing) return 0;
+        int lost = Step1Bounds.LivesLost(Lives, n, invulnerable > 0f);
+        if (lost > 0) { Lives -= lost; LivesChanged?.Invoke(Lives); }
+        if (Lives <= 0) { if (gm != null) gm.EndRound("Mario", FellOutReason); return lost; }
+        if (respawnPoint != null) trickster.transform.position = respawnPoint.position;
+        var rb = trickster.GetComponent<Rigidbody2D>();
+        if (rb != null) { if (respawnPoint != null) rb.position = respawnPoint.position; rb.velocity = Vector2.zero; }
+        if (Application.isPlaying) trickster.ResetForNewRound(); // 现形、清速度、解除硬直（和被抓一样）
+        invulnerable = tuning.respawnInvulnerableSeconds;
+        return lost;
+    }
+
     /// <summary>裁判：马里奥在 catchRadius 内且捣蛋者不在无敌期 → 抓到。</summary>
     public bool TryCatch(Vector2 marioPosition)
     {

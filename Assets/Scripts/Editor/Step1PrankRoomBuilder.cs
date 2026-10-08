@@ -48,7 +48,8 @@ public static class Step1PrankRoomBuilder
     /// S207 = 18：大房间镜头（智能跟随 + 屏外箭头 + 小地图）；回合时间/自动检查超时按路线长度自动放宽。
     /// S215 = 19：小镇房间按"最多带进来的炸弹"加固（ExtraBombs），以前按 3 颗算，带满 6 颗能把马里奥困死（H1/H9）。
     /// S216 = 20：弹簧板弹速按新调参（15，被弹飞全程有重力）写进场景 → 旧房间自动重建。
-    public const int BuilderVersion = 20;
+    /// S235 = 21：房间守卫 Step1RoomGuard（外圈外面看不见的墙 + 掉出房间回出生点掉 1 命 + 推出墙只往里推）→ 旧房间（含小镇房间）自动重建。
+    public const int BuilderVersion = 21;
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -400,6 +401,7 @@ public static class Step1PrankRoomBuilder
         marker.SetBuiltRoomHash(RoomHash(room));
         var rescue = gm.gameObject.AddComponent<Step1StuckRescue>();
         rescue.Configure(tuning, Step1Layout.Resolve(room, 0).Select(r => r.Replace('1', '.')).ToArray());
+        gm.gameObject.AddComponent<Step1RoomGuard>().Configure(tuning, room[0].Length, room.Length); // S235：房间外围看不见的墙 + 掉出房间回出生点（用户实测：捣蛋者掉出去就回不来）
         var variants = gm.gameObject.AddComponent<Step1LayoutVariants>();
         variants.SetTuning(tuning);
         foreach (var slot in variantSlots) variants.AddSlot(slot.cell, slot.options, slot.objects);

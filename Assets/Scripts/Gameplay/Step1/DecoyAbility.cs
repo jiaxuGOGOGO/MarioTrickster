@@ -89,7 +89,12 @@ public class Decoy : MonoBehaviour
     private void Update()
     {
         life -= Time.deltaTime;
-        if (walk > 0f && !revealed) { walk -= Time.deltaTime; transform.position += new Vector3((right ? 1f : -1f) * 1.5f * Time.deltaTime, 0f, 0f); }
+        if (walk > 0f && !revealed)
+        {
+            walk -= Time.deltaTime; transform.position += new Vector3((right ? 1f : -1f) * 1.5f * Time.deltaTime, 0f, 0f);
+            var room = BodyUnstick.RoomSize; // S235：诱饵是画面（没有碰撞体），贴着外墙放会走进墙里 / 走出房间 → 夹在房间里（马里奥追它也不会追到墙外）
+            if (room.x > 2 && room.y > 2) transform.position = Step1Bounds.ClampInside(transform.position, room.x, room.y, new Vector2(0.4f, 0f));
+        }
         if (revealed && sr != null) sr.color = new Color(sr.color.r, sr.color.g, sr.color.b, Mathf.Clamp01(life / 0.6f));
         if (life <= 0f) { DecoyAbility.Clear(this); Destroy(gameObject); }
     }

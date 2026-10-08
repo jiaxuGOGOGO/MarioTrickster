@@ -23,6 +23,13 @@
 | dotnet 报 version 错（沙盒） | 环境变量 `version=N/A` | `unset version`（脚本已处理） |
 | 编辑器 cc2 找不到运行时类型 | 先要编好 `cc/out/cc.dll` | verify.sh 的顺序就是先 cc 后 cc2 |
 
+## S235 "掉出房间回不来、血不掉、马里奥照跑"
+| 现象 | 根因 | 修法 |
+|---|---|---|
+| 捣蛋者出界后停在外面 | KillZone 只认 PlayerHealth（捣蛋者没有）且只管 y；BodyUnstick 最短方向可能往外推 | `Step1RoomGuard`（看不见的墙 + `TricksterLives.FellOut`）；`BodyUnstick.RoomSize` + `Step1Bounds.ClampInside` |
+| 回出生点后又被拽回绳套/铁笼/炮口 | 控制机关每帧锁位置 | `Step1Bounds.Teleported(...)` → 放人 |
+| 小镇里动不了 | 身体压进不可走格 → Move 每步被挡 | `OverworldTown.Unstick` / `OverworldMap.Unstick` |
+
 ## 性能问题
 工坊卡：检查放到停笔后（`EditorApplication.update` 延迟 0.35s）、按物理签名去重、只在格子变化时重绘。游戏卡：去掉 Update 里的 Find、GUIStyle 缓存、NonAlloc 物理查询。
 

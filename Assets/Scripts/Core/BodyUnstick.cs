@@ -12,6 +12,10 @@ public static class BodyUnstick
 {
     private static readonly Collider2D[] s_hits = new Collider2D[8];
 
+    /// <summary>S235：当前房间大小（格；Step1RoomGuard 开局写入，zero = 不限制）。推出墙之后把身体夹回房间里——
+    /// 以前按"最短方向"推：被炮/炸弹/伪装变大挤进最外圈墙时，最短方向可能是往外 → 被推到房间外面回不来（用户实测）。</summary>
+    public static Vector2Int RoomSize;
+
     /// <summary>纯逻辑：重叠深度（distance 为负）超过 minDepth 才推，推的距离不超过 maxStep。返回位移（0 = 不推）。</summary>
     public static Vector2 PushFor(bool overlapped, Vector2 normal, float distance, float minDepth, float maxStep)
     {
@@ -44,6 +48,12 @@ public static class BodyUnstick
         }
         if (total == Vector2.zero) return total;
         if (total.magnitude > maxStep) total = total.normalized * maxStep;
+        if (RoomSize.x > 2 && RoomSize.y > 2) // S235：只往房间里推（外圈墙另一边是房间外）
+        {
+            var b = body.bounds; Vector2 half = new Vector2(b.extents.x, b.extents.y), centerOff = (Vector2)b.center - rb.position;
+            Vector2 c = Step1Bounds.ClampInside(rb.position + centerOff + total, RoomSize.x, RoomSize.y, half);
+            total = c - centerOff - rb.position;
+        }
         rb.position += total;
         rb.transform.position = rb.position;
         var v = rb.velocity;

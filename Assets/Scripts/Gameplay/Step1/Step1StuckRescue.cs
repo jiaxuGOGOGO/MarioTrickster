@@ -83,6 +83,9 @@ public class Step1StuckRescue : MonoBehaviour
         Rescue(pos);
     }
 
+    /// <summary>S235：房间守卫发现马里奥出界 → 立即救回（同一套"沿路线往前放 / 最近安全格"，也记一次 stuck_rescues）。</summary>
+    public void RescueNow(Vector2 pos) { if (mario != null && driver != null) Rescue(pos); }
+
     private void Rescue(Vector2 pos)
     {
         still = 0f;

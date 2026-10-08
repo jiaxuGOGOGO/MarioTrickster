@@ -3,7 +3,7 @@
 /// </summary>
 public static partial class Step1Text
 {
-    public enum Outcome { MarioEscaped, TricksterCaughtOut, TimeUp, MarioKnockedOut, HandsOffTimeout, Other }
+    public enum Outcome { MarioEscaped, TricksterCaughtOut, TimeUp, MarioKnockedOut, HandsOffTimeout, Other, /* S235 */ TricksterFellOut }
 
     public const string HandsOffTimeoutReason = "HandsOffTimeout";
 
@@ -12,6 +12,7 @@ public static partial class Step1Text
     {
         reason = reason ?? "";
         if (reason == HandsOffTimeoutReason) return Outcome.HandsOffTimeout;
+        if (winner == "Mario" && reason.StartsWith("Trickster fell out")) return Outcome.TricksterFellOut; // S235
         if (winner == "Mario") return reason.StartsWith("Trickster caught") ? Outcome.TricksterCaughtOut : Outcome.MarioEscaped;
         if (winner == "Trickster")
         {
@@ -32,6 +33,7 @@ public static partial class Step1Text
             case Outcome.TimeUp: return "时间到，马里奥没逃出去 —— 你赢了！\nTime's up, Mario didn't escape — YOU WIN!";
             case Outcome.MarioKnockedOut: return "马里奥被机关打倒 —— 你赢了！\nMario was knocked out — YOU WIN!";
             case Outcome.HandsOffTimeout: return "马里奥卡住了（超时）\nMario got stuck (timeout)";
+            case Outcome.TricksterFellOut: return "你掉出房间，命用完了\nYou fell out of the room — no lives left";
             default: return "本局结束\nRound over";
         }
     }
@@ -171,6 +173,7 @@ public static partial class Step1Text
         "<b>Z 缩小</b>（每局 2 次）：钻窄缝、跑得快，但不能伪装/触发机关。  <b>Z</b> = shrink\n" +
         "<b>通风管</b>：站在管口按 <b>↓</b> 钻到配对的管口（马里奥进不去，但近处听得见咣当声）。  <b>↓</b> on a vent = travel\n" +
         "<b>马里奥会停止时间</b>（每局 1 次）：屏幕边缘变蓝 = 快躲！   Blue edges = Mario is about to stop time!\n" +
+        "<b>掉出房间</b>（被炮/炸弹轰出去）= 回出生点、<b>-1 条命</b>。  Falling out of the room = back to start, -1 life\n" +
         "<b>M</b> 或 <b>Tab</b> = 地图图例（哪些是墙、哪些能炸）   <b>M/Tab</b> = legend\n" +
         "<b>捷径门</b>：只能从一边推开，开了就一直开着。  <b>Shortcut door</b>: opens from one side only.\n" +
         "<b>大炮</b>（深色方块）：伪装在旁边按 L 开一炮（每局 1 发）；打完后<b>站进炮口</b>会把你打飞出去逃跑。\n" +
@@ -198,6 +201,10 @@ public static partial class Step1Text
     public const string CannonLoadYou = "进炮！<b>↑↓</b> 调角度 <b>←→</b> 调方向，马上发射  In the cannon: aim!";
     public const string CannonLoadMario = "马里奥钻进了大炮！  Mario jumped into the cannon!";
     public const string SnareMario = "🪢 马里奥被<b>绳套</b>吊起来了！（10 秒）  Mario is snared!";
+    // S235：掉出房间（以前掉出去就回不来、血不掉、马里奥照样跑）
+    public const string FellOutYou = "⚠ 你掉出房间了 → 回出生点，<b>-{0} 条命</b>  You fell out — back to start, -{0} life";
+    public const string FellOutYouSafe = "⚠ 你掉出房间了 → 回出生点（无敌中，不掉命）  You fell out — back to start";
+    public const string FellOutMario = "⚠ 马里奥掉出房间了 → 已放回他的路上（布局问题，按 F8 记一下）  Mario fell out — put back (layout bug, press F8)";
     public const string SnareYou = "🪢 你踩到<b>绳套</b>被吊起来了！  You got snared!";
     public const string ShieldBlocked = "🛡 马里奥的护盾挡住了这一下  Shield blocked it";
     public const string ChainNoneNear = "附近没有能编进连锁的机关（走到机关旁再按 F）  No trap nearby";

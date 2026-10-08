@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 26;
+    public const int CurrentDataVersion = 27;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -536,6 +536,8 @@ public class MarioMindTuningSO : ScriptableObject
     [Header("S228: 按调研定的数值 + 钟楼 + 房间大炮轰出窗户")]
     [Tooltip("S228：你自己踩到绳套被吊几秒（马里奥仍是 snareSeconds）。宪法 P4：10 秒没事可做 = 死区；以前你也吊 10 秒。参考 DbD 捕兽夹：设陷阱的人自己踩到只是短暂定住")]
     public float snareSelfSeconds = 3f;
+    [Tooltip("S235：你掉出房间（被炮/炸弹轰出去、挤出外墙）→ 回出生点并掉几条命（无敌期内不掉）。0 = 只回出生点不罚。以前掉出去就回不来、命不掉、马里奥照样跑")]
+    [Range(0, 3)] public int fallOutLivesLost = 1;
     [Tooltip("S228：他在房间里挨了你的炮 → 回到小镇时从门口被轰出去几格（落地晕 overworldBigStunSeconds，不掉心）")]
     public int overworldWindowFlingCells = 6;
     [Tooltip("S229：小镇里心掉光 = 这一天立刻结束（他掉光 = 你赢，你掉光 = 他赢，同一下都掉光 = 平局）→ 结算 → 重开。关掉 = 回到 S220 的'晕倒 3 秒剩 1 颗'")]
@@ -704,6 +706,11 @@ public class MarioMindTuningSO : ScriptableObject
         {
             // S229：心掉光 = 结算重开（docs/step1/S229_DEATH_ENDS_DAY.md）。自动重开 6 秒 = 看清结算（≈3 行字）+ 不用伸手按键。
             overworldDeathEndsDay = true; overworldDeathRestartSeconds = 6f;
+        }
+        if (dataVersion < 27)
+        {
+            // S235：掉出房间 = 回出生点 + 掉 1 条命（docs/step1/S235_FALL_OUT_OF_ROOM.md）。和"自己的炸弹炸到自己"同一个代价：是你自己的失误，但不该一下就输。
+            fallOutLivesLost = 1;
         }
         dataVersion = CurrentDataVersion;
         return true;

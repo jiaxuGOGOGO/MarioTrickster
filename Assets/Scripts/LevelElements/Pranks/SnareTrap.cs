@@ -81,6 +81,8 @@ public class SnareTrap : ControllableLevelElement
             hoisted = true; timer = holdFor; hoistT = 0f;
             Step1Fx.Burst(transform.position, 4, new Color(0.8f, 0.65f, 0.4f, 1f), 3f, Vector2.up, 90f, 10f, 0.12f, 0.35f);
         }
+        // S235：人已经被"传送"走了（被抓回出生点 / 掉出房间回出生点 / 卡住救援）→ 放人。以前会每帧把他拽回绳套，回出生点等于白回
+        if (Step1Bounds.Teleported(victim.position, hangPos, hoistHeight)) { Release(); return; }
         // 吊着：固定在绳套上方（H9：位置是地图里的空气格，不会卡墙——摆放规则要求上方 2 格空）
         // S216：前 0.25 秒缓动拉上去（以前一帧瞬移 1.5 格），之后轻轻晃
         hoistT += Time.fixedDeltaTime;

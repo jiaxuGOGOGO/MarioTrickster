@@ -170,6 +170,7 @@ public sealed class OverworldTown
         OverworldSession.Minute += gdt * tuning.overworldMinutesPerSecond;
         if (exitGrace > 0f) exitGrace -= dt;
         UpdateSteps(gdt);
+        Unstick();
         Trickster(gdt, i);
         if (wantsEnter) return;
         TickPeels(gdt);
@@ -235,6 +236,22 @@ public sealed class OverworldTown
     }
 
     private void Hint(Note n, float secs = 2f) { hint = n; hintSeconds = secs; }
+
+    /// <summary>S235 防卡死（H9）：你 / 马里奥的身体压进了不能走的格子或地图外（坐炮、飞行中除外）→ 挪到最近能站的地方。
+    /// 以前：落点算歪 / 从房间带回的位置不对时，Move 每一步都被挡 → 永远动不了、马里奥却照样走（和房间里"掉出去回不来"同一类问题）。</summary>
+    public int unsticks;
+    private void Unstick()
+    {
+        if (seat == null && !youFlying && !OverworldMap.Free(map, tx, ty))
+        {
+            (tx, ty) = OverworldMap.Unstick(map, tx, ty); unsticks++;
+            impacts.Add(new Impact3((float)tx, (float)ty, 0.4f));
+        }
+        if (!marioInside && !marioFlying && !MarioSeated && !OverworldMap.Free(map, mario.x, mario.y))
+        {
+            var (mx, my) = OverworldMap.Unstick(map, mario.x, mario.y); mario.x = mx; mario.y = my; mario.Clear(); unsticks++;
+        }
+    }
 
     private void Trickster(float dt, Input i)
     {

@@ -272,6 +272,7 @@ public class PranksterCannon : ControllableLevelElement
         var who = loading;
         loading = null;
         if (who == null) return;
+        if (Step1Bounds.Teleported(who.position, transform.position, 1f)) return; // S235：装填时被传送走了（被抓 / 掉出房间回出生点）→ 不再把人拽回炮口发射
         who.position = (Vector2)transform.position + Vector2.up * 0.2f;
         Vector2 v = LaunchVelocity(facingRight, launchSpeed, loadingAim);
         var figure = who.GetComponentInParent<TricksterController>();

@@ -167,6 +167,9 @@ public static class LevelWorkshopModel
         // S206：搭建范围（和网页设计台一致）：宽 12–128、高 6–48；外圈一圈必须是实心（最外列 W，顶/底行实心）
         foreach (var msg in BoundsIssues(grid, isSolid)) { result.general.Add(msg); result.errors++; }
         if (result.errors > 0) return result;
+        // S235：外圈是"会塌 / 能穿 / 能炸 / 会碎"的格子 → 黄色提醒（游戏里外面还有一圈看不见的墙兜底，不会掉出去，但看着像个口子）
+        foreach (var leak in Step1Bounds.BorderLeaks(grid))
+            AddCell(result, leak.x, leak.y, false, $"外圈这里是「{ElementCatalog.Get(leak.c)?.zh ?? leak.c.ToString()}」：会塌 / 能穿 / 能炸，看着像出口。外圈建议只用墙 W / 地面 #（游戏里外面有看不见的墙，不会真的掉出去）");
 
         var seenPhysics = new HashSet<string>();
         foreach (var variant in Variants(grid))

@@ -433,6 +433,32 @@ public static class OverworldMap
         return false;
     }
 
+    /// <summary>S235：身体（半径 r）在 (x,y) 不压到任何不能走的格、也没出地图。</summary>
+    public static bool Free(Map m, double x, double y, double r = BodyRadius) => !Overlaps(m, x, y, r);
+
+    /// <summary>S235 防卡死（H9）：身体压进墙 / 树 / 地图外（落点算歪、从房间带回的位置不对、地形被改）→ Move 每一步都会被挡，人就永远动不了。
+    /// 返回离 (x,y) 最近的一个能站的格子中心（由近到远一圈一圈找，同距离按 右上左下 的扫描顺序，结果可复现）；本来就能站 = 原样返回；整张图都站不了 = 原样返回。</summary>
+    public static (double x, double y) Unstick(Map m, double x, double y, double r = BodyRadius)
+    {
+        if (Free(m, x, y, r)) return (x, y);
+        int cx = (int)Math.Floor(x), cy = (int)Math.Floor(y), max = Math.Max(m.W, m.H);
+        cx = Math.Max(0, Math.Min(m.W - 1, cx)); cy = Math.Max(0, Math.Min(m.H - 1, cy));
+        for (int rad = 0; rad <= max; rad++)
+        {
+            double bd = double.MaxValue; (double, double)? best = null;
+            for (int dy = -rad; dy <= rad; dy++) for (int dx = -rad; dx <= rad; dx++)
+            {
+                if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != rad) continue;
+                int nx = cx + dx, ny = cy + dy; double px = nx + 0.5, py = ny + 0.5;
+                if (!Walkable(m, nx, ny) || !Free(m, px, py, r)) continue;
+                double d = (px - x) * (px - x) + (py - y) * (py - y);
+                if (d < bd - 1e-9) { bd = d; best = (px, py); }
+            }
+            if (best.HasValue) return best.Value;
+        }
+        return (x, y);
+    }
+
     /// <summary>俯视移动：先 x 后 y 分开试（贴墙能滑），每小步 ≤0.1 格，不会穿墙。</summary>
     public static (double x, double y) Move(Map m, double x, double y, double dx, double dy, double r = BodyRadius)
     {

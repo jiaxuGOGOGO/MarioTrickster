@@ -198,6 +198,11 @@ function check(W, rawGrid, step1) {
   const h = g.length, w = g[0].length;
   for (let x = 0; x < w; x++) { if (!W.solid.has(g[0][x]) || !W.solid.has(g[h - 1][x])) { res.issues.push({ x: -1, y: -1, t: '最上面一行和最下面一行必须全是实心（墙 W / 地面 #）', sev: 'error' }); break; } }
   for (let row = 0; row < h; row++) if (!W.solid.has(g[row][0]) || !W.solid.has(g[row][w - 1])) { res.issues.push({ x: -1, y: -1, t: '最左和最右一列必须全是墙 W', sev: 'error' }); break; }
+  // S235（= C# Step1Bounds.BorderLeaks）：外圈只用 墙 W / 地面 # / 平台 =；会塌 / 能穿 / 能炸的格子看着像出口 → 黄色提醒
+  if (!res.issues.some(i => i.sev === 'error')) for (let row = 0; row < h; row++) for (let x = 0; x < w; x++) {
+    if (!(row === 0 || row === h - 1 || x === 0 || x === w - 1) || 'W#='.includes(g[row][x])) continue;
+    res.issues.push({ x, y: h - 1 - row, t: `外圈这里是「${(W.info.get(g[row][x]) || { zh: g[row][x] }).zh}」：会塌 / 能穿 / 能炸，看着像出口。外圈建议只用墙 W / 地面 #（游戏里外面有看不见的墙，不会真的掉出去）`, sev: 'warn' });
+  }
   res.issues.push(...placementIssues(W, g, step1));
   const M = find(g, 'M')[0], G = find(g, 'G')[0], O = find(g, 'o')[0];
   const a = path(W, g, M, O || G), b = O ? path(W, g, O, G) : [];

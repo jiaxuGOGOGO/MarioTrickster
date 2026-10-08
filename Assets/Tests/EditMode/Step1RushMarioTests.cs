@@ -2279,6 +2279,49 @@ public class Step1RushMarioTests
         StringAssert.Contains("MarioReaction.Line(beat, nth)", view);
     }
 
+    // ═════════ S235：掉出房间（用户实测：捣蛋者掉出去就回不来、血不掉、马里奥照样跑） ═════════
+    [Test]
+    public void S235_FallOutOfRoom_GuardWalls_BackToSpawn_LoseLife()
+    {
+        // 出界判定：站在外墙旁边不算，越过外墙中线才算
+        Assert.IsFalse(Step1Bounds.IsOut(new Vector2(0.9f, 3f), 48, 12), "贴着左墙站着不算出界");
+        Assert.IsFalse(Step1Bounds.IsOut(new Vector2(46.1f, 10.4f), 48, 12), "右上角里面不算");
+        Assert.IsTrue(Step1Bounds.IsOut(new Vector2(-0.1f, 3f), 48, 12), "左边出去");
+        Assert.IsTrue(Step1Bounds.IsOut(new Vector2(20f, -0.2f), 48, 12), "掉到地面下面");
+        Assert.IsTrue(Step1Bounds.IsOut(new Vector2(20f, 11.2f), 48, 12), "飞出天花板");
+        Assert.IsFalse(Step1Bounds.IsOut(new Vector2(-50f, -50f), 0, 0), "没有房间信息 = 不判");
+        // 推出墙只往里推
+        var c = Step1Bounds.ClampInside(new Vector2(-0.3f, 3f), 48, 12, new Vector2(0.4f, 0.475f));
+        Assert.Greater(c.x, 0.5f); Assert.AreEqual(3f, c.y, 1e-4);
+        // 看不见的墙把房间外一圈全挡住，房间里一格不挡
+        for (int x = -2; x <= 49; x++) { Assert.IsTrue(Step1Bounds.InGuard(new Vector2(x, -1.5f), 48, 12)); Assert.IsTrue(Step1Bounds.InGuard(new Vector2(x, 12.5f), 48, 12)); }
+        for (int y = -2; y <= 13; y++) { Assert.IsTrue(Step1Bounds.InGuard(new Vector2(-1.5f, y), 48, 12)); Assert.IsTrue(Step1Bounds.InGuard(new Vector2(48.5f, y), 48, 12)); }
+        Assert.IsFalse(Step1Bounds.InGuard(new Vector2(1f, 1f), 48, 12)); Assert.IsFalse(Step1Bounds.InGuard(new Vector2(46f, 10f), 48, 12));
+        // 掉几条命：无敌期 0；命不够就掉到 0
+        Assert.AreEqual(1, Step1Bounds.LivesLost(3, 1, false)); Assert.AreEqual(0, Step1Bounds.LivesLost(3, 1, true)); Assert.AreEqual(1, Step1Bounds.LivesLost(1, 2, false)); Assert.AreEqual(0, Step1Bounds.LivesLost(3, 0, false));
+        Assert.AreEqual(Step1Text.Outcome.TricksterFellOut, Step1Text.Classify("Mario", TricksterLives.FellOutReason));
+        Assert.IsFalse(Step1Text.PlayerWon(Step1Text.Outcome.TricksterFellOut));
+        // 被传送走 = 绳套 / 铁笼 / 炮放人
+        Assert.IsTrue(Step1Bounds.Teleported(new Vector2(3f, 3f), new Vector2(20f, 4.5f), 1.5f)); Assert.IsFalse(Step1Bounds.Teleported(new Vector2(20f, 3f), new Vector2(20f, 4.5f), 1.5f));
+        // 默认房间外圈没有"会塌 / 能穿"的口子；外圈放单向台面 → 工坊提醒
+        CollectionAssert.IsEmpty(Step1Bounds.BorderLeaks(Step1PrankRoomBuilder.Room));
+        var leaky = (string[])Step1PrankRoomBuilder.Room.Clone(); leaky[0] = "WWWW----" + leaky[0].Substring(8);
+        Assert.AreEqual(4, Step1Bounds.BorderLeaks(leaky).Count);
+        var t = Tuning(); t.dataVersion = 26; t.fallOutLivesLost = 0; t.UpgradeData();
+        Assert.AreEqual(1, t.fallOutLivesLost); Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 27); Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 21);
+        // 接线：构建器挂守卫；推出墙用房间范围夹；你出界走 FellOut；装填 / 绳套 / 铁笼被传送走就放人
+        StringAssert.Contains("AddComponent<Step1RoomGuard>().Configure(tuning, room[0].Length, room.Length)", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+        StringAssert.Contains("Step1Bounds.ClampInside(", Read("Scripts/Core/BodyUnstick.cs"));
+        StringAssert.Contains("lives.FellOut(", Read("Scripts/Gameplay/Step1/Step1RoomGuard.cs"));
+        StringAssert.Contains("rescue.RescueNow(", Read("Scripts/Gameplay/Step1/Step1RoomGuard.cs"));
+        foreach (var f in new[] { "Scripts/LevelElements/Pranks/SnareTrap.cs", "Scripts/LevelElements/Pranks/IronCage.cs", "Scripts/LevelElements/Traps/PranksterCannon.cs" })
+            StringAssert.Contains("Step1Bounds.Teleported(", Read(f), f);
+        // 小镇：身体压进墙 / 地图外 → 挪到最近能站的格
+        var m = OverworldPack.Parse(OverworldPack.SampleText)[0];
+        var (ux, uy) = OverworldMap.Unstick(m, -3, -3); Assert.IsTrue(OverworldMap.Free(m, ux, uy));
+        StringAssert.Contains("Unstick();", Read("Scripts/Overworld/OverworldTown.cs"));
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

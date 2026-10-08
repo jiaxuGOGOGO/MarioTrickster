@@ -979,6 +979,42 @@ static class CHECK {
       ||!ed.Contains("OverworldGame.ReloadStories()")||!ed.Contains("%&l")||!ed.Contains("MoveHandEdits")||!rv.Contains("MarioReaction.UserResourceName")||!mp2.Contains("MyTownStories.json MyMarioReactions.json")||!File.ReadAllText(WsRepo("tools/LevelStudioWeb/app.js")).Contains("syReadMyStories")){ ub++; Console.WriteLine("     [FAIL] 接线：游戏 / 工坊 / 体检 / 台词编辑器 / 网页 / bat 没接上你的台词"); }
     else parts.Add("游戏 / 小镇工坊 / 体检 / F8 反馈包 / 网页都读\"内置 + 你的\"；Play 中保存下一句就生效；bat 上传时把你的台词也提交");
     Console.WriteLine($"[{(ub==0?"OK":"FAIL")}] S234 你的台词（可改、可加、可关，升级不覆盖）：{string.Join("｜",parts)}"); fail+=ub; }
+  // S235 掉出房间：用户实测"捣蛋者掉出游戏范围之外就回不来了，血也没掉，马里奥还在继续"。① 每个样板/塔/向导房间外圈只用 W # =（没有会塌/能穿的口子）② 看不见的墙把外面一圈全挡住、房间里一格不挡 ③ 出界判定：贴墙站不算、越过墙中线才算 ④ 推出墙只往里推 ⑤ 小镇压进墙/地图外 → 挪到最近能站的格，四张样板图每个不能站的格都能救出来 ⑥ 接线
+  { int fb=0; var parts=new List<string>(); var rooms=Samples().ToList(); for(int f=2;f<=FloorStacker.MaxFloors;f++) rooms.Add(("塔"+f,FloorStacker.Build(f,0))); foreach(char star in LevelBlueprint.WizardStars) rooms.Add(("向导"+star,LevelBlueprint.Wizard(star,30,"").grid));
+    int leaks=0; foreach(var (n,g) in rooms){ var l=Step1Bounds.BorderLeaks(g); if(l.Count>0){ leaks++; Console.WriteLine($"     [FAIL] {n} 外圈有 {l.Count} 个会塌/能穿的格（{l[0].c} 在 {l[0].x},{l[0].y}）"); } }
+    var leakEx=new[]{"WWWWWWWWWWWW","W..........W","W..........W","W..........W","W.G.M...oT.W","WW--CC#xx##W"}; int bl=Step1Bounds.BorderLeaks(leakEx).Count;
+    if(leaks>0||bl!=6){ fb++; Console.WriteLine($"     [FAIL] 外圈检查：样板有口子 {leaks}，反例应查出 6 个实际 {bl}"); } else parts.Add($"{rooms.Count} 个房间外圈全是 W/#/=（反例：单向台面/塌桥/裂缝地板 6 格都查出）");
+    int gaps=0, inside=0; foreach(var (n,g) in rooms){ int w=g[0].Length,h=g.Length;
+      for(float x=-2.4f;x<=w+1.4f;x+=0.2f) foreach(float y in new[]{-1.9f,-0.6f,h-0.4f,h+0.9f}) if(!Step1Bounds.InGuard(new Vector2(x,y),w,h)) gaps++;
+      for(float y=-2.4f;y<=h+1.4f;y+=0.2f) foreach(float x in new[]{-1.9f,-0.6f,w-0.4f,w+0.9f}) if(!Step1Bounds.InGuard(new Vector2(x,y),w,h)) gaps++;
+      for(int x=0;x<w;x++) for(int y=0;y<h;y++) if(Step1Bounds.InGuard(new Vector2(x,y),w,h)) inside++; }
+    if(gaps>0||inside>0){ fb++; Console.WriteLine($"     [FAIL] 看不见的墙：外面漏了 {gaps} 处、房间里挡了 {inside} 格"); } else parts.Add("看不见的墙把每个房间外面一圈全挡住（四角无缝），房间里一格不挡");
+    int wrong=0; foreach(var (n,g) in rooms){ int w=g[0].Length,h=g.Length; var reg2=AsciiElementRegistry.GetDefault();
+      for(int row=0;row<h;row++) for(int x=0;x<w;x++){ if(reg2.IsSolid(g[row][x])) continue; int y=h-1-row; foreach(var d in new[]{new Vector2(-0.45f,0),new Vector2(0.45f,0),new Vector2(0,-0.45f),new Vector2(0,0.45f)}) if(Step1Bounds.IsOut(new Vector2(x,y)+d,w,h)) wrong++; } }
+    bool outs=Step1Bounds.IsOut(new Vector2(-0.01f,5),48,12)&&Step1Bounds.IsOut(new Vector2(47.01f,5),48,12)&&Step1Bounds.IsOut(new Vector2(5,-0.01f),48,12)&&Step1Bounds.IsOut(new Vector2(5,11.01f),48,12)&&!Step1Bounds.IsOut(new Vector2(-9,-9),0,0);
+    if(wrong>0||!outs){ fb++; Console.WriteLine($"     [FAIL] 出界判定：站在房间里任何空格被误判 {wrong} 次 / 越过墙中线没判出 {!outs}"); } else parts.Add("站在任何房间的任何空格都不误判，越过外墙中线 0.01 格就判出界");
+    int pushOut=0; for(float x=-1f;x<=49f;x+=0.25f) for(float y=-1f;y<=13f;y+=0.25f){ var c=Step1Bounds.ClampInside(new Vector2(x,y),48,12,new Vector2(0.4f,0.475f)); if(Step1Bounds.IsOut(c,48,12)||c.x-0.4f<0.5f-1e-4||c.x+0.4f>46.5f+1e-4||c.y-0.475f<0.5f-1e-4) pushOut++; }
+    if(pushOut>0){ fb++; Console.WriteLine($"     [FAIL] 推出墙后仍在外面 {pushOut} 次"); } else parts.Add("推出墙后身体一定在外圈墙里面（3 000+ 个起点）");
+    bool lives=Step1Bounds.LivesLost(3,1,false)==1&&Step1Bounds.LivesLost(3,1,true)==0&&Step1Bounds.LivesLost(1,3,false)==1&&Step1Text.Classify("Mario","Trickster fell out of the room.")==Step1Text.Outcome.TricksterFellOut&&!Step1Text.PlayerWon(Step1Text.Outcome.TricksterFellOut)&&Step1Text.Headline(Step1Text.Outcome.TricksterFellOut).Contains("掉出房间");
+    var tt=new MarioMindTuningSO(); tt.dataVersion=26; tt.fallOutLivesLost=0; tt.UpgradeData(); var tl=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/TricksterLives.cs"));
+    if(!lives||tt.fallOutLivesLost!=1||!tl.Contains("FellOutReason = \"Trickster fell out of the room.\"")){ fb++; Console.WriteLine("     [FAIL] 掉命规则 / 结算 / 升级默认值不对"); } else parts.Add("你出界 = 回出生点 -1 命（无敌期只回去不掉命），命没了结算写'你掉出房间'");
+    // 小镇：所有不能站的格（含地图外一圈）都能救到最近的能站格；能站的地方原样不动
+    int twBad=0, twCells=0; foreach(var txt in new[]{OverworldPack.SampleText,OverworldPack.BigSampleText,OverworldPack.MountainSampleText,OverworldPack.StormSampleText}){ var m=OverworldPack.Parse(txt)[0];
+      for(int y=-2;y<m.H+2;y+=1) for(int x=-2;x<m.W+2;x+=1){ double px=x+0.5,py=y+0.5; var (ux,uy)=OverworldMap.Unstick(m,px,py); twCells++;
+        if(!OverworldMap.Free(m,ux,uy)) twBad++; else if(OverworldMap.Free(m,px,py)&&(ux!=px||uy!=py)) twBad++; else if(!OverworldMap.Free(m,px,py)&&Math.Max(Math.Abs(ux-px),Math.Abs(uy-py))>Math.Max(m.W,m.H)) twBad++; } }
+    // 小镇实跑：把你塞进墙里 → 下一帧就能走
+    { var m=OverworldPack.Parse(OverworldPack.SampleText)[0]; OverworldSession.ResetStatics(); OverworldSession.NewDay(m.name,"Town",1); OverworldSession.Active=true; var town=new OverworldTown(m,new MarioMindTuningSO());
+      town.tx=-5; town.ty=-5; var inp=new OverworldTown.Input{h=1f}; for(int i=0;i<30;i++) town.Tick(1f/30f,inp); if(!OverworldMap.Free(town.map,town.tx,town.ty)||town.unsticks<1){ twBad++; Console.WriteLine($"     [FAIL] 小镇：你被塞到地图外 → 救不回来 ({town.tx:0.0},{town.ty:0.0})"); }
+      OverworldSession.ResetStatics(); }
+    if(twBad>0){ fb++; Console.WriteLine($"     [FAIL] 小镇压进墙：{twBad}/{twCells} 个格子救不出来或误挪"); } else parts.Add($"小镇 4 张图 {twCells} 个位置（含地图外）压进墙都能挪到最近能站的格，能站的不动；实跑塞到地图外 1 帧回来");
+    // 接线
+    var pb=File.ReadAllText(WsRepo("Assets/Scripts/Editor/Step1PrankRoomBuilder.cs")); var bu=File.ReadAllText(WsRepo("Assets/Scripts/Core/BodyUnstick.cs")); var gd=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1RoomGuard.cs")); var tw=File.ReadAllText(WsRepo("Assets/Scripts/Overworld/OverworldTown.cs")); var lw=File.ReadAllText(WsRepo("Assets/Scripts/Editor/LevelWorkshopModel.cs")); var lj=File.ReadAllText(WsRepo("tools/LevelStudioWeb/logic.js"));
+    bool wire=pb.Contains("AddComponent<Step1RoomGuard>().Configure(tuning, room[0].Length, room.Length)")&&bu.Contains("Step1Bounds.ClampInside(")&&gd.Contains("lives.FellOut(")&&gd.Contains("rescue.RescueNow(")&&gd.Contains("BodyUnstick.RoomSize =")&&tw.Contains("        Unstick();\n")&&lw.Contains("Step1Bounds.BorderLeaks(grid)")&&lj.Contains("'W#='.includes(")
+      &&new[]{"Assets/Scripts/LevelElements/Pranks/SnareTrap.cs","Assets/Scripts/LevelElements/Pranks/IronCage.cs","Assets/Scripts/LevelElements/Traps/PranksterCannon.cs"}.All(f=>File.ReadAllText(WsRepo(f)).Contains("Step1Bounds.Teleported("))&&Step1Bounds.Teleported(new Vector2(3,3),new Vector2(20,4.5f),1.5f)&&!Step1Bounds.Teleported(new Vector2(20,3),new Vector2(20,4.5f),1.5f);
+    // H4：守卫是裁判，马里奥心智里不能读它
+    foreach(var f in new[]{"RushMarioMind","MarioMindDriver","SuspicionMeter","MarioVision","MarioEyes"}){ if(File.ReadAllText(WsRepo($"Assets/Scripts/Gameplay/Step1/{f}.cs")).Contains("Step1RoomGuard")) { wire=false; Console.WriteLine("     [FAIL] H4：马里奥心智读了房间守卫 "+f); } }
+    if(!wire){ fb++; Console.WriteLine("     [FAIL] 接线：构建器 / 推出墙 / 守卫 / 小镇 / 工坊 / 网页 / 绳套铁笼大炮 没接上"); } else parts.Add("构建器挂守卫、推出墙只往里、绳套/铁笼/炮装填时被传送走就放人、工坊 + 网页外圈提醒、马里奥心智不读守卫（H4）");
+    Console.WriteLine($"[{(fb==0?"OK":"FAIL")}] S235 掉出房间回不来：{string.Join("｜",parts)}"); fail+=fb; }
   // S227 阶段 D 填表：用你真实的试玩记录（docs/step1/data/*.csv）跑出口报告
   { int db=0; var parts=new List<string>();
     var hdr=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1PlaytestLog.cs")),"CsvHeader => \"([^\"]*)\" \\+\\s*\"([^\"]*)\"");

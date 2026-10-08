@@ -86,7 +86,7 @@ public class LevelWorkshopWindow : EditorWindow
     private void LoadTrack()
     {
         string path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder, Step1HandsOffCheck.TrackFile);
-        if (!System.IO.File.Exists(path)) { trackVisits = null; trackNote = "还没有轨迹：先跑一次 菜单 MarioTrickster → Step 1 → Hands-off Check 或 Trap Probe"; return; }
+        if (!System.IO.File.Exists(path)) { trackVisits = null; trackNote = "还没有轨迹：先跑一次 测试中心 🤖 马里奥自己跑 或 🎯 陷阱试探"; return; }
         var (room, visits, stuck) = Step1HandsOffCheck.ParseTrack(System.IO.File.ReadAllText(path));
         trackVisits = visits; trackStuck = stuck;
         trackNote = room == StrategySim.Hash(doc.Grid) ? $"轨迹：{visits.Count} 格，卡住点 {stuck.Count} 个" : "⚠ 轨迹来自另一张图（先把这张图作为第 1 步房间试玩/检查一次）";
@@ -136,6 +136,7 @@ public class LevelWorkshopWindow : EditorWindow
         var w = GetWindow<LevelWorkshopWindow>("关卡工坊");
         w.SetSource(text, "Load room " + name);
         w.libraryName = name;
+        StartHereWindow.Touch(RecentWork.Room, name);
         w.ShowNotification(new GUIContent("门连的房间：" + name + "（改完 → 关卡库 → 存入，同名覆盖）"));
         return true;
     }
@@ -176,6 +177,7 @@ public class LevelWorkshopWindow : EditorWindow
         int n = i < 0 ? (dir > 0 ? 0 : list.Count - 1) : (i + dir + list.Count) % list.Count;
         SetSource(File.ReadAllText(list[n].path), "Open " + list[n].name);
         libraryName = list[n].name;
+        StartHereWindow.Touch(RecentWork.Room, libraryName);
         ShowNotification(new GUIContent($"{n + 1}/{list.Count}  {libraryName}"));
     }
 
@@ -920,7 +922,7 @@ public class LevelWorkshopWindow : EditorWindow
         foreach (var (name, path, pending) in list)
         {
             string label = "打开/" + name.Replace("/", "_") + (pending.Count > 0 ? $"  ⏳{string.Join("", pending)}" : "");
-            menu.AddItem(new GUIContent(label), false, () => { SetSource(File.ReadAllText(path), "Open " + name); libraryName = name; });
+            menu.AddItem(new GUIContent(label), false, () => { SetSource(File.ReadAllText(path), "Open " + name); libraryName = name; StartHereWindow.Touch(RecentWork.Room, name); });
         }
         menu.ShowAsContext();
     }
@@ -947,6 +949,7 @@ public class LevelWorkshopWindow : EditorWindow
         if (old.path != null) LevelWorkshopModel.CarryPending(File.ReadAllText(old.path), level);
         string path = LevelLibrary.Save(level);
         libraryName = name;
+        StartHereWindow.Touch(RecentWork.Room, name); // S237：开始页「上次做到哪」
         return path;
     }
 

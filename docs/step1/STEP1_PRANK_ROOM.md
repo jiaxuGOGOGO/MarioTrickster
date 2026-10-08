@@ -5,10 +5,10 @@
 
 ## 1. 怎么打开（S181 起只需要一个菜单）
 
-1. Unity 菜单 `MarioTrickster → Step 1 → ▶ Play Prank Room`：没有场景或场景是旧版本会**自动重建**，然后直接开始游戏。
+1. Unity 菜单 `MarioTrickster → ▶ 试玩房间 Play Room`（或测试中心 ② ▶ 试玩房间）：没有场景或场景是旧版本会**自动重建**，然后直接开始游戏。
 2. 马里奥开局站 2 秒（给你就位），然后自己去拿右边的宝物、再跑回左边的出口。
-3. 无干预检查：`MarioTrickster → Step 1 → Hands-off Check (H10)`，自动连跑 5 局，你不用碰键盘。
-4. 记录在哪：`MarioTrickster → Step 1 → Open Playtest Logs Folder`。
+3. 无干预检查：`MarioTrickster → 检查与记录 Checks → 🤖 马里奥自己跑`（或测试中心 🤖），自动连跑 5 局，你不用碰键盘。
+4. 记录在哪：测试中心 📂（或 `检查与记录 Checks → 📂 试玩记录文件夹`）。
 
 生成物：
 - 场景 `Assets/Scenes/Step1_PrankRoom.unity`
@@ -84,7 +84,7 @@ W##################################W
 ## 7. 必做检查
 
 1. **EditMode 测试**：Test Runner 跑 `Step1RushMarioTests`（22 项），以及 `H4PerceptionHonestyTests` / `Step0CoreLoopTests` 保持全绿。
-2. **H10（无干扰通关）**：菜单 `Hands-off Check (H10)`。捣蛋者自动退场，连跑 5 局，屏幕上显示 `Mario cleared x / 5` 和每局卡在哪（坐标）。结果也写进 `PlaytestLogs/step1_handsoff.csv`。
+2. **H10（无干扰通关）**：测试中心 🤖 马里奥自己跑。捣蛋者自动退场，连跑 5 局，屏幕上显示 `Mario cleared x / 5` 和每局卡在哪（坐标）。结果也写进 `PlaytestLogs/step1_handsoff.csv`。
 3. **20 局试玩**：每局结束屏幕会问（宪法第 3 层，照抄不改）：
    - 有没有"我算准了他会走那里"的时刻？`Y/N`
    - 有没有"差点被他发现"的时刻？`Y/N`

@@ -41,7 +41,7 @@ public class PivotRepairTool : EditorWindow
     private string _lastResult = "";
     private List<string> _previewInfo = new List<string>();
 
-    [MenuItem("MarioTrickster/Art Pipeline/Pivot 修正工具")]
+    [MenuItem("MarioTrickster/美术 Art/工具 Pipeline/Pivot 修正工具")]
     public static void ShowWindow()
     {
         GetWindow<PivotRepairTool>("Pivot 修正工具");

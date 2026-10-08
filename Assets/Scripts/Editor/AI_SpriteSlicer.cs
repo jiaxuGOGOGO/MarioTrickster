@@ -25,7 +25,7 @@ public class AI_SpriteSlicer : EditorWindow
     private PivotPresetUtility.PivotPreset _pivotPreset = PivotPresetUtility.PivotPreset.Auto;
     private Vector2 _customPivot = new Vector2(0.5f, 0.5f);
 
-    [MenuItem("MarioTrickster/Art Pipeline/一键工业化切图 (强制执行 ArtBible 规范)")]
+    [MenuItem("MarioTrickster/美术 Art/工具 Pipeline/一键工业化切图 (强制执行 ArtBible 规范)")]
     public static void ShowWindow()
     {
         GetWindow<AI_SpriteSlicer>("AI 资产切片母机");

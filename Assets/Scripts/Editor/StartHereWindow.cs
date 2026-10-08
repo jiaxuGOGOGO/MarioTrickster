@@ -14,7 +14,14 @@ public sealed class StartHereWindow : EditorWindow
     private Vector2 scroll;
     private string search = "";
     private string tier = "全部";
-    private bool showGoals = true, showRecent = true;
+    private bool showGoals = true, showRecent = true, showLast = true;
+    public const string RecentKey = "MarioTrickster.StartHere.Recent";
+
+    /// <summary>S237：记下「刚才在做哪一关 / 哪个小镇」（工坊打开、切换、保存时调用）。</summary>
+    public static void Touch(string kind, string name)
+    {
+        EditorPrefs.SetString(RecentKey, RecentWork.Push(EditorPrefs.GetString(RecentKey, ""), kind, name, System.DateTime.Now));
+    }
 
     [MenuItem("MarioTrickster/📖 开始页 Start Here %&h", false, 0)]
     public static void Open()
@@ -61,6 +68,9 @@ public sealed class StartHereWindow : EditorWindow
         bool filtering = search.Trim().Length > 0 || tier != "全部";
         if (!filtering)
         {
+            showLast = EditorGUILayout.Foldout(showLast, "⏱ 上次做到哪", true, EditorStyles.foldoutHeader);
+            if (showLast) LastWork();
+            EditorGUILayout.Space();
             showGoals = EditorGUILayout.Foldout(showGoals, "我想…（按目标走，点名字打开）", true, EditorStyles.foldoutHeader);
             if (showGoals)
                 foreach (var g in FeatureMap.Goals)
@@ -96,6 +106,64 @@ public sealed class StartHereWindow : EditorWindow
         EditorGUILayout.Space();
         EditorGUILayout.HelpBox("防遗忘：每个菜单、游戏按键、网页面板、说明文档都必须登记在这里（体检自动查）。看到某项不懂 → 点「文档」或按 F8 问 AI。", MessageType.None);
         EditorGUILayout.EndScrollView();
+    }
+
+    /// <summary>S237：最近改的关卡 / 小镇（点「接着做」直接打开）+ 上次体检 / 测试 / 试玩的结果。只读文件，不改任何东西。</summary>
+    private void LastWork()
+    {
+        var now = System.DateTime.Now;
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+        {
+            var items = RecentWork.Parse(EditorPrefs.GetString(RecentKey, ""));
+            if (items.Count == 0) EditorGUILayout.LabelField("还没有记录：在关卡工坊 / 小镇工坊打开或保存一次，这里就会记住。", EditorStyles.wordWrappedMiniLabel);
+            foreach (var it in items)
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField($"{(it.kind == RecentWork.Town ? "🏘" : "🏠")} {it.kind}「{it.name}」", GUILayout.MinWidth(200));
+                    EditorGUILayout.LabelField(RecentWork.Ago(it.time, now), EditorStyles.miniLabel, GUILayout.Width(90));
+                    if (GUILayout.Button("接着做", EditorStyles.miniButton, GUILayout.Width(60))) Resume(it);
+                }
+            EditorGUILayout.Space(2);
+            string root = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, ".."));
+            Line("🩺 上次体检", TestHubWindow.HealthPath, RecentWork.HealthLine, "① 再体检", () => { TestHubWindow.Open(); GetWindow<TestHubWindow>().RunHealthCheck(); });
+            Line("🧪 上次测试", System.IO.Path.Combine(root, "TestReport.txt"), RecentWork.TestLine, "再跑", TestReportRunner.RunEditModeTests);
+            string csv = System.IO.Path.Combine(TestHubWindow.LogsRoot, Step1PlaytestLog.LogFile);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                EditorGUILayout.LabelField("🎮 上次试玩", GUILayout.Width(80));
+                EditorGUILayout.LabelField(System.IO.File.Exists(csv) ? RecentWork.LastRoundLine(ReadShared(csv)) : "还没有试玩记录", EditorStyles.wordWrappedMiniLabel);
+                if (GUILayout.Button("▶ 房间", EditorStyles.miniButton, GUILayout.Width(60))) EditorApplication.delayCall += Step1PrankRoomBuilder.PlayMenu;
+            }
+            int shots = Step1Feedback.Count();
+            if (shots > 0) EditorGUILayout.LabelField($"📸 还有 {shots} 张 F8 截图没打包 → 测试中心 ③ 打包反馈", EditorStyles.miniBoldLabel);
+        }
+    }
+
+    void Line(string title, string path, LineFn fn, string button, System.Action act)
+    {
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            EditorGUILayout.LabelField(title, GUILayout.Width(80));
+            bool bad = false;
+            string text = System.IO.File.Exists(path) ? fn(ReadShared(path), out bad) + $"（{RecentWork.Ago(System.IO.File.GetLastWriteTime(path), System.DateTime.Now)}）" : fn("", out bad);
+            var old = GUI.color; if (bad) GUI.color = new Color(1f, 0.6f, 0.5f);
+            EditorGUILayout.LabelField(text, EditorStyles.wordWrappedMiniLabel);
+            GUI.color = old;
+            if (GUILayout.Button(button, EditorStyles.miniButton, GUILayout.Width(60))) EditorApplication.delayCall += () => act();
+        }
+    }
+    delegate string LineFn(string text, out bool bad);
+
+    static string ReadShared(string path)
+    {
+        try { using (var fs = new System.IO.FileStream(path, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite)) using (var r = new System.IO.StreamReader(fs)) return r.ReadToEnd(); }
+        catch { return ""; }
+    }
+
+    static void Resume(RecentWork.Item it)
+    {
+        if (it.kind == RecentWork.Town) { if (!OverworldWorkshopWindow.OpenTown(it.name)) Debug.LogWarning("[开始页] 找不到小镇：" + it.name); }
+        else if (!LevelWorkshopWindow.OpenRoom(it.name)) { LevelWorkshopWindow.Open(); Debug.LogWarning("[开始页] 关卡库里找不到：" + it.name); }
     }
 
     private void Row(FeatureMap.Feature f, bool compact)

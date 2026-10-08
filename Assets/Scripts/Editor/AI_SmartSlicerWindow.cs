@@ -32,7 +32,7 @@ public class AI_SmartSlicerWindow : EditorWindow
     // =========================================================================
     // 菜单入口
     // =========================================================================
-    [MenuItem("MarioTrickster/AI Smart Slicer (智能裁切) %#s", false, 201)]
+    [MenuItem("MarioTrickster/美术 Art/AI 智能切图 Smart Slicer %#s", false, 201)]
     public static void ShowWindow()
     {
         var win = GetWindow<AI_SmartSlicerWindow>("AI 智能裁切");

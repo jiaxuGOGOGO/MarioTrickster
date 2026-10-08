@@ -980,6 +980,60 @@ static class CHECK {
     else parts.Add("游戏 / 小镇工坊 / 体检 / F8 反馈包 / 网页都读\"内置 + 你的\"；Play 中保存下一句就生效；bat 上传时把你的台词也提交");
     Console.WriteLine($"[{(ub==0?"OK":"FAIL")}] S234 你的台词（可改、可加、可关，升级不覆盖）：{string.Join("｜",parts)}"); fail+=ub; }
 
+  // S237 去冗余 + 上次做到哪：用户"重复冗余会让我难以使用、测试反复、增加放弃成本"。① 调参 250 项每项恰好在 9 组之一、都有中文说明、常用 15 个都存在 ② 菜单顶层 ≤ 12 个、旧的 Step 1/ Run Tests/ Level Design/ Art Pipeline/ 网页同步/ 根菜单都并进去了 ③「上次做到哪」纯逻辑 ④ 接线
+  { int fr=0; var parts=new List<string>();
+    var tf=TuningGroups.Fields(typeof(MarioMindTuningSO)).Where(x=>x.field.Name!="dataVersion").ToList();
+    var noGroup=tf.Where(x=>TuningGroups.GroupOf(x.header)==null).Select(x=>x.field.Name+"("+x.header+")").ToList();
+    var noTip=tf.Where(x=>TuningGroups.Tip(x.field).Trim().Length==0).Select(x=>x.field.Name).ToList();
+    var allHeaders=tf.Select(x=>x.header).Distinct().ToList();
+    var deadHeaders=TuningGroups.All.SelectMany(g=>g.headers).Where(h=>!allHeaders.Contains(h)).ToList();
+    var dupHeaders=TuningGroups.All.SelectMany(g=>g.headers).GroupBy(h=>h).Where(g=>g.Count()>1).Select(g=>g.Key).ToList();
+    var badCommon=TuningGroups.Common.Where(n=>!tf.Any(x=>x.field.Name==n)).ToList();
+    if(noGroup.Count>0||noTip.Count>0||deadHeaders.Count>0||dupHeaders.Count>0||badCommon.Count>0||TuningGroups.Common.Length!=15){ fr++; Console.WriteLine($"     [FAIL] 调参分组：没分组 {string.Join(",",noGroup.Take(5))}｜没说明 {string.Join(",",noTip.Take(5))}｜组里写了不存在的小标题 {string.Join(",",deadHeaders)}｜重复 {string.Join(",",dupHeaders)}｜常用里找不到 {string.Join(",",badCommon)}"); }
+    else parts.Add($"调参 {tf.Count} 项全部分进 {TuningGroups.All.Length} 组（每项恰好一组）、每项都有中文说明、常用 15 个都在");
+    // ② 菜单
+    var root=WsRepo("Assets/Scripts"); var menus=new List<string>();
+    foreach(var cs in Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories)) foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(cs),"\\[MenuItem\\(\"(MarioTrickster/[^\"]+)\"(?!\\s*,\\s*true)")) menus.Add(m.Groups[1].Value);
+    var tops=menus.Select(m=>FeatureMap.StripShortcut(m).Split('/')[1]).Distinct().ToList();
+    var oldRoots=new[]{"Step 1","Run Tests","Level Design","Art Pipeline","网页同步","Overworld","红线防护设置","Open Last Test Report","Asset Import Pipeline","Apply Art to Selected","AI Smart Slicer (智能裁切)","红线巡检 (Red Line Check)","红线自动修复 (Red Line Auto-Fix)"}.Where(tops.Contains).ToList();
+    var allSrc=string.Join("\n",Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories).Select(File.ReadAllText));
+    var staleCalls=System.Text.RegularExpressions.Regex.Matches(allSrc,"ExecuteMenuItem\\(\"(MarioTrickster/[^\"]+)\"").Select(m=>m.Groups[1].Value).Where(m=>!menus.Any(x=>FeatureMap.StripShortcut(x)==m)).ToList();
+    if(tops.Count>12||oldRoots.Count>0||staleCalls.Count>0){ fr++; Console.WriteLine($"     [FAIL] 菜单：顶层 {tops.Count} 个（≤12）｜旧根菜单还在 {string.Join(",",oldRoots)}｜代码里调用了不存在的菜单 {string.Join(",",staleCalls)}"); }
+    else parts.Add($"MarioTrickster 菜单顶层 {tops.Count} 个（以前 19 个），旧的 Step 1 / Run Tests / Level Design / Art Pipeline / 网页同步 都并进 检查与记录 / 美术 / 安全网；代码里调菜单的地方全跟着改了");
+    // ③ 上次做到哪
+    var now=new DateTime(2026,10,8,15,30,0); string st="";
+    st=RecentWork.Push(st,RecentWork.Room,"诱捕走廊",now.AddHours(-3)); st=RecentWork.Push(st,RecentWork.Town,"星露小镇",now.AddMinutes(-20)); st=RecentWork.Push(st,RecentWork.Room,"诱捕走廊",now.AddMinutes(-2)); st=RecentWork.Push(st,RecentWork.Room,"a|b\nc",now);
+    for(int i=0;i<10;i++) st=RecentWork.Push(st,RecentWork.Room,"关"+i,now.AddDays(-5));
+    var it=RecentWork.Parse(RecentWork.Push(RecentWork.Push("",RecentWork.Room,"诱捕走廊",now.AddHours(-3)),RecentWork.Room,"诱捕走廊",now));
+    bool rw=RecentWork.Parse(st).Count==RecentWork.Max&&it.Count==1&&it[0].time==now
+      &&RecentWork.Parse(RecentWork.Push(RecentWork.Push("",RecentWork.Room,"x",now),RecentWork.Town,"x",now)).Count==2
+      &&RecentWork.Parse("坏行\n关卡||2026-10-08 10:00\n关卡|ok|not-a-date").Count==0
+      &&RecentWork.Latest(RecentWork.Push(RecentWork.Push("",RecentWork.Town,"甲",now.AddHours(-1)),RecentWork.Town,"乙",now),RecentWork.Town).name=="乙"
+      &&RecentWork.Parse(RecentWork.Push("",RecentWork.Room,"a|b\nc",now))[0].name=="a b c"
+      &&RecentWork.Ago(now.AddSeconds(-20),now)=="刚刚"&&RecentWork.Ago(now.AddMinutes(-5),now)=="5 分钟前"&&RecentWork.Ago(now.AddHours(-3),now)=="3 小时前"&&RecentWork.Ago(now.AddDays(-1),now).StartsWith("昨天")&&RecentWork.Ago(now.AddDays(-9),now)=="09-29 15:30";
+    bool hb1,hb2,tb1,tb2,hb3;
+    var h1=RecentWork.HealthLine("# 体检报告 2026-10-08 15:00\n\n**✓ 没有必须改的（2 个提醒）**\n\n## 版本\n⚠ x\n",out hb1);
+    var h2=RecentWork.HealthLine("# 体检报告\n\n**3 个必须改，1 个提醒**\n✗ 诱捕走廊：马里奥出不去\n✗ 小镇：门 2 连的房间不存在\n✗ 第三条\n",out hb2);
+    var h3=RecentWork.HealthLine("",out hb3);
+    var t1=RecentWork.TestLine("│  总计: 433 个测试\n│  ✅ 通过: 433\n│  ❌ 失败: 0\n",out tb1); var t2=RecentWork.TestLine("│  ✅ 通过: 430\n│  ❌ 失败: 3\n",out tb2);
+    var csv=string.Join(",",Step1ExitReport.Columns)+"\n2026-10-08 14:00:00,1,Mario,Route cleared.,42.3\n2026-10-08 14:05:00,2,Trickster,Mario was knocked out.,30\n";
+    string lr=RecentWork.LastRoundLine(csv);
+    bool lines=!hb1&&h1.StartsWith("✓ 没有必须改的")&&hb2&&h2.Contains("马里奥出不去")&&h2.Contains("门 2")&&!h2.Contains("第三条")&&h3=="还没体检过"&&!hb3
+      &&!tb1&&t1.Contains("433 个全部通过")&&tb2&&t2.Contains("3 个没通过")&&lr.Contains("你赢")&&lr.Contains("30 秒")&&lr.Contains("一共 2 局")&&RecentWork.LastRoundLine("")=="还没有试玩记录";
+    if(!rw||!lines){ fr++; Console.WriteLine($"     [FAIL] 上次做到哪：记录 {rw}（{RecentWork.Parse(st).Count} 条）｜结论行 {lines}：{h1}｜{h2}｜{t1}｜{t2}｜{lr}"); }
+    else parts.Add("最近改的关卡/小镇：同名只留最新、最多 6 条、坏行跳过、名字里的 | 换行不会弄坏；体检/测试/试玩结论行读得出 ✓/✗ 和前两条必须改的");
+    // ④ 接线
+    string R(string rel)=>File.ReadAllText(WsRepo("Assets/Scripts/"+rel));
+    var sh=R("Editor/StartHereWindow.cs"); var lw=R("Editor/LevelWorkshopWindow.cs"); var ob=R("Editor/OverworldBuilder.cs"); var ed=R("Editor/MarioMindTuningSOEditor.cs");
+    bool wire=sh.Contains("LastWork()")&&sh.Contains("RecentWork.HealthLine")&&sh.Contains("RecentWork.TestLine")&&sh.Contains("OverworldWorkshopWindow.OpenTown(")&&sh.Contains("LevelWorkshopWindow.OpenRoom(")
+      &&System.Text.RegularExpressions.Regex.Matches(lw,"StartHereWindow\\.Touch\\(RecentWork\\.Room").Count>=4&&ob.Contains("StartHereWindow.Touch(RecentWork.Town")
+      &&ed.Contains("[CustomEditor(typeof(MarioMindTuningSO))]")&&ed.Contains("TuningGroups.All")&&ed.Contains("TuningGroups.Common")&&ed.Contains("只看改过的")&&ed.Contains("TuningAudit.Check(t)")
+      &&!R("Editor/TestHubWindow.cs").Contains("\"🧪 陷阱试探\"")
+      &&R("Editor/Step1PrankRoomBuilder.cs").Contains("marker.BuiltTheme == BuildKey(EnsureTuningAsset())")&&R("Editor/Step1PrankRoomBuilder.cs").Contains("marker.SetBuiltTheme(BuildKey(tuning));")&&!R("Editor/OverworldBuilder.cs").Contains("EnsureTuningAsset().themePreset");
+    foreach(var m in new[]{"RushMarioMind.cs","MarioMindDriver.cs","SuspicionMeter.cs","MarioVision.cs","MarioEyes.cs"}) if(R("Gameplay/Step1/"+m).Contains("RecentWork")||R("Gameplay/Step1/"+m).Contains("TuningGroups")) wire=false;
+    if(!wire){ fr++; Console.WriteLine("     [FAIL] 接线：开始页上次做到哪 / 工坊记录 / 调参分组 Inspector / 测试中心图标 没接好"); }
+    else parts.Add("开始页「⏱ 上次做到哪」读体检/测试/试玩、接着做直接打开；关卡工坊 4 处 + 小镇保存都会记；调参 Inspector 分组 + 搜索 + 只看改过的 + ↺ 恢复默认；测试中心两个 🧪 分开了；改任何数值 ▶ 试玩会自动重建场景（以前只认主题，约 38 个建场景时写进去的数值改了不生效）");
+    Console.WriteLine($"[{(fr==0?"OK":"FAIL")}] S237 去冗余 + 上次做到哪：{string.Join("｜",parts)}"); fail+=fr; }
   // S236 功能地图 = 防遗忘：用户"功能做了却渐渐被迭代遗忘在角落"。① 每个 MarioTrickster 菜单 ② 每个游戏按键 ③ 网页每个面板 ④ docs/step1 每篇说明 都被某项登记
   // ⑤ 每项的锚点代码还在 ⑥ docs/FEATURE_MAP.md = FeatureMap.Markdown() ⑦ 网页 FEATURE_MAP 和 C# 一致 ⑧ 「我想…」引用的都存在 ⑨ 交互修复接线（问卷数字两套输入、F9 无限、自爆标题、冻住不下沉）
   { int fm=0; var parts=new List<string>(); var root=WsRepo("Assets/Scripts");

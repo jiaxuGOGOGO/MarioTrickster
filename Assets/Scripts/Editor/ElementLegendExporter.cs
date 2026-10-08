@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// S188：菜单 MarioTrickster → Level Design → Export Element Legend。
+/// S188：菜单 MarioTrickster → 美术 Art → 导出元素图例。
 /// 从 ElementCatalog（人看的说明）+ AsciiElementRegistry（物理数据）生成一份中文图例
 /// docs/ELEMENT_LEGEND.md：每个字符是什么、干什么、摆在哪、碰撞/视线、美术换图键和建议尺寸。
 /// 关卡设计和美术都照这张表，不会摆错、不会拖错图。
@@ -14,7 +14,7 @@ public static class ElementLegendExporter
 {
     public const string OutputPath = "docs/ELEMENT_LEGEND.md";
 
-    [MenuItem("MarioTrickster/Level Design/Export Element Legend (元素图例)", false, 200)]
+    [MenuItem("MarioTrickster/美术 Art/导出元素图例 Element Legend", false, 200)]
     public static void ExportMenu()
     {
         string path = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", OutputPath);
@@ -30,10 +30,10 @@ public static class ElementLegendExporter
         var sb = new StringBuilder();
         sb.AppendLine("# 关卡元素图例（自动生成，勿手改）");
         sb.AppendLine();
-        sb.AppendLine("> 生成来源：`ElementCatalog`（说明）+ `AsciiElementRegistry`（物理）。菜单 `MarioTrickster → Level Design → Export Element Legend` 重新生成。");
+        sb.AppendLine("> 生成来源：`ElementCatalog`（说明）+ `AsciiElementRegistry`（物理）。菜单 `MarioTrickster → 美术 Art → 导出元素图例` 重新生成。");
         sb.AppendLine("> **美术换图**：在 LevelThemeProfile 的 elementSprites 里按\"主题键\"拖 Sprite；地面/平台/墙用 Profile 顶部的专用插槽。空插槽 = 保留白盒。");
         sb.AppendLine("> **不用手调尺寸**：换图后按\"贴法\"自动适配（平铺 = 按原尺寸重复；等比放入 = 不变形放进格子、站地上的底边贴地；拉伸 = 填满）。碰撞体永远不动。");
-        sb.AppendLine("> 按\"建议像素\"画、PPU=32 导入（Asset Import Pipeline 自动设置）就是一次到位；菜单 `Level Design → Check Theme Art` 可检查整套主题。");
+        sb.AppendLine("> 按\"建议像素\"画、PPU=32 导入（Asset Import Pipeline 自动设置）就是一次到位；菜单 `美术 Art → 主题美术检查` 可检查整套主题。");
         sb.AppendLine("> 游戏里按 **V** 可以在每个元素头上看到名字。");
         sb.AppendLine();
         foreach (ElementCatalog.Role role in System.Enum.GetValues(typeof(ElementCatalog.Role)))

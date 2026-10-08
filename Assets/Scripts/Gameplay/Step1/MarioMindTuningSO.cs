@@ -20,10 +20,13 @@ public class MarioMindTuningSO : ScriptableObject
     public int dataVersion = 0;
 
     [Header("Identity")]
+    [Tooltip("马里奥 AI 的名字（只用于日志显示，不影响玩法）")]
     public string personaName = "Rush";
 
     [Header("Movement persona (feeds the existing HeuristicBot)")]
+    [Tooltip("看见机关预警后过多久才反应（秒）")]
     [Range(0f, 1.5f)] public float reactionDelay = 0.2f;
+    [Tooltip("多敢冒险：越大越敢硬冲预警中的机关")]
     [Range(0f, 1f)] public float riskTolerance = 0.8f;
     [Tooltip("开局站定几秒，给玩家就位时间（S183 用户反馈来不及：2→4）")]
     public float startDelaySeconds = 4f;
@@ -33,11 +36,15 @@ public class MarioMindTuningSO : ScriptableObject
     [Range(0.2f, 1f)] public float chaseSpeedScale = 0.8f;
 
     [Header("Vision (H4: cone + range + occlusion only)")]
+    [Tooltip("马里奥能看多远（格）。越大越难躲")]
     public float visionRange = 9f;
+    [Tooltip("视野扇形的一半角度（度）：50 = 前方 100° 都看得见")]
     [Range(5f, 90f)] public float visionHalfAngle = 50f;
     [Tooltip("贴身距离内不看朝向也能察觉（仍需无遮挡）")]
     public float nearSenseRadius = 0.75f;
+    [Tooltip("马里奥眼睛离脚底多高（格）：决定矮墙/箱子能不能挡住视线")]
     public float eyeHeight = 0.3f;
+    [Tooltip("画出马里奥的白色视野扇形（只是显示，不改规则）")]
     public bool showVisionCone = true;
 
     [Header("Suspicion sources")]
@@ -53,39 +60,55 @@ public class MarioMindTuningSO : ScriptableObject
     public float activationWitnessWindow = 0.35f;
     [Tooltip("被机关伤到：一次性增加")]
     public float hurtByTrap = 25f;
+    [Tooltip("起疑每秒自己降多少（你躲好后他多快忘掉）")]
     public float decayPerSecond = 14f;
 
     [Header("Thresholds (H2: '?' must show before '!')")]
+    [Tooltip("起疑到这么多 → 头顶 ?（停下来看一眼）")]
     public float curiousThreshold = 35f;
+    [Tooltip("起疑到这么多 → 头顶 !（过来查看 / 追你）")]
     public float alertThreshold = 100f;
     [Tooltip("H2：'?' 至少显示这么久才允许变成 '!'")]
     public float minOmenSeconds = 0.45f;
+    [Tooltip("起疑最多能到多少（上限）")]
     public float maxSuspicion = 130f;
 
     [Header("Behaviour")]
+    [Tooltip("起疑时往可疑方向探头看几格")]
     public float lookStep = 0.4f;
+    [Tooltip("走去查看可疑点，最多走几秒就放弃")]
     public float investigateTimeout = 5f;
     [Tooltip("离可疑点这么近才扫描（扫描半径 5，留余量）")]
     public float investigateScanDistance = 3f;
+    [Tooltip("到了可疑点扫一眼之后，再站几秒才走")]
     public float postScanSeconds = 0.8f;
+    [Tooltip("追丢你之后几秒放弃")]
     public float chaseGiveUpSeconds = 4f;
     [Tooltip("跟丢后按'它刚才跑的方向'往前推算几秒（从头顶跳过去时会转身追）")]
     public float chasePredictSeconds = 0.8f;
+    [Tooltip("离可疑点这么近（格）算走到了")]
     public float arriveDistance = 0.8f;
+    [Tooltip("在可疑点附近搜几秒")]
     public float searchSeconds = 2.5f;
+    [Tooltip("搜完没找到，起疑降到这么多（仍然有点警惕）")]
     public float afterSearchSuspicion = 30f;
     [Tooltip("裁判抓捕距离（中心距）。台面高 1 格，略大于 1 以便跳上台可抓")]
     public float catchRadius = 1.1f;
+    [Tooltip("被机关打中时身体闪烁几秒（只是显示）")]
     public float hurtFlashSeconds = 0.8f;
     [Tooltip("被机关伤到后原地发晕几秒（给玩家换位/补刀的窗口；S183 用户反馈机关拦不住他）")]
     public float hurtStunSeconds = 1.2f;
+    [Tooltip("拿到宝物后原地高兴几秒（你的补刀窗口）")]
     public float celebrateSeconds = 1.2f;
 
     [Header("Rules")]
+    [Tooltip("你（捣蛋者）每局几条命：被他抓到 / 被炸到都会掉")]
     public int startingLives = 3;
+    [Tooltip("你掉命后几秒无敌（不会连着掉）")]
     public float respawnInvulnerableSeconds = 2f;
     [Tooltip("机关触发后多少秒内马里奥受伤，算作这次恶作剧命中")]
     public float prankAttributionSeconds = 2.5f;
+    [Tooltip("一局最长多少秒（长关卡会按路线自动加长，见 roundTimePerRouteSecond）")]
     public float roundTimeLimit = 150f;
 
     [Header("Prank props (S183)")]
@@ -359,6 +382,7 @@ public class MarioMindTuningSO : ScriptableObject
     public float rustleSuspicion = 40f;
     [Tooltip("草丛起风的最短/最长间隔（秒，≤0 关闭）")]
     public float windMinSeconds = 7f;
+    [Tooltip("草丛起风的最长间隔（秒）")]
     public float windMaxSeconds = 16f;
     [Tooltip("赶路时每秒回头看一眼的概率")]
     public float glanceChancePerSecond = 0.07f;
@@ -404,7 +428,9 @@ public class MarioMindTuningSO : ScriptableObject
     [Header("Camera")]
     [Tooltip("开局镜头（C 键循环切换）：整屏 / 框住两人 / 跟随你 / 死亡细胞式智能跟随")]
     public Step1CameraMode cameraMode = Step1CameraMode.WholeRoom;
+    [Tooltip("镜头四周多留几格边")]
     public float cameraPadding = 0.6f;
+    [Tooltip("「框住两人」镜头最少看多少格高")]
     public float frameBothMinHeight = 9f;
 
     [Header("Big rooms (S207: Dead Cells-style follow camera)")]

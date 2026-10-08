@@ -129,7 +129,7 @@ public static partial class Step1Text
     public const string OverworldPeel = "香蕉皮变滑了（3 秒）\nPeel armed (3s)";
     public const string OverworldPeelNo = "附近 3 格内没有能用的香蕉皮\nNo peel within 3";
     public const string OverworldTauntNone = "今天挑衅用完了\nNo taunts left";
-    public const string OverworldRoomMissing = "这个房间还没构建：请用菜单 MarioTrickster/Overworld/▶ Play Town 启动\nRoom scene not built";
+    public const string OverworldRoomMissing = "这个房间还没构建：请用菜单 MarioTrickster/▶ 试玩小镇 Play Town 启动\nRoom scene not built";
     // S211：切换黑幕上的标题卡
     public static string OverworldTransitToRoom(int door, string room, OverworldMind.DoorOutcome o) =>
         $"门 {door} · {room}\n" + (o == OverworldMind.DoorOutcome.Ambush ? "埋伏成功！Ambush!" : o == OverworldMind.DoorOutcome.Late ? "迟到了——他不等你 Late!" : "");

@@ -108,6 +108,10 @@ public static class Step1PrankRoomBuilder
 
     public static string RoomHash(string[] room) => Hash128.Compute(string.Join("\n", room)).ToString();
 
+    /// <summary>S237：场景"建的时候用的数值"指纹 = 主题 + 整个调参文件。以前只比主题 → 在 Inspector 改了弹簧 / 香蕉皮 / 毒池 / 铁笼 / 一局时间等
+    /// 约 38 个"建场景时写进去"的数值，▶ 试玩时场景不重建，改了等于没改（用户要反复手动重建）。现在任何数值变了都自动重建。</summary>
+    public static string BuildKey(MarioMindTuningSO t) => t == null ? "" : t.themePreset + "#" + Hash128.Compute(JsonUtility.ToJson(t)).ToString();
+
     public static void SaveCustomRoom(string[] rows)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(CustomRoomPath));
@@ -204,7 +208,7 @@ public static class Step1PrankRoomBuilder
     public static string RoomAscii => string.Join("\n", ResolvedRoom(0));
     public static string RoomAsciiFor(int seed) => string.Join("\n", ResolvedRoom(seed));
 
-    [MenuItem("MarioTrickster/Step 1/Build Prank Room", false, 10)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/重建房间场景 Build Room", false, 141)]
     public static void BuildMenu()
     {
         if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog("Step 1", "Stop Play Mode first.", "OK"); return; }
@@ -218,7 +222,7 @@ public static class Step1PrankRoomBuilder
         EditorUtility.DisplayDialog("Step 1", "Prank room built:\n" + ScenePath + "\n\nPress Play. Keys: arrows move, P disguise, L trigger, C camera.", "OK");
     }
 
-    [MenuItem("MarioTrickster/Step 1/Open Prank Room", false, 11)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/打开房间场景 Open Room", false, 142)]
     public static void OpenMenu()
     {
         if (!File.Exists(ScenePath)) { BuildMenu(); return; }
@@ -226,7 +230,7 @@ public static class Step1PrankRoomBuilder
     }
 
     /// <summary>S181 一键试玩：没有场景或场景是旧版本 → 自动重建；然后直接进入 Play。</summary>
-    [MenuItem("MarioTrickster/Step 1/▶ Play Prank Room", false, 0)]
+    [MenuItem("MarioTrickster/▶ 试玩房间 Play Room", false, 20)]
     public static void PlayMenu()
     {
         if (!PrepareScene()) return;
@@ -236,7 +240,7 @@ public static class Step1PrankRoomBuilder
     }
 
     /// <summary>S181 宪法 H10：自动连跑几局、捣蛋者退场，看马里奥能否自己拿宝回家。结果显示在屏幕上并写 CSV。</summary>
-    [MenuItem("MarioTrickster/Step 1/Hands-off Check (H10)", false, 1)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/🤖 马里奥自己跑 Hands-off (H10)", false, 100)]
     public static void HandsOffMenu()
     {
         if (!PrepareScene()) return;
@@ -247,7 +251,7 @@ public static class Step1PrankRoomBuilder
     }
 
     /// <summary>S202：陷阱试探——AI 捣蛋者在马里奥走到时触发每个机关，看连起来会不会把他坑死/卡住。</summary>
-    [MenuItem("MarioTrickster/Step 1/Trap Probe (陷阱试探)", false, 1)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/🎯 陷阱试探 Trap Probe", false, 101)]
     public static void TrapProbeMenu()
     {
         if (!PrepareScene()) return;
@@ -257,7 +261,7 @@ public static class Step1PrankRoomBuilder
         EditorApplication.isPlaying = true;
     }
 
-    [MenuItem("MarioTrickster/Step 1/Open Playtest Logs Folder", false, 2)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/📂 试玩记录文件夹", false, 140)]
     public static void OpenLogsMenu()
     {
         string folder = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder);
@@ -276,7 +280,7 @@ public static class Step1PrankRoomBuilder
             EditorSceneManager.OpenScene(ScenePath);
             var marker = Object.FindObjectOfType<Step1RoomReset>();
             if (marker != null && marker.BuiltVersion >= BuilderVersion &&
-                marker.BuiltTheme == EnsureTuningAsset().themePreset &&
+                marker.BuiltTheme == BuildKey(EnsureTuningAsset()) &&
                 marker.BuiltRoomHash == RoomHash(Current)) return true;
             Debug.Log("[Step1] Prank room scene is from an older build - rebuilding automatically.");
         }
@@ -397,7 +401,7 @@ public static class Step1PrankRoomBuilder
         gm.gameObject.AddComponent<Step1PlaytestLog>();
         var marker = gm.gameObject.AddComponent<Step1RoomReset>();
         marker.SetBuiltVersion(BuilderVersion);
-        marker.SetBuiltTheme(tuning.themePreset);
+        marker.SetBuiltTheme(BuildKey(tuning));
         marker.SetBuiltRoomHash(RoomHash(room));
         var rescue = gm.gameObject.AddComponent<Step1StuckRescue>();
         rescue.Configure(tuning, Step1Layout.Resolve(room, 0).Select(r => r.Replace('1', '.')).ToArray());

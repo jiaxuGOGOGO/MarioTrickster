@@ -110,7 +110,7 @@
 ## S215 全局总览
 - `Overworld/CampaignLedger.cs`：按门顺序汇总房间（主角机关 / 第一次出现 / 道具 / 提醒）。小镇工坊侧栏 LedgerPanel、网页 `owLedger`/`owLedgerLines`（overworld.js 末尾）+ `owLedgerRender`（app.js）。改规则两边一起改，verify 逐字对照（ow_ledger.json）。
 - 炸弹预算：小镇房间按 `bombsPerRound + OverworldTown.MaxBonusBombs` 加固（`Step1PrankRoomBuilder.ExtraBombs`，OverworldBuilder 建房前设、finally 归零）。改 MaxBonusBombs 要升 BuilderVersion。
-- 旧工具菜单在 `MarioTrickster/旧工具 (Legacy)/`；`Run Tests/`、`Art Pipeline/` 路径别改（TestConsoleWindow 用 ExecuteMenuItem 调）。窗口之间跳转直接调 `XxxWindow.Open()`，不要用菜单字符串。
+- 旧工具菜单在 `MarioTrickster/旧工具 (Legacy)/`；S237 起测试报告在 `检查与记录 Checks/测试报告 …`、美术工具在 `美术 Art/工具 Pipeline/…`（TestConsoleWindow 用 ExecuteMenuItem 调，改名要一起改；sim S237 查不存在的菜单）。窗口之间跳转直接调 `XxxWindow.Open()`，不要用菜单字符串。
 
 ## S216 手感
 - `Gameplay/Step1/Step1Feel.cs`：所有手感曲线纯函数（StunStep 硬直期物理、Simulate 弹飞轨迹、StunOver 落地才恢复、TelegraphRate/Shake、SpringPadScaleY、Ring、HurtTint、ShakeOffset 平滑噪声）+ `LaunchFeel` 运行时参数（Step1Combo.Start 从调参写入）。

@@ -1,9 +1,9 @@
 # 关卡元素图例（自动生成，勿手改）
 
-> 来源：`ElementCatalog`（说明）+ `AsciiElementRegistry`（物理）。Unity 菜单 `MarioTrickster → Level Design → Export Element Legend` 可重新生成。
+> 来源：`ElementCatalog`（说明）+ `AsciiElementRegistry`（物理）。Unity 菜单 `MarioTrickster → 美术 Art → 导出元素图例` 可重新生成。
 > **美术换图**：在 LevelThemeProfile 的 elementSprites 里按"主题键"拖 Sprite；地面/平台/墙用 Profile 顶部专用插槽。空插槽 = 保留白盒。
 > **不用手调尺寸**：换图后按"贴法"自动适配（平铺 = 按原尺寸重复；等比放入 = 不变形放进格子、站地上的底边贴地；拉伸 = 填满）。碰撞体永远不动。
-> 按"建议像素"画、PPU=32 导入（Asset Import Pipeline 自动设置）就是一次到位；菜单 `Level Design → Check Theme Art` 检查整套主题。
+> 按"建议像素"画、PPU=32 导入（Asset Import Pipeline 自动设置）就是一次到位；菜单 `美术 Art → 主题美术检查` 检查整套主题。
 > 游戏里按 **V** 可以在每个元素头上看到名字。
 
 ## 地形 Terrain

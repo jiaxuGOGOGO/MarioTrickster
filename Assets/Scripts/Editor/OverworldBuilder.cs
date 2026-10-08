@@ -47,7 +47,7 @@ public static class OverworldBuilder
     {
         // S220：同样的输入（小镇文字 + 各房间修改时间）不重算
         var sbk = new System.Text.StringBuilder(text ?? "");
-        sbk.Append('|').Append(LevelLibrary.Signature(LevelLibrary.Folder, "*.txt")).Append('|').Append(Step1PrankRoomBuilder.BuilderVersion).Append('|').Append(Step1PrankRoomBuilder.EnsureTuningAsset().themePreset);
+        sbk.Append('|').Append(LevelLibrary.Signature(LevelLibrary.Folder, "*.txt")).Append('|').Append(Step1PrankRoomBuilder.BuilderVersion).Append('|').Append(Step1PrankRoomBuilder.BuildKey(Step1PrankRoomBuilder.EnsureTuningAsset()));
         string ck = Hash128.Compute(sbk.ToString()).ToString();
         if (fingerprintCache.TryGetValue(ck, out var fp)) return fp;
         if (fingerprintCache.Count > 64) fingerprintCache.Clear();
@@ -57,7 +57,7 @@ public static class OverworldBuilder
     {
         var m = OverworldMap.Parse(text);
         var sb = new System.Text.StringBuilder(OverworldMap.ToText(m));
-        sb.Append('|').Append(Step1PrankRoomBuilder.BuilderVersion).Append('|').Append(Step1PrankRoomBuilder.EnsureTuningAsset().themePreset);
+        sb.Append('|').Append(Step1PrankRoomBuilder.BuilderVersion).Append('|').Append(Step1PrankRoomBuilder.BuildKey(Step1PrankRoomBuilder.EnsureTuningAsset()));
         foreach (var d in m.doors) { var rows = ResolveRoom(d.room); sb.Append('|').Append(d.n).Append('=').Append(rows == null ? "?" : Step1PrankRoomBuilder.RoomHash(rows)); }
         return Hash128.Compute(sb.ToString()).ToString();
     }
@@ -117,6 +117,7 @@ public static class OverworldBuilder
         WebSync.BackupBeforeWrite(p, text); // S214：覆盖前备份旧版本
         File.WriteAllText(p, text);
         townCache = null;
+        StartHereWindow.Touch(RecentWork.Town, m.name.Length > 0 ? m.name : "小镇"); // S237
         AssetDatabase.ImportAsset(p);
         EditorPrefs.SetString(CurrentKey, p);
         return p;
@@ -193,7 +194,7 @@ public static class OverworldBuilder
         problemCache[key] = why; return why;
     }
 
-    [MenuItem("MarioTrickster/Overworld/▶ Play Town (小镇)", false, 0)]
+    [MenuItem("MarioTrickster/▶ 试玩小镇 Play Town", false, 21)]
     public static void PlayMenu()
     {
         if (!BuildAll(CurrentText, out string report)) { EditorUtility.DisplayDialog("小镇", report, "好"); return; }
@@ -220,7 +221,7 @@ public static class OverworldBuilder
             {
                 var rows = ResolveRoom(d.room);
                 string path = RoomScenePath(d.n);
-                string hash = Step1PrankRoomBuilder.RoomHash(rows) + "|" + Step1PrankRoomBuilder.BuilderVersion + "|" + d.n + "|" + Step1PrankRoomBuilder.EnsureTuningAsset().themePreset;
+                string hash = Step1PrankRoomBuilder.RoomHash(rows) + "|" + Step1PrankRoomBuilder.BuilderVersion + "|" + d.n + "|" + Step1PrankRoomBuilder.BuildKey(Step1PrankRoomBuilder.EnsureTuningAsset());
                 if (!(File.Exists(path) && EditorPrefs.GetString("MarioTrickster.Overworld.RoomHash." + d.n, "") == hash))
                 {
                     Step1PrankRoomBuilder.RoomOverride = rows;

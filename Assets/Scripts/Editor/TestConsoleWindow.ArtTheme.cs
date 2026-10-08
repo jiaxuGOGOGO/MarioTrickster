@@ -137,7 +137,7 @@ public partial class TestConsoleWindow
         GUI.color = new Color(0.8f, 0.8f, 0.8f);
         if (GUILayout.Button("全工程合规巡检", GUILayout.Height(24)))
         {
-            EditorApplication.ExecuteMenuItem("MarioTrickster/Art Pipeline/一键合规巡检 (校验全工程 PPU-Filter-Pivot)");
+            EditorApplication.ExecuteMenuItem("MarioTrickster/美术 Art/工具 Pipeline/一键合规巡检 (校验全工程 PPU-Filter-Pivot)");
         }
         GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();
@@ -151,7 +151,7 @@ public partial class TestConsoleWindow
         GUI.color = new Color(0.9f, 0.9f, 0.5f);
         if (GUILayout.Button("一键修复全工程 Pivot", GUILayout.Height(24)))
         {
-            EditorApplication.ExecuteMenuItem("MarioTrickster/Art Pipeline/一键修复 Pivot (根据目录自动修正)");
+            EditorApplication.ExecuteMenuItem("MarioTrickster/美术 Art/工具 Pipeline/一键修复 Pivot (根据目录自动修正)");
         }
         GUI.color = Color.white;
         EditorGUILayout.EndHorizontal();

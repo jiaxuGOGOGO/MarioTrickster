@@ -33,7 +33,7 @@ using System.Threading.Tasks;
 /// </summary>
 public class AssetApplyToSelected : EditorWindow
 {
-    [MenuItem("MarioTrickster/Apply Art to Selected %#a", false, 201)]
+    [MenuItem("MarioTrickster/美术 Art/套用到选中物体 Apply Art to Selected %#a", false, 201)]
     public static void ShowWindow()
     {
         var win = GetWindow<AssetApplyToSelected>("应用素材到选中物体");

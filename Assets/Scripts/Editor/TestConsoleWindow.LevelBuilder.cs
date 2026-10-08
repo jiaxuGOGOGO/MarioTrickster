@@ -926,15 +926,15 @@ public partial class TestConsoleWindow
 
         if (GUILayout.Button("Run EditMode Tests", GUILayout.Height(25)))
         {
-            EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (EditMode)");
+            EditorApplication.ExecuteMenuItem("MarioTrickster/检查与记录 Checks/测试报告 EditMode");
         }
         if (GUILayout.Button("Run PlayMode Tests", GUILayout.Height(25)))
         {
-            EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (PlayMode)");
+            EditorApplication.ExecuteMenuItem("MarioTrickster/检查与记录 Checks/测试报告 PlayMode");
         }
         if (GUILayout.Button("Run All Tests + Report", GUILayout.Height(25)))
         {
-            EditorApplication.ExecuteMenuItem("MarioTrickster/Run Tests/Export Full Report (All)");
+            EditorApplication.ExecuteMenuItem("MarioTrickster/检查与记录 Checks/测试报告 全部 All");
         }
 
         EditorGUILayout.Space(4);

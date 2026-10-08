@@ -130,9 +130,9 @@ public sealed class WebSync : AssetPostprocessor
         return Directory.GetFiles(HistoryDir, stem + "__*.txt").OrderByDescending(f => f, StringComparer.Ordinal).ToList();
     }
 
-    [MenuItem("MarioTrickster/网页同步/打开收件箱文件夹 (Inbox)", false, 30)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/📂 网页同步收件箱 (Inbox)", false, 143)]
     public static void OpenInbox() { Directory.CreateDirectory(Inbox); AssetDatabase.Refresh(); EditorUtility.RevealInFinder(Inbox); }
 
-    [MenuItem("MarioTrickster/网页同步/打开备份文件夹 (History)", false, 31)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/📂 网页同步备份 (History)", false, 144)]
     public static void OpenHistory() { Directory.CreateDirectory(HistoryDir); EditorUtility.RevealInFinder(HistoryDir); }
 }

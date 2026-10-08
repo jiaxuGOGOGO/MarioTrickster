@@ -30,7 +30,7 @@ public sealed class OverworldArtImporter : AssetPostprocessor
 public static class OverworldArtTools
 {
     /// <summary>S231：检查 Assets/Resources/OverworldArt/ 里美术换上的 PNG（尺寸 / 颜色数 / 剪影 / 深色描边 / 半透明）。只提示不拦截。</summary>
-    [MenuItem("MarioTrickster/Overworld/检查换上的像素图（尺寸、颜色、描边）", false, 41)]
+    [MenuItem("MarioTrickster/美术 Art/小镇：检查换上的像素图（尺寸、颜色、描边）", false, 41)]
     public static void AuditArt()
     {
         var sb = new System.Text.StringBuilder(); int files = 0, bad = 0;
@@ -52,7 +52,7 @@ public static class OverworldArtTools
             bad == 0 ? $"{files} 张图都没问题。" : $"{files} 张里 {bad} 张有提示（只是建议，可以故意不改）：\n\n" + sb, "好");
     }
 
-    [MenuItem("MarioTrickster/Overworld/导出像素图标模板（给美术换图）", false, 40)]
+    [MenuItem("MarioTrickster/美术 Art/小镇：导出像素图标模板（给美术换图）", false, 40)]
     public static void ExportTemplates()
     {
         Directory.CreateDirectory(OverworldArtImporter.Folder);

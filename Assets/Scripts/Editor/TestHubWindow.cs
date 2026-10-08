@@ -64,7 +64,7 @@ public sealed class TestHubWindow : EditorWindow
                 if (GUILayout.Button("🏘 小镇工坊")) OverworldWorkshopWindow.Open();
                 if (GUILayout.Button("🏠 关卡工坊")) LevelWorkshopWindow.Open();
                 if (GUILayout.Button(new GUIContent("🧪 跑 EditMode 测试", "结果写进 TestReport.txt，打包反馈会带上"))) TestReportRunner.RunEditModeTests();
-                if (GUILayout.Button(new GUIContent("🏠 忘掉居民记忆", "S233：居民记得你来往了几次、听过哪些真心话（跨次保留）。点这里 = 从头再认识一遍"))) { PlayerPrefs.DeleteKey(OverworldGame.MemoryKey); PlayerPrefs.Save(); TownStory.Reset(); ShowNotification(new GUIContent("居民记忆已清空")); }
+                if (GUILayout.Button(new GUIContent("🧹 忘掉居民记忆", "S233：居民记得你来往了几次、听过哪些真心话（跨次保留）。点这里 = 从头再认识一遍"))) { PlayerPrefs.DeleteKey(OverworldGame.MemoryKey); PlayerPrefs.Save(); TownStory.Reset(); ShowNotification(new GUIContent("居民记忆已清空")); }
                 if (GUILayout.Button("📂 打开记录文件夹")) { Directory.CreateDirectory(LogsRoot); EditorUtility.RevealInFinder(LogsRoot); }
             }
             // S236：以前只在菜单深处的自动检查 + 开始页 + 网页，都放到这里（一处找齐）
@@ -72,7 +72,7 @@ public sealed class TestHubWindow : EditorWindow
             {
                 if (GUILayout.Button(new GUIContent("📖 开始页（全部功能）", "Ctrl+Alt+H：项目能做什么、在哪打开、创作时怎么用"))) StartHereWindow.Open();
                 if (GUILayout.Button(new GUIContent("🤖 马里奥自己跑", "你不操作，连跑几局看马里奥能不能自己拿宝回家（宪法 H10，要 ≥95%）"))) EditorApplication.delayCall += Step1PrankRoomBuilder.HandsOffMenu;
-                if (GUILayout.Button(new GUIContent("🧪 陷阱试探", "AI 捣蛋者替你在马里奥走到时触发每个机关：会不会把他坑死 / 卡住。跑完开关卡工坊「检查轨迹」看"))) EditorApplication.delayCall += Step1PrankRoomBuilder.TrapProbeMenu;
+                if (GUILayout.Button(new GUIContent("🎯 陷阱试探", "AI 捣蛋者替你在马里奥走到时触发每个机关：会不会把他坑死 / 卡住。跑完开关卡工坊「检查轨迹」看"))) EditorApplication.delayCall += Step1PrankRoomBuilder.TrapProbeMenu;
                 if (GUILayout.Button(new GUIContent("🌐 网页设计台", "打开 tools/LevelStudioWeb/index.html"))) StartHereWindow.OpenWeb();
             }
         }

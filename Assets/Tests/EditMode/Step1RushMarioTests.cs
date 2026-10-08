@@ -2360,6 +2360,40 @@ public class Step1RushMarioTests
             StringAssert.DoesNotContain("Step1QuickTest", Read("Scripts/Gameplay/Step1/" + f));
     }
 
+    // ═════════ S237：去冗余（菜单合并、调参分组）+ 开始页「上次做到哪」═════════
+    [Test]
+    public void S237_TuningGrouped_MenusMerged_LastWork()
+    {
+        var fields = TuningGroups.Fields(typeof(MarioMindTuningSO)).Where(x => x.field.Name != "dataVersion").ToList();
+        foreach (var (f, h) in fields)
+        {
+            Assert.IsNotNull(TuningGroups.GroupOf(h), "调参没分组：" + f.Name + "（" + h + "）");
+            Assert.IsNotEmpty(TuningGroups.Tip(f).Trim(), "调参没有中文说明：" + f.Name);
+        }
+        foreach (var n in TuningGroups.Common) Assert.IsTrue(fields.Any(x => x.field.Name == n), "常用里找不到 " + n);
+        // 菜单顶层合并
+        var tops = new HashSet<string>();
+        foreach (var cs in Directory.GetFiles(Path.Combine(Application.dataPath, "Scripts"), "*.cs", SearchOption.AllDirectories))
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(cs), "\\[MenuItem\\(\"MarioTrickster/([^\"/]+)"))
+                tops.Add(FeatureMap.StripShortcut(m.Groups[1].Value));
+        Assert.LessOrEqual(tops.Count, 12, "MarioTrickster 菜单顶层：" + string.Join(", ", tops));
+        foreach (var old in new[] { "Step 1", "Run Tests", "Level Design", "Art Pipeline", "网页同步", "Overworld" }) Assert.IsFalse(tops.Contains(old), "旧根菜单还在：" + old);
+        // 上次做到哪
+        var now = new System.DateTime(2026, 10, 8, 15, 30, 0);
+        string st = RecentWork.Push("", RecentWork.Room, "诱捕走廊", now.AddHours(-1));
+        st = RecentWork.Push(st, RecentWork.Room, "诱捕走廊", now);
+        Assert.AreEqual(1, RecentWork.Parse(st).Count, "同名只留最新");
+        Assert.AreEqual("5 分钟前", RecentWork.Ago(now.AddMinutes(-5), now));
+        bool bad; StringAssert.Contains("必须改", RecentWork.HealthLine("**2 个必须改，0 个提醒**\n✗ 某关：出不去\n", out bad)); Assert.IsTrue(bad);
+        StringAssert.Contains("LastWork()", Read("Scripts/Editor/StartHereWindow.cs"));
+        StringAssert.Contains("StartHereWindow.Touch(RecentWork.Town", Read("Scripts/Editor/OverworldBuilder.cs"));
+        StringAssert.Contains("[CustomEditor(typeof(MarioMindTuningSO))]", Read("Scripts/Editor/MarioMindTuningSOEditor.cs"));
+        // 改任何数值 → ▶ 试玩自动重建场景（以前只认主题）
+        var t1 = ScriptableObject.CreateInstance<MarioMindTuningSO>(); var t2 = ScriptableObject.CreateInstance<MarioMindTuningSO>(); t2.springLaunchSpeed += 1f;
+        Assert.AreNotEqual(Step1PrankRoomBuilder.BuildKey(t1), Step1PrankRoomBuilder.BuildKey(t2));
+        Assert.AreEqual(Step1PrankRoomBuilder.BuildKey(t1), Step1PrankRoomBuilder.BuildKey(ScriptableObject.CreateInstance<MarioMindTuningSO>()));
+    }
+
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)
     {
         for (int r = 0; r < g.Length; r++) { int x = g[r].IndexOf(c); if (x >= 0) return new LevelPathPlanner.Cell(x, g.Length - 1 - r); }

@@ -37,6 +37,16 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         if (w.map == null) w.Load(DraftOrCurrent(), "打开");
     }
 
+    /// <summary>S237：开始页「接着做」——打开小镇工坊并载入这张小镇（找不到就只打开工坊）。</summary>
+    public static bool OpenTown(string name)
+    {
+        Open();
+        var w = GetWindow<OverworldWorkshopWindow>("小镇工坊");
+        foreach (var e in OverworldBuilder.List())
+            if (e.name == name) { w.Load(File.ReadAllText(e.path), "接着做 " + name); EditorPrefs.SetString(OverworldBuilder.CurrentKey, e.path); return true; }
+        return false;
+    }
+
     /// <summary>S212：脚本重新编译后窗口不丢正在画的图（SessionState 只活到关掉 Unity）。</summary>
     private static string DraftOrCurrent() { string d = SessionState.GetString(DraftKey, ""); return string.IsNullOrEmpty(d) ? OverworldBuilder.CurrentText : d; }
 

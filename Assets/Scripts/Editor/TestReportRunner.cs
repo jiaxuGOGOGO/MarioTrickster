@@ -70,7 +70,7 @@ public class TestReportRunner
     // 菜单入口
     // ═══════════════════════════════════════════════════════
 
-    [MenuItem("MarioTrickster/Run Tests/Export Full Report (EditMode)", false, 100)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/测试报告 EditMode", false, 120)]
     public static void RunEditModeTests()
     {
         if (IsRunning) return;
@@ -78,7 +78,7 @@ public class TestReportRunner
         RunTests(TestMode.EditMode, "EditMode", false);
     }
 
-    [MenuItem("MarioTrickster/Run Tests/Export Full Report (PlayMode)", false, 101)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/测试报告 PlayMode", false, 121)]
     public static void RunPlayModeTests()
     {
         if (IsRunning) return;
@@ -86,7 +86,7 @@ public class TestReportRunner
         RunTests(TestMode.PlayMode, "PlayMode", false);
     }
 
-    [MenuItem("MarioTrickster/Run Tests/Export Full Report (All)", false, 102)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/测试报告 全部 All", false, 122)]
     public static void RunAllTests()
     {
         if (IsRunning) return;
@@ -94,7 +94,7 @@ public class TestReportRunner
         RunTests(TestMode.EditMode, "EditMode+PlayMode (Phase 1: EditMode)", true);
     }
 
-    [MenuItem("MarioTrickster/Open Last Test Report", false, 200)]
+    [MenuItem("MarioTrickster/检查与记录 Checks/打开上次测试报告", false, 123)]
     public static void OpenLastReport()
     {
         if (File.Exists(ReportPath))
@@ -106,7 +106,7 @@ public class TestReportRunner
         else
         {
             EditorUtility.DisplayDialog("测试报告",
-                "TestReport.txt 不存在。\n请先运行测试：MarioTrickster → Run Tests",
+                "TestReport.txt 不存在。\n请先运行测试：测试中心 🧪 跑 EditMode 测试",
                 "确定");
         }
     }

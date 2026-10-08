@@ -48,7 +48,12 @@ public sealed class Step1Feedback : MonoBehaviour
         if (Step1Keys.Down(KeyCode.F8)) Capture();
     }
 
-    private void Capture()
+    /// <summary>S240：别的系统（卡住救援）自动记一条反馈：截图 + 一句说明。没有常驻实例时什么都不做。</summary>
+    public static void CaptureNote(string note) { if (inst != null) inst.Capture(note); }
+
+    private void Capture() => Capture(null);
+
+    private void Capture(string note)
     {
         try
         {
@@ -56,8 +61,8 @@ public sealed class Step1Feedback : MonoBehaviour
             int n = Count() + 1;
             string png = Path.Combine(Root, $"feedback_{n:000}.png");
             ScreenCapture.CaptureScreenshot(png);
-            Append($"\n## 反馈 {n}  {System.DateTime.Now:MM-dd HH:mm:ss}\n- 截图：feedback_{n:000}.png\n- 场景：{gameObject.scene.name}/{UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}\n- 情况：{Describe()}\n- 你的话：（在测试中心里补一句，可不写）\n");
-            Toast(Step1Text.FeedbackSaved(n));
+            Append($"\n## 反馈 {n}  {System.DateTime.Now:MM-dd HH:mm:ss}\n- 截图：feedback_{n:000}.png\n- 场景：{gameObject.scene.name}/{UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}\n- 情况：{Describe()}\n- 你的话：{(note ?? "（在测试中心里补一句，可不写）")}\n");
+            if (note == null) Toast(Step1Text.FeedbackSaved(n));
         }
         catch (System.Exception e) { Debug.LogWarning("[Step1Feedback] " + e.Message); }
     }

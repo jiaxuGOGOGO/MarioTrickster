@@ -114,4 +114,85 @@ public static class LevelRouteFollower
         { char c = LevelPathPlanner.At(grid, cx, row); if (solid.Contains(c) && c != '-') return true; }
         return false;
     }
+
+    /// <summary>
+    /// S240：临界跳检查（帮搭图）——找出"只能靠往上跳满 2 格才去得了宝物 / 出口"的起跳格。
+    /// 2 格正好是马里奥跳高的极限（PhysicsMetrics 最高 2.5 格，AI 还要水平对准 &lt; 2.25 格才起跳）：
+    /// 静态检查说"走得通"，真玩时被弹一下、落点偏一点、头顶碰一下就上不去 → 卡在下面（S240 用户截图：箱庭楼梯、坑里）。
+    /// 规则：从马里奥出生点走得到的格里，如果允许跳 2 格能到目标、只许跳 1 格就到不了，而且这一格本身有一个"往上 2 格"的跳法 → 标出来。
+    /// 返回格键（x*1000+y，与轨迹文件一致）。只用地形（H4）。建议：在这些格旁边加一级台阶（变成两次 1 格跳）。
+    /// </summary>
+    public static HashSet<int> CriticalJumpCells(IList<string> grid)
+    {
+        var res = CriticalJumpCells(grid, null);
+        // 塌后再查一遍：塌桥 C / 裂缝地板 x 没了，他掉到下面那一格起步（S240 用户截图 1：塌桥坑里出不来）
+        var after = Collapsed(grid, out var drops);
+        if (drops.Count > 0) res.UnionWith(CriticalJumpCells(after, drops));
+        return res;
+    }
+
+    /// <summary>S240 纯逻辑：塌后的地图（C、x 变空），以及每个塌掉格正下方的落点（起步格）。</summary>
+    public static List<string> Collapsed(IList<string> grid, out List<LevelPathPlanner.Cell> drops)
+    {
+        var rows = new List<string>(); drops = new List<LevelPathPlanner.Cell>();
+        foreach (var r in grid) rows.Add(r.Replace('C', '.').Replace('x', '.'));
+        var reg = AsciiElementRegistry.GetDefault();
+        var solid = reg.GetSolidChars(); var hazard = reg.GetHazardChars();
+        for (int r = 0; r < grid.Count; r++)
+            for (int x = 0; x < grid[r].Length; x++)
+            {
+                char c = grid[r][x];
+                if (c != 'C' && c != 'x') continue;
+                var land = LevelPathPlanner.Settle(rows, new LevelPathPlanner.Cell(x, grid.Count - 1 - r), solid, hazard);
+                if (land.x >= 0) drops.Add(land);
+            }
+        return rows;
+    }
+
+    private static HashSet<int> CriticalJumpCells(IList<string> grid, List<LevelPathPlanner.Cell> extraStarts)
+    {
+        var res = new HashSet<int>();
+        if (grid == null || grid.Count == 0) return res;
+        var reg = AsciiElementRegistry.GetDefault();
+        var solid = reg.GetSolidChars(); var hazard = reg.GetHazardChars();
+        var m = Find(grid, 'M'); var o = Find(grid, 'o'); var g = Find(grid, 'G');
+        if (m.x < 0) return res;
+        var start = LevelPathPlanner.Settle(grid, m, solid, hazard);
+        if (start.x < 0) return res;
+        int w = 0; foreach (var r in grid) if (r.Length > w) w = r.Length;
+        int h = grid.Count;
+        var targets = new List<LevelPathPlanner.Cell>();
+        if (o.x >= 0) targets.Add(o);
+        if (g.x >= 0) targets.Add(g);
+        // 出生点能走到的格（完整跳法）
+        var seen = new HashSet<int> { start.x * 1000 + start.y };
+        var q = new Queue<LevelPathPlanner.Cell>(); q.Enqueue(start);
+        if (extraStarts != null) foreach (var e in extraStarts) if (seen.Add(e.x * 1000 + e.y)) q.Enqueue(e);
+        var cells = new List<LevelPathPlanner.Cell>();
+        while (q.Count > 0)
+        {
+            var c = q.Dequeue(); cells.Add(c);
+            foreach (var n in LevelPathPlanner.Moves(grid, c, w, h, solid, hazard))
+                if (seen.Add(n.x * 1000 + n.y)) q.Enqueue(n);
+            if (cells.Count > 4000) break;
+        }
+        // "盆地" = 只许跳 1 格就到不了目标的格。标出盆地里"往上跳 2 格正好跳出盆地"的起跳格——那一跳就是唯一出路。
+        foreach (var t in targets)
+        {
+            var ok1 = new Dictionary<int, bool>();
+            bool Ok1(LevelPathPlanner.Cell c)
+            {
+                int k = c.x * 1000 + c.y;
+                if (!ok1.TryGetValue(k, out bool v)) { v = LevelPathPlanner.Path(grid, c, t, null, 1) != null; ok1[k] = v; }
+                return v;
+            }
+            foreach (var c in cells)
+            {
+                if (Ok1(c)) continue;
+                foreach (var n in LevelPathPlanner.Moves(grid, c, w, h, solid, hazard))
+                    if (n.y - c.y >= 2 && Ok1(n)) { res.Add(c.x * 1000 + c.y); break; }
+            }
+        }
+        return res;
+    }
 }

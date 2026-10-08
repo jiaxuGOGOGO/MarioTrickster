@@ -61,6 +61,7 @@ public class TricksterKit : MonoBehaviour
             if (shrinkTimer <= 0f) Grow(false);
         }
         if (self == null || Step1HandsOffCheck.IsRunning || Step1PlaytestLog.IsTyping || Step1Screen.HelpOpen || Time.timeScale <= 0f) return;
+        if (PranksterCannon.TricksterSeated) return; // S240：坐在炮里，其他技能键不生效
         if (Step1Keys.Down(KeyCode.B)) TryBomb();
         if (Step1Keys.Down(KeyCode.Z)) TryShrink();
     }

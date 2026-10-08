@@ -32,13 +32,15 @@ public class Step1PlaytestLog : MonoBehaviour
         if (!barTuning.contextKeyBar) return Step1Text.ControlsBar;
         if (barFigure == null) { barFigure = FindObjectOfType<TricksterController>(); if (barFigure != null) { barDecoy = barFigure.GetComponent<DecoyAbility>(); barTaunt = barFigure.GetComponent<TauntAbility>(); } }
         if (barFigure == null) return Step1Text.ControlsBar;
+        if (PranksterCannon.SeatedIn != null) return string.Format(Step1Text.ControlsBarSeated, PranksterCannon.SeatedIn.SeatSecondsLeft); // S240
         var kit = TricksterKit.Instance; bool dis = barFigure.IsDisguised, sh = kit != null && kit.Shrunk;
         return Step1Text.ControlsBarFor(dis, sh,
             kit != null && TricksterKit.CanBomb(dis, sh, kit.BombsLeft, kit.BombCooldown),
             barDecoy != null && DecoyAbility.CanDecoy(dis, sh, barDecoy.DecoysLeft, DecoyAbility.Active != null),
             barTaunt != null && TauntAbility.CanTaunt(dis, barTaunt.TauntsLeft, barTaunt.Cooldown),
             kit != null && TricksterKit.CanShrink(sh, kit.ShrinksLeft),
-            Vent.AnyWithin(barFigure.transform.position, 1.2f));
+            Vent.AnyWithin(barFigure.transform.position, 1.2f),
+            PranksterCannon.MouthOf(barFigure) is PranksterCannon mouth && mouth.SeatReadyFor(barFigure));
     }
     private TricksterLives lives;
     private TricksterAbilitySystem abilities;

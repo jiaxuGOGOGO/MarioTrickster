@@ -1981,7 +1981,7 @@ public class Step1RushMarioTests
         var p = Step1StuckRescue.RescueAlongRoute(g, new Vector2(43f, 3f), new Vector2(loot.x, loot.y), null);
         Assert.IsTrue(p.HasValue, "能沿路线找到下一个站位");
         Assert.Less(Mathf.Abs(p.Value.x - loot.x) + Mathf.Abs(p.Value.y - loot.y), Mathf.Abs(43f - loot.x) + Mathf.Abs(3f - loot.y), "救援后离宝物更近（原来放回原处 → 又卡住）");
-        StringAssert.Contains("RescueAlongRoute(roomGrid, pos, goal.Value, SafeCells())", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs"));
+        StringAssert.Contains("RescueCandidates(roomGrid, pos, goal, SafeCells())", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs")); // S240：沿路线往前放（候选列表第一批）
     }
 
     [Test]
@@ -2215,7 +2215,7 @@ public class Step1RushMarioTests
     {
         string fallback = Step1Text.AbilityFailZh("???");
         foreach (var r in new[] { "Too small to trigger props!", "Must be disguised to control props!", "Stay still to blend in first!", "Ability not ready!", "No controls remaining!",
-            "No controllable prop nearby!", "Possession gate blocked: Blending", "No cannonballs left! Stand inside the cannon to launch yourself.", "Prop on cooldown!",
+            "No controllable prop nearby!", "Possession gate blocked: Blending", "No cannonballs left! Undisguise, stand in the cannon and press Down to sit in.", "Prop on cooldown!",
             "Prop already active!", "Prop uses exhausted!", "Prop not ready!", "Not enough energy to disguise!" })
         {
             string z = Step1Text.AbilityFailZh(r);
@@ -2473,5 +2473,105 @@ public class Step1RushMarioTests
         StringAssert.Contains("if (OverworldSession.Active || Step1QuickTest.On || Step1QuickTest.UsedThisRound) { roundMode", log, "小镇房间 / 快速测试也要记一行");
         var town = Step1ExitReport.Parse(Step1PlaytestLog.CsvHeader + "\n" + Step1PlaytestLog.CsvRow(new System.DateTime(2026, 10, 2), 1, "Mario", "x", 30f, 3, 0, 1, 0, new Dictionary<string, int> { { "Banana", 1 } }, null, 0, 0, 0, 0, "Rush", 24, "town"));
         Assert.AreEqual(1, town.Count); Assert.AreEqual("town", town[0].mode); Assert.AreEqual(24, town[0].version); Assert.IsNull(town[0].calculated, "没答问卷 = 空，不当成「否」");
+    }
+
+    // ── S240：坐进大炮 · 用过的机关 · 连击看得懂 · 卡住检测 ──
+    [Test]
+    public void S240_CannonSeat_FlyFarther_ReEnter()
+    {
+        var t = Tuning();
+        Assert.AreEqual(29, MarioMindTuningSO.CurrentDataVersion);
+        Assert.Greater(t.tricksterCannonSpeed, 18.5f, "捣蛋者坐炮比以前飞得远");
+        Assert.Less(t.tricksterCannonCooldown, 5f, "落地很快就能再进 = 反复进");
+        Assert.AreEqual(30f, t.cannonLaunchCooldown, 0.01f, "马里奥钻炮冷却不变");
+        var v = PranksterCannon.LaunchVelocity(true, t.tricksterCannonSpeed, 40f);
+        var arc = Step1Feel.Simulate(v, t.launchGravity, 40f, t.launchAirDrag, t.launchGroundFriction);
+        var old = Step1Feel.Simulate(PranksterCannon.LaunchVelocity(true, 18.5f, 40f), t.launchGravity, 40f, t.launchAirDrag, t.launchGroundFriction);
+        Assert.Greater(arc.range, old.range * 1.6f, "至少远 60%");
+        Assert.IsTrue(PranksterCannon.CanSeat(false, false, 0f, false, false));
+        Assert.IsFalse(PranksterCannon.CanSeat(true, false, 0f, false, false), "伪装中不能进");
+        Assert.IsFalse(PranksterCannon.CanSeat(false, true, 0f, false, false), "缩小中不能进");
+        Assert.IsFalse(PranksterCannon.CanSeat(false, false, 0.5f, false, false), "冷却中不能进");
+        Assert.IsFalse(PranksterCannon.CanSeat(false, false, 0f, false, true), "里面有人不能进");
+        var a = PranksterCannon.SeatAimStep(true, 40f, true, false, 1f, 90f, 0.5f, PranksterCannon.SeatAimMin, PranksterCannon.SeatAimMax);
+        Assert.IsFalse(a.faceRight); Assert.AreEqual(80f, a.angle, 0.01f, "按住 ↑ 连续转，夹在上限");
+        var pts = PranksterCannon.PreviewArc(Vector2.zero, v, t.launchGravity, 40f, t.launchAirDrag);
+        Assert.Greater(pts.Count, 10); Assert.Greater(pts.Max(p => p.y), 2f, "轨迹预览有抛物线");
+        string c = Read("Scripts/LevelElements/Traps/PranksterCannon.cs");
+        StringAssert.Contains("Step1Keys.Down(KeyCode.Space)", c, "空格发射");
+        StringAssert.Contains("Step1Keys.Down(KeyCode.DownArrow)", c, "↓ 进炮");
+        StringAssert.Contains("f.EnterSeat(SeatPos())", c, "坐着身体锁住");
+        StringAssert.Contains("PranksterCannon.TricksterSeated", Read("Scripts/Gameplay/Step1/TricksterKit.cs"), "坐着不能放炸弹");
+        StringAssert.Contains("↓ 坐进大炮", Step1Text.ControlsBarFor(false, false, false, false, false, false, false, true));
+        StringAssert.Contains("空格", Step1Text.ControlsBarSeated);
+    }
+
+    [Test]
+    public void S240_SpentProps_GreyAndSkipped()
+    {
+        Assert.IsTrue(ControllablePropBase.IsSpent(PropControlState.Exhausted, 1, 0, true), "次数用完");
+        Assert.IsTrue(ControllablePropBase.IsSpent(PropControlState.Idle, -1, -1, false), "裂缝已碎 / 铁笼已落");
+        Assert.IsFalse(ControllablePropBase.IsSpent(PropControlState.Cooldown, -1, -1, true), "冷却中不算用光");
+        Assert.IsFalse(ControllablePropBase.IsSpent(PropControlState.Idle, 3, 2, true), "还能用");
+        Assert.AreEqual(-1, ControllablePropBase.SelectRank(true, false), "用光的不选");
+        Assert.Less(ControllablePropBase.SelectRank(false, true), ControllablePropBase.SelectRank(false, false), "能用的优先于冷却中的");
+        var grey = ControllablePropBase.SpentTint(new Color(1f, 0.2f, 0.1f, 1f));
+        Assert.AreEqual(grey.r, grey.g, 0.001f); Assert.Less(grey.r, 0.5f, "变灰变暗");
+        string sys = Read("Scripts/Ability/TricksterAbilitySystem.cs");
+        StringAssert.Contains("bp.SpentThisRound", sys, "绑着的用光了就换");
+        StringAssert.Contains("if (cachedProps[i].SpentThisRound) continue;", sys, "不连线");
+        StringAssert.Contains("!p.SpentThisRound", Read("Scripts/Gameplay/Step1/ChainPlan.cs"), "不编号");
+        StringAssert.Contains("GreyWhenSpent => false", Read("Scripts/LevelElements/Traps/PranksterCannon.cs"), "大炮打完还能坐，不变灰");
+    }
+
+    [Test]
+    public void S240_ComboShowsCauses_ChainBadgesReadable()
+    {
+        Assert.AreEqual("炮弹", Step1ComboFeel.CauseName("hurt", "炮弹"));
+        Assert.AreEqual("火", Step1ComboFeel.CauseName("hurt"));
+        Assert.AreEqual("香蕉皮", Step1ComboFeel.CauseName("slip"));
+        Assert.AreEqual("炮弹 → 香蕉皮", Step1ComboFeel.ChainText(new[] { "炮弹", "香蕉皮" }));
+        Assert.AreEqual("… → c → d → e → f", Step1ComboFeel.ChainText(new[] { "a", "b", "c", "d", "e", "f" }));
+        Assert.AreEqual(1f, Step1ComboFeel.WindowLeft01(10f, 10f, 4f), 0.001f);
+        Assert.AreEqual(0.5f, Step1ComboFeel.WindowLeft01(12f, 10f, 4f), 0.001f);
+        Assert.AreEqual(0f, Step1ComboFeel.WindowLeft01(15f, 10f, 4f), 0.001f);
+        string combo = Read("Scripts/Gameplay/Step1/Step1Combo.cs");
+        StringAssert.Contains("CannonBall.HitMario += HandleCannonHit", combo, "炮弹打中 → 显示成炮弹，不是火");
+        StringAssert.Contains("BombEvents.MarioBlasted += HandleBlasted", combo);
+        Assert.IsFalse(ChainPlan.BadgeVisible(true, true, 0f, 8f), "打完的不画");
+        Assert.IsTrue(ChainPlan.BadgeVisible(false, true, 99f, 8f), "进行中全画");
+        Assert.IsFalse(ChainPlan.BadgeVisible(false, false, 20f, 8f), "没开始时远的不画");
+        var st = ChainPlan.Stagger(new List<Vector2> { new Vector2(100, 100), new Vector2(105, 100), new Vector2(110, 100) }, 30f);
+        for (int i = 0; i < st.Count; i++) for (int j = 0; j < i; j++) Assert.GreaterOrEqual(Vector2.Distance(st[i], st[j]), 29.9f, "挨得近的错开");
+        Assert.AreEqual(1, ChainPlan.NextIndex(new List<string> { "a", "b", "c" }, new HashSet<string> { "a" }));
+        Assert.AreEqual(-1, ChainPlan.NextIndex(new List<string> { "a" }, new HashSet<string> { "a" }));
+        StringAssert.Contains("②", ChainPlan.ListLine(new[] { "火", "香蕉皮" }, new[] { true, false }, 1));
+    }
+
+    [Test]
+    public void S240_StuckRescue_PausesNotResets_HardCap_CriticalJumps()
+    {
+        // 晕 / 东张西望 = 暂停（以前清零 → 坑底有火永远凑不满 6 秒）
+        float still = 0f, hard = 0f; bool rescued = false;
+        for (int i = 0; i < 400 && !rescued; i++)
+        {
+            bool paused = (i / 10) % 2 == 0; // 一半时间在晕
+            var r = Step1StuckRescue.Tick(still, hard, 0.05f, false, paused, false, 6f, 15f);
+            still = r.still; hard = r.hard; rescued = r.rescue;
+            if (rescued) Assert.LessOrEqual(i * 0.05f, 12.1f, "暂停不清零：一半时间在晕，约 12 秒内也会救");
+        }
+        Assert.IsTrue(rescued);
+        var p = Step1StuckRescue.Tick(0f, 14.99f, 0.05f, false, true, false, 6f, 15f);
+        Assert.IsTrue(p.rescue, "一直在晕也有总兜底");
+        Assert.IsFalse(Step1StuckRescue.Tick(5f, 5f, 1f, true, false, false, 6f, 15f).rescue, "不在赶路 = 清零");
+        Assert.IsFalse(Step1StuckRescue.Tick(5.9f, 5f, 1f, false, false, true, 6f, 15f).rescue, "有进展 = 清零");
+        string line = Step1StuckRescue.StuckLine("abc", new Vector2(21.2f, 1f), "没进展");
+        var parsed = Step1StuckRescue.ParseStuckLog(line + "\n" + line + "\n" + Step1StuckRescue.StuckLine("zzz", Vector2.zero, ""), "abc");
+        Assert.AreEqual(1, parsed.Count); Assert.AreEqual(2, parsed[21 * 1000 + 1], "同一格卡两次，别的图不算");
+        for (int v = 0; v < 3; v++) Assert.AreEqual(0, LevelRouteFollower.CriticalJumpCells(Step1PrankRoomBuilder.ResolvedRoom(v)).Count, "默认房间（3 种布局，塌后也算）不靠跳满 2 格出坑");
+        Assert.Greater(LevelRouteFollower.CriticalJumpCells(new[] { "WWWWWWWWWWWW", "W..........W", "W.G.M....o.W", "W######..###", "W######..###", "WWWWWWWWWWWW" }).Count, 0, "2 格深的坑要标黄");
+        StringAssert.Contains("HasGroundNow(c)", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs"), "放之前查脚下真有地面（塌桥不算）");
+        StringAssert.Contains("Step1Feedback.CaptureNote", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs"), "自动截图");
+        StringAssert.Contains("CriticalJumpCells", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "工坊检查轨迹显示黄格");
     }
 }

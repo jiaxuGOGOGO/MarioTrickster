@@ -479,6 +479,31 @@ public class TricksterController : MonoBehaviour
         _stunUntilLanded = velocity.y > 0.5f; // S216：往上飞的要等落地
     }
 
+    /// <summary>S240：坐进大炮——身体锁在炮口（kinematic + 硬直），方向键交给大炮瞄准，其他按键不生效。</summary>
+    public void EnterSeat(Vector2 at)
+    {
+        if (rb == null) return;
+        if (disguiseSystem != null && disguiseSystem.IsDisguised) disguiseSystem.Undisguise();
+        IsSeated = true;
+        transform.position = at;
+        rb.velocity = Vector2.zero; _frameVelocity = Vector2.zero;
+        rb.isKinematic = true;
+        _stunUntilLanded = false; _isKnockbackStunned = true; _knockbackStunTimer = 999f;
+        moveInput = Vector2.zero; _jumpToConsume = false; jumpHeld = false;
+    }
+
+    /// <summary>S240：离开大炮（发射前 / 被传送走 / 回合重置）。</summary>
+    public void ExitSeat()
+    {
+        if (!IsSeated) return;
+        IsSeated = false;
+        if (rb != null) rb.isKinematic = false;
+        _isKnockbackStunned = false; _knockbackStunTimer = 0f;
+    }
+
+    /// <summary>S240：正坐在大炮里（输入全部交给大炮）。</summary>
+    public bool IsSeated { get; private set; }
+
     #endregion
 
     // ─────────────────────────────────────────────────────
@@ -509,7 +534,8 @@ public class TricksterController : MonoBehaviour
         rb.velocity = Vector2.zero;
         _frameVelocity = Vector2.zero;
 
-        // 2. 重置击退状态
+        // 2. 重置击退状态（S240：也从大炮里出来）
+        if (IsSeated) { IsSeated = false; rb.isKinematic = false; }
         _isKnockbackStunned = false;
         _knockbackStunTimer = 0f;
 
@@ -552,12 +578,13 @@ public class TricksterController : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region 输入回调（由 InputManager 调用）
 
-    public void SetMoveInput(Vector2 input)  => moveInput = input;
-    public void OnJumpPressed()  { jumpPressedThisFrame = true; jumpHeld = true; }
+    public void SetMoveInput(Vector2 input)  => moveInput = IsSeated ? Vector2.zero : input;
+    public void OnJumpPressed()  { if (IsSeated) return; jumpPressedThisFrame = true; jumpHeld = true; }
     public void OnJumpReleased() { jumpHeld = false; }
 
     public void OnDisguisePressed()
     {
+        if (IsSeated) return; // S240：坐在炮里不能伪装
         if (IsPossessionLockoutActive()) return;
         disguiseSystem?.ToggleDisguise();
     }
@@ -583,6 +610,7 @@ public class TricksterController : MonoBehaviour
     public void OnAbilityPressed()
     {
         if (abilitySystem == null) return;
+        if (IsSeated) return; // S240：坐在炮里 L = 发射（大炮自己读）
 
         string failReason = GetAbilityFailReason();
         if (failReason != null)
@@ -665,7 +693,7 @@ public class TricksterController : MonoBehaviour
             return $"Possession gate blocked: {abilitySystem.PossessionState}";
 
         if (abilitySystem.BoundProp is PranksterCannon cannon && !cannon.HasAmmo)
-            return "No cannonballs left! Stand inside the cannon to launch yourself.";
+            return "No cannonballs left! Undisguise, stand in the cannon and press Down to sit in.";
 
         if (!abilitySystem.BoundProp.CanBeControlled())
         {

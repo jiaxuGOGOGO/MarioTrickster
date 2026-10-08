@@ -74,8 +74,8 @@ public static class Step1PrankRoomBuilder
         "W...............W..............W...............W",
         "W.....----......W.---.....----.W...----........W",
         "W.G.M..2.~..1.R.[.K.T...n..b3..[..1..~2...k.o..W",
-        "W############J#######CCCC-#############xxx#####W",
-        "W####################..~..#############.-.#####W",
+        "W############J#######CCCC.#############xxx#####W",
+        "W#####################.~.##############.-.#####W", // S240：塌桥坑两边各加一级台阶（以前出坑要跳满 2 格 = 临界跳，坑里还有火，截图 1 卡死）
         "W##############################################W"
     };
 
@@ -581,7 +581,7 @@ public static class Step1PrankRoomBuilder
         foreach (var barrel in root.GetComponentsInChildren<OilBarrel>(true)) { barrel.Configure(tuning.oilFuseSeconds, tuning.oilRadius, tuning.bombStunSeconds, tuning.bombKnockback, tuning.bombDamageMario, tuning.bombDamageSelf); EditorUtility.SetDirty(barrel); count++; }
         foreach (var wire in root.GetComponentsInChildren<Tripwire>(true)) { wire.Configure(tuning.tripStunSeconds); EditorUtility.SetDirty(wire); count++; }
         foreach (var snare in root.GetComponentsInChildren<SnareTrap>(true)) { snare.Configure(tuning.snareSeconds, tuning.snareSelfSeconds); EditorUtility.SetDirty(snare); count++; }
-        foreach (var cannon in root.GetComponentsInChildren<PranksterCannon>(true)) { cannon.ConfigureLaunch(tuning.cannonLaunchCooldown, tuning.cannonLoadSeconds); EditorUtility.SetDirty(cannon); }
+        foreach (var cannon in root.GetComponentsInChildren<PranksterCannon>(true)) { cannon.ConfigureLaunch(tuning.cannonLaunchCooldown, tuning.cannonLoadSeconds); cannon.ConfigureSeat(tuning.tricksterCannonSpeed, tuning.tricksterCannonCooldown, tuning.tricksterCannonMaxSitSeconds); EditorUtility.SetDirty(cannon); }
         foreach (var spring in root.GetComponentsInChildren<SpringPad>(true))
         {
             spring.Configure(tuning.springLaunchSpeed, tuning.springForwardPush, tuning.springAirStunSeconds, tuning.springTelegraphSeconds, tuning.springActiveSeconds);

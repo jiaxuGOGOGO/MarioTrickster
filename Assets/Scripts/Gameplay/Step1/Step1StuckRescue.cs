@@ -41,6 +41,45 @@ public class Step1StuckRescue : MonoBehaviour
     private void OnDestroy() { if (manager != null) manager.OnRoundStart -= ResetRound; }
 
     private float bestDist; private bool hasBest;
+    // S240：总兜底——到目标没进展的总时间（晕、东张西望、躲闪都照算；只有不在赶路时清零）
+    private float hardStill;
+
+    /// <summary>S240：卡住记录文件（每次救援追加一行），工坊"检查轨迹"读它用红叉标出卡点。</summary>
+    public const string StuckLogFile = "step1_stuck.txt";
+
+    /// <summary>
+    /// S240 纯逻辑：一帧的卡住计时怎么走。
+    ///   notRunning（起疑/追人/找人/起步等待）→ 两个计时都清零（他本来就该停）；
+    ///   paused（被晕 / 东张西望 / 躲闪 / 回放）→ 普通计时**暂停不清零**（以前清零 = 坑底被火反复烧就永远凑不满 6 秒），总兜底照走；
+    ///   progressed（到目标近了 progressCells 格）→ 两个都清零；其余 → 两个都 +dt。
+    /// 返回 (still, hardStill, 该救了吗)。
+    /// </summary>
+    public static (float still, float hard, bool rescue) Tick(float still, float hard, float dt, bool notRunning, bool paused, bool progressed, float stuckSeconds, float hardCap)
+    {
+        if (notRunning || progressed) return (0f, 0f, false);
+        hard += dt;
+        if (!paused) still += dt;
+        bool go = still >= stuckSeconds || (hardCap > 0f && hard >= hardCap);
+        return go ? (0f, 0f, true) : (still, hard, false);
+    }
+
+    /// <summary>S240 纯逻辑：一行卡住记录 "R,房间指纹,x,y,原因"。</summary>
+    public static string StuckLine(string roomHash, Vector2 at, string why) =>
+        "R," + (roomHash ?? "") + "," + Mathf.RoundToInt(at.x) + "," + Mathf.RoundToInt(at.y) + "," + (why ?? "").Replace(",", ";");
+
+    /// <summary>S240 纯逻辑：读卡住记录，只要这张图的（指纹对得上），返回 格→次数（格键 = x*1000+y，与轨迹文件一致）。</summary>
+    public static System.Collections.Generic.Dictionary<int, int> ParseStuckLog(string text, string roomHash)
+    {
+        var res = new System.Collections.Generic.Dictionary<int, int>();
+        foreach (var raw in (text ?? "").Replace("\r", "").Split('\n'))
+        {
+            var p = raw.Trim().Split(',');
+            if (p.Length < 4 || p[0] != "R" || p[1] != roomHash) continue;
+            if (!int.TryParse(p[2], out int x) || !int.TryParse(p[3], out int y)) continue;
+            int k = x * 1000 + y; res[k] = res.TryGetValue(k, out int n) ? n + 1 : 1;
+        }
+        return res;
+    }
 
     /// <summary>纯逻辑（测试用）：给定一串"到目标距离"采样与时间间隔，多少秒后判定卡住（-1 = 不卡）。</summary>
     public static float SecondsUntilStuck(float[] distances, float dt, float stuckSeconds, float progressCells)
@@ -57,44 +96,54 @@ public class Step1StuckRescue : MonoBehaviour
 
     private void ResetRound()
     {
-        RescuesThisRound = 0; still = 0f; hasBest = false;
+        RescuesThisRound = 0; still = 0f; hardStill = 0f; hasBest = false;
         if (mario != null) anchor = mario.transform.position;
     }
 
     private void Update()
     {
-        if (mario == null || manager == null || manager.CurrentState != GameState.Playing) { still = 0f; return; }
-        // 只在"赶路"（去拿宝/回出口，一定有目标）时判定；起疑、查看、找人时站着不动是正常表演，不算卡住。
-        if (driver.IsWaitingToStart || driver.Mind.IsStunned || driver.Mind.IsGlancing || driver.Mind.Dodging || ChainReplay.Playing || driver.Mind.State != MarioMindState.Running)
-        { still = 0f; hasBest = false; anchor = mario.transform.position; return; }
+        if (mario == null || manager == null || manager.CurrentState != GameState.Playing) { still = 0f; hardStill = 0f; return; }
         Vector2 pos = mario.transform.position;
-        // S198：原来"离锚点超过 0.6 格就重置" → 来回跳（每次移动 1–2 格）永远不算卡住（用户截图：出口下方来回跳）。
-        // 改为"没有进展"：到目标的距离 stuckSeconds 秒内没有缩短 stuckProgressCells 格 = 卡住（来回跳、原地跳都算）。
+        // 只在"赶路"（去拿宝/回出口，一定有目标）时判定；起疑、查看、找人时站着不动是正常表演，不算卡住。
+        bool notRunning = driver.IsWaitingToStart || driver.Mind.State != MarioMindState.Running;
+        // S240：被晕 / 东张西望 / 躲闪 / 回放 = 暂停（不清零）。以前这里清零 → 坑底有火反复烧、或者老在东张西望，永远凑不满 6 秒（用户截图：一直卡着）
+        bool paused = driver.Mind.IsStunned || driver.Mind.IsGlancing || driver.Mind.Dodging || ChainReplay.Playing;
+        if (notRunning) { hasBest = false; anchor = pos; }
+        // S198："没有进展"：到目标的距离 stuckSeconds 秒内没有缩短 stuckProgressCells 格 = 卡住（来回跳、原地跳都算）。
+        bool progressed = false;
         Vector2? goal = driver.CurrentGoal();
-        if (goal.HasValue)
+        if (!notRunning)
         {
-            float d = Vector2.Distance(pos, goal.Value);
-            if (!hasBest || d < bestDist - tuning.stuckProgressCells) { bestDist = d; hasBest = true; still = 0f; anchor = pos; return; }
+            if (goal.HasValue)
+            {
+                float d = Vector2.Distance(pos, goal.Value);
+                if (!hasBest || d < bestDist - tuning.stuckProgressCells) { bestDist = d; hasBest = true; anchor = pos; progressed = true; }
+            }
+            else if ((pos - anchor).sqrMagnitude > tuning.stuckMoveEpsilon * tuning.stuckMoveEpsilon) { anchor = pos; progressed = true; }
         }
-        else if ((pos - anchor).sqrMagnitude > tuning.stuckMoveEpsilon * tuning.stuckMoveEpsilon) { anchor = pos; still = 0f; return; }
-        still += Time.deltaTime;
-        if (still < tuning.stuckSeconds) return;
+        var r = Tick(still, hardStill, Time.deltaTime, notRunning, paused, progressed, tuning.stuckSeconds, tuning.stuckHardCapSeconds);
+        still = r.still; hardStill = r.hard;
+        if (!r.rescue) return;
         hasBest = false;
-        Rescue(pos);
+        Rescue(pos, paused ? "兜底(" + (driver.Mind.IsStunned ? "晕" : driver.Mind.IsGlancing ? "张望" : "躲闪") + ")" : "没进展");
     }
 
     /// <summary>S235：房间守卫发现马里奥出界 → 立即救回（同一套"沿路线往前放 / 最近安全格"，也记一次 stuck_rescues）。</summary>
-    public void RescueNow(Vector2 pos) { if (mario != null && driver != null) Rescue(pos); }
+    public void RescueNow(Vector2 pos) { if (mario != null && driver != null) Rescue(pos, "掉出房间"); }
 
-    private void Rescue(Vector2 pos)
+    private void Rescue(Vector2 pos, string why = "")
     {
-        still = 0f;
+        still = 0f; hardStill = 0f;
         RescuesThisRound++;
         LastStuckAt = pos;
         // S209：先沿"去目标的路线"往前放（越过卡住的地方）；原来只放到最近的安全格 = 常常就是卡住的那一格旁边 → 又卡住，循环（用户截图）
+        // S240：安全格来自静态地图——塌掉的桥、碎掉的地板在静态图里还"在"。放之前用物理查一下脚下真的有地面，没有就换下一个。
         Vector2? goal = driver.CurrentGoal();
-        Vector2? ahead = goal.HasValue ? RescueAlongRoute(roomGrid, pos, goal.Value, SafeCells()) : null;
-        Vector2 target = ahead ?? NearestSafe(pos);
+        Vector2 target = pos + Vector2.up * 0.5f; bool found = false;
+        foreach (var c in RescueCandidates(roomGrid, pos, goal, SafeCells()))
+            if (HasGroundNow(c)) { target = c; found = true; break; }
+        if (!found) target = NearestSafe(pos);
+        Report(pos, target, why);
         mario.transform.position = target;
         var rb = mario.GetComponent<Rigidbody2D>();
         if (rb != null) rb.velocity = Vector2.zero;
@@ -103,6 +152,73 @@ public class Step1StuckRescue : MonoBehaviour
         flashUntil = Time.time + 2.5f;
         MarioMindLabel.RaiseRescued(); // S225：头顶说一句"哎呀，脚滑了"（不出戏；不改救援规则）
         Debug.LogWarning($"[Step1 H9] Mario stuck at ({pos.x:F1},{pos.y:F1}) for {tuning.stuckSeconds}s -> rescued to ({target.x:F1},{target.y:F1}). This is a layout bug; please report the spot.");
+    }
+
+    /// <summary>S240：此刻（物理上）这个格子脚下有没有地面、身体位置是不是空的。塌桥 / 碎地板 / 关上的门都按真实状态算。</summary>
+    private static bool HasGroundNow(Vector2 cell)
+    {
+        int mask = LayerMask.GetMask("Ground");
+        if (mask == 0) return true;
+        var under = Physics2D.OverlapBox(cell + new Vector2(0f, -0.55f), new Vector2(0.6f, 0.2f), 0f, mask);
+        var body = Physics2D.OverlapBox(cell + new Vector2(0f, 0.1f), new Vector2(0.5f, 0.6f), 0f, mask);
+        bool ground = under != null && !under.isTrigger;
+        bool blocked = body != null && !body.isTrigger && !SightLine.IsOneWayPlatform(body);
+        return ground && !blocked;
+    }
+
+    /// <summary>
+    /// S240 纯逻辑：救援候选位置，按优先级排好：先是路线上往前的格（离卡点 ≥2 格、能到出口），再是离卡点由近到远的安全格（最多 12 个）。
+    /// 调用方逐个用物理检查（脚下真有地面）挑第一个。
+    /// </summary>
+    public static System.Collections.Generic.List<Vector2> RescueCandidates(string[] grid, Vector2 pos, Vector2? goal, System.Collections.Generic.ICollection<int> safe)
+    {
+        var res = new System.Collections.Generic.List<Vector2>();
+        if (grid != null && grid.Length > 0 && goal.HasValue)
+        {
+            var reg = AsciiElementRegistry.GetDefault();
+            var solid = reg.GetSolidChars(); var hazard = reg.GetHazardChars();
+            var from = new LevelPathPlanner.Cell(Mathf.RoundToInt(pos.x), Mathf.RoundToInt(pos.y));
+            foreach (int dx in new[] { 0, -1, 1 })
+            {
+                var c = LevelPathPlanner.Settle(grid, new LevelPathPlanner.Cell(from.x + dx, from.y), solid, hazard);
+                if (c.x >= 0) { from = c; break; }
+            }
+            var path = LevelPathPlanner.Path(grid, from, new LevelPathPlanner.Cell(Mathf.RoundToInt(goal.Value.x), Mathf.RoundToInt(goal.Value.y)));
+            if (path != null)
+                for (int i = 1; i < path.Count; i++)
+                {
+                    var c = path[i];
+                    if (Mathf.Abs(c.x - pos.x) + Mathf.Abs(c.y - pos.y) < 2f && i < path.Count - 1) continue;
+                    if (safe != null && safe.Count > 0 && !safe.Contains(LevelReachabilityAnalyzer.CellKey(c.x, c.y))) continue;
+                    res.Add(new Vector2(c.x, c.y));
+                }
+        }
+        if (safe != null)
+        {
+            var near = new System.Collections.Generic.List<Vector2>();
+            foreach (int key in safe) { var c = new Vector2(key / 100000, key % 100000); if ((c - pos).sqrMagnitude > 0.25f) near.Add(c); }
+            near.Sort((a, b) => (a - pos).sqrMagnitude.CompareTo((b - pos).sqrMagnitude));
+            for (int i = 0; i < near.Count && i < 12; i++) if (!res.Contains(near[i])) res.Add(near[i]);
+        }
+        return res;
+    }
+
+    private float lastShotAt = -999f;
+    /// <summary>S240：每次救援记一行（哪张图、哪一格、为什么）+ 自动截图（30 秒内最多一张），工坊"检查轨迹"会用红叉标出来。</summary>
+    private void Report(Vector2 pos, Vector2 target, string why)
+    {
+        if (tuning != null && !tuning.stuckAutoReport) return;
+        try
+        {
+            string folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder);
+            System.IO.Directory.CreateDirectory(folder);
+            string hash = StrategySim.Hash(string.Join("\n", Step1PrankRoomBuilderBridge.CurrentRoom ?? roomGrid ?? new string[0])); // 与"检查轨迹"同一个指纹
+            string state = driver != null && driver.Mind != null ? driver.Mind.State.ToString() : "";
+            System.IO.File.AppendAllText(System.IO.Path.Combine(folder, StuckLogFile),
+                StuckLine(hash, pos, why + " " + state + " -> " + Mathf.RoundToInt(target.x) + ";" + Mathf.RoundToInt(target.y) + " " + System.DateTime.Now.ToString("MM-dd HH:mm:ss")) + "\n");
+            if (Time.unscaledTime - lastShotAt > 30f) { lastShotAt = Time.unscaledTime; Step1Feedback.CaptureNote("马里奥卡住被救（" + why + "）在 (" + pos.x.ToString("0.0") + "," + pos.y.ToString("0.0") + ")"); }
+        }
+        catch (System.Exception e) { Debug.LogWarning("[Step1 H9] could not write stuck log: " + e.Message); }
     }
 
     /// <summary>

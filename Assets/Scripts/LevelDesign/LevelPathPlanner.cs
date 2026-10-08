@@ -51,7 +51,10 @@ public static class LevelPathPlanner
     public static List<Cell> Path(IList<string> grid, Cell from, Cell to) => Path(grid, from, to, null);
 
     /// <summary>S203：带禁区的寻路（谨慎型马里奥绕开被坑过的地方）。avoid = 格子 key（x*1000+y），null = 不限。</summary>
-    public static List<Cell> Path(IList<string> grid, Cell from, Cell to, ICollection<int> avoid)
+    public static List<Cell> Path(IList<string> grid, Cell from, Cell to, ICollection<int> avoid) => Path(grid, from, to, avoid, JumpUp);
+
+    /// <summary>S240：限制"最多往上跳几格"的寻路（maxUp = 1 → 不许跳满 2 格的临界跳，宪法 H8）。</summary>
+    public static List<Cell> Path(IList<string> grid, Cell from, Cell to, ICollection<int> avoid, int maxUp)
     {
         var reg = AsciiElementRegistry.GetDefault();
         var solid = reg.GetSolidChars();
@@ -75,7 +78,7 @@ public static class LevelPathPlanner
                 path.Reverse();
                 return path;
             }
-            foreach (var n in Moves(grid, c, w, h, solid, hazard))
+            foreach (var n in Moves(grid, c, w, h, solid, hazard, maxUp))
                 if (!prev.ContainsKey(Key(n)) && (avoid == null || !avoid.Contains(Key(n)) || (n.x == to.x && n.y == to.y))) { prev[Key(n)] = Key(c); q.Enqueue(n); }
         }
         return null;
@@ -88,7 +91,9 @@ public static class LevelPathPlanner
     }
 
     /// <summary>S202：公开给策略模拟（StrategySim）复用同一套移动模型。</summary>
-    public static IEnumerable<Cell> Moves(IList<string> grid, Cell c, int w, int h, HashSet<char> solid, HashSet<char> hazard)
+    public static IEnumerable<Cell> Moves(IList<string> grid, Cell c, int w, int h, HashSet<char> solid, HashSet<char> hazard) => Moves(grid, c, w, h, solid, hazard, JumpUp);
+
+    public static IEnumerable<Cell> Moves(IList<string> grid, Cell c, int w, int h, HashSet<char> solid, HashSet<char> hazard, int maxUp)
     {
         // 走路 / 走下台阶 / 下落
         for (int dx = -1; dx <= 1; dx += 2)
@@ -103,7 +108,7 @@ public static class LevelPathPlanner
         }
         // 从当前格正下方掉（站在单向台面上不能往下掉——本模型保守：不算）
         // 跳：向上 1..JumpUp、水平 0..JumpSide（按抛物线缩短），头顶只允许单向台面
-        for (int dy = 1; dy <= JumpUp; dy++)
+        for (int dy = 1; dy <= System.Math.Min(JumpUp, maxUp); dy++)
         {
             bool headClear = true;
             for (int k = 1; k <= dy; k++) { char above = At(grid, c.x, c.y + k); if (Solid(above, solid) && above != '-') { headClear = false; break; } }

@@ -127,7 +127,7 @@ public static partial class Step1Text
         if (reason.StartsWith("No controls remaining")) return "这次伪装的触发次数用完了：P 取消再伪装  No controls left";
         if (reason.StartsWith("No controllable prop")) return "附近没有能触发的机关：走近一点（5 格内）  No trap nearby";
         if (reason.StartsWith("Possession gate blocked")) return "刚换目标 / 刚被发现，等一下再按  Wait a moment";
-        if (reason.StartsWith("No cannonballs")) return "炮弹打完了：站进炮口能把自己打出去  No cannonballs left";
+        if (reason.StartsWith("No cannonballs")) return "炮弹打完了：按 P 变回来，站在炮口按 ↓ 坐进去，空格把自己打出去  No cannonballs left";
         if (reason.StartsWith("Prop on cooldown")) return "这个机关还在冷却，等它亮起来  Trap cooling down";
         if (reason.StartsWith("Prop already active")) return "这个机关正在动，等它停  Trap already going";
         if (reason.StartsWith("Prop uses exhausted")) return "这个机关这局用完了，换一个  Trap used up";
@@ -164,7 +164,7 @@ public static partial class Step1Text
         "   <color=#FFE040><b>香蕉皮</b></color>（地上黄条）：L 后他踩上去会滑出 3–4 格。  <b>Banana</b>: he slides forward.\n" +
         "   <color=#C8A070><b>裂缝地板</b></color>（宝物旁）：L 打碎，他掉进地下室。  <b>Crack floor</b>: L drops him into the basement.\n\n" +
         "<b>B 炸弹</b>（3 枚，现形才能放）：炸开附近的<b>裂墙</b>/裂缝地板/箱子，炸晕马里奥——但<b>他听得见</b>。  <b>B</b> = bomb (he hears it!)\n" +
-        "<b>大炮</b>：伪装控制时 <b>←→</b> 调方向、<b>↑↓</b> 调仰角，<b>L</b> 开炮；炮弹打完后你和马里奥都能钻进去把自己打出去（冷却 30 秒）。  Cannon: aim with arrows\n" +
+        "<b>大炮</b>：伪装控制时 <b>←→</b> 调方向、<b>↑↓</b> 调仰角，<b>L</b> 开炮；没伪装时站在炮口按 <b>↓ 坐进去</b>，方向键瞄准（虚线 = 会飞到哪），<b>空格</b>把自己打出去，落地就能再进（马里奥打完炮弹后也会钻，他要冷却 30 秒）。  Cannon: aim with arrows; Down to sit in, Space to fly\n" +
         "<b>以身入局（连锁）</b>：走到机关旁按 <b>F</b> 编号①②③（Shift+F 一键把周围的机关全编上）→ 按 <b>T</b> 挑衅把他引过来 → 他追你踩到<b>绊线</b>或你按 L 触发任意一环 → 其余几环在他走到时<b>自动接上</b>。  <b>F</b> link traps, <b>T</b> taunt\n" +
         "<b>G 诱饵</b>（每局 1 次，现形才能放）：留个假的你，他会去追——走近会识破。  <b>G</b> = decoy\n" +
         "<b>油桶</b>：被火/炸弹/炮弹点燃后爆炸，还会引爆旁边的油桶（连锁）。  <b>Oil barrel</b>: chain explosions\n" +
@@ -199,7 +199,10 @@ public static partial class Step1Text
     public const string VentIn = "钻进通风管…  Into the vent…";
     public const string VentOut = "从通风管出来！  Out of the vent!";
     public const string VentNoMate = "这个通风管没有配对的出口  This vent has no pair";
-    public const string CannonLoadYou = "进炮！<b>↑↓</b> 调角度 <b>←→</b> 调方向，马上发射  In the cannon: aim!";
+    public const string CannonLoadYou = "坐进大炮！<b>←→</b> 调方向 <b>↑↓</b> 调角度（虚线 = 会飞到哪），<b>空格</b>发射  In the cannon: aim, Space to fire";
+    public const string CannonSeatCooldown = "大炮还在冒烟，{0:F1} 秒后能再进  Cannon cooling";
+    public const string CannonSeatDisguised = "先按 P 变回来，才能坐进大炮  Undisguise first";
+    public const string ControlsBarSeated = "← → 调方向 Turn   ↑ ↓ 调角度 Aim   空格 / L 发射 Fire   |   {0:F0} 秒后自动发射";
     public const string CannonLoadMario = "马里奥钻进了大炮！  Mario jumped into the cannon!";
     public const string SnareMario = "🪢 马里奥被<b>绳套</b>吊起来了！（10 秒）  Mario is snared!";
     // S235：掉出房间（以前掉出去就回不来、血不掉、马里奥照样跑）
@@ -259,9 +262,10 @@ public static partial class Step1Text
 
     /// <summary>S226 E9（看情况的按键条）：底部只放"现在按了有用"的键。核心键永远在；炸弹/缩小/诱饵/挑衅/通风管最多再加 3 个，
     /// 只有当下能用才出现（用完、冷却中、伪装中不能用 → 不显示）。全部按键仍在 H 帮助页。</summary>
-    public static string ControlsBarFor(bool disguised, bool shrunk, bool canBomb, bool canDecoy, bool canTaunt, bool canShrink, bool nearVent)
+    public static string ControlsBarFor(bool disguised, bool shrunk, bool canBomb, bool canDecoy, bool canTaunt, bool canShrink, bool nearVent, bool nearCannon = false)
     {
         var extra = new System.Collections.Generic.List<string>();
+        if (nearCannon) extra.Add("↓ 坐进大炮 Cannon");
         if (nearVent) extra.Add("↓ 钻通风管 Vent");
         if (canBomb) extra.Add("B 炸弹 Bomb");
         if (canDecoy) extra.Add("G 诱饵 Decoy");

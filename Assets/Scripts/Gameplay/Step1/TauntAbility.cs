@@ -38,6 +38,7 @@ public class TauntAbility : MonoBehaviour
         if (cooldown > 0f) cooldown -= Time.deltaTime;
         if (bubble > 0f) bubble -= Time.deltaTime;
         if (self == null || Step1HandsOffCheck.IsRunning || Step1PlaytestLog.IsTyping || Step1Screen.HelpOpen || Time.timeScale <= 0f) return;
+        if (PranksterCannon.TricksterSeated) return; // S240：坐在炮里，其他技能键不生效
         if (!Step1Keys.Down(KeyCode.T)) return;
         if (!CanTaunt(self.IsDisguised, left, cooldown))
         {

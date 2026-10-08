@@ -50,6 +50,43 @@ public static class Step1ComboFeel
     }
 
     /// <summary>
+    /// S240：坑到他的"原因"中文名（显示用；kind 本身不改——计分、反应表、试玩记录都靠它）。
+    /// cause 为空时按 kind 给默认名；hurt 又细分成 炮弹 / 爆炸 / 火（由谁先报到决定，见 Step1Combo）。
+    /// </summary>
+    public static string CauseName(string kind, string cause = null)
+    {
+        if (!string.IsNullOrEmpty(cause)) return cause;
+        switch (kind)
+        {
+            case "hurt": return "火";
+            case "trip": return "绊线";
+            case "slip": return "香蕉皮";
+            case "launch": return "弹簧";
+            case "cage": return "铁笼";
+            case "snare": return "绳套";
+            case "drop": return "掉下一层";
+            case "pit": return "掉坑";
+            case "stop": return "被墙挡住";
+            default: return string.IsNullOrEmpty(kind) ? "?" : kind;
+        }
+    }
+
+    /// <summary>S240：连招弹窗的一行"怎么来的"：炮弹 → 香蕉皮 → 火（最多显示最后 maxShown 个，前面用 … 省略）。</summary>
+    public static string ChainText(System.Collections.Generic.IList<string> causes, int maxShown = 4)
+    {
+        if (causes == null || causes.Count == 0) return "";
+        int from = Math.Max(0, causes.Count - maxShown);
+        var parts = new System.Collections.Generic.List<string>();
+        if (from > 0) parts.Add("…");
+        for (int i = from; i < causes.Count; i++) parts.Add(causes[i]);
+        return string.Join(" → ", parts);
+    }
+
+    /// <summary>S240：连击窗口还剩多少（0..1）。1 = 刚坑到，0 = 窗口关了（再坑就从 1 重新数）。</summary>
+    public static float WindowLeft01(float now, float lastHit, float window) =>
+        window <= 0f ? 0f : Mathf.Clamp01(1f - (now - lastHit) / window);
+
+    /// <summary>
     /// 连招分：每段基础 10 × 段数；换了一种机关（本段 kind 与上一段不同）再 +5；
     /// 同一种机关连用只算基础分的一半（鼓励换招）。
     /// </summary>

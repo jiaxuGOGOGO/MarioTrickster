@@ -316,6 +316,12 @@ public class TricksterAbilitySystem : MonoBehaviour
         {
             BindNearestProp();
         }
+        // S240：绑着的机关用光了（裂缝碎了 / 铁笼落了 / 炮弹打完）→ 换到最近还能用的；一个都没有就解绑（红线不再指着用过的）
+        else if (isAbilityActive && boundProp is ControllablePropBase bp && bp.SpentThisRound)
+        {
+            UnbindProp();
+            BindNearestProp();
+        }
 
         // 更新操控时间
         if (isAbilityActive && controlTimeLimit > 0)
@@ -444,6 +450,7 @@ public class TricksterAbilitySystem : MonoBehaviour
             ControllablePropBase prop = propsInRange[i];
             if (prop == null) continue;
             if (prop == (object)boundProp) continue; // 跳过当前锁定目标
+            if (prop.SpentThisRound) continue; // S240：用光的不选
 
             Vector2 dirToCandidate = ((Vector2)prop.transform.position - currentPos);
             if (dirToCandidate.sqrMagnitude < 0.01f) continue; // 重叠位置跳过
@@ -719,6 +726,7 @@ public class TricksterAbilitySystem : MonoBehaviour
         for (int i = 0; i < cachedProps.Length && propsInRangeCount < MaxPropsInRange; i++)
         {
             if (cachedProps[i] == null || !cachedProps[i].isActiveAndEnabled) continue; // S187：随机布局里未激活的机关
+            if (cachedProps[i].SpentThisRound) continue; // S240：用光的不连线
             float dist = Vector2.Distance(myPos, cachedProps[i].transform.position);
             if (dist <= controlRange)
             {
@@ -739,16 +747,21 @@ public class TricksterAbilitySystem : MonoBehaviour
 
         IControllableProp nearest = null;
         float nearestDist = float.MaxValue;
+        int nearestRank = int.MaxValue;
         GameObject nearestObj = null;
 
         foreach (ControllablePropBase prop in cachedProps)
         {
             if (prop == null || !prop.isActiveAndEnabled) continue; // 防止已销毁/未激活的对象（S187 随机布局）
+            // S240：用光的不选；能用的优先于冷却中的（只剩冷却中的才选它，按 L 会提示冷却）
+            int rank = prop.SelectRankNow;
+            if (rank < 0) continue;
             float dist = Vector2.Distance(transform.position, prop.transform.position);
-            if (dist <= controlRange && dist < nearestDist)
+            if (dist <= controlRange && (rank < nearestRank || (rank == nearestRank && dist < nearestDist)))
             {
                 nearest = prop;
                 nearestDist = dist;
+                nearestRank = rank;
                 nearestObj = prop.gameObject;
             }
         }

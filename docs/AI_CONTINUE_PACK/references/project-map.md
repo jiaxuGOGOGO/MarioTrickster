@@ -110,6 +110,7 @@
 ## S215 全局总览
 - `Overworld/CampaignLedger.cs`：按门顺序汇总房间（主角机关 / 第一次出现 / 道具 / 提醒）。小镇工坊侧栏 LedgerPanel、网页 `owLedger`/`owLedgerLines`（overworld.js 末尾）+ `owLedgerRender`（app.js）。改规则两边一起改，verify 逐字对照（ow_ledger.json）。
 - 炸弹预算：小镇房间按 `bombsPerRound + OverworldTown.MaxBonusBombs` 加固（`Step1PrankRoomBuilder.ExtraBombs`，OverworldBuilder 建房前设、finally 归零）。改 MaxBonusBombs 要升 BuilderVersion。
+- S240：坐进大炮 `PranksterCannon.Seat*`；用过的机关 `ControllablePropBase.SpentThisRound`；连击原因 `Step1ComboFeel.CauseName`；卡住 `Step1StuckRescue.Tick` + `step1_stuck.txt`；临界跳 `LevelRouteFollower.CriticalJumpCells`。
 - S239：重复旧系统（热度/警报导演/连锁追踪/路线预算/补偿/锚点起疑层/旧 UGUI）已删；视线检测在 `Gameplay/SightLine.cs`。
 - 旧工具菜单 S238 已全删（顶层 10 个）；特效工厂 / 特效快速套用 / 溶解噪声在 `美术 Art/`；S237 起测试报告在 `检查与记录 Checks/测试报告 …`、美术工具在 `美术 Art/工具 Pipeline/…`（sim S237 查 ExecuteMenuItem 调了不存在的菜单）。窗口之间跳转直接调 `XxxWindow.Open()`，不要用菜单字符串。
 

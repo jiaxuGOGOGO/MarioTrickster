@@ -83,13 +83,22 @@ public class LevelWorkshopWindow : EditorWindow
     [NonSerialized] private Dictionary<int, int> trackVisits;
     [NonSerialized] private HashSet<int> trackStuck;
     [NonSerialized] private string trackNote = "";
+    [NonSerialized] private Dictionary<int, int> playStuck; // S240：真人试玩时的卡住记录（step1_stuck.txt）
+    [NonSerialized] private HashSet<int> critJumps;          // S240：只能靠跳满 2 格才出得去的格（黄）
     private void LoadTrack()
     {
         string path = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder, Step1HandsOffCheck.TrackFile);
-        if (!System.IO.File.Exists(path)) { trackVisits = null; trackNote = "还没有轨迹：先跑一次 测试中心 🤖 马里奥自己跑 或 🎯 陷阱试探"; return; }
+        // S240：真人试玩时的卡住记录 + 临界跳（就算没跑过自动检查也能看）
+        string stuckPath = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path) ?? ".", Step1StuckRescue.StuckLogFile);
+        playStuck = System.IO.File.Exists(stuckPath) ? Step1StuckRescue.ParseStuckLog(System.IO.File.ReadAllText(stuckPath), StrategySim.Hash(doc.Grid)) : new Dictionary<int, int>();
+        critJumps = LevelRouteFollower.CriticalJumpCells(Rows());
+        int playN = 0; foreach (var v in playStuck.Values) playN += v;
+        string extra = $"\n试玩卡住 {playN} 次（红叉旁的数字）｜临界跳 {critJumps.Count} 格（黄：只能靠跳满 2 格才出得去，物理稍差就卡——建议加一级台阶）";
+        if (!System.IO.File.Exists(path)) { trackVisits = new Dictionary<int, int>(); trackStuck = new HashSet<int>(); trackNote = "还没有自动检查轨迹（测试中心 🤖 马里奥自己跑）" + extra; return; }
         var (room, visits, stuck) = Step1HandsOffCheck.ParseTrack(System.IO.File.ReadAllText(path));
         trackVisits = visits; trackStuck = stuck;
-        trackNote = room == StrategySim.Hash(doc.Grid) ? $"轨迹：{visits.Count} 格，卡住点 {stuck.Count} 个" : "⚠ 轨迹来自另一张图（先把这张图作为第 1 步房间试玩/检查一次）";
+        trackNote = (room == StrategySim.Hash(doc.Grid) ? $"轨迹：{visits.Count} 格，卡住点 {stuck.Count} 个" : "⚠ 轨迹来自另一张图（先把这张图作为第 1 步房间试玩/检查一次）") + extra;
+        if (room != StrategySim.Hash(doc.Grid)) { trackVisits = new Dictionary<int, int>(); trackStuck = new HashSet<int>(); }
     }
     [NonSerialized] private string comboKey;
     private ComboRouteAnalyzer.Result comboResult;
@@ -831,6 +840,8 @@ public class LevelWorkshopWindow : EditorWindow
         int max = 1; foreach (var v in trackVisits.Values) if (v > max) max = v;
         foreach (var kv in trackVisits) Tint(canvas, kv.Key / 1000, kv.Key % 1000, size, new Color(0.3f, 0.8f, 1f, 0.15f + 0.5f * kv.Value / max));
         foreach (int k in trackStuck) GUI.Label(CellRect(canvas, k / 1000, k % 1000, size), "<color=#FF4040><b>✗</b></color>", new GUIStyle(cellLabel) { richText = true });
+        if (critJumps != null) foreach (int k in critJumps) Tint(canvas, k / 1000, k % 1000, size, new Color(1f, 0.85f, 0.1f, 0.45f));
+        if (playStuck != null) foreach (var kv in playStuck) GUI.Label(CellRect(canvas, kv.Key / 1000, kv.Key % 1000, size), $"<color=#FF2020><b>✗{(kv.Value > 1 ? kv.Value.ToString() : "")}</b></color>", new GUIStyle(cellLabel) { richText = true });
     }
 
     private void Tint(Rect canvas, int x, int y, float size, Color c) { if (x >= 0 && y >= 0 && x < doc.Width && y < doc.Height) EditorGUI.DrawRect(CellRect(canvas, x, y, size), c); }

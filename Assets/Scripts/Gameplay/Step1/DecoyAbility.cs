@@ -38,6 +38,7 @@ public class DecoyAbility : MonoBehaviour
     {
         if (Step1QuickTest.NoLimits) left = Mathf.Max(left, 1); // S236：F9 测试
         if (self == null || Step1HandsOffCheck.IsRunning || Step1PlaytestLog.IsTyping || Step1Screen.HelpOpen || Time.timeScale <= 0f) return;
+        if (PranksterCannon.TricksterSeated) return; // S240：坐在炮里，其他技能键不生效
         if (!Step1Keys.Down(KeyCode.G)) return;
         bool shrunk = TricksterKit.Instance != null && TricksterKit.Instance.Shrunk;
         if (!CanDecoy(self.IsDisguised, shrunk, left, Active != null))

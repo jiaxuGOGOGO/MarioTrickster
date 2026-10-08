@@ -114,7 +114,46 @@ public class ChainPlan : MonoBehaviour
     }
 
     /// <summary>可以编号的机关：玩家机关（绳套除外：它的 L 是"上弦/放人"，不适合接力）。</summary>
-    public static bool Linkable(ControllablePropBase p) => p != null && !(p is SnareTrap);
+    public static bool Linkable(ControllablePropBase p) => p != null && !(p is SnareTrap) && !p.SpentThisRound; // S240：用光的不编号
+
+    // ── S240：徽章看得清（以前所有编号一直全显示，叠在一起看不出顺序）──────────
+    /// <summary>纯逻辑：这一环的编号要不要画。打完的不画；连锁进行中全画；没开始时只画离你 near 格以内的（远处的看右上清单）。</summary>
+    public static bool BadgeVisible(bool fired, bool live, float distToYou, float near) => !fired && (live || distToYou <= near);
+
+    /// <summary>纯逻辑：把挨得太近的徽章错开（屏幕坐标，单位像素）。后面的往上叠，保证两两间距 ≥ minGap。</summary>
+    public static List<Vector2> Stagger(IList<Vector2> at, float minGap)
+    {
+        var res = new List<Vector2>(at);
+        for (int i = 0; i < res.Count; i++)
+            for (int guard = 0; guard < 8; guard++)
+            {
+                bool moved = false;
+                for (int j = 0; j < i; j++)
+                    if (Vector2.Distance(res[i], res[j]) < minGap) { res[i] = new Vector2(res[i].x, res[j].y - minGap); moved = true; }
+                if (!moved) break;
+            }
+        return res;
+    }
+
+    /// <summary>纯逻辑：下一个会接上的是第几环（第一个还没打的；全打完 = -1）。</summary>
+    public static int NextIndex<T>(IList<T> links, ICollection<T> fired)
+    {
+        for (int i = 0; i < links.Count; i++) if (!fired.Contains(links[i])) return i;
+        return -1;
+    }
+
+    /// <summary>右上角清单：①火 → ②香蕉皮 → ③大炮（打完的划掉）。</summary>
+    public static string ListLine(IList<string> names, IList<bool> done, int next)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < names.Count; i++)
+        {
+            if (i > 0) sb.Append(" → ");
+            string item = Badge(i) + names[i];
+            sb.Append(done[i] ? "<color=#888888>" + item + "</color>" : i == next ? "<b><color=#FFFFFF>" + item + "</color></b>" : item);
+        }
+        return sb.ToString();
+    }
 
     // ── 运行 ───────────────────────────────────────────
     private void Update()
@@ -207,18 +246,41 @@ public class ChainPlan : MonoBehaviour
         if (Step1HandsOffCheck.IsRunning || Step1Screen.HelpOpen || Camera.main == null) return;
         float w = Step1Gui.Begin();
         float scale = Mathf.Max(0.1f, Screen.height / Step1Gui.VirtualHeight);
-        var style = Step1Gui.Text(26, TextAnchor.MiddleCenter, false);
+        int next = NextIndex(links, fired);
+        // S240：只画近处 / 进行中、没打完的；挨得近的错开；下一环放大；环与环之间画一串点（导火线 = 谁接谁）
+        var idx = new List<int>(); var pts = new List<Vector2>();
         for (int i = 0; i < links.Count; i++)
         {
             var l = links[i]; if (l == null) continue;
+            if (!BadgeVisible(fired.Contains(l), Live, Vector2.Distance(l.transform.position, transform.position), tuning != null ? tuning.chainAutoRange : 8f)) continue;
             Vector3 sp = Camera.main.WorldToScreenPoint(l.transform.position + Vector3.up * 1.1f);
             if (sp.z < 0f) continue;
-            var at = new Vector2(sp.x / scale, (Screen.height - sp.y) / scale);
-            string col = fired.Contains(l) ? "#888888" : Live ? "#FF7043" : "#FFD54F";
-            GUI.Label(new Rect(at.x - 30, at.y - 20, 60, 40), $"<color={col}><b>{Badge(i)}</b></color>", style);
+            idx.Add(i); pts.Add(new Vector2(sp.x / scale, (Screen.height - sp.y) / scale));
+        }
+        var at = Stagger(pts, 34f);
+        var dot = Step1Gui.Text(16, TextAnchor.MiddleCenter, false);
+        for (int k = 1; k < at.Count; k++)
+        {
+            if (idx[k] != idx[k - 1] + 1) continue; // 只连相邻编号
+            Vector2 a = at[k - 1], b = at[k]; int n = Mathf.Clamp((int)(Vector2.Distance(a, b) / 18f), 1, 30);
+            string c = Live ? "#FF7043" : "#FFD54F";
+            for (int d = 1; d < n; d++) { var p = Vector2.Lerp(a, b, d / (float)n); GUI.Label(new Rect(p.x - 8, p.y - 8, 16, 16), $"<color={c}>•</color>", dot); }
+        }
+        for (int k = 0; k < at.Count; k++)
+        {
+            int i = idx[k]; bool isNext = i == next;
+            var style = Step1Gui.Text(isNext ? 36 : 24, TextAnchor.MiddleCenter, false);
+            string col = Live ? (isNext ? "#FF3D00" : "#FF7043") : (isNext ? "#FFF176" : "#FFD54F");
+            GUI.Label(new Rect(at[k].x - 30, at[k].y - 20, 60, 40), $"<color={col}><b>{Badge(i)}</b></color>", style);
         }
         if (links.Count > 0)
-            GUI.Label(new Rect(w - 380, 110, 360, 30), Live ? $"<color=#FF7043><b>⛓ 连锁进行中</b> {fired.Count}/{links.Count}</color>" : $"<color=#FFD54F>⛓ 连锁已布置 {links.Count} 环（L 或绊线启动）</color>", Step1Gui.Text(18, TextAnchor.MiddleRight, false));
+        {
+            var names = new List<string>(); var done = new List<bool>();
+            foreach (var l in links) { names.Add(l != null ? l.PropName : "?"); done.Add(l != null && fired.Contains(l)); }
+            string head = Live ? $"<color=#FF7043><b>⛓ 连锁进行中</b> {fired.Count}/{links.Count}</color>" : $"<color=#FFD54F>⛓ 连锁已布置 {links.Count} 环（L 或绊线启动）</color>";
+            GUI.Label(new Rect(w - 520, 110, 500, 30), head, Step1Gui.Text(18, TextAnchor.MiddleRight, false));
+            GUI.Label(new Rect(w - 520, 136, 500, 28), $"<color=#FFE0B2>{ListLine(names, done, next)}</color>", Step1Gui.Text(16, TextAnchor.MiddleRight, false));
+        }
         if (Time.time < flashUntil)
             GUI.Label(new Rect(w * 0.5f - 300, 150, 600, 50), $"<color=#FFB74D><b>{flash}</b></color>", Step1Gui.Text(34, TextAnchor.MiddleCenter, false));
     }

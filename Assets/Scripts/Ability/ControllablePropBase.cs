@@ -106,6 +106,15 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
                 break;
         }
 
+        // S240：本回合已经用光（裂缝已碎、铁笼已落、次数用完）→ 变灰，不再被选中；回合重置后自动变回原色
+        bool spent = SpentThisRound && GreySpentEnabled && GreyWhenSpent;
+        if (spent != _greyed && spriteRenderer != null)
+        {
+            _greyed = spent;
+            spriteRenderer.color = spent ? SpentTint(originalColor) : originalColor;
+        }
+        if (_greyed) return;
+
         // Session 20: 高亮脉冲效果（仅在 Idle 状态下显示，避免与预警闪烁冲突）
         if (_isHighlighted && currentState == PropControlState.Idle && spriteRenderer != null)
         {
@@ -122,6 +131,36 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         if (maxUses >= 0 && remainingUses <= 0) return false;
         return ExtraControlCondition();
     }
+
+    // ── S240：用过的机关 ─────────────────────────────
+    private bool _greyed;
+    private static int s_greyFlag = -1;
+    private static bool GreySpentEnabled
+    {
+        get { if (s_greyFlag < 0) { var t = MarioMindTuningSO.LoadOrDefault(); s_greyFlag = t == null || t.greySpentProps ? 1 : 0; } return s_greyFlag == 1; }
+    }
+
+    /// <summary>S240 纯逻辑：本回合永久用光了吗（冷却中不算——等一会儿还能用）。</summary>
+    public static bool IsSpent(PropControlState state, int maxUses, int remaining, bool extraOk) =>
+        state == PropControlState.Exhausted || (maxUses >= 0 && remaining <= 0 && state != PropControlState.Telegraph && state != PropControlState.Active && state != PropControlState.Recovery && state != PropControlState.Cooldown) ||
+        (!extraOk && state == PropControlState.Idle);
+
+    /// <summary>S240：本回合已经用光（选中、连线、连锁编号都跳过它）。</summary>
+    public bool SpentThisRound => IsSpent(currentState, maxUses, remainingUses, ExtraControlCondition());
+
+    /// <summary>S240：用光后要不要变灰（大炮不变灰：炮弹打完你还能坐进去飞）。</summary>
+    protected virtual bool GreyWhenSpent => true;
+
+    /// <summary>S240 纯逻辑：灰掉的颜色（去饱和 + 变暗，透明度不变）。</summary>
+    public static Color SpentTint(Color c)
+    {
+        float g = (c.r * 0.3f + c.g * 0.59f + c.b * 0.11f) * 0.55f;
+        return new Color(g, g, g, c.a * 0.85f);
+    }
+
+    /// <summary>S240 纯逻辑：选目标的优先级（越小越优先）。能用 = 0，冷却 / 正在动 = 1，用光 = -1（不选）。</summary>
+    public static int SelectRank(bool spent, bool ready) => spent ? -1 : ready ? 0 : 1;
+    public int SelectRankNow => SelectRank(SpentThisRound, CanBeControlled());
 
     /// <summary>
     /// S187：子类额外的"能否被操控"条件（默认 true = 旧行为不变）。
@@ -165,7 +204,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     public void SetHighlight(bool isSelected)
     {
         _isHighlighted = isSelected;
-        if (!isSelected && spriteRenderer != null && currentState == PropControlState.Idle)
+        if (!isSelected && spriteRenderer != null && currentState == PropControlState.Idle && !_greyed)
         {
             // 取消高亮时恢复原色
             spriteRenderer.color = originalColor;

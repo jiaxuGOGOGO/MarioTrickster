@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 28;
+    public const int CurrentDataVersion = 29;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -595,6 +595,20 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("S216 特效（冲击环、尘土、连锁火花线）开关。关掉只剩机关本身的闪烁（性能差的电脑用）")]
     public bool juiceFx = true;
 
+    [Header("S240: 坐进大炮 · 用过的机关 · 连击看得懂 · 卡住记录")]
+    [Tooltip("你坐进大炮按空格发射的速度（格/秒）。26 ≈ 40° 时飞 15 格远、3 格高；马里奥钻炮仍用旧速度")]
+    public float tricksterCannonSpeed = 26f;
+    [Tooltip("你从大炮飞出去后，多少秒能再钻进去（马里奥那边仍是 cannonLaunchCooldown）")]
+    public float tricksterCannonCooldown = 1.5f;
+    [Tooltip("坐在炮里最多几秒，到点自动发射（防止一直躲在炮里）")]
+    public float tricksterCannonMaxSitSeconds = 8f;
+    [Tooltip("本回合已经用光的机关（裂缝已碎、铁笼已落、次数用完）变灰，不再被选中")]
+    public bool greySpentProps = true;
+    [Tooltip("马里奥这么多秒到目标都没有进展（中间被晕、东张西望也算进去）就强制救出——总兜底")]
+    public float stuckHardCapSeconds = 15f;
+    [Tooltip("每次救援自动截一张图 + 记下位置（工坊'检查轨迹'里用红叉标出）")]
+    public bool stuckAutoReport = true;
+
     [Header("S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）")]
     [Tooltip("马里奥 Q 扫描：半径（格）。扫到就真的暴露你（宪法 H5：扫描 100% 真实）")]
     [Range(0.5f, 20f)] public float scanRadius = 5f;
@@ -790,6 +804,11 @@ public class MarioMindTuningSO : ScriptableObject
         {
             // S238：① 性格两个设置合成一个下拉（旧值原样换算）② 扫描 / 能量 / 附身 20 个数值从 GameplayLoopConfig 搬进来——新字段的默认值 = 旧文件里的值，不用写。
             marioPersonality = FromOld(personalitiesEnabled, fixedPersonality);
+        }
+        if (dataVersion < 29)
+        {
+            // S240：坐进大炮自己发射（docs/step1/S240_CANNON_SEAT_SPENT_PROPS_COMBO_STUCK.md）——新字段的默认值就是要的值，不用写。
+            tricksterCannonSpeed = 26f; tricksterCannonCooldown = 1.5f;
         }
         dataVersion = CurrentDataVersion;
         return true;

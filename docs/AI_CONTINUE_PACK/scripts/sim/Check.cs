@@ -137,7 +137,8 @@ static class CHECK {
     var cases=new (string zh, UnityEngine.Vector2 v, float minApex, float maxApex, float maxRange)[]{
       ("弹簧板", new UnityEngine.Vector2(t.springForwardPush, t.springLaunchSpeed), 2f, ElementCatalog.SpringHeadroomCells-1f, 3f),
       ("炸弹(中心)", new UnityEngine.Vector2(t.bombKnockback, Math.Max(t.bombKnockback*0.6f, t.blastLift)), 0.4f, 2f, 4f),
-      ("人肉大炮", new UnityEngine.Vector2(18.5f*0.766f, 18.5f*0.643f), 1f, 3.5f, 12f),
+      ("马里奥钻炮", new UnityEngine.Vector2(18.5f*0.766f, 18.5f*0.643f), 1f, 3.5f, 12f),
+      ("你坐炮(S240)", new UnityEngine.Vector2(t.tricksterCannonSpeed*0.766f, t.tricksterCannonSpeed*0.643f), 2.5f, 4.5f, 22f),
       ("炮弹命中", new UnityEngine.Vector2(7f, KnockbackHelperLift(3f,t.hurtLift)), 0.2f, 1f, 3f),
       ("火/刺受伤", new UnityEngine.Vector2(5f, KnockbackHelperLift(2f,t.hurtLift)), 0.2f, 1f, 3f) };
     var parts=new List<string>();
@@ -149,6 +150,11 @@ static class CHECK {
     if(Step1Feel.StunOver(0.1f,true,false,1.5f)||!Step1Feel.StunOver(-0.1f,true,true,1.5f)||!Step1Feel.StunOver(-1.6f,true,false,1.5f)){fb++;Console.WriteLine("     [FAIL] 落地才恢复控制 / 最多多等 1.5 秒");}
     if(Step1Feel.TelegraphRate(8f,1f)<=Step1Feel.TelegraphRate(8f,0f)){fb++;Console.WriteLine("     [FAIL] 预警越来越急");}
     Console.WriteLine($"[{(fb==0?"OK":"FAIL")}] S216 抛物线：{string.Join("｜",parts)}（以前弹簧硬直期没重力：0.6 秒匀速上飘 {oldSpring:0.0} 格）"); fail+=fb; }
+  // S240：临界跳检查（只能跳满 2 格才出得去，塌后也算）——默认房间 3 种布局应为 0；样板只报告
+  { int cb=0; var parts=new List<string>();
+    for(int v=0;v<3;v++){ var c=LevelRouteFollower.CriticalJumpCells(Step1Layout.Resolve(Step1PrankRoomBuilderRoomRaw(),v)); if(c.Count>0){cb++; Console.WriteLine($"     [FAIL] 默认房间布局 {v} 有 {c.Count} 个临界跳格：{string.Join(" ",c.Select(k=>$"({k/1000},{k%1000})"))}");} }
+    foreach(var sm in LevelWorkshopModel.SampleRooms){ var c=LevelRouteFollower.CriticalJumpCells(sm.rows); parts.Add($"{sm.name} {c.Count}"); }
+    Console.WriteLine($"[{(cb==0?"OK":"FAIL")}] S240 临界跳：默认房间 0｜样板 {string.Join("｜",parts)}（黄格 = 建议加台阶）"); fail+=cb; }
   // S217：大世界扩展（OverworldMap.Resize）——扩展后老镇原样、外圈是树、仍可玩且一天走得完；各方向 + 裁剪 + 上限；与网页 owResize 逐字一致（ow_resize.json 由 verify.sh 生成）
   { int rb=0; var parts=new List<string>(); var r=OverworldMap.Rules.Default;
     var cases=new (string k,int l,int rr,int t,int b)[]{("all8",8,8,8,8),("east16",0,16,0,0),("west16",16,0,0,0),("north16",0,0,16,0),("south16",0,0,0,16),("x2",0,44,0,32),("crop4",-4,-4,-4,-4),("crop1",-1,-1,-1,-1)};
@@ -1233,5 +1239,6 @@ static class CHECK {
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);
   static string Step1PlaytestLog_Kind(string c){ switch(c){ case "slip": return "Banana"; case "launch": return "Spring"; case "drop": return "CrackFloor"; case "cage": return "Cage"; case "trip": return "Tripwire"; case "snare": return "Snare"; case "pit": return "Pit"; case "stop": return "Blocker"; default: return ""; } }
   static string WsRepo(string rel)=>System.IO.Path.Combine("/home/user/workspace/repo",rel);
+  static string[] Step1PrankRoomBuilderRoomRaw(){ var src=File.ReadAllText(WsRepo("Assets/Scripts/Editor/Step1PrankRoomBuilder.cs")); int i=src.IndexOf("public static readonly string[] Room ="); int a=src.IndexOf('{',i), b=src.IndexOf("};",a); return System.Text.RegularExpressions.Regex.Matches(src.Substring(a,b-a),"\"([^\"]*)\"").Select(m=>m.Groups[1].Value).ToArray(); }
   static string[] Step1PrankRoomBuilderRoom()=>File.ReadAllText("room_template.txt").Replace("\r","").Split('\n').Where(l=>l.Length>0).ToArray();
  }}

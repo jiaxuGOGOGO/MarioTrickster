@@ -58,6 +58,11 @@ public class Step1Combo : MonoBehaviour
     private float flashUntil;
     private string flashText = "";
     private int flashSize = 32;
+    // S240：这一串连击是怎么来的（炮弹 → 香蕉皮 → 火），以及 hurt 的细分原因（谁先报到）
+    private readonly System.Collections.Generic.List<string> causes = new System.Collections.Generic.List<string>();
+    private string pendingCause; private float pendingAt = -10f;
+    private float firstHintUntil;
+    public System.Collections.Generic.IReadOnlyList<string> Causes => causes;
 
     private void Start()
     {
@@ -84,7 +89,13 @@ public class Step1Combo : MonoBehaviour
         Tripwire.Tripped += HandleTripped;
         IronCage.MarioCaged += HandleCaged;
         SnareTrap.MarioSnared += HandleSnared;
+        CannonBall.HitMario += HandleCannonHit;
+        BombEvents.MarioBlasted += HandleBlasted;
     }
+
+    // S240：炮弹 / 炸弹先报到，紧接着的 hurt 就记成"炮弹 / 爆炸"（不然全都显示成"火"，看不出是哪一下）
+    private void HandleCannonHit() { pendingCause = "炮弹"; pendingAt = Time.time; }
+    private void HandleBlasted() { pendingCause = "爆炸"; pendingAt = Time.time; }
 
     // S200：绊线/铁笼/绳套也算"坑到"，能接进连招
     private void HandleTripped(Vector2 at) => Register("trip");
@@ -106,24 +117,32 @@ public class Step1Combo : MonoBehaviour
         Tripwire.Tripped -= HandleTripped;
         IronCage.MarioCaged -= HandleCaged;
         SnareTrap.MarioSnared -= HandleSnared;
+        CannonBall.HitMario -= HandleCannonHit;
+        BombEvents.MarioBlasted -= HandleBlasted;
     }
 
     private void ResetRound()
     {
         Counter?.Reset();
         wasWaiting = wasInPit = false; lastStopAt = float.NegativeInfinity; floorY = float.NaN; flashUntil = 0f;
+        causes.Clear(); pendingCause = null; firstHintUntil = 0f;
     }
 
-    private int Register(string kind)
+    private int Register(string kind, string cause = null)
     {
         Counter.Window = tuning.comboWindowSeconds;
         int n = Counter.Register(Time.time, kind);
+        if (n <= 1) causes.Clear();
+        causes.Add(Step1ComboFeel.CauseName(kind, cause));
         if (n >= 2)
         {
-            flashText = $"<color={Step1ComboFeel.TierColor(n)}>x{n}  {Step1ComboFeel.TierName(n)}</color>";
+            // S240：写清楚是哪几下连起来的（用户反馈"看不出 combo2 怎么来的"）
+            flashText = $"<color={Step1ComboFeel.TierColor(n)}>x{n}  {Step1ComboFeel.TierName(n)}</color>\n<size=20><color=#FFFFFF>{Step1ComboFeel.ChainText(causes)}</color></size>";
             flashUntil = Time.time + tuning.comboFlashSeconds;
             flashSize = 30 + Mathf.Min(4, n - 2) * 4; // 段位越高字越大
+            firstHintUntil = 0f;
         }
+        else firstHintUntil = Time.time + tuning.comboWindowSeconds; // 第 1 下：小提示 + 倒计时条
         // S193 手感：顿帧 + 屏幕震动（段数越高越重）
         if (hitstop != null)
             hitstop.Request(Step1ComboFeel.HitstopSeconds(n, tuning.hitstopBaseSeconds, tuning.hitstopPerStepSeconds, tuning.hitstopMaxSeconds), tuning.hitstopTimeScale);
@@ -135,7 +154,9 @@ public class Step1Combo : MonoBehaviour
 
     private void HandleHurt(MarioMindState state)
     {
-        int n = Register("hurt");
+        string cause = pendingCause != null && Time.time - pendingAt < 0.4f ? pendingCause : null;
+        pendingCause = null;
+        int n = Register("hurt", cause);
         // S193：递减追加（格斗游戏 damage scaling）—— 第 2 段 +0.6s，第 3 段 +0.42s，第 4 段 +0.29s…，总量仍受 maxStunSeconds 限制
         if (n >= 2 && driver != null && driver.Mind != null)
             driver.Mind.ExtendStun(Step1ComboFeel.BonusStun(n, tuning.comboBonusStunSeconds, tuning.comboStunScaling), tuning.maxStunSeconds);
@@ -164,12 +185,25 @@ public class Step1Combo : MonoBehaviour
 
     private void OnGUI()
     {
-        if (Step1HandsOffCheck.IsRunning || Step1Screen.HelpOpen || Time.time > flashUntil || mario == null || Camera.main == null) return;
+        if (Step1HandsOffCheck.IsRunning || Step1Screen.HelpOpen || mario == null || Camera.main == null || Counter == null) return;
         Vector3 sp = Camera.main.WorldToScreenPoint(mario.transform.position + Vector3.up * 3.2f);
         if (sp.z < 0f) return;
         Step1Gui.Begin();
         float scale = Mathf.Max(0.1f, Screen.height / Step1Gui.VirtualHeight);
         var at = new Vector2(sp.x / scale, (Screen.height - sp.y) / scale);
+        // S240：连击窗口倒计时条——条没走完再坑一下 = 连击（第 1 下也显示，告诉你"现在接得上"）
+        float left = Step1ComboFeel.WindowLeft01(Time.time, Counter.LastHitTime, tuning.comboWindowSeconds);
+        if (left > 0f && Counter.Count >= 1)
+        {
+            var bar = new Rect(at.x - 90f, at.y + 40f, 180f, 10f);
+            Step1Gui.Panel(bar, 0.6f);
+            var c = GUI.color; GUI.color = new Color(1f, 0.82f, 0.3f, 0.95f);
+            GUI.DrawTexture(new Rect(bar.x + 1, bar.y + 1, (bar.width - 2) * left, bar.height - 2), Texture2D.whiteTexture);
+            GUI.color = c;
+            if (Time.time < firstHintUntil && Time.time > flashUntil)
+                GUI.Label(new Rect(at.x - 220f, at.y + 52f, 440f, 30f), $"<color=#FFE082>坑到了：{(causes.Count > 0 ? causes[causes.Count - 1] : "")}　条走完前再坑一下 = 连击</color>", Step1Gui.Text(16, TextAnchor.MiddleCenter));
+        }
+        if (Time.time > flashUntil) return;
         // 弹出动画：刚出现时放大再回落
         float age = tuning.comboFlashSeconds - (flashUntil - Time.time);
         float pop = 1f + Mathf.Max(0f, 0.35f - age) * 1.2f;

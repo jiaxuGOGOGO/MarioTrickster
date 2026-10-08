@@ -169,6 +169,14 @@ public static class ElementCatalog
 
     public static IReadOnlyList<Info> All => all;
 
+    /// <summary>S238：登记了字符却没写说明书的（新元素忘了写说明 → 非空）。替代旧探索计划里的 MissingFromCatalog。</summary>
+    public static List<string> Unexplained(IEnumerable<char> registryChars)
+    {
+        var o = new List<string>();
+        foreach (var c in registryChars) if (c != ' ' && Get(c) == null && !o.Contains(c.ToString())) o.Add(c.ToString());
+        return o;
+    }
+
     public static Info Get(char c)
     {
         if (byChar == null)

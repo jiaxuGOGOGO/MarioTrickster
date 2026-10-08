@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 27;
+    public const int CurrentDataVersion = 28;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -239,10 +239,16 @@ public class MarioMindTuningSO : ScriptableObject
     public float pickupSpeedBoost = 1.35f;
 
     [Header("S203: Mario personalities (Rush / Cautious / Greedy)")]
-    [Tooltip("每回合随机一种性格（关掉 = 永远冲冲型）")]
-    public bool personalitiesEnabled = true;
-    [Tooltip("固定性格：-1 随机，0 冲冲型，1 谨慎型，2 贪财型（试某种性格时用）")]
-    [Range(-1, 2)] public int fixedPersonality = -1;
+    [Tooltip("马里奥的性格：随机 = 每回合按下面的权重抽一种；选冲冲 / 谨慎 / 贪财 = 每回合都是它（试某种性格时用）。S238：以前是「随机开关」+「固定性格」两个设置做同一件事，合成这一个")]
+    public Step1PersonalityChoice marioPersonality = Step1PersonalityChoice.Random;
+    // S238 以前的两个旧字段：只为读旧资产（数据版本 28 换算到 marioPersonality），Inspector 不显示，代码别再用。
+    [HideInInspector, SerializeField] private bool personalitiesEnabled = true;
+    [HideInInspector, SerializeField] private int fixedPersonality = -1;
+    /// <summary>S238：-1 = 随机；0/1/2 = 固定那种性格。</summary>
+    public int ForcedPersonalityIndex => marioPersonality == Step1PersonalityChoice.Random ? -1 : (int)marioPersonality - 1;
+    /// <summary>S238 纯逻辑：旧的两个设置 → 新下拉（固定性格优先；关了随机 = 冲冲）。</summary>
+    public static Step1PersonalityChoice FromOld(bool enabled, int fixedIndex)
+        => fixedIndex >= 0 ? (Step1PersonalityChoice)(Mathf.Clamp(fixedIndex, 0, 2) + 1) : enabled ? Step1PersonalityChoice.Random : Step1PersonalityChoice.Rush;
     [Tooltip("抽到冲冲型的权重")]
     public float rushWeight = 1f;
     [Tooltip("抽到谨慎型的权重")]
@@ -589,6 +595,48 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("S216 特效（冲击环、尘土、连锁火花线）开关。关掉只剩机关本身的闪烁（性能差的电脑用）")]
     public bool juiceFx = true;
 
+    [Header("S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）")]
+    [Tooltip("马里奥 Q 扫描：半径（格）。扫到就真的暴露你（宪法 H5：扫描 100% 真实）")]
+    [Range(0.5f, 20f)] public float scanRadius = 5f;
+    [Tooltip("马里奥 Q 扫描：冷却（秒）")]
+    [Range(0f, 30f)] public float scanCooldown = 8f;
+    [Tooltip("扫到你之后你身上红色标记持续多久（秒）")]
+    [Range(0f, 10f)] public float scanRevealDuration = 2f;
+    [Tooltip("扫到你之后额外多久不能再附身（秒）")]
+    [Range(0f, 10f)] public float scanRevealGateBonusDuration = 1.2f;
+    [Tooltip("扫描圈扩散速度（格/秒，只是画面）")]
+    [Range(1f, 40f)] public float scanPulseSpeed = 15f;
+    [Tooltip("扫描圈线宽（只是画面）")]
+    [Range(0.01f, 1f)] public float scanPulseLineWidth = 0.15f;
+    [Tooltip("被扫到时闪烁频率（次/秒，只是画面）")]
+    [Range(0.1f, 30f)] public float scanFlashFrequency = 6f;
+    [Tooltip("被扫到时的标记颜色")]
+    public Color scanRevealColor = new Color(1f, 0.2f, 0.2f, 0.8f);
+    [Tooltip("你的能量上限")]
+    [Range(1f, 300f)] public float energyMaxEnergy = 100f;
+    [Tooltip("开局能量（-1 = 满）")]
+    [Range(-1f, 300f)] public float energyStartEnergy = -1f;
+    [Tooltip("伪装一次花多少能量")]
+    [Range(0f, 100f)] public float energyDisguiseCost = 20f;
+    [Tooltip("伪装着每秒花多少能量")]
+    [Range(0f, 50f)] public float energyDisguiseDrainPerSecond = 5f;
+    [Tooltip("完全融入场景后，伪装耗能打几折")]
+    [Range(0f, 2f)] public float energyBlendedDrainMultiplier = 0.5f;
+    [Tooltip("按 L 发动机关一次花多少能量")]
+    [Range(0f, 100f)] public float energyControlCost = 15f;
+    [Tooltip("没伪装时每秒回多少能量")]
+    [Range(0f, 50f)] public float energyRegenPerSecond = 8f;
+    [Tooltip("伪装时回能量的倍率（0 = 伪装时不回）")]
+    [Range(0f, 2f)] public float energyDisguisedRegenMultiplier = 0f;
+    [Tooltip("发动机关后多久才开始回能量（秒）")]
+    [Range(0f, 10f)] public float energyRegenDelayAfterControl = 2f;
+    [Tooltip("能量低于这个比例时提示能量不够")]
+    [Range(0f, 1f)] public float energyLowEnergyThreshold = 0.25f;
+    [Tooltip("发动机关后你暴露多久（秒）")]
+    [Range(0f, 10f)] public float possessionRevealDuration = 0.8f;
+    [Tooltip("暴露结束后多久才能再附身（秒）")]
+    [Range(0f, 5f)] public float possessionEscapeDuration = 0.35f;
+
     /// <summary>把 S183 校准值写入旧资产（只在 dataVersion 较旧时执行一次）。返回是否有改动。</summary>
     public bool UpgradeData()
     {
@@ -620,7 +668,7 @@ public class MarioMindTuningSO : ScriptableObject
         }
         if (dataVersion < 14)
         {
-            personalitiesEnabled = true; fixedPersonality = -1; rushWeight = cautiousWeight = greedyWeight = 1f; personalityIntroSeconds = 3f;
+            marioPersonality = Step1PersonalityChoice.Random; rushWeight = cautiousWeight = greedyWeight = 1f; personalityIntroSeconds = 3f;
             cautiousTypeSpeedScale = 0.9f; cautiousTypeSuspicionScale = 1.25f; avoidRadius = 2f; greedyPickupDetourCells = 14f; greedyGiveUpSeconds = 5f; greedySuspicionScale = 0.9f;
             autoCheckCyclePersonalities = true;
         }
@@ -738,6 +786,11 @@ public class MarioMindTuningSO : ScriptableObject
             // S235：掉出房间 = 回出生点 + 掉 1 条命（docs/step1/S235_FALL_OUT_OF_ROOM.md）。和"自己的炸弹炸到自己"同一个代价：是你自己的失误，但不该一下就输。
             fallOutLivesLost = 1;
         }
+        if (dataVersion < 28)
+        {
+            // S238：① 性格两个设置合成一个下拉（旧值原样换算）② 扫描 / 能量 / 附身 20 个数值从 GameplayLoopConfig 搬进来——新字段的默认值 = 旧文件里的值，不用写。
+            marioPersonality = FromOld(personalitiesEnabled, fixedPersonality);
+        }
         dataVersion = CurrentDataVersion;
         return true;
     }
@@ -751,6 +804,9 @@ public class MarioMindTuningSO : ScriptableObject
         return tuning;
     }
 }
+
+/// <summary>S238：马里奥性格下拉（随机 + 三种）。新值只能加在末尾（资产按数字存）。</summary>
+public enum Step1PersonalityChoice { [InspectorName("随机（按权重）")] Random, [InspectorName("冲冲型")] Rush, [InspectorName("谨慎型")] Cautious, [InspectorName("贪财型")] Greedy }
 
 /// <summary>第 1 步摄像机：单房间默认整屏（《地狱邻居》式），玩家同时看得到自己和马里奥。
 /// S207：SmartFollow = 死亡细胞式跟随（前瞻 + 上下死区，马里奥靠近时自动拉远框住两人）；宽/高房间自动使用。新值只能加在末尾（资产按数字存）。</summary>

@@ -28,9 +28,9 @@ public static class FeatureMap
 
     static IEnumerable<string> Split(string s, char c) => (s ?? "").Split(c).Select(x => x.Trim()).Where(x => x.Length > 0);
 
-    public static readonly string[] Areas = { "① 玩：恶作剧房间", "② 玩：小镇大地图", "③ 做：关卡 · 小镇 · 台词 · 数值", "④ 网页设计台", "⑤ 测试与反馈", "⑥ 美术", "⑦ 给 AI · 换账号", "⑧ 安全网与旧工具" };
-    /// <summary>常用 = 每次都会用；进阶 = 想深挖时用；自动 = 平时不用管，出问题才看；参考 = 读的东西；旧工具 = 留着但不推荐。</summary>
-    public static readonly string[] Tiers = { "常用", "进阶", "自动", "参考", "旧工具" };
+    public static readonly string[] Areas = { "① 玩：恶作剧房间", "② 玩：小镇大地图", "③ 做：关卡 · 小镇 · 台词 · 数值", "④ 网页设计台", "⑤ 测试与反馈", "⑥ 美术", "⑦ 给 AI · 换账号", "⑧ 安全网" };
+    /// <summary>常用 = 每次都会用；进阶 = 想深挖时用；自动 = 平时不用管，出问题才看；参考 = 读的东西。（S238：「旧工具」一档随旧工具一起删了）</summary>
+    public static readonly string[] Tiers = { "常用", "进阶", "自动", "参考" };
 
     static Feature F(string id, string area, string tier, string name, string how, string what, string create, int since, string docs, string menu, string keys, string web, string anchorFile, string anchorText)
         => new Feature { id = id, area = area, tier = tier, name = name, how = how, what = what, create = create, since = since, docs = docs, menu = menu, keys = keys, web = web, anchorFile = anchorFile, anchorText = anchorText };
@@ -75,7 +75,7 @@ public static class FeatureMap
         F("ws.townplus", "③ 做：关卡 · 小镇 · 台词 · 数值", "进阶", "小镇工坊进阶：⚡ 关系线 · ⛈ 雷区 · 🤖 模拟玩家玩一天", "小镇工坊工具栏 ⚡ 关系线 / ⛈ 雷区（Z 拖框）；右边 🤖 模拟玩家玩一天", "关系线画出炮→靶心、滚石滚道、水塔范围、连锁；模拟玩家 = 4 种机器人各玩 3 天", "改完一张小镇先跑一次模拟玩家，看会躲的人能不能全埋伏上", 213, "S213", "", "", "", "Overworld/OverworldBots.cs", "public static Report PlayDay("),
         F("ws.lines", "③ 做：关卡 · 小镇 · 台词 · 数值", "常用", "台词编辑器（居民和马里奥说的话）", "Ctrl+Alt+L；或小镇工坊右边 ✎ 台词编辑器…", "改、新加、关掉任何一句；「这句什么时候会说？」当场彩排；存在你自己的 MyTownStories.json，AI 升级永远不覆盖", "先写每户人家 3 句：好笑的、生气的、真心话", 234, "S234", "MarioTrickster/台词编辑器 Lines", "", "", "Editor/TownStoryEditorWindow.cs", "public static void Open()"),
         F("ws.dice", "③ 做：关卡 · 小镇 · 台词 · 数值", "进阶", "🎲 灵感骰子", "小镇工坊右边 🎲 / 网页大地图页 灵感骰子", "随机给一个「谁家门口 + 天气 + 机关 + 限制」的题目（不改地图）", "卡住时掷一次，照着题目做一个房间或写一句台词", 233, "", "", "", "灵感骰子", "Overworld/IdeaDice.cs", "public static Idea Roll("),
-        F("ws.tuning", "③ 做：关卡 · 小镇 · 台词 · 数值", "进阶", "调参（RushMarioTuning）· 数值关系", "开始页点「打开」（或 Project 窗口 Assets/Resources/Step1/RushMarioTuning），在 Inspector 里改：⭐ 常用 15 个 + 9 组折叠、能搜、只看改过的、↺ 恢复默认", "所有数值都在这一个文件（250 项，每项都有中文说明）：马里奥速度、视野、炸弹数、晕几秒、游戏速度…；数值之间有矛盾会直接标黄", "一次只改一个数，玩两局对比；● 标出你改过哪些，改乱了点 ↺", 237, "S226 S237", "", "", "数值关系", "Editor/MarioMindTuningSOEditor.cs", "[CustomEditor(typeof(MarioMindTuningSO))]"),
+        F("ws.tuning", "③ 做：关卡 · 小镇 · 台词 · 数值", "进阶", "调参（RushMarioTuning）· 数值关系", "开始页点「打开」（或 Project 窗口 Assets/Resources/Step1/RushMarioTuning），在 Inspector 里改：⭐ 常用 15 个 + 9 组折叠、能搜、只看改过的、↺ 恢复默认", "所有数值都在这一个文件（250 项，每项都有中文说明）：马里奥速度、视野、炸弹数、晕几秒、游戏速度…；数值之间有矛盾会直接标黄", "一次只改一个数，玩两局对比；● 标出你改过哪些，改乱了点 ↺；马里奥性格是一个下拉", 238, "S226 S237 S238", "", "", "数值关系", "Editor/MarioMindTuningSOEditor.cs", "[CustomEditor(typeof(MarioMindTuningSO))]"),
 
         // ④ 网页设计台
         F("web.design", "④ 网页设计台", "常用", "网页：画关卡", "双击安装包里的 MarioTrickster关卡设计台.html（或测试中心 🌐 网页设计台）", "和 Unity 工坊同一套元素和检查；能看「马里奥一趟几秒走到哪个机关」和节奏条；不用开 Unity 也能画", "在外面（没装 Unity 的电脑）想点子、画草图", 204, "S204", "", "", "画关卡|我的关卡|起步|模式印章|元素|当前笔刷|检查结果|马里奥一趟 · 几秒走到哪个机关|节奏 · 紧张和喘气|问题（点一下定位）|这张图的设计意图", "../../tools/LevelStudioWeb/shell.html", "data-page=\"design\""),
@@ -93,21 +93,20 @@ public static class FeatureMap
         F("test.exit", "⑤ 测试与反馈", "参考", "第 1 步出口报告 · 小镇记录", "测试中心 ① 一键体检，往下翻", "从你的试玩记录自动算：连玩几局、坑法几种、还想再来几分、改版前后对比、建议", "玩够 5 局再看，比凭感觉准", 227, "S227", "", "", "", "Gameplay/Step1/Step1ExitReport.cs", "public static string Markdown("),
         F("test.handsoff", "⑤ 测试与反馈", "自动", "马里奥自己跑（H10 自动检查）", "测试中心 🤖 马里奥自己跑；或菜单 检查与记录 → 🤖 马里奥自己跑", "你不操作，连跑几局看马里奥能不能自己拿宝回家（要 ≥95%）", "改了房间结构或马里奥数值后跑一次", 181, "", "MarioTrickster/检查与记录 Checks/🤖 马里奥自己跑 Hands-off (H10)", "", "", "Editor/Step1PrankRoomBuilder.cs", "public static void HandsOffMenu()"),
         F("test.probe", "⑤ 测试与反馈", "自动", "陷阱试探（AI 捣蛋者替你坑）", "测试中心 🎯 陷阱试探；或菜单 检查与记录 → 🎯 陷阱试探", "AI 在马里奥走到时触发每个机关，看连起来会不会把他坑死 / 卡住", "机关很多的房间跑一次，再开工坊「检查轨迹」看他卡在哪", 202, "", "MarioTrickster/检查与记录 Checks/🎯 陷阱试探 Trap Probe", "", "", "Editor/Step1PrankRoomBuilder.cs", "public static void TrapProbeMenu()"),
-        F("test.unit", "⑤ 测试与反馈", "自动", "EditMode 测试 · 测试报告", "测试中心 🧪 跑 EditMode 测试；或 Window → General → Test Runner → EditMode → Run All", "几百条自动检查，结果写进 TestReport.txt，打包反馈会带上", "每次装完升级包跑一次", 160, "", "MarioTrickster/检查与记录 Checks/测试报告 EditMode|MarioTrickster/检查与记录 Checks/测试报告 PlayMode|MarioTrickster/检查与记录 Checks/测试报告 全部 All|MarioTrickster/检查与记录 Checks/打开上次测试报告", "", "", "Editor/TestReportRunner.cs", "public static void RunEditModeTests()"),
+        F("test.unit", "⑤ 测试与反馈", "自动", "EditMode 测试 · 测试报告", "测试中心 🧪 跑 EditMode 测试（唯一入口；要连 PlayMode 一起跑：菜单 检查与记录 → 测试报告 全部）", "几百条自动检查，结果写进 TestReport.txt，打包反馈会带上", "每次装完升级包跑一次", 160, "", "MarioTrickster/检查与记录 Checks/测试报告 EditMode|MarioTrickster/检查与记录 Checks/测试报告 PlayMode|MarioTrickster/检查与记录 Checks/测试报告 全部 All|MarioTrickster/检查与记录 Checks/打开上次测试报告", "", "", "Editor/TestReportRunner.cs", "public static void RunEditModeTests()"),
         F("test.files", "⑤ 测试与反馈", "自动", "试玩记录文件夹 · 房间场景", "测试中心 📂；或菜单 检查与记录 → 📂 试玩记录文件夹 / 重建房间场景 / 打开房间场景", "step1_rounds.csv、town_days.csv、F8 截图都在这；场景会自动重建，一般不用手动", "想自己看数据时打开", 181, "", "MarioTrickster/检查与记录 Checks/📂 试玩记录文件夹|MarioTrickster/检查与记录 Checks/重建房间场景 Build Room|MarioTrickster/检查与记录 Checks/打开房间场景 Open Room", "", "", "Editor/Step1PrankRoomBuilder.cs", "public static void OpenLogsMenu()"),
 
         // ⑥ 美术
         F("art.town", "⑥ 美术", "进阶", "小镇像素图标：导出模板 · 检查换上的图", "菜单 美术 → 小镇：导出像素图标模板 / 检查换上的像素图", "每种格子一个 16×16 图标；换图后检查尺寸、颜色、描边", "想换小镇画风时先导出模板给画师", 220, "", "MarioTrickster/美术 Art/小镇：导出像素图标模板（给美术换图）|MarioTrickster/美术 Art/小镇：检查换上的像素图（尺寸、颜色、描边）", "", "", "Editor/OverworldArtTools.cs", "public static void ExportTemplates()"),
-        F("art.pipeline", "⑥ 美术", "进阶", "素材导入 · 套用到选中物体 · 智能切图", "菜单 美术 → 素材导入 / 套用到选中物体 / AI 智能切图 / 工具", "把商业素材切好套到白盒上，只换外观不动碰撞", "玩法定了再换美术（现在都是方块）", 150, "ASSET_IMPORT_PIPELINE_GUIDE", "MarioTrickster/美术 Art/素材导入 Asset Import Pipeline|MarioTrickster/美术 Art/套用到选中物体 Apply Art to Selected|MarioTrickster/美术 Art/AI 智能切图 Smart Slicer|MarioTrickster/美术 Art/工具 Pipeline/", "", "", "Editor/AssetImportPipeline.cs", "public class AssetImportPipeline"),
+        F("art.pipeline", "⑥ 美术", "进阶", "素材导入 · 套用到选中物体 · 智能切图", "菜单 美术 → 素材导入 / 套用到选中物体 / AI 智能切图 / 特效工厂 / 特效快速套用 / 溶解噪声贴图 / 工具", "把商业素材切好套到白盒上，只换外观不动碰撞；特效工厂给角色加描边、溶解、闪白", "玩法定了再换美术（现在都是方块）", 150, "ASSET_IMPORT_PIPELINE_GUIDE", "MarioTrickster/美术 Art/素材导入 Asset Import Pipeline|MarioTrickster/美术 Art/套用到选中物体 Apply Art to Selected|MarioTrickster/美术 Art/AI 智能切图 Smart Slicer|MarioTrickster/美术 Art/工具 Pipeline/|MarioTrickster/美术 Art/特效工厂 Sprite Effect Factory|MarioTrickster/美术 Art/特效快速套用 SEF Quick Apply|MarioTrickster/美术 Art/生成溶解噪声贴图 Dissolve Noise", "", "", "Editor/AssetImportPipeline.cs", "public class AssetImportPipeline"),
         F("art.theme", "⑥ 美术", "进阶", "主题美术检查 · 导出元素图例", "菜单 美术 → 主题美术检查 / 导出元素图例", "检查主题缺哪些图；导出全部元素的说明表", "给画师一张清单：每个元素要什么尺寸", 187, "", "MarioTrickster/美术 Art/主题美术检查 Check Theme Art|MarioTrickster/美术 Art/导出元素图例 Element Legend", "", "", "Editor/ElementLegendExporter.cs", "public static void ExportMenu()"),
 
         // ⑦ 给 AI · 换账号
         F("ai.pack", "⑦ 给 AI · 换账号", "常用", "安装包 · 接续包（换账号也能接上）", "每次升级的 zip：01 双击 bat 选 Y 上传；02 接续包 .skill 发给新账号的 AI", "AI 不靠记忆，靠接续包和仓库里的文档接着做", "换账号、换电脑时把 .skill 和网页设计单一起发", 200, "DESIGN_CONSTITUTION", "", "", "", "../../docs/AI_CONTINUE_PACK/SKILL.md", "name: mariotrickster-continue"),
         F("ai.research", "⑦ 给 AI · 换账号", "参考", "调研与总方案文档", "docs/step1 里的 S222 / S225 / S230 / S231 等", "网上资料对照、批评、执行方案；每次「继续」AI 都按这些走", "想知道「为什么这样设计」时读", 222, "S222 S225 S230 S231", "", "", "", "../../docs/step1/S222_RESEARCH_MASTERPLAN.md", "S222"),
 
-        // ⑧ 安全网与旧工具
-        F("old.redline", "⑧ 安全网与旧工具", "自动", "红线巡检（碰撞体 / 缩放不许乱改）", "自动；菜单 安全网 → 红线巡检 / 红线自动修复", "防止换美术时把角色碰撞体改坏", "不用管；报警了截图给 AI", 50, "", "MarioTrickster/安全网 Safety/红线巡检 Red Line Check|MarioTrickster/安全网 Safety/红线自动修复 Red Line Auto-Fix|MarioTrickster/安全网 Safety/启用红线自动修复", "", "", "Editor/RedLineGuard.cs", "public static class RedLineGuard"),
-        F("old.legacy", "⑧ 安全网与旧工具", "旧工具", "旧工具（Legacy：旧测试台 Ctrl+T、AI Arena、旧场景构建）", "菜单 旧工具 (Legacy)", "第 1 步以前的工具，留着但不推荐；新做法都在工坊和测试中心", "不用；README 里 Ctrl+T 的旧流程也已过时", 215, "", "MarioTrickster/旧工具 (Legacy)/", "", "", "Editor/TestSceneBuilder.cs", "MarioTrickster/旧工具 (Legacy)/Build Test Scene"),
+        // ⑧ 安全网（S238：旧工具已删）
+        F("old.redline", "⑧ 安全网", "自动", "红线巡检（碰撞体 / 缩放不许乱改）", "自动；菜单 安全网 → 红线巡检 / 红线自动修复", "防止换美术时把角色碰撞体改坏", "不用管；报警了截图给 AI", 50, "", "MarioTrickster/安全网 Safety/红线巡检 Red Line Check|MarioTrickster/安全网 Safety/红线自动修复 Red Line Auto-Fix|MarioTrickster/安全网 Safety/启用红线自动修复", "", "", "Editor/RedLineGuard.cs", "public static class RedLineGuard"),
     };
 
     /// <summary>「我想…」：按目标串起几个功能（开始页顶部 / 网页 / 文档同一份）。</summary>
@@ -164,7 +163,7 @@ public static class FeatureMap
         sb.AppendLine("# MarioTrickster 功能地图");
         sb.AppendLine();
         sb.AppendLine("> 自动生成，别手改：来源 `Assets/Scripts/LevelDesign/FeatureMap.cs`（Unity 开始页 Ctrl+Alt+H、网页设计台「功能地图」页也读它）。");
-        sb.AppendLine($"> 共 {All.Length} 项。常用 = 每次都会用；进阶 = 想深挖时用；自动 = 平时不用管；参考 = 读的东西；旧工具 = 留着但不推荐。");
+        sb.AppendLine($"> 共 {All.Length} 项。常用 = 每次都会用；进阶 = 想深挖时用；自动 = 平时不用管；参考 = 读的东西。");
         sb.AppendLine();
         sb.AppendLine("## 我想…");
         sb.AppendLine();

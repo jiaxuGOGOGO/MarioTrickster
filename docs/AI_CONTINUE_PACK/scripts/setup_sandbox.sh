@@ -47,7 +47,7 @@ cat > cc/cc.csproj <<X
 X
 cat > cc2/full/full.csproj <<X
 <Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><LangVersion>latest</LangVersion><EnableDefaultCompileItems>false</EnableDefaultCompileItems><DefineConstants>UNITY_EDITOR;UNITY_2022_2_OR_NEWER</DefineConstants><NoWarn>$NOWARN</NoWarn></PropertyGroup>
-<ItemGroup><Compile Include="$WS/repo/Assets/Scripts/Editor/**/*.cs" Exclude="$WS/repo/Assets/Scripts/Editor/LevelTemplateValidatorWindow.cs;$WS/repo/Assets/Scripts/Editor/TestReportRunner.cs" /><Compile Include="$WS/repo/Assets/Tests/EditMode/*.cs" /><Compile Include="$WS/repo/Assets/SpriteEffectFactory/Editor/**/*.cs" /><Compile Include="stubTR.cs" /></ItemGroup>
+<ItemGroup><Compile Include="$WS/repo/Assets/Scripts/Editor/**/*.cs" Exclude="$WS/repo/Assets/Scripts/Editor/TestReportRunner.cs" /><Compile Include="$WS/repo/Assets/Tests/EditMode/*.cs" /><Compile Include="$WS/repo/Assets/SpriteEffectFactory/Editor/**/*.cs" /><Compile Include="stubTR.cs" /></ItemGroup>
 <ItemGroup>$REFS<Reference Include="nunit.framework"><HintPath>$WS/unityref/nunit/lib/netstandard2.0/nunit.framework.dll</HintPath></Reference><Reference Include="rt"><HintPath>$WS/cc/out/cc.dll</HintPath></Reference></ItemGroup></Project>
 X
 cp "$PACK/sim/FakeUnity.cs" "$PACK/sim/Check.cs" sim/

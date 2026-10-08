@@ -980,6 +980,59 @@ static class CHECK {
     else parts.Add("游戏 / 小镇工坊 / 体检 / F8 反馈包 / 网页都读\"内置 + 你的\"；Play 中保存下一句就生效；bat 上传时把你的台词也提交");
     Console.WriteLine($"[{(ub==0?"OK":"FAIL")}] S234 你的台词（可改、可加、可关，升级不覆盖）：{string.Join("｜",parts)}"); fail+=ub; }
 
+  // S238 删旧工具 + 只留一个调参文件 + 性格一个下拉：用户 "D1 D2 D3 D4 M1 M2 M3 都做"。① 旧工具文件真的没了、没有代码再引用它们 ② 调参文件只有一个（GameplayLoopConfig 没了；扫描/能量/附身 20 个数值在 RushMarioTuning，默认值 = 旧文件）③ 性格：旧两个设置换算正确 ④ 菜单里没有「旧工具」⑤ docs 根目录只留现役文档
+  { int fr=0; var parts=new List<string>();
+    var root=WsRepo("Assets"); string[] gone={"Scripts/Editor/TestConsoleWindow.cs","Scripts/Editor/StudioExplorationRunner.cs","Scripts/Editor/MechanismExplorationPlan.cs","Scripts/Editor/ExplorationTrialObserver.cs","Scripts/Editor/TestSceneBuilder.cs","Scripts/Editor/LevelStudioPlaySession.cs","Scripts/Editor/AITestAnalystWindow.cs","Scripts/Editor/DocsAutomatorWindow.cs","Scripts/Editor/PlannerProductionAssistant.cs","Scripts/Editor/LevelSnippetLibrary.cs","Scripts/Editor/LevelBrushTool.cs","Scripts/Editor/GameplayBoxVisualizer.cs","Scripts/Gameplay/AutoTestAnalytics.cs","Scripts/Core/InputRecorder.cs","Scripts/Core/MemoryGuard.cs","Scripts/Gameplay/PropComboHUD.cs","Scripts/Gameplay/ScanWaveHUD.cs","Scripts/Gameplay/RouteBudgetHUD.cs","Scripts/Gameplay/TricksterHeatHUD.cs","Scripts/LevelDesign/GameplayLoopConfigSO.cs","Resources/GameplayLoopConfig.asset","Tests/PlayMode/S50_AutoRunE2ETests.cs","Tests/PlayMode/S51_DataDrivenTasTests.cs","Tests/EditMode/ExplorationIntegrationContractTests.cs","Tests/EditMode/MechanismExplorationPlanTests.cs"};
+    var still=gone.Where(g=>File.Exists(Path.Combine(root,g))).ToList();
+    var allCs=Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories).Select(f=>(f,src:File.ReadAllText(f))).ToList();
+    string[] names={"TestConsoleWindow","StudioExplorationRunner","MechanismExplorationPlan","ExplorationTrialObserver","TestSceneBuilder","LevelStudioPlaySession","AutoTestAnalytics","InputRecorder","MemoryGuard","GameplayLoopConfigSO","LevelSnippetLibrary","LevelBrushTool","GameplayBoxVisualizer"};
+    // 只看代码（去掉 // 注释和 /// 文档），注释里提一句"已删"可以
+    string Code(string x)=>string.Join("\n",x.Split('\n').Select(l=>{int i=l.IndexOf("//");return i>=0?l.Substring(0,i):l;}));
+    var refs=allCs.Where(c=>c.f.Contains("/Assets/Scripts/")).SelectMany(c=>names.Where(n=>System.Text.RegularExpressions.Regex.IsMatch(Code(c.src),"\\b"+n+"\\b")).Select(n=>Path.GetFileName(c.f)+":"+n)).ToList();
+    var metaOrphans=new[]{"Scripts","Tests","Resources"}.Where(d=>Directory.Exists(Path.Combine(root,d))).SelectMany(d=>Directory.GetFiles(Path.Combine(root,d),"*.meta",SearchOption.AllDirectories)).Where(m=>!File.Exists(m.Substring(0,m.Length-5))&&!Directory.Exists(m.Substring(0,m.Length-5))).Select(Path.GetFileName).ToList();
+    if(still.Count>0||refs.Count>0||metaOrphans.Count>0){ fr++; Console.WriteLine($"     [FAIL] 旧工具：还在 {string.Join(",",still)}｜代码还在用 {string.Join(",",refs.Take(8))}｜孤儿 .meta {string.Join(",",metaOrphans.Take(5))}"); }
+    else parts.Add($"旧工具 {gone.Length} 个文件已删，剩下的代码没有一处再用它们，没有留下孤儿 .meta");
+    // ② 一个调参文件
+    var t=new MarioMindTuningSO(); string[] moved={"scanRadius","scanCooldown","scanRevealDuration","scanRevealGateBonusDuration","scanPulseSpeed","scanPulseLineWidth","scanFlashFrequency","scanRevealColor","energyMaxEnergy","energyStartEnergy","energyDisguiseCost","energyDisguiseDrainPerSecond","energyBlendedDrainMultiplier","energyControlCost","energyRegenPerSecond","energyDisguisedRegenMultiplier","energyRegenDelayAfterControl","energyLowEnergyThreshold","possessionRevealDuration","possessionEscapeDuration"};
+    var tf=TuningGroups.Fields(typeof(MarioMindTuningSO)).Select(x=>x.field.Name).ToList();
+    var missingMoved=moved.Where(m=>!tf.Contains(m)).ToList();
+    bool vals=t.scanRadius==5f&&t.scanCooldown==8f&&t.scanRevealDuration==2f&&t.scanRevealGateBonusDuration==1.2f&&t.scanPulseSpeed==15f&&t.scanPulseLineWidth==0.15f&&t.scanFlashFrequency==6f&&t.scanRevealColor==new UnityEngine.Color(1f,0.2f,0.2f,0.8f)
+      &&t.energyMaxEnergy==100f&&t.energyStartEnergy==-1f&&t.energyDisguiseCost==20f&&t.energyDisguiseDrainPerSecond==5f&&t.energyBlendedDrainMultiplier==0.5f&&t.energyControlCost==15f&&t.energyRegenPerSecond==8f&&t.energyDisguisedRegenMultiplier==0f&&t.energyRegenDelayAfterControl==2f&&t.energyLowEnergyThreshold==0.25f
+      &&t.possessionRevealDuration==0.8f&&t.possessionEscapeDuration==0.35f;
+    var gm=File.ReadAllText(WsRepo("Assets/Scripts/LevelDesign/GameplayMetrics.cs"));
+    bool facade=gm.Contains("Resources.Load<MarioMindTuningSO>(MarioMindTuningSO.ResourcePath)")&&moved.All(m=>gm.Contains("Tuning."+m+" : fallback"))&&!gm.Contains("ActiveConfig");
+    var otherSO=allCs.SelectMany(c=>System.Text.RegularExpressions.Regex.Matches(Code(c.src),@"class (\w*(Tuning|Config|Loop|Balance)\w*)\s*:\s*ScriptableObject").Select(m=>m.Groups[1].Value)).Where(n=>n!="MarioMindTuningSO"&&n!="PhysicsConfigSO"&&n!="BotPersonaConfigSO").ToList(); // BotPersona 只在内存里 CreateInstance，不是你能改的文件
+    // 组件里的默认值要和搬过来的默认值一样（旧文件 = 组件默认 = 新字段默认，三者一致）
+    string Def(string file,string field){ var m=System.Text.RegularExpressions.Regex.Match(File.ReadAllText(WsRepo("Assets/Scripts/"+file)),"private float "+field+@" = ([-\d.]+)f;"); return m.Success?m.Groups[1].Value:"?"; }
+    var compMismatch=new List<string>();
+    void Cmp(string file,string comp,float v){ var d=Def(file,comp); if(d=="?"||Math.Abs(float.Parse(d,System.Globalization.CultureInfo.InvariantCulture)-v)>1e-5) compMismatch.Add(comp+"="+d+"≠"+v); }
+    Cmp("Ability/ScanAbility.cs","scanRadius",t.scanRadius); Cmp("Ability/ScanAbility.cs","scanCooldown",t.scanCooldown); Cmp("Ability/EnergySystem.cs","maxEnergy",t.energyMaxEnergy); Cmp("Ability/EnergySystem.cs","controlCost",t.energyControlCost); Cmp("Ability/EnergySystem.cs","disguiseCost",t.energyDisguiseCost); Cmp("Enemy/TricksterPossessionGate.cs","revealDuration",t.possessionRevealDuration); Cmp("Enemy/TricksterPossessionGate.cs","escapeDuration",t.possessionEscapeDuration);
+    if(missingMoved.Count>0||!vals||!facade||otherSO.Count>0||compMismatch.Count>0){ fr++; Console.WriteLine($"     [FAIL] 一个调参文件：没搬过来 {string.Join(",",missingMoved)}｜默认值对得上 {vals}｜读取入口 {facade}｜又有第二个调参文件 {string.Join(",",otherSO)}｜组件默认不一致 {string.Join(",",compMismatch)}"); }
+    else parts.Add("调参文件只剩 RushMarioTuning 一个：扫描 8 + 能量 10 + 附身 2 = 20 个数值搬进「你的技能」组，默认值和旧文件、和组件里的一模一样；关掉的扩展系统用组件默认");
+    // ③ 性格
+    bool pers=MarioMindTuningSO.FromOld(true,-1)==Step1PersonalityChoice.Random&&MarioMindTuningSO.FromOld(false,-1)==Step1PersonalityChoice.Rush&&MarioMindTuningSO.FromOld(true,0)==Step1PersonalityChoice.Rush&&MarioMindTuningSO.FromOld(false,1)==Step1PersonalityChoice.Cautious&&MarioMindTuningSO.FromOld(true,2)==Step1PersonalityChoice.Greedy&&MarioMindTuningSO.FromOld(true,9)==Step1PersonalityChoice.Greedy;
+    t.marioPersonality=Step1PersonalityChoice.Random; int a1=t.ForcedPersonalityIndex; t.marioPersonality=Step1PersonalityChoice.Greedy; int a2=t.ForcedPersonalityIndex;
+    var t2=new MarioMindTuningSO(); t2.marioPersonality=Step1PersonalityChoice.Cautious; var m2=new RushMarioMind(t2); var seen=new HashSet<MarioPersonalityKind>();
+    for(int sd=0;sd<30;sd++){ m2.Reset(sd); seen.Add(m2.Personality); }
+    var t3=new MarioMindTuningSO(); var m3=new RushMarioMind(t3); var seen3=new HashSet<MarioPersonalityKind>(); for(int sd=0;sd<60;sd++){ m3.Reset(sd); seen3.Add(m3.Personality); }
+    bool noOldUse=!tf.Contains("personalitiesEnabled")&&!tf.Contains("fixedPersonality")&&!allCs.Any(c=>!c.f.EndsWith("MarioMindTuningSO.cs")&&System.Text.RegularExpressions.Regex.IsMatch(Code(c.src),@"\.(personalitiesEnabled|fixedPersonality)\b"));
+    if(!pers||a1!=-1||a2!=2||seen.Count!=1||!seen.Contains(MarioPersonalityKind.Cautious)||seen3.Count!=3||!noOldUse||MarioMindTuningSO.CurrentDataVersion<28){ fr++; Console.WriteLine($"     [FAIL] 性格下拉：换算 {pers}｜索引 {a1},{a2}｜选谨慎型 {string.Join(",",seen)}｜随机 {seen3.Count} 种｜旧字段没人用 {noOldUse}｜版本 {MarioMindTuningSO.CurrentDataVersion}"); }
+    else parts.Add("性格：随机开关 + 固定性格 → 一个下拉（随机/冲冲/谨慎/贪财）；旧资产换算：关了随机→冲冲、固定性格优先；选谨慎型 30 局全是谨慎、随机 60 局 3 种都出现；数据版本 28");
+    // ④ 菜单
+    var menus=new List<string>(); foreach(var c in allCs) foreach(System.Text.RegularExpressions.Match mm in System.Text.RegularExpressions.Regex.Matches(c.src,"\\[MenuItem\\(\"(MarioTrickster/[^\"]+)\"")) menus.Add(mm.Groups[1].Value);
+    var tops=menus.Select(x=>FeatureMap.StripShortcut(x).Split('/')[1].Trim()).Distinct().ToList(); 
+    bool menuOk=tops.Count==10&&!tops.Any(x=>x.Contains("旧工具")||x.Contains("Legacy"))&&!FeatureMap.Tiers.Contains("旧工具")&&!FeatureMap.All.Any(f=>f.tier=="旧工具"||f.name.Contains("Ctrl+T"));
+    if(!menuOk){ fr++; Console.WriteLine($"     [FAIL] 菜单 / 功能地图里还有旧工具：{string.Join(",",tops)}"); }
+    else parts.Add($"菜单顶层 {tops.Count} 个，没有「旧工具」了；功能地图也去掉了这一档");
+    // ⑤ 文档
+    var docsRoot=Directory.GetFiles(WsRepo("docs"),"*.md").Select(Path.GetFileName).OrderBy(x=>x).ToList();
+    string[] keep={"ASSET_IMPORT_PIPELINE_GUIDE.md","DESIGN_CONSTITUTION_v1.0.md","ELEMENT_LEGEND.md","FEATURE_MAP.md","LEVEL_WORKSHOP.md"};
+    var extra=docsRoot.Except(keep).ToList(); var rootMd=Directory.GetFiles(WsRepo(""),"*.md").Select(Path.GetFileName).Where(x=>x!="README.md"&&x!="SESSION_TRACKER.md").ToList();
+    var readme=File.ReadAllText(WsRepo("README.md"));
+    var deadLinks=System.Text.RegularExpressions.Regex.Matches(readme,@"\]\(\./([^)#]+)\)").Select(m=>m.Groups[1].Value).Where(l=>!File.Exists(WsRepo(l))&&!Directory.Exists(WsRepo(l))).ToList();
+    if(extra.Count>0||rootMd.Count>0||deadLinks.Count>0||readme.Contains("Ctrl+T →")){ fr++; Console.WriteLine($"     [FAIL] 文档：docs/ 根目录多出 {string.Join(",",extra)}｜仓库根目录多出 {string.Join(",",rootMd)}｜README 死链 {string.Join(",",deadLinks)}"); }
+    else parts.Add($"docs/ 根目录只留 {keep.Length} 篇现役文档、仓库根目录只留 README + SESSION_TRACKER（旧的进 docs/archive/），README 没有死链、没有 Ctrl+T 旧流程");
+    Console.WriteLine($"[{(fr==0?"OK":"FAIL")}] S238 删旧工具 + 一个调参文件 + 性格一个下拉：{string.Join("｜",parts)}"); fail+=fr; }
   // S237 去冗余 + 上次做到哪：用户"重复冗余会让我难以使用、测试反复、增加放弃成本"。① 调参 250 项每项恰好在 9 组之一、都有中文说明、常用 15 个都存在 ② 菜单顶层 ≤ 12 个、旧的 Step 1/ Run Tests/ Level Design/ Art Pipeline/ 网页同步/ 根菜单都并进去了 ③「上次做到哪」纯逻辑 ④ 接线
   { int fr=0; var parts=new List<string>();
     var tf=TuningGroups.Fields(typeof(MarioMindTuningSO)).Where(x=>x.field.Name!="dataVersion").ToList();
@@ -993,7 +1046,7 @@ static class CHECK {
     else parts.Add($"调参 {tf.Count} 项全部分进 {TuningGroups.All.Length} 组（每项恰好一组）、每项都有中文说明、常用 15 个都在");
     // ② 菜单
     var root=WsRepo("Assets/Scripts"); var menus=new List<string>();
-    foreach(var cs in Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories)) foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(cs),"\\[MenuItem\\(\"(MarioTrickster/[^\"]+)\"(?!\\s*,\\s*true)")) menus.Add(m.Groups[1].Value);
+    foreach(var cs in Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories).Concat(Directory.GetFiles(WsRepo("Assets/SpriteEffectFactory"),"*.cs",SearchOption.AllDirectories))) foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(cs),"\\[MenuItem\\(\"(MarioTrickster/[^\"]+)\"(?!\\s*,\\s*true)")) menus.Add(m.Groups[1].Value);
     var tops=menus.Select(m=>FeatureMap.StripShortcut(m).Split('/')[1]).Distinct().ToList();
     var oldRoots=new[]{"Step 1","Run Tests","Level Design","Art Pipeline","网页同步","Overworld","红线防护设置","Open Last Test Report","Asset Import Pipeline","Apply Art to Selected","AI Smart Slicer (智能裁切)","红线巡检 (Red Line Check)","红线自动修复 (Red Line Auto-Fix)"}.Where(tops.Contains).ToList();
     var allSrc=string.Join("\n",Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories).Select(File.ReadAllText));
@@ -1043,7 +1096,7 @@ static class CHECK {
       var ap=Path.GetFullPath(Path.Combine(root,f.anchorFile)); if(!File.Exists(ap)||!File.ReadAllText(ap).Contains(f.anchorText)){ fm++; Console.WriteLine($"     [FAIL] {f.id} 锚点找不到：{f.anchorFile} 里没有「{f.anchorText}」（功能删了就把这一项也删掉）"); } }
     parts.Add($"{FeatureMap.All.Length} 项、{FeatureMap.Areas.Length} 区，锚点全在");
     // ① 菜单
-    var menus=new List<string>(); foreach(var cs in Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories)) foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(cs),"\\[MenuItem\\(\"(MarioTrickster/[^\"]+)\"(?!\\s*,\\s*true)")) menus.Add(m.Groups[1].Value);
+    var menus=new List<string>(); foreach(var cs in Directory.GetFiles(root,"*.cs",SearchOption.AllDirectories).Concat(Directory.GetFiles(WsRepo("Assets/SpriteEffectFactory"),"*.cs",SearchOption.AllDirectories))) foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(cs),"\\[MenuItem\\(\"(MarioTrickster/[^\"]+)\"(?!\\s*,\\s*true)")) menus.Add(m.Groups[1].Value);
     menus=menus.Distinct().ToList(); var um=menus.Where(m=>!FeatureMap.Covers(m)).ToList(); foreach(var m in um){ fm++; Console.WriteLine("     [FAIL] 菜单没登记进功能地图："+m); }
     foreach(var f in FeatureMap.All) foreach(var m in f.Menus) if(!m.EndsWith("/")&&!menus.Any(x=>FeatureMap.StripShortcut(x)==m)){ fm++; Console.WriteLine($"     [FAIL] {f.id} 登记的菜单不存在：{m}"); }
     parts.Add($"{menus.Count} 个菜单都登记了");

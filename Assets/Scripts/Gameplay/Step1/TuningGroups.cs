@@ -20,8 +20,8 @@ public static class TuningGroups
             headers = new[] { "Identity", "Movement persona (feeds the existing HeuristicBot)", "Vision (H4: cone + range + occlusion only)", "Suspicion sources", "Thresholds (H2: '?' must show before '!')", "Behaviour", "Randomness for emergence (S187)" } },
         new Group { title = "马里奥：性格 · 学习 · 反制", why = "三种性格、记住被坑的地方、停时间、躲炸弹、踢门、钻炮",
             headers = new[] { "S203: Mario personalities (Rush / Cautious / Greedy)", "Mario time stop (S197)" } },
-        new Group { title = "你的技能：炸弹 · 缩小 · 通风管 · 诱饵 · 挑衅 · 连锁", why = "每局几次、冷却多久、炸多大",
-            headers = new[] { "Trickster kit (S197)", "S200: chain plan (F), taunt (T), tripwire, Mario learning" } },
+        new Group { title = "你的技能：炸弹 · 缩小 · 通风管 · 诱饵 · 挑衅 · 连锁 · 能量", why = "每局几次、冷却多久、炸多大；能量和马里奥的 Q 扫描也在这",
+            headers = new[] { "Trickster kit (S197)", "S200: chain plan (F), taunt (T), tripwire, Mario learning", "S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）" } },
         new Group { title = "机关：火 · 墙 · 弹簧 · 香蕉皮 · 油桶 · 铁笼 · 绳套 · 大炮 · 地形", why = "每种机关预警多久、晕多久、范围多大",
             headers = new[] { "Prank props (S183)", "New pranks (S193)", "S198: bombs hurt, cannon aim, snare, pickups", "S199: oil barrel, cage, decoy, alarm, door kick", "Movement-limiting terrain (S197)", "Cannon (S187)", "Collapse bridge (S183)", "Hakoniwa (S196: Souls-style interconnected floors)" } },
         new Group { title = "一局的规则：命 · 时间 · 连招 · 回放", why = "几条命、一局多长、连招窗口、顿帧和震屏、慢动作回放",
@@ -41,17 +41,18 @@ public static class TuningGroups
     {
         "marioSpeedScale", "chaseSpeedScale", "visionRange", "startDelaySeconds", "hurtStunSeconds",
         "startingLives", "roundTimeLimit", "bombsPerRound", "decoysPerRound", "tauntUses",
-        "timeStopUsesPerRound", "fixedPersonality", "roomGameSpeed", "overworldMarioSpeed", "overworldMinutesPerSecond",
+        "timeStopUsesPerRound", "marioPersonality", "roomGameSpeed", "overworldMarioSpeed", "overworldMinutesPerSecond",
     };
 
     /// <summary>字段 → 它原来的小标题（按源码顺序，没写 Header 的跟着上一个）。</summary>
     public static List<(FieldInfo field, string header)> Fields(Type t)
     {
         var o = new List<(FieldInfo, string)>(); string h = "";
-        foreach (var f in t.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).OrderBy(f => f.MetadataToken))
+        foreach (var f in t.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly).OrderBy(f => f.MetadataToken))
         {
+            bool hidden = f.GetCustomAttributes(true).Any(a => a.GetType().Name == "HideInInspectorAttribute");
             foreach (var a in f.GetCustomAttributes(true)) { var p = a.GetType().GetField("header"); if (a.GetType().Name == "HeaderAttribute" && p != null) h = (string)p.GetValue(a) ?? h; }
-            o.Add((f, h));
+            if (f.IsPublic && !hidden) o.Add((f, h));   // S238：旧字段（HideInInspector、只为换算）不算
         }
         return o;
     }

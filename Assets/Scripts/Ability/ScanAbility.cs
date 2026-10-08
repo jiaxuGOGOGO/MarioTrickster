@@ -87,7 +87,7 @@ public class ScanAbility : MonoBehaviour
     private GUIStyle cachedMarkerStyle;
     private GUIStyle cachedResultStyle;
 
-    // GameplayLoopConfigSO Facade 读取：SO 存在时实时读取，缺失时回退本组件默认值
+    // S238：从唯一的调参文件 RushMarioTuning 读（GameplayMetrics），找不到才用本组件默认值
     private float ScanRadiusValue => GameplayMetrics.ScanRadius(scanRadius);
     private float ScanCooldownValue => GameplayMetrics.ScanCooldown(scanCooldown);
     private float RevealDurationValue => GameplayMetrics.ScanRevealDuration(revealDuration);

@@ -25,7 +25,7 @@ public class PlayerHealth : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     /// <summary>
     /// God Mode：开启后 TakeDamage 完全无效，不扣血不触发死亡。
-    /// 默认 false，仅由 TestConsoleWindow 在运行时设置，
+    /// 默认 false，只由调试代码在运行时设置（S238 旧测试台已删；第 1 步无限技能用 F9），
     /// 每次 Play 自动重置为 false，不影响自动化测试。
     /// </summary>
     [System.NonSerialized] public bool DebugGodMode = false;

@@ -161,7 +161,7 @@ public sealed class RushMarioMind
         Meter.Reset(); hurtFlash = celebrate = stun = glance = 0f;
         System.Array.Clear(causeTimes, 0, causeTimes.Length); Cause = SuspicionCause.None;
         hurtSpots.Clear(); Cautious = false; skippedPickups.Clear(); grabTime = 0f; Dodging = false;
-        Personality = ForcedPersonality ?? (t.personalitiesEnabled ? MarioPersonality.Roll(seed, t.rushWeight, t.cautiousWeight, t.greedyWeight) : MarioPersonalityKind.Rush);
+        Personality = ForcedPersonality ?? (t.ForcedPersonalityIndex >= 0 ? (MarioPersonalityKind)t.ForcedPersonalityIndex : MarioPersonality.Roll(seed, t.rushWeight, t.cautiousWeight, t.greedyWeight));
         Traits = MarioPersonality.For(Personality, t);
         introTimer = t.personalityIntroSeconds;
         Enter(MarioMindState.Running, Vector2.zero);

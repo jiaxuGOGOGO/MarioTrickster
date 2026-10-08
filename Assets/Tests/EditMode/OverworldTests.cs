@@ -383,7 +383,7 @@ public class OverworldTests
         StringAssert.Contains("CampaignLedger.Build(map,", ow);
         StringAssert.Contains("LevelWorkshopWindow.Open();", ow);
         StringAssert.DoesNotContain("MarioTrickster/Overworld/Town Workshop", ob, "同一个窗口只留一个菜单入口");
-        StringAssert.Contains("MarioTrickster/旧工具 (Legacy)/Build Test Scene", Read("Scripts/Editor/TestSceneBuilder.cs"));
+        Assert.IsFalse(File.Exists(Path.Combine(Application.dataPath, "Scripts/Editor/TestSceneBuilder.cs")), "S238：旧测试场景已删，入口只剩 ▶ 试玩房间 / ▶ 试玩小镇");
     }
 
     // ── S217：大世界扩展 + 测试不卡人 ──────────────

@@ -48,7 +48,7 @@ public static class GameplayLoopSceneBootstrapper
         root = ResolveRoot(root);
         GameObject managers = FindOrCreateManagers(root);
 
-        // TestSceneBuilder 中 Managers_GameplayLoop 的服务清单：按原顺序补齐，避免重构底层生命周期。
+        // 原 TestSceneBuilder（S238 已删）中 Managers_GameplayLoop 的服务清单：按原顺序补齐，避免重构底层生命周期。
         // 设计宪法第 0 步：核心循环（跑+扫描+附身+触发+残留）必装。
         EnsureComponent<MarioSuspicionTracker>(managers);
         EnsureComponent<ResidueVisualHint>(managers);

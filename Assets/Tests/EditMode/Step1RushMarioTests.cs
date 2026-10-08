@@ -1290,7 +1290,7 @@ public class Step1RushMarioTests
         Assert.AreEqual(Step1HakoniwaEvents.Pick(42, 3, 0.5f), Step1HakoniwaEvents.Pick(42, 3, 0.5f), "随机事件可复现");
         var picks = new HashSet<int>(); for (int s = 0; s < 50; s++) picks.Add(Step1HakoniwaEvents.Pick(s, 3, 0.5f));
         Assert.Greater(picks.Count, 2, "不同回合塌不同的墙 / 有时不塌");
-        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(r.GetAllRegisteredChars()), "新元素显式登记（不静默计数）");
+        CollectionAssert.IsEmpty(ElementCatalog.Unexplained(r.GetAllRegisteredChars()), "新元素必须写进元素说明书（S238：以前查旧探索计划，探索系统已删）");
     }
 
     // ── S197：技能包 / 限制地形 / 图例 / 修复 ─────────────────
@@ -1339,7 +1339,7 @@ public class Step1RushMarioTests
         Assert.IsTrue(ElementCatalog.PlacementIssues(new[] { "WWWWWWWW", "W.wwww.W", "W######W" }, true, r.IsSolid).Exists(i => i.Contains("毒池")), "毒池太宽要报");
         Assert.IsFalse(ElementCatalog.PlacementIssues(new[] { "WWWWWWWW", "W..ww..W", "W######W" }, true, r.IsSolid).Exists(i => i.Contains("毒池")));
         StringAssert.Contains("SlowTerrain.CurrentMarioSpeedScale", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"));
-        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(r.GetAllRegisteredChars()), "新元素显式登记");
+        CollectionAssert.IsEmpty(ElementCatalog.Unexplained(r.GetAllRegisteredChars()), "新元素必须写进元素说明书（S238：以前查旧探索计划，探索系统已删）");
         Assert.IsTrue(LevelWorkshopModel.Check(LevelWorkshopModel.HakoniwaSample, true, r.IsSolid).Playable, "样板加了通风管/毒池/黏胶后仍可玩");
     }
 
@@ -1442,7 +1442,7 @@ public class Step1RushMarioTests
         }
         StringAssert.Contains("RandomPickups.MarioXRayUntil", Read("Scripts/Gameplay/Step1/MarioEyes.cs"), "透视道具走马里奥感知");
         StringAssert.Contains("RandomPickups.TricksterInvisibleUntil", Read("Scripts/Gameplay/Step1/MarioEyes.cs"));
-        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(reg().GetAllRegisteredChars()), "新元素显式登记");
+        CollectionAssert.IsEmpty(ElementCatalog.Unexplained(reg().GetAllRegisteredChars()), "新元素必须写进元素说明书（S238：以前查旧探索计划，探索系统已删）");
         Assert.IsTrue(LevelWorkshopModel.Check(LevelWorkshopModel.HakoniwaSample, true, reg().IsSolid).Playable, "样板加绳套/道具后仍可玩");
     }
 
@@ -1499,7 +1499,7 @@ public class Step1RushMarioTests
         Assert.IsFalse(MarioDoorKick.ShouldKick(new Vector2(5.6f, 1), new Vector2(5, 1), false, new Vector2(0, 1), 0.9f), "在能开的一侧 → 不踢（推开就行）");
         Assert.IsFalse(MarioDoorKick.ShouldKick(new Vector2(4.4f, 1), new Vector2(5, 1), false, new Vector2(0, 1), 0.9f), "目标在自己这边 → 不踢");
         StringAssert.Contains("AddComponent<MarioDoorKick>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
-        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(reg().GetAllRegisteredChars()), "新元素显式登记");
+        CollectionAssert.IsEmpty(ElementCatalog.Unexplained(reg().GetAllRegisteredChars()), "新元素必须写进元素说明书（S238：以前查旧探索计划，探索系统已删）");
         Assert.IsTrue(LevelWorkshopModel.Check(LevelWorkshopModel.HakoniwaSample, true, reg().IsSolid).Playable, "样板加油桶/铁笼后仍可玩");
     }
 
@@ -1562,7 +1562,7 @@ public class Step1RushMarioTests
         foreach (var sample in new[] { LevelWorkshopModel.LureSample, LevelWorkshopModel.HakoniwaSample, Step1PrankRoomBuilder.Room })
             Assert.IsTrue(LevelWorkshopModel.Check(sample, true, reg().IsSolid).Playable, "加绊线后样板仍可玩");
         Assert.GreaterOrEqual(ComboRouteAnalyzer.Analyze(LevelWorkshopModel.LureSample, 10f).BestGroupKinds, 5, "诱捕走廊一套连锁至少 5 种机关");
-        CollectionAssert.IsEmpty(MechanismExplorationPlan.MissingFromCatalog(reg().GetAllRegisteredChars()));
+        CollectionAssert.IsEmpty(ElementCatalog.Unexplained(reg().GetAllRegisteredChars()), "新元素必须写进元素说明书（S238：以前查旧探索计划，探索系统已删）");
     }
 
     // ── S202：连锁回放 / 策略模拟（炸弹困人→加固）/ 陷阱试探 / 马里奥躲闪与捡道具 ─────────
@@ -1667,7 +1667,7 @@ public class Step1RushMarioTests
     public void PersonalitiesAreSeededVisibleAndDifferent()
     {
         var t = Tuning();
-        Assert.IsTrue(t.personalitiesEnabled);
+        Assert.AreEqual(Step1PersonalityChoice.Random, t.marioPersonality, "S238：默认随机性格（一个下拉，以前是两个设置）");
         Assert.AreEqual(MarioPersonality.Roll(42, 1, 1, 1), MarioPersonality.Roll(42, 1, 1, 1), "同种子同性格（可复现）");
         Assert.AreEqual(MarioPersonalityKind.Rush, MarioPersonality.Roll(42, 0, 0, 0), "权重全 0 = 冲冲型");
         Assert.AreEqual(MarioPersonalityKind.Greedy, MarioPersonality.Roll(42, 0, 0, 1));
@@ -2392,6 +2392,35 @@ public class Step1RushMarioTests
         var t1 = ScriptableObject.CreateInstance<MarioMindTuningSO>(); var t2 = ScriptableObject.CreateInstance<MarioMindTuningSO>(); t2.springLaunchSpeed += 1f;
         Assert.AreNotEqual(Step1PrankRoomBuilder.BuildKey(t1), Step1PrankRoomBuilder.BuildKey(t2));
         Assert.AreEqual(Step1PrankRoomBuilder.BuildKey(t1), Step1PrankRoomBuilder.BuildKey(ScriptableObject.CreateInstance<MarioMindTuningSO>()));
+    }
+
+    // ── S238：删旧工具 + 只留一个调参文件 + 性格一个下拉 ──────────
+    [Test]
+    public void S238_OldToolsGone_OneTuningFile_OnePersonalitySetting()
+    {
+        foreach (var gone in new[] { "Scripts/Editor/TestConsoleWindow.cs", "Scripts/Editor/StudioExplorationRunner.cs", "Scripts/Editor/TestSceneBuilder.cs",
+            "Scripts/Editor/LevelStudioPlaySession.cs", "Scripts/Core/MemoryGuard.cs", "Scripts/LevelDesign/GameplayLoopConfigSO.cs", "Resources/GameplayLoopConfig.asset" })
+            Assert.IsFalse(File.Exists(Path.Combine(Application.dataPath, gone)), gone + " 已删（S238）");
+        // 性格：旧两个设置 → 一个下拉，换算不丢原意
+        Assert.AreEqual(Step1PersonalityChoice.Random, MarioMindTuningSO.FromOld(true, -1));
+        Assert.AreEqual(Step1PersonalityChoice.Rush, MarioMindTuningSO.FromOld(false, -1), "关了随机 = 永远冲冲型");
+        Assert.AreEqual(Step1PersonalityChoice.Cautious, MarioMindTuningSO.FromOld(true, 1), "固定性格优先");
+        Assert.AreEqual(Step1PersonalityChoice.Greedy, MarioMindTuningSO.FromOld(false, 2));
+        var t = ScriptableObject.CreateInstance<MarioMindTuningSO>();
+        try
+        {
+            Assert.AreEqual(-1, t.ForcedPersonalityIndex);
+            t.marioPersonality = Step1PersonalityChoice.Cautious; Assert.AreEqual((int)MarioPersonalityKind.Cautious, t.ForcedPersonalityIndex);
+            // 扫描 / 能量 / 附身：只从 RushMarioTuning 读；默认值 = 旧文件里的值
+            Assert.AreEqual(5f, t.scanRadius); Assert.AreEqual(8f, t.scanCooldown); Assert.AreEqual(100f, t.energyMaxEnergy); Assert.AreEqual(15f, t.energyControlCost); Assert.AreEqual(0.8f, t.possessionRevealDuration);
+            GameplayMetrics.SetTuning(t); t.scanRadius = 7f;
+            Assert.AreEqual(7f, GameplayMetrics.ScanRadius(5f), "改 RushMarioTuning 的扫描半径 → 马里奥的 Q 扫描跟着变");
+            Assert.AreEqual(12f, GameplayMetrics.HeatPerActivation(12f), "关掉的扩展系统用组件自己的默认值");
+        }
+        finally { GameplayMetrics.SetTuning(null); Object.DestroyImmediate(t); }
+        StringAssert.Contains("GameManager.EditorRestartHandler = Retry;", Read("Scripts/Editor/PlayRetry.cs"), "F5 / R 在编辑器里仍然 = 停止再进 Play");
+        StringAssert.DoesNotContain("personalitiesEnabled ?", Read("Scripts/Gameplay/Step1/RushMarioMind.cs"));
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 28);
     }
 
     static LevelPathPlanner.Cell CellOfIn(string[] g, char c)

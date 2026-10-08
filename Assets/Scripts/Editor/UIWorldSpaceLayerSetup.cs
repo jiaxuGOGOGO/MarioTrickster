@@ -22,7 +22,7 @@ using UnityEngine;
 ///   - 关卡生成后（通过 HierarchyChanged 监听新创建的 Canvas）
 ///
 /// [AI防坑警告] FindObjectOfType&lt;GlobalGameUICanvas&gt;() 在 PlayableEnvironmentBuilder、
-/// GameplayLoopSceneBootstrapper、TestSceneBuilder 中用于检测是否已存在 Canvas。
+/// GameplayLoopSceneBootstrapper 中用于检测是否已存在 Canvas。
 /// 绝对不能用 SetActive(false)，否则会导致重复创建。本方案使用 SceneVisibilityManager
 /// 隐藏，GameObject 始终保持 active。
 /// </summary>

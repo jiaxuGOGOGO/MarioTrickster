@@ -160,7 +160,7 @@ public class RouteBudgetService : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region 公共 API
 
-    /// <summary>注册一条路线（由关卡初始化或 TestSceneBuilder 调用）</summary>
+    /// <summary>注册一条路线（由关卡初始化调用）</summary>
     public void RegisterRoute(string routeId)
     {
         if (GetRoute(routeId) != null) return;

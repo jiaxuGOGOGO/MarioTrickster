@@ -17,7 +17,7 @@ using System.Text;
 ///      不再硬编码。新增元素只需在 Registry 中标记 IsSolid/IsHazard 即可。
 ///
 /// 使用方式：
-///   在 TestConsoleWindow 的 Build 按钮中调用 ValidateTemplate()，
+///   在关卡生成前调用 ValidateTemplate()，
 ///   生成前先验证，有错误时弹出警告但不阻止生成（设计师可能故意设计极限关卡）。
 ///
 /// 所有阈值引用 PhysicsMetrics 常量，确保与物理系统同步。

@@ -7,7 +7,7 @@ using UnityEngine.UI;
 /// GlobalGameUICanvasPrefabBuilder — 编辑器侧 UGUI HUD 预制体资产保障工具。
 ///
 /// PlayableEnvironmentBuilder 会通过该工具优先实例化 Assets/Prefabs/UI/GlobalGameUICanvas.prefab；
-/// 如果资产尚不存在，则即时创建标准 Canvas + GlobalGameUICanvas 预制体，避免 TestConsole 生成的
+/// 如果资产尚不存在，则即时创建标准 Canvas + GlobalGameUICanvas 预制体，避免场景构建器生成的
 /// 可玩场景继续依赖旧 OnGUI 灰盒 HUD。
 ///
 /// S150: 创建预制体时自动设置 UI_WorldSpace Layer，配合 UIWorldSpaceLayerSetup 实现 Scene 视图隔离。
@@ -16,7 +16,7 @@ public static class GlobalGameUICanvasPrefabBuilder
 {
     public const string PrefabPath = "Assets/Prefabs/UI/GlobalGameUICanvas.prefab";
 
-    [MenuItem("MarioTrickster/旧工具 (Legacy)/Rebuild Global Game UI Canvas Prefab")]
+    // S238：菜单入口已删（预制体缺了会被场景构建器自动建；第 1 步房间也不用它）。
     public static void RebuildPrefabFromMenu()
     {
         GameObject prefab = EnsurePrefabAsset(true);

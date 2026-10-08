@@ -6,7 +6,7 @@ using System.Collections.Generic;
 /// PlayableEnvironmentBuilder — TestConsole ASCII 关卡生成后的可玩环境补全工具。
 ///
 /// 该类集中负责补齐 Mario、Trickster、Managers、Camera 与 KillZone 等运行时依赖，
-/// 使 TestConsoleWindow 主体保持为编辑器路由与 Tab UI，不再承载冗长场景构建细节。
+/// 第 1 步房间构建器（Step1PrankRoomBuilder）用它搭可玩环境（S238：旧测试台已删，这里是唯一调用方）。
 /// </summary>
 public static class PlayableEnvironmentBuilder
 {
@@ -341,7 +341,7 @@ public static class PlayableEnvironmentBuilder
 
     // ═══════════════════════════════════════════════════
     // S60-Fix: 配置默认伪装形态
-    // 与 TestSceneBuilder.ConfigureDefaultTricksterDisguises 逻辑一致，
+    // 原与 TestSceneBuilder.ConfigureDefaultTricksterDisguises 一致（S238 已删），
     // 确保 Custom Template Editor 生成的关卡也能正常使用 Trickster 伪装功能。
     // ═══════════════════════════════════════════════════
 
@@ -441,7 +441,7 @@ public static class PlayableEnvironmentBuilder
         sr.color = color;
     }
 
-    /// <summary>通过 SerializedObject 设置字段值（与 TestSceneBuilder 同逻辑）</summary>
+    /// <summary>通过 SerializedObject 设置字段值</summary>
     private static void SetSerializedFieldForPlayable(Object target, string fieldName, object value)
     {
         SerializedObject so = new SerializedObject(target);

@@ -21,7 +21,7 @@ namespace UnityEngine {
     public static bool operator==(Vector2 a,Vector2 b)=>a.x==b.x&&a.y==b.y; public static bool operator!=(Vector2 a,Vector2 b)=>!(a==b); public override bool Equals(object o)=>o is Vector2 v&&v==this; public override int GetHashCode()=>0; public override string ToString()=>$"({x},{y})";}
   public struct Color { public float r,g,b,a; public static bool operator==(Color x,Color y)=>x.r==y.r&&x.g==y.g&&x.b==y.b&&x.a==y.a; public static bool operator!=(Color x,Color y)=>!(x==y); public override bool Equals(object o)=>o is Color c&&c==this; public override int GetHashCode()=>0; public Color(float r,float g,float b,float a=1){this.r=r;this.g=g;this.b=b;this.a=a;} public static Color white=>new Color(1,1,1);}
   [AttributeUsage(AttributeTargets.Field,AllowMultiple=true)] public class HeaderAttribute:Attribute{public readonly string header; public HeaderAttribute(string s){header=s;}} public class TooltipAttribute:Attribute{public readonly string tooltip; public TooltipAttribute(string s){tooltip=s;}}
-  public class RangeAttribute:Attribute{public RangeAttribute(float a,float b){}} public class SerializeField:Attribute{}
+  public class RangeAttribute:Attribute{public RangeAttribute(float a,float b){}} public class SerializeField:Attribute{} public class HideInInspector:Attribute{} public class InspectorNameAttribute:Attribute{public readonly string displayName; public InspectorNameAttribute(string s){displayName=s;}}
   public class CreateAssetMenuAttribute:Attribute{public string fileName,menuName;public int order;} public class SpaceAttribute:Attribute{public SpaceAttribute(){} public SpaceAttribute(float f){}}
   public class TextAreaAttribute:Attribute{public TextAreaAttribute(){} public TextAreaAttribute(int a,int b){}}
 }

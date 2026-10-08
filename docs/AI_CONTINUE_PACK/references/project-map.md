@@ -14,7 +14,7 @@
 | 连招路线 / 箱庭分析 / 监狱塔 | `LevelDesign/ComboRouteAnalyzer.cs`、`HakoniwaAnalyzer.cs`、`FloorStacker.cs` |
 | 第 1 步房间构建（接线中心） | `Editor/Step1PrankRoomBuilder.cs`（`Room`、`BuilderVersion`、各 Configure） |
 | 关卡工坊 | `Editor/LevelWorkshopWindow.cs`、`Editor/LevelWorkshopModel.cs`（样板、`Check`、`QuickCheck`） |
-| 探索计划（新字符登记 NotProbed） | `Editor/MechanismExplorationPlan.cs` |
+| 新字符必须有说明（S238 起） | `LevelDesign/ElementCatalog.cs` `Unexplained` |
 | 马里奥性格 / 绕路 | `Gameplay/Step1/MarioPersonality.cs`、`LevelDesign/DetourPlanner.cs` |
 | 马里奥 AI | `Gameplay/Step1/RushMarioMind.cs`、`MarioMindDriver.cs`、`MarioEyes.cs`、`MarioVision.cs`、`SuspicionMeter.cs`、`Step1StuckRescue.cs`、`MarioDoorKick.cs` |
 | 全部调参 | `Gameplay/Step1/MarioMindTuningSO.cs`（资产 `Resources/Step1/RushMarioTuning`） |
@@ -110,7 +110,7 @@
 ## S215 全局总览
 - `Overworld/CampaignLedger.cs`：按门顺序汇总房间（主角机关 / 第一次出现 / 道具 / 提醒）。小镇工坊侧栏 LedgerPanel、网页 `owLedger`/`owLedgerLines`（overworld.js 末尾）+ `owLedgerRender`（app.js）。改规则两边一起改，verify 逐字对照（ow_ledger.json）。
 - 炸弹预算：小镇房间按 `bombsPerRound + OverworldTown.MaxBonusBombs` 加固（`Step1PrankRoomBuilder.ExtraBombs`，OverworldBuilder 建房前设、finally 归零）。改 MaxBonusBombs 要升 BuilderVersion。
-- 旧工具菜单在 `MarioTrickster/旧工具 (Legacy)/`；S237 起测试报告在 `检查与记录 Checks/测试报告 …`、美术工具在 `美术 Art/工具 Pipeline/…`（TestConsoleWindow 用 ExecuteMenuItem 调，改名要一起改；sim S237 查不存在的菜单）。窗口之间跳转直接调 `XxxWindow.Open()`，不要用菜单字符串。
+- 旧工具菜单 S238 已全删（顶层 10 个）；特效工厂 / 特效快速套用 / 溶解噪声在 `美术 Art/`；S237 起测试报告在 `检查与记录 Checks/测试报告 …`、美术工具在 `美术 Art/工具 Pipeline/…`（sim S237 查 ExecuteMenuItem 调了不存在的菜单）。窗口之间跳转直接调 `XxxWindow.Open()`，不要用菜单字符串。
 
 ## S216 手感
 - `Gameplay/Step1/Step1Feel.cs`：所有手感曲线纯函数（StunStep 硬直期物理、Simulate 弹飞轨迹、StunOver 落地才恢复、TelegraphRate/Shake、SpringPadScaleY、Ring、HurtTint、ShakeOffset 平滑噪声）+ `LaunchFeel` 运行时参数（Step1Combo.Start 从调参写入）。

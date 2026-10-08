@@ -13,7 +13,7 @@
 3. **Registry**：`AsciiElementRegistry.cs` 的内置列表末尾（`};` 之前）加 `AsciiElementEntry`（`elementName` = 主题 key，`componentTypeNames` = 组件类名，isSolid/isTrigger/尺寸/颜色）；`BUILTIN_ENTRY_COUNT`+1 并在注释写 `SXXX: +X`。
 4. **说明书** `ElementCatalog.cs`：`I('X', "Key", "中文名", "English", Role.xxx, "是什么（大白话）", "怎么放", needsSupport:…, step1: true)`。Role：玩家按 L 的用 `PlayerPrank`（会进连招路线），被动特殊物用 `Special`。
 5. **主题槽位** `LevelThemeProfile.cs`：`new ElementSpriteMapping { elementKey = "Key" },`。
-6. **探索计划** `Editor/MechanismExplorationPlan.cs`：`NotProbed` 字符串末尾加字符 + 注释一行。
+6. **说明书检查**：`ElementCatalog.Unexplained(registry 字符)` 必须为空（S238 起替代旧探索计划 NotProbed，那个文件已删）。
 7. **摆放规则**（需要时）`ElementCatalog.PlacementIssues`：头顶空间、炮口、宽度上限等，报错文字带 `(x,y)` 坐标。
 8. **死局/可达**：实心与否决定可达性按最坏情况算；会"打开路"的（塌/炸/门）放进 `LevelDeadlockAnalyzer.PersistentOpeners` 视情况。
 9. **构建器** `Editor/Step1PrankRoomBuilder.cs`：在配置区 `foreach (var x in root.GetComponentsInChildren<X>(true)) { x.Configure(tuning.…); EditorUtility.SetDirty(x); count++; }`；`BuilderVersion`+1。
@@ -22,7 +22,7 @@
 12. **连招**：会"坑到"马里奥的，在 `Step1Combo.Start` 订阅事件 `Register("kind")`（记得 OnDestroy 退订）。需要进工坊连招路线但不是 PlayerPrank 的 → `ComboRouteAnalyzer.IsChainPart`。
 13. **与爆炸互动**：`TricksterBomb.Blast` 里加一行 `GetComponentInParent<X>()` 分支（炸弹、油桶共用规则）。
 14. **样板**：至少放进一个样板（`LevelWorkshopModel.HakoniwaSample` 等），跑 verify.sh 确认仍可玩。
-15. **测试** 1 个：纯逻辑 + 接线 StringAssert + `MissingFromCatalog` 为空 + 样板 Playable。
+15. **测试** 1 个：纯逻辑 + 接线 StringAssert + `ElementCatalog.Unexplained` 为空 + 样板 Playable。
 16. **文档**：`docs/ELEMENT_LEGEND.md` 在 `| \`K\` |` 前插一行（列：字符 | 中英名 | 是什么 | 怎么放 | 路/视线 | 主题 key | 贴图适配 | 建议像素 | 第1步）。
 
 ## 常见坑

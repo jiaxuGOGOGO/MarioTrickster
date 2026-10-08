@@ -46,16 +46,6 @@ public class H4PerceptionHonestyTests
     }
 
     [Test]
-    public void GuidedMarioBrainNeverReadsPossessionTruth()
-    {
-        string src = Read("Scripts/Editor/ExplorationTrialObserver.cs");
-        AssertNoTruthReads(Slice(src, "protected override void UpdateMarioBrain", "\n    }\n}"), "GuidedBot.UpdateMarioBrain");
-        AssertNoTruthReads(Slice(src, "private void UpdateJunctionRunner", "public GuidedBot("), "GuidedBot.UpdateJunctionRunner");
-        AssertNoTruthReads(Slice(src, "private bool ApplyPublicQueueInput", "private bool ApplyWallTactics"), "GuidedBot.ApplyPublicQueueInput");
-        AssertNoTruthReads(Slice(src, "private bool ApplyWallTactics", "private bool ApplySolidStepExit"), "GuidedBot.ApplyWallTactics");
-    }
-
-    [Test]
     public void PassiveSensorOnlyReadsWorldEvidence()
     {
         string src = Read("Scripts/Gameplay/SilentMarkSensor.cs");

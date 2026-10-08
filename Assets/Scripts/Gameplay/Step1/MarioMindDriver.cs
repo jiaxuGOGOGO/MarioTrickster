@@ -69,8 +69,8 @@ public class MarioMindDriver : MonoBehaviour
         if (LevelPathPlanner.NeedsPlanning(rows)) gridRows = rows;
     }
 
-    /// <summary>S203：调参"固定性格"（-1 = 随机）。</summary>
-    private MarioPersonalityKind? forcedPersonality => tuning != null && tuning.fixedPersonality >= 0 ? (MarioPersonalityKind?)(MarioPersonalityKind)Mathf.Clamp(tuning.fixedPersonality, 0, 2) : null;
+    /// <summary>S203：调参"固定性格"（S238 起 = 性格下拉选了某一种）。</summary>
+    private MarioPersonalityKind? forcedPersonality => tuning != null && tuning.ForcedPersonalityIndex >= 0 ? (MarioPersonalityKind?)(MarioPersonalityKind)tuning.ForcedPersonalityIndex : null;
     /// <summary>纯逻辑：自动检查第 n 局用哪种性格（1→冲冲 2→谨慎 3→贪财 4→冲冲…）。</summary>
     public static MarioPersonalityKind CycledPersonality(int round) => (MarioPersonalityKind)(((round - 1) % 3 + 3) % 3);
     public static string PersonalityTip(MarioPersonalityKind k) => k == MarioPersonalityKind.Cautious ? Step1Text.CautiousTip : k == MarioPersonalityKind.Greedy ? Step1Text.GreedyTip : "";

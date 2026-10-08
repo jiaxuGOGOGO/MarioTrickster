@@ -61,13 +61,13 @@ public class EnergySystem : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     /// <summary>
     /// Infinite Energy：开启后能量不消耗，始终保持满值。
-    /// 默认 false，仅由 TestConsoleWindow 在运行时设置，
+    /// 默认 false，只由调试代码在运行时设置（S238 旧测试台已删；第 1 步无限技能用 F9），
     /// 每次 Play 自动重置为 false，不影响自动化测试。
     /// </summary>
     [System.NonSerialized] public bool DebugInfiniteEnergy = false;
 #endif
 
-    // GameplayLoopConfigSO Facade 读取：SO 存在时实时读取，缺失时回退本组件默认值
+    // S238：从唯一的调参文件 RushMarioTuning 读（GameplayMetrics），找不到才用本组件默认值
     private float MaxEnergyValue => GameplayMetrics.EnergyMaxEnergy(maxEnergy);
     private float StartEnergyValue => GameplayMetrics.EnergyStartEnergy(startEnergy);
     private float DisguiseCostValue => GameplayMetrics.EnergyDisguiseCost(disguiseCost);

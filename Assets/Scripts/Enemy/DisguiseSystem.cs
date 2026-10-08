@@ -55,7 +55,7 @@ public class DisguiseSystem : MonoBehaviour
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
     /// <summary>
     /// Instant Blend：开启后伪装后立即进入 IsFullyBlended 状态，无需等待 1.5s 静止。
-    /// 默认 false，仅由 TestConsoleWindow 在运行时设置，
+    /// 默认 false，只由调试代码在运行时设置（S238 旧测试台已删；第 1 步无限技能用 F9），
     /// 每次 Play 自动重置为 false，不影响自动化测试。
     /// </summary>
     [System.NonSerialized] public bool DebugInstantBlend = false;

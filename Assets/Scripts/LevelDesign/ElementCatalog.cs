@@ -114,6 +114,8 @@ public static class ElementCatalog
         I('R', "Tripwire", "绊线", "Tripwire", Role.Special, "地上一根细线：马里奥踩到绊一下（0.4 秒），并**启动你用 F 布置好的连锁**。每局一次；你自己踩不触发。", "放在连锁第一环前 1–3 格，马里奥必经的地面上。", needsSupport: true, step1: true),
         I('K', "Cannon", "大炮（朝右）", "Cannon (→)", Role.PlayerPrank, "伪装在旁按 L 开一炮（每局 1 发）；打完后站进炮口把自己打飞逃跑。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: 1),
         I('k', "Cannon", "大炮（朝左）", "Cannon (←)", Role.PlayerPrank, "同上，炮口朝左。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: -1),
+        I('i', "RoomLamp", "灯", "Lamp", Role.PlayerPrank, "夜里的光源：一圈之内马里奥看得见。捣蛋者伪装在旁按 L 灭灯 8 秒（这一片变暗，能溜过去 / 荡过去）。白天没区别。", "放在空中或地面上（不挡路）；夜里要照到他必经的路口才有意思。", needsSupport: false, step1: true),
+        I('v', "GrassGround", "草地", "Grass ground", Role.Terrain, "实心地面，上面长着草：捣蛋者在草地上遁地（U）不会拱出土包，马里奥看不见。炸弹炸不开。", "铺在地面那一层（代替 #）；草地和裸地交替 = 遁地路线有藏有露。", step1: true),
         I('o', "Collectible", "宝物", "Loot", Role.Objective, "马里奥要拿的宝物（实战房里自动变成 LootObjective）。", "放在离出口远的一端，只能有 1 个。", unique: true, step1: true),
         I('G', "GoalZone", "出口", "Exit", Role.Objective, "马里奥拿宝后要回到这里。", "放在起点附近，只能有 1 个。", unique: true, step1: true),
         I('M', "MarioSpawn", "马里奥出生点", "Mario spawn", Role.Spawn, "马里奥从这里出发。", "脚下要实心，只能有 1 个。", unique: true, needsSupport: true, step1: true),

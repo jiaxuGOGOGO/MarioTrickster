@@ -23,7 +23,46 @@ public class Step1MapLegend : MonoBehaviour
         ('R', "绊线：他踩到 → 启动你的连锁"), ('U', "油桶：被点燃会爆炸（连锁）"), ('Q', "铁笼：按 L 落下关人 3 秒"),
         ('Y', "绳套：谁踩谁被吊 10 秒"), ('?', "道具箱：谁先碰归谁"), ('K', "大炮：←→↑↓ 瞄准，L 开炮；没弹可钻进去"),
         ('J', "弹簧板：按 L 弹飞他"), ('n', "香蕉皮：按 L 让他滑"), ('~', "火：按 L 喷火"), ('[', "封路墙：按 L 升墙"),
+        ('i', "灯：夜里照亮一圈；按 L 灭 8 秒"), ('v', "草地：能遁地，<b>土包看不见</b>"),
     };
+
+    /// <summary>S241：图例分三组（用户："图例太密集，大脑过载"）——先看"我能按 L 的"，再看"能躲 / 能钻的"，最后"挡路 / 地形"。</summary>
+    public enum Group { Prank, Hide, Terrain }
+    public static Group GroupOf(char ch)
+    {
+        switch (ch)
+        {
+            case '~': case '[': case 'C': case 'J': case 'n': case 'x': case 'Q': case 'K': case 'i': case 'R': return Group.Prank;
+            case 'b': case 'O': case 'v': case 'c': case '?': case 'Y': case 'U': return Group.Hide;
+            default: return Group.Terrain;
+        }
+    }
+    public static string GroupTitle(Group g) => g == Group.Prank ? "能按 L 的机关" : g == Group.Hide ? "能躲 · 能钻 · 能捡" : "挡路 · 地形";
+
+    /// <summary>S241 纯逻辑：这个房间的图例 = 只列房间里真的有的字符，按组排好（没有的不列）。</summary>
+    public static List<(char ch, string use)> ForRoom(IList<string> rows)
+    {
+        var have = new HashSet<char>();
+        if (rows != null) foreach (var r in rows) foreach (var c in Step1Layout.StripSlots(r)) have.Add(c);
+        if (rows != null) foreach (var r in rows) foreach (var c in r) if (Step1Layout.Slots.TryGetValue(c, out var opts)) foreach (var o in opts) if (o != '.') have.Add(o);
+        var list = new List<(char, string)>();
+        foreach (Group g in new[] { Group.Prank, Group.Hide, Group.Terrain })
+            foreach (var e in Entries) if (GroupOf(e.ch) == g && (rows == null || have.Contains(e.ch) || (e.ch == 'K' && have.Contains('k')))) list.Add(e);
+        return list;
+    }
+
+    /// <summary>S241 纯逻辑：场景小标签只显示你身边的（太多字看不过来）。radius ≤ 0 = 全显示。</summary>
+    public static bool TagNear(Vector2 tag, Vector2 you, float radius) => radius <= 0f || Vector2.Distance(tag, you) <= radius;
+
+    private List<(char ch, string use)> roomEntries;
+    private Transform you; private float tagRadius = 5.5f;
+
+    private void Start()
+    {
+        roomEntries = ForRoom(Step1PrankRoomBuilderBridge.CurrentRoom);
+        var t = MarioMindTuningSO.LoadOrDefault(); if (t != null) tagRadius = t.legendTagRadius;
+        var y = FindObjectOfType<TricksterController>(); if (y != null) you = y.transform;
+    }
 
     private void OnDestroy() { Visible = false; }
 
@@ -66,21 +105,25 @@ public class Step1MapLegend : MonoBehaviour
             GUI.Label(new Rect(20, h - 118, 360, 30), "<color=#BBBBBB>M / Tab = 图例 Legend</color>", Step1Gui.Text(18));
             return;
         }
-        float rowH = 30f, panelH = 50f + Entries.Length * rowH;
-        var r = new Rect(20, h - 130 - panelH, 460, panelH);
+        var entries = roomEntries ?? new List<(char, string)>(Entries);
+        int groups = 0; Group? last = null; foreach (var e in entries) { var g = GroupOf(e.ch); if (g != last) { groups++; last = g; } }
+        float rowH = 30f, panelH = 50f + entries.Count * rowH + groups * 26f;
+        var r = new Rect(20, Mathf.Max(10f, h - 130 - panelH), 480, panelH);
         Step1Gui.Panel(r, 0.82f);
-        GUI.Label(new Rect(r.x + 14, r.y + 8, 440, 30), "<b>图例 Legend</b>  <size=16>（M/Tab 关闭）</size>", Step1Gui.Text(22));
+        GUI.Label(new Rect(r.x + 14, r.y + 8, 460, 30), "<b>这个房间有什么</b>  <size=16>（M/Tab 关闭）</size>", Step1Gui.Text(22));
         var old = GUI.color;
-        for (int i = 0; i < Entries.Length; i++)
+        float y = r.y + 44; last = null;
+        foreach (var (ch, use) in entries)
         {
-            var (ch, use) = Entries[i];
-            float y = r.y + 44 + i * rowH;
-            var c = ElementCatalog.EditorColor(ch); c.a = 1f;
-            GUI.color = c;
-            GUI.DrawTexture(new Rect(r.x + 16, y + 4, 22, 22), Texture2D.whiteTexture);
-            GUI.color = old;
+            var g = GroupOf(ch);
+            if (g != last) { GUI.Label(new Rect(r.x + 14, y, 440, 24), $"<color=#FFD24A><b>{GroupTitle(g)}</b></color>", Step1Gui.Text(17, TextAnchor.MiddleLeft, false)); y += 26f; last = g; }
             var info = ElementCatalog.Get(ch);
-            GUI.Label(new Rect(r.x + 48, y, 400, rowH), $"<b>{(info != null ? info.zh : ch.ToString())}</b>  {use}", Step1Gui.Text(18, TextAnchor.MiddleLeft, false));
+            var icon = info != null ? Step1PropIcons.IconSprite(info.themeKey) : null;
+            var box = new Rect(r.x + 16, y + 3, 24, 24);
+            if (icon != null) GUI.DrawTextureWithTexCoords(box, icon.texture, new Rect(0, 0, 1, 1));
+            else { var c = ElementCatalog.EditorColor(ch); c.a = 1f; GUI.color = c; GUI.DrawTexture(box, Texture2D.whiteTexture); GUI.color = old; }
+            GUI.Label(new Rect(r.x + 50, y, 420, rowH), $"<b>{(info != null ? info.zh : ch.ToString())}</b>  {use}", Step1Gui.Text(18, TextAnchor.MiddleLeft, false));
+            y += rowH;
         }
         if (Camera.main == null) return;
         float scale = Mathf.Max(0.1f, Screen.height / h);
@@ -88,6 +131,7 @@ public class Step1MapLegend : MonoBehaviour
         foreach (var (t, text, color) in tags)
         {
             if (t == null || !t.gameObject.activeInHierarchy) continue;
+            if (you != null && !TagNear(t.position, you.position, tagRadius)) continue; // S241：只标你身边的
             Vector3 sp = Camera.main.WorldToScreenPoint(t.position + Vector3.up * 0.75f);
             if (sp.z < 0f) continue;
             var at = new Vector2(sp.x / scale, (Screen.height - sp.y) / scale);

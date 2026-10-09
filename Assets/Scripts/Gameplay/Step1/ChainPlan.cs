@@ -160,7 +160,7 @@ public class ChainPlan : MonoBehaviour
     {
         if (self == null || tuning == null) return;
         links.RemoveAll(l => l == null);
-        bool inputOk = !Step1HandsOffCheck.IsRunning && !Step1PlaytestLog.IsTyping && !Step1Screen.HelpOpen && Time.timeScale > 0f;
+        bool inputOk = !Step1HandsOffCheck.IsRunning && !Step1PlaytestLog.IsTyping && !Step1Screen.HelpOpen && Time.timeScale > 0f && !TricksterBurrow.BodyBusy; // S241
         if (inputOk && Step1Keys.Down(KeyCode.F)) { if (Step1Keys.Shift()) AutoArrange(); else TryToggleNearest(); }
         if (!Live && liveUntil > 0f) { liveUntil = -1f; if (step > 0) Finish(); }
         if (!Live || mario == null) return;

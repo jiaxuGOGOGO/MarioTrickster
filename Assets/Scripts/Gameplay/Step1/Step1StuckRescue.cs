@@ -24,6 +24,7 @@ public class Step1StuckRescue : MonoBehaviour
 
     public int RescuesThisRound { get; private set; }
     public Vector2 LastStuckAt { get; private set; }
+    private Vector2 LastRescueFrom = new Vector2(-999f, -999f);
 
     public void Configure(MarioMindTuningSO t, string[] grid) { tuning = t; roomGrid = grid ?? new string[0]; }
 
@@ -96,7 +97,7 @@ public class Step1StuckRescue : MonoBehaviour
 
     private void ResetRound()
     {
-        RescuesThisRound = 0; still = 0f; hardStill = 0f; hasBest = false;
+        RescuesThisRound = 0; LastRescueFrom = new Vector2(-999f, -999f); still = 0f; hardStill = 0f; hasBest = false;
         if (mario != null) anchor = mario.transform.position;
     }
 
@@ -105,14 +106,18 @@ public class Step1StuckRescue : MonoBehaviour
         if (mario == null || manager == null || manager.CurrentState != GameState.Playing) { still = 0f; hardStill = 0f; return; }
         Vector2 pos = mario.transform.position;
         // 只在"赶路"（去拿宝/回出口，一定有目标）时判定；起疑、查看、找人时站着不动是正常表演，不算卡住。
-        bool notRunning = driver.IsWaitingToStart || driver.Mind.State != MarioMindState.Running;
+        var st = driver.Mind.State;
+        // S241：起疑 ? / 查看 = 暂停（不清零）。用户反馈包：卡在门洞边 45 秒，状态在"赶路 ↔ 起疑"之间来回跳——
+        // 以前每次起疑都清零、切回赶路第一帧又算"有进展" → 永远到不了救援。现在只有追人 / 找人 / 起步等待才清零。
+        bool looking = st == MarioMindState.Curious || st == MarioMindState.Investigating;
+        bool notRunning = driver.IsWaitingToStart || (st != MarioMindState.Running && !looking);
         // S240：被晕 / 东张西望 / 躲闪 / 回放 = 暂停（不清零）。以前这里清零 → 坑底有火反复烧、或者老在东张西望，永远凑不满 6 秒（用户截图：一直卡着）
-        bool paused = driver.Mind.IsStunned || driver.Mind.IsGlancing || driver.Mind.Dodging || ChainReplay.Playing;
+        bool paused = looking || driver.Mind.IsStunned || driver.Mind.IsGlancing || driver.Mind.Dodging || ChainReplay.Playing;
         if (notRunning) { hasBest = false; anchor = pos; }
         // S198："没有进展"：到目标的距离 stuckSeconds 秒内没有缩短 stuckProgressCells 格 = 卡住（来回跳、原地跳都算）。
         bool progressed = false;
         Vector2? goal = driver.CurrentGoal();
-        if (!notRunning)
+        if (!notRunning && !looking)
         {
             if (goal.HasValue)
             {
@@ -125,7 +130,7 @@ public class Step1StuckRescue : MonoBehaviour
         still = r.still; hardStill = r.hard;
         if (!r.rescue) return;
         hasBest = false;
-        Rescue(pos, paused ? "兜底(" + (driver.Mind.IsStunned ? "晕" : driver.Mind.IsGlancing ? "张望" : "躲闪") + ")" : "没进展");
+        Rescue(pos, paused ? "兜底(" + (looking ? "起疑" : driver.Mind.IsStunned ? "晕" : driver.Mind.IsGlancing ? "张望" : "躲闪") + ")" : "没进展");
     }
 
     /// <summary>S235：房间守卫发现马里奥出界 → 立即救回（同一套"沿路线往前放 / 最近安全格"，也记一次 stuck_rescues）。</summary>
@@ -140,7 +145,10 @@ public class Step1StuckRescue : MonoBehaviour
         // S240：安全格来自静态地图——塌掉的桥、碎掉的地板在静态图里还"在"。放之前用物理查一下脚下真的有地面，没有就换下一个。
         Vector2? goal = driver.CurrentGoal();
         Vector2 target = pos + Vector2.up * 0.5f; bool found = false;
-        foreach (var c in RescueCandidates(roomGrid, pos, goal, SafeCells()))
+        // S241：这局在附近（3 格内）已经救过一次又卡住 = 这里是个坑，放到路线更前面（至少 5 格）。
+        bool repeat = RescuesThisRound > 1 && (LastRescueFrom - pos).sqrMagnitude < 9f;
+        LastRescueFrom = pos;
+        foreach (var c in RescueCandidates(roomGrid, pos, goal, SafeCells(), repeat ? 5f : 2f))
             if (HasGroundNow(c)) { target = c; found = true; break; }
         if (!found) target = NearestSafe(pos);
         Report(pos, target, why);
@@ -170,7 +178,7 @@ public class Step1StuckRescue : MonoBehaviour
     /// S240 纯逻辑：救援候选位置，按优先级排好：先是路线上往前的格（离卡点 ≥2 格、能到出口），再是离卡点由近到远的安全格（最多 12 个）。
     /// 调用方逐个用物理检查（脚下真有地面）挑第一个。
     /// </summary>
-    public static System.Collections.Generic.List<Vector2> RescueCandidates(string[] grid, Vector2 pos, Vector2? goal, System.Collections.Generic.ICollection<int> safe)
+    public static System.Collections.Generic.List<Vector2> RescueCandidates(string[] grid, Vector2 pos, Vector2? goal, System.Collections.Generic.ICollection<int> safe, float minAhead = 2f)
     {
         var res = new System.Collections.Generic.List<Vector2>();
         if (grid != null && grid.Length > 0 && goal.HasValue)
@@ -188,7 +196,7 @@ public class Step1StuckRescue : MonoBehaviour
                 for (int i = 1; i < path.Count; i++)
                 {
                     var c = path[i];
-                    if (Mathf.Abs(c.x - pos.x) + Mathf.Abs(c.y - pos.y) < 2f && i < path.Count - 1) continue;
+                    if (Mathf.Abs(c.x - pos.x) + Mathf.Abs(c.y - pos.y) < minAhead && i < path.Count - 1) continue;
                     if (safe != null && safe.Count > 0 && !safe.Contains(LevelReachabilityAnalyzer.CellKey(c.x, c.y))) continue;
                     res.Add(new Vector2(c.x, c.y));
                 }
@@ -225,7 +233,7 @@ public class Step1StuckRescue : MonoBehaviour
     /// S209 纯逻辑：沿马里奥去 goal 的规划路线，找第一个离卡住点 ≥ 2 格、而且"能到出口"的站位（safe = null 时不过滤）。
     /// 找不到返回 null（用最近安全格兜底）。只用地形与马里奥自己的目标（H4）。
     /// </summary>
-    public static Vector2? RescueAlongRoute(string[] grid, Vector2 pos, Vector2 goal, System.Collections.Generic.ICollection<int> safe)
+    public static Vector2? RescueAlongRoute(string[] grid, Vector2 pos, Vector2 goal, System.Collections.Generic.ICollection<int> safe, float minAhead = 2f)
     {
         if (grid == null || grid.Length == 0) return null;
         var reg = AsciiElementRegistry.GetDefault();
@@ -241,7 +249,7 @@ public class Step1StuckRescue : MonoBehaviour
         for (int i = 1; i < path.Count; i++)
         {
             var c = path[i];
-            if (Mathf.Abs(c.x - pos.x) + Mathf.Abs(c.y - pos.y) < 2f && i < path.Count - 1) continue;
+            if (Mathf.Abs(c.x - pos.x) + Mathf.Abs(c.y - pos.y) < minAhead && i < path.Count - 1) continue;
             if (safe != null && safe.Count > 0 && !safe.Contains(LevelReachabilityAnalyzer.CellKey(c.x, c.y))) continue;
             return new Vector2(c.x, c.y);
         }

@@ -10,6 +10,7 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider2D))]
 public class IronCage : ControllableLevelElement
 {
+    protected override bool RefundOnMiss => false; // S241：挡路 / 改地形 / 一次性，不按"打没打中"退还
     [SerializeField] private float holdSeconds = 3f;
     [SerializeField] private float dropHeight = 2f;
     private Transform visual;

@@ -414,6 +414,9 @@ public class MarioController : MonoBehaviour
 
         // 4. 水平移动（Session 22: 飞行期使用动能保留逻辑）
         HandleDirection();
+        // S241：贴墙不粘（用户截图：马里奥空中贴在红墙上下不来、一直循环）。和捣蛋者 S209 同一条规则：方向键之后再判断。
+        if (!_grounded && Mathf.Abs(_frameVelocity.x) > 0.01f)
+            _frameVelocity.x = BodyUnstick.AirWallSlide(_frameVelocity.x, _grounded, BodyUnstick.HitsWall(boxCollider, groundLayer, _frameVelocity.x > 0f ? Vector2.right : Vector2.left));
 
         // 5. 重力
         HandleGravity();

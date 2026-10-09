@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 44; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?; S199: +U Q; S200: +R
+    private const int BUILTIN_ENTRY_COUNT = 46; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?; S199: +U Q; S200: +R; S241: +i v
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -554,6 +554,21 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "IronCage" }, visualColor = new Color(0.55f, 0.60f, 0.68f, 0.85f), visualScale = new Vector2(0.9f, 0.9f),
                 customColliderSize = new Vector2(0.9f, 1f), customColliderOffset = Vector2.zero,
                 sortingOrder = 7, isTrigger = true
+            },
+            // S241：灯 'i'（夜里的光源，按 L 灭灯）+ 草地 'v'（实心地面，遁地时土包看不见）
+            new AsciiElementEntry
+            {
+                asciiChar = 'i', elementName = "RoomLamp", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "RoomLamp" }, visualColor = new Color(1.00f, 0.88f, 0.45f), visualScale = new Vector2(0.5f, 0.8f),
+                customColliderSize = new Vector2(0.6f, 0.8f), customColliderOffset = Vector2.zero,
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'v', elementName = "GrassGround", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SceneryProp" }, visualColor = new Color(0.36f, 0.62f, 0.30f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 0, isTrigger = false
             },
         };
         registry.BuildCache();

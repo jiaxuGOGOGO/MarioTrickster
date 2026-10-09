@@ -21,7 +21,7 @@ public static class TuningGroups
         new Group { title = "马里奥：性格 · 学习 · 反制", why = "三种性格、记住被坑的地方、停时间、躲炸弹、踢门、钻炮",
             headers = new[] { "S203: Mario personalities (Rush / Cautious / Greedy)", "Mario time stop (S197)" } },
         new Group { title = "你的技能：炸弹 · 缩小 · 通风管 · 诱饵 · 挑衅 · 连锁 · 能量", why = "每局几次、冷却多久、炸多大；能量和马里奥的 Q 扫描也在这",
-            headers = new[] { "Trickster kit (S197)", "S200: chain plan (F), taunt (T), tripwire, Mario learning", "S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）" } },
+            headers = new[] { "Trickster kit (S197)", "S200: chain plan (F), taunt (T), tripwire, Mario learning", "S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）", "S241: 机关预约 · 光影 · 遁地 · 蛛丝 · 图标" } },
         new Group { title = "机关：火 · 墙 · 弹簧 · 香蕉皮 · 油桶 · 铁笼 · 绳套 · 大炮 · 地形", why = "每种机关预警多久、晕多久、范围多大",
             headers = new[] { "Prank props (S183)", "New pranks (S193)", "S198: bombs hurt, cannon aim, snare, pickups", "S199: oil barrel, cage, decoy, alarm, door kick", "Movement-limiting terrain (S197)", "Cannon (S187)", "S240: 坐进大炮 · 用过的机关 · 连击看得懂 · 卡住记录", "Collapse bridge (S183)", "Hakoniwa (S196: Souls-style interconnected floors)" } },
         new Group { title = "一局的规则：命 · 时间 · 连招 · 回放", why = "几条命、一局多长、连招窗口、顿帧和震屏、慢动作回放",

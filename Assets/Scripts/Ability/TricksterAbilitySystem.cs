@@ -273,10 +273,13 @@ public class TricksterAbilitySystem : MonoBehaviour
         {
             disguiseSystem.OnDisguiseChanged += HandleDisguiseChanged;
         }
+        ControllablePropBase.MissRefunded += HandleMissRefunded; // S241
     }
 
     private void OnDisable()
     {
+        ControllablePropBase.MissRefunded -= HandleMissRefunded; // S241
+        armed = null;
         // 取消事件订阅
         if (disguiseSystem != null)
         {
@@ -339,6 +342,7 @@ public class TricksterAbilitySystem : MonoBehaviour
 
         // Session 20: 更新连线显示
         UpdateLineRenderers();
+        TickArmed(); // S241
     }
 
     #region 输入回调（由 TricksterController 调用）
@@ -387,19 +391,114 @@ public class TricksterAbilitySystem : MonoBehaviour
             }
         }
 
-        // 触发操控
-        prop.OnTricksterActivate(lastInputDirection);
         controlsUsedThisDisguise++;
 
-        OnPropActivated?.Invoke(prop);
+        // S241：按早了不算失败——他还没走进预判区 → 机关先静静等着（不闪、不暴露），他走到才发动；等不到就退还。
+        // OnPropActivated 只在真正发动那一刻发出（马里奥看见机关动 / 连锁 / 记录的时机都和以前一样）。
+        if (armed == prop) { FireArmed(); return; } // 再按一次 = 不等了，马上发动
+        if (ShouldArm(prop)) { ArmProp(prop); return; }
 
-        if (showDebugInfo)
-        {
-            string energyInfo = energySystem != null ? $", 剩余能量: {energySystem.CurrentEnergy:F0}" : "";
-            Debug.Log($"[TricksterAbility] 操控 {prop.PropName}! 方向: {lastInputDirection}, " +
-                      $"剩余次数: {ControlsRemaining}{energyInfo}");
-        }
+        // 触发操控
+        FireProp(prop);
     }
+
+    private readonly System.Collections.Generic.HashSet<ControllablePropBase> playerFired = new System.Collections.Generic.HashSet<ControllablePropBase>();
+    private void FireProp(IControllableProp prop)
+    {
+        if (prop is ControllablePropBase pb) playerFired.Add(pb); // 只有你亲手按的才退次数 / 能量（连锁自动接上的不花你的）
+        prop.OnTricksterActivate(lastInputDirection);
+        OnPropActivated?.Invoke(prop);
+        if (showDebugInfo) Debug.Log($"[TricksterAbility] 操控 {prop.PropName}! 方向: {lastInputDirection}");
+    }
+
+    // ── S241：机关预约 ─────────────────────────────
+    private IControllableProp armed; private float armedFor; private Vector2 armedDir;
+    private Transform marioT; private Rigidbody2D marioRb; private MarioMindTuningSO armTuning;
+    /// <summary>正在预约的机关（捣蛋者那边显示沙漏；马里奥看不到，H4）。</summary>
+    public IControllableProp Armed => armed;
+    public float ArmedSecondsLeft => armed == null || armTuning == null ? 0f : Mathf.Max(0f, armTuning.propArmSeconds - armedFor);
+    public event System.Action<IControllableProp, bool> ArmEnded; // (机关, 发动了?)
+
+    private bool MarioInZone(IControllableProp prop)
+    {
+        if (marioT == null) { var m = FindObjectOfType<MarioController>(); if (m != null) { marioT = m.transform; marioRb = m.GetComponent<Rigidbody2D>(); } }
+        var at = prop.GetTransform();
+        if (marioT == null || at == null) return true; // 没有马里奥（编辑器 / 测试）= 直接发动
+        Vector2 v = marioRb != null ? marioRb.velocity : Vector2.zero;
+        float tol = armTuning != null ? armTuning.propArmTolerance : 1f;
+        return ChainPlan.ShouldFire(marioT.position, v, at.position, Mathf.Max(0.44f, prop.GetTelegraphDuration()), tol);
+    }
+
+    private bool ShouldArm(IControllableProp prop)
+    {
+        if (armTuning == null) armTuning = MarioMindTuningSO.LoadOrDefault();
+        if (armTuning == null || armTuning.propArmSeconds <= 0f) return false;
+        if (!(prop is ControllablePropBase b) || !b.ArmOnPress) return false;
+        return !MarioInZone(prop);
+    }
+
+    private void ArmProp(IControllableProp prop)
+    {
+        if (armed != null) CancelArmed(true);
+        armed = prop; armedFor = 0f; armedDir = lastInputDirection;
+        Step1Hint.Show(string.Format(Step1Text.ArmWaiting, prop.PropName, armTuning.propArmSeconds), 1.4f);
+    }
+
+    private void FireArmed()
+    {
+        var p = armed; armed = null; if (p == null) return;
+        var keep = lastInputDirection; lastInputDirection = armedDir;
+        if (p.CanBeControlled()) FireProp(p); else Refund();
+        lastInputDirection = keep;
+        ArmEnded?.Invoke(p, true);
+    }
+
+    private void CancelArmed(bool quiet)
+    {
+        var p = armed; armed = null; if (p == null) return;
+        Refund();
+        if (!quiet) Step1Hint.Show(Step1Text.ArmExpired, 1.6f);
+        ArmEnded?.Invoke(p, false);
+    }
+
+    private void Refund()
+    {
+        if (controlsUsedThisDisguise > 0) controlsUsedThisDisguise--;
+        if (energySystem != null) energySystem.AddEnergy(energySystem.GetControlCost());
+    }
+
+    private void HandleMissRefunded(ControllablePropBase p)
+    {
+        if (p == null || !playerFired.Remove(p)) return;
+        Refund();
+        Step1Hint.Show(string.Format(Step1Text.MissRefund, p != null ? p.PropName : ""), 1.6f);
+    }
+
+    private void TickArmed()
+    {
+        if (armed == null) return;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.CurrentState != GameState.Playing) { armed = null; return; } // 回合结束 = 作废（新回合次数本来就重置）
+        armedFor += Time.deltaTime;
+        var r = Step1Stealth.ArmStep(MarioInZone(armed), armedFor, armTuning != null ? armTuning.propArmSeconds : 0f);
+        if (r == Step1Stealth.Arm.FireNow) FireArmed();
+        else if (r == Step1Stealth.Arm.Expire) CancelArmed(false);
+    }
+
+    private void DrawArmed()
+    {
+        if (armed == null || Camera.main == null || Step1HandsOffCheck.IsRunning) return;
+        var at = armed.GetTransform(); if (at == null) return;
+        Step1Gui.Begin();
+        float scale = Mathf.Max(0.1f, Screen.height / Step1Gui.VirtualHeight);
+        Vector3 sp = Camera.main.WorldToScreenPoint(at.position + Vector3.up * 1.1f);
+        if (sp.z < 0f) return;
+        var r = new Rect(sp.x / scale - 46f, (Screen.height - sp.y) / scale - 16f, 92f, 30f);
+        Step1Gui.Panel(r, 0.65f);
+        GUI.Label(r, $"<color=#9FE8FF>⏳ {ArmedSecondsLeft:F1}s</color>", Step1Gui.Text(18, TextAnchor.MiddleCenter, false));
+    }
+
+
 
     /// <summary>
     /// 更新输入方向（用于有方向性的道具操控）
@@ -688,6 +787,7 @@ public class TricksterAbilitySystem : MonoBehaviour
 
     private void DeactivateAbility()
     {
+        CancelArmed(true); // S241：变回来 = 预约作废（退还）——预约也要"以身入局"，不能按完就走
         // Session 20: 取消所有高亮
         if (boundProp != null)
         {
@@ -912,6 +1012,7 @@ public class TricksterAbilitySystem : MonoBehaviour
 
     private void OnGUI()
     {
+        DrawArmed(); // S241：预约沙漏（只有你看得见）
         if (!showDebugInfo) return;
         if (Camera.main == null) return;
 

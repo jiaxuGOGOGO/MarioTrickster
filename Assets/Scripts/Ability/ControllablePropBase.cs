@@ -168,6 +168,24 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     /// </summary>
     protected virtual bool ExtraControlCondition() => true;
 
+    // ── S241：机关容错（早按 = 预约，没打中 = 退一半）─────────────
+    /// <summary>S241：按 L 时他还没走到 → 先预约、等他走进预判区才发动（TricksterAbilitySystem 管）。
+    /// 大炮（要瞄准）、绳套（自动）、灯（立即灭）、暗道这类"按下就该马上生效"的返回 false。</summary>
+    public virtual bool ArmOnPress => true;
+    /// <summary>S241：发动了一下都没坑到他 → 冷却减半、次数退还。挡路 / 改地形 / 一次性的机关不退（它们本来就不是用来"打中"的）。</summary>
+    protected virtual bool RefundOnMiss => true;
+    /// <summary>S241：没打中退还了（参数 = 哪个机关）。TricksterAbilitySystem 收到后把你的操控次数和能量也还给你。</summary>
+    public static event System.Action<ControllablePropBase> MissRefunded;
+    private float _firedAt = float.NegativeInfinity;
+    private static int s_refundFlag = -1;
+    private static bool RefundEnabled
+    {
+        get { if (s_refundFlag < 0) { var t = MarioMindTuningSO.LoadOrDefault(); s_refundFlag = t == null || t.refundOnMiss ? 1 : 0; } return s_refundFlag == 1; }
+    }
+    /// <summary>S241 纯逻辑：没打中时冷却剩多少、次数变成多少（不超过上限）。</summary>
+    public static (float cooldown, int remaining) MissRefund(float cooldown, int remaining, int maxUses) =>
+        (cooldown * 0.5f, maxUses >= 0 ? Mathf.Min(maxUses, remaining + 1) : remaining);
+
     public virtual void OnTricksterActivate(Vector2 direction)
     {
         if (!CanBeControlled()) return;
@@ -234,6 +252,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         {
             remainingUses--;
         }
+        _firedAt = Time.time; // S241：记下发动时间，进冷却时看这段时间里有没有坑到他
 
         OnTelegraphStart();
     }
@@ -323,6 +342,14 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     {
         currentState = PropControlState.Cooldown;
         stateTimer = cooldownDuration;
+        // S241：一下都没坑到 → 冷却减半、次数退还（挫败感太强的老问题：按早按晚一次就浪费）
+        if (RefundOnMiss && RefundEnabled && !float.IsNegativeInfinity(_firedAt) && Step1Stealth.Missed(_firedAt, Step1Combo.LastHitTime, Time.time))
+        {
+            var r = MissRefund(stateTimer, remainingUses, maxUses);
+            stateTimer = r.cooldown; remainingUses = r.remaining;
+            MissRefunded?.Invoke(this);
+        }
+        _firedAt = float.NegativeInfinity;
     }
 
     private void UpdateCooldown()

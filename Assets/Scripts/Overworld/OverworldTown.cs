@@ -45,7 +45,7 @@ public sealed class OverworldTown
     public readonly List<Impact3> sounds = new List<Impact3>();
 
     // ── 这一帧发生的事（驱动层读完就清）──
-    /// <summary>这一帧要给玩家的提示（驱动层翻成 Step1Text 文字；纯逻辑这边不碰文字，sim 才能跑）。</summary>
+    /// <summary>这一帧要给玩家的提示（驱动层翻成界面文字；纯逻辑这边不碰文字，sim 才能跑）。</summary>
     public enum Note { None, TauntNone, Pickup, PeelNo, Peel, TooEarly, RoomMissing, Missed, LateHint, Caught, AmbushWait, Spotted, BigArmed, BigHit, BigChain, BigReloaded, BigSelf, BigStuck, /* S228 */ Bell, BellIgnored, WindowFling, CannonSeat, CannonBadAim, CannonTamper, MarioRides, Lightning, Mudslide, CaveHop, CaveNoExit,
         /* S220 */ YouHurt, YouKO, MarioKO, Heal, MarioHeal, EnergyUp, EnergyFull, Cloud, CloudLow, StormBolt, /* S224 */ AmbushArmed, /* S229 */ MarioDied, YouDied, BothDied, /* S232 */ PickupTaunt, PickupHeart, PickupWasted }
     public Note hint; public float hintSeconds;

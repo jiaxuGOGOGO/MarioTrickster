@@ -7,6 +7,7 @@ using UnityEngine;
 ///   3. 渲染器全隐藏（例如暗线移动）= 看不见。
 /// 绝不读附身门禁 / 当前锚点 / 伪装系统内部状态。
 /// 机关触发：只有触发位置在触发后 activationWitnessWindow 秒内进入视野，才算"亲眼看见"。
+/// S241：夜里只看得见亮处（Step1Lighting：灯 / 火 / 他的手电筒），暗处只有贴身才看得见；预警中的机关、炸弹、油桶自己会发光，不受影响。
 /// </summary>
 public sealed class MarioEyes
 {
@@ -82,6 +83,14 @@ public sealed class MarioEyes
         heardNoise = true; heardAt = where;
     }
 
+    /// <summary>S241：听见脚步（夜里你跑动）。只收一个位置；距离 = 脚步声圈（Step1Stealth.FootstepRadius，下雨打折）。</summary>
+    public void NoteFootstep(Vector2 where)
+    {
+        if (mario == null || t == null) return;
+        if (Vector2.Distance(mario.position, where) > Step1Stealth.FootstepRadius(t, Step1Lighting.Raining)) return;
+        heardNoise = true; heardAt = where;
+    }
+
     public void Forget() { hasLastFigurePos = false; pendingActivation = null; pendingActivationAge = float.PositiveInfinity; pendingRustle = null; }
 
     public void Look(float dt, ref MarioPercept p)
@@ -97,7 +106,10 @@ public sealed class MarioEyes
         {
             Vector2 pos = figure.transform.position;
             // H4 顺序契约：必须先 CanSee，再看外观。
-            if (MarioVision.CanSee(eye, facingRight, pos, figure.transform, t))
+            // S241：看见 = 视锥 + 无遮挡 + 被照亮（暗处只有贴身才看得见）；头顶：你在他头顶附近而且那里亮 → 他抬头察觉。
+            bool inSight = MarioVision.CanSee(eye, facingRight, pos, figure.transform, t) && Step1Lighting.Visible(eye, pos);
+            bool overhead = !inSight && Step1Stealth.OverheadNoticed(mario.position, pos, t.overheadNoticeRadius, Step1Lighting.IsLit(pos)) && SightLine.CanWitness(eye, pos, t.overheadNoticeRadius + 1f, figure.transform);
+            if (inSight || overhead)
             {
                 p.seesFigure = true;
                 p.figurePos = pos;
@@ -120,7 +132,7 @@ public sealed class MarioEyes
         if (!p.seesFigure && decoy != null && !decoy.Revealed)
         {
             Vector2 dp = decoy.transform.position;
-            if (MarioVision.CanSee(eye, facingRight, dp, decoy.transform, t))
+            if (MarioVision.CanSee(eye, facingRight, dp, decoy.transform, t) && Step1Lighting.Visible(eye, dp))
             {
                 if (Decoy.SeenThrough(mario.position, dp, decoy.RevealDistance, Time.time < RandomPickups.MarioXRayUntil))
                 {
@@ -155,13 +167,13 @@ public sealed class MarioEyes
         {
             if (s == null || !s.Live) continue;
             Vector2 sp = s.transform.position; float d = (sp - (Vector2)mario.position).sqrMagnitude;
-            if (d < bestP && MarioVision.CanSee(eye, facingRight, sp, s.transform, t)) { bestP = d; p.seesPickup = true; p.pickupPos = sp; }
+            if (d < bestP && MarioVision.CanSee(eye, facingRight, sp, s.transform, t) && Step1Lighting.Visible(eye, sp)) { bestP = d; p.seesPickup = true; p.pickupPos = sp; }
         }
         if (pendingRustle != null)
         {
             pendingRustleAge += dt;
             Vector2 where = pendingRustle.position;
-            if (MarioVision.CanSee(eye, facingRight, where, pendingRustle, t))
+            if (MarioVision.CanSee(eye, facingRight, where, pendingRustle, t) && Step1Lighting.Visible(eye, where))
             {
                 p.sawRustle = true;
                 p.rustlePos = where;

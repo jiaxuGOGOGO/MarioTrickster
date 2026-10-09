@@ -19,6 +19,7 @@ public class Step1SoundRings : MonoBehaviour
         CrackedWall.Smashed += OnWall;
         Vent.Clanged += OnVent;
         ChainPlan.Clicked += OnClick;
+        TricksterFootsteps.Stepped += OnStep; // S241
     }
 
     private void OnDestroy()
@@ -28,6 +29,7 @@ public class Step1SoundRings : MonoBehaviour
         CrackedWall.Smashed -= OnWall;
         Vent.Clanged -= OnVent;
         ChainPlan.Clicked -= OnClick;
+        TricksterFootsteps.Stepped -= OnStep;
     }
 
     private void Ring(Vector2 at, Step1Readability.Sound s)
@@ -41,4 +43,6 @@ public class Step1SoundRings : MonoBehaviour
     private void OnWall(Vector2 at) => Ring(at, Step1Readability.Sound.WallSmash);
     private void OnVent(Vector2 at) => Ring(at, Step1Readability.Sound.Vent);
     private void OnClick(Vector2 at) => Ring(at, Step1Readability.Sound.ChainClick);
+    // S241：脚步圈 = 耳朵判定同一个函数（下雨打折）
+    private void OnStep(Vector2 at) { if (tuning != null && tuning.soundRings) Step1Fx.SoundRing(at, Step1Stealth.FootstepRadius(tuning, Step1Lighting.Raining)); }
 }

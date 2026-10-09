@@ -62,10 +62,10 @@ public class LevelStudioDocumentTests
     [Test]
     public void UnknownInputIsRejectedRatherThanSilentlyDeleted()
     {
-        Assert.IsFalse(LevelStudioDocument.TryParse("M?TG\n####", out _, out string error));
-        StringAssert.Contains("?", error);
+        Assert.IsFalse(LevelStudioDocument.TryParse("M&TG\n####", out _, out string error)); // S241：? 从 S198 起是道具点，换一个没登记的字符
+        StringAssert.Contains("&", error);
         var doc = Parse("MTG");
-        Assert.Throws<ArgumentException>(() => doc.Paint(1, 0, '?'));
+        Assert.Throws<ArgumentException>(() => doc.Paint(1, 0, '&'));
     }
 
     [Test]

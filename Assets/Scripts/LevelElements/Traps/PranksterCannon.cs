@@ -21,6 +21,8 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider2D))]
 public class PranksterCannon : ControllableLevelElement
 {
+    public override bool ArmOnPress => false; // S241：按下就该马上生效（瞄准 / 自动 / 开路），不预约
+    protected override bool RefundOnMiss => false; // S241：挡路 / 改地形 / 一次性，不按"打没打中"退还
     [Header("=== 炮 ===")]
     [Tooltip("初始炮口朝右（false = 朝左）")]
     [SerializeField] private bool facingRight = true;
@@ -330,7 +332,7 @@ public class PranksterCannon : ControllableLevelElement
     private void UpdateSeat()
     {
         // 进炮：站在炮口、没伪装，按 ↓
-        if (seated == null && near != null && FigureAtMouth(near) && Step1Keys.Down(KeyCode.DownArrow))
+        if (seated == null && near != null && !TricksterBurrow.BodyBusy && FigureAtMouth(near) && Step1Keys.Down(KeyCode.DownArrow))
         {
             if (SeatReadyFor(near)) Seat(near);
             else if (seatCooldownTimer > 0f) Step1Hint.Show(string.Format(Step1Text.CannonSeatCooldown, seatCooldownTimer), 0.8f);

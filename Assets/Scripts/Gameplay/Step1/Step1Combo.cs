@@ -78,6 +78,9 @@ public class Step1Combo : MonoBehaviour
         if (GetComponent<Step1SoundRings>() == null) gameObject.AddComponent<Step1SoundRings>();
         // S225：按 L / P 没成功时说清楚原因（纯表现）。运行时自动挂上 → 旧场景不用重建
         if (GetComponent<Step1FailFeedback>() == null) gameObject.AddComponent<Step1FailFeedback>();
+        // S241：光影（白天 / 夜晚 / 雨天 + 手电筒）、机关图标。运行时自动挂上 → 旧场景不用重建（遁地 / 蛛丝 / 脚步由 Step1Lighting 挂到捣蛋者身上，连招层不碰捣蛋者，H4）
+        if (GetComponent<Step1Lighting>() == null) gameObject.AddComponent<Step1Lighting>();
+        if (GetComponent<Step1PropIcons>() == null) gameObject.AddComponent<Step1PropIcons>();
         manager = GameManager.Instance;
         if (manager != null) manager.OnRoundStart += ResetRound;
         roomCamera = FindObjectOfType<Step1RoomCamera>();
@@ -126,10 +129,15 @@ public class Step1Combo : MonoBehaviour
         Counter?.Reset();
         wasWaiting = wasInPit = false; lastStopAt = float.NegativeInfinity; floorY = float.NaN; flashUntil = 0f;
         causes.Clear(); pendingCause = null; firstHintUntil = 0f;
+        LastHitTime = float.NegativeInfinity;
     }
+
+    /// <summary>S241：最近一次坑到马里奥的时间（机关"没打中退还"用；任何一种坑都算）。</summary>
+    public static float LastHitTime { get; private set; } = float.NegativeInfinity;
 
     private int Register(string kind, string cause = null)
     {
+        LastHitTime = Time.time;
         Counter.Window = tuning.comboWindowSeconds;
         int n = Counter.Register(Time.time, kind);
         if (n <= 1) causes.Clear();

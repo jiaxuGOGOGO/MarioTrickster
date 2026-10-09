@@ -24,6 +24,7 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider2D))]
 public class CollapsingPlatform : ControllableLevelElement
 {
+    protected override bool RefundOnMiss => false; // S241：挡路 / 改地形 / 一次性，不按"打没打中"退还
     [Header("=== 崩塌设置 ===")]
     [SerializeField] private float collapseDelay = 1f;
     [SerializeField] private float respawnDelay = 5f;

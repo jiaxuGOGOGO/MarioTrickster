@@ -34,7 +34,8 @@ public class OverworldTests
         var pk = OverworldPack.Parse("{\"levels\":[],\"overworlds\":[" + OverworldMap.ToJson(m) + "]}");
         Assert.AreEqual(1, pk.Count);
         Assert.AreEqual(OverworldMap.ToText(m), OverworldMap.ToText(pk[0]));
-        Assert.IsNull(LevelPack.Parse("{\"levels\":[" + OverworldMap.ToJson(m) + "]}", c => true, out _), "横版关卡包不把小镇当房间");
+        var asRooms = LevelPack.Parse("{\"levels\":[" + OverworldMap.ToJson(m) + "]}", c => true, out _);
+        Assert.IsTrue(asRooms == null || asRooms.Count == 0, "横版关卡包不把小镇当房间（S241：空列表也算）");
     }
 
     [Test]
@@ -267,7 +268,7 @@ public class OverworldTests
         town.tx = dc.x + 0.5; town.ty = dc.y - 0.5; // 06:00 就站在门 1 口
         town.Tick(1f / 30, new OverworldTown.Input { door = true });
         Assert.IsFalse(town.wantsEnter, "他还没出发：按 E 不算埋伏（以前直奔门口就全胜）");
-        Assert.AreEqual(OverworldTown.Note.AmbushWait, town.hint);
+        Assert.AreEqual(OverworldTown.Note.AmbushArmed, town.hint, "S224 起：太早按 E = 预约埋伏");
         Assert.IsFalse(town.AmbushReady);
     }
 

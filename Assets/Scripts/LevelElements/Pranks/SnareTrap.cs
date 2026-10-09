@@ -15,6 +15,8 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider2D))]
 public class SnareTrap : ControllableLevelElement
 {
+    public override bool ArmOnPress => false; // S241：按下就该马上生效（瞄准 / 自动 / 开路），不预约
+    protected override bool RefundOnMiss => false; // S241：挡路 / 改地形 / 一次性，不按"打没打中"退还
     [SerializeField] private float holdSeconds = 10f;
     [SerializeField] private float selfSeconds = 3f; // S228：你自己踩到只吊 3 秒（宪法 P4：10 秒干等 = 死区）
     [SerializeField] private float hoistDelay = 0.3f;

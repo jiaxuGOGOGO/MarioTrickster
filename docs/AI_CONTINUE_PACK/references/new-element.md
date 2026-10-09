@@ -1,7 +1,7 @@
 # 分册：加新机关 / 新元素（ASCII 字符）
 
 ## 清单（全部做完才算完成）
-1. **挑字符**：先查已用字符（`project-map.md` 字符表）。可用的：`A D N V Z u q a r z`（S200 时）。确认：`grep -n "asciiChar = 'X'" Assets/Scripts/LevelDesign/AsciiElementRegistry.cs` 为空。
+1. **挑字符**：先查已用字符（`project-map.md` 字符表）。可用的：`A D N V Z u q a r z`（S200 时；S241 用掉了 `i v`）。确认：`grep -n "asciiChar = 'X'" Assets/Scripts/LevelDesign/AsciiElementRegistry.cs` 为空。
 2. **组件脚本** `Assets/Scripts/LevelElements/Pranks/<Name>.cs`：
    - 玩家按 L 触发的 → 继承 `ControllableLevelElement`，实现 `OnTelegraphStart/OnTelegraphEnd/OnActivate/OnActiveEnd`；预警由基类管（H3）。一次性的用 `ExtraControlCondition()` 返回 `!used`。
    - 被动/环境的 → 继承 `LevelElementBase`，在 `Awake` 里设 `elementName/category/tags/description`。

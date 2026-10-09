@@ -324,8 +324,8 @@ public class Step1RushMarioTests
     public void HandsOffCheckNeverTouchesMarioDecisions()
     {
         string src = Read("Scripts/Gameplay/Step1/Step1HandsOffCheck.cs");
-        foreach (string token in new[] { "ExplorationTarget", "RushMarioMind", "MarioMindDriver", "SetInputProvider" })
-            StringAssert.DoesNotContain(token, src, "H10 检查只能观察，不能帮马里奥");
+        foreach (string token in new[] { "ExplorationTarget", "RushMarioMind", "SetInputProvider", "Mind.Tick", "AddStartDelay" })
+            StringAssert.DoesNotContain(token, src, "H10 检查只能观察，不能帮马里奥（S241：读性格名字/订阅受伤可以，改决策不行）");
     }
 
     [Test]
@@ -898,7 +898,7 @@ public class Step1RushMarioTests
     {
         StringAssert.Contains("AddComponent<Step1StuckRescue>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
         string src = Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs");
-        StringAssert.Contains("driver.Mind.State != MarioMindState.Running", src, "起疑/查看/找人时站着是正常表演");
+        StringAssert.Contains("st != MarioMindState.Running && !looking", src, "S241：追人/找人时站着是正常表演；起疑张望 = 暂停不清零");
         foreach (string token in new[] { "TricksterController", "IsDisguised", "TryCatch" })
             StringAssert.DoesNotContain(token, CodeOnly(src), "H4：救援不读捣蛋者");
         var t = Tuning();
@@ -940,7 +940,7 @@ public class Step1RushMarioTests
         Assert.AreEqual(1, doc.Grid.Count(c => c == 'o'), "宝物是唯一元素，画第二个 = 移动");
         doc.Paint(2, 1, '3');
         Assert.AreEqual('3', doc.Cell(2, 1));
-        Assert.IsFalse(LevelStudioDocument.TryParse("M?TG\n####", out _, out _), "未知字符仍拒绝");
+        Assert.IsFalse(LevelStudioDocument.TryParse("M&TG\n####", out _, out _), "未知字符仍拒绝");
     }
 
     [Test]
@@ -1981,7 +1981,7 @@ public class Step1RushMarioTests
         var p = Step1StuckRescue.RescueAlongRoute(g, new Vector2(43f, 3f), new Vector2(loot.x, loot.y), null);
         Assert.IsTrue(p.HasValue, "能沿路线找到下一个站位");
         Assert.Less(Mathf.Abs(p.Value.x - loot.x) + Mathf.Abs(p.Value.y - loot.y), Mathf.Abs(43f - loot.x) + Mathf.Abs(3f - loot.y), "救援后离宝物更近（原来放回原处 → 又卡住）");
-        StringAssert.Contains("RescueCandidates(roomGrid, pos, goal, SafeCells())", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs")); // S240：沿路线往前放（候选列表第一批）
+        StringAssert.Contains("RescueCandidates(roomGrid, pos, goal, SafeCells(), repeat ? 5f : 2f)", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs")); // S240：沿路线往前放（候选列表第一批）
     }
 
     [Test]
@@ -2573,5 +2573,93 @@ public class Step1RushMarioTests
         StringAssert.Contains("HasGroundNow(c)", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs"), "放之前查脚下真有地面（塌桥不算）");
         StringAssert.Contains("Step1Feedback.CaptureNote", Read("Scripts/Gameplay/Step1/Step1StuckRescue.cs"), "自动截图");
         StringAssert.Contains("CriticalJumpCells", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "工坊检查轨迹显示黄格");
+    }
+
+    // ── S241：机关不怕早 · 光影 · 遁地 · 蛛丝 · 图标图例 ─────────────────────
+    [Test]
+    public void S241_ArmRefund_ForgivingTiming()
+    {
+        Assert.AreEqual(Step1Stealth.Arm.Wait, Step1Stealth.ArmStep(false, 1f, 5.5f), "早按 = 等他走进来");
+        Assert.AreEqual(Step1Stealth.Arm.FireNow, Step1Stealth.ArmStep(true, 1f, 5.5f));
+        Assert.AreEqual(Step1Stealth.Arm.Expire, Step1Stealth.ArmStep(false, 6f, 5.5f), "等太久作废（退还）");
+        Assert.IsTrue(Step1Stealth.Missed(10f, 5f, 11f)); Assert.IsFalse(Step1Stealth.Missed(10f, 10.4f, 11f));
+        var r = ControllablePropBase.MissRefund(4f, 0, 1);
+        Assert.AreEqual(2f, r.cooldown, 1e-4f, "没打中冷却减半"); Assert.AreEqual(1, r.remaining, "次数退回");
+        Assert.AreEqual(1, ControllablePropBase.MissRefund(4f, 1, 1).remaining, "不超过上限");
+        string sys = Read("Scripts/Ability/TricksterAbilitySystem.cs");
+        StringAssert.Contains("private void ArmProp(IControllableProp prop)", sys);
+        StringAssert.Contains("playerFired", sys, "只退还你亲手按的");
+        StringAssert.Contains("public override bool ArmOnPress => false;", Read("Scripts/LevelElements/Traps/PranksterCannon.cs"), "坐炮 / 开炮一按就生效");
+    }
+
+    [Test]
+    public void S241_Light_DayNightRain_FlashlightAndLamps()
+    {
+        var g = new List<string> { "WWWWWWWWWW", "W........W", "W....W...W", "W........W", "W########W" };
+        Assert.IsTrue(Step1Stealth.Lit(false, new Vector2(3, 1), null, false, Vector2.zero, true, 6, 28, g), "白天处处亮");
+        var lamps = new List<Step1Stealth.Light> { new Step1Stealth.Light(new Vector2(2, 1), 3f) };
+        Assert.IsTrue(Step1Stealth.Lit(true, new Vector2(4, 1), lamps, false, Vector2.zero, true, 6, 28, g));
+        Assert.IsFalse(Step1Stealth.Lit(true, new Vector2(8, 1), lamps, false, Vector2.zero, true, 6, 28, g), "灯外暗");
+        Assert.IsTrue(Step1Stealth.Lit(true, new Vector2(5, 1), null, true, new Vector2(1, 1), true, 6, 28, g), "手电筒前方亮");
+        Assert.IsFalse(Step1Stealth.Lit(true, new Vector2(5, 1), null, true, new Vector2(8, 1), true, 6, 28, g), "手电筒背后暗");
+        Assert.IsFalse(Step1Stealth.Lit(true, new Vector2(7, 2), null, true, new Vector2(2, 2), true, 8, 28, g), "墙挡光");
+        Assert.IsFalse(Step1Stealth.OverheadNoticed(new Vector2(3, 1), new Vector2(3, 3), 2.5f, false), "暗处从头顶荡过不察觉");
+        Assert.IsTrue(Step1Stealth.OverheadNoticed(new Vector2(3, 1), new Vector2(3, 3), 2.5f, true));
+        Assert.AreEqual(Step1LightMode.Day, Step1Stealth.Resolve(Step1LightMode.Auto, 1), "第 1 局白天");
+        var t = Tuning();
+        Assert.Less(Step1Stealth.FootstepRadius(t, true), Step1Stealth.FootstepRadius(t, false), "雨盖住脚步");
+        Assert.IsFalse(Step1Stealth.MakesFootstep(true, 3f, true), "伪装 / 遁地 / 摆荡没脚步声");
+        string eyes = Read("Scripts/Gameplay/Step1/MarioEyes.cs");
+        StringAssert.Contains("Step1Lighting.Visible", eyes, "看见 = 视锥 + 亮");
+        StringAssert.Contains("TricksterFootsteps.Stepped += eyes.NoteFootstep", Read("Scripts/Gameplay/Step1/MarioMindDriver.cs"), "暗处只能听");
+        foreach (var token in new[] { "MarioEyes", "Meter." }) StringAssert.DoesNotContain(token, Read("Scripts/Gameplay/Step1/Step1Lighting.cs"), "光影层只画画面 + 判亮暗，不读马里奥心智");
+    }
+
+    [Test]
+    public void S241_Burrow_And_Silk()
+    {
+        Assert.IsTrue(Step1Stealth.MoundVisible('#', false, true, false, true), "白天裸地移动 = 露土包");
+        Assert.IsFalse(Step1Stealth.MoundVisible('v', false, true, false, true), "草地看不见");
+        Assert.IsFalse(Step1Stealth.MoundVisible('#', false, false, false, true), "夜里看不见");
+        Assert.IsFalse(Step1Stealth.MoundVisible('#', false, true, true, true), "雨天看不见");
+        Assert.IsFalse(Step1Stealth.MoundVisible('#', true, true, false, true), "草丛下看不见");
+        Assert.IsTrue(Step1Stealth.Trampled(new Vector2(3, 1), new Vector2(3.3f, 1), '#'), "反制：踩出来");
+        Assert.IsTrue(Step1Stealth.ScanFlushes(Vector2.zero, new Vector2(2, 0), 3f), "反制：扫描");
+        Assert.IsFalse(Step1Stealth.CanBurrow(true, true, false, false, false, '#', 0f), "伪装中不能遁地");
+        var a = new Vector2(5, 6); var s = Step1Stealth.FromBody(a, new Vector2(5, 2), new Vector2(2, 0));
+        double w0 = System.Math.Abs(s.omega); var s2 = Step1Stealth.Step(s, 2.0, 0, 9.8, 0.0001, 0, 1.2, 8);
+        Assert.Greater(System.Math.Abs(s2.omega), w0 * 3.9, "收线一半 → 角速度约 ×4（角动量守恒）");
+        var g = new List<string> { "WWWWWWWWWW", "W........W", "W........W", "W........W", "W########W" };
+        Assert.IsNotNull(Step1Stealth.FindAnchor(g, new Vector2(3, 1), true, 8), "能挂天花板");
+        Assert.IsFalse(Step1Stealth.CanSilk(false, false, true, 0f), "地下不能射丝");
+        foreach (var f in new[] { "Scripts/Gameplay/Step1/TricksterKit.cs", "Scripts/Gameplay/Step1/DecoyAbility.cs", "Scripts/Gameplay/Step1/TauntAbility.cs", "Scripts/Gameplay/Step1/ChainPlan.cs", "Scripts/LevelElements/Pranks/Vent.cs", "Scripts/LevelElements/Traps/PranksterCannon.cs" })
+            StringAssert.Contains("TricksterBurrow.BodyBusy", Read(f), f + "：遁地 / 摆荡中别的技能键不生效");
+        StringAssert.Contains("Step1Keys.Down(KeyCode.U)", Read("Scripts/Gameplay/Step1/TricksterBurrow.cs"));
+        StringAssert.Contains("Step1Keys.Down(KeyCode.K)", Read("Scripts/Gameplay/Step1/TricksterSilk.cs"));
+        StringAssert.Contains("U 遁地", Step1Text.ControlsBarFor(false, false, false, false, false, false, false, false, true, false));
+    }
+
+    [Test]
+    public void S241_LampGrass_IconsAndLegendOnlyThisRoom()
+    {
+        Assert.IsNotNull(ElementCatalog.Get('i')); Assert.IsNotNull(ElementCatalog.Get('v'));
+        string room = string.Join("\n", Step1PrankRoomBuilder.Room);
+        StringAssert.Contains("i", room, "默认房间有灯"); StringAssert.Contains("v", room, "默认房间有草地");
+        Assert.IsTrue(LevelWorkshopModel.HakoniwaSample.Any(r => r.Contains('i')) && LevelWorkshopModel.HakoniwaSample.Any(r => r.Contains('v')));
+        var only = Step1MapLegend.ForRoom(new[] { "WWWW", "W~.W", "W##W" });
+        Assert.IsTrue(only.Any(e => e.ch == '~')); Assert.IsFalse(only.Any(e => e.ch == 'J'), "图例只列这个房间有的");
+        Assert.AreEqual(Step1MapLegend.Group.Prank, Step1MapLegend.GroupOf('~'));
+        Assert.IsTrue(Step1MapLegend.TagNear(Vector2.zero, new Vector2(3, 0), 5.5f)); Assert.IsFalse(Step1MapLegend.TagNear(Vector2.zero, new Vector2(9, 0), 5.5f), "只标你身边的");
+        Assert.IsTrue(Step1PropIcons.IsWhiteBox(4, 4)); Assert.IsFalse(Step1PropIcons.IsWhiteBox(32, 32), "有美术贴图就不盖图标");
+        Assert.AreEqual(new Color(0.45f, 0.45f, 0.45f, 0.85f), Step1PropIcons.IconTint(false, true, Color.red), "用光了变灰");
+        Assert.AreNotEqual(Color.white, Step1PropIcons.IconTint(true, false, Color.red), "预警时跟着闪");
+        Assert.IsTrue(Step1Icons.Has("FireTrap") && Step1Icons.Has("RoomLamp"));
+    }
+
+    [Test]
+    public void S241_WallSlideFix_NoStickOnWalls()
+    {
+        StringAssert.Contains("AirWallSlide", Read("Scripts/Player/MarioController.cs"), "空中顶墙不粘墙");
+        StringAssert.Contains("SqueezeDirection", Read("Scripts/LevelElements/Traps/ControllableBlocker.cs"), "封路墙只横向挤");
     }
 }

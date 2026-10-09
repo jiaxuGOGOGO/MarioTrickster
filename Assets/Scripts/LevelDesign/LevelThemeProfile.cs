@@ -100,6 +100,9 @@ public class LevelThemeProfile : ScriptableObject
         new ElementSpriteMapping { elementKey = "OilBarrel" },
         new ElementSpriteMapping { elementKey = "IronCage" },
         new ElementSpriteMapping { elementKey = "Tripwire" },
+        // S241：灯、草地
+        new ElementSpriteMapping { elementKey = "RoomLamp" },
+        new ElementSpriteMapping { elementKey = "GrassGround" },
     };
 
     [Header("=== 角色 ===")]

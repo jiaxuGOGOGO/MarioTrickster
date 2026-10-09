@@ -16,10 +16,11 @@ public static class Step1Readability
         level == SuspicionLevel.Alert ? new Color(1f, 0.25f, 0.2f, 0.42f) : new Color(1f, 0.85f, 0.2f, 0.32f);
 
     /// <summary>房间里会被马里奥听见的声音（只有位置，H4）。</summary>
-    public enum Sound { Taunt, Bomb, WallSmash, Vent, ChainClick }
+    public enum Sound { Taunt, Bomb, WallSmash, Vent, ChainClick, Footstep }
 
     /// <summary>房间声音圈半径 = MarioEyes 的听力判定：NoteNoise / NoteTaunt 用 hearingRange，NoteNoiseNear（通风管咣当、连锁咔哒）用 1/3。</summary>
     public static float SoundRadius(Sound s, MarioMindTuningSO t) =>
+        s == Sound.Footstep ? t.footstepRadius :
         s == Sound.Vent || s == Sound.ChainClick ? t.hearingRange / 3f : t.hearingRange;
 
     /// <summary>小镇：挑衅多远听得见（OverworldTown 判定直接用这个函数 → 圈和规则永远一致）。</summary>

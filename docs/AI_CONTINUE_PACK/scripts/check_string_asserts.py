@@ -24,5 +24,17 @@ for tf in glob.glob(root + 'Tests/EditMode/*.cs'):
             lit2 = lit.replace('\\"', '"').replace('\\n', '\n').replace('\\\\', '\\')
             if (kind == 'Contains') != (lit2 in src):
                 bad += 1; print('FAIL', tf.split('/')[-1], kind, f, lit[:90])
+        # S241：foreach (var x in new[] { "a", "b" }) StringAssert.DoesNotContain(x, src) 这种写法以前没查到（漏了 7 个红测试里的 2 个）
+        for m in re.finditer(r'foreach \((?:var|string) (\w+) in new\[\] \{([^}]*)\}\)\s*StringAssert\.(Contains|DoesNotContain)\(\1,\s*(\w+)\b', body):
+            loopv, lits, kind, var = m.groups()
+            if var not in reads: continue
+            f, c = reads[var]
+            try: src = open(root + f, encoding='utf-8').read().replace('\r\n', '\n')
+            except (FileNotFoundError, IsADirectoryError): continue
+            if c: src = code_only(src)
+            for lit in re.findall(r'"((?:[^"\\]|\\.)*)"', lits):
+                n += 1
+                if (kind == 'Contains') != (lit in src):
+                    bad += 1; print('FAIL', tf.split('/')[-1], kind, f, lit[:90])
 print('checked', n, 'bad', bad)
 sys.exit(1 if bad else 0)

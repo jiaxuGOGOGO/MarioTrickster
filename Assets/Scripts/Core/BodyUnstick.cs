@@ -62,4 +62,27 @@ public static class BodyUnstick
         rb.velocity = v;
         return total;
     }
+
+    private static readonly RaycastHit2D[] s_wallHits = new RaycastHit2D[4];
+
+    /// <summary>S241：身体一侧紧贴实心（非单向台面）墙面。马里奥和捣蛋者共用（以前只有捣蛋者有 → 马里奥空中朝墙走会粘在墙上下不来）。</summary>
+    public static bool HitsWall(BoxCollider2D body, LayerMask ground, Vector2 side)
+    {
+        if (body == null) return false;
+        var b = body.bounds;
+        var filter = new ContactFilter2D { useTriggers = false };
+        filter.SetLayerMask(ground);
+        int n = Physics2D.BoxCast(b.center, new Vector2(b.size.x, b.size.y * 0.8f), 0f, side, filter, s_wallHits, 0.04f);
+        for (int i = 0; i < n; i++)
+        {
+            var c = s_wallHits[i].collider;
+            if (c == null || c == body || c.isTrigger) continue;
+            if (SightLine.IsOneWayPlatform(c)) continue;
+            if (Mathf.Abs(s_wallHits[i].normal.x) > 0.5f) return true;
+        }
+        return false;
+    }
+
+    /// <summary>S241：空中朝墙推的水平速度清零（纯函数，sim 能测）。地面上不动，离墙不动。</summary>
+    public static float AirWallSlide(float vx, bool grounded, bool touchingWallThatWay) => !grounded && Mathf.Abs(vx) > 0.01f && touchingWallThatWay ? 0f : vx;
 }

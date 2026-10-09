@@ -129,6 +129,8 @@ public class MarioMindDriver : MonoBehaviour
         TauntAbility.Taunted += eyes.NoteTaunt;          // S200：挑衅 = 听见一个位置
         ChainPlan.LinkFired += eyes.NoteChainLink;       // S200：连锁自动触发的机关，看见了照样起疑
         ChainPlan.Clicked += eyes.NoteNoiseNear;         // S200：编号时"咔哒"一声（很近才听得见）
+        TricksterFootsteps.Stepped += eyes.NoteFootstep; // S241：夜里你跑动的脚步声（只有位置）
+        TricksterBurrow.MoundStirred += eyes.NoteRustle; // S241：看得见的土包在动 = 和草丛晃同一通道（看没看见由眼睛判断）
         if (health != null) { health.OnHealthChanged += HandleHealthChanged; lastHealth = health.CurrentHealth; }
 
         inputManager = FindObjectOfType<InputManager>();
@@ -152,7 +154,7 @@ public class MarioMindDriver : MonoBehaviour
     private void OnDestroy()
     {
         if (abilities != null && eyes != null) abilities.OnPropActivated -= eyes.NotePropActivated;
-        if (eyes != null) { RustleOnPass.Rustled -= eyes.NoteRustle; CrackedWall.Smashed -= eyes.NoteNoise; TricksterBomb.Exploded -= eyes.NoteNoise; Vent.Clanged -= eyes.NoteNoiseNear; TauntAbility.Taunted -= eyes.NoteTaunt; ChainPlan.LinkFired -= eyes.NoteChainLink; ChainPlan.Clicked -= eyes.NoteNoiseNear; }
+        if (eyes != null) { RustleOnPass.Rustled -= eyes.NoteRustle; CrackedWall.Smashed -= eyes.NoteNoise; TricksterBomb.Exploded -= eyes.NoteNoise; Vent.Clanged -= eyes.NoteNoiseNear; TauntAbility.Taunted -= eyes.NoteTaunt; ChainPlan.LinkFired -= eyes.NoteChainLink; ChainPlan.Clicked -= eyes.NoteNoiseNear; TricksterFootsteps.Stepped -= eyes.NoteFootstep; TricksterBurrow.MoundStirred -= eyes.NoteRustle; }
         if (health != null) health.OnHealthChanged -= HandleHealthChanged;
         if (subscribedManager != null) subscribedManager.OnRoundStart -= ResetForRound;
     }

@@ -155,6 +155,49 @@ static class CHECK {
     for(int v=0;v<3;v++){ var c=LevelRouteFollower.CriticalJumpCells(Step1Layout.Resolve(Step1PrankRoomBuilderRoomRaw(),v)); if(c.Count>0){cb++; Console.WriteLine($"     [FAIL] 默认房间布局 {v} 有 {c.Count} 个临界跳格：{string.Join(" ",c.Select(k=>$"({k/1000},{k%1000})"))}");} }
     foreach(var sm in LevelWorkshopModel.SampleRooms){ var c=LevelRouteFollower.CriticalJumpCells(sm.rows); parts.Add($"{sm.name} {c.Count}"); }
     Console.WriteLine($"[{(cb==0?"OK":"FAIL")}] S240 临界跳：默认房间 0｜样板 {string.Join("｜",parts)}（黄格 = 建议加台阶）"); fail+=cb; }
+  // S241：光影 / 遁地 / 蛛丝 / 预约的纯逻辑——白天处处亮、夜里只亮光源和手电筒且墙挡光；土包只在白天裸地移动时露；摆荡收线变快（角动量守恒）、能量不凭空涨；默认房间有灯有草
+  { int sb=0; var parts=new List<string>(); var t=new MarioMindTuningSO();
+    var g=new List<string>{"WWWWWWWWWW","W........W","W....W...W","W........W","W########W"}; // y 从下往上：地面 y=0，人站 y=1
+    if(!Step1Stealth.Lit(false,new Vector2(3,1),null,false,Vector2.zero,true,6,28,g)){sb++;Console.WriteLine("     [FAIL] 白天应处处亮");}
+    var lamps=new List<Step1Stealth.Light>{new Step1Stealth.Light(new Vector2(2,1),3f)};
+    if(!Step1Stealth.Lit(true,new Vector2(4,1),lamps,false,Vector2.zero,true,6,28,g)){sb++;Console.WriteLine("     [FAIL] 夜里灯 3 格内应亮");}
+    if(Step1Stealth.Lit(true,new Vector2(8,1),lamps,false,Vector2.zero,true,6,28,g)){sb++;Console.WriteLine("     [FAIL] 夜里灯外应暗");}
+    if(!Step1Stealth.Lit(true,new Vector2(5,1),null,true,new Vector2(1,1),true,6,28,g)){sb++;Console.WriteLine("     [FAIL] 手电筒正前方应亮");}
+    if(Step1Stealth.Lit(true,new Vector2(5,1),null,true,new Vector2(8,1),true,6,28,g)){sb++;Console.WriteLine("     [FAIL] 手电筒背后应暗");}
+    if(Step1Stealth.Lit(true,new Vector2(7,2),null,true,new Vector2(2,2),true,8,28,g)){sb++;Console.WriteLine("     [FAIL] 墙后应暗（墙挡光）");}
+    parts.Add("白天亮·夜里只亮灯和手电·墙挡光");
+    if(!Step1Stealth.Visible(false,1f,1.2f)||Step1Stealth.Visible(false,2f,1.2f)){sb++;Console.WriteLine("     [FAIL] 暗处只有贴身看得见");}
+    if(Step1Stealth.OverheadNoticed(new Vector2(3,1),new Vector2(3,3),2.5f,false)||!Step1Stealth.OverheadNoticed(new Vector2(3,1),new Vector2(3,3),2.5f,true)){sb++;Console.WriteLine("     [FAIL] 头顶察觉只在亮处");}
+    parts.Add("暗处头顶荡过不察觉");
+    if(!Step1Stealth.MakesFootstep(true,3f,false)||Step1Stealth.MakesFootstep(true,1f,false)||Step1Stealth.MakesFootstep(true,3f,true)||Step1Stealth.MakesFootstep(false,3f,false)){sb++;Console.WriteLine("     [FAIL] 只有跑动才有脚步声");}
+    if(Step1Stealth.FootstepRadius(t,true)>=Step1Stealth.FootstepRadius(t,false)){sb++;Console.WriteLine("     [FAIL] 下雨脚步声应更小");}
+    parts.Add($"脚步 {Step1Stealth.FootstepRadius(t,false):0.#} 格、雨天 {Step1Stealth.FootstepRadius(t,true):0.#} 格");
+    if(!Step1Stealth.MoundVisible('#',false,true,false,true)||Step1Stealth.MoundVisible('v',false,true,false,true)||Step1Stealth.MoundVisible('#',true,true,false,true)||Step1Stealth.MoundVisible('#',false,false,false,true)||Step1Stealth.MoundVisible('#',false,true,true,true)||Step1Stealth.MoundVisible('#',false,true,false,false)){sb++;Console.WriteLine("     [FAIL] 土包只在白天裸地移动时露");}
+    if(!Step1Stealth.CanBurrow(true,false,false,false,false,'v',0)||Step1Stealth.CanBurrow(true,true,false,false,false,'#',0)||Step1Stealth.CanBurrow(true,false,false,false,false,'C',0)){sb++;Console.WriteLine("     [FAIL] 能否遁地");}
+    if(Step1Stealth.Trampled(new Vector2(3,1),new Vector2(3,1),'v')||!Step1Stealth.Trampled(new Vector2(3,1),new Vector2(3.3f,1),'#')){sb++;Console.WriteLine("     [FAIL] 只在裸地被踩出来");}
+    parts.Add("土包：草地 / 夜 / 雨 / 草丛下看不见，裸地踩得出来");
+    // 摆：收线角速度变大；无打秋千时能量不涨
+    var a=new Vector2(5,6); var sw=Step1Stealth.FromBody(a,new Vector2(5,2),new Vector2(2,0));
+    double w0=Math.Abs(sw.omega); var sw2=Step1Stealth.Step(sw,2.0,0,9.8,0.0001,0,1.2,8);
+    if(Math.Abs(sw2.omega)<w0*3.9){sb++;Console.WriteLine($"     [FAIL] 收线一半角速度应约 ×4（{w0:0.00}→{Math.Abs(sw2.omega):0.00}）");}
+    var s3=Step1Stealth.FromBody(a,new Vector2(5,2),new Vector2(3,0)); double e0=0.5*Math.Pow(s3.length*s3.omega,2)+9.8*(-Math.Cos(s3.angle)*s3.length); double emax=e0;
+    for(int i=0;i<2000;i++){ s3=Step1Stealth.Step(s3,s3.length,0,9.8,0.002,0,1.2,8); double e=0.5*Math.Pow(s3.length*s3.omega,2)+9.8*(-Math.Cos(s3.angle)*s3.length); emax=Math.Max(emax,e);}
+    if(emax>e0*0.97+Math.Abs(e0)*0.05+0.5){sb++;Console.WriteLine($"     [FAIL] 不打秋千能量不应凭空变大（{e0:0.0}→{emax:0.0}）");}
+    var anc=Step1Stealth.FindAnchor(g,new Vector2(3,1),true,8);
+    if(anc==null||anc.Value.y<2.4f){sb++;Console.WriteLine("     [FAIL] 应能挂到天花板");}
+    if(Step1Stealth.CanSilk(true,false,false,0)||Step1Stealth.CanSilk(false,false,true,0)||!Step1Stealth.CanSilk(false,false,false,0)){sb++;Console.WriteLine("     [FAIL] 能否射丝");}
+    parts.Add("蛛丝：收线变快、能量守恒、能挂天花板");
+    if(Step1Stealth.ArmStep(false,1f,5.5f)!=Step1Stealth.Arm.Wait||Step1Stealth.ArmStep(true,1f,5.5f)!=Step1Stealth.Arm.FireNow||Step1Stealth.ArmStep(false,6f,5.5f)!=Step1Stealth.Arm.Expire){sb++;Console.WriteLine("     [FAIL] 预约等 / 发 / 作废");}
+    if(!Step1Stealth.Missed(10f,5f,11f)||Step1Stealth.Missed(10f,10.5f,11f)){sb++;Console.WriteLine("     [FAIL] 没打中判定");}
+    parts.Add($"预约最多等 {t.propArmSeconds} 秒，没打中退还");
+    var modes=new HashSet<Step1LightMode>(); for(int r=1;r<=5;r++) modes.Add(Step1Stealth.Resolve(Step1LightMode.Auto,r));
+    if(Step1Stealth.Resolve(Step1LightMode.Auto,1)!=Step1LightMode.Day||modes.Count<4){sb++;Console.WriteLine("     [FAIL] 自动天气：第 1 局白天、5 局内 4 种都有");}
+    var room=Step1PrankRoomBuilderRoomRaw(); int lampN=room.Sum(r=>r.Count(c=>c=='i')), grassN=room.Sum(r=>r.Count(c=>c=='v'));
+    if(lampN<2||grassN<4){sb++;Console.WriteLine($"     [FAIL] 默认房间应有灯和草地（灯 {lampN} 草 {grassN}）");}
+    var hk=LevelWorkshopModel.HakoniwaSample; if(!hk.Any(r=>r.Contains('i'))||!hk.Any(r=>r.Contains('v'))){sb++;Console.WriteLine("     [FAIL] 箱庭样板应有灯和草地");}
+    foreach(var ch in new[]{'i','v'}) if(ElementCatalog.Get(ch)==null){sb++;Console.WriteLine($"     [FAIL] 说明书缺 {ch}");}
+    parts.Add($"默认房间 {lampN} 盏灯、{grassN} 格草地");
+    Console.WriteLine($"[{(sb==0?"OK":"FAIL")}] S241 光影 · 遁地 · 蛛丝 · 预约：{string.Join("｜",parts)}"); fail+=sb; }
   // S217：大世界扩展（OverworldMap.Resize）——扩展后老镇原样、外圈是树、仍可玩且一天走得完；各方向 + 裁剪 + 上限；与网页 owResize 逐字一致（ow_resize.json 由 verify.sh 生成）
   { int rb=0; var parts=new List<string>(); var r=OverworldMap.Rules.Default;
     var cases=new (string k,int l,int rr,int t,int b)[]{("all8",8,8,8,8),("east16",0,16,0,0),("west16",16,0,0,0),("north16",0,0,16,0),("south16",0,0,0,16),("x2",0,44,0,32),("crop4",-4,-4,-4,-4),("crop1",-1,-1,-1,-1)};

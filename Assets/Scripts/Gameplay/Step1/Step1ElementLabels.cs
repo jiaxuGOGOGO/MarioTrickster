@@ -13,6 +13,13 @@ public class Step1ElementLabels : MonoBehaviour
     private readonly List<(Transform t, string text, Color color)> items = new List<(Transform, string, Color)>();
     private float rescan;
 
+    private Transform you; private float tagRadius = 5.5f;
+    private void Start()
+    {
+        var t = MarioMindTuningSO.LoadOrDefault(); if (t != null) tagRadius = t.legendTagRadius;
+        var y = FindObjectOfType<TricksterController>(); if (y != null) you = y.transform;
+    }
+
     private void OnDestroy() { Visible = false; }
 
     private void Update()
@@ -75,6 +82,7 @@ public class Step1ElementLabels : MonoBehaviour
         foreach (var (t, text, color) in items)
         {
             if (t == null) continue;
+            if (you != null && !Step1MapLegend.TagNear(t.position, you.position, tagRadius)) continue; // S241：只标你身边的（满屏字 = 看不过来）
             Vector3 sp = Camera.main.WorldToScreenPoint(t.position + Vector3.up * 0.9f);
             if (sp.z < 0f) continue;
             var at = new Vector2(sp.x / scale, (Screen.height - sp.y) / scale);
@@ -86,6 +94,6 @@ public class Step1ElementLabels : MonoBehaviour
         }
         var tip = new Rect(Step1Gui.Begin() * 0.5f - 200f, 70f, 400f, 36f);
         Step1Gui.Panel(tip, 0.6f);
-        GUI.Label(tip, "元素名称显示中（V 关闭）  Labels on (V to hide)", Step1Gui.Text(18, TextAnchor.MiddleCenter, false));
+        GUI.Label(tip, "你身边的东西叫什么（V 关闭）  Labels near you (V to hide)", Step1Gui.Text(18, TextAnchor.MiddleCenter, false));
     }
 }

@@ -332,7 +332,7 @@ public static class AsciiLevelValidator
             for (int x = startX; x <= endX; x++)
                 // Conveyor is a permanent solid support, not a hole in an otherwise continuous floor.
                 // Do not include collapsing, breakable, one-way or moving platforms here.
-                if (grid[x, floorY] != '#' && grid[x, floorY] != '=' && grid[x, floorY] != '<')
+                if (grid[x, floorY] != '#' && grid[x, floorY] != '=' && grid[x, floorY] != '<' && grid[x, floorY] != 'v') // S241：草地 v 和地面一样是永久实心
                 { continuous = false; break; }
             if (continuous)
             {

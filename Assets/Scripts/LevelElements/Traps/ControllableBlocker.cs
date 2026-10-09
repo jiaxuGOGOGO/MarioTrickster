@@ -15,6 +15,7 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider2D))]
 public class ControllableBlocker : ControllableLevelElement
 {
+    protected override bool RefundOnMiss => false; // S241：挡路 / 改地形 / 一次性，不按"打没打中"退还
     [Header("=== 封路设置 ===")]
     [Tooltip("扫描命中 Windup 后，Active 持续时间倍率。0.5 = 减半。")]
     [SerializeField, Range(0.1f, 1f)] private float scannedActiveDurationMultiplier = 0.5f;
@@ -243,22 +244,13 @@ public class ControllableBlocker : ControllableLevelElement
         float pushUp = half.y - localDelta.y;
         float pushDown = half.y + localDelta.y;
 
-        Vector2 localPush;
-        float minHorizontal = Mathf.Min(pushLeft, pushRight);
-        float minVertical = Mathf.Min(pushDown, pushUp);
-
-        if (minHorizontal <= minVertical)
-        {
-            localPush = pushRight < pushLeft
-                ? new Vector2(pushRight + squeezePadding, 0f)
-                : new Vector2(-(pushLeft + squeezePadding), 0f);
-        }
-        else
-        {
-            localPush = pushUp < pushDown
-                ? new Vector2(0f, pushUp + squeezePadding)
-                : new Vector2(0f, -(pushDown + squeezePadding));
-        }
+        // S241：只横向挤，优先挤到"那边没有墙"的一侧。以前离上边近就往上挤 → 门洞只有 1 格高时把马里奥顶进门楣，
+        // 卡在墙里反复被挤（用户截图：马里奥贴在红墙上出不去、一直循环）。
+        Vector2 size = marioCollider.bounds.size;
+        bool rightFree = SideIsFree(marioWorld, size, +1f, pushRight + squeezePadding, marioCollider);
+        bool leftFree = SideIsFree(marioWorld, size, -1f, pushLeft + squeezePadding, marioCollider);
+        float dir = SqueezeDirection(pushLeft, pushRight, leftFree, rightFree);
+        Vector2 localPush = new Vector2(dir > 0f ? pushRight + squeezePadding : -(pushLeft + squeezePadding), 0f);
 
         Vector3 targetWorld = transform.TransformPoint(marioLocal + (Vector3)localPush);
         Rigidbody2D rb = mario.GetComponent<Rigidbody2D>();
@@ -272,6 +264,30 @@ public class ControllableBlocker : ControllableLevelElement
         {
             mario.transform.position = Vector3.MoveTowards(mario.transform.position, targetWorld, maxStep);
         }
+    }
+
+    /// <summary>S241 纯函数：往哪边挤（+1 右 / -1 左）。只有一边有空位就去那边；两边都有（或都没有）就去近的那边。</summary>
+    public static float SqueezeDirection(float pushLeft, float pushRight, bool leftFree, bool rightFree)
+    {
+        if (rightFree != leftFree) return rightFree ? 1f : -1f;
+        return pushRight < pushLeft ? 1f : -1f;
+    }
+
+    private static readonly Collider2D[] s_free = new Collider2D[8];
+
+    private bool SideIsFree(Vector2 center, Vector2 size, float dir, float dist, Collider2D self)
+    {
+        Vector2 at = center + Vector2.right * dir * dist;
+        int n = Physics2D.OverlapBoxNonAlloc(at, size * 0.9f, 0f, s_free);
+        for (int i = 0; i < n; i++)
+        {
+            var c = s_free[i];
+            if (c == null || c == boxCollider || c == self || c.isTrigger) continue;
+            if (c.GetComponentInParent<MarioController>() != null) continue;
+            if (SightLine.IsOneWayPlatform(c)) continue;
+            return false;
+        }
+        return true;
     }
 
     protected override void OnDrawGizmosSelected()

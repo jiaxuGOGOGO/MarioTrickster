@@ -135,6 +135,15 @@ public class TricksterController : MonoBehaviour
     // ── S197：第 1 步技能钩子（数据驱动，默认值 = 旧行为不变）─────────
     /// <summary>移动速度倍率（缩小时变快等）。</summary>
     public float AbilitySpeedMultiplier { get; set; } = 1f;
+    /// <summary>S241：蛛丝摆荡时由 TricksterSilk 直接写速度（这里的 FixedUpdate 不覆盖；碰撞照常）。</summary>
+    public bool ExternalDrive { get; set; }
+    /// <summary>S241：遁地 / 摆荡时不能跳（↑ 在摆荡时 = 收线）。</summary>
+    public bool BlockJump { get; set; }
+    /// <summary>S241：在地下 / 挂在丝上——L 触发、P 伪装都不生效。</summary>
+    public bool BusyMoving { get; set; }
+    /// <summary>S241：正被击退 / 晕着（蛛丝被打断要松手）。</summary>
+    public bool IsStunned => _isKnockbackStunned;
+    public Vector2 MoveInput => moveInput;
     public bool IsFacingRightValue => isFacingRight;
     /// <summary>跳跃力（构建器按"必须跳得上 2.5 格"设定；null = Inspector 值）。</summary>
     public void SetJumpPower(float power) { if (power > 0f) jumpPower = power; }
@@ -258,6 +267,7 @@ public class TricksterController : MonoBehaviour
         // 击退 stun 期间：不覆盖 rb.velocity，让物理引擎的 AddForce 击退力自然衰减
         // S236：身体被冻住（马里奥停时间 / 弹跳台蓄力 → isKinematic）时不写速度。以前硬直分支照样每帧写重力速度，
         // 冻住的身体会慢慢"沉"进地板（2 秒约 3 格），解冻后掉到房间外面（S235 掉出房间的根因之一）。
+        if (ExternalDrive && !_isKnockbackStunned) { _frameVelocity = rb.velocity; return; } // S241：蛛丝摆荡（TricksterSilk 写速度）
         if (rb.isKinematic && _isKnockbackStunned) { _frameVelocity = Vector2.zero; rb.velocity = Vector2.zero; return; }
         if (_isKnockbackStunned)
         {
@@ -364,6 +374,7 @@ public class TricksterController : MonoBehaviour
 
     private void HandleJump()
     {
+        if (BlockJump) { _jumpToConsume = false; return; } // S241：地下 / 丝上不能跳
         if (IsDisguised && !canJumpWhileDisguised)
         {
             _jumpToConsume = false;
@@ -585,6 +596,7 @@ public class TricksterController : MonoBehaviour
     public void OnDisguisePressed()
     {
         if (IsSeated) return; // S240：坐在炮里不能伪装
+        if (BusyMoving) { Step1Hint.Show(Step1Text.BusyUnder); return; } // S241
         if (IsPossessionLockoutActive()) return;
         disguiseSystem?.ToggleDisguise();
     }
@@ -611,6 +623,7 @@ public class TricksterController : MonoBehaviour
     {
         if (abilitySystem == null) return;
         if (IsSeated) return; // S240：坐在炮里 L = 发射（大炮自己读）
+        if (BusyMoving) { OnAbilityFailed?.Invoke("Busy underground or swinging"); return; } // S241：地下 / 丝上不能触发
 
         string failReason = GetAbilityFailReason();
         if (failReason != null)

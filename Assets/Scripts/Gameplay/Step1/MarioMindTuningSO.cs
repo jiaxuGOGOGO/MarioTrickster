@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 29;
+    public const int CurrentDataVersion = 30;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -609,6 +609,58 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("每次救援自动截一张图 + 记下位置（工坊'检查轨迹'里用红叉标出）")]
     public bool stuckAutoReport = true;
 
+    [Header("S241: 机关预约 · 光影 · 遁地 · 蛛丝 · 图标")]
+    [Tooltip("按 L 时他还没走到：机关先静静等着（不闪、不暴露），他走进预判区才真正发动。最多等几秒，等不到就作废并退还次数和能量。0 = 关掉（按下立刻发动）")]
+    public float propArmSeconds = 5.5f;
+    [Tooltip("预约时'走进预判区'的宽度（格）：越大越容易接上，越小越准。和连锁自动触发同一个判定")]
+    public float propArmTolerance = 1.1f;
+    [Tooltip("发动了但一下都没坑到他：冷却减半，并把这次的次数还给你（火、弹簧、香蕉皮这类；封路墙 / 塌桥 / 灯不退）")]
+    public bool refundOnMiss = true;
+    [Tooltip("房间光照：自动 = 第 1 局白天，之后 夜晚 → 雨天 → 雨夜 轮换；也可以固定一种")]
+    public Step1LightMode lightMode = Step1LightMode.Auto;
+    [Tooltip("夜里暗处蒙多黑（0–1，只是画面；你永远看得见全房间，他只看得见亮处）")]
+    [Range(0f, 0.9f)] public float nightDarkness = 0.55f;
+    [Tooltip("马里奥手电筒照多远（格），只在夜里打开")]
+    public float flashlightRange = 6.5f;
+    [Tooltip("手电筒半张角（度）")]
+    public float flashlightHalfAngle = 28f;
+    [Tooltip("房间里灯 'i' 照多远（格）")]
+    public float lampRadius = 4f;
+    [Tooltip("火 / 炸弹 / 点燃的油桶照多远（格）")]
+    public float fireLightRadius = 2.5f;
+    [Tooltip("暗处贴得多近他也能看见你（格）——贴身就藏不住")]
+    public float darkSeeRadius = 1.2f;
+    [Tooltip("你在他头顶这么近、而且那里亮着 → 他抬头察觉（格）。暗处荡过去不察觉")]
+    public float overheadNoticeRadius = 2.5f;
+    [Tooltip("你跑动的脚步声传多远（格；伪装 / 遁地 / 摆荡 / 站着没声音）。蓝圈 = 这个数")]
+    public float footstepRadius = 3f;
+    [Tooltip("下雨时脚步声打几折（0–1）")]
+    [Range(0f, 1f)] public float rainHearingScale = 0.6f;
+    [Tooltip("遁地：在地下最多几秒（到点自动钻出来）")]
+    public float burrowMaxSeconds = 6.5f;
+    [Tooltip("遁地：钻出来后多少秒能再钻")]
+    public float burrowCooldown = 4f;
+    [Tooltip("遁地时移动速度倍数")]
+    public float burrowSpeedMultiplier = 0.8f;
+    [Tooltip("遁地被他踩到 / 扫到逼出来：你晕几秒")]
+    public float burrowFlushStunSeconds = 1f;
+    [Tooltip("蛛丝：最远能射多远（格）")]
+    public float silkRange = 8f;
+    [Tooltip("蛛丝：最多荡几秒（到点自动松手）")]
+    public float silkMaxSeconds = 7f;
+    [Tooltip("蛛丝：松手后多少秒能再射")]
+    public float silkCooldown = 1.5f;
+    [Tooltip("蛛丝：↑↓ 收放线的速度（格/秒）")]
+    public float silkReelSpeed = 3f;
+    [Tooltip("蛛丝：←→ 打秋千的力度")]
+    public float silkPump = 9f;
+    [Tooltip("灯 'i'：按 L 灭灯多少秒（之后自己亮回来）")]
+    public float lampOffSeconds = 8f;
+    [Tooltip("机关头上的小图标（一眼认出是什么：火苗、弹簧、香蕉…）。关掉 = 只有色块")]
+    public bool propIcons = true;
+    [Tooltip("图例只列这个房间出现的东西；'可炸'等小标签只在你附近几格内显示（太多字看不过来）")]
+    public float legendTagRadius = 5.5f;
+
     [Header("S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）")]
     [Tooltip("马里奥 Q 扫描：半径（格）。扫到就真的暴露你（宪法 H5：扫描 100% 真实）")]
     [Range(0.5f, 20f)] public float scanRadius = 5f;
@@ -809,6 +861,14 @@ public class MarioMindTuningSO : ScriptableObject
         {
             // S240：坐进大炮自己发射（docs/step1/S240_CANNON_SEAT_SPENT_PROPS_COMBO_STUCK.md）——新字段的默认值就是要的值，不用写。
             tricksterCannonSpeed = 26f; tricksterCannonCooldown = 1.5f;
+        }
+        if (dataVersion < 30)
+        {
+            // S241：机关预约 / 光影 / 遁地 / 蛛丝（docs/step1/S241_FORGIVING_PROPS_LIGHT_BURROW_SILK.md）——新字段的默认值就是要的值，写一遍防旧资产读成 0。
+            propArmSeconds = 5.5f; propArmTolerance = 1.1f; refundOnMiss = true; nightDarkness = 0.55f; flashlightRange = 6.5f; flashlightHalfAngle = 28f;
+            lampRadius = 4f; fireLightRadius = 2.5f; darkSeeRadius = 1.2f; overheadNoticeRadius = 2.5f; footstepRadius = 3f; rainHearingScale = 0.6f;
+            burrowMaxSeconds = 6.5f; burrowCooldown = 4f; burrowSpeedMultiplier = 0.8f; burrowFlushStunSeconds = 1f;
+            silkRange = 8f; silkMaxSeconds = 7f; silkCooldown = 1.5f; silkReelSpeed = 3f; silkPump = 9f; lampOffSeconds = 8f; propIcons = true; legendTagRadius = 5.5f;
         }
         dataVersion = CurrentDataVersion;
         return true;

@@ -105,6 +105,7 @@ public class Vent : LevelElementBase
     private static bool EnterPressed(bool wallLeft, bool wallRight)
     {
         bool d = false, l = false, r = false;
+        if (TricksterBurrow.BodyBusy) return false; // S241：地下 / 蛛丝上不能进管
         try
         {
             d = Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S);

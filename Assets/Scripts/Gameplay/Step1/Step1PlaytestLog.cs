@@ -40,7 +40,11 @@ public class Step1PlaytestLog : MonoBehaviour
             barTaunt != null && TauntAbility.CanTaunt(dis, barTaunt.TauntsLeft, barTaunt.Cooldown),
             kit != null && TricksterKit.CanShrink(sh, kit.ShrinksLeft),
             Vent.AnyWithin(barFigure.transform.position, 1.2f),
-            PranksterCannon.MouthOf(barFigure) is PranksterCannon mouth && mouth.SeatReadyFor(barFigure));
+            PranksterCannon.MouthOf(barFigure) is PranksterCannon mouth && mouth.SeatReadyFor(barFigure),
+            TricksterBurrow.Instance != null && TricksterBurrow.Instance.CanBurrowNow,
+            TricksterSilk.Instance != null && TricksterSilk.Instance.CanSilkNow,
+            TricksterBurrow.Instance != null && TricksterBurrow.Instance.Burrowed,
+            TricksterSilk.Swinging);
     }
     private TricksterLives lives;
     private TricksterAbilitySystem abilities;

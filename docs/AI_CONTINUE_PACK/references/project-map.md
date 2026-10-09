@@ -1,7 +1,7 @@
 # 分册：项目地图（文件在哪 / 关键数值 / 字符表）
 
 ## 状态（S200 交付时）
-- Registry 内置条目 44（`BUILTIN_ENTRY_COUNT`）；`BuilderVersion` 17；`MarioMindTuningSO.CurrentDataVersion` 14（S203）；EditMode 测试约 385 个（Step1RushMarioTests 100 个）。
+- Registry 内置条目 46（`BUILTIN_ENTRY_COUNT`，S241 +i v）；`BuilderVersion` 17；`MarioMindTuningSO.CurrentDataVersion` 14（S203）；EditMode 测试约 385 个（Step1RushMarioTests 100 个）。
 - **以 repo 为准**：开工时用 `grep -n "BUILTIN_ENTRY_COUNT =\|BuilderVersion =\|CurrentDataVersion =" -r Assets/Scripts` 重新确认。
 
 ## 关键文件
@@ -58,6 +58,8 @@
 | `O` | Vent | 通风管 | Special | ✓ |
 | `w` | PoisonPool | 毒池 | Terrain | ✓ |
 | `g` | Glue | 黏胶 | Terrain | ✓ |
+| `i` | RoomLamp | 灯（S241） | PlayerPrank | ✓ |
+| `v` | GrassGround | 草地（S241，实心，遁地不露土包） | Terrain | ✓ |
 | `Y` | SnareTrap | 绳套 | PlayerPrank | ✓ |
 | `?` | PickupSpot | 道具箱 | Special | ✓ |
 | `U` | OilBarrel | 油桶 | Special | ✓ |
@@ -110,6 +112,7 @@
 ## S215 全局总览
 - `Overworld/CampaignLedger.cs`：按门顺序汇总房间（主角机关 / 第一次出现 / 道具 / 提醒）。小镇工坊侧栏 LedgerPanel、网页 `owLedger`/`owLedgerLines`（overworld.js 末尾）+ `owLedgerRender`（app.js）。改规则两边一起改，verify 逐字对照（ow_ledger.json）。
 - 炸弹预算：小镇房间按 `bombsPerRound + OverworldTown.MaxBonusBombs` 加固（`Step1PrankRoomBuilder.ExtraBombs`，OverworldBuilder 建房前设、finally 归零）。改 MaxBonusBombs 要升 BuilderVersion。
+- S241：光影/遁地/蛛丝纯逻辑 `Gameplay/Step1/Step1Stealth.cs`（sim 也编译它）；画面 + 判亮暗 `Step1Lighting`（`IsLit/Visible/Raining`）；`TricksterBurrow`（U，`BodyBusy`）/`TricksterSilk`（K）/`TricksterFootsteps`（夜里脚步，事件只带位置）由 Step1Lighting 运行时挂到捣蛋者上（Step1Combo 不许碰捣蛋者，H4 测试）；机关预约 / 退还 `TricksterAbilitySystem.ArmProp/HandleMissRefunded` + `ControllablePropBase.ArmOnPress/RefundOnMiss/MissRefund`；图标 `Step1Icons`（tools 生成）+ `Step1PropIcons`；图例 `Step1MapLegend.ForRoom/GroupOf/TagNear`。
 - S240：坐进大炮 `PranksterCannon.Seat*`；用过的机关 `ControllablePropBase.SpentThisRound`；连击原因 `Step1ComboFeel.CauseName`；卡住 `Step1StuckRescue.Tick` + `step1_stuck.txt`；临界跳 `LevelRouteFollower.CriticalJumpCells`。
 - S239：重复旧系统（热度/警报导演/连锁追踪/路线预算/补偿/锚点起疑层/旧 UGUI）已删；视线检测在 `Gameplay/SightLine.cs`。
 - 旧工具菜单 S238 已全删（顶层 10 个）；特效工厂 / 特效快速套用 / 溶解噪声在 `美术 Art/`；S237 起测试报告在 `检查与记录 Checks/测试报告 …`、美术工具在 `美术 Art/工具 Pipeline/…`（sim S237 查 ExecuteMenuItem 调了不存在的菜单）。窗口之间跳转直接调 `XxxWindow.Open()`，不要用菜单字符串。

@@ -2822,4 +2822,21 @@ public class Step1RushMarioTests
         StringAssert.Contains("TownWeatherFx", Read("Scripts/Overworld/Runtime/OverworldGame.cs"));
         foreach (var f in new[] { "RushMarioMind.cs", "SuspicionMeter.cs" }) StringAssert.DoesNotContain("ArtKit", Read("Scripts/Gameplay/Step1/" + f), "H4");
     }
+
+    [Test]
+    public void S246_GroundEdgesShadowsMoreKitEffects()
+    {
+        Assert.AreEqual("TPath", WorldArt.GroundPixelKey("TPath", "TPath", "TPath", "TPath", "TPath", 1, 1, 0, 0, 16));
+        Assert.AreEqual("TGrass", WorldArt.GroundPixelKey("TPath", "TGrass", null, null, null, 3, 4, 7, 15, 16), "草在路的北边：最上面一排是草");
+        Assert.AreEqual("TGrass", WorldArt.GroundPixelKey("TGrass", "TPath", "TPath", "TPath", "TPath", 3, 4, 7, 15, 16), "路不长进草");
+        Assert.AreEqual("Foam", WorldArt.GroundPixelKey("TWater", "TPath", null, null, null, 2, 2, 7, 15, 16), "水边一道浅色");
+        Assert.Greater(WorldArt.ShadowWidth('t', false), 0f); Assert.AreEqual(0f, WorldArt.ShadowWidth('W', false)); Assert.Greater(WorldArt.ShadowWidth('W', true), 0f);
+        Assert.AreEqual(10, ArtKitRules.PresetNames.Length);
+        var mine = ArtKitRules.Preset(7); Assert.IsTrue(mine.oneShot); Assert.Greater(mine.knockback, 0f);
+        Assert.Greater(ArtKitRules.Preset(4).bounceUp, 0f); Assert.Greater(ArtKitRules.Preset(5).pushX, 0f); Assert.IsTrue(ArtKitRules.Preset(8).revealsYou);
+        var c = ArtKitRules.Clamp(new ArtKitRules.Behavior { enabled = true, tickSeconds = 1f, speedScale = 1f, bounceUp = 999f, pushX = -999f, knockback = 999f });
+        Assert.LessOrEqual(c.bounceUp, ArtKitRules.MaxBounce); Assert.GreaterOrEqual(c.pushX, -ArtKitRules.MaxPush); Assert.LessOrEqual(c.knockback, ArtKitRules.MaxKnock);
+        StringAssert.Contains("owDrawPixelBase", System.IO.File.ReadAllText(System.IO.Path.Combine(Application.dataPath, "..", "tools", "LevelStudioWeb", "app.js")));
+        StringAssert.Contains("SetPlatformVelocity", Read("Scripts/Gameplay/ArtKit/ArtKitZone.cs"));
+    }
 }

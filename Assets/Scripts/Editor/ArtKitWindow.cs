@@ -146,11 +146,19 @@ public class ArtKitWindow : EditorWindow
             b.tickSeconds = EditorGUILayout.Slider("每隔几秒", b.tickSeconds, ArtKitRules.MinTick, 5f);
             b.speedScale = EditorGUILayout.Slider("速度倍率（1 = 不减速）", b.speedScale, ArtKitRules.MinSpeed, 1f);
             b.stunSeconds = EditorGUILayout.Slider("每次晕几秒", b.stunSeconds, 0f, ArtKitRules.MaxStun);
+            GUILayout.Label("更多效果（S246，不用写代码）", EditorStyles.miniBoldLabel);
+            b.bounceUp = EditorGUILayout.Slider(new GUIContent("往上弹（格/秒）", "15 ≈ 弹高 2.8 格，和弹簧板一样；0 = 不弹"), b.bounceUp, 0f, ArtKitRules.MaxBounce);
+            b.pushX = EditorGUILayout.Slider(new GUIContent("一直推（格/秒）", "正 = 往右、负 = 往左，像风 / 传送带；0 = 不推"), b.pushX, -ArtKitRules.MaxPush, ArtKitRules.MaxPush);
+            b.knockback = EditorGUILayout.Slider(new GUIContent("从中间弹开（格/秒）", "像地雷爆炸；0 = 不弹开"), b.knockback, 0f, ArtKitRules.MaxKnock);
+            b.revealsYou = EditorGUILayout.Toggle(new GUIContent("打回原形", "你伪装时进去会现形（探照灯）"), b.revealsYou);
+            b.oneShot = EditorGUILayout.Toggle(new GUIContent("只生效一次", "生效一次后消失（地雷 / 一次性补给）"), b.oneShot);
             b.hitsMario = EditorGUILayout.Toggle("马里奥会中", b.hitsMario);
             b.hitsYou = EditorGUILayout.Toggle("你会中", b.hitsYou);
         }
         if (EditorGUI.EndChangeCheck()) { Undo.RecordObject(kit, "改互动"); e.behavior = ArtKitRules.Clamp(b); Changed(); }
         EditorGUILayout.HelpBox(ArtKitRules.Describe(e.behavior), MessageType.None);
+        int pre = EditorGUILayout.Popup("一键套用预设", -1, ArtKitRules.PresetNames);
+        if (pre >= 0) { Undo.RecordObject(kit, "套用预设"); e.behavior = ArtKitRules.Preset(pre); Changed(); }
         if (slot >= 0 && GUILayout.Button("恢复这个槽的默认互动")) { Undo.RecordObject(kit, "恢复默认"); e.behavior = ArtKitRules.SlotDefault(slot); Changed(); }
 
         GUILayout.Space(8);

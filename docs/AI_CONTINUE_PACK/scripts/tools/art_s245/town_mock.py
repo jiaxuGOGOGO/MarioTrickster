@@ -52,8 +52,40 @@ def tile_strip(s,y_base,sc,off):
     x=-off
     while x<img.width: img.alpha_composite(s,(x,y_base-s.height)) if x>=0 else img.alpha_composite(s.crop((-x,0,s.width,s.height)),(0,y_base-s.height)); x+=s.width
 tile_strip(far,peek*P+8,3,40); tile_strip(near,peek*P+12,3,90)
+import subprocess,json as _j
+# S246: transitions via the web JS function (same as C#, sim cross-checked)
+def gpk_all():
+    reqs=[]
+    for y,row in enumerate(MAP):
+        for x,c in enumerate(row):
+            cy=H-1-y; nb=lambda xx,yy: None if xx<0 or yy<0 or xx>=Wd or yy>=H else GROUND(MAP[H-1-yy][xx])
+            reqs.append([GROUND(c),nb(x,cy+1),nb(x+1,cy),nb(x,cy-1),nb(x-1,cy),x,cy])
+    js=open('/home/user/workspace/repo/tools/LevelStudioWeb/app.js').read(); i=js.index('const owGroundRank'); j=js.index('function owShadowW')
+    code="const owIsDoor=c=>c>='1'&&c<='9';"+js[i:j]+"const R="+_j.dumps(reqs)+";const out=R.map(r=>{const a=[];for(let py=0;py<16;py++){const row=[];for(let px=0;px<16;px++)row.push(owGroundPixelKey(r[0],r[1],r[2],r[3],r[4],r[5],r[6],px,py,16));a.push(row)}return a});console.log(JSON.stringify(out))"
+    return _j.loads(subprocess.run(['node','-e',code],capture_output=True,text=True).stdout)
+G=gpk_all(); k=0
+cache={}
 for y,row in enumerate(MAP):
-    for x,c in enumerate(row): img.alpha_composite(spr(GROUND(c)),(x*P,(y+peek)*P))
+    for x,c in enumerate(row):
+        keys=G[k]; k+=1; tile=Image.new('RGBA',(P,P))
+        for py in range(P):
+            for px in range(P):
+                kk=keys[py][px]
+                col=(196,228,248,255) if kk=='Foam' else (cache.setdefault(kk,spr(kk)).getpixel((px,P-1-py)))
+                tile.putpixel((px,P-1-py),col)
+        img.alpha_composite(tile,(x*P,(y+peek)*P))
+# shadows
+from PIL import ImageDraw
+sh=Image.new('RGBA',img.size,(0,0,0,0)); sd=ImageDraw.Draw(sh)
+SW={'t':1.1,'A':1.2,'f':0.9,'M':0.9,'T':0.9}
+for y,row in enumerate(MAP):
+    for x,c in enumerate(row):
+        below=MAP[y+1][x] if y+1<H else '.'
+        w=SW.get(c,0)
+        if c=='W' and below not in 'W1234': w=1.05
+        if w: cx=(x+0.58)*P; cy=(y+peek+0.88)*P; sd.ellipse((cx-w*P/2,cy-w*P/4,cx+w*P/2,cy+w*P/4),fill=(0,0,0,97))
+for (yy,xx) in ((7.4,12.3),(8.6,9.6)): cx=(xx+0.5)*P; cy=(yy+peek+0.9)*P; sd.ellipse((cx-0.35*P,cy-0.17*P,cx+0.35*P,cy+0.17*P),fill=(0,0,0,97))
+img.alpha_composite(sh)
 items=[]
 for y,row in enumerate(MAP):
     for x,c in enumerate(row):
@@ -68,4 +100,4 @@ for y,k,x,sc in sorted(items,key=lambda t:(t[1]=='TTallGrass',t[0])):
     s=spr(k); n=int(16*sc); s=s.resize((n,n),Image.NEAREST)
     yy=int((y+peek)*P+P-n-(4 if k=='TTree' else 0)); xx=int(x*P+P/2-n/2)
     img.alpha_composite(s,(xx,yy))
-img=img.resize((img.width*3,img.height*3),Image.NEAREST); img.save('/home/user/workspace/art245/town_mock.png'); print(img.size)
+img=img.resize((img.width*3,img.height*3),Image.NEAREST); img.save('/home/user/workspace/art245/town_mock_s246.png'); print(img.size)

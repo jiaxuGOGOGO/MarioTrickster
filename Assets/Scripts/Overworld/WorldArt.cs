@@ -1262,5 +1262,88 @@ public static class WorldArt
         int n = Size; while (n > 1 && (w * n > 4096 || h * n > 4096)) n /= 2;
         return n;
     }
+
+    // ═════════ S246：地面过渡边 + 影子（纯逻辑：游戏 / 网页 / sim 同一套规则）═════════
+    // 参考：俯视 RPG 地块之间用"边缘抖动 / 过渡块"避免硬直线（Stardew Valley、RPG Maker 的 autotile 思路
+    // https://www.rpgmakerweb.com/blog/autotiles ），物体脚下一块半透明椭圆影子让它"站在"地面上。
+    /// <summary>地面层级：谁的边会"盖"到邻居上（草 > 泥 > 路 > 水）。层级高的一方在交界处往对方格子里长出 1–3 像素的毛边。</summary>
+    public static int GroundRank(string key) => key == "TGrass" ? 3 : key == "TMud" ? 2 : key == "TPath" ? 1 : 0;
+
+    /// <summary>
+    /// 一格里某个像素该画哪张地面图（左下角为原点，n = 每格像素数）。邻居 = 北 / 东 / 南 / 西 的地面名（null = 地图外，当成自己）。
+    /// 规则：邻居层级更高时，离那条边 d 像素以内按"格子坐标 + 像素坐标"的固定哈希决定要不要画成邻居（越靠边越容易），形成不规则毛边；
+    /// 水和别的地面交界额外画一条浅色水边（返回 "Foam"）。同一张地图每次一样（没有随机数）。
+    /// </summary>
+    public static string GroundPixelKey(string self, string n, string e, string s, string w, int cx, int cy, int px, int py, int size)
+    {
+        // 圆角：两条相邻边都是"更高层级"的同一种地面（或水的两条岸）→ 外角切成圆弧（路口 / 池塘不再是直角）
+        int rad = System.Math.Max(2, size * 6 / 16);
+        string Corner(string a, string b, int dx, int dy)
+        {
+            if (a == null || b == null || a != b || a == self) return null;
+            if (GroundRank(a) <= GroundRank(self) && self != "TWater") return null;
+            if (dx >= rad || dy >= rad) return null;
+            float fx = rad - dx - 0.5f, fy = rad - dy - 0.5f; float dist = (float)System.Math.Sqrt(fx * fx + fy * fy);
+            if (dist > rad) return a;
+            if (self == "TWater" && dist > rad - 2.2f) return "Foam";
+            return self;
+        }
+        string cr = Corner(n, e, size - 1 - px, size - 1 - py) ?? Corner(n, w, px, size - 1 - py) ?? Corner(s, e, size - 1 - px, py) ?? Corner(s, w, px, py);
+        if (cr != null) return cr;
+        if (self == "TWater") // 水：岸边一道浅色水边（先于毛边——岸线要连贯）
+        {
+            int edge = int.MaxValue;
+            if (n != null && n != "TWater") edge = System.Math.Min(edge, size - 1 - py);
+            if (s != null && s != "TWater") edge = System.Math.Min(edge, py);
+            if (e != null && e != "TWater") edge = System.Math.Min(edge, size - 1 - px);
+            if (w != null && w != "TWater") edge = System.Math.Min(edge, px);
+            if (edge <= System.Math.Max(1, size / 8)) return "Foam";
+        }
+        int depth = System.Math.Max(1, size * 4 / 16);
+        string best = self; int bestD = int.MaxValue;
+        void Try(string nb, int d)
+        {
+            if (nb == null || nb == self || d >= depth || d >= bestD) return;
+            if (GroundRank(nb) <= GroundRank(self)) return;
+            uint h = (uint)(cx * 73856093) ^ (uint)(cy * 19349663) ^ (uint)(px * 83492791) ^ (uint)(py * 2971215073);
+            h ^= h >> 13; h *= 0x5bd1e995; h ^= h >> 15;
+            if ((h % (uint)depth) >= (uint)(depth - d)) return; // d=0 一定画，越往里越少
+            best = nb; bestD = d;
+        }
+        Try(n, size - 1 - py); Try(s, py); Try(e, size - 1 - px); Try(w, px);
+        return best;
+    }
+
+    /// <summary>哪些格子脚下画影子、影子多宽（格）。0 = 不画。人物另算（ShadowCharacter）。</summary>
+    public static float ShadowWidth(char c, bool wallFace)
+    {
+        switch (c)
+        {
+            case 't': return 1.1f;
+            case 'A': return 1.2f;
+            case 'W': return wallFace ? 1.05f : 0f; // 房子只在墙脚那一排
+            case 'f': return 0.9f;
+            case 'M': case 'T': return 0.9f;
+            case 'c': return 0.8f;
+            case 'O': return 1.1f;
+            case 'U': case 'B': case 'K': return 1.1f;
+            case 'i': return 0.5f;
+        }
+        return OverworldCatalog.IsDoor(c) ? 0f : 0f;
+    }
+    public const float ShadowCharacter = 0.7f, ShadowAlpha = 0.38f;
+
+    /// <summary>影子贴图（w×h 像素的椭圆，中间深、边缘淡）RGBA，左下角开始。</summary>
+    public static float[] ShadowRgba(int w, int h)
+    {
+        var px = new float[w * h * 4];
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++)
+        {
+            float u = (x + 0.5f) / w * 2f - 1f, v = (y + 0.5f) / h * 2f - 1f, r = u * u + v * v;
+            if (r > 1f) continue;
+            px[(y * w + x) * 4 + 3] = ShadowAlpha * (r < 0.5f ? 1f : 0.65f);
+        }
+        return px;
+    }
 }
 

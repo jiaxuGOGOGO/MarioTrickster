@@ -23,11 +23,23 @@ public static class ArtKitRules
         public float speedScale;
         public float stunSeconds;
         public bool hitsMario, hitsYou;
+        // S246：不写代码就能配的更多效果（每一跳生效；0 / false = 没有）
+        /// <summary>往上弹（格/秒，和弹簧板同一套：15 ≈ 弹高 2.8 格）。</summary>
+        public float bounceUp;
+        /// <summary>持续推（格/秒，正 = 往右、负 = 往左；像风 / 传送带，站在里面一直被推）。</summary>
+        public float pushX;
+        /// <summary>击退（格/秒，从区域中心往外弹开，带一点向上）。</summary>
+        public float knockback;
+        /// <summary>你在里面会被打回原形（伪装失效）。</summary>
+        public bool revealsYou;
+        /// <summary>只生效一次就消失（地雷 / 一次性补给）。</summary>
+        public bool oneShot;
         public static Behavior None => new Behavior { enabled = false, tickSeconds = 1f, speedScale = 1f, hitsMario = true, hitsYou = true };
     }
 
     public const float MinTick = 0.3f, MinSpeed = 0.2f, MaxStun = 1.5f;
     public const int MaxHalves = 6;
+    public const float MaxBounce = 24f, MaxPush = 8f, MaxKnock = 16f;
 
     /// <summary>夹到安全范围（H9：间隔 ≥0.3 秒、晕 ≤1.5 秒、减速不低于 0.2 倍、一次最多 3 颗心）。</summary>
     public static Behavior Clamp(Behavior b)
@@ -37,6 +49,7 @@ public static class ArtKitRules
         if (b.speedScale < MinSpeed) b.speedScale = MinSpeed; if (b.speedScale > 1f) b.speedScale = 1f;
         if (b.stunSeconds < 0f) b.stunSeconds = 0f; if (b.stunSeconds > MaxStun) b.stunSeconds = MaxStun;
         if (b.damageHalves > MaxHalves) b.damageHalves = MaxHalves; if (b.damageHalves < -MaxHalves) b.damageHalves = -MaxHalves;
+        b.bounceUp = Clamp(b.bounceUp, 0f, MaxBounce); b.pushX = Clamp(b.pushX, -MaxPush, MaxPush); b.knockback = Clamp(b.knockback, 0f, MaxKnock);
         return b;
     }
 
@@ -62,9 +75,43 @@ public static class ArtKitRules
         else if (b.damageHalves < 0) parts.Add($"每 {t} 秒回{HalvesText(-b.damageHalves)}心");
         if (b.speedScale < 0.999f) parts.Add($"减速到 {b.speedScale:0.##} 倍");
         if (b.stunSeconds > 0f) parts.Add($"每次晕 {b.stunSeconds:0.##} 秒");
+        if (b.bounceUp > 0f) parts.Add($"往上弹（约 {BounceHeight(b.bounceUp):0.#} 格高）");
+        if (b.pushX != 0f) parts.Add($"一直往{(b.pushX > 0 ? "右" : "左")}推（{System.Math.Abs(b.pushX):0.#} 格/秒）");
+        if (b.knockback > 0f) parts.Add($"从中间弹开（{b.knockback:0.#} 格/秒）");
+        if (b.revealsYou) parts.Add("你的伪装会失效");
+        if (b.oneShot) parts.Add("只生效一次就消失");
         if (parts.Count == 0) parts.Add("进去没有效果");
         parts.Add(b.hitsMario && b.hitsYou ? "马里奥和你都会中" : b.hitsMario ? "只有马里奥会中" : b.hitsYou ? "只有你会中" : "谁都不会中");
         return string.Join(" · ", parts);
+    }
+
+    private static float Clamp(float v, float lo, float hi) => v < lo ? lo : v > hi ? hi : v;
+    /// <summary>弹多高（格）：和弹簧板同一个重力（LaunchFeel.gravity = 40）。</summary>
+    public static float BounceHeight(float up) => up * up / (2f * 40f);
+    /// <summary>击退方向：从区域中心指向这个人（水平为主，带 0.45 的上扬），正中间 = 往右。</summary>
+    public static float[] KnockDir(float zoneX, float zoneY, float x, float y)
+    {
+        float dx = x - zoneX; float sx = dx >= 0f ? 1f : -1f;
+        float len = (float)System.Math.Sqrt(1f + 0.45f * 0.45f);
+        return new[] { sx / len, 0.45f / len };
+    }
+
+    /// <summary>预设（换图台一键套用）：名字 + 互动。新机关先选一个最像的再微调。</summary>
+    public static readonly string[] PresetNames = { "毒池（掉半格 + 减速）", "荆棘（掉一格 + 晕）", "回血泉", "蛛网（减速）", "蹦床（往上弹）", "大风（往右推）", "传送带（往左推）", "地雷（一格 + 弹开，一次）", "探照灯（打回原形）", "冰面（很滑：减速 + 推）" };
+    public static Behavior Preset(int i)
+    {
+        if (i >= 0 && i < 4) return SlotDefault(i);
+        var b = new Behavior { enabled = true, tickSeconds = 1f, speedScale = 1f, hitsMario = true, hitsYou = true };
+        switch (i)
+        {
+            case 4: b.bounceUp = 15f; b.tickSeconds = 0.6f; break;
+            case 5: b.pushX = 3f; b.tickSeconds = 0.3f; break;
+            case 6: b.pushX = -2.5f; b.tickSeconds = 0.3f; break;
+            case 7: b.damageHalves = 2; b.knockback = 10f; b.stunSeconds = 0.4f; b.oneShot = true; b.tickSeconds = 0.3f; break;
+            case 8: b.revealsYou = true; b.hitsMario = false; b.tickSeconds = 0.5f; break;
+            case 9: b.speedScale = 0.8f; b.pushX = 1.5f; b.tickSeconds = 0.3f; break;
+        }
+        return b;
     }
 
     public static string HalvesText(int h) => h == 1 ? "半格" : h % 2 == 0 ? $" {h / 2} 格" : $" {h / 2} 格半";

@@ -911,13 +911,92 @@ let OWBASE = null, OWBASEKEY = '';
 function owDraw() {
   const m = owM(), z = OWT.zoom, w = owW(m), h = m.rows.length, cv = $('#owCanvas'), g = cv.getContext('2d');
   if (cv.width !== w * z || cv.height !== h * z) { cv.width = w * z; cv.height = h * z; }
-  const key = [OWCUR, OWT.ver | 0, z, w, h, $('#owRoute').checked, $('#owNight').checked, $('#owLinks') && $('#owLinks').checked].join('|');
+  const key = [OWCUR, OWT.ver | 0, z, w, h, $('#owRoute').checked, $('#owNight').checked, $('#owPixel') && $('#owPixel').checked, $('#owLinks') && $('#owLinks').checked].join('|');
   if (!OWBASE || OWBASEKEY !== key) { OWBASEKEY = key; OWBASE = OWBASE || document.createElement('canvas'); OWBASE.width = w * z; OWBASE.height = h * z; owDrawBase(OWBASE.getContext('2d'), m, z, w, h); }
   g.clearRect(0, 0, cv.width, cv.height); g.drawImage(OWBASE, 0, 0);
   owDrawOverlay(g, m, z, w, h);
 }
+// ═════ S246：网页小镇像素画面（和 Unity OverworldGame 同一套规则：WorldArt.GroundKeyOf / TownKeyOf / GroundPixelKey / ShadowWidth）═════
+const OWTOWN = {};
+function owTownPx(key) { // 16×16 像素数组（行 0 = 顶）
+  if (OWTOWN[key]) return OWTOWN[key];
+  const rows = OW_ART.town && OW_ART.town[key]; if (!rows) return null;
+  const out = rows.map(r => [...r].map(ch => { const c = OW_ART.pal[ch]; return ch === '.' || !c ? null : c.map(v => Math.round(v * 255)); }));
+  return OWTOWN[key] = out;
+}
+const OWTC = {};
+function owTownCanvas(key) {
+  if (OWTC[key]) return OWTC[key]; const px = owTownPx(key); if (!px) return null;
+  const c = document.createElement('canvas'); c.width = px[0].length; c.height = px.length; const g = c.getContext('2d');
+  px.forEach((row, y) => row.forEach((col, x) => { if (col) { g.fillStyle = `rgb(${col})`; g.fillRect(x, y, 1, 1); } }));
+  return OWTC[key] = c;
+}
+const owGroundKey = c => (c === '=' || c === 'M' || c === 'T' || owIsDoor(c)) ? 'TPath' : c === 'w' ? 'TWater' : c === 'g' ? 'TMud' : 'TGrass';
+const owGroundRank = k => k === 'TGrass' ? 3 : k === 'TMud' ? 2 : k === 'TPath' ? 1 : 0;
+function owGroundPixelKey(self, n, e, s, w, cx, cy, px, py, size) { // = WorldArt.GroundPixelKey（sim 对过同一组样例）
+  const rad = Math.max(2, Math.floor(size * 6 / 16));
+  const corner = (a, b, dx, dy) => {
+    if (a == null || b == null || a !== b || a === self) return null;
+    if (owGroundRank(a) <= owGroundRank(self) && self !== 'TWater') return null;
+    if (dx >= rad || dy >= rad) return null;
+    const fx = rad - dx - 0.5, fy = rad - dy - 0.5, dist = Math.fround(Math.sqrt(Math.fround(fx * fx + fy * fy)));
+    if (dist > rad) return a; if (self === 'TWater' && dist > rad - 2.2) return 'Foam'; return self;
+  };
+  const cr = corner(n, e, size - 1 - px, size - 1 - py) ?? corner(n, w, px, size - 1 - py) ?? corner(s, e, size - 1 - px, py) ?? corner(s, w, px, py);
+  if (cr != null) return cr;
+  if (self === 'TWater') {
+    let edge = 1e9; if (n != null && n !== 'TWater') edge = Math.min(edge, size - 1 - py); if (s != null && s !== 'TWater') edge = Math.min(edge, py);
+    if (e != null && e !== 'TWater') edge = Math.min(edge, size - 1 - px); if (w != null && w !== 'TWater') edge = Math.min(edge, px);
+    if (edge <= Math.max(1, Math.floor(size / 8))) return 'Foam';
+  }
+  const depth = Math.max(1, Math.floor(size * 4 / 16)); let best = self, bestD = 1e9;
+  const tryNb = (nb, d) => {
+    if (nb == null || nb === self || d >= depth || d >= bestD || owGroundRank(nb) <= owGroundRank(self)) return;
+    let hh = (Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ Math.imul(px, 83492791) ^ Math.imul(py, 2971215073 | 0)) >>> 0;
+    hh = (hh ^ (hh >>> 13)) >>> 0; hh = Math.imul(hh, 0x5bd1e995) >>> 0; hh = (hh ^ (hh >>> 15)) >>> 0;
+    if ((hh % depth) >= depth - d) return; best = nb; bestD = d;
+  };
+  tryNb(n, size - 1 - py); tryNb(s, py); tryNb(e, size - 1 - px); tryNb(w, px);
+  return best;
+}
+function owShadowW(c, wallFace) { return c === 't' ? 1.1 : c === 'A' ? 1.2 : c === 'W' ? (wallFace ? 1.05 : 0) : c === 'f' ? 0.9 : (c === 'M' || c === 'T') ? 0.9 : c === 'c' ? 0.8 : c === 'O' ? 1.1 : 'UBK'.includes(c) ? 1.1 : c === 'i' ? 0.5 : 0; }
+function owTownKey(c, wallFace) { return c === 'W' ? (wallFace ? 'TWall' : 'TRoof') : c === 't' ? 'TTree' : c === 'f' ? 'TFence' : c === '"' ? 'TTallGrass' : c === 'A' ? 'TMountain' : c === '^' ? 'THill' : c === 'h' ? 'TCave' : c === 'M' ? 'THome' : c === 'T' ? 'TSpawn' : owIsDoor(c) ? 'TDoor' : null; }
+function owDrawPixelBase(g, m, z, w, h) {
+  const P = 16, img = g.createImageData(w * P, h * P), d = img.data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const nb = (dx, dy) => { const nx = x + dx, ny = y + dy; return nx < 0 || ny < 0 || nx >= w || ny >= h ? null : owGroundKey(owAt(m, nx, ny)); };
+    const self = owGroundKey(owAt(m, x, y)), n = nb(0, 1), e = nb(1, 0), s = nb(0, -1), wv = nb(-1, 0);
+    for (let py = 0; py < P; py++) for (let px = 0; px < P; px++) {
+      const k = owGroundPixelKey(self, n, e, s, wv, x, y, px, py, P);
+      const tp = k === 'Foam' ? null : owTownPx(k), col = k === 'Foam' ? [196, 228, 248] : (tp && tp[P - 1 - py] && tp[P - 1 - py][px]) || [90, 150, 70];
+      const ix = ((h - 1 - y) * P + (P - 1 - py)) * w * P + x * P + px, o = ix * 4; d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; d[o + 3] = 255;
+    }
+  }
+  const tmp = document.createElement('canvas'); tmp.width = w * P; tmp.height = h * P; tmp.getContext('2d').putImageData(img, 0, 0);
+  g.drawImage(tmp, 0, 0, w * z, h * z);
+  const items = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const c = owAt(m, x, y), below = owAt(m, x, y - 1), wallFace = below !== 'W' && !owIsDoor(below);
+    const sw = owShadowW(c, wallFace); if (sw > 0) { g.fillStyle = 'rgba(0,0,0,.38)'; g.beginPath(); g.ellipse((x + 0.58) * z, (h - 1 - y + 0.88) * z, sw * z / 2, sw * z / 4, 0, 0, 7); g.fill(); }
+    const k = owTownKey(c, wallFace); if (k) items.push([y, k, x, c]);
+  }
+  items.sort((a, b) => (a[1] === 'TTallGrass') - (b[1] === 'TTallGrass') || b[0] - a[0]);
+  for (const [y, k, x, c] of items) {
+    const cv = owTownCanvas(k); if (!cv) continue;
+    const sc = k === 'TTree' ? 1.5 : k === 'TMountain' ? 1.4 : (k === 'TDoor' || k === 'THome' || k === 'TSpawn') ? 1.1 : 1, n = z * sc;
+    const left = (x + 0.5) * z - n / 2, top = (h - y) * z - n - (k === 'TTree' ? z * 0.25 : 0);
+    g.drawImage(cv, left, top, n, n);
+    if (owIsDoor(c)) { g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 3; g.font = `700 ${Math.round(z * 0.5)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.strokeText(c, (x + 0.5) * z, (h - 1 - y + 0.3) * z); g.fillText(c, (x + 0.5) * z, (h - 1 - y + 0.3) * z); }
+  }
+  // 其余格子（道具 / 机关 / 补心…）沿用小镇图标
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const c = owAt(m, x, y); if (owTownKey(c, true) || '.=wg'.includes(c)) continue;
+    const ic = owIconCanvas(owIconKey(c)); if (ic) g.drawImage(ic, x * z, (h - 1 - y) * z, z, z);
+  }
+}
 function owDrawBase(g, m, z, w, h) {
   g.imageSmoothingEnabled = false;
+  if ($('#owPixel') && $('#owPixel').checked && z >= 8 && typeof OW_ART !== 'undefined' && OW_ART.town) { owDrawPixelBase(g, m, z, w, h); owDrawBaseRest(g, m, z, w, h); return; }
   const err = new Set((OWT.rep ? OWT.rep.issues : []).filter(i => i.sev === 'Error' && i.x >= 0).map(i => i.x + ',' + i.y));
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const c = owAt(m, x, y), t = owTile(c), px = x * z, py = (h - 1 - y) * z;
@@ -931,6 +1010,10 @@ function owDrawBase(g, m, z, w, h) {
     if ((!ic && 'MT?niKOUXh+*'.includes(c)) || (c >= '1' && c <= '9')) { g.fillStyle = ic ? '#fff' : '#111'; g.font = `700 ${Math.round(z * 0.62)}px JetBrains Mono,monospace`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(c, px + z / 2, py + z / 2 + 1); }
     if (err.has(x + ',' + y)) { g.strokeStyle = '#ff5a4e'; g.lineWidth = 2; g.strokeRect(px + 1, py + 1, z - 3, z - 3); }
   }
+  owDrawBaseRest(g, m, z, w, h);
+}
+function owDrawBaseRest(g, m, z, w, h) {
+  const err = new Set((OWT.rep ? OWT.rep.issues : []).filter(i => i.sev === 'Error' && i.x >= 0).map(i => i.x + ',' + i.y));
   const sc = OWT.rep && OWT.rep.schedule;
   if (sc && $('#owRoute').checked) {
     g.fillStyle = 'rgba(255,60,50,.85)';
@@ -950,6 +1033,7 @@ function owDrawBase(g, m, z, w, h) {
     const tw = g.measureText(lbl).width; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(rx + 2, ry + 2, tw + 24, 16);
     const b = owIconCanvas('Bolt'); if (b) g.drawImage(b, rx + 3, ry + 2, 16, 16); g.fillStyle = '#fff'; g.fillText(lbl, rx + 21, ry + 4);
   });
+  if ($('#owPixel') && $('#owPixel').checked) for (const k of err) { const [x, y] = k.split(',').map(Number); g.strokeStyle = '#ff5a4e'; g.lineWidth = 2; g.strokeRect(x * z + 1, (h - 1 - y) * z + 1, z - 3, z - 3); }
 }
 function owDrawOverlay(g, m, z, w, h) {
   const sc = OWT.rep && OWT.rep.schedule;
@@ -1012,7 +1096,7 @@ $('#owGrow').onchange = e => {
   toast(`现在 ${owW(m)}×${m.rows.length}（Ctrl+Z 撤销）。新地是草地，外圈已种树；接着画路和房子`);
 };
 $('#owFit').onclick = () => { const wrap = $('#owWrap'), m = owM(); OWT.zoom = Math.max(4, Math.min(28, Math.floor(Math.min((wrap.clientWidth - 4) / owW(m), (wrap.clientHeight - 4) / m.rows.length)))); $('#owZoom').value = OWT.zoom; owDraw(); };
-$('#owRoute').onchange = owDraw; $('#owNight').onchange = owDraw;
+$('#owRoute').onchange = owDraw; $('#owNight').onchange = owDraw; if ($('#owPixel')) $('#owPixel').onchange = owDraw;
 $('#owPick').onchange = e => { OWCUR = +e.target.value; OWT.undo = []; OWT.redo = []; owRender(); };
 $('#owName').onchange = e => { owM().name = e.target.value.trim() || '未命名小镇'; owRender(); };
 $('#owGoal').onchange = e => { owM().goal = e.target.value.trim(); owSave(); };

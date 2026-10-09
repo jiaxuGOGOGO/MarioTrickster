@@ -61,7 +61,18 @@ ow_icons = {}
 for m in re.finditer(r'\{ "(\w+)", new\[\] \{(.*?)\} \}', art, re.S):
     rows = re.findall(r'"([^"]+)"', m.group(2))
     if len(rows) == 16 and all(len(r) == 16 for r in rows): ow_icons[m.group(1)] = rows
-ow_art = dict(pal=ow_pal, tile=ow_tileic, icons=ow_icons)
+# S246：小镇像素图块（WorldArt.Town，和 Unity 同一套）+ Step1Art 额外调色板 + 小人站立帧 → 网页小镇也画像素图、过渡边、影子
+s1 = rd('Gameplay/Step1/Step1Art.cs'); wa = rd('Overworld/WorldArt.cs')
+ei = s1.index('ExtraPalette = new'); ej = s1.index('};', ei)
+for m in re.finditer(r"\{ '(.)', new\[\] \{ ([\d.f, ]+) \} \}", s1[ei:ej]): ow_pal.setdefault(m.group(1), [float(v) for v in m.group(2).replace('f', '').split(',')])
+ow_town = {}
+ti_ = wa.index('Town = new'); tj_ = wa.index('Decor = new')
+for m in re.finditer(r'\{ "(\w+)", new\[\] \{(.*?)\} \}', wa[ti_:tj_], re.S):
+    rows = re.findall(r'"([^"]+)"', m.group(2))
+    if len(rows) == 16: ow_town[m.group(1)] = rows
+for k in ('Hero0', 'Imp0'):
+    m = re.search(r'\{ "' + k + r'", new\[\] \{(.*?)\} \}', s1, re.S); ow_town[k] = re.findall(r'"([^"]+)"', m.group(1))
+ow_art = dict(pal=ow_pal, tile=ow_tileic, icons=ow_icons, town=ow_town)
 room_names = [re.search(r'DefaultRoomName = "([^"]+)"', wm).group(1)] + re.findall(r'\("([^"]+)", \w+Sample\)', wm)
 sample_room = {n: names.get(f, f) for n, f in re.findall(r'\("([^"]+)", (\w+Sample)\)', wm)}
 sample_room[room_names[0]] = '默认恶作剧房间'
@@ -102,4 +113,4 @@ html = open(os.path.join(HERE, 'shell.html'), encoding='utf-8').read()
 ow = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'overworld.js'), encoding='utf-8').read())
 html = html.replace('/*DATA*/', data).replace('/*LOGIC*/', logic + '\n' + ow).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read())
 open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(html)
-print(f'index.html: {len(fm_all)} 项功能地图, {len(stories)} 句居民台词, {len(tun)} 个调参值, {len(els)} 个元素, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(ow_harm)} 条伤害说明, {len(ow_icons)} 个像素图标, {len(html)//1024} KB')
+print(f'index.html: {len(fm_all)} 项功能地图, {len(stories)} 句居民台词, {len(tun)} 个调参值, {len(els)} 个元素, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(ow_harm)} 条伤害说明, {len(ow_icons)} 个像素图标, {len(ow_town)} 张小镇图块, {len(html)//1024} KB')

@@ -414,6 +414,7 @@ public sealed class OverworldGame : MonoBehaviour
                 var gt = ground ? t : OverworldCatalog.Get(c == 'M' || c == 'T' || OverworldCatalog.IsDoor(c) ? '=' : '.');
                 var gc = new Color(gt.r, gt.g, gt.b); if ((x + y) % 2 == 0) gc *= 0.96f; // 棋盘微差，看得出格子
                 groundPx[y * map.W + x] = new Color(gc.r, gc.g, gc.b, 1f);
+                if (artOn) { float sw = WorldArt.ShadowWidth(c, map.At(x, y - 1) != 'W' && !OverworldCatalog.IsDoor(map.At(x, y - 1))); if (sw > 0f) { var shd = Shadow(root, x + 0.58f, y + 0.12f, sw); if (c == 'c' || c == 'O') Keep(x, y, shd); } } // S246：脚下影子
                 if (artOn && ArtCell(root, c, x, y)) continue; // S245：像素美术模式——这一格用 16×16 图（调参 artTown 关掉 = 回到色块）
                 if (c == '"') { var tall = Quad(root, "grass", x + 0.5f, y + 0.6f, 1f, 1.1f, new Color(t.r, t.g, t.b, 0.88f), 3000); tall.name = "TallGrass"; Keep(x, y, tall); }
                 else if (c == 'W')
@@ -488,6 +489,7 @@ public sealed class OverworldGame : MonoBehaviour
             if (i0 != null) { trickSr.sprite = i0; trickSr.transform.localScale = Vector3.one; trickSr.color = Color.white; }
             if (cr != null) { crateSr.sprite = cr; crateSr.transform.localScale = Vector3.one; crateSr.color = Color.white; }
         }
+        if (artOn) { Shadow(marioGo, 0f, 0.02f, WorldArt.ShadowCharacter); Shadow(trickGo, 0f, 0.02f, WorldArt.ShadowCharacter); }
         if (tuning.artMountains) BuildMountains();
         trickCrate = crateSr.transform;
         // S217：头顶名字，一眼分清谁是你（蓝）谁是马里奥（红）
@@ -577,7 +579,39 @@ public sealed class OverworldGame : MonoBehaviour
         }
         groundBlocks[key] = b; return b;
     }
-    private void PaintGround(Texture2D tex, int x, int y) => tex.SetPixels32(x * groundPpc, y * groundPpc, groundPpc, groundPpc, GroundBlock(WorldArt.GroundKeyOf(map.At(x, y))));
+    /// <summary>S246：一格地面。和邻居一样 / 邻居层级都更低 = 直接用整块；否则逐像素按 WorldArt.GroundPixelKey 画毛边（草长进路里、水边一道浅色）。</summary>
+    private void PaintGround(Texture2D tex, int x, int y)
+    {
+        string self = WorldArt.GroundKeyOf(map.At(x, y));
+        string N(int dx, int dy) { int nx = x + dx, ny = y + dy; return nx < 0 || ny < 0 || nx >= map.W || ny >= map.H ? null : WorldArt.GroundKeyOf(map.At(nx, ny)); }
+        string n = N(0, 1), e = N(1, 0), so = N(0, -1), w = N(-1, 0);
+        bool plain = true; int r = WorldArt.GroundRank(self);
+        foreach (var nb in new[] { n, e, so, w }) if (nb != null && nb != self && (WorldArt.GroundRank(nb) > r || self == "TWater")) plain = false;
+        var own = GroundBlock(self);
+        if (plain) { tex.SetPixels32(x * groundPpc, y * groundPpc, groundPpc, groundPpc, own); return; }
+        int k = groundPpc; var blk = new Color32[k * k];
+        for (int py = 0; py < k; py++) for (int px = 0; px < k; px++)
+        {
+            string key = WorldArt.GroundPixelKey(self, n, e, so, w, x, y, px, py, k);
+            blk[py * k + px] = key == self ? own[py * k + px] : key == "Foam" ? Foam : GroundBlock(key)[py * k + px];
+        }
+        tex.SetPixels32(x * groundPpc, y * groundPpc, groundPpc, groundPpc, blk);
+    }
+    private static readonly Color32 Foam = new Color32(196, 228, 248, 255);
+    private Sprite shadowSprite;
+    /// <summary>S246：脚下影子（半透明椭圆，排在地面上、所有物体下面）。</summary>
+    private SpriteRenderer Shadow(Transform parent, float x, float y, float width)
+    {
+        if (shadowSprite == null)
+        {
+            var px = WorldArt.ShadowRgba(16, 8); var t = new Texture2D(16, 8, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            var cols = new Color[16 * 8]; for (int i = 0; i < cols.Length; i++) cols[i] = new Color(0f, 0f, 0f, px[i * 4 + 3]);
+            t.SetPixels(cols); t.Apply(); shadowSprite = Sprite.Create(t, new Rect(0, 0, 16, 8), new Vector2(0.5f, 0.5f), 16f);
+        }
+        var go = new GameObject("S246_Shadow"); go.transform.SetParent(parent, false); go.transform.localPosition = new Vector3(x, y, 0f);
+        go.transform.localScale = new Vector3(width, width, 1f);
+        var sr = go.AddComponent<SpriteRenderer>(); sr.sprite = shadowSprite; sr.sortingOrder = -1900; return sr;
+    }
 
     /// <summary>站 / 跑两帧：这一帧挪了 = 跑（8 帧/秒），朝向跟着左右。</summary>
     private void RunFrame(SpriteRenderer sr, string who, float x, ref float lastX, ref float lastY, float y)

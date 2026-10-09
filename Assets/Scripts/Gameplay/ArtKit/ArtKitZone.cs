@@ -86,7 +86,8 @@ public class ArtKitZone : MonoBehaviour
         int hearts = ArtKitRules.Accumulate(ref marioPending, b.damageHalves);
         if (hp != null) { if (hearts > 0) hp.TakeDamage(hearts); else if (hearts < 0) hp.Heal(-hearts); }
         if (b.stunSeconds > 0f) mario.ApplyKnockbackStun(b.stunSeconds);
-        Pulse(mario.transform.position);
+        Move(mario.GetComponent<Rigidbody2D>(), mario.transform.position, v => { mario.ApplyKnockbackStun(Mathf.Max(0.15f, b.stunSeconds), true, false); });
+        Pulse(mario.transform.position); Spent();
     }
 
     private void HitYou()
@@ -95,7 +96,49 @@ public class ArtKitZone : MonoBehaviour
         int hearts = ArtKitRules.Accumulate(ref youPending, b.damageHalves);
         if (lives != null) { if (hearts > 0) lives.HitByZone(hearts); else if (hearts < 0) lives.SetLives(Mathf.Min(lives.MaxLives, lives.Lives - hearts)); }
         if (b.stunSeconds > 0f) you.ApplyKnockbackStun(b.stunSeconds);
-        Pulse(you.transform.position);
+        if (b.revealsYou && you.IsDisguised) { var ds = you.GetComponent<DisguiseSystem>(); if (ds != null) ds.Undisguise(); }
+        if (b.bounceUp > 0f || b.knockback > 0f) you.Launch(LaunchV(you.transform.position), Mathf.Max(0.15f, b.stunSeconds));
+        Pulse(you.transform.position); Spent();
+    }
+
+    /// <summary>S246：弹起 / 击退 = 一次性速度（和弹簧板一样：落地前不能动）。</summary>
+    private Vector2 LaunchV(Vector3 who)
+    {
+        Vector2 v = Vector2.zero;
+        if (b.knockback > 0f) { var d = ArtKitRules.KnockDir(transform.position.x, transform.position.y, who.x, who.y); v += new Vector2(d[0], d[1]) * b.knockback; }
+        if (b.bounceUp > 0f) v.y = Mathf.Max(v.y, b.bounceUp);
+        return v;
+    }
+    private void Move(Rigidbody2D rb, Vector3 who, System.Action<Vector2> stun)
+    {
+        if (rb == null || (b.bounceUp <= 0f && b.knockback <= 0f)) return;
+        var v = LaunchV(who); rb.velocity = v; stun(v);
+    }
+    private bool spent;
+    /// <summary>S246：一次性（地雷）：生效一次后整个物体消失（只关掉触发区和画面，不删别的碰撞体——H3）。</summary>
+    private void Spent()
+    {
+        if (!b.oneShot || spent) return; spent = true; b.enabled = false;
+        foreach (var c in GetComponents<Collider2D>()) if (c.isTrigger) c.enabled = false;
+        var root = transform.parent != null && name == "S245_KitZone" ? transform.parent : transform;
+        foreach (var sr in root.GetComponentsInChildren<SpriteRenderer>()) sr.enabled = false;
+        if (LaunchFeel.fx) Step1Fx.Burst(transform.position, 12, new Color(1f, 0.7f, 0.3f, 1f), 6f, Vector2.up, 360f, 12f, 0.16f, 0.5f);
+        OnTriggerExit2DAll();
+    }
+    private void OnTriggerExit2DAll()
+    {
+        if (marioInside > 0 && b.speedScale < 1f && --slowCount <= 0) { slowCount = 0; MarioSpeedScale = 1f; }
+        if (youInside > 0 && you != null && b.speedScale < 1f) you.AbilitySpeedMultiplier = 1f;
+        marioInside = youInside = 0;
+    }
+
+    /// <summary>S246：持续推（风 / 传送带）：每个物理帧给里面的人加平台速度（和传送带同一个接口，不和走路打架）。</summary>
+    private void FixedUpdate()
+    {
+        if (!b.enabled || b.pushX == 0f) return;
+        var v = new Vector2(b.pushX, 0f);
+        if (marioInside > 0 && mario != null) mario.SetPlatformVelocity(v);
+        if (youInside > 0 && you != null) you.SetPlatformVelocity(v);
     }
 
     private void Pulse(Vector3 at)

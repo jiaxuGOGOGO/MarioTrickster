@@ -1397,6 +1397,34 @@ static class CHECK {
     foreach(var f in new[]{"RushMarioMind.cs","SuspicionMeter.cs"}){ var src=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/"+f)); if(src.Contains("ArtKit")||src.Contains("WorldArt")||src.Contains("TownSaveStore")){ kb++; Console.WriteLine("     [FAIL] H4："+f+" 读了美术 / 存档"); } }
     if(!File.ReadAllText(WsRepo("Assets/Scripts/Overworld/Runtime/OverworldGame.cs")).Contains("TownWeatherFx")){ kb++; Console.WriteLine("     [FAIL] 小镇天气粒子没接上"); }
     Console.WriteLine($"[{(kb==0?"OK":"FAIL")}] S245 存档进度点 · 美术覆盖 · 素材包换图 + 互动：{string.Join("｜",parts)}"); fail+=kb; }
+  // S246：地面过渡边 · 影子 · 网页像素小镇 · 素材包更多效果
+  { int kb=0; var parts=new List<string>();
+    // C# 与网页同一套毛边规则（网页 app.js 导出的 2400 个样例逐个对）
+    var gj=MiniJson.Parse(File.ReadAllText("gpk_web.json"),out _) as List<object>; int gbad=0, edge=0;
+    foreach(var o in gj){ var r=(List<object>)o; string S(int i)=>r[i] as string; int I(int i)=>(int)(double)r[i];
+      var cs=WorldArt.GroundPixelKey(S(0),S(1),S(2),S(3),S(4),I(5),I(6),I(7),I(8),16); if(cs!=S(9)) gbad++; if(cs!=S(0)) edge++; }
+    if(gbad>0||edge==0){ kb++; Console.WriteLine($"     [FAIL] 网页和 Unity 的过渡边不一致：{gbad} 个"); } else parts.Add($"过渡边 Unity = 网页（{gj.Count} 个样例、{edge} 个毛边像素）");
+    // 规则：同种地面不长毛边；草长进路、路不长进草；最靠边那排一定是邻居
+    if(WorldArt.GroundPixelKey("TPath","TPath","TPath","TPath","TPath",3,4,0,0,16)!="TPath"||WorldArt.GroundPixelKey("TGrass","TPath","TPath","TPath","TPath",3,4,0,15,16)!="TGrass"||WorldArt.GroundPixelKey("TPath","TGrass",null,null,null,3,4,5,15,16)!="TGrass"||WorldArt.GroundPixelKey("TPath","TGrass",null,null,null,3,4,5,4,16)!="TPath"){ kb++; Console.WriteLine("     [FAIL] 过渡边规则"); } else parts.Add("草长进路、路不长进草、只在边上 3 像素");
+    if(WorldArt.GroundPixelKey("TWater","TGrass",null,null,null,1,1,7,15,16)!="TGrass"&&WorldArt.GroundPixelKey("TWater","TGrass",null,null,null,1,1,7,14,16)!="Foam"){ }
+    int foam=0; for(int px=0;px<16;px++) if(WorldArt.GroundPixelKey("TWater","TPath",null,null,null,2,2,px,15,16)=="Foam") foam++;
+    if(foam<12){ kb++; Console.WriteLine("     [FAIL] 水边浅色线 "+foam); } else parts.Add("水边一道浅色");
+    // 影子
+    if(WorldArt.ShadowWidth('t',false)<=0||WorldArt.ShadowWidth('W',false)!=0||WorldArt.ShadowWidth('W',true)<=0||WorldArt.ShadowWidth('.',false)!=0||WorldArt.ShadowWidth('=',false)!=0){ kb++; Console.WriteLine("     [FAIL] 影子格子"); }
+    var sh=WorldArt.ShadowRgba(16,8); float maxA=0; for(int i=3;i<sh.Length;i+=4) maxA=Math.Max(maxA,sh[i]);
+    if(maxA<=0||maxA>0.4f||sh[3]!=0){ kb++; Console.WriteLine("     [FAIL] 影子贴图"); } else parts.Add("树 / 山 / 墙脚 / 机关 / 人物脚下有影子（半透明 ≤0.4，角上透明）");
+    var app=File.ReadAllText(WsRepo("tools/LevelStudioWeb/app.js")); var html=File.ReadAllText(WsRepo("tools/LevelStudioWeb/index.html"));
+    if(!app.Contains("owDrawPixelBase")||!html.Contains("\"town\":{")||!html.Contains("TRoof")||!html.Contains("owPixel")){ kb++; Console.WriteLine("     [FAIL] 网页小镇没有像素画面"); } else parts.Add("网页小镇像素画面（可切回色块）");
+    // 素材包更多效果
+    var cl=ArtKitRules.Clamp(new ArtKitRules.Behavior{enabled=true,tickSeconds=1,speedScale=1,bounceUp=99,pushX=-99,knockback=99});
+    if(cl.bounceUp>ArtKitRules.MaxBounce||cl.pushX< -ArtKitRules.MaxPush||cl.knockback>ArtKitRules.MaxKnock){ kb++; Console.WriteLine("     [FAIL] 新效果夹不住"); }
+    if(ArtKitRules.PresetNames.Length!=10){ kb++; Console.WriteLine("     [FAIL] 预设数量"); }
+    for(int i=0;i<ArtKitRules.PresetNames.Length;i++){ var b=ArtKitRules.Preset(i); var c2=ArtKitRules.Clamp(b); if(!b.enabled||b.tickSeconds<ArtKitRules.MinTick||c2.bounceUp!=b.bounceUp||c2.pushX!=b.pushX||c2.knockback!=b.knockback){ kb++; Console.WriteLine("     [FAIL] 预设越界 "+ArtKitRules.PresetNames[i]); } }
+    var mine=ArtKitRules.Describe(ArtKitRules.Preset(7)); var tramp=ArtKitRules.Describe(ArtKitRules.Preset(4));
+    if(!mine.Contains("一次")||!mine.Contains("弹开")||!tramp.Contains("弹")||!ArtKitRules.Describe(ArtKitRules.Preset(8)).Contains("伪装")||!ArtKitRules.Describe(ArtKitRules.Preset(5)).Contains("右")){ kb++; Console.WriteLine("     [FAIL] 新效果说明："+mine+" / "+tramp); } else parts.Add("10 个预设：蹦床 / 大风 / 传送带 / 地雷 / 探照灯 / 冰面…（"+tramp+"）");
+    var kd=ArtKitRules.KnockDir(5,5,4,5); if(kd[0]>=0||kd[1]<=0){ kb++; Console.WriteLine("     [FAIL] 击退方向"); }
+    if(Math.Abs(ArtKitRules.BounceHeight(15f)-2.8125f)>0.01f){ kb++; Console.WriteLine("     [FAIL] 弹高"); }
+    Console.WriteLine($"[{(kb==0?"OK":"FAIL")}] S246 过渡边 · 影子 · 网页像素小镇 · 素材包更多效果：{string.Join("｜",parts)}"); fail+=kb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

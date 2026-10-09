@@ -147,7 +147,7 @@ public static partial class Step1Text
         return null;
     }
 
-    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   F 连锁   T 挑衅   U 遁地   K 蛛丝   ↓ 通风管   |   V 这是什么 Labels   C 镜头 Camera   H 帮助 Help   F8 记反馈   Esc 暂停";
+    public const string ControlsBar = "← → 移动 Move   ↑ 跳 Jump   P 伪装 Disguise   L 触发   B 炸弹   Z 缩小   G 诱饵   F 连锁   T 挑衅   U 遁地   K 蛛丝   ↓ 通风管   |   V 这是什么 Labels   C 镜头 Camera   H 帮助 Help   F8 记反馈   Esc 暂停菜单";
 
     public const string Help =
         "<b>怎么玩  HOW TO PLAY</b>\n\n" +
@@ -162,8 +162,8 @@ public static partial class Step1Text
         "2. 他走近时 → 按 <b>L</b> 触发（火 / 封路墙 / 塌桥）    When he's close → <b>L</b> to trigger\n" +
         "   被火烧到他会晕一下，封路墙能拦住他。   Fire makes him dizzy; the wall blocks him.\n" +
         "   <b>4 秒内连着坑他 = 连招</b>，晕得更久！<b>换不同机关</b>分更高。   Chain within 4s = COMBO. Mix different traps for more points!\n" +
-        "   <color=#4FE08C><b>弹簧板</b></color>（绿地砖）：L 把他弹上天，落地前摆好火 = 浮空连招。  <b>Spring</b>: launch him, then fire where he lands.\n" +
-        "   <color=#FFE040><b>香蕉皮</b></color>（地上黄条）：L 后他踩上去会滑出 3–4 格。  <b>Banana</b>: he slides forward.\n" +
+        "   <color=#4FE08C><b>弹簧板</b></color>（绿板+向上箭头）：L 把他弹上天，落地前摆好火 = 浮空连招。  <b>Spring</b>: launch him, then fire where he lands.\n" +
+        "   <color=#FFE040><b>香蕉皮</b></color>（地上的香蕉皮）：L 后他踩上去会滑出 3–4 格。  <b>Banana</b>: he slides forward.\n" +
         "   <color=#C8A070><b>裂缝地板</b></color>（宝物旁）：L 打碎，他掉进地下室。  <b>Crack floor</b>: L drops him into the basement.\n\n" +
         "<b>B 炸弹</b>（3 枚，现形才能放）：炸开附近的<b>裂墙</b>/裂缝地板/箱子，炸晕马里奥——但<b>他听得见</b>。  <b>B</b> = bomb (he hears it!)\n" +
         "<b>大炮</b>：伪装控制时 <b>←→</b> 调方向、<b>↑↓</b> 调仰角，<b>L</b> 开炮；没伪装时站在炮口按 <b>↓ 坐进去</b>，方向键瞄准（虚线 = 会飞到哪），<b>空格</b>把自己打出去，落地就能再进（马里奥打完炮弹后也会钻，他要冷却 30 秒）。  Cannon: aim with arrows; Down to sit in, Space to fly\n" +
@@ -278,8 +278,8 @@ public static partial class Step1Text
     public static string ControlsBarFor(bool disguised, bool shrunk, bool canBomb, bool canDecoy, bool canTaunt, bool canShrink, bool nearVent, bool nearCannon = false, bool canBurrow = false, bool canSilk = false, bool burrowed = false, bool swinging = false, bool propDecoy = false)
     {
         // S241：在地下 / 挂在丝上 = 只显示这时有用的键
-        if (burrowed) return "← → 地下移动 Move   U 钻出来 Surface   L 触发（不行）   |   H 全部按键 Help   F8 记反馈   Esc 暂停";
-        if (swinging) return "← → 荡 Swing   ↑ ↓ 收放线 Reel   K 松手 Release   L 触发（不行）   |   H 全部按键 Help   F8 记反馈   Esc 暂停";
+        if (burrowed) return "← → 地下移动 Move   U 钻出来 Surface   L 触发（不行）   |   H 全部按键 Help   F8 记反馈   Esc 暂停菜单";
+        if (swinging) return "← → 荡 Swing   ↑ ↓ 收放线 Reel   K 松手 Release   L 触发（不行）   |   H 全部按键 Help   F8 记反馈   Esc 暂停菜单";
         var extra = new System.Collections.Generic.List<string>();
         if (nearCannon) extra.Add("↓ 坐进大炮 Cannon");
         if (nearVent) extra.Add("↓ 钻通风管 Vent");
@@ -293,7 +293,7 @@ public static partial class Step1Text
         string p = disguised ? "P 变回 Undisguise" : shrunk ? "(缩小中 shrunk)" : "P 伪装 Disguise";
         string s = "← → 移动 Move   ↑ 跳 Jump   " + p + "   L 触发 Trigger";
         foreach (var e in extra) s += "   " + e;
-        return s + "   |   H 全部按键 Help   F8 记反馈   Esc 暂停";
+        return s + "   |   H 全部按键 Help   F8 记反馈   Esc 暂停菜单";
     }
     public const int ControlsBarMaxItems = 10;
 
@@ -321,5 +321,9 @@ public static partial class Step1Text
     public const string LampOff = "💡 灯灭了 {0:F0} 秒  Lamp off";
 
     public const string Paused = "已暂停  Paused\n<size=22>Esc 继续 Resume</size>";
+    // S244：暂停菜单
+    public const string PauseKeys = "↑↓ 选   Enter / 空格 确认   数字键直接选   Esc 继续";
+    public const string PauseSettingsKeys = "↑↓ 选   ←→ 调   Backspace / 最后一行 返回   Esc 继续游戏";
+    public const string PauseArtNextRound = "像素美术：下一局生效（R 重开 / N 下一局）  Applies next round";
     public const string AfterSurvey = "✓ 已保存 Saved\n\n<b>N</b> = 下一局 Next round        <b>R</b> = 从头开始 Restart";
 }

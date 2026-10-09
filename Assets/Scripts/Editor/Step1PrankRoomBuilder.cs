@@ -50,7 +50,7 @@ public static class Step1PrankRoomBuilder
     /// S216 = 20：弹簧板弹速按新调参（15，被弹飞全程有重力）写进场景 → 旧房间自动重建。
     /// S235 = 21：房间守卫 Step1RoomGuard（外圈外面看不见的墙 + 掉出房间回出生点掉 1 命 + 推出墙只往里推）→ 旧房间（含小镇房间）自动重建。
     /// S239 = 22：删掉旧的锚点起疑/热度/警报/连击/旧 UGUI 等重复系统（场景里不再装它们）→ 旧房间自动重建一次。
-    public const int BuilderVersion = 24; // S241：+灯 i / 草地 v；S243：+美术皮肤（Step1ArtSkin）
+    public const int BuilderVersion = 25; // S241：+灯 i / 草地 v；S243：+美术皮肤（Step1ArtSkin）；S244：+暂停菜单 Step1PauseMenu / 节奏提示 Step1Rhythm
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -415,6 +415,8 @@ public static class Step1PrankRoomBuilder
         var comboSo = new SerializedObject(combo);
         comboSo.FindProperty("tuning").objectReferenceValue = tuning;
         comboSo.ApplyModifiedPropertiesWithoutUndo();
+        gm.gameObject.AddComponent<Step1PauseMenu>(); // S244：Esc 暂停菜单（继续 / 重开 / 怎么玩 / 设置 / 回小镇 / 退出）
+        gm.gameObject.AddComponent<Step1Rhythm>();    // S244：开局 3-2-1 + 拿到宝 / 最后 10 秒横幅
         var screen = gm.gameObject.AddComponent<Step1Screen>();
         var screenSo = new SerializedObject(screen);
         screenSo.FindProperty("tuning").objectReferenceValue = tuning;

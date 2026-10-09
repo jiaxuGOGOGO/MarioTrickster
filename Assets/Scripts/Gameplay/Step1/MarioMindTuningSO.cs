@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 32;
+    public const int CurrentDataVersion = 33;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -701,6 +701,18 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("房间后面加一张低对比的像素背景（不画描边，不会被当成能站的地方）")]
     public bool artBackground = true;
 
+    [Header("S244: 动作画面 · 节奏 · 暂停 · 存档")]
+    [Tooltip("动作画面：跑步扬尘、落地扬尘 + 压扁回弹、马里奥晕倒头上转星星、变身冒烟（纯外观）")]
+    public bool artJuice = true;
+    [Tooltip("开局倒计时：马里奥出发前最后 3 秒屏幕中间大字 3 · 2 · 1 → 开始！")]
+    public bool startCountdown = true;
+    [Tooltip("横幅：他拿到宝 / 最后 10 秒时屏幕上方大字提示 1.6 秒")]
+    public bool roundBanners = true;
+    [Tooltip("震屏（爆炸、弹飞、撞墙时画面抖一下）。晕 3D / 不喜欢可以关")]
+    public bool screenShake = true;
+    [Tooltip("小镇自动存档：每 20 秒、从房间回来、天亮时各存一次；下次进小镇可以继续这一天")]
+    public bool townAutoSave = true;
+
     [Header("S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）")]
     [Tooltip("马里奥 Q 扫描：半径（格）。扫到就真的暴露你（宪法 H5：扫描 100% 真实）")]
     [Range(0.5f, 20f)] public float scanRadius = 5f;
@@ -921,6 +933,11 @@ public class MarioMindTuningSO : ScriptableObject
         {
             // S243：美术皮肤（docs/step1/S243_ART_SKIN.md）——默认全开，旧资产读成 false 时补上。
             artCharacters = true; artProps = true; artTiles = true; artBackground = true;
+        }
+        if (dataVersion < 33)
+        {
+            // S244：动作画面 / 开局倒计时 / 横幅 / 震屏开关 / 小镇自动存档（docs/step1/S244_SELF_CHECK_ART_RHYTHM_PAUSE_SAVE.md）——默认全开。
+            artJuice = true; startCountdown = true; roundBanners = true; screenShake = true; townAutoSave = true;
         }
         dataVersion = CurrentDataVersion;
         return true;

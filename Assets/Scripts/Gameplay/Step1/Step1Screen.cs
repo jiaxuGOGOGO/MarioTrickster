@@ -27,6 +27,9 @@ public class Step1Screen : MonoBehaviour
 
     private void OnDestroy() { HelpOpen = false; }
 
+    /// <summary>S244：暂停菜单"怎么玩"打开说明（关掉后回到暂停菜单，游戏仍暂停）。</summary>
+    public static void OpenHelp() { HelpOpen = true; }
+
     private static void AddYouTag(Transform figure)
     {
         var go = new GameObject("Step1_YouTag");
@@ -90,12 +93,12 @@ public class Step1Screen : MonoBehaviour
             var r = new Rect(w * 0.5f - 620f, h * 0.5f - 470f, 1240f, 940f);
             Step1Gui.Panel(r, 0.92f);
             GUI.Label(new Rect(r.x + 40f, r.y + 28f, r.width - 80f, r.height - 100f), Step1Text.Help, Step1Gui.Text(22));
-            GUI.Label(new Rect(r.x, r.yMax - 70f, r.width, 50f), "<b>按任意键开始  Press any key to start</b>",
+            GUI.Label(new Rect(r.x, r.yMax - 70f, r.width, 50f), Step1PauseMenu.Open ? "<b>按任意键回到暂停菜单  Press any key</b>" : "<b>按任意键开始  Press any key to start</b>",
                 Step1Gui.Text(28, TextAnchor.MiddleCenter));
             return;
         }
 
-        if (manager != null && manager.CurrentState == GameState.Paused)
+        if (manager != null && manager.CurrentState == GameState.Paused && !Step1PauseMenu.Exists) // S244：有暂停菜单就由它画（旧场景没重建时退回一行字）
         {
             var r = new Rect(w * 0.5f - 260f, h * 0.5f - 80f, 520f, 160f);
             Step1Gui.Panel(r);

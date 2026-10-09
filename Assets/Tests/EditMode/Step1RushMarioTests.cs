@@ -2773,4 +2773,22 @@ public class Step1RushMarioTests
         var t = ScriptableObject.CreateInstance<MarioMindTuningSO>(); Assert.IsTrue(t.artCharacters && t.artProps && t.artTiles && t.artBackground);
         foreach (var f in new[] { "RushMarioMind.cs", "MarioMindDriver.cs", "SuspicionMeter.cs", "Step1Combo.cs" }) StringAssert.DoesNotContain("Step1ArtSkin", Read("Scripts/Gameplay/Step1/" + f), "H4：心智 / 连招层不碰美术");
     }
+
+    [Test]
+    public void S244_RhythmPauseAndTownSave()
+    {
+        Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 25); Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 33);
+        var t = ScriptableObject.CreateInstance<MarioMindTuningSO>(); Assert.IsTrue(t.startCountdown && t.roundBanners && t.screenShake && t.townAutoSave && t.artJuice);
+        Assert.AreEqual(6, Step1Flow.PauseItems(true).Count); Assert.AreEqual(5, Step1Flow.PauseItems(false).Count);
+        Assert.AreEqual("3", Step1Flow.CountdownText(2.4f, -1f)); StringAssert.Contains("开始", Step1Flow.CountdownText(0f, 0.1f));
+        foreach (var k in new[] { "GoalZone", "Collectible", "SimpleEnemy", "Checkpoint", "Decor" }) Assert.IsTrue(Step1Art.Icons.ContainsKey(k), "S244 补图：" + k);
+        OverworldSession.NewDay("T", "Assets/Scenes/T.unity", 3); OverworldSession.Minute = 600; OverworldSession.Results[1] = OverworldSession.DoorResult.Defended;
+        var back = Step1Flow.FromJson(Step1Flow.ToJson(Step1Flow.Capture()));
+        OverworldSession.NewDay("T", "x", 1);
+        Assert.IsTrue(Step1Flow.Restore(back, "T")); Assert.AreEqual(3, OverworldSession.Day); Assert.AreEqual(OverworldSession.DoorResult.Defended, OverworldSession.Results[1]);
+        Assert.IsNull(Step1Flow.FromJson("{broken"));
+        OverworldSession.NewDay("T", "x", 1); OverworldSession.Active = false;
+        StringAssert.Contains("SaveKey", Read("Scripts/Overworld/Runtime/OverworldGame.cs"));
+        foreach (var f in new[] { "RushMarioMind.cs", "SuspicionMeter.cs" }) StringAssert.DoesNotContain("Step1PauseMenu", Read("Scripts/Gameplay/Step1/" + f), "H4");
+    }
 }

@@ -106,9 +106,12 @@ public class Step1RoomCamera : MonoBehaviour
     }
 
     /// <summary>S193：屏幕震动（幅度按格，随时间衰减）。多次调用取较大的那次。</summary>
+    private static MarioMindTuningSO shakeTuning;
     public void Shake(float amplitude, float seconds)
     {
         if (amplitude <= 0f || seconds <= 0f || Step1HandsOffCheck.IsRunning) return;
+        if (shakeTuning == null) shakeTuning = MarioMindTuningSO.LoadOrDefault();
+        if (shakeTuning != null && !shakeTuning.screenShake) return; // S244：暂停菜单 → 设置 → 震屏 关
         if (Time.unscaledTime < shakeUntil && amplitude < shakeAmp) return;
         shakeAmp = amplitude; shakeDuration = seconds; shakeUntil = Time.unscaledTime + seconds;
     }

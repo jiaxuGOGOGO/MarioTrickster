@@ -15,6 +15,7 @@ w('/// 角色：寻宝人（红帽，马里奥位）5 帧 = 站 / 跑 A / 跑 B 
 w('/// 机关 22 个 + 徽章 8 个替换 Step1Icons 里程序画的旧图（Step1Icons.Pixels 先查这里）；地形 6 块；背景 64×36 低对比（主层黑描边、背景无描边、中间明度）。')
 w('/// 参考：主层实心深描边 + 背景低对比无描边 https://www.sandromaglione.com/articles/pixel-art-platformer-level-design-full-guide ；')
 w('/// 16×16 角色大头（头约占 45%）、先剪影 https://spritegen.io/guides/how-to-draw-a-pixel-art-character/ ；障碍和背景要拉开明度 https://www.reddit.com/r/gamedev/comments/w5w6xd/ 。')
+w('/// S244 自检后：缩图改成先吸调色板再按格投票（颜色不再发灰发糊）；补出口 / 宝物 / 小怪 / 检查点 / 装饰；封路墙改铁闸门、弹簧改高蘑菇弹簧、香蕉皮重画；单向板 5 → 8 像素。')
 w('/// 只换外观：碰撞体、判定框、玩法一律不动（H3）。')
 w('/// </summary>')
 w('public static class Step1Art')
@@ -39,7 +40,7 @@ frames={}
 for i,r in enumerate(d['hero']): frames[f'Hero{i}']=r
 for i,r in enumerate(d['imp']): frames[f'Imp{i}']=r
 block('Frames',frames)
-w('    /// <summary>地形块：GroundTop 地面最上层（有草）、GroundFill 地面里层、Wall 墙、Platform 单向板（16×5）、StoneTop、MossWall。</summary>')
+w('    /// <summary>地形块：GroundTop 地面最上层（有草）、GroundFill 地面里层、Wall 墙、Platform 单向板（16×8，S244 加粗）、StoneTop、MossWall。</summary>')
 block('Tiles',d['tiles'])
 w('    public static readonly float[][] BackgroundPalette =')
 w('    {')
@@ -53,13 +54,41 @@ w('    };')
 w('''
     public enum Pose { Idle, RunA, RunB, Jump, Stunned }
 
-    /// <summary>纯逻辑：根据状态挑一帧（跑步 8 帧/秒交替；空中 = 跳；晕 = 晕）。捣蛋者的"晕"帧是变身烟，只在变身那一下用。</summary>
+    /// <summary>纯逻辑：根据状态挑一帧（空中 = 跳；晕 = 晕；跑步两帧交替，S244：跑得越快换得越快）。捣蛋者的"晕"帧是变身烟，只在变身那一下用。</summary>
     public static Pose PoseOf(bool grounded, float speedX, bool stunned, float time)
     {
         if (stunned) return Pose.Stunned;
         if (!grounded) return Pose.Jump;
         if (speedX < 0.15f) return Pose.Idle;
-        return ((int)(time * 8f)) % 2 == 0 ? Pose.RunA : Pose.RunB;
+        return ((int)(time * RunFps(speedX))) % 2 == 0 ? Pose.RunA : Pose.RunB;
+    }
+
+    /// <summary>S244：跑步换帧速度（每秒几帧）= 4 + 速度 × 1.5，夹在 6–12。慢走 = 慢慢迈腿，冲刺 = 腿快速交替（脚步和移动对得上，不"滑步"）。</summary>
+    public static float RunFps(float speedX)
+    {
+        float f = 4f + (speedX < 0f ? -speedX : speedX) * 1.5f;
+        return f < 6f ? 6f : f > 12f ? 12f : f;
+    }
+
+    /// <summary>S244：换图后画多大、往上挪多少（相对物体中心，单位 = 格）。出口 = 1.5 格高的门、底边踩在地上；宝物 = 0.9 格、放在地上；
+    /// 其余 = 原色块大小（0.6–1 格），底边对齐原色块底边。只动外观，碰撞体 / 触发框不变（H3）。</summary>
+    public static float[] PlaceOf(string key, float sx, float sy)
+    {
+        if (key == "GoalZone") return new[] { 1.5f, 0.25f };
+        if (key == "Collectible") return new[] { 0.9f, -0.05f };
+        float s = FitScale(sx, sy); return new[] { s, FitLift(sy, s) };
+    }
+
+    /// <summary>S244：跑步扬尘间隔（秒）。0 = 不扬尘（站着 / 空中）。</summary>
+    public static float DustEvery(bool grounded, float speedX) => grounded && (speedX < 0f ? -speedX : speedX) > 2.5f ? 0.22f : 0f;
+
+    /// <summary>S244：落地扬尘有多大（0 = 不扬）：从空中落下、下落速度越大尘越大（0.4–1.4）。</summary>
+    public static float LandDust(bool wasGrounded, bool grounded, float fallSpeed)
+    {
+        if (wasGrounded || !grounded) return 0f;
+        float v = fallSpeed < 0f ? -fallSpeed : fallSpeed;
+        if (v < 3f) return 0f;
+        float s = v / 12f; return s < 0.4f ? 0.4f : s > 1.4f ? 1.4f : s;
     }
 
     /// <summary>纯逻辑：小恶魔的帧——第 5 帧是变身烟（只在变身 / 现形那一下），平时站 / 踮脚 / 跳。</summary>
@@ -99,11 +128,15 @@ w('''
     }
 
     /// <summary>纯逻辑：白盒是 1 格 × (sx, sy) 的色块；像素图是正方形 → 取大的那边（夹在 0.6–1 格），扁的东西图里本来就画在底部。</summary>
-    public static float FitScale(float sx, float sy)
+    public static float FitScale(float sx, float sy) => FitScale(sx, sy, 0.6f);
+    public static float FitScale(float sx, float sy, float min)
     {
         float m = sx > sy ? sx : sy; if (m < 0f) m = -m;
-        return m < 0.6f ? 0.6f : m > 1f ? 1f : m;
+        return m < min ? min : m > 1f ? 1f : m;
     }
+
+    /// <summary>S244：单向板换图后高 newH（像素图 8px = 0.5 格），原来色块高 oldH——往下挪多少，让板子的上表面不变（脚踩的位置 = 碰撞体顶）。</summary>
+    public static float TopKeep(float oldH, float newH) => (oldH - newH) * 0.5f;
 
     /// <summary>纯逻辑：图往上挪多少，让图的底边 = 原来色块的底边（扁机关贴地，不会飘在半空或陷进地里）。</summary>
     public static float FitLift(float sy, float scale) => (scale - (sy < 0f ? -sy : sy)) * 0.5f;
@@ -116,6 +149,13 @@ w('''
         if (n.StartsWith("OneWayPlatform_")) return "Platform";
         if (n.StartsWith("Ground_") || n.StartsWith("Platform_")) return hasAirAbove ? "GroundTop" : "GroundFill";
         return null;
+    }
+
+    /// <summary>S244：这个物体是不是地形（地面 / 墙 / 平台 / 单向板）——机关换图时跳过它们。</summary>
+    public static bool IsTerrain(string objectName)
+    {
+        string n = objectName ?? "";
+        return n.StartsWith("Ground_") || n.StartsWith("Wall_") || n.StartsWith("Platform_") || n.StartsWith("OneWayPlatform_");
     }
 }''')
 open('/home/user/workspace/repo/Assets/Scripts/Gameplay/Step1/Step1Art.cs','w',encoding='utf-8').write('\n'.join(L)+'\n')

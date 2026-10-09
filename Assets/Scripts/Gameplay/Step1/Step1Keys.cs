@@ -57,6 +57,7 @@ public static class Step1Keys
             case KeyCode.Q: return kb.qKey.wasPressedThisFrame; // S220 雷云
             case KeyCode.Return: return kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame;
             case KeyCode.Escape: return kb.escapeKey.wasPressedThisFrame;
+            case KeyCode.Backspace: return kb.backspaceKey.wasPressedThisFrame; // S244：暂停设置页 返回
             // S217：以前漏了这些（新输入系统的机器上"按 R 再来一天 / 空格 / 方向键"没反应）
             case KeyCode.R: return kb.rKey.wasPressedThisFrame;
             case KeyCode.N: return kb.nKey.wasPressedThisFrame;

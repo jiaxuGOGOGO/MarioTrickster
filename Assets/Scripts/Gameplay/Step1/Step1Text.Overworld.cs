@@ -24,7 +24,7 @@ public static partial class Step1Text
 
     // S217：测试不卡人——底部常驻按键、等他出门的提示、没点游戏窗口的提醒、快速测试、F8 反馈
     public const string OverworldNotebookClose = "N 关上笔记本 Close notebook（打开时时间照走）";
-    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   Q 雷云(能量满)   E 门口埋伏/坐炮/钻洞   空格(按住) 快进   Tab 路线   M 小地图   N 居民笔记本   - / = 镜头远近   H 说明   F8 记反馈";
+    public const string OverworldControlsBar = "方向键/WASD 走   P 伪装   L 香蕉皮/大机关   T 挑衅   Q 雷云(能量满)   E 门口埋伏/坐炮/钻洞   空格(按住) 快进   Tab 路线   M 小地图   N 居民笔记本   - / = 镜头远近   H 说明   Esc 菜单/存档   F8 记反馈";
     public const string OverworldHelpClose = "按任意键关闭说明（H 随时再打开）  Press any key";
     public static string OverworldWaitDepart(int door, string clock, double realSeconds) =>
         $"马里奥 {clock} 才出门去门 {door}（还有约 {realSeconds:0} 秒）\n先去门口躲好（不碰键盘会自动快进）";
@@ -207,4 +207,9 @@ public static partial class Step1Text
     /// <summary>房间问卷"差点被发现"题下面的参考行（只是提醒，答案还是你自己选）。</summary>
     public static string RoomNearMissHint(int total, float peak) =>
         total <= 0 ? "参考：这局他没起疑过 He never got suspicious" : $"参考：这局他起疑 {total} 次，最险一次到 {peak * 100f:0}%（100% = 认出你）";
+
+    // S244：小镇存档 / 继续
+    public static string OverworldContinueAsk(string summary) => $"<b>继续上次那一天？</b>\n{summary}\n\n<b>Enter</b> 继续 Continue      <b>N</b> 新的一天 New day";
+    public static string OverworldContinueTransit(string summary) => "继续  Continue\n" + summary;
+    public const string OverworldSaveBroken = "存档读不了（可能是旧版本），从新的一天开始  Save unreadable — new day";
 }

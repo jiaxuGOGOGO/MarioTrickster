@@ -55,6 +55,13 @@ public sealed class OverworldGame : MonoBehaviour
         map = OverworldMap.Parse(mapText);
         if (map.W == 0) { enabled = false; Debug.LogError("[Overworld] mapText 为空"); return; }
         string townScene = gameObject.scene.path; // S211：完整路径（切换用）；S212：用自己所在的场景，不依赖"当前激活场景"
+        // S244：这次 Play 第一次进小镇、有上次的存档 → 问一句"继续上次那一天？"（Enter 继续 / N 新的一天）。快速测试模式不问、直接新的一天。
+        if (!OverworldSession.Active && !savePromptDone && tuning.townAutoSave && !Step1QuickTest.On)
+        {
+            var sv = Step1Flow.FromJson(PlayerPrefs.GetString(SaveKey, ""));
+            if (sv != null && sv.map == map.name) { pendingSave = sv; askContinue = true; }
+        }
+        savePromptDone = true;
         if (!OverworldSession.Active || OverworldSession.MapName != map.name || OverworldSession.TownScene != townScene) OverworldSession.NewDay(map.name, townScene);
         OverworldSession.Active = true;
         for (int i = 0; i < doorNumbers.Length && i < doorScenes.Length; i++) OverworldSession.RoomScenes[doorNumbers[i]] = doorScenes[i];
@@ -62,6 +69,7 @@ public sealed class OverworldGame : MonoBehaviour
         town.autoFastIdleSeconds = tuning.overworldAutoFastIdleSeconds; // S224：不碰键盘 1.5 秒自动快进
         map = town.map; // S218：小镇自己那份（今天被大机关改过的地形、赶集日的新时间都在里面）
         Time.timeScale = 1f; // S217：从暂停中的房间/测试回来也不会"画面不动"
+        nextSaveAt = Time.unscaledTime + 1f; // S244：进小镇 1 秒后存一次（= 从房间回来 / 天亮那一刻）
         helpOpen = !helpSeenThisPlay && !Step1QuickTest.On; helpSeenThisPlay = true; // S217：快速测试模式不弹说明
         BuildVisuals();
         UpdateVisuals(); SnapCamera(); // S212：镜头直接就位（以前从默认位置滑过来，揭幕时画面在"飘"）
@@ -83,6 +91,9 @@ public sealed class OverworldGame : MonoBehaviour
     private void Update()
     {
         if (SceneTransit.Busy) { UpdateVisuals(); return; } // S211：切换中（黑幕）不走时间、不吃按键
+        if (askContinue) { ContinueKeys(); UpdateVisuals(); return; } // S244：继续上次的一天？
+        if (PauseKeys()) { UpdateVisuals(); return; }                  // S244：Esc 暂停菜单（小镇以前没有暂停）
+        AutoSave();
         // S217：说明面板按任意键关闭（以前只有 H 能关，而且说明开着时时间、走路全停 → "画面固定不动、控制不了"）
         if (helpOpen) { if (Step1Keys.AnyDown()) helpOpen = false; UpdateVisuals(); return; }
         if (Step1Keys.Down(KeyCode.H)) { helpOpen = true; UpdateVisuals(); return; }
@@ -212,6 +223,97 @@ public sealed class OverworldGame : MonoBehaviour
     }
     public const float WitnessSeconds = 3.5f; // S233：当场喊的话短一点（正在打，别挡眼）
     private int lastHitSerial; private bool notebookOpen; private string notebookText = "";
+    // ═════════ S244：小镇存档 + 暂停菜单（纯逻辑在 Step1Flow，sim 验证）═════════
+    public const string SaveKey = "MarioTrickster.TownSave";
+    private static bool savePromptDone;
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)] private static void ResetSavePrompt() { savePromptDone = false; }
+    private bool askContinue, paused; private Step1Flow.TownSave pendingSave; private float nextSaveAt; private int pauseIndex; private string savedNote = ""; private float savedNoteUntil;
+    private static readonly string[] TownPauseItems = { "继续  Resume", "现在存档  Save now", "怎么玩  How to play", "重新开始这一天  New day", "退出  Quit" };
+
+    private void ContinueKeys()
+    {
+        if (Step1Keys.Down(KeyCode.Return) || Step1Keys.Down(KeyCode.Space) || Step1Keys.Down(KeyCode.Y))
+        {
+            askContinue = false;
+            if (Step1Flow.Restore(pendingSave, map.name) && !string.IsNullOrEmpty(pendingSave.scene) && SceneTransit.CanLoad(pendingSave.scene))
+            {
+                OverworldSession.Active = true;
+                if (!SceneTransit.Go(pendingSave.scene, Step1Text.OverworldContinueTransit(Step1Flow.SaveSummary(pendingSave)))) SceneManager.LoadScene(pendingSave.scene); // 重新进一次小镇 = 按存档摆好
+            }
+            else Hint(Step1Text.OverworldSaveBroken, 3f);
+        }
+        else if (Step1Keys.Down(KeyCode.N) || Step1Keys.Down(KeyCode.Escape)) { askContinue = false; PlayerPrefs.DeleteKey(SaveKey); PlayerPrefs.Save(); }
+    }
+
+    /// <summary>小镇暂停（Esc）：时间停住、按键只给菜单。返回 true = 这一帧被菜单吃掉。</summary>
+    private bool PauseKeys()
+    {
+        if (helpOpen || dayOver) return false;
+        if (!paused) { if (Step1Keys.Down(KeyCode.Escape)) { paused = true; pauseIndex = 0; } return paused; }
+        if (Step1Keys.Down(KeyCode.Escape)) { paused = false; return true; }
+        if (Step1Keys.Down(KeyCode.UpArrow) || Step1Keys.Down(KeyCode.W)) pauseIndex = Step1Flow.Move(pauseIndex, -1, TownPauseItems.Length);
+        if (Step1Keys.Down(KeyCode.DownArrow) || Step1Keys.Down(KeyCode.S)) pauseIndex = Step1Flow.Move(pauseIndex, 1, TownPauseItems.Length);
+        int pick = Step1Flow.DigitPick(Step1Keys.Digit1to5(), TownPauseItems.Length);
+        if (pick >= 0) pauseIndex = pick;
+        if (pick < 0 && !(Step1Keys.Down(KeyCode.Return) || Step1Keys.Down(KeyCode.Space))) return true;
+        switch (pauseIndex)
+        {
+            case 0: paused = false; break;
+            case 1: SaveNow(true); break;
+            case 2: paused = false; helpOpen = true; break;
+            case 3:
+                paused = false; PlayerPrefs.DeleteKey(SaveKey); PlayerPrefs.Save();
+                OverworldSession.NewDay(map.name, OverworldSession.TownScene, OverworldSession.Day);
+                if (!SceneTransit.Go(OverworldSession.TownScene, Step1Text.OverworldTransitNewDay(map.name))) SceneManager.LoadScene(OverworldSession.TownScene);
+                break;
+            default:
+                SaveNow(false);
+#if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false;
+#else
+                Application.Quit();
+#endif
+                break;
+        }
+        return true;
+    }
+
+    /// <summary>自动存档：每 20 秒（现实秒）一次；刚从房间回来 / 天亮那一刻各存一次（Start 里 nextSaveAt = 现在）。这一天结束了就删掉存档（下次从新的一天开始）。</summary>
+    private void AutoSave()
+    {
+        if (!tuning.townAutoSave || Step1HandsOffCheck.IsRunning) return;
+        if (dayOver) { if (PlayerPrefs.HasKey(SaveKey)) { PlayerPrefs.DeleteKey(SaveKey); PlayerPrefs.Save(); } return; }
+        if (Time.unscaledTime < nextSaveAt) return;
+        SaveNow(false);
+    }
+
+    private void SaveNow(bool loud)
+    {
+        nextSaveAt = Time.unscaledTime + Step1Flow.AutoSaveSeconds;
+        OverworldSession.MarioX = mario.x; OverworldSession.MarioY = mario.y; OverworldSession.TricksterX = tx; OverworldSession.TricksterY = ty; OverworldSession.HasPositions = true; // 存的是此刻两人站在哪
+        var sv = Step1Flow.Capture();
+        if (!Step1Flow.Valid(sv)) return;
+        PlayerPrefs.SetString(SaveKey, Step1Flow.ToJson(sv)); PlayerPrefs.Save();
+        savedNote = (loud ? "✓ 已存档  " : "💾 ") + Step1Flow.SaveSummary(sv); savedNoteUntil = Time.unscaledTime + (loud ? 2.5f : 1.2f);
+    }
+
+    private void PauseGUI(GUIStyle big)
+    {
+        if (Time.unscaledTime < savedNoteUntil && !paused) GUI.Box(new Rect(10, 70, 340, 30), savedNote, boxStyle);
+        if (askContinue && pendingSave != null)
+        {
+            GUI.color = new Color(0, 0, 0, 0.55f); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), nightTex); GUI.color = Color.white;
+            GUI.Box(new Rect(Screen.width / 2f - 300, Screen.height / 2f - 90, 600, 180), Step1Text.OverworldContinueAsk(Step1Flow.SaveSummary(pendingSave)), big);
+            return;
+        }
+        if (!paused) return;
+        GUI.color = new Color(0, 0, 0, 0.5f); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), nightTex); GUI.color = Color.white;
+        var sb = new System.Text.StringBuilder("<b>已暂停  Paused</b>\n<size=15>" + Step1Flow.SaveSummary(Step1Flow.Capture()) + "</size>\n\n");
+        for (int i = 0; i < TownPauseItems.Length; i++) sb.AppendLine((i == pauseIndex ? "▶ <b>" : "    ") + (i + 1) + "  " + TownPauseItems[i] + (i == pauseIndex ? "</b>" : ""));
+        sb.Append("\n<size=14>" + Step1Text.PauseKeys + "</size>");
+        GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height / 2f - 170, 520, 340), sb.ToString(), big);
+    }
+
     // S233：居民记忆跨次存档（PlayerPrefs；只存"来往几次、听过哪些真心话"）。测试中心可以清空。
     public const string MemoryKey = "MarioTrickster.TownStoryMemory";
     private static bool memLoaded;
@@ -808,7 +910,7 @@ public sealed class OverworldGame : MonoBehaviour
         if (night) { GUI.color = new Color(0.05f, 0.08f, 0.25f, 0.35f); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), nightTex); GUI.color = Color.white; }
 
         // S220：样式只建一次（OnGUI 每帧会跑好几次，每次 new GUIStyle = 每帧几十次分配 → 卡顿）
-        if (boxStyle == null) { boxStyle = new GUIStyle(GUI.skin.box) { fontSize = 16, alignment = TextAnchor.UpperLeft, wordWrap = true }; bigStyle = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, wordWrap = true }; markStyle = new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter }; }
+        if (boxStyle == null) { boxStyle = new GUIStyle(GUI.skin.box) { fontSize = 16, alignment = TextAnchor.UpperLeft, wordWrap = true }; bigStyle = new GUIStyle(GUI.skin.box) { fontSize = 22, alignment = TextAnchor.MiddleCenter, wordWrap = true, richText = true }; markStyle = new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter }; }
         var box = boxStyle; var big = bigStyle;
         // 右上：时钟 + 门列表
         var sb = new System.Text.StringBuilder();
@@ -844,6 +946,7 @@ public sealed class OverworldGame : MonoBehaviour
         }
         if (helpOpen) GUI.Box(new Rect(Screen.width / 2f - 360, Screen.height / 2f - 210, 720, 420), Step1Text.OverworldHelp + "\n\n" + Step1Text.OverworldHelpClose, box);
         if (notebookOpen && !helpOpen) GUI.Box(new Rect(Screen.width / 2f - 380, 60, 760, Mathf.Min(Screen.height - 110, 640)), notebookText + "\n" + Step1Text.OverworldNotebookClose, box); // S233
+        PauseGUI(big); // S244
         if (!Application.isFocused) GUI.Box(new Rect(Screen.width / 2f - 260, Screen.height / 2f - 40, 520, 80), Step1Text.ClickGameWindow, big);
         if (dayOver)
         {

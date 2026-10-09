@@ -1310,6 +1310,45 @@ static class CHECK {
     // H4：马里奥心智 / 连招层不读装备栏
     foreach(var f in new[]{"RushMarioMind.cs","MarioMindDriver.cs","SuspicionMeter.cs","Step1Combo.cs"}){ var src=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/"+f)); if(src.Contains("TricksterLoadout")||src.Contains("DisguiseSystem")){ kb++; Console.WriteLine("     [FAIL] H4："+f+" 读了装备栏 / 伪装系统"); } }
     Console.WriteLine($"[{(kb==0?"OK":"FAIL")}] S242 黑匣子 · 装备栏 · 道具诱饵 · 一目了然：{string.Join("｜",parts)}"); fail+=kb; }
+  { int kb=0; var parts=new List<string>();
+    // S243/S244：像素素材全部过审 + 每个 16×16
+    int nIcons=0; foreach(var kv in Step1Art.Icons){ nIcons++; var rows=kv.Value; if(rows.Length!=16||rows.Any(r=>r.Length!=16)){ kb++; Console.WriteLine("     [FAIL] 图标不是 16×16："+kv.Key); continue; } var iss=OverworldArt.Audit(Step1Art.Rgba(rows),16); if(iss!=null&&iss.Count>0){ kb++; Console.WriteLine("     [FAIL] 图标没过审："+kv.Key+" "+string.Join(",",iss)); } }
+    foreach(var k in new[]{"GoalZone","Collectible","SimpleEnemy","Checkpoint","Decor","SpringPad","BananaPeel","CollapsingPlatform","ControllableBlocker","Tripwire"}) if(!Step1Art.Icons.ContainsKey(k)){ kb++; Console.WriteLine("     [FAIL] S244 缺图："+k); }
+    for(int p=0;p<5;p++) foreach(var h in new[]{true,false}) if(!Step1Art.Frames.ContainsKey(Step1Art.FrameKey(h,(Step1Art.Pose)p))){ kb++; Console.WriteLine("     [FAIL] 缺角色帧 "+Step1Art.FrameKey(h,(Step1Art.Pose)p)); }
+    if(!Step1Art.Tiles.TryGetValue("Platform",out var pl)||pl.Length!=8||pl[0].Length!=16){ kb++; Console.WriteLine("     [FAIL] 单向板图块应 16×8"); }
+    parts.Add($"{nIcons} 个图标全过审");
+    // 放置：单向板上表面不动；出口 1.5 格；扁机关底边贴原底边
+    float tk=Step1Art.TopKeep(1f,0.5f); if(Math.Abs((tk+0.25f)-0.5f)>1e-4){ kb++; Console.WriteLine("     [FAIL] TopKeep：上表面变了"); }
+    var g=Step1Art.PlaceOf("GoalZone",1,3); var sp=Step1Art.PlaceOf("SpringPad",1,0.3f);
+    if(g[0]!=1.5f||Math.Abs((sp[1]-sp[0]*0.5f)-(-0.15f))>1e-4){ kb++; Console.WriteLine($"     [FAIL] PlaceOf 出口 {g[0]} / 弹簧底边 {sp[1]-sp[0]*0.5f}"); } else parts.Add("单向板上表面、扁机关底边不变");
+    if(!Step1Art.IsTerrain("Ground_3")||!Step1Art.IsTerrain("OneWayPlatform_1")||Step1Art.IsTerrain("FireTrap_1")){ kb++; Console.WriteLine("     [FAIL] IsTerrain"); }
+    if(Step1Art.RunFps(1)!=6f||Step1Art.RunFps(20)!=12f||Step1Art.RunFps(4)!=10f){ kb++; Console.WriteLine("     [FAIL] RunFps"); } else parts.Add("跑步 6–12 帧/秒跟速度走");
+    if(Step1Art.DustEvery(false,9)!=0f||Step1Art.DustEvery(true,1)!=0f||Step1Art.LandDust(false,true,10)<=0f||Step1Art.LandDust(true,true,10)!=0f){ kb++; Console.WriteLine("     [FAIL] 扬尘条件"); }
+    // 暂停菜单
+    var it=Step1Flow.PauseItems(true); var it2=Step1Flow.PauseItems(false);
+    if(it.Count!=6||it2.Count!=5||it[0]!=Step1Flow.PauseItem.Resume||it[it.Count-1]!=Step1Flow.PauseItem.Quit||it2.Contains(Step1Flow.PauseItem.BackToTown)){ kb++; Console.WriteLine("     [FAIL] 暂停菜单项"); }
+    if(Step1Flow.Move(0,-1,6)!=5||Step1Flow.Move(5,1,6)!=0||Step1Flow.DigitPick(3,6)!=2||Step1Flow.DigitPick(7,6)!=-1){ kb++; Console.WriteLine("     [FAIL] 菜单上下绕回 / 数字键"); } else parts.Add("暂停菜单 6 项、绕回、数字键直选");
+    if(Step1Flow.StepSpeed(1f,1)!=1f||Step1Flow.StepSpeed(1f,-1)!=0.9f||Step1Flow.StepSpeed(0.5f,-1)!=0.5f||Step1Flow.StepSpeed(0.62f,1)!=0.75f){ kb++; Console.WriteLine("     [FAIL] 速度档"); }
+    // 节奏
+    if(Step1Flow.CountdownText(5f,-1f)!=""||Step1Flow.CountdownText(2.5f,-1f)!="3"||Step1Flow.CountdownText(0.3f,-1f)!="1"||!Step1Flow.CountdownText(0f,0.1f).Contains("开始")||Step1Flow.CountdownText(0f,1f)!=""){ kb++; Console.WriteLine("     [FAIL] 倒计时"); } else parts.Add("3-2-1-开始！");
+    if(!Step1Flow.CrossedLastTen(10.02f,9.99f)||Step1Flow.CrossedLastTen(9.9f,9.8f)||Step1Flow.BannerAlpha(0.8f,1.6f)!=1f||Step1Flow.BannerAlpha(2f,1.6f)!=0f||Step1Flow.PunchScale(0f)!=1.6f||Step1Flow.PunchScale(0.3f)!=1f){ kb++; Console.WriteLine("     [FAIL] 横幅 / 砸下来"); }
+    // 小镇存档往返
+    OverworldSession.NewDay("Town","Assets/Scenes/Town.unity",2); OverworldSession.Minute=14*60+30; OverworldSession.NextStop=3; OverworldSession.Energy=2; OverworldSession.MarioHearts=2; OverworldSession.Caught=1;
+    OverworldSession.Results[1]=OverworldSession.DoorResult.Defended; OverworldSession.Results[2]=OverworldSession.DoorResult.Looted; OverworldSession.Changed[77]='#';
+    OverworldSession.HasPositions=true; OverworldSession.MarioX=4.5; OverworldSession.TricksterX=9.25;
+    var js=Step1Flow.ToJson(Step1Flow.Capture()); var back=Step1Flow.FromJson(js);
+    OverworldSession.NewDay("Town","x",1);
+    bool ok=back!=null&&Step1Flow.Restore(back,"Town");
+    if(!ok||OverworldSession.Day!=2||Math.Abs(OverworldSession.Minute-870)>0.01||OverworldSession.NextStop!=3||OverworldSession.Energy!=2||OverworldSession.MarioHearts!=2||OverworldSession.Caught!=1
+       ||OverworldSession.Results[1]!=OverworldSession.DoorResult.Defended||OverworldSession.Results[2]!=OverworldSession.DoorResult.Looted||OverworldSession.Changed[77]!='#'||!OverworldSession.HasPositions||Math.Abs(OverworldSession.TricksterX-9.25)>0.01||OverworldSession.TownScene!="Assets/Scenes/Town.unity"){ kb++; Console.WriteLine("     [FAIL] 存档往返："+js); }
+    else parts.Add("存档往返 "+Step1Flow.SaveSummary(back)+$"（{js.Length} 字）");
+    if(back!=null&&Step1Flow.Restore(back,"OtherTown")){ kb++; Console.WriteLine("     [FAIL] 别的小镇的存档也读了"); }
+    foreach(var badJ in new[]{"","{","garbage",js.Replace("\"version\":1","\"version\":99"),js.Replace("\"marioHearts\":2","\"marioHearts\":9"),js.Replace("\"minute\":870","\"minute\":5")}) if(Step1Flow.FromJson(badJ)!=null){ kb++; Console.WriteLine("     [FAIL] 坏档没被丢掉："+(badJ.Length>40?badJ.Substring(0,40):badJ)); }
+    parts.Add("坏档 / 版本不对 / 数字离谱 → 当没存档");
+    OverworldSession.NewDay("Town","x",1); OverworldSession.Active=false;
+    // H4：心智不读暂停 / 节奏
+    foreach(var f in new[]{"RushMarioMind.cs","SuspicionMeter.cs"}){ var src=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/"+f)); if(src.Contains("Step1PauseMenu")||src.Contains("Step1Rhythm")||src.Contains("Step1Flow")){ kb++; Console.WriteLine("     [FAIL] H4："+f+" 读了暂停/节奏"); } }
+    Console.WriteLine($"[{(kb==0?"OK":"FAIL")}] S243/S244 像素素材 · 动作画面 · 节奏 · 暂停 · 小镇存档：{string.Join("｜",parts)}"); fail+=kb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

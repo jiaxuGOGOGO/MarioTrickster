@@ -238,6 +238,8 @@ public class PranksterCannon : ControllableLevelElement
         sr.color = new Color(0.12f, 0.12f, 0.12f);
         sr.sortingOrder = 20;
         visual.transform.localScale = Vector3.one * ballRadius * 2f;
+        var art = Step1ArtSkin.SkillSprite("FxCannonball"); // S245：像素炮弹（碰撞体还是原来的圆，H3）
+        if (art != null) { sr.sprite = art; sr.color = Color.white; visual.transform.localScale = Vector3.one * Mathf.Max(0.5f, ballRadius * 2.4f); }
         go.AddComponent<Rigidbody2D>();
         var col = go.AddComponent<CircleCollider2D>();
         col.radius = ballRadius * 0.9f;

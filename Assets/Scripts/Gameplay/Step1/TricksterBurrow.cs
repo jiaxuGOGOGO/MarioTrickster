@@ -28,7 +28,7 @@ public class TricksterBurrow : MonoBehaviour
     private MarioController mario;
     private ScanAbility scan;
     private GameManager manager;
-    private Transform mound; private SpriteRenderer moundSr;
+    private Transform mound; private SpriteRenderer moundSr; private bool artMound;
     private bool burrowed;
     private float under, cooldown, airborne, stirAge;
     private float savedSpeed = 1f;
@@ -64,6 +64,8 @@ public class TricksterBurrow : MonoBehaviour
         moundSr = go.AddComponent<SpriteRenderer>();
         moundSr.sprite = Step1Sprites.Square; moundSr.sortingOrder = 6;
         go.transform.localScale = new Vector3(0.9f, 0.32f, 1f);
+        var art = Step1ArtSkin.SkillSprite("FxMound"); // S245：像素土包
+        if (art != null) { moundSr.sprite = art; go.transform.localScale = new Vector3(1f, 1f, 1f); artMound = true; }
         go.SetActive(false);
     }
 
@@ -137,12 +139,12 @@ public class TricksterBurrow : MonoBehaviour
         if (under >= tuning.burrowMaxSeconds || airborne > 0.15f || (g != '#' && g != 'v') || self.IsStunned) { Surface(true); return; }
         // 土包：跟着你，贴在地面上
         var b = box.bounds;
-        mound.position = new Vector3(b.center.x, b.min.y + 0.12f, 0f);
+        mound.position = new Vector3(b.center.x, b.min.y + (artMound ? 0.3f : 0.12f), 0f); // S245：像素土包底边贴地
         bool moving = rb != null && Mathf.Abs(rb.velocity.x) > 0.6f;
         bool lit = Step1Lighting.IsLit(mound.position);
         MoundShowing = Step1Stealth.MoundVisible(g, BushHere(), lit, Step1Lighting.Raining, moving);
         // 看得见的土包 = 实心棕色；看不见的 = 只有你看得见的虚影（你要知道自己在哪）
-        moundSr.color = MoundShowing ? new Color(0.55f, 0.36f, 0.18f, 1f) : new Color(0.55f, 0.45f, 0.35f, 0.3f);
+        moundSr.color = artMound ? (MoundShowing ? Color.white : new Color(1f, 1f, 1f, 0.3f)) : MoundShowing ? new Color(0.55f, 0.36f, 0.18f, 1f) : new Color(0.55f, 0.45f, 0.35f, 0.3f);
         stirAge += Time.deltaTime;
         if (MoundShowing && stirAge > 0.5f) { stirAge = 0f; MoundStirred?.Invoke(mound); if (LaunchFeel.fx) Step1Fx.Dust(mound.position, 0.4f); }
         // 反制①：他踩到你

@@ -3,7 +3,7 @@
 /// </summary>
 public static partial class Step1Text
 {
-    public enum Outcome { MarioEscaped, TricksterCaughtOut, TimeUp, MarioKnockedOut, HandsOffTimeout, Other, /* S235 */ TricksterFellOut, /* S236 */ TricksterSelfHit }
+    public enum Outcome { MarioEscaped, TricksterCaughtOut, TimeUp, MarioKnockedOut, HandsOffTimeout, Other, /* S235 */ TricksterFellOut, /* S236 */ TricksterSelfHit, /* S245 */ TricksterHazard }
 
     public const string HandsOffTimeoutReason = "HandsOffTimeout";
 
@@ -14,6 +14,7 @@ public static partial class Step1Text
         if (reason == HandsOffTimeoutReason) return Outcome.HandsOffTimeout;
         if (winner == "Mario" && reason.StartsWith("Trickster fell out")) return Outcome.TricksterFellOut; // S235
         if (winner == "Mario" && reason.StartsWith("Trickster blew")) return Outcome.TricksterSelfHit; // S236
+        if (winner == "Mario" && reason.StartsWith("Trickster was worn")) return Outcome.TricksterHazard; // S245：毒池 / 荆棘等素材槽持续掉血掉光
         if (winner == "Mario") return reason.StartsWith("Trickster caught") ? Outcome.TricksterCaughtOut : Outcome.MarioEscaped;
         if (winner == "Trickster")
         {
@@ -36,6 +37,7 @@ public static partial class Step1Text
             case Outcome.HandsOffTimeout: return "马里奥卡住了（超时）\nMario got stuck (timeout)";
             case Outcome.TricksterFellOut: return "你掉出房间，命用完了\nYou fell out of the room — no lives left";
             case Outcome.TricksterSelfHit: return "你被自己的机关炸光了命\nYou blew yourself up — no lives left";
+            case Outcome.TricksterHazard: return "你在毒池 / 荆棘里掉光了命\nThe room wore you down — no lives left";
             default: return "本局结束\nRound over";
         }
     }

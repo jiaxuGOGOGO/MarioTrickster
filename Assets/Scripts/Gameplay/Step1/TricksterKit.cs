@@ -149,6 +149,7 @@ public class TricksterBomb : MonoBehaviour
     private void OnEnable() { if (!live.Contains(this)) live.Add(this); }
     private void OnDisable() { live.Remove(this); }
 
+    private bool artBomb;
     public void Arm(float fuseSeconds, float r, float stunSeconds, float knockback, int dmgMario = 1, int dmgSelf = 1)
     {
         damageMario = Mathf.Max(0, dmgMario); damageSelf = Mathf.Max(0, dmgSelf);
@@ -160,6 +161,8 @@ public class TricksterBomb : MonoBehaviour
         sr.color = new Color(0.1f, 0.1f, 0.1f);
         sr.sortingOrder = 30;
         v.transform.localScale = Vector3.one * 0.45f;
+        var art = Step1ArtSkin.SkillSprite("FxBomb"); // S245：像素炸弹（以前是黑方块）；闪红 = 颜色乘上去，图不变
+        if (art != null) { sr.sprite = art; sr.color = Color.white; v.transform.localScale = Vector3.one * 0.8f; artBomb = true; }
     }
 
     /// <summary>纯逻辑：某点是否在爆炸范围内。</summary>
@@ -171,7 +174,7 @@ public class TricksterBomb : MonoBehaviour
         if (sr != null)
         {
             float rate = Mathf.Lerp(12f, 3f, fuse / total);
-            sr.color = Mathf.Sin(Time.time * rate * Mathf.PI) > 0f ? new Color(1f, 0.25f, 0.15f) : new Color(0.1f, 0.1f, 0.1f);
+            sr.color = Mathf.Sin(Time.time * rate * Mathf.PI) > 0f ? new Color(1f, 0.25f, 0.15f) : artBomb ? Color.white : new Color(0.1f, 0.1f, 0.1f);
             // S216：最后 0.3 秒鼓起来（预备动作），告诉你"马上炸"
             float swell = fuse < 0.3f ? 1f + 0.35f * (1f - fuse / 0.3f) : 1f;
             sr.transform.localScale = Vector3.one * 0.45f * swell;

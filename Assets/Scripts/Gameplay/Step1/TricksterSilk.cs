@@ -20,7 +20,7 @@ public class TricksterSilk : MonoBehaviour
     private Rigidbody2D rb;
     private string[] grid;
     private GameManager manager;
-    private LineRenderer line;
+    private LineRenderer line; private SpriteRenderer hook; // S245：钩爪（摆荡锚点）像素图
     private bool swinging;
     private Vector2 anchor;
     private Step1Stealth.Swing s;
@@ -53,6 +53,7 @@ public class TricksterSilk : MonoBehaviour
         if (Instance == this) Instance = null;
         if (manager != null) manager.OnRoundStart -= ResetRound;
         if (line != null) Destroy(line.gameObject);
+        if (hook != null) Destroy(hook.gameObject);
     }
 
     private void ResetRound() { Release(false); cooldown = 0f; }
@@ -90,6 +91,8 @@ public class TricksterSilk : MonoBehaviour
         swinging = true; held = 0f;
         self.ExternalDrive = true; self.BlockJump = true; self.BusyMoving = true;
         if (line != null) line.enabled = true;
+        if (hook == null) { var sp = Step1ArtSkin.SkillSprite("FxHook"); if (sp != null) { var hg = new GameObject("S245_Hook"); hook = hg.AddComponent<SpriteRenderer>(); hook.sprite = sp; hook.sortingOrder = 21; hg.transform.localScale = Vector3.one * 0.7f; } }
+        if (hook != null) { hook.enabled = true; hook.transform.position = new Vector3(anchor.x, anchor.y, 0f); }
         Step1Fx.Link(transform.position, anchor, new Color(0.9f, 0.95f, 1f, 1f));
         Step1Hint.Show(Step1Text.SilkOn, 2.4f);
     }
@@ -118,6 +121,7 @@ public class TricksterSilk : MonoBehaviour
         if (self != null) { self.ExternalDrive = false; self.BlockJump = false; self.BusyMoving = false; }
         if (rb != null) rb.velocity = Step1Stealth.VelOf(s);
         if (line != null) line.enabled = false;
+        if (hook != null) hook.enabled = false;
         cooldown = tuning != null ? tuning.silkCooldown : 1.5f;
     }
 }

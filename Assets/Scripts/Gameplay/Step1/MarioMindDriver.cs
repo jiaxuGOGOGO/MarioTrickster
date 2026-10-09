@@ -212,7 +212,7 @@ public class MarioMindDriver : MonoBehaviour
         var gm = GameManager.Instance;
         bool playing = gm == null || gm.CurrentState == GameState.Playing;
         // 每帧读取，Play 中改调参资产立即生效；追你时提速（S186）
-        hybrid.Bot.MarioSpeedScale = (Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale) * roundSpeedFactor * SlowTerrain.CurrentMarioSpeedScale
+        hybrid.Bot.MarioSpeedScale = (Mind.State == MarioMindState.Chasing ? tuning.chaseSpeedScale : tuning.marioSpeedScale) * roundSpeedFactor * SlowTerrain.CurrentMarioSpeedScale * ArtKitZone.MarioSpeedScale
             * (Time.time < RandomPickups.MarioSpeedUntil ? tuning.pickupSpeedBoost : 1f)
             * (Mind.Cautious ? tuning.cautiousSpeedScale : 1f)
             * (Mind.State == MarioMindState.Running ? Mind.Traits.speedScale : 1f);

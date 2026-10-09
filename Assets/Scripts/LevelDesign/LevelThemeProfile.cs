@@ -103,6 +103,7 @@ public class LevelThemeProfile : ScriptableObject
         // S241：灯、草地
         new ElementSpriteMapping { elementKey = "RoomLamp" },
         new ElementSpriteMapping { elementKey = "GrassGround" },
+        new ElementSpriteMapping { elementKey = "ArtSlot1" }, new ElementSpriteMapping { elementKey = "ArtSlot2" }, new ElementSpriteMapping { elementKey = "ArtSlot3" }, new ElementSpriteMapping { elementKey = "ArtSlot4" }, // S245
     };
 
     [Header("=== 角色 ===")]

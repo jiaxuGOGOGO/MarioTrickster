@@ -211,5 +211,7 @@ public static partial class Step1Text
     // S244：小镇存档 / 继续
     public static string OverworldContinueAsk(string summary) => $"<b>继续上次那一天？</b>\n{summary}\n\n<b>Enter</b> 继续 Continue      <b>N</b> 新的一天 New day";
     public static string OverworldContinueTransit(string summary) => "继续  Continue\n" + summary;
+    public const string OverworldContinueKeys = "<b>↑↓</b> 选  <b>Enter</b> 继续  <b>N</b> 新的一天（存档不会删）"; // S245
+    public const string OverworldSlotKeys = "<b>↑↓</b> 或 <b>1–3</b> 选  <b>Enter</b> 存  <b>Esc</b> 返回（会覆盖这一格）"; // S245
     public const string OverworldSaveBroken = "存档读不了（可能是旧版本），从新的一天开始  Save unreadable — new day";
 }

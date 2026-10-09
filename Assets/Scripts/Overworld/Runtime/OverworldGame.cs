@@ -58,8 +58,10 @@ public sealed class OverworldGame : MonoBehaviour
         // S244：这次 Play 第一次进小镇、有上次的存档 → 问一句"继续上次那一天？"（Enter 继续 / N 新的一天）。快速测试模式不问、直接新的一天。
         if (!OverworldSession.Active && !savePromptDone && tuning.townAutoSave && !Step1QuickTest.On)
         {
-            var sv = Step1Flow.FromJson(PlayerPrefs.GetString(SaveKey, ""));
-            if (sv != null && sv.map == map.name) { pendingSave = sv; askContinue = true; }
+            // S245：读自动档 + 3 个手动档，列出这张小镇的；最新的默认选中
+            for (int i = 0; i <= Step1Flow.ManualSlots; i++) { var sv = TownSaveStore.Read(i); slots[i] = sv != null && sv.map == map.name ? sv : null; }
+            continueList = Step1Flow.ContinueOrder(slots); continueIndex = 0;
+            if (continueList.Count > 0) { pendingSave = slots[continueList[0]]; askContinue = true; }
         }
         savePromptDone = true;
         if (!OverworldSession.Active || OverworldSession.MapName != map.name || OverworldSession.TownScene != townScene) OverworldSession.NewDay(map.name, townScene);
@@ -70,6 +72,7 @@ public sealed class OverworldGame : MonoBehaviour
         map = town.map; // S218：小镇自己那份（今天被大机关改过的地形、赶集日的新时间都在里面）
         Time.timeScale = 1f; // S217：从暂停中的房间/测试回来也不会"画面不动"
         nextSaveAt = Time.unscaledTime + 1f; // S244：进小镇 1 秒后存一次（= 从房间回来 / 天亮那一刻）
+        if (TownSaveStore.RoomJustDone) { TownSaveStore.RoomJustDone = false; roomDoneSave = true; } // S245：刚打完房间 → 这次存的是"打完房间"进度点
         helpOpen = !helpSeenThisPlay && !Step1QuickTest.On; helpSeenThisPlay = true; // S217：快速测试模式不弹说明
         BuildVisuals();
         UpdateVisuals(); SnapCamera(); // S212：镜头直接就位（以前从默认位置滑过来，揭幕时画面在"飘"）
@@ -129,6 +132,8 @@ public sealed class OverworldGame : MonoBehaviour
         if (town.wantsEnter)
         {
             var d = town.enterDoor; var c = doorCells[d.n];
+            // S245：进门前存一个进度点——关掉游戏再进来，从这扇门口继续（房间里打到一半不存：一局 1–2 分钟，从门口重来更公平）
+            if (tuning.townAutoSave && !Step1HandsOffCheck.IsRunning) { SaveTo(0, Step1Flow.Checkpoint.DoorEnter, false); OverworldSession.HasPositions = true; }
             // S211：淡出 → 标题卡 → 后台加载 → 淡入（SceneTransit）；S212：圆从这扇门收拢
             if (!SceneTransit.Go(OverworldSession.RoomScenes[d.n], Step1Text.OverworldTransitToRoom(d.n, d.room, town.enterOutcome), new Vector3(c.x + 0.5f, c.y + 0.75f, 0)))
                 SceneManager.LoadScene(OverworldSession.RoomScenes[d.n]);
@@ -227,11 +232,20 @@ public sealed class OverworldGame : MonoBehaviour
     public const string SaveKey = "MarioTrickster.TownSave";
     private static bool savePromptDone;
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)] private static void ResetSavePrompt() { savePromptDone = false; }
+    private readonly Step1Flow.TownSave[] slots = new Step1Flow.TownSave[Step1Flow.ManualSlots + 1]; private List<int> continueList = new List<int>(); private int continueIndex; private bool slotMenu; private int slotIndex; // S245
     private bool askContinue, paused; private Step1Flow.TownSave pendingSave; private float nextSaveAt; private int pauseIndex; private string savedNote = ""; private float savedNoteUntil;
-    private static readonly string[] TownPauseItems = { "继续  Resume", "现在存档  Save now", "怎么玩  How to play", "重新开始这一天  New day", "退出  Quit" };
+    private static readonly string[] TownPauseItems = { "继续  Resume", "现在存档  Save now", "存到存档位…  Save to slot", "怎么玩  How to play", "重新开始这一天  New day", "退出  Quit" };
 
     private void ContinueKeys()
     {
+        // S245：有几个档就列几个，↑↓ 选、Enter 继续、N 新的一天（档不删，下次还能选）
+        if (continueList.Count > 1)
+        {
+            if (Step1Keys.Down(KeyCode.UpArrow) || Step1Keys.Down(KeyCode.W)) continueIndex = Step1Flow.Move(continueIndex, -1, continueList.Count);
+            if (Step1Keys.Down(KeyCode.DownArrow) || Step1Keys.Down(KeyCode.S)) continueIndex = Step1Flow.Move(continueIndex, 1, continueList.Count);
+            int dp = Step1Flow.DigitPick(Step1Keys.Digit1to5(), continueList.Count); if (dp >= 0) continueIndex = dp;
+            pendingSave = slots[continueList[continueIndex]];
+        }
         if (Step1Keys.Down(KeyCode.Return) || Step1Keys.Down(KeyCode.Space) || Step1Keys.Down(KeyCode.Y))
         {
             askContinue = false;
@@ -242,28 +256,31 @@ public sealed class OverworldGame : MonoBehaviour
             }
             else Hint(Step1Text.OverworldSaveBroken, 3f);
         }
-        else if (Step1Keys.Down(KeyCode.N) || Step1Keys.Down(KeyCode.Escape)) { askContinue = false; PlayerPrefs.DeleteKey(SaveKey); PlayerPrefs.Save(); }
+        else if (Step1Keys.Down(KeyCode.N) || Step1Keys.Down(KeyCode.Escape)) { askContinue = false; } // S245：不删档（以前按 N 会把档删掉）——新的一天开始后自动档会被覆盖，手动档一直留着
     }
 
     /// <summary>小镇暂停（Esc）：时间停住、按键只给菜单。返回 true = 这一帧被菜单吃掉。</summary>
     private bool PauseKeys()
     {
         if (helpOpen || dayOver) return false;
-        if (!paused) { if (Step1Keys.Down(KeyCode.Escape)) { paused = true; pauseIndex = 0; } return paused; }
+        if (!paused) { if (Step1Keys.Down(KeyCode.Escape)) { paused = true; pauseIndex = 0; slotMenu = false; } return paused; }
+        if (slotMenu) { SlotKeys(); return true; } // S245：存到存档位 1–3
         if (Step1Keys.Down(KeyCode.Escape)) { paused = false; return true; }
         if (Step1Keys.Down(KeyCode.UpArrow) || Step1Keys.Down(KeyCode.W)) pauseIndex = Step1Flow.Move(pauseIndex, -1, TownPauseItems.Length);
         if (Step1Keys.Down(KeyCode.DownArrow) || Step1Keys.Down(KeyCode.S)) pauseIndex = Step1Flow.Move(pauseIndex, 1, TownPauseItems.Length);
-        int pick = Step1Flow.DigitPick(Step1Keys.Digit1to5(), TownPauseItems.Length);
+        int pick = Step1Flow.DigitPick(Step1Keys.Digit1to5(), TownPauseItems.Length); // 6 项：数字 1–5 直选，第 6 项用方向键
         if (pick >= 0) pauseIndex = pick;
         if (pick < 0 && !(Step1Keys.Down(KeyCode.Return) || Step1Keys.Down(KeyCode.Space))) return true;
         switch (pauseIndex)
         {
             case 0: paused = false; break;
             case 1: SaveNow(true); break;
-            case 2: paused = false; helpOpen = true; break;
-            case 3:
-                paused = false; PlayerPrefs.DeleteKey(SaveKey); PlayerPrefs.Save();
+            case 2: slotMenu = true; slotIndex = 0; for (int i = 1; i <= Step1Flow.ManualSlots; i++) slots[i] = TownSaveStore.Read(i); break;
+            case 3: paused = false; helpOpen = true; break;
+            case 4:
+                paused = false; // S245：只清自动档，手动存档位留着
                 OverworldSession.NewDay(map.name, OverworldSession.TownScene, OverworldSession.Day);
+                TownSaveStore.Write(0, Step1Flow.DawnSave(map.name, OverworldSession.TownScene, OverworldSession.Day));
                 if (!SceneTransit.Go(OverworldSession.TownScene, Step1Text.OverworldTransitNewDay(map.name))) SceneManager.LoadScene(OverworldSession.TownScene);
                 break;
             default:
@@ -282,19 +299,45 @@ public sealed class OverworldGame : MonoBehaviour
     private void AutoSave()
     {
         if (!tuning.townAutoSave || Step1HandsOffCheck.IsRunning) return;
-        if (dayOver) { if (PlayerPrefs.HasKey(SaveKey)) { PlayerPrefs.DeleteKey(SaveKey); PlayerPrefs.Save(); } return; }
+        // S245：一天结束 = 存"第 N+1 天早上"（以前直接删档 → 下次进来又是第 1 天）
+        if (dayOver) { if (!dawnSaved) { dawnSaved = true; TownSaveStore.Write(0, Step1Flow.DawnSave(map.name, OverworldSession.TownScene, OverworldSession.Day + 1)); Toast(Step1Flow.Checkpoint.Dawn, null); } return; }
         if (Time.unscaledTime < nextSaveAt) return;
+        if (roomDoneSave) { roomDoneSave = false; SaveTo(0, Step1Flow.Checkpoint.RoomDone, false); return; }
         SaveNow(false);
     }
+    private bool dawnSaved, roomDoneSave;
 
-    private void SaveNow(bool loud)
+    private void SaveNow(bool loud) => SaveTo(0, loud ? Step1Flow.Checkpoint.Manual : Step1Flow.Checkpoint.Auto, loud);
+
+    /// <summary>S245：存到某个存档位（0 = 自动）。kind = 哪种进度点（进门前 / 打完房间 / 手动…）。</summary>
+    private void SaveTo(int slot, Step1Flow.Checkpoint kind, bool loud)
     {
         nextSaveAt = Time.unscaledTime + Step1Flow.AutoSaveSeconds;
         OverworldSession.MarioX = mario.x; OverworldSession.MarioY = mario.y; OverworldSession.TricksterX = tx; OverworldSession.TricksterY = ty; OverworldSession.HasPositions = true; // 存的是此刻两人站在哪
         var sv = Step1Flow.Capture();
         if (!Step1Flow.Valid(sv)) return;
-        PlayerPrefs.SetString(SaveKey, Step1Flow.ToJson(sv)); PlayerPrefs.Save();
-        savedNote = (loud ? "✓ 已存档  " : "💾 ") + Step1Flow.SaveSummary(sv); savedNoteUntil = Time.unscaledTime + (loud ? 2.5f : 1.2f);
+        sv.kind = (int)kind;
+        TownSaveStore.Write(slot, sv);
+        if (loud || kind != Step1Flow.Checkpoint.Auto) Toast(kind, sv, slot);
+        else { savedNote = "💾 " + Step1Flow.SaveSummary(sv); savedNoteUntil = Time.unscaledTime + 1.2f; }
+    }
+
+    private void Toast(Step1Flow.Checkpoint kind, Step1Flow.TownSave sv, int slot = 0)
+    {
+        savedNote = "💾 进度点 · " + (slot > 0 ? "存档位 " + slot + " · " : "") + Step1Flow.CheckpointLabel(kind) + (sv != null ? "  " + Step1Flow.SaveSummary(sv) : "");
+        savedNoteUntil = Time.unscaledTime + 2.5f;
+    }
+
+    /// <summary>S245：暂停 → 存到存档位：↑↓ 选 1–3（数字键直选），Enter 存，Esc 返回。</summary>
+    private void SlotKeys()
+    {
+        if (Step1Keys.Down(KeyCode.Escape)) { slotMenu = false; return; }
+        if (Step1Keys.Down(KeyCode.UpArrow) || Step1Keys.Down(KeyCode.W)) slotIndex = Step1Flow.Move(slotIndex, -1, Step1Flow.ManualSlots);
+        if (Step1Keys.Down(KeyCode.DownArrow) || Step1Keys.Down(KeyCode.S)) slotIndex = Step1Flow.Move(slotIndex, 1, Step1Flow.ManualSlots);
+        int dp = Step1Flow.DigitPick(Step1Keys.Digit1to5(), Step1Flow.ManualSlots); if (dp >= 0) slotIndex = dp;
+        if (dp < 0 && !(Step1Keys.Down(KeyCode.Return) || Step1Keys.Down(KeyCode.Space))) return;
+        SaveTo(slotIndex + 1, Step1Flow.Checkpoint.Manual, true); slots[slotIndex + 1] = TownSaveStore.Read(slotIndex + 1);
+        slotMenu = false; paused = false;
     }
 
     private void PauseGUI(GUIStyle big)
@@ -303,10 +346,26 @@ public sealed class OverworldGame : MonoBehaviour
         if (askContinue && pendingSave != null)
         {
             GUI.color = new Color(0, 0, 0, 0.55f); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), nightTex); GUI.color = Color.white;
-            GUI.Box(new Rect(Screen.width / 2f - 300, Screen.height / 2f - 90, 600, 180), Step1Text.OverworldContinueAsk(Step1Flow.SaveSummary(pendingSave)), big);
+            if (continueList.Count <= 1) GUI.Box(new Rect(Screen.width / 2f - 300, Screen.height / 2f - 90, 600, 180), Step1Text.OverworldContinueAsk(Step1Flow.SlotLine(continueList.Count > 0 ? continueList[0] : 0, pendingSave)), big);
+            else
+            {
+                var cb = new System.Text.StringBuilder("<b>继续哪一个？  Continue which save?</b>\n\n");
+                for (int i = 0; i < continueList.Count; i++) cb.AppendLine((i == continueIndex ? "▶ <b>" : "    ") + (i + 1) + "  " + Step1Flow.SlotLine(continueList[i], slots[continueList[i]]) + (i == continueIndex ? "</b>" : ""));
+                cb.Append("\n<size=14>" + Step1Text.OverworldContinueKeys + "</size>");
+                GUI.Box(new Rect(Screen.width / 2f - 380, Screen.height / 2f - 130, 760, 260), cb.ToString(), big);
+            }
             return;
         }
         if (!paused) return;
+        if (slotMenu)
+        {
+            GUI.color = new Color(0, 0, 0, 0.5f); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), nightTex); GUI.color = Color.white;
+            var ss = new System.Text.StringBuilder("<b>存到哪个存档位？  Save to slot</b>\n<size=15>现在：" + Step1Flow.SaveSummary(Step1Flow.Capture()) + "</size>\n\n");
+            for (int i = 1; i <= Step1Flow.ManualSlots; i++) ss.AppendLine((i - 1 == slotIndex ? "▶ <b>" : "    ") + i + "  " + Step1Flow.SlotLine(i, slots[i]) + (i - 1 == slotIndex ? "</b>" : ""));
+            ss.Append("\n<size=14>" + Step1Text.OverworldSlotKeys + "</size>");
+            GUI.Box(new Rect(Screen.width / 2f - 380, Screen.height / 2f - 140, 760, 280), ss.ToString(), big);
+            return;
+        }
         GUI.color = new Color(0, 0, 0, 0.5f); GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), nightTex); GUI.color = Color.white;
         var sb = new System.Text.StringBuilder("<b>已暂停  Paused</b>\n<size=15>" + Step1Flow.SaveSummary(Step1Flow.Capture()) + "</size>\n\n");
         for (int i = 0; i < TownPauseItems.Length; i++) sb.AppendLine((i == pauseIndex ? "▶ <b>" : "    ") + (i + 1) + "  " + TownPauseItems[i] + (i == pauseIndex ? "</b>" : ""));
@@ -337,6 +396,7 @@ public sealed class OverworldGame : MonoBehaviour
 
     private void BuildVisuals()
     {
+        artOn = tuning.artTown; groundBlocks.Clear();
         var tex = new Texture2D(4, 4) { filterMode = FilterMode.Point };
         var px = new Color[16]; for (int i = 0; i < 16; i++) px[i] = Color.white; tex.SetPixels(px); tex.Apply();
         square = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4f);
@@ -354,6 +414,7 @@ public sealed class OverworldGame : MonoBehaviour
                 var gt = ground ? t : OverworldCatalog.Get(c == 'M' || c == 'T' || OverworldCatalog.IsDoor(c) ? '=' : '.');
                 var gc = new Color(gt.r, gt.g, gt.b); if ((x + y) % 2 == 0) gc *= 0.96f; // 棋盘微差，看得出格子
                 groundPx[y * map.W + x] = new Color(gc.r, gc.g, gc.b, 1f);
+                if (artOn && ArtCell(root, c, x, y)) continue; // S245：像素美术模式——这一格用 16×16 图（调参 artTown 关掉 = 回到色块）
                 if (c == '"') { var tall = Quad(root, "grass", x + 0.5f, y + 0.6f, 1f, 1.1f, new Color(t.r, t.g, t.b, 0.88f), 3000); tall.name = "TallGrass"; Keep(x, y, tall); }
                 else if (c == 'W')
                 {
@@ -400,11 +461,19 @@ public sealed class OverworldGame : MonoBehaviour
             }
 
         groundTex = null;
-        var gtex = new Texture2D(map.W, map.H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
-        gtex.SetPixels(groundPx); gtex.Apply(); groundTex = gtex;
+        groundPpc = artOn ? WorldArt.GroundPixelsPerCell(map.W, map.H) : 1; // S245：16 像素 / 格（超大地图自动降一点，贴图不超过 4096）
+        Texture2D gtex;
+        if (groundPpc > 1)
+        {
+            gtex = new Texture2D(map.W * groundPpc, map.H * groundPpc, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < map.H; y++) for (int x = 0; x < map.W; x++) PaintGround(gtex, x, y);
+            gtex.Apply();
+        }
+        else { gtex = new Texture2D(map.W, map.H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp }; gtex.SetPixels(groundPx); gtex.Apply(); }
+        groundTex = gtex;
         var ggo = new GameObject("Ground"); ggo.transform.SetParent(root, false);
         var gsr = ggo.AddComponent<SpriteRenderer>();
-        gsr.sprite = Sprite.Create(gtex, new Rect(0, 0, map.W, map.H), Vector2.zero, 1f); gsr.sortingOrder = -2000;
+        gsr.sprite = Sprite.Create(gtex, new Rect(0, 0, gtex.width, gtex.height), Vector2.zero, groundPpc); gsr.sortingOrder = -2000;
 
         marioGo = new GameObject("OverworldMario").transform;
         marioSr = Quad(marioGo, "body", 0, 0.1f, 0.65f, 0.85f, new Color(0.9f, 0.18f, 0.16f), 0); marioSr.transform.localPosition = new Vector3(0, 0.1f, 0);
@@ -412,6 +481,14 @@ public sealed class OverworldGame : MonoBehaviour
         trickSr = Quad(trickGo, "body", 0, 0.1f, 0.6f, 0.8f, new Color(0.22f, 0.4f, 0.92f), 0); trickSr.transform.localPosition = new Vector3(0, 0.1f, 0);
         var ct = OverworldCatalog.Get('c');
         crateSr = Quad(trickGo, "crate", 0, 0.05f, 0.85f, 0.9f, new Color(ct.r, ct.g, ct.b), 0); crateSr.transform.localPosition = new Vector3(0, 0.05f, 0);
+        if (artOn) // S245：小镇里的马里奥 / 你 = 和房间里同一套像素小人（站 / 跑两帧，朝向跟着走）
+        {
+            var h0 = Step1ArtSkin.Get("Hero0", false); var i0 = Step1ArtSkin.Get("Imp0", false); var cr = Step1ArtSkin.Get("Crate", false);
+            if (h0 != null) { marioSr.sprite = h0; marioSr.transform.localScale = Vector3.one; marioSr.color = Color.white; }
+            if (i0 != null) { trickSr.sprite = i0; trickSr.transform.localScale = Vector3.one; trickSr.color = Color.white; }
+            if (cr != null) { crateSr.sprite = cr; crateSr.transform.localScale = Vector3.one; crateSr.color = Color.white; }
+        }
+        if (tuning.artMountains) BuildMountains();
         trickCrate = crateSr.transform;
         // S217：头顶名字，一眼分清谁是你（蓝）谁是马里奥（红）
         youTag = Tag(trickGo, "你 YOU", new Color(0.55f, 0.78f, 1f));
@@ -436,10 +513,114 @@ public sealed class OverworldGame : MonoBehaviour
         cam = Camera.main;
         if (cam == null) { var cg = new GameObject("Main Camera") { tag = "MainCamera" }; cam = cg.AddComponent<Camera>(); }
         cam.orthographic = true; cam.orthographicSize = Mathf.Min(zoom, map.H / 2f);
-        cam.backgroundColor = new Color(0.12f, 0.2f, 0.12f); cam.clearFlags = CameraClearFlags.SolidColor;
+        cam.backgroundColor = tuning.artMountains ? new Color(0.55f, 0.74f, 0.93f) : new Color(0.12f, 0.2f, 0.12f); cam.clearFlags = CameraClearFlags.SolidColor; // S245：有远山 = 天空蓝
+        if (wfx == null && tuning.artWeatherDensity > 0f) wfx = cam.gameObject.AddComponent<TownWeatherFx>();
     }
 
     private TextMesh youTag, marioTag;
+
+    // ═════════ S245：小镇像素美术（地面 16 像素/格、房子树山门、像素小人、远山视差、天气粒子）。纯画面：不碰格子规则和他的眼睛（H3/H4）═════════
+    private bool artOn; private int groundPpc = 1;
+    private TownWeatherFx wfx;
+    private SpriteRenderer mountainFar, mountainNear;
+    private float marioLastX, marioLastY, youLastX, youLastY, marioRunT, youRunT;
+    private const float MountainPeek = 3.5f, MountainScale = 3f;
+    private static readonly Color MarioRed = new Color(0.9f, 0.18f, 0.16f), TrickBlue = new Color(0.22f, 0.4f, 0.92f);
+    private Color MarioBase => artOn && marioSr != null && marioSr.sprite != square ? Color.white : MarioRed;
+    private Color TrickBase => artOn && trickSr != null && trickSr.sprite != square ? Color.white : TrickBlue;
+    /// <summary>受伤 / 保护期闪烁：色块 = 变白；像素小人 = 变透明（本来就是白底，变白看不出来）。</summary>
+    private Color Flash(Color baseC, float t) => baseC == Color.white ? new Color(1f, 1f, 1f, 1f - 0.65f * t) : Color.Lerp(baseC, Color.white, t);
+    private readonly Dictionary<string, Color32[]> groundBlocks = new Dictionary<string, Color32[]>();
+
+    /// <summary>这一格用像素图画（返回 true = 不再走老的色块 / 图标）。门保留状态变色（白底图 × 粉/绿）。</summary>
+    private bool ArtCell(Transform root, char c, int x, int y)
+    {
+        bool door = OverworldCatalog.IsDoor(c);
+        if (!(c == 'W' || c == 't' || c == 'f' || c == '"' || c == 'A' || c == '^' || c == 'h' || c == 'M' || c == 'T' || door)) return false;
+        char south = map.At(x, y - 1); string key = WorldArt.TownKeyOf(c, south != 'W' && !OverworldCatalog.IsDoor(south)); // 门正上方那格还是屋顶（不然屋顶中间冒出一块墙）
+        var sp = key != null ? Step1ArtSkin.Get(key, false) : null; if (sp == null) return false;
+        SpriteRenderer sr;
+        switch (c)
+        {
+            case 'W': sr = Quad(root, key, x + 0.5f, y + 0.5f, 1f, 1f, Color.white, Order(y)); break;
+            case 't': sr = Quad(root, key, x + 0.5f, y + 0.75f, 1.5f, 1.5f, Color.white, Order(y)); break; // 树冠越过上一格（星露谷 Front）
+            case 'A': sr = Quad(root, key, x + 0.5f, y + 0.7f, 1.4f, 1.4f, Color.white, Order(y)); break;
+            case '"': sr = Quad(root, key, x + 0.5f, y + 0.55f, 1f, 1.1f, new Color(1f, 1f, 1f, 0.92f), 3000); sr.name = "TallGrass"; Keep(x, y, sr); break;
+            case '^': case 'f': sr = Quad(root, key, x + 0.5f, y + 0.5f, 1f, 1f, Color.white, c == '^' ? -1600 : Order(y)); Keep(x, y, sr); break;
+            case 'h': sr = Quad(root, key, x + 0.5f, y + 0.55f, 1f, 1f, Color.white, Order(y) + 1); break;
+            default: sr = Quad(root, key, x + 0.5f, y + 0.6f, 1.1f, 1.1f, Color.white, Order(y + 1) + 1); if (door) tileSr[y * map.W + x] = sr; break;
+        }
+        sr.sprite = sp; return true;
+    }
+
+    /// <summary>一格地面的像素块（素材包 / Resources 里的图能读就采样，不能读就用内置字符画）。</summary>
+    private Color32[] GroundBlock(string key)
+    {
+        if (groundBlocks.TryGetValue(key, out var b)) return b;
+        int n = groundPpc; b = new Color32[n * n];
+        Texture2D src = null; Rect r = default;
+        var ks = ArtKit.SpriteOf(key); if (ks != null && ks.texture != null && ks.texture.isReadable) { src = ks.texture; r = ks.textureRect; }
+        if (src == null) { var rt = Resources.Load<Texture2D>("OverworldArt/" + key); if (rt != null && rt.isReadable) { src = rt; r = new Rect(0, 0, rt.width, rt.height); } }
+        if (src != null)
+        {
+            for (int y = 0; y < n; y++) for (int x = 0; x < n; x++)
+                b[y * n + x] = src.GetPixel((int)(r.x + (x + 0.5f) * r.width / n), (int)(r.y + (y + 0.5f) * r.height / n));
+        }
+        else
+        {
+            var px = Step1Art.Rgba(WorldArt.Rows(key)); int s = WorldArt.Size;
+            for (int y = 0; y < n; y++) for (int x = 0; x < n; x++)
+            {
+                int i = ((y * s / n) * s + (x * s / n)) * 4;
+                b[y * n + x] = px == null ? new Color32(80, 140, 70, 255) : new Color32((byte)(px[i] * 255f), (byte)(px[i + 1] * 255f), (byte)(px[i + 2] * 255f), 255);
+            }
+        }
+        groundBlocks[key] = b; return b;
+    }
+    private void PaintGround(Texture2D tex, int x, int y) => tex.SetPixels32(x * groundPpc, y * groundPpc, groundPpc, groundPpc, GroundBlock(WorldArt.GroundKeyOf(map.At(x, y))));
+
+    /// <summary>站 / 跑两帧：这一帧挪了 = 跑（8 帧/秒），朝向跟着左右。</summary>
+    private void RunFrame(SpriteRenderer sr, string who, float x, ref float lastX, ref float lastY, float y)
+    {
+        if (sr == null || sr.sprite == square) return;
+        float dx = x - lastX, dy = y - lastY; bool moving = Mathf.Abs(dx) + Mathf.Abs(dy) > 0.0005f; lastX = x; lastY = y;
+        if (Mathf.Abs(dx) > 0.0005f) sr.flipX = dx < 0f;
+        var f = Step1ArtSkin.Get(who + (moving ? (1 + (int)(Time.time * 8f) % 2).ToString() : "0"), false);
+        if (f != null) sr.sprite = f;
+    }
+
+    /// <summary>远山 + 近丘：贴在地图北边外面，排在地面后面（只在镜头往北看时露出来），横向视差循环。</summary>
+    private void BuildMountains()
+    {
+        mountainFar = MountainStrip("S245_TownFarMountains", WorldArt.FarPalette, WorldArt.FarStrip, -2100);
+        mountainNear = MountainStrip("S245_TownNearHills", WorldArt.NearPalette, WorldArt.NearStrip, -2050);
+    }
+    private SpriteRenderer MountainStrip(string name, float[][] pal, string[] rows, int order)
+    {
+        int w = rows[0].Length, h = rows.Length; var px = WorldArt.StripRgba(pal, rows);
+        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+        var cols = new Color[w * h]; for (int i = 0; i < cols.Length; i++) cols[i] = new Color(px[i * 4], px[i * 4 + 1], px[i * 4 + 2], px[i * 4 + 3]);
+        tex.SetPixels(cols); tex.Apply();
+        var go = new GameObject(name); var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0f), WorldArt.Size / MountainScale, 0, SpriteMeshType.FullRect);
+        sr.drawMode = SpriteDrawMode.Tiled; sr.sortingOrder = order;
+        return sr;
+    }
+    private void UpdateMountains()
+    {
+        if (mountainFar == null || cam == null) return;
+        float halfW = cam.orthographicSize * cam.aspect, camX = cam.transform.position.x;
+        PlaceStrip(mountainFar, camX, halfW, 0.15f, map.H - 0.6f);
+        PlaceStrip(mountainNear, camX, halfW, 0.45f, map.H - 0.8f);
+    }
+    private static void PlaceStrip(SpriteRenderer sr, float camX, float halfW, float factor, float baseY)
+    {
+        float stripW = sr.sprite.rect.width / sr.sprite.pixelsPerUnit, stripH = sr.sprite.rect.height / sr.sprite.pixelsPerUnit;
+        float shift = WorldArt.ParallaxX(camX, factor, stripW), camLeft = camX - halfW;
+        float left = shift + stripW * Mathf.Floor((camLeft - shift) / stripW) - stripW, width = halfW * 2f + stripW * 3f;
+        sr.size = new Vector2(width, stripH);
+        sr.transform.position = new Vector3(left + width / 2f, baseY, 0f);
+    }
 
     // ═════════ S220：像素图标（OverworldArt；Resources/OverworldArt/<名字>.png 同名覆盖）═════════
     private static readonly Dictionary<string, Sprite> iconCache = new Dictionary<string, Sprite>();
@@ -491,7 +672,7 @@ public sealed class OverworldGame : MonoBehaviour
         for (int i = n; i < strikeSr.Count; i++) strikeSr[i].enabled = false;
         if (town.cloud != null)
         {
-            if (cloudSr == null) { cloudSr = Quad(null, "stormCloud", 0, 0, 1, 1, Color.white, 4050); cloudSr.sprite = IconSprite("Cloud"); }
+            if (cloudSr == null) { cloudSr = Quad(null, "stormCloud", 0, 0, 1, 1, Color.white, 4050); cloudSr.sprite = (artOn ? Step1ArtSkin.Get("FxStormCloud", false) : null) ?? IconSprite("Cloud"); }
             float r = tuning.overworldCloudRadius; cloudSr.enabled = true; float left = tuning.overworldCloudSeconds - town.cloud.t; // S222：最后 1.5 秒闪烁 = 快散了（Telegraph：结束也要预告）
             cloudSr.color = new Color(1f, 1f, 1f, left < 1.5f ? 0.35f + 0.5f * Mathf.PingPong(Time.time * 6f, 1f) : 0.85f);
             cloudSr.transform.position = new Vector3((float)town.cloud.x, (float)town.cloud.y + 2.2f, 0); cloudSr.transform.localScale = new Vector3(r * 1.6f, r * 1.6f, 1);
@@ -544,7 +725,8 @@ public sealed class OverworldGame : MonoBehaviour
         {
             int x = id % map.W, y = id / map.W; char c = map.At(x, y);
             if (cellGo.TryGetValue(id, out var l)) { foreach (var go in l) if (go != null) go.SetActive(false); cellGo.Remove(id); }
-            if (groundTex != null) { var t = OverworldCatalog.Get(c) ?? OverworldCatalog.Get('.'); var gc = new Color(t.r, t.g, t.b); if ((x + y) % 2 == 0) gc *= 0.96f; groundTex.SetPixel(x, y, new Color(gc.r, gc.g, gc.b, 1f)); }
+            if (groundTex != null && groundPpc > 1) PaintGround(groundTex, x, y);
+            else if (groundTex != null) { var t = OverworldCatalog.Get(c) ?? OverworldCatalog.Get('.'); var gc = new Color(t.r, t.g, t.b); if ((x + y) % 2 == 0) gc *= 0.96f; groundTex.SetPixel(x, y, new Color(gc.r, gc.g, gc.b, 1f)); }
         }
         if (town.changedCells.Count > 0) { if (groundTex != null) groundTex.Apply(); minimap = null; } // 小地图下次打开重画
         foreach (var bo in town.bolts) // S219 闪电：一道竖着的白光 + 全屏闪一下（纯画面）
@@ -688,8 +870,9 @@ public sealed class OverworldGame : MonoBehaviour
         bool youDown = dayOver && (OverworldSession.Death == OverworldSession.DeathEnd.YouDied || OverworldSession.Death == OverworldSession.DeathEnd.Both);
         trickSr.transform.localRotation = Quaternion.Euler(0, 0, youDown ? -90f : 0f); // S229：你被打死 → 躺倒
         trickSr.sortingOrder = crateSr.sortingOrder = Order(ty) + 2;
-        if (frozen > 0f || town.YouGrace > 0f) trickSr.color = Color.Lerp(new Color(0.22f, 0.4f, 0.92f), Color.white, Mathf.PingPong(Time.time * (frozen > 0f ? 6f : 10f), 1f)); // S221：站起来后的保护期也闪（闪 = 打不到你）
-        else trickSr.color = new Color(0.22f, 0.4f, 0.92f);
+        if (frozen > 0f || town.YouGrace > 0f) trickSr.color = Flash(TrickBase, Mathf.PingPong(Time.time * (frozen > 0f ? 6f : 10f), 1f)); // S221：站起来后的保护期也闪（闪 = 打不到你）
+        else trickSr.color = TrickBase;
+        if (artOn) { RunFrame(marioSr, "Hero", (float)mario.x, ref marioLastX, ref marioLastY, (float)mario.y); RunFrame(trickSr, "Imp", (float)tx, ref youLastX, ref youLastY, (float)ty); }
 
         // 香蕉皮 / 道具箱 / 门的状态
         foreach (var kv in tileSr)
@@ -717,7 +900,7 @@ public sealed class OverworldGame : MonoBehaviour
         AimVisuals();
         StormVisuals();
         // S220：受伤无敌期间闪一闪（看得出"刚挨了一下，现在不会再掉心"）
-        if (marioSr != null && town.MarioGrace > 0f && !marioInside) marioSr.color = Color.Lerp(new Color(0.9f, 0.18f, 0.16f), Color.white, Mathf.PingPong(Time.time * 8f, 1f) * 0.6f); else if (marioSr != null) marioSr.color = new Color(0.9f, 0.18f, 0.16f);
+        if (marioSr != null && town.MarioGrace > 0f && !marioInside) marioSr.color = Flash(MarioBase, Mathf.PingPong(Time.time * 8f, 1f) * 0.6f); else if (marioSr != null) marioSr.color = MarioBase;
         // S219：坐在炮里 = 你藏在炮身里（看不见人，只露一个 "你" 字）；他坐炮 = 他也藏进去
         if (town.Seated) { trickSr.enabled = false; crateSr.enabled = false; }
         if (town.MarioSeated) marioSr.enabled = false;
@@ -727,6 +910,8 @@ public sealed class OverworldGame : MonoBehaviour
         float k = SceneTransit.Busy ? 1f : 1f - Mathf.Exp(-12f * Time.unscaledDeltaTime);
         cam.transform.position = Vector3.Lerp(cam.transform.position, goal, k);
         if (shake > 0f) { shake = Mathf.Max(0f, shake - Time.unscaledDeltaTime); cam.transform.position += (Vector3)(Random.insideUnitCircle * shake * 0.6f); } // 纯画面
+        UpdateMountains();
+        if (wfx != null) wfx.Set(town.weather.kind, tuning.artWeatherDensity);
         GuideTick();
     }
 
@@ -734,7 +919,8 @@ public sealed class OverworldGame : MonoBehaviour
     {
         float halfH = cam.orthographicSize, halfW = halfH * cam.aspect;
         float cx = Mathf.Clamp((float)tx, Mathf.Min(halfW, map.W / 2f), Mathf.Max(map.W - halfW, map.W / 2f));
-        float cy = Mathf.Clamp((float)ty, Mathf.Min(halfH, map.H / 2f), Mathf.Max(map.H - halfH, map.H / 2f));
+        float sky = mountainFar != null ? MountainPeek : 0f; // S245：镜头往北多露几格 = 看得见远山
+        float cy = Mathf.Clamp((float)ty, Mathf.Min(halfH, map.H / 2f), Mathf.Max(map.H - halfH + sky, map.H / 2f));
         return new Vector3(cx, cy, -10f);
     }
 

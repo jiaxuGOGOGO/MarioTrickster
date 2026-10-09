@@ -1343,12 +1343,60 @@ static class CHECK {
        ||OverworldSession.Results[1]!=OverworldSession.DoorResult.Defended||OverworldSession.Results[2]!=OverworldSession.DoorResult.Looted||OverworldSession.Changed[77]!='#'||!OverworldSession.HasPositions||Math.Abs(OverworldSession.TricksterX-9.25)>0.01||OverworldSession.TownScene!="Assets/Scenes/Town.unity"){ kb++; Console.WriteLine("     [FAIL] 存档往返："+js); }
     else parts.Add("存档往返 "+Step1Flow.SaveSummary(back)+$"（{js.Length} 字）");
     if(back!=null&&Step1Flow.Restore(back,"OtherTown")){ kb++; Console.WriteLine("     [FAIL] 别的小镇的存档也读了"); }
-    foreach(var badJ in new[]{"","{","garbage",js.Replace("\"version\":1","\"version\":99"),js.Replace("\"marioHearts\":2","\"marioHearts\":9"),js.Replace("\"minute\":870","\"minute\":5")}) if(Step1Flow.FromJson(badJ)!=null){ kb++; Console.WriteLine("     [FAIL] 坏档没被丢掉："+(badJ.Length>40?badJ.Substring(0,40):badJ)); }
+    foreach(var badJ in new[]{"","{","garbage",js.Replace("\"version\":"+Step1Flow.SaveVersion,"\"version\":99"),js.Replace("\"marioHearts\":2","\"marioHearts\":9"),js.Replace("\"minute\":870","\"minute\":5")}) if(Step1Flow.FromJson(badJ)!=null){ kb++; Console.WriteLine("     [FAIL] 坏档没被丢掉："+(badJ.Length>40?badJ.Substring(0,40):badJ)); }
     parts.Add("坏档 / 版本不对 / 数字离谱 → 当没存档");
     OverworldSession.NewDay("Town","x",1); OverworldSession.Active=false;
     // H4：心智不读暂停 / 节奏
     foreach(var f in new[]{"RushMarioMind.cs","SuspicionMeter.cs"}){ var src=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/"+f)); if(src.Contains("Step1PauseMenu")||src.Contains("Step1Rhythm")||src.Contains("Step1Flow")){ kb++; Console.WriteLine("     [FAIL] H4："+f+" 读了暂停/节奏"); } }
     Console.WriteLine($"[{(kb==0?"OK":"FAIL")}] S243/S244 像素素材 · 动作画面 · 节奏 · 暂停 · 小镇存档：{string.Join("｜",parts)}"); fail+=kb; }
+  // S245：存档进度点 · 美术覆盖 · 素材包（换图 + 互动）
+  { int kb=0; var parts=new List<string>();
+    // 存档 v2 往返 + v1 兼容
+    OverworldSession.NewDay("Town","Assets/Scenes/Town.unity",3); OverworldSession.Minute=10*60; OverworldSession.UsedCells.Add(42); OverworldSession.BonusBombs=2;
+    var s2=Step1Flow.Capture(); s2.kind=(int)Step1Flow.Checkpoint.DoorEnter; s2.when="2026-10-09 15:20"; s2.stamp=5;
+    var j2=Step1Flow.ToJson(s2); var b2=Step1Flow.FromJson(j2);
+    OverworldSession.NewDay("Town","x",1);
+    if(b2==null||!Step1Flow.Restore(b2,"Town")||!OverworldSession.UsedCells.Contains(42)||OverworldSession.BonusBombs!=2||b2.kind!=(int)Step1Flow.Checkpoint.DoorEnter||b2.when!="2026-10-09 15:20"){ kb++; Console.WriteLine("     [FAIL] 存档 v2 往返："+j2); } else parts.Add("v2 往返（进度点类型 / 时间 / 捡过的箱子 / 炸弹）");
+    var j1=j2.Replace("\"version\":"+Step1Flow.SaveVersion,"\"version\":1"); var b1=Step1Flow.FromJson(j1);
+    if(b1==null||b1.day!=3){ kb++; Console.WriteLine("     [FAIL] 旧 1 版存档读不了"); } else parts.Add("旧 1 版照样读");
+    var slots=new Step1Flow.TownSave[]{ new Step1Flow.TownSave{map="T",scene="s",minute=OverworldMap.DayStart,stamp=3}, null, new Step1Flow.TownSave{map="T",scene="s",minute=OverworldMap.DayStart,stamp=9}, new Step1Flow.TownSave{map="T",scene="s",minute=OverworldMap.DayStart,stamp=1} };
+    var ord=Step1Flow.ContinueOrder(slots);
+    if(ord.Count!=3||ord[0]!=2||ord[1]!=0||ord[2]!=3){ kb++; Console.WriteLine("     [FAIL] 继续列表顺序 "+string.Join(",",ord)); } else parts.Add("继续列表最新在前");
+    var dawn=Step1Flow.DawnSave("Town","sc",4);
+    if(dawn.day!=4||dawn.kind!=(int)Step1Flow.Checkpoint.Dawn||!Step1Flow.Valid(dawn)){ kb++; Console.WriteLine("     [FAIL] 天亮存档"); } else parts.Add("天亮存第 N+1 天");
+    if(!Step1Flow.SlotLine(1,null).Contains("空")||!Step1Flow.SlotLine(0,b2).Contains("进门前")||Step1Flow.SlotKey("K",2)!="K.Slot2"||Step1Flow.SlotKey("K",0)!="K"){ kb++; Console.WriteLine("     [FAIL] 存档位文字 / 键名"); }
+    OverworldSession.NewDay("Town","x",1); OverworldSession.Active=false;
+    // 半格记账
+    int pend=0; int h1=ArtKitRules.Accumulate(ref pend,1); int h2=ArtKitRules.Accumulate(ref pend,1);
+    int pf=0; int f1=ArtKitRules.Accumulate(ref pf,2); int ph=0; int r1=ArtKitRules.Accumulate(ref ph,-1); int r2=ArtKitRules.Accumulate(ref ph,-1);
+    if(h1!=0||h2!=1||pend!=0||f1!=1||pf!=0||r1!=0||r2!=-1){ kb++; Console.WriteLine($"     [FAIL] 半格记账 {h1}{h2}{pend} {f1} {r1}{r2}"); } else parts.Add("半格×2 = 扣 1 颗、一格 = 立刻扣、回血同理");
+    var cl=ArtKitRules.Clamp(new ArtKitRules.Behavior{enabled=true,damageHalves=99,tickSeconds=0.01f,speedScale=0.01f,stunSeconds=9f});
+    if(cl.tickSeconds<0.3f||cl.stunSeconds>1.5f||cl.speedScale<0.2f||cl.damageHalves>ArtKitRules.MaxHalves){ kb++; Console.WriteLine("     [FAIL] H9 夹不住"); } else parts.Add("H9 间隔≥0.3 晕≤1.5");
+    if(!ArtKitRules.Describe(ArtKitRules.SlotDefault(0)).Contains("半格")||!ArtKitRules.Describe(ArtKitRules.SlotDefault(1)).Contains("1 格")||!ArtKitRules.Describe(ArtKitRules.SlotDefault(2)).Contains("回")){ kb++; Console.WriteLine("     [FAIL] 默认槽说明："+ArtKitRules.Describe(ArtKitRules.SlotDefault(1))); }
+    if(ArtKitRules.MatchFile("PoisonPool_v2.png",new[]{"Poison","PoisonPool"})!="PoisonPool"||ArtKitRules.MatchFile("ttree.PNG",new[]{"TTree"})!="TTree"||ArtKitRules.MatchFile("random.png",new[]{"TTree"})!=null){ kb++; Console.WriteLine("     [FAIL] 批量导入文件名匹配"); } else parts.Add("PNG 文件名对名字");
+    // 素材槽登记
+    var regS=AsciiElementRegistry.GetDefault();
+    for(int i=0;i<ArtKitRules.SlotChars.Length;i++){ char ch=ArtKitRules.SlotChars[i]; var en=regS.GetEntry(ch); if(en==null||en.elementName!=ArtKitRules.SlotKey(i)||ElementCatalog.Get(ch)==null){ kb++; Console.WriteLine("     [FAIL] 素材槽没登记 "+ch); } }
+    parts.Add("z Z a r 已登记");
+    // 美术覆盖：所有元素 / 小镇格子 / 天气都有图
+    var names=new List<string>(); foreach(char ch in regS.GetAllRegisteredChars()) names.Add(regS.GetEntry(ch).elementName);
+    var miss=WorldArt.Coverage(names);
+    if(miss.Count>0){ kb++; Console.WriteLine("     [FAIL] 美术没覆盖："+string.Join("、",miss)); } else parts.Add($"美术全覆盖（{names.Count} 个元素 + 小镇格子 + 天气）");
+    foreach(var k in WorldArt.AllKeys()){ var r=WorldArt.Rows(k); if(r==null||r.Length!=WorldArt.Size||r.Any(x=>x.Length!=WorldArt.Size)){ kb++; Console.WriteLine("     [FAIL] 不是 16×16："+k); } }
+    foreach(var k in WorldArt.SkillFx) if(!WorldArt.Fx.ContainsKey(k)){ kb++; Console.WriteLine("     [FAIL] 技能特效缺图 "+k); }
+    // 装饰：同一个房间每次一样，密度 0 = 没有
+    var room=Step1PrankRoomBuilderRoom();
+    var d1=WorldArt.Dressing(room,7,0.08f,false); var d2=WorldArt.Dressing(room,7,0.08f,false);
+    if(d1.Count==0||d1.Count!=d2.Count||d1.Where((d,i)=>d.x!=d2[i].x||d.y!=d2[i].y||d.key!=d2[i].key).Any()||WorldArt.Dressing(room,7,0f,false).Count!=0){ kb++; Console.WriteLine("     [FAIL] 装饰不确定 / 关不掉"); } else parts.Add($"房间装饰 {d1.Count} 件（同房间同摆法）");
+    // 视差循环 + 地面像素
+    float px1=WorldArt.ParallaxX(10f,0.2f,50f), px2=WorldArt.ParallaxX(1000f,0.2f,50f);
+    if(px1<0||px1>=50||px2<0||px2>=50||WorldArt.GroundPixelsPerCell(64,40)!=16||WorldArt.GroundPixelsPerCell(400,100)!=8||WorldArt.GroundPixelsPerCell(9000,10)!=1){ kb++; Console.WriteLine("     [FAIL] 视差 / 地面像素"); } else parts.Add("远山视差循环 · 地面 16 像素/格（大图自动降）");
+    // 结局：素材槽掉光命 ≠ 被自己炸
+    if(Step1Text.Classify("Mario","Trickster was worn down by the room.")!=Step1Text.Outcome.TricksterHazard||Step1Text.Headline(Step1Text.Outcome.TricksterHazard).Contains("逃走")){ kb++; Console.WriteLine("     [FAIL] 素材槽掉光命的结局"); } else parts.Add("毒池掉光命有自己的结局");
+    // H4：心智不读素材包 / 美术
+    foreach(var f in new[]{"RushMarioMind.cs","SuspicionMeter.cs"}){ var src=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/"+f)); if(src.Contains("ArtKit")||src.Contains("WorldArt")||src.Contains("TownSaveStore")){ kb++; Console.WriteLine("     [FAIL] H4："+f+" 读了美术 / 存档"); } }
+    if(!File.ReadAllText(WsRepo("Assets/Scripts/Overworld/Runtime/OverworldGame.cs")).Contains("TownWeatherFx")){ kb++; Console.WriteLine("     [FAIL] 小镇天气粒子没接上"); }
+    Console.WriteLine($"[{(kb==0?"OK":"FAIL")}] S245 存档进度点 · 美术覆盖 · 素材包换图 + 互动：{string.Join("｜",parts)}"); fail+=kb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);

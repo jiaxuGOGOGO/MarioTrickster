@@ -80,6 +80,21 @@ public class TricksterLives : MonoBehaviour
         return true;
     }
 
+    /// <summary>S245：素材槽（毒池 / 荆棘…）持续掉血：和 HitBySelf 一样掉 n 条命，但结算写"被房间磨光"（不是"被自己的机关炸光"）。</summary>
+    public bool HitByZone(int n)
+    {
+        if (trickster == null || invulnerable > 0f || Lives <= 0 || n <= 0) return false;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.CurrentState != GameState.Playing) return false;
+        Lives = Mathf.Max(0, Lives - n);
+        LivesChanged?.Invoke(Lives);
+        invulnerable = Mathf.Min(tuning.respawnInvulnerableSeconds, 0.3f); // 持续伤害：短无敌，不然半格 / 1.2 秒永远扣不到
+        if (Lives <= 0 && gm != null) gm.EndRound("Mario", HazardReason);
+        return true;
+    }
+    /// <summary>S245：素材槽持续伤害掉光命（Step1Text.Classify 认这个前缀）。</summary>
+    public const string HazardReason = "Trickster was worn down by the room.";
+
     /// <summary>S235 本局结束原因（Step1Text.Classify 认这个前缀）。</summary>
     public const string FellOutReason = "Trickster fell out of the room.";
     /// <summary>S236：被自己的炸弹 / 油桶等炸光命（以前结算标题错写成"马里奥带着宝物逃走了"）。</summary>

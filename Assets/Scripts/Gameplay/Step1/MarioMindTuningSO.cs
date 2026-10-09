@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 33;
+    public const int CurrentDataVersion = 34;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -713,6 +713,20 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("小镇自动存档：每 20 秒、从房间回来、天亮时各存一次；下次进小镇可以继续这一天")]
     public bool townAutoSave = true;
 
+    [Header("S245: 美术补全 · 存档进度点 · 素材包")]
+    [Tooltip("小镇换成像素图块（草 / 路 / 屋顶 / 树 / 水 / 山…，16 像素一格）。关掉 = 回到以前的色块")]
+    public bool artTown = true;
+    [Tooltip("小镇北边的远山 + 近丘（跟镜头慢慢移动的背景）")]
+    public bool artMountains = true;
+    [Tooltip("天气画面：下雨的雨丝、酸雨的绿雨、大风的落叶、起雾的雾团（纯画面）。1 = 默认，0 = 关")]
+    [Range(0f, 2f)] public float artWeatherDensity = 1f;
+    [Tooltip("房间背景装饰（画、窗、挂旗、烛台、盆栽…）：每多少空格放一件的比例。0 = 不放。装饰压暗、没有碰撞体、不挡机关")]
+    [Range(0f, 0.2f)] public float artDecorDensity = 0.05f;
+    [Tooltip("房间背景：0 = 自动（游乐园 / 城市公园主题用户外天空 + 远山，其他用老宅）、1 = 老宅、2 = 户外")]
+    [Range(0, 2)] public int artBackdrop = 0;
+    [Tooltip("炸弹 / 炮弹 / 遁地土包 / 钩爪 / 挑衅气泡换成像素图（以前是色块和文字）")]
+    public bool artSkillFx = true;
+
     [Header("S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）")]
     [Tooltip("马里奥 Q 扫描：半径（格）。扫到就真的暴露你（宪法 H5：扫描 100% 真实）")]
     [Range(0.5f, 20f)] public float scanRadius = 5f;
@@ -938,6 +952,11 @@ public class MarioMindTuningSO : ScriptableObject
         {
             // S244：动作画面 / 开局倒计时 / 横幅 / 震屏开关 / 小镇自动存档（docs/step1/S244_SELF_CHECK_ART_RHYTHM_PAUSE_SAVE.md）——默认全开。
             artJuice = true; startCountdown = true; roundBanners = true; screenShake = true; townAutoSave = true;
+        }
+        if (dataVersion < 34)
+        {
+            // S245：美术补全（小镇图块 / 远山 / 天气 / 房间装饰 / 技能特效）——默认全开（docs/step1/S245_SAVE_POINTS_ART_COVERAGE_ARTKIT.md）。
+            artTown = true; artMountains = true; artWeatherDensity = 1f; artDecorDensity = 0.05f; artBackdrop = 0; artSkillFx = true;
         }
         dataVersion = CurrentDataVersion;
         return true;

@@ -2791,4 +2791,35 @@ public class Step1RushMarioTests
         StringAssert.Contains("SaveKey", Read("Scripts/Overworld/Runtime/OverworldGame.cs"));
         foreach (var f in new[] { "RushMarioMind.cs", "SuspicionMeter.cs" }) StringAssert.DoesNotContain("Step1PauseMenu", Read("Scripts/Gameplay/Step1/" + f), "H4");
     }
+
+    [Test]
+    public void S245_SavePointsArtCoverageArtKit()
+    {
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 34); Assert.GreaterOrEqual(Step1Flow.SaveVersion, 2);
+        var t = ScriptableObject.CreateInstance<MarioMindTuningSO>(); Assert.IsTrue(t.artTown && t.artMountains && t.artSkillFx); Assert.Greater(t.artWeatherDensity, 0f);
+        // 存档：v2 往返、旧 1 版能读、继续列表最新在前、天亮存下一天
+        OverworldSession.NewDay("Town", "Assets/Scenes/Town.unity", 3); OverworldSession.Minute = 600; OverworldSession.UsedCells.Add(42);
+        var s = Step1Flow.Capture(); s.kind = (int)Step1Flow.Checkpoint.RoomDone; s.stamp = 7;
+        string js = Step1Flow.ToJson(s); var back = Step1Flow.FromJson(js);
+        Assert.IsNotNull(back); Assert.AreEqual((int)Step1Flow.Checkpoint.RoomDone, back.kind); Assert.IsTrue(back.used.Contains(42));
+        Assert.IsNotNull(Step1Flow.FromJson(js.Replace("\"version\":" + Step1Flow.SaveVersion, "\"version\":1")));
+        var order = Step1Flow.ContinueOrder(new[] { new Step1Flow.TownSave { stamp = 1 }, null, new Step1Flow.TownSave { stamp = 5 } });
+        Assert.AreEqual(2, order[0]); Assert.AreEqual(2, order.Count);
+        Assert.AreEqual(4, Step1Flow.DawnSave("Town", "s", 4).day);
+        OverworldSession.NewDay("T", "x", 1); OverworldSession.Active = false;
+        // 素材包：半格记账、H9 夹住、默认槽
+        int p = 0; Assert.AreEqual(0, ArtKitRules.Accumulate(ref p, 1)); Assert.AreEqual(1, ArtKitRules.Accumulate(ref p, 1));
+        var c = ArtKitRules.Clamp(new ArtKitRules.Behavior { enabled = true, tickSeconds = 0f, stunSeconds = 9f, speedScale = 0.01f });
+        Assert.GreaterOrEqual(c.tickSeconds, 0.3f); Assert.LessOrEqual(c.stunSeconds, 1.5f); Assert.GreaterOrEqual(c.speedScale, 0.2f);
+        Assert.AreEqual(1, ArtKitRules.SlotDefault(0).damageHalves); Assert.AreEqual(2, ArtKitRules.SlotDefault(1).damageHalves);
+        var reg = AsciiElementRegistry.GetDefault();
+        for (int i = 0; i < ArtKitRules.SlotChars.Length; i++) Assert.AreEqual(ArtKitRules.SlotKey(i), reg.GetEntry(ArtKitRules.SlotChars[i]).elementName);
+        // 美术覆盖
+        var names = new System.Collections.Generic.List<string>(); foreach (char ch in reg.GetAllRegisteredChars()) names.Add(reg.GetEntry(ch).elementName);
+        CollectionAssert.IsEmpty(WorldArt.Coverage(names));
+        // 素材槽掉光命 = 自己的结局
+        Assert.AreEqual(Step1Text.Outcome.TricksterHazard, Step1Text.Classify("Mario", TricksterLives.HazardReason));
+        StringAssert.Contains("TownWeatherFx", Read("Scripts/Overworld/Runtime/OverworldGame.cs"));
+        foreach (var f in new[] { "RushMarioMind.cs", "SuspicionMeter.cs" }) StringAssert.DoesNotContain("ArtKit", Read("Scripts/Gameplay/Step1/" + f), "H4");
+    }
 }

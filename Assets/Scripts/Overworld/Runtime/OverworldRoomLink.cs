@@ -89,6 +89,7 @@ public sealed class OverworldRoomLink : MonoBehaviour
         var o = Step1Text.Classify(winner, manager != null ? manager.LastRoundReason : "");
         bool won = Step1Text.PlayerWon(o);
         OverworldSession.RecordRoom(door, won);
+        TownSaveStore.RoomJustDone = true; // S245：回小镇后存一个"打完房间"进度点
         if (cannonHitMario) OverworldSession.RecordWindowFling(door); // S228：房间里你的炮打中过他 → 回小镇他从门口被轰出来
         headline = Step1Text.Headline(o);
         over = true; overTime = Time.unscaledTime;

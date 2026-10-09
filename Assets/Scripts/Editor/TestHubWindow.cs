@@ -65,6 +65,7 @@ public sealed class TestHubWindow : EditorWindow
                 if (GUILayout.Button("🏠 关卡工坊")) LevelWorkshopWindow.Open();
                 if (GUILayout.Button(new GUIContent("🧪 跑 EditMode 测试", "结果写进 TestReport.txt，打包反馈会带上"))) TestReportRunner.RunEditModeTests();
                 if (GUILayout.Button(new GUIContent("🧹 忘掉居民记忆", "S233：居民记得你来往了几次、听过哪些真心话（跨次保留）。点这里 = 从头再认识一遍"))) { PlayerPrefs.DeleteKey(OverworldGame.MemoryKey); PlayerPrefs.Save(); TownStory.Reset(); ShowNotification(new GUIContent("居民记忆已清空")); }
+                if (GUILayout.Button(new GUIContent("🧹 清空小镇存档", "S245：删掉自动档 + 3 个手动存档位（下次进小镇不再问继续哪一个）"))) { TownSaveStore.ClearAll(); ShowNotification(new GUIContent("小镇存档已清空")); }
                 if (GUILayout.Button("📂 打开记录文件夹")) { Directory.CreateDirectory(LogsRoot); EditorUtility.RevealInFinder(LogsRoot); }
             }
             // S236：以前只在菜单深处的自动检查 + 开始页 + 网页，都放到这里（一处找齐）

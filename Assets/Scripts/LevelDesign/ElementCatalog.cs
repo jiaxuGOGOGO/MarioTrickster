@@ -116,6 +116,10 @@ public static class ElementCatalog
         I('k', "Cannon", "大炮（朝左）", "Cannon (←)", Role.PlayerPrank, "同上，炮口朝左。", "地面上，炮口前方至少空 3 格。", needsSupport: true, step1: true, muzzle: -1),
         I('i', "RoomLamp", "灯", "Lamp", Role.PlayerPrank, "夜里的光源：一圈之内马里奥看得见。捣蛋者伪装在旁按 L 灭灯 8 秒（这一片变暗，能溜过去 / 荡过去）。白天没区别。", "放在空中或地面上（不挡路）；夜里要照到他必经的路口才有意思。", needsSupport: false, step1: true),
         I('v', "GrassGround", "草地", "Grass ground", Role.Terrain, "实心地面，上面长着草：捣蛋者在草地上遁地（U）不会拱出土包，马里奥看不见。炸弹炸不开。", "铺在地面那一层（代替 #）；草地和裸地交替 = 遁地路线有藏有露。", step1: true),
+        I('z', "ArtSlot1", "素材槽 1（默认毒池·掉半格）", "Art slot 1", Role.Terrain, "进去每 1.2 秒掉半格心、减速到 0.6 倍（你和马里奥都会中）。长相和互动在「素材包」里改：拖一张图 + 选掉半格 / 一格 / 回血 / 减速 / 晕。", "铺在地面上，宽不超过 3 格（保证晕了也能走出来）。", needsSupport: true, step1: true), // S245
+        I('Z', "ArtSlot2", "素材槽 2（默认荆棘·掉一格）", "Art slot 2", Role.Terrain, "进去每 1.6 秒掉一格心、晕 0.25 秒。长相和互动在「素材包」里改。", "铺在地面上，宽不超过 3 格（保证晕了也能走出来）。", needsSupport: true, step1: true), // S245
+        I('a', "ArtSlot3", "素材槽 3（默认回血泉）", "Art slot 3", Role.Terrain, "站在里面每 2 秒回半格心。长相和互动在「素材包」里改。", "铺在地面上，宽不超过 3 格（保证晕了也能走出来）。", needsSupport: true, step1: true), // S245
+        I('r', "ArtSlot4", "素材槽 4（默认蛛网·减速）", "Art slot 4", Role.Terrain, "进去减速到 0.45 倍，不掉血。长相和互动在「素材包」里改。", "铺在地面上，宽不超过 3 格（保证晕了也能走出来）。", needsSupport: true, step1: true), // S245
         I('o', "Collectible", "宝物", "Loot", Role.Objective, "马里奥要拿的宝物（实战房里自动变成 LootObjective）。", "放在离出口远的一端，只能有 1 个。", unique: true, step1: true),
         I('G', "GoalZone", "出口", "Exit", Role.Objective, "马里奥拿宝后要回到这里。", "放在起点附近，只能有 1 个。", unique: true, step1: true),
         I('M', "MarioSpawn", "马里奥出生点", "Mario spawn", Role.Spawn, "马里奥从这里出发。", "脚下要实心，只能有 1 个。", unique: true, needsSupport: true, step1: true),
@@ -238,9 +242,9 @@ public static class ElementCatalog
                     char below = row + 1 < h && x < grid[row + 1].Length ? grid[row + 1][x] : '.';
                     if (!isSolid(below)) issues.Add($"({x},{y}) {info.zh} '{c}'：脚下不是实心（会悬空或掉下去）");
                 }
-                if (c == 'w' && (x == 0 || line[x - 1] != 'w'))
+                if ((c == 'w' || ArtKitRules.SlotOf(c) >= 0) && (x == 0 || line[x - 1] != c)) // S245：素材槽和毒池一样最多 3 格宽
                 {
-                    int run = 0; while (x + run < line.Length && line[x + run] == 'w') run++;
+                    int run = 0; while (x + run < line.Length && line[x + run] == c) run++;
                     if (run > MaxPoolCells) issues.Add($"({x},{y}) 毒池连续 {run} 格太宽：最多 {MaxPoolCells} 格（保证晕了也能走出来）");
                 }
                 if (c == 'Y' || c == 'Q')

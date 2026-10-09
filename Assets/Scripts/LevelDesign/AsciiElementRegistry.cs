@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 46; // S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?; S199: +U Q; S200: +R; S241: +i v
+    private const int BUILTIN_ENTRY_COUNT = 50; // S245: +z Z a r（素材槽）; S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?; S199: +U Q; S200: +R; S241: +i v
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -569,6 +569,35 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "SceneryProp" }, visualColor = new Color(0.36f, 0.62f, 0.30f), visualScale = Vector2.one,
                 customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
                 sortingOrder = 0, isTrigger = false
+            },
+            // S245：4 个素材槽 z Z a r（毒池掉半格 / 荆棘掉一格 / 回血泉 / 蛛网减速——默认；换图和互动在素材包里改）
+            new AsciiElementEntry
+            {
+                asciiChar = 'z', elementName = "ArtSlot1", isSolid = false, isHazard = false, jumpBoost = 0f, // S245：素材槽 1——长相和互动由素材包决定
+                componentTypeNames = new[] { "ArtKitZone" }, visualColor = new Color(0.55f, 0.85f, 0.25f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'Z', elementName = "ArtSlot2", isSolid = false, isHazard = false, jumpBoost = 0f, // S245：素材槽 2——长相和互动由素材包决定
+                componentTypeNames = new[] { "ArtKitZone" }, visualColor = new Color(0.45f, 0.65f, 0.3f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'a', elementName = "ArtSlot3", isSolid = false, isHazard = false, jumpBoost = 0f, // S245：素材槽 3——长相和互动由素材包决定
+                componentTypeNames = new[] { "ArtKitZone" }, visualColor = new Color(0.45f, 0.75f, 1.0f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'r', elementName = "ArtSlot4", isSolid = false, isHazard = false, jumpBoost = 0f, // S245：素材槽 4——长相和互动由素材包决定
+                componentTypeNames = new[] { "ArtKitZone" }, visualColor = new Color(0.85f, 0.85f, 0.9f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
             },
         };
         registry.BuildCache();

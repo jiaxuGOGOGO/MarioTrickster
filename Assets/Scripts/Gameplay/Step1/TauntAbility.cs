@@ -59,6 +59,8 @@ public class TauntAbility : MonoBehaviour
         Vector3 sp = Camera.main.WorldToScreenPoint(transform.position + Vector3.up * 1.4f);
         if (sp.z < 0f) return;
         var at = new Vector2(sp.x / scale, (Screen.height - sp.y) / scale);
+        var bub = Step1ArtSkin.SkillSprite("FxTaunt"); // S245：像素对话气泡（以前只有一行字）
+        if (bub != null && bub.texture != null) GUI.DrawTexture(new Rect(at.x - 140, at.y - 52, 64, 64), bub.texture, ScaleMode.ScaleToFit);
         GUI.Label(new Rect(at.x - 110, at.y - 25, 220, 50), "<color=#81D4FA><b>嘿！来抓我呀~</b></color>", Step1Gui.Text(24, TextAnchor.MiddleCenter, false));
     }
 }

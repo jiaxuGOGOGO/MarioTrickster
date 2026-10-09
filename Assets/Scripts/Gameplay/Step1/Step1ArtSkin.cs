@@ -32,13 +32,21 @@ public class Step1ArtSkin : MonoBehaviour
     {
         string ck = key + (feetPivot ? "#feet" : "");
         if (cache.TryGetValue(ck, out var sp) && sp != null) return sp;
+        // S245：① 素材包（MarioTrickster → 美术 Art → 🎨 素材包）里拖了图 = 用它（换画风不改代码、不改关卡）
+        var kitSp = ArtKit.SpriteOf(key);
+        if (kitSp != null) { if (kitSp.texture != null) kitSp.texture.filterMode = FilterMode.Point; cache[ck] = kitSp; return kitSp; }
+        // ② Resources/Step1Art/<名字>.png 同名覆盖（S243 起）；小镇图块也认 Resources/OverworldArt/<名字>.png
         Texture2D tex = Resources.Load<Texture2D>("Step1Art/" + key);
+        if (tex == null && key.Length > 1 && key[0] == 'T' && WorldArt.Town.ContainsKey(key)) tex = Resources.Load<Texture2D>("OverworldArt/" + key);
         if (tex == null)
         {
             string[] rows = null;
             if (Step1Art.Frames.TryGetValue(key, out var f)) rows = f;
             else if (Step1Art.Tiles.TryGetValue(key, out var t)) rows = t;
             else if (Step1Art.Icons.TryGetValue(key, out var ic)) rows = ic;
+            else rows = WorldArt.Rows(key); // S245：小镇 / 装饰 / 天气技能 / 工坊元素
+            if (rows == null && OverworldArt.Icons.TryGetValue(key, out var ow)) rows = ow;
+            if (rows == null && ArtKitRules.SlotIndex(key) >= 0) return Get(ArtKitRules.SlotDefaultArt[ArtKitRules.SlotIndex(key)], feetPivot); // 素材槽没配图 = 用默认长相
             if (rows == null) return null;
             int w = rows[0].Length, h = rows.Length;
             var px = Step1Art.Rgba(rows);
@@ -48,6 +56,12 @@ public class Step1ArtSkin : MonoBehaviour
         sp = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), feetPivot ? new Vector2(0.5f, 0f) : new Vector2(0.5f, 0.5f), Step1Art.Size, 0, SpriteMeshType.FullRect); // FullRect：地形要平铺（Tiled）
         cache[ck] = sp; return sp;
     }
+
+    /// <summary>S245：技能特效图（炸弹 / 炮弹 / 土包 / 钩爪 / 挑衅气泡）。调参 artSkillFx 关了 = null（用回原来的色块）。</summary>
+    public static Sprite SkillSprite(string key) { var t = MarioMindTuningSO.LoadOrDefault(); return t != null && t.artSkillFx ? Get(key, false) : null; }
+
+    /// <summary>S245：素材包改了 / 重新加载 → 清掉缓存（下次 Get 重新取）。</summary>
+    public static void ClearCache() { cache.Clear(); }
 
     private static Texture2D MakeTex(int w, int h, float[] px)
     {
@@ -75,8 +89,33 @@ public class Step1ArtSkin : MonoBehaviour
         {
             if (tuning.artTiles) SkinTiles(root.transform);
             if (tuning.artProps) SkinProps(root.transform);
+            ArtKitZone.AttachAll(root.transform); // S245：素材包里给任何元素配了互动 → 自动挂上（不只 z Z a r 四个槽）
         }
         if (tuning.artBackground) BuildBackground();
+        if (tuning.artDecorDensity > 0f) BuildDecor(); // S245：房间装饰（背景层）
+    }
+
+    /// <summary>S245：房间装饰（画 / 窗 / 挂旗 / 座钟 / 书架 / 蛛网 / 吊灯 / 烛台 / 盆栽 / 盔甲 / 木桶 / 地毯）——背景层：压暗 35%、排在地形后面、没有碰撞体（H6：主层的东西才显眼，不挡机关）。
+    /// 位置 = WorldArt.Dressing（纯函数：同一个房间每次都一样；离机关 / 出生点 / 宝物至少 1 格）。</summary>
+    private void BuildDecor()
+    {
+        var rows = Step1PrankRoomBuilderBridge.CurrentRoom; if (rows == null) return;
+        bool outdoor = WorldArt.Outdoor(tuning.artBackdrop, tuning.themePreset, rows);
+        var root = new GameObject("S245_Decor"); root.transform.SetParent(transform, false);
+        int seed = 0; foreach (var r in rows) foreach (char c in r) seed = seed * 31 + c;
+        foreach (var d in WorldArt.Dressing(rows, seed, tuning.artDecorDensity, outdoor))
+        {
+            var sp = Get(d.key, false); if (sp == null) continue;
+            var go = new GameObject(d.key); go.transform.SetParent(root.transform, false);
+            go.transform.position = new Vector3(d.x, d.y, 4f);
+            var sr = go.AddComponent<SpriteRenderer>(); sr.sprite = sp; sr.sortingOrder = -60; sr.color = new Color(0.65f, 0.65f, 0.72f, 1f); // 压暗 = 背景
+        }
+    }
+
+    private void Update()
+    {
+        if (animated.Count == 0) return;
+        for (int i = 0; i < animated.Count; i++) { var a = animated[i]; if (a.sr == null) continue; var f = a.frames[(int)(Time.time * a.fps) % a.frames.Length]; if (f != null && a.sr.sprite != f) a.sr.sprite = f; }
     }
 
     /// <summary>角色：白方块 → 第一帧，颜色改白（保留透明度，受伤闪烁照常）。DisguiseSystem 记的"原图"一起换掉，变回来不会变回方块。</summary>
@@ -137,7 +176,7 @@ public class Step1ArtSkin : MonoBehaviour
         {
             string key = Step1ElementLabels.KeyOf(ch.name);
             if (Step1Art.IsTerrain(ch.name)) continue;
-            string art = Step1Art.Icons.ContainsKey(key) ? key : null;
+            string art = Step1Art.Icons.ContainsKey(key) || WorldArt.Elements.ContainsKey(key) || ArtKitRules.SlotIndex(key) >= 0 || ArtKit.SpriteOf(key) != null ? key : null; // S245：+11 个工坊元素 + 素材槽 + 素材包里的任何名字
             if (art == null) continue;
             var vis = ch.Find("Visual"); if (vis == null) continue;
             var sr = vis.GetComponent<SpriteRenderer>();
@@ -145,14 +184,43 @@ public class Step1ArtSkin : MonoBehaviour
             var sp = Get(art, false); if (sp == null) continue;
             // 白盒 = 1 格 × visualScale；像素图 16px = 1 格 → localScale 不变，图就按原来那块的大小显示（扁的机关会被压扁成同样的扁条）
             var ls = vis.localScale;
-            var place = Step1Art.PlaceOf(art, ls.x, ls.y); float s = place[0]; // S244：出口 = 1.5 格高的门、宝物 0.9 格（以前出口是一根绿色长条、宝物是小黄方块）
+            if (WorldArt.WideElements.Contains(art) && Mathf.Abs(ls.x) > Mathf.Abs(ls.y) * 1.6f) { SkinWide(vis, sr, art, ls); continue; } // S245：长条机关（弹跳台 / 移动平台 / 传送带）平铺，不压成一团
+            var place = WorldArt.PlaceOf(art, ls.x, ls.y); float s = place[0]; // S244：出口 = 1.5 格高的门、宝物 0.9 格（以前出口是一根绿色长条、宝物是小黄方块）
             sr.sprite = sp; sr.color = Color.white;
             var cannon = ch.GetComponent<PranksterCannon>(); if (cannon != null) sr.flipX = !cannon.FacingRight; // 图里炮口朝右
             vis.localScale = new Vector3(s, s, 1f);
             if (art == "GoalZone" || art == "Collectible") vis.localPosition = new Vector3(vis.localPosition.x, place[1], vis.localPosition.z); // 出口 / 宝物：相对物体中心摆（原色块是 1×3 的长条 / 0.5 的小方块）
             else vis.localPosition = vis.localPosition + new Vector3(0f, place[1], 0f);
             // 头上的小图标（Step1PropIcons）只贴白盒 → 这里换了图，它自己就不贴了，不会一个东西两张图
+            var frames = ArtKit.FramesOf(art, out float fps); if (frames != null) animated.Add(new Anim { sr = sr, frames = frames, fps = fps }); // S245：素材包里给了动画帧
         }
+    }
+
+    // S245：素材包动画（每个物体按自己的帧循环）
+    private struct Anim { public SpriteRenderer sr; public Sprite[] frames; public float fps; }
+    private readonly List<Anim> animated = new List<Anim>();
+
+    /// <summary>S245：长条机关：取图的底部非空那一条，横向平铺成原来的宽度（高度 = 原色块高度，底边不变）。碰撞体不动（H3）。</summary>
+    private void SkinWide(Transform vis, SpriteRenderer sr, string art, Vector3 ls)
+    {
+        var band = WideSprite(art); if (band == null) return;
+        float w = Mathf.Abs(ls.x), h = Mathf.Max(Mathf.Abs(ls.y), band.bounds.size.y);
+        sr.sprite = band; sr.color = Color.white; sr.drawMode = SpriteDrawMode.Tiled; sr.size = new Vector2(w, h);
+        vis.localPosition = vis.localPosition + new Vector3(0f, (h - Mathf.Abs(ls.y)) * 0.5f, 0f);
+        vis.localScale = Vector3.one;
+    }
+
+    private static Sprite WideSprite(string key)
+    {
+        string ck = key + "#wide"; if (cache.TryGetValue(ck, out var sp) && sp != null) return sp;
+        var full = Get(key, false); if (full == null || full.texture == null) return null;
+        var tex = full.texture; int y0, y1;
+        if (!tex.isReadable) { cache[ck] = full; return full; }
+        var px = tex.GetPixels(); var alpha = new float[px.Length]; for (int i = 0; i < px.Length; i++) alpha[i] = px[i].a;
+        WorldArt.OpaqueRows(alpha, tex.width, tex.height, out y0, out y1);
+        if (y1 < y0) { cache[ck] = full; return full; }
+        sp = Sprite.Create(tex, new Rect(0, y0, tex.width, y1 - y0 + 1), new Vector2(0.5f, 0.5f), tex.width, 0, SpriteMeshType.FullRect);
+        cache[ck] = sp; return sp;
     }
 
     private void BuildBackground()
@@ -169,7 +237,24 @@ public class Step1ArtSkin : MonoBehaviour
         sr.sortingOrder = -100;
         float k = Mathf.Max((w + 2f) / tex.width, (h + 2f) / tex.height); // 盖满整个房间（多 1 格边）
         go.transform.localScale = new Vector3(k, k, 1f);
+        if (WorldArt.Outdoor(tuning.artBackdrop, tuning.themePreset, rows)) // S245：户外房间 = 天空 + 远山 + 近丘（远处的山脉）
+        {
+            sr.color = new Color(0.62f, 0.8f, 0.95f);
+            Strip("S245_FarMountains", WorldArt.FarPalette, WorldArt.FarStrip, w, h * 0.35f, -95, 4.9f);
+            Strip("S245_NearHills", WorldArt.NearPalette, WorldArt.NearStrip, w, h * 0.2f, -90, 4.8f);
+        }
         var cam = Camera.main; if (cam != null) cam.backgroundColor = new Color(0.16f, 0.16f, 0.22f);
+    }
+
+    /// <summary>S245：一条横向循环的远景（远山 / 近丘），贴在房间底部偏上；Tiled 铺满宽度。</summary>
+    private void Strip(string name, float[][] pal, string[] rows, int roomW, float baseY, int order, float z)
+    {
+        var tex = MakeTex(rows[0].Length, rows.Length, WorldArt.StripRgba(pal, rows)); tex.wrapMode = TextureWrapMode.Repeat;
+        var go = new GameObject(name); go.transform.SetParent(transform, false);
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0f), WorldArt.Size, 0, SpriteMeshType.FullRect);
+        sr.drawMode = SpriteDrawMode.Tiled; sr.size = new Vector2(roomW + 4f, rows.Length / (float)WorldArt.Size); sr.sortingOrder = order;
+        go.transform.position = new Vector3(roomW * 0.5f - 0.5f, baseY, z);
     }
 
     private void LateUpdate()

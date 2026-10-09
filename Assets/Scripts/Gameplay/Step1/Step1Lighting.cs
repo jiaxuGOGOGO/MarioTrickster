@@ -158,6 +158,8 @@ public class Step1Lighting : MonoBehaviour
             d.transform.SetParent(transform, false);
             var sr = d.AddComponent<SpriteRenderer>(); sr.sprite = Step1Sprites.Square; sr.color = new Color(0.6f, 0.75f, 1f, 0.45f); sr.sortingOrder = 41;
             d.transform.localScale = new Vector3(0.05f, 0.45f, 1f);
+            var rain = tuning.artSkillFx ? Step1ArtSkin.Get("FxRain", false) : null; // S245：像素雨丝（落地溅水花见下）
+            if (rain != null) { sr.sprite = rain; sr.color = new Color(1f, 1f, 1f, 0.75f); d.transform.localScale = Vector3.one * 0.6f; }
             d.transform.position = new Vector3(Random.Range(0f, w), Random.Range(0f, h), -1f);
             drops.Add(d.transform);
         }
@@ -166,9 +168,18 @@ public class Step1Lighting : MonoBehaviour
         {
             if (d == null) continue;
             var p = d.position; p.y -= 14f * Time.deltaTime; p.x -= 2f * Time.deltaTime;
-            if (p.y < -1f) { p.y = h; p.x = Random.Range(0f, w); }
+            if (p.y < -1f) { if (tuning.artSkillFx && LaunchFeel.fx && Random.value < 0.25f) Splash(new Vector2(p.x, 0.6f)); p.y = h; p.x = Random.Range(0f, w); }
             d.position = p;
         }
+    }
+
+    /// <summary>S245：雨点落地溅一下水花（0.25 秒，纯画面）。</summary>
+    private void Splash(Vector2 at)
+    {
+        var sp = Step1ArtSkin.Get("FxSplash", false); if (sp == null) return;
+        var go = new GameObject("S245_Splash"); go.transform.SetParent(transform, false); go.transform.position = new Vector3(at.x, at.y, -1f); go.transform.localScale = Vector3.one * 0.5f;
+        var sr = go.AddComponent<SpriteRenderer>(); sr.sprite = sp; sr.sortingOrder = 41; sr.color = new Color(1f, 1f, 1f, 0.7f);
+        Destroy(go, 0.25f);
     }
 
     private void OnGUI()

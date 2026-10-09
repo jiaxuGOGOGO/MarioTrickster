@@ -73,6 +73,7 @@ public static class Step1Glance
             case '|': return "单向";
             case '?': return "道具";
             case 'w': return "毒";
+            case 'z': case 'Z': case 'a': case 'r': return "素材"; // S245：素材槽（效果看素材包）
             case 'g': return "黏";
             default: return "";
         }

@@ -81,6 +81,7 @@ public class Step1Combo : MonoBehaviour
         // S241：光影（白天 / 夜晚 / 雨天 + 手电筒）、机关图标。运行时自动挂上 → 旧场景不用重建（遁地 / 蛛丝 / 脚步由 Step1Lighting 挂到捣蛋者身上，连招层不碰捣蛋者，H4）
         if (GetComponent<Step1Lighting>() == null) gameObject.AddComponent<Step1Lighting>();
         if (GetComponent<Step1PropIcons>() == null) gameObject.AddComponent<Step1PropIcons>();
+        if (GetComponent<Step1GlanceView>() == null) gameObject.AddComponent<Step1GlanceView>(); // S242：一目了然（路线 + 埋伏点 + 头顶意图图标）
         manager = GameManager.Instance;
         if (manager != null) manager.OnRoundStart += ResetRound;
         roomCamera = FindObjectOfType<Step1RoomCamera>();

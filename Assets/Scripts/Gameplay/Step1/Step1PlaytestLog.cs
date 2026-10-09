@@ -36,7 +36,7 @@ public class Step1PlaytestLog : MonoBehaviour
         var kit = TricksterKit.Instance; bool dis = barFigure.IsDisguised, sh = kit != null && kit.Shrunk;
         return Step1Text.ControlsBarFor(dis, sh,
             kit != null && TricksterKit.CanBomb(dis, sh, kit.BombsLeft, kit.BombCooldown),
-            barDecoy != null && DecoyAbility.CanDecoy(dis, sh, barDecoy.DecoysLeft, DecoyAbility.Active != null),
+            barDecoy != null && Step1Loadout.CanDecoy(DecoyAbility.PropMode, dis, sh, barDecoy.DecoysLeft, DecoyAbility.Active != null), // S242：道具诱饵伪装中也能丢
             barTaunt != null && TauntAbility.CanTaunt(dis, barTaunt.TauntsLeft, barTaunt.Cooldown),
             kit != null && TricksterKit.CanShrink(sh, kit.ShrinksLeft),
             Vent.AnyWithin(barFigure.transform.position, 1.2f),
@@ -44,7 +44,7 @@ public class Step1PlaytestLog : MonoBehaviour
             TricksterBurrow.Instance != null && TricksterBurrow.Instance.CanBurrowNow,
             TricksterSilk.Instance != null && TricksterSilk.Instance.CanSilkNow,
             TricksterBurrow.Instance != null && TricksterBurrow.Instance.Burrowed,
-            TricksterSilk.Swinging);
+            TricksterSilk.Swinging, DecoyAbility.PropMode);
     }
     private TricksterLives lives;
     private TricksterAbilitySystem abilities;

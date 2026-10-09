@@ -242,6 +242,13 @@ public static partial class Step1Text
     public const string DecoyBusy = "已经有一个诱饵了  A decoy is already out";
     public const string DecoyPlaced = "🎭 放下诱饵！快溜（还剩 {0} 个）  Decoy placed! ({0} left)";
     public const string DecoyRevealed = "马里奥识破了诱饵！  Mario saw through the decoy!";
+    // S242：伪装装备栏 / 道具诱饵
+    public const string PropDecoyPlaced = "🎭 丢出一个假{0}！它会时不时扭一下引他过去（还剩 {1} 个）  Prop decoy thrown";
+    public const string LoadoutPicked = "形态 {0}：{1}";
+    public const string LoadoutSampled = "取样！第 {0} 格换成 {1}";
+    public const string LoadoutAlready = "已经是{0}了";
+    public const string LoadoutNothingNear = "旁边没有能变的东西（站到箱子 / 草丛 / 油桶 / 灯…旁边按 E）";
+    public const string LoadoutCaption = "1–N 换形态（伪装中也能换）  E 取样身边的东西  G 丢一个假的";
     public const string AlarmOn = "🚨 <b>警报</b>响了！一段时间内你站着不动也会被怀疑  ALARM — even still disguises look suspicious";
     public const string AlarmOff = "警报解除  Alarm off";
     public const string DoorKicking = "咚咚！马里奥在<b>踢门</b>（2 秒）  Mario is kicking the door!";
@@ -267,7 +274,7 @@ public static partial class Step1Text
 
     /// <summary>S226 E9（看情况的按键条）：底部只放"现在按了有用"的键。核心键永远在；炸弹/缩小/诱饵/挑衅/通风管最多再加 3 个，
     /// 只有当下能用才出现（用完、冷却中、伪装中不能用 → 不显示）。全部按键仍在 H 帮助页。</summary>
-    public static string ControlsBarFor(bool disguised, bool shrunk, bool canBomb, bool canDecoy, bool canTaunt, bool canShrink, bool nearVent, bool nearCannon = false, bool canBurrow = false, bool canSilk = false, bool burrowed = false, bool swinging = false)
+    public static string ControlsBarFor(bool disguised, bool shrunk, bool canBomb, bool canDecoy, bool canTaunt, bool canShrink, bool nearVent, bool nearCannon = false, bool canBurrow = false, bool canSilk = false, bool burrowed = false, bool swinging = false, bool propDecoy = false)
     {
         // S241：在地下 / 挂在丝上 = 只显示这时有用的键
         if (burrowed) return "← → 地下移动 Move   U 钻出来 Surface   L 触发（不行）   |   H 全部按键 Help   F8 记反馈   Esc 暂停";
@@ -276,7 +283,7 @@ public static partial class Step1Text
         if (nearCannon) extra.Add("↓ 坐进大炮 Cannon");
         if (nearVent) extra.Add("↓ 钻通风管 Vent");
         if (canBomb) extra.Add("B 炸弹 Bomb");
-        if (canDecoy) extra.Add("G 诱饵 Decoy");
+        if (canDecoy) extra.Add(propDecoy ? "G 丢假道具 Decoy" : "G 诱饵 Decoy");
         if (canTaunt) extra.Add("T 挑衅 Taunt");
         if (canShrink) extra.Add("Z 缩小 Shrink");
         if (canSilk) extra.Add("K 蛛丝 Silk");

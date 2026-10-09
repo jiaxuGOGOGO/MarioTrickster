@@ -2662,4 +2662,85 @@ public class Step1RushMarioTests
         StringAssert.Contains("AirWallSlide", Read("Scripts/Player/MarioController.cs"), "空中顶墙不粘墙");
         StringAssert.Contains("SqueezeDirection", Read("Scripts/LevelElements/Traps/ControllableBlocker.cs"), "封路墙只横向挤");
     }
+
+    // ── S242：黑匣子 · 伪装装备栏 · 道具诱饵 · 一目了然 ─────────────────
+    [Test]
+    public void S242_BlackBox_DetectsStuckAndKeepsSizeUnderBudget()
+    {
+        var ring = new Step1BlackBox.Ring<int>(3); for (int i = 0; i < 5; i++) ring.Add(i);
+        Assert.AreEqual(3, ring.Count); Assert.AreEqual(2, ring[0], "满了丢最旧的");
+        var still = new List<Vector2> { new Vector2(5, 1), new Vector2(5.1f, 1), new Vector2(5.05f, 1) };
+        Assert.IsTrue(Step1BlackBox.Stuck(still, true, 4f, 3.5f), "4 秒没挪窝 = 卡住");
+        Assert.IsFalse(Step1BlackBox.Stuck(still, false, 4f, 3.5f), "被晕 / 等开局不算");
+        Assert.IsTrue(Step1BlackBox.HeldNoMove(2f, 1.5f, still, true), "按住方向键你没动");
+        Assert.IsTrue(Step1BlackBox.BadNumber(new Vector2(float.NaN, 0), 10, 5)); Assert.IsTrue(Step1BlackBox.BadNumber(new Vector2(30, 1), 10, 5)); Assert.IsFalse(Step1BlackBox.BadNumber(new Vector2(3, 1), 10, 5));
+        Assert.IsTrue(Step1BlackBox.Mash(new List<float> { 1, 1.2f, 1.4f, 1.6f, 1.8f, 2f }, 2f, 2f, 6), "狂按");
+        var th = new Step1BlackBox.Throttle(30f, 2);
+        Assert.IsTrue(th.Allow(Step1BlackBox.Kind.Stuck, 0)); Assert.IsFalse(th.Allow(Step1BlackBox.Kind.Stuck, 10), "同一类 30 秒内只一次");
+        Assert.IsTrue(th.Allow(Step1BlackBox.Kind.Hitch, 10)); Assert.IsFalse(th.Allow(Step1BlackBox.Kind.Mash, 60), "一次试玩上限");
+        Assert.IsTrue(th.Allow(Step1BlackBox.Kind.Manual, 60), "你按的 F8 永远记");
+        var files = new[] { new Step1BlackBox.FileItem { name = "feedback.md", bytes = 100, priority = 0 },
+                            new Step1BlackBox.FileItem { name = "old.jpg", bytes = 600, priority = 2, order = 1 },
+                            new Step1BlackBox.FileItem { name = "new.jpg", bytes = 600, priority = 2, order = 2 } };
+        var b = Step1BlackBox.Budget(files, 1000);
+        Assert.IsTrue(b.keep.Any(f => f.name == "new.jpg") && b.dropped.Any(f => f.name == "old.jpg"), "超预算先丢旧截图");
+        Assert.AreEqual((960, 540), Step1BlackBox.Fit(1920, 1080, 960));
+        var snap = Step1BlackBox.Snapshot(new[] { "WWWW", "W..W", "W##W" }, new Vector2(1, 1), new Vector2(2, 1));
+        Assert.AreEqual("WMTW", snap[1], "房间快照标出 M 和 T");
+        StringAssert.Contains("EncodeToJPG", Read("Scripts/Gameplay/Step1/Step1Feedback.cs"));
+        StringAssert.Contains("Step1BlackBox.Budget", Read("Scripts/Editor/TestHubWindow.cs"));
+        StringAssert.Contains("Shown?.Invoke", Read("Scripts/Gameplay/Step1/Step1Hint.cs"));
+    }
+
+    [Test]
+    public void S242_Loadout_PicksRoomPropsAndPropDecoyWorksWhileDisguised()
+    {
+        var room = new[] { "WWWWWWWW", "Wc.cb.UW", "Wc..b.dW", "W######W" };
+        var pick = Step1Loadout.DefaultPick(room, 3);
+        Assert.AreEqual(3, pick.Count); Assert.AreEqual('c', pick[0], "房间里最多的排第一"); Assert.AreEqual('b', pick[1]);
+        Assert.AreEqual(5, Step1Loadout.DefaultPick(new[] { "W..W" }, 9).Count, "最多 5 格；房间里没有也补齐");
+        var sw = Step1Loadout.Sample(new List<char> { 'c', 'b', 'U' }, 0, 'U');
+        CollectionAssert.AreEqual(new[] { 'U', 'b', 'c' }, sw, "取样已有的 = 两格交换，不重复");
+        Assert.IsFalse(Step1Loadout.CanDisguiseAs('#')); Assert.IsFalse(Step1Loadout.CanDisguiseAs('o'), "宝物不能变");
+        Assert.AreEqual(new Vector2(0.6f, 1.2f), Step1Loadout.BodySize(new Vector2(0.2f, 3f)), "碰撞体夹在 0.6–1.2");
+        Assert.IsTrue(Step1Loadout.CanDecoy(true, true, false, 1, false), "道具诱饵伪装中也能丢");
+        Assert.IsFalse(Step1Loadout.CanDecoy(false, true, false, 1, false), "假你诱饵仍要现形");
+        Assert.IsTrue(Step1Loadout.ShapeShiftVisible(10.2f, 10f, 0.5f)); Assert.IsFalse(Step1Loadout.ShapeShiftVisible(11f, 10f, 0.5f));
+        Assert.AreEqual(2.5f, Step1Loadout.ThrowArc(Vector2.zero, true, 2.5f, 1f).x, 0.01f, "落在 2.5 格外");
+        Assert.Greater(Step1Loadout.ThrowArc(Vector2.zero, true, 2.5f, 0.22f).y, 0.8f, "空中有弧线");
+        Assert.IsTrue(Step1Loadout.Wriggling(1.1f, 1.6f, 1f)); Assert.IsFalse(Step1Loadout.Wriggling(1.8f, 1.6f, 1f));
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 31);
+        Assert.GreaterOrEqual(new MarioMindTuningSO().decoysPerRound, 2);
+        StringAssert.Contains("AddComponent<TricksterLoadout>()", Read("Scripts/Gameplay/Step1/Step1Lighting.cs"));
+        StringAssert.Contains("ShapeChangedAt", Read("Scripts/Gameplay/Step1/MarioEyes.cs"), "伪装中换形态被看见 = 动了");
+        StringAssert.Contains("decoy.IsProp", Read("Scripts/Gameplay/Step1/MarioEyes.cs"));
+        StringAssert.Contains("TricksterBurrow.BodyBusy", Read("Scripts/Gameplay/Step1/TricksterLoadout.cs"));
+        StringAssert.Contains("PranksterCannon.TricksterSeated", Read("Scripts/Gameplay/Step1/TricksterLoadout.cs"));
+        StringAssert.Contains("Step1Feedback.TagOpen", Read("Scripts/Gameplay/Step1/TricksterLoadout.cs"), "F8 打标签时数字键不换形态");
+        StringAssert.Contains("G 丢假道具", Step1Text.ControlsBarFor(false, false, false, true, false, false, false, propDecoy: true));
+    }
+
+    [Test]
+    public void S242_Glance_RouteAmbushIntentThreeColors()
+    {
+        var route = new List<Vector2> { new Vector2(1, 1), new Vector2(2, 1), new Vector2(3, 1), new Vector2(4, 1), new Vector2(5, 1) };
+        var props = new List<(Vector2, char, bool)> { (new Vector2(4, 1), '~', true), (new Vector2(2, 1), 'J', true), (new Vector2(3, 5), 'n', true), (new Vector2(3, 1), 'Q', false) };
+        var a = Step1Glance.AmbushesOnRoute(route, props, 2f, 1.2f, 3);
+        Assert.AreEqual(2, a.Count, "远离路线的 / 用过的不算");
+        Assert.AreEqual('J', a[0].ch, "按他先到的排"); Assert.AreEqual(1.5f, a[1].eta, 0.01f, "3 格 / 2 格每秒 = 1.5 秒");
+        Assert.AreEqual(Step1Glance.Intent.Exit, Step1Glance.IntentOf("Running", true, false));
+        Assert.AreEqual(Step1Glance.Intent.Chase, Step1Glance.IntentOf("Chasing", false, false));
+        Assert.AreEqual(Step1Glance.Intent.Stunned, Step1Glance.IntentOf("Chasing", false, true));
+        foreach (Step1Glance.Intent i in System.Enum.GetValues(typeof(Step1Glance.Intent))) Assert.IsTrue(Step1Icons.Has(Step1Glance.IntentIcon(i)), "每个意图都有图标");
+        Assert.IsTrue(Step1Icons.Has("BadgeAmbush"));
+        foreach (var (ch, _) in Step1MapLegend.Entries)
+        {
+            string v = Step1Glance.Verb(ch);
+            Assert.LessOrEqual(v.Length, 4, ch + " 的动词最多 4 个字");
+        }
+        Assert.AreEqual(Step1Glance.Tint.Prank, Step1Glance.TintOf('~')); Assert.AreEqual(Step1Glance.Tint.Hide, Step1Glance.TintOf('b')); Assert.AreEqual(Step1Glance.Tint.Goal, Step1Glance.TintOf('o'));
+        Assert.Greater(Step1Glance.Dashes(route, 0.6f).Count, route.Count, "路线变成小点");
+        StringAssert.Contains("AddComponent<Step1GlanceView>()", Read("Scripts/Gameplay/Step1/Step1Combo.cs"));
+        StringAssert.DoesNotContain("TricksterController", Read("Scripts/Gameplay/Step1/Step1Combo.cs"), "H4：连招层仍不碰捣蛋者");
+    }
 }

@@ -55,12 +55,12 @@ public class Step1MapLegend : MonoBehaviour
     public static bool TagNear(Vector2 tag, Vector2 you, float radius) => radius <= 0f || Vector2.Distance(tag, you) <= radius;
 
     private List<(char ch, string use)> roomEntries;
-    private Transform you; private float tagRadius = 5.5f;
+    private Transform you; private float tagRadius = 5.5f; private bool glance = true;
 
     private void Start()
     {
         roomEntries = ForRoom(Step1PrankRoomBuilderBridge.CurrentRoom);
-        var t = MarioMindTuningSO.LoadOrDefault(); if (t != null) tagRadius = t.legendTagRadius;
+        var t = MarioMindTuningSO.LoadOrDefault(); if (t != null) { tagRadius = t.legendTagRadius; glance = t.glanceMap; }
         var y = FindObjectOfType<TricksterController>(); if (y != null) you = y.transform;
     }
 
@@ -102,10 +102,11 @@ public class Step1MapLegend : MonoBehaviour
         float h = Step1Gui.VirtualHeight;
         if (!Visible)
         {
-            GUI.Label(new Rect(20, h - 118, 360, 30), "<color=#BBBBBB>M / Tab = 图例 Legend</color>", Step1Gui.Text(18));
+            GUI.Label(new Rect(20, h - 118, 360, 30), glance ? "<color=#BBBBBB>M / Tab = 作战图 Plan</color>" : "<color=#BBBBBB>M / Tab = 图例 Legend</color>", Step1Gui.Text(18));
             return;
         }
         var entries = roomEntries ?? new List<(char, string)>(Entries);
+        if (glance) { DrawGrid(entries, h); DrawTags(h); return; } // S242：图标格子（图标 + 2–4 个字），不写整句
         int groups = 0; Group? last = null; foreach (var e in entries) { var g = GroupOf(e.ch); if (g != last) { groups++; last = g; } }
         float rowH = 30f, panelH = 50f + entries.Count * rowH + groups * 26f;
         var r = new Rect(20, Mathf.Max(10f, h - 130 - panelH), 480, panelH);
@@ -125,6 +126,48 @@ public class Step1MapLegend : MonoBehaviour
             GUI.Label(new Rect(r.x + 50, y, 420, rowH), $"<b>{(info != null ? info.zh : ch.ToString())}</b>  {use}", Step1Gui.Text(18, TextAnchor.MiddleLeft, false));
             y += rowH;
         }
+        DrawTags(h);
+    }
+
+    /// <summary>S242：图例 = 三色分组的图标格子（红 坑他 / 蓝 躲·钻 / 灰 地形），每格 = 图标 + 2–4 个字。参考 Into the Breach、Untitled Goose Game（见 Step1Glance）。</summary>
+    private void DrawGrid(List<(char ch, string use)> entries, float h)
+    {
+        const int cols = 4; const float cw = 112f, ch = 64f;
+        var groups = new List<(Group g, List<char> items)>();
+        foreach (Group g in new[] { Group.Prank, Group.Hide, Group.Terrain })
+        {
+            var items = new List<char>(); foreach (var e in entries) if (GroupOf(e.ch) == g) items.Add(e.ch);
+            if (items.Count > 0) groups.Add((g, items));
+        }
+        float panelH = 46f; foreach (var gr in groups) panelH += 26f + Mathf.CeilToInt(gr.items.Count / (float)cols) * ch;
+        var r = new Rect(20, Mathf.Max(10f, h - 130 - panelH), cols * cw + 20, panelH);
+        Step1Gui.Panel(r, 0.82f);
+        GUI.Label(new Rect(r.x + 12, r.y + 8, r.width - 24, 30), "<b>作战图</b>  <size=15>虚线 = 他要走的路  靶心 = 埋伏点   M 关</size>", Step1Gui.Text(20));
+        float y = r.y + 42; var old = GUI.color;
+        foreach (var (g, items) in groups)
+        {
+            var tint = g == Group.Prank ? Step1Glance.ColorOf(Step1Glance.Tint.Prank) : g == Group.Hide ? Step1Glance.ColorOf(Step1Glance.Tint.Hide) : Step1Glance.ColorOf(Step1Glance.Tint.Neutral);
+            GUI.Label(new Rect(r.x + 12, y, r.width - 24, 24), $"<color=#{ColorUtility.ToHtmlStringRGB(tint)}><b>{(g == Group.Prank ? "坑他（按 L）" : g == Group.Hide ? "躲 · 钻 · 捡" : "地形")}</b></color>", Step1Gui.Text(16, TextAnchor.MiddleLeft, false));
+            y += 26f;
+            for (int i = 0; i < items.Count; i++)
+            {
+                char c = items[i]; var info = ElementCatalog.Get(c);
+                var cell = new Rect(r.x + 10 + (i % cols) * cw, y + (i / cols) * ch, cw - 6, ch - 6);
+                GUI.color = new Color(tint.r, tint.g, tint.b, 0.18f); GUI.DrawTexture(cell, Texture2D.whiteTexture); GUI.color = old;
+                var icon = info != null ? Step1PropIcons.IconSprite(info.themeKey) : null;
+                var box = new Rect(cell.x + 4, cell.y + 6, 44, 44);
+                if (icon != null) GUI.DrawTextureWithTexCoords(box, icon.texture, new Rect(0, 0, 1, 1));
+                else { var col = ElementCatalog.EditorColor(c); col.a = 1f; GUI.color = col; GUI.DrawTexture(new Rect(box.x + 6, box.y + 6, 32, 32), Texture2D.whiteTexture); GUI.color = old; }
+                string verb = Step1Glance.Verb(c);
+                GUI.Label(new Rect(cell.x + 50, cell.y + 4, cell.width - 52, 26), $"<b>{(info != null ? info.zh : c.ToString())}</b>", Step1Gui.Text(15, TextAnchor.MiddleLeft, false));
+                if (verb.Length > 0) GUI.Label(new Rect(cell.x + 50, cell.y + 28, cell.width - 52, 24), $"<color=#{ColorUtility.ToHtmlStringRGB(tint)}>{verb}</color>", Step1Gui.Text(15, TextAnchor.MiddleLeft, false));
+            }
+            y += Mathf.CeilToInt(items.Count / (float)cols) * ch;
+        }
+    }
+
+    private void DrawTags(float h)
+    {
         if (Camera.main == null) return;
         float scale = Mathf.Max(0.1f, Screen.height / h);
         var st = Step1Gui.Text(16, TextAnchor.MiddleCenter, false);

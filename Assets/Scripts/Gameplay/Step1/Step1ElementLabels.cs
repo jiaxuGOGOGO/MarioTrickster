@@ -48,7 +48,9 @@ public class Step1ElementLabels : MonoBehaviour
                 var cannon = child.GetComponent<PranksterCannon>();
                 if (cannon != null) info = ElementCatalog.Get(cannon.FacingRight ? 'K' : 'k') ?? info;
             }
-            items.Add((child, $"{info.zh}\n{info.en}", ColorOf(info.role)));
+            // S242：只写短名 + 2 个字的动词（以前中英两行，满屏字）；颜色 = 作战图三色
+            string verb = Step1Glance.Verb(info.ch);
+            items.Add((child, verb.Length > 0 ? $"{info.zh} · {verb}" : info.zh, Step1Glance.TintOf(info.ch) == Step1Glance.Tint.Neutral ? ColorOf(info.role) : Step1Glance.ColorOf(Step1Glance.TintOf(info.ch))));
         }
     }
 
@@ -86,7 +88,7 @@ public class Step1ElementLabels : MonoBehaviour
             Vector3 sp = Camera.main.WorldToScreenPoint(t.position + Vector3.up * 0.9f);
             if (sp.z < 0f) continue;
             var at = new Vector2(sp.x / scale, (Screen.height - sp.y) / scale);
-            var r = new Rect(at.x - 70f, at.y - 44f, 140f, 42f);
+            var r = new Rect(at.x - 64f, at.y - 30f, 128f, 26f);
             Step1Gui.Panel(r, 0.65f);
             var old = GUI.color; GUI.color = color;
             GUI.Label(r, text, style);

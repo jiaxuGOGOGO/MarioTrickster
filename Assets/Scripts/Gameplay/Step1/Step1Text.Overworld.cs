@@ -30,7 +30,8 @@ public static partial class Step1Text
         $"马里奥 {clock} 才出门去门 {door}（还有约 {realSeconds:0} 秒）\n先去门口躲好（不碰键盘会自动快进）";
     public const string ClickGameWindow = "先用鼠标点一下游戏画面，键盘才有反应\nClick the Game view first";
     public const string QuickTestRoundOver = "快速测试模式：不弹问卷（F8 随手记反馈）\n\n<b>N</b> = 下一局 Next round        <b>R</b> = 从头开始 Restart";
-    public static string FeedbackSaved(int n) => $"✓ 已记下第 {n} 条反馈（截图 + 当时情况）\n测试中心 → 打包反馈 发给 AI";
+    public static string FeedbackSaved(int n) => $"✓ 已记下第 {n} 条反馈（截图 + 最近 25 秒黑匣子）\n3 秒内按 1 卡住 2 别扭 3 看不懂 4 bug（可不按）";
+    public const string FeedbackTagged = "✓ 第 {0} 条标成：{1}"; // S242
     public const string FeedbackError = "⚠ 刚出了一个错误，已自动记进反馈（不用截图）";
 
     public static string OverworldClock(string clock, bool night) => night ? $"🌙 {clock}" : $"☀ {clock}";

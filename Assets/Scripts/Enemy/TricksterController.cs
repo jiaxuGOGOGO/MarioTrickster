@@ -145,6 +145,8 @@ public class TricksterController : MonoBehaviour
     public bool IsStunned => _isKnockbackStunned;
     public Vector2 MoveInput => moveInput;
     public bool IsFacingRightValue => isFacingRight;
+    /// <summary>S242：上一次伪装中换形态的时间（马里奥的眼睛用：他正看着你时你变了样 = 你动了）。</summary>
+    public float ShapeChangedAt => disguiseSystem != null ? disguiseSystem.ShapeChangedAt : -999f;
     /// <summary>跳跃力（构建器按"必须跳得上 2.5 格"设定；null = Inspector 值）。</summary>
     public void SetJumpPower(float power) { if (power > 0f) jumpPower = power; }
     public float JumpPowerValue => jumpPower;
@@ -614,7 +616,7 @@ public class TricksterController : MonoBehaviour
     public void OnSwitchDisguise(float direction)
     {
         if (IsPossessionLockoutActive()) return;
-        if (disguiseSystem == null || disguiseSystem.IsDisguised) return;
+        if (disguiseSystem == null) return; // S242：伪装中也能换形态（装备栏；换的一瞬间被他看见会起疑）
         if (direction > 0) disguiseSystem.NextDisguise();
         else               disguiseSystem.PreviousDisguise();
     }

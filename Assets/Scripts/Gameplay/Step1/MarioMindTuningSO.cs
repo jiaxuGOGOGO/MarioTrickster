@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 30;
+    public const int CurrentDataVersion = 31;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -331,8 +331,8 @@ public class MarioMindTuningSO : ScriptableObject
     public float oilRadius = 1.8f;
     [Tooltip("铁笼：关住多久（秒，之后自动打开）")]
     public float cageSeconds = 3f;
-    [Tooltip("诱饵：每回合次数（G 键，必须现形）")]
-    public int decoysPerRound = 1;
+    [Tooltip("诱饵：每回合次数（G 键；S242：装备栏里有形态 = 丢一个假道具，伪装中也能丢）")]
+    public int decoysPerRound = 2;
     [Tooltip("诱饵：存在多久（秒）")]
     public float decoySeconds = 6f;
     [Tooltip("诱饵：放下后往前走多久（秒）")]
@@ -661,6 +661,36 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("图例只列这个房间出现的东西；'可炸'等小标签只在你附近几格内显示（太多字看不过来）")]
     public float legendTagRadius = 5.5f;
 
+    [Header("S242: 伪装装备栏 · 道具诱饵 · 一目了然 · 黑匣子")]
+    [Tooltip("伪装装备栏：带几种形态（1–5，数字键 1–N 切换）。默认 = 这个房间里最多的 3 种东西")]
+    [Range(1, 5)] public int disguiseLoadoutSize = 3;
+    [Tooltip("伪装中换形态后多少秒内被他看见 = 算你动了（他会起疑）。0 = 换形态不会被发现")]
+    public float shapeShiftTellSeconds = 0.5f;
+    [Tooltip("道具诱饵：丢出去多远（格）")]
+    public float propDecoyThrow = 2.5f;
+    [Tooltip("道具诱饵：每隔几秒扭一下（扭的时候他看见会过来查看）")]
+    public float propDecoyWriggleEvery = 1.6f;
+    [Tooltip("作战图（M）：马里奥路线虚线 + 埋伏点 + 头顶意图图标。关掉 = 回到以前的文字图例")]
+    public bool glanceMap = true;
+    [Tooltip("平时（没按 M）也淡淡地显示马里奥接下来的路线")]
+    public bool glanceRouteAlways = true;
+    [Tooltip("作战图：最多标几个埋伏点（路线上马里奥最先经过的几个机关）")]
+    [Range(0, 6)] public int glanceAmbushCount = 3;
+    [Tooltip("黑匣子：记住最近多少秒（F8 或自动记录时一起存下）")]
+    public float blackBoxSeconds = 25f;
+    [Tooltip("黑匣子：每秒采样几次")]
+    public float blackBoxHz = 4f;
+    [Tooltip("黑匣子：一帧超过多少秒算顿卡（自动记一条）")]
+    public float blackBoxHitchSeconds = 0.3f;
+    [Tooltip("黑匣子：同一类问题最快多少秒记一次（防止刷屏）")]
+    public float blackBoxCooldown = 30f;
+    [Tooltip("黑匣子：一次试玩最多自动记几条")]
+    public int blackBoxMaxAuto = 25;
+    [Tooltip("反馈截图最宽多少像素（JPG）。越小包越小；0 = 原尺寸")]
+    public int feedbackShotWidth = 960;
+    [Tooltip("反馈包最大多少 MB（超了先丢最旧的截图）")]
+    public float feedbackPackMB = 8f;
+
     [Header("S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）")]
     [Tooltip("马里奥 Q 扫描：半径（格）。扫到就真的暴露你（宪法 H5：扫描 100% 真实）")]
     [Range(0.5f, 20f)] public float scanRadius = 5f;
@@ -869,6 +899,13 @@ public class MarioMindTuningSO : ScriptableObject
             lampRadius = 4f; fireLightRadius = 2.5f; darkSeeRadius = 1.2f; overheadNoticeRadius = 2.5f; footstepRadius = 3f; rainHearingScale = 0.6f;
             burrowMaxSeconds = 6.5f; burrowCooldown = 4f; burrowSpeedMultiplier = 0.8f; burrowFlushStunSeconds = 1f;
             silkRange = 8f; silkMaxSeconds = 7f; silkCooldown = 1.5f; silkReelSpeed = 3f; silkPump = 9f; lampOffSeconds = 8f; propIcons = true; legendTagRadius = 5.5f;
+        }
+        if (dataVersion < 31)
+        {
+            // S242：伪装装备栏 / 道具诱饵 / 一目了然 / 黑匣子（docs/step1/S242_LOADOUT_PROP_DECOY_GLANCE_BLACKBOX.md）——诱饵每局 1 → 2（道具诱饵伪装中也能丢）。
+            decoysPerRound = Mathf.Max(decoysPerRound, 2);
+            disguiseLoadoutSize = 3; shapeShiftTellSeconds = 0.5f; propDecoyThrow = 2.5f; propDecoyWriggleEvery = 1.6f; glanceMap = true; glanceRouteAlways = true; glanceAmbushCount = 3;
+            blackBoxSeconds = 25f; blackBoxHz = 4f; blackBoxHitchSeconds = 0.3f; blackBoxCooldown = 30f; blackBoxMaxAuto = 25; feedbackShotWidth = 960; feedbackPackMB = 8f;
         }
         dataVersion = CurrentDataVersion;
         return true;

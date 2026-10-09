@@ -1277,10 +1277,44 @@ static class CHECK {
     if(db==0) parts.Add($"你的 {rs.Count} 局：连玩最多 {Step1ExitReport.Analyze(rs).sessionRounds} 局、坑法 {r.kinds} 种、最后 5 局想再来 {r.wantLast5:0.0} → 未到出口；建议 {r.next.Count} 条、可疑局 {r.bugs.Count} 个｜造的达标数据判达到，断开 5 小时判没到｜表头一致");
     Console.WriteLine($"[{(db==0?"OK":"FAIL")}] S227 第 1 步出口报告：{string.Join("｜",parts)}"); fail+=db;
     File.WriteAllText("/tmp/opencode/exit_report.md", Step1ExitReport.Markdown(rs)); }
+  // S242：黑匣子（卡住 / 按了没反应 / 顿卡 / 坏数字 → 限频自动记；按大小预算挑文件）· 伪装装备栏（默认 = 房间里最多的 3 种）· 道具诱饵 · 一目了然（路线上的埋伏点）
+  { int kb=0; var parts=new List<string>(); var room=Step1PrankRoomBuilderRoom().Select(Step1Layout.StripSlots).ToArray();
+    var pick=Step1Loadout.DefaultPick(room,3); var census=Step1Loadout.Census(room);
+    if(pick.Count!=3||pick.Any(c=>!census.ContainsKey(c))){ kb++; Console.WriteLine("     [FAIL] 默认房间的装备栏应是房间里有的 3 种："+string.Join(",",pick)); }
+    if(pick.Count==3&&census.Count>=3&&census[pick[0]]<census.Values.Max()){ kb++; Console.WriteLine("     [FAIL] 第一格应是房间里最多的"); }
+    parts.Add("默认房间装备栏 = "+string.Join(" ",pick.Select(c=>{var i=ElementCatalog.Get(c);return (i!=null?i.zh:c.ToString())+"×"+census[c];})));
+    if(Step1Loadout.CanDecoy(false,true,false,2,false)||!Step1Loadout.CanDecoy(true,true,false,2,false)){ kb++; Console.WriteLine("     [FAIL] 道具诱饵伪装中能丢、假你诱饵要现形"); }
+    // 路线上的埋伏点：默认房间从出生点到宝物
+    Vector2 start=default, loot=default; for(int r=0;r<room.Length;r++) for(int x=0;x<room[r].Length;x++){ var y=room.Length-1-r; if(room[r][x]=='M') start=new Vector2(x,y); if(room[r][x]=='o') loot=new Vector2(x,y); }
+    var path=LevelPathPlanner.Path(room,new LevelPathPlanner.Cell((int)start.x,(int)start.y),new LevelPathPlanner.Cell((int)loot.x,(int)loot.y));
+    var route=path==null?new List<Vector2>():path.Select(c=>new Vector2(c.x,c.y)).ToList();
+    var props=new List<(Vector2,char,bool)>(); for(int r=0;r<room.Length;r++) for(int x=0;x<room[r].Length;x++) if(Step1Glance.TintOf(room[r][x])==Step1Glance.Tint.Prank) props.Add((new Vector2(x,room.Length-1-r),room[r][x],true));
+    var amb=Step1Glance.AmbushesOnRoute(route,props,4f,1.2f,3);
+    if(route.Count<2||amb.Count==0){ kb++; Console.WriteLine($"     [FAIL] 默认房间：路线 {route.Count} 格、埋伏点 {amb.Count} 个（应 ≥1）"); }
+    else parts.Add($"路线 {route.Count} 格、埋伏点 "+string.Join(" → ",amb.Select(a=>Step1Glance.Verb(a.ch)+" "+Step1Glance.EtaText(a.eta))));
+    foreach(var (ch,_) in Step1MapLegend_Entries()) if(Step1Glance.Verb(ch).Length>4){ kb++; Console.WriteLine("     [FAIL] 动词超过 4 个字："+ch); }
+    // 黑匣子：40 张 120KB 截图 + 40 份 15KB 黑匣子 + 说明 → 8MB 预算内，丢最旧的截图
+    var files=new List<Step1BlackBox.FileItem>{ new Step1BlackBox.FileItem{name="feedback.md",bytes=40000,priority=0}, new Step1BlackBox.FileItem{name="events.tsv",bytes=5000,priority=0} };
+    for(int i=1;i<=80;i++){ files.Add(new Step1BlackBox.FileItem{name=$"feedback_{i:000}.jpg",bytes=120*1024,priority=2,order=i}); files.Add(new Step1BlackBox.FileItem{name=$"blackbox_{i:000}.md",bytes=15*1024,priority=1,order=i}); }
+    var bud=Step1BlackBox.Budget(files,8L*1024*1024); long used=bud.keep.Sum(f=>f.bytes);
+    if(used>8L*1024*1024||bud.keep.Count(f=>f.name.StartsWith("blackbox"))!=80||bud.dropped.Any(f=>!f.name.EndsWith(".jpg"))||bud.dropped.Any(d=>bud.keep.Any(k=>k.name.EndsWith(".jpg")&&k.order<d.order))){ kb++; Console.WriteLine("     [FAIL] 预算挑文件不对"); }
+    else parts.Add($"80 条记录 → 包 {used/1024/1024.0:0.0}MB（上限 8MB，黑匣子全带、丢了最旧的 {bud.dropped.Count} 张截图）");
+    var sm=new Step1BlackBox.Ring<Step1BlackBox.Sample>(Step1BlackBox.SampleCap(25,4)); for(int i=0;i<300;i++) sm.Add(new Step1BlackBox.Sample{t=i*0.25f,mario=new Vector2(5,1),you=new Vector2(3,1),marioState="Running",youFlags="-",keys="-",timeScale=1,fps=60});
+    var md=Step1BlackBox.Markdown(new Step1BlackBox.Report{n=1,kind=Step1BlackBox.Kind.Stuck,when="now",scene="s",context="c"},sm.ToList(),new List<string>{"提示：诱饵用完了"},room);
+    int mdBytes=System.Text.Encoding.UTF8.GetByteCount(md);
+    if(sm.Count!=100||mdBytes>40*1024||!md.Contains("M")||!md.Contains("诱饵用完了")){ kb++; Console.WriteLine($"     [FAIL] 黑匣子 md：{sm.Count} 条 {mdBytes} 字节"); } else parts.Add($"一份黑匣子 {mdBytes/1024}KB（25 秒 × 4 次/秒 = {sm.Count} 行）");
+    var th=new Step1BlackBox.Throttle(30,25); int allowed=0; for(int i=0;i<600;i++) if(th.Allow(Step1BlackBox.Kind.Stuck,i)) allowed++;
+    if(allowed!=20){ kb++; Console.WriteLine($"     [FAIL] 10 分钟一直卡住应只记 20 条，记了 {allowed}"); } else parts.Add("一直卡住 10 分钟只记 20 条（不刷屏）");
+    var tail=Step1BlackBox.TailErrors(Enumerable.Range(0,5000).Select(i=>i%50==0?"NullReferenceException: boom "+i:"ok line "+i).ToList(),80*1024);
+    if(!tail.Contains("boom 4950")||tail.Contains("ok line 7\n")||System.Text.Encoding.UTF8.GetByteCount(tail)>80*1024){ kb++; Console.WriteLine("     [FAIL] 日志尾巴只留错误、新的优先"); }
+    // H4：马里奥心智 / 连招层不读装备栏
+    foreach(var f in new[]{"RushMarioMind.cs","MarioMindDriver.cs","SuspicionMeter.cs","Step1Combo.cs"}){ var src=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/"+f)); if(src.Contains("TricksterLoadout")||src.Contains("DisguiseSystem")){ kb++; Console.WriteLine("     [FAIL] H4："+f+" 读了装备栏 / 伪装系统"); } }
+    Console.WriteLine($"[{(kb==0?"OK":"FAIL")}] S242 黑匣子 · 装备栏 · 道具诱饵 · 一目了然：{string.Join("｜",parts)}"); fail+=kb; }
   Console.WriteLine(fail==0?"SIM ALL OK":"SIM FAILURES: "+fail);
   Environment.Exit(fail==0?0:1);
   static float KnockbackHelperLift(float up,float min)=>Math.Max(up,min);
   static string Step1PlaytestLog_Kind(string c){ switch(c){ case "slip": return "Banana"; case "launch": return "Spring"; case "drop": return "CrackFloor"; case "cage": return "Cage"; case "trip": return "Tripwire"; case "snare": return "Snare"; case "pit": return "Pit"; case "stop": return "Blocker"; default: return ""; } }
+  static (char ch,string use)[] Step1MapLegend_Entries(){ var src=File.ReadAllText(WsRepo("Assets/Scripts/Gameplay/Step1/Step1MapLegend.cs")); int i=src.IndexOf("Entries ="); int b=src.IndexOf("};",i); return System.Text.RegularExpressions.Regex.Matches(src.Substring(i,b-i),"\\('(.)', \"").Select(m=>(m.Groups[1].Value[0],"")).ToArray(); }
   static string WsRepo(string rel)=>System.IO.Path.Combine("/home/user/workspace/repo",rel);
   static string[] Step1PrankRoomBuilderRoomRaw(){ var src=File.ReadAllText(WsRepo("Assets/Scripts/Editor/Step1PrankRoomBuilder.cs")); int i=src.IndexOf("public static readonly string[] Room ="); int a=src.IndexOf('{',i), b=src.IndexOf("};",a); return System.Text.RegularExpressions.Regex.Matches(src.Substring(a,b-a),"\"([^\"]*)\"").Select(m=>m.Groups[1].Value).ToArray(); }
   static string[] Step1PrankRoomBuilderRoom()=>File.ReadAllText("room_template.txt").Replace("\r","").Split('\n').Where(l=>l.Length>0).ToArray();

@@ -197,7 +197,10 @@ public sealed class TestHubWindow : EditorWindow
         Repaint();
     }
 
-    /// <summary>把 Feedback 文件夹 + 体检 + TestReport + 试玩记录打成一个 zip（PlaytestLogs/反馈包_日期.zip）。</summary>
+    /// <summary>把 Feedback 文件夹 + 体检 + TestReport + 试玩记录打成一个 zip（PlaytestLogs/反馈包_日期.zip）。
+    /// S242：① 首页自动总结（每类问题几次 + 最该先看的 3 条）② 环境信息（Unity / 系统 / 显卡 / 分辨率 / 调参版本）
+    /// ③ Unity 日志里的错误行（最多 80KB）④ 按大小预算挑文件（默认 8MB；必带的先放，截图新的优先，超了丢最旧的并写明丢了哪些）
+    /// ⑤ 文字文件压缩（Deflate），JPG 原样存。</summary>
     private void Pack()
     {
         if (report.Length == 0) RunHealthCheck();
@@ -206,26 +209,80 @@ public sealed class TestHubWindow : EditorWindow
         {
             if (Directory.Exists(stage)) Directory.Delete(stage, true);
             Directory.CreateDirectory(stage);
-            File.WriteAllText(Path.Combine(stage, "00_给AI的话.md"), "# MarioTrickster 试玩反馈包\n\n" + (note.Length > 0 ? note : "（没写）") + "\n\n里面：HealthCheck.md 体检、feedback.md + 截图、TestReport.txt、step1_rounds.csv、town_days.csv、MyTownStories.json / MyMarioReactions.json（你写的台词，有的话）\n");
-            void Copy(string src, string name) { if (File.Exists(src)) File.Copy(src, Path.Combine(stage, name), true); }
-            Copy(HealthPath, "HealthCheck.md");
+            var tuning = MarioMindTuningSO.LoadOrDefault();
+            long budget = (long)(Mathf.Max(1f, tuning != null ? tuning.feedbackPackMB : 8f) * 1024 * 1024);
+            var items = new List<(string src, string name, int priority, long order)>();
+            void Copy(string src, string name, int pri = 1, long order = 0) { if (File.Exists(src)) items.Add((src, name, pri, order)); } // S242：先登记，按大小预算挑完再真的复制
+            Copy(HealthPath, "HealthCheck.md", 0);
             Copy(TestReportRunner.LastReportFile, "TestReport.txt");
             Copy(TownStoryEditorWindow.UserPath, "MyTownStories.json"); Copy(MarioReactionEditor.UserPath, "MyMarioReactions.json"); // S234：你写的台词（AI 照你的语气补）
-            if (Directory.Exists(LogsRoot)) foreach (var f in Directory.GetFiles(LogsRoot, "step1_rounds*.csv").Concat(Directory.GetFiles(LogsRoot, "town_days*.csv"))) Copy(f, Path.GetFileName(f)); // S227：留档的旧记录也带上；S230：小镇每天的记录（含反应时间）
-            if (Directory.Exists(Step1Feedback.Root)) foreach (var f in Directory.GetFiles(Step1Feedback.Root)) Copy(f, Path.GetFileName(f));
+            if (Directory.Exists(LogsRoot)) foreach (var f in Directory.GetFiles(LogsRoot, "step1_rounds*.csv").Concat(Directory.GetFiles(LogsRoot, "town_days*.csv"))) Copy(f, Path.GetFileName(f), 1, File.GetLastWriteTime(f).Ticks); // S227 / S230
+            if (Directory.Exists(Step1Feedback.Root))
+                foreach (var f in Directory.GetFiles(Step1Feedback.Root))
+                {
+                    string n = Path.GetFileName(f), ext = Path.GetExtension(f).ToLowerInvariant();
+                    int pri = n == Step1Feedback.LogName || n == Step1Feedback.EventsName ? 0 : ext == ".md" ? 1 : 2; // 说明 / 事件表必带；黑匣子文字其次；截图最后
+                    Copy(f, n, pri, File.GetLastWriteTime(f).Ticks);
+                }
+            var picked = Step1BlackBox.Budget(items.Select(x => new Step1BlackBox.FileItem { name = x.name, bytes = new FileInfo(x.src).Length, priority = x.priority, order = x.order }), budget);
+            foreach (var k in picked.keep) { var it = items.First(x => x.name == k.name); File.Copy(it.src, Path.Combine(stage, it.name), true); }
+
+            // Unity 日志里的错误行（编辑器 Editor.log；最多 80KB）
+            string logTail = "";
+            try
+            {
+                string lp = Application.consoleLogPath;
+                if (!string.IsNullOrEmpty(lp) && File.Exists(lp))
+                {
+                    using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        long start = System.Math.Max(0L, fs.Length - 4L * 1024 * 1024); fs.Seek(start, SeekOrigin.Begin);
+                        using (var sr = new StreamReader(fs)) logTail = Step1BlackBox.TailErrors(sr.ReadToEnd().Replace("\r", "").Split('\n'), 80 * 1024);
+                    }
+                }
+            }
+            catch (System.Exception e) { logTail = "（读 Unity 日志失败：" + e.Message + "）"; }
+            if (logTail.Length > 0) File.WriteAllText(Path.Combine(stage, "UnityLog_errors.txt"), logTail);
+
+            // 自动总结
+            var events = new List<(Step1BlackBox.Kind, string, string, string)>();
+            string ev = Path.Combine(Step1Feedback.Root, Step1Feedback.EventsName);
+            if (File.Exists(ev))
+                foreach (var line in File.ReadAllLines(ev))
+                {
+                    var c = line.Split('\t'); if (c.Length < 4) continue;
+                    if (System.Enum.TryParse<Step1BlackBox.Kind>(c[0], out var kind)) events.Add((kind, c[1], c[2], c[3]));
+                }
+            var sb = new StringBuilder();
+            sb.AppendLine("# MarioTrickster 试玩反馈包").AppendLine().AppendLine(note.Length > 0 ? note : "（没写）").AppendLine();
+            sb.AppendLine(Step1BlackBox.Summary(events));
+            sb.AppendLine("## 环境");
+            sb.AppendLine($"- Unity {Application.unityVersion} · {SystemInfo.operatingSystem} · {SystemInfo.graphicsDeviceName} · 内存 {SystemInfo.systemMemorySize}MB · 屏幕 {Screen.currentResolution.width}×{Screen.currentResolution.height}");
+            sb.AppendLine($"- 调参数据版本 {(tuning != null ? tuning.dataVersion : 0)}（代码 {MarioMindTuningSO.CurrentDataVersion}）· 打包时间 {System.DateTime.Now:yyyy-MM-dd HH:mm}");
+            sb.AppendLine();
+            sb.AppendLine("## 里面有什么");
+            sb.AppendLine("- feedback.md：每条记录的总述；events.tsv：一行一条（类型 / 时间 / 文件 / 一句话）");
+            sb.AppendLine("- blackbox_NNN.md：那一刻前 25 秒的位置 / 速度 / 状态 / 按键表 + 出事前发生了什么 + 房间快照（M = 马里奥，T = 你）");
+            sb.AppendLine("- feedback_NNN.jpg：缩小的截图；UnityLog_errors.txt：Unity 日志里的错误行");
+            sb.AppendLine("- HealthCheck.md 体检、TestReport.txt、step1_rounds.csv、town_days.csv、MyTownStories.json / MyMarioReactions.json（有的话）");
+            long kept = picked.keep.Sum(k => k.bytes);
+            sb.AppendLine().AppendLine($"大小：放进 {picked.keep.Count} 个文件 {kept / 1024}KB（上限 {budget / 1024 / 1024}MB）");
+            if (picked.dropped.Count > 0) sb.AppendLine($"超出上限没放进去的（最旧的先丢）：{string.Join("、", picked.dropped.Select(d => d.name))}");
+            File.WriteAllText(Path.Combine(stage, "00_给AI的话.md"), sb.ToString());
+
             string zip = Path.Combine(LogsRoot, $"反馈包_{System.DateTime.Now:MMdd_HHmm}.zip");
             if (File.Exists(zip)) File.Delete(zip);
             TinyZip.Write(zip, Directory.GetFiles(stage));
             Directory.Delete(stage, true);
             EditorUtility.RevealInFinder(zip);
-            if (EditorUtility.DisplayDialog("反馈包", "已打包：\n" + zip + "\n\n把它发给 AI 就行。要清空已发过的截图吗（下次从第 1 条开始）？", "清空", "保留"))
+            if (EditorUtility.DisplayDialog("反馈包", $"已打包（{new FileInfo(zip).Length / 1024}KB）：\n" + zip + "\n\n把它发给 AI 就行。要清空已发过的截图吗（下次从第 1 条开始）？", "清空", "保留"))
                 if (Directory.Exists(Step1Feedback.Root)) Directory.Delete(Step1Feedback.Root, true);
         }
         catch (System.Exception e) { EditorUtility.DisplayDialog("反馈包", "打包失败：" + e.Message, "好"); }
     }
 }
 
-/// <summary>S217：最小 zip 写入（只存不压缩，UTF-8 文件名）。不用 System.IO.Compression——Unity 编辑器里不一定引用了它。</summary>
+/// <summary>S217：最小 zip 写入（UTF-8 文件名）。S242：文字文件用 Deflate 压缩（System.IO.Compression.DeflateStream 是 .NET Standard 2.1 自带的），JPG / PNG 原样存。</summary>
 public static class TinyZip
 {
     private static uint[] table;
@@ -235,24 +292,41 @@ public static class TinyZip
         uint crc = 0xFFFFFFFFu; foreach (byte b in d) crc = table[(crc ^ b) & 0xFF] ^ (crc >> 8); return crc ^ 0xFFFFFFFFu;
     }
 
+    public static bool Compressible(string path)
+    {
+        string e = Path.GetExtension(path).ToLowerInvariant();
+        return e == ".md" || e == ".txt" || e == ".csv" || e == ".tsv" || e == ".json" || e == ".log";
+    }
+
+    public static byte[] Deflate(byte[] data)
+    {
+        using (var ms = new MemoryStream())
+        {
+            using (var d = new System.IO.Compression.DeflateStream(ms, System.IO.Compression.CompressionLevel.Optimal, true)) d.Write(data, 0, data.Length);
+            return ms.ToArray();
+        }
+    }
+
     public static void Write(string zipPath, IEnumerable<string> files)
     {
         using (var fs = File.Create(zipPath))
         using (var w = new BinaryWriter(fs))
         {
-            var central = new List<(byte[] name, uint crc, int size, uint offset)>();
+            var central = new List<(byte[] name, uint crc, int size, int packed, ushort method, uint offset)>();
             foreach (var f in files)
             {
                 byte[] data = File.ReadAllBytes(f), name = Encoding.UTF8.GetBytes(Path.GetFileName(f)); uint crc = Crc(data), off = (uint)fs.Position;
-                w.Write(0x04034b50u); w.Write((ushort)20); w.Write((ushort)0x0800); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0x21);
-                w.Write(crc); w.Write(data.Length); w.Write(data.Length); w.Write((ushort)name.Length); w.Write((ushort)0); w.Write(name); w.Write(data);
-                central.Add((name, crc, data.Length, off));
+                byte[] packed = Compressible(f) ? Deflate(data) : null; // S242：文字文件压缩（csv / md / txt 通常缩到 1/5），图片原样
+                ushort method = (ushort)(packed != null && packed.Length < data.Length ? 8 : 0); byte[] body = method == 8 ? packed : data;
+                w.Write(0x04034b50u); w.Write((ushort)20); w.Write((ushort)0x0800); w.Write(method); w.Write((ushort)0); w.Write((ushort)0x21);
+                w.Write(crc); w.Write(body.Length); w.Write(data.Length); w.Write((ushort)name.Length); w.Write((ushort)0); w.Write(name); w.Write(body);
+                central.Add((name, crc, data.Length, body.Length, method, off));
             }
             uint cdStart = (uint)fs.Position;
             foreach (var c in central)
             {
-                w.Write(0x02014b50u); w.Write((ushort)20); w.Write((ushort)20); w.Write((ushort)0x0800); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0x21);
-                w.Write(c.crc); w.Write(c.size); w.Write(c.size); w.Write((ushort)c.name.Length); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0); w.Write(0u); w.Write(c.offset); w.Write(c.name);
+                w.Write(0x02014b50u); w.Write((ushort)20); w.Write((ushort)20); w.Write((ushort)0x0800); w.Write(c.method); w.Write((ushort)0); w.Write((ushort)0x21);
+                w.Write(c.crc); w.Write(c.packed); w.Write(c.size); w.Write((ushort)c.name.Length); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0); w.Write(0u); w.Write(c.offset); w.Write(c.name);
             }
             uint cdSize = (uint)fs.Position - cdStart;
             w.Write(0x06054b50u); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)central.Count); w.Write((ushort)central.Count); w.Write(cdSize); w.Write(cdStart); w.Write((ushort)0);

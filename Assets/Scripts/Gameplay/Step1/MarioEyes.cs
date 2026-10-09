@@ -116,7 +116,8 @@ public sealed class MarioEyes
                 p.figureLooksLikeProp = figure.IsDisguised;
                 Vector2 velocity = hasLastFigurePos && dt > 0f ? (pos - lastFigurePos) / dt : Vector2.zero;
                 p.figureVelocity = velocity;
-                p.figureMoving = velocity.magnitude > t.disguisedMoveThreshold;
+                p.figureMoving = velocity.magnitude > t.disguisedMoveThreshold
+                                 || (p.figureLooksLikeProp && Step1Loadout.ShapeShiftVisible(Time.time, figure.ShapeChangedAt, t.shapeShiftTellSeconds)); // S242：他看着时你换了形态 = 你动了
                 lastFigurePos = pos;
                 hasLastFigurePos = true;
                 // S198 道具：透视 = 看穿伪装；隐身 = 站着不动时看不见（动起来照样看得见）
@@ -128,8 +129,11 @@ public sealed class MarioEyes
         else hasLastFigurePos = false;
 
         // S199：诱饵——和看你同一个视锥/遮挡规则。看得见你真身时以真身为准；只看得见诱饵时把诱饵当成你。
+        // S242：道具诱饵看起来是"一个道具"——扭的时候是"会动的怪东西"（他会过来查看），走近识破。
+        //       看得见你本人但你正老实装道具（没在动）时，扭动的诱饵更显眼 → 他先看诱饵。
         var decoy = DecoyAbility.Active;
-        if (!p.seesFigure && decoy != null && !decoy.Revealed)
+        bool decoyWins = decoy != null && decoy.IsProp && p.seesFigure && p.figureLooksLikeProp && !p.figureMoving;
+        if ((!p.seesFigure || decoyWins) && decoy != null && !decoy.Revealed)
         {
             Vector2 dp = decoy.transform.position;
             if (MarioVision.CanSee(eye, facingRight, dp, decoy.transform, t) && Step1Lighting.Visible(eye, dp))
@@ -138,6 +142,10 @@ public sealed class MarioEyes
                 {
                     decoy.Reveal();                       // 识破：看见的是"一个假人"，并在附近起疑（只有诱饵的位置）
                     p.sawRustle = true; p.rustlePos = dp;
+                }
+                else if (decoy.IsProp)
+                {
+                    if (decoy.Wriggling) { p.seesFigure = true; p.figurePos = dp; p.figureLooksLikeProp = true; p.figureVelocity = Vector2.zero; p.figureMoving = true; hasLastFigurePos = false; }
                 }
                 else
                 {

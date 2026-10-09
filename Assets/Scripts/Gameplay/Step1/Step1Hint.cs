@@ -5,7 +5,9 @@ public class Step1Hint : MonoBehaviour
 {
     private static string text = "";
     private static float until;
-    public static void Show(string msg, float seconds = 1.6f) { text = msg; until = Time.unscaledTime + seconds; }
+    /// <summary>S242：每条提示都通知一声（黑匣子记成面包屑："按了 G → 诱饵用完了"这种"按了没反应"的原因 AI 一眼看到）。</summary>
+    public static event System.Action<string> Shown;
+    public static void Show(string msg, float seconds = 1.6f) { text = msg; until = Time.unscaledTime + seconds; Shown?.Invoke(msg); }
 
     private void OnGUI()
     {

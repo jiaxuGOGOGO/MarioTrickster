@@ -68,6 +68,7 @@ public class Step1Lighting : MonoBehaviour
             if (you.GetComponent<TricksterBurrow>() == null) you.gameObject.AddComponent<TricksterBurrow>();
             if (you.GetComponent<TricksterSilk>() == null) you.gameObject.AddComponent<TricksterSilk>();
             if (you.GetComponent<TricksterFootsteps>() == null) you.gameObject.AddComponent<TricksterFootsteps>();
+            if (you.GetComponent<TricksterLoadout>() == null && you.GetComponent<DisguiseSystem>() != null) you.gameObject.AddComponent<TricksterLoadout>(); // S242：伪装装备栏
         }
         var src = Step1PrankRoomBuilderBridge.CurrentRoom; // 复制一份再去槽位（别改共享的房间表）
         grid = src != null ? new string[src.Length] : null;

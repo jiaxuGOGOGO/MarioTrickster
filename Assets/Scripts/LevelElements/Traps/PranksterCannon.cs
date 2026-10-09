@@ -182,7 +182,7 @@ public class PranksterCannon : ControllableLevelElement
         var go = new GameObject("Barrel");
         go.transform.SetParent(transform, false);
         var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = spriteRenderer != null ? spriteRenderer.sprite : null;
+        sr.sprite = Step1Sprites.Square; // S243：大炮本体换成像素图后，炮管 / 炮弹还是纯色块（以前借本体的白方块）
         sr.color = new Color(0.9f, 0.85f, 0.3f);
         sr.sortingOrder = 22;
         go.transform.localScale = new Vector3(0.7f, 0.14f, 1f);
@@ -234,7 +234,7 @@ public class PranksterCannon : ControllableLevelElement
         var visual = new GameObject("Visual");
         visual.transform.SetParent(go.transform, false);
         var sr = visual.AddComponent<SpriteRenderer>();
-        sr.sprite = spriteRenderer != null ? spriteRenderer.sprite : null;
+        sr.sprite = Step1Sprites.Square;
         sr.color = new Color(0.12f, 0.12f, 0.12f);
         sr.sortingOrder = 20;
         visual.transform.localScale = Vector3.one * ballRadius * 2f;

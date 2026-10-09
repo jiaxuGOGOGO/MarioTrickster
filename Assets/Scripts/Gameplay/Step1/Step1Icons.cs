@@ -580,6 +580,7 @@ public static class Step1Icons
     public static float[] Pixels(string key)
     {
         if (key == null || !ByKey.TryGetValue(key, out var name)) return null;
+        if (Step1Art.Icons.TryGetValue(name, out var art)) return Step1Art.Rgba(art); // S243：AI 生成的新图优先，旧的程序画留作备份
         if (!Icons.TryGetValue(name, out var rows)) return OverworldArt.Pixels(name);
         var px = new float[Size * Size * 4];
         for (int y = 0; y < Size; y++) for (int x = 0; x < Size; x++)

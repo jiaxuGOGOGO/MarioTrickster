@@ -15,7 +15,7 @@ public class TricksterLoadout : MonoBehaviour
 {
     public static TricksterLoadout Instance { get; private set; }
 
-    private sealed class Look { public char ch; public Sprite sprite, icon; public Color color; public Vector2 size; public string zh; }
+    private sealed class Look { public char ch; public Sprite sprite, icon, hud; public Color color; public Vector2 size; public string zh; }
 
     private readonly Dictionary<char, Look> looks = new Dictionary<char, Look>();
     private List<char> slots = new List<char>();
@@ -80,6 +80,7 @@ public class TricksterLoadout : MonoBehaviour
                 size = new Vector2(Mathf.Abs(sr.transform.lossyScale.x) * sr.sprite.bounds.size.x, Mathf.Abs(sr.transform.lossyScale.y) * sr.sprite.bounds.size.y),
                 icon = isr != null ? isr.sprite : Step1PropIcons.IsWhiteBox((int)sr.sprite.rect.width, (int)sr.sprite.rect.height) ? Step1PropIcons.IconSprite(info.themeKey) : null, // 换了美术的不叠图标（和房间里一样）
             };
+            looks[ch].hud = looks[ch].icon != null ? looks[ch].icon : Step1PropIcons.IconSprite(info.themeKey); // S243：快捷栏总有一张图（换了像素图的东西身上不叠图标，但格子里要画）
         }
         if (looks.Count == 0) return; // 房间里没有能变的 → 保留旧的固定形态
         var rows = Step1PrankRoomBuilderBridge.CurrentRoom;
@@ -181,7 +182,7 @@ public class TricksterLoadout : MonoBehaviour
             Step1Gui.Panel(r, cur ? 0.85f : 0.55f);
             if (cur) { GUI.color = Step1Glance.ColorOf(Step1Glance.Tint.Hide); DrawFrame(r, 3f); GUI.color = old; }
             var l = looks.TryGetValue(slots[i], out var lk) ? lk : null;
-            var tex = l != null && l.icon != null ? l.icon.texture : null;
+            var tex = l != null && l.hud != null ? l.hud.texture : null;
             var inner = new Rect(r.x + 8, r.y + 6, cell - 16, cell - 16);
             if (tex != null) GUI.DrawTextureWithTexCoords(inner, tex, new Rect(0, 0, 1, 1));
             else if (l != null) { GUI.color = l.color; GUI.DrawTexture(inner, Texture2D.whiteTexture); GUI.color = old; }

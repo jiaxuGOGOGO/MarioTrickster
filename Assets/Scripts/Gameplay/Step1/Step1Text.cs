@@ -151,8 +151,9 @@ public static partial class Step1Text
 
     public const string Help =
         "<b>怎么玩  HOW TO PLAY</b>\n\n" +
-        "你 = <color=#6FA8FF><b>蓝色方块</b></color>（捣蛋鬼）   马里奥 = <color=#FF6B6B><b>红色方块</b></color>\n" +
-        "You = the <color=#6FA8FF>BLUE</color> block.   Mario = the <color=#FF6B6B>RED</color> block.\n\n" +
+        "你 = <color=#6FA8FF><b>蓝色小恶魔</b></color>（捣蛋鬼，有角）   马里奥 = <color=#FF6B6B><b>红帽寻宝人</b></color>（背包）\n" +
+        "You = the <color=#6FA8FF>BLUE imp</color> (horns).   Mario = the <color=#FF6B6B>RED-cap</color> treasure hunter.\n" +
+        "（调参 artCharacters 关掉 = 回到蓝 / 红方块）\n\n" +
         "马里奥会自己去<b>右边拿宝</b>，再<b>跑回左边出口</b>。\n" +
         "Mario grabs the loot on the RIGHT, then runs back to the exit on the LEFT.\n\n" +
         "<b>你的目标：</b>别让他带宝逃走。用机关坑他，别被他抓到（3 条命）。\n" +

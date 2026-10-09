@@ -118,7 +118,8 @@ public class Destructible : MonoBehaviour
                 v.transform.SetParent(go.transform, false);
                 var r = v.AddComponent<SpriteRenderer>();
                 r.sprite = sr.sprite; r.color = sr.color; r.sortingOrder = sr.sortingOrder; r.drawMode = sr.drawMode;
-                v.transform.localScale = new Vector3(w * (visual.localScale.x / Mathf.Max(1, width)), visual.localScale.y, 1f);
+                if (sr.drawMode == SpriteDrawMode.Tiled) { r.size = new Vector2(w * (sr.size.x / Mathf.Max(1, width)), sr.size.y); v.transform.localScale = visual.localScale; } // S243：像素地形是平铺的 → 切块也平铺（不拉伸）
+                else v.transform.localScale = new Vector3(w * (visual.localScale.x / Mathf.Max(1, width)), visual.localScale.y, 1f);
             }
             pieces.Add(go);
         }

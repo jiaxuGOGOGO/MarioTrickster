@@ -14,7 +14,7 @@ public class MarioMindTuningSO : ScriptableObject
     /// 数据版本：旧资产缺这个字段时反序列化为 0，编辑器据此把 S183 校准值写入一次（不覆盖之后的手动调参）。
     /// [AI防坑警告] 初始值必须是 0，新建资产时由编辑器写入 CurrentDataVersion。
     /// </summary>
-    public const int CurrentDataVersion = 31;
+    public const int CurrentDataVersion = 32;
     /// <summary>S226 E7：房间游戏速度只许 0.5~1。</summary>
     public static float ClampRoomSpeed(float v) => Mathf.Clamp(v, 0.5f, 1f);
     public int dataVersion = 0;
@@ -691,6 +691,16 @@ public class MarioMindTuningSO : ScriptableObject
     [Tooltip("反馈包最大多少 MB（超了先丢最旧的截图）")]
     public float feedbackPackMB = 8f;
 
+    [Header("S243: 美术皮肤（AI 生成的像素角色 · 机关 · 地形 · 背景）")]
+    [Tooltip("角色换成像素小人：马里奥 = 红帽寻宝人、你 = 蓝色小恶魔（站 / 跑 / 跳 / 晕 会换帧）。关掉 = 回到红蓝方块")]
+    public bool artCharacters = true;
+    [Tooltip("机关 / 道具换成像素图（火、弹簧、油桶…整块替换色块，不再只是头上贴小图标）。关掉 = 色块 + 小图标")]
+    public bool artProps = true;
+    [Tooltip("地面 / 墙 / 单向板换成像素图块（最上层带草）")]
+    public bool artTiles = true;
+    [Tooltip("房间后面加一张低对比的像素背景（不画描边，不会被当成能站的地方）")]
+    public bool artBackground = true;
+
     [Header("S238: 扫描 · 能量 · 附身（以前在第二个调参文件 GameplayLoopConfig）")]
     [Tooltip("马里奥 Q 扫描：半径（格）。扫到就真的暴露你（宪法 H5：扫描 100% 真实）")]
     [Range(0.5f, 20f)] public float scanRadius = 5f;
@@ -906,6 +916,11 @@ public class MarioMindTuningSO : ScriptableObject
             decoysPerRound = Mathf.Max(decoysPerRound, 2);
             disguiseLoadoutSize = 3; shapeShiftTellSeconds = 0.5f; propDecoyThrow = 2.5f; propDecoyWriggleEvery = 1.6f; glanceMap = true; glanceRouteAlways = true; glanceAmbushCount = 3;
             blackBoxSeconds = 25f; blackBoxHz = 4f; blackBoxHitchSeconds = 0.3f; blackBoxCooldown = 30f; blackBoxMaxAuto = 25; feedbackShotWidth = 960; feedbackPackMB = 8f;
+        }
+        if (dataVersion < 32)
+        {
+            // S243：美术皮肤（docs/step1/S243_ART_SKIN.md）——默认全开，旧资产读成 false 时补上。
+            artCharacters = true; artProps = true; artTiles = true; artBackground = true;
         }
         dataVersion = CurrentDataVersion;
         return true;

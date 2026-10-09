@@ -29,7 +29,7 @@ public static class TuningGroups
         new Group { title = "手感：被弹飞 · 受伤 · 特效", why = "抛物线重力、受伤小跳、红白闪、冲击环",
             headers = new[] { "S216: 手感 / 被弹飞的抛物线 / 特效" } },
         new Group { title = "镜头 · 屏幕 · 好不好读", why = "镜头怎么跟、小地图、视锥灌黄、声音圈、按键条、游戏速度",
-            headers = new[] { "Camera", "Big rooms (S207: Dead Cells-style follow camera)", "Playtest screen (S182)", "S224: 少等待 + 可读性（总方案阶段 C）", "Theme (S187)" } },
+            headers = new[] { "Camera", "Big rooms (S207: Dead Cells-style follow camera)", "Playtest screen (S182)", "S224: 少等待 + 可读性（总方案阶段 C）", "Theme (S187)", "S243: 美术皮肤（AI 生成的像素角色 · 机关 · 地形 · 背景）" } },
         new Group { title = "小镇大地图", why = "走路速度、一天多长、视野、大机关、天气、心和雷区",
             headers = new[] { "Overworld (S210: Stardew-style top-down town)", "S218 小镇大机关 / 天气 / 小镇↔房间联动", "S220: 小镇的心 / 雷区 / 雷云" } },
         new Group { title = "自动检查 · 防卡死（一般不用动）", why = "马里奥自己跑几局、卡住多久救出来",

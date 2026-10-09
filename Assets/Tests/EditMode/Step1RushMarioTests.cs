@@ -2743,4 +2743,34 @@ public class Step1RushMarioTests
         StringAssert.Contains("AddComponent<Step1GlanceView>()", Read("Scripts/Gameplay/Step1/Step1Combo.cs"));
         StringAssert.DoesNotContain("TricksterController", Read("Scripts/Gameplay/Step1/Step1Combo.cs"), "H4：连招层仍不碰捣蛋者");
     }
+
+    // ── S243：AI 生成的像素美术（角色 / 机关 / 地形 / 背景），只换外观 ─────────────────────
+    [Test]
+    public void S243_ArtSkin_PixelArtPassesAuditAndKeepsPhysics()
+    {
+        foreach (var kv in Step1Art.Icons) CollectionAssert.IsEmpty(OverworldArt.Audit(Step1Art.Rgba(kv.Value), 16), kv.Key);
+        foreach (var kv in Step1Art.Frames) CollectionAssert.IsEmpty(OverworldArt.Audit(Step1Art.Rgba(kv.Value), 16), kv.Key);
+        for (int i = 0; i < 5; i++) { Assert.IsTrue(Step1Art.Frames.ContainsKey("Hero" + i)); Assert.IsTrue(Step1Art.Frames.ContainsKey("Imp" + i)); }
+        foreach (var key in Step1Icons.ByKey.Keys) Assert.IsTrue(Step1Art.Icons.ContainsKey(key), "每个机关 / 徽章都有新图：" + key);
+        Assert.AreEqual(Step1Art.Rgba(Step1Art.Icons["FireTrap"]), Step1Icons.Pixels("FireTrap"), "图例 / 作战图 / 快捷栏也用新图");
+        Assert.AreEqual(Step1Art.Pose.Jump, Step1Art.PoseOf(false, 0f, false, 0f));
+        Assert.AreEqual(Step1Art.Pose.Stunned, Step1Art.PoseOf(true, 3f, true, 0f));
+        Assert.AreNotEqual(Step1Art.PoseOf(true, 3f, false, 0.01f), Step1Art.PoseOf(true, 3f, false, 0.13f), "跑步两帧交替");
+        Assert.AreEqual(Step1Art.Pose.Jump, Step1Art.ImpPose(false, false, 0f, 0f)); Assert.AreEqual(Step1Art.Pose.Stunned, Step1Art.ImpPose(true, true, 0f, 0f));
+        Assert.AreEqual("GroundTop", Step1Art.TileFor("Ground_0_0_w5", true)); Assert.AreEqual("GroundFill", Step1Art.TileFor("Ground_0_0_w5", false));
+        Assert.AreEqual("Wall", Step1Art.TileFor("Wall_3_4", true)); Assert.AreEqual("Platform", Step1Art.TileFor("OneWayPlatform_2_3_w3", true)); Assert.IsNull(Step1Art.TileFor("FireTrap_1_1", true));
+        Assert.AreEqual(0.6f, Step1Art.FitScale(0.5f, 0.5f), 1e-4); Assert.AreEqual(1f, Step1Art.FitScale(1.1f, 1.2f), 1e-4);
+        Assert.AreEqual(0.35f, Step1Art.FitLift(0.3f, 1f), 1e-4, "扁机关（香蕉皮）图的底边 = 原色块底边");
+        var bg = Step1Art.BackgroundRgba(); Assert.AreEqual(64 * 36 * 4, bg.Length);
+        float lo = 1f, hi = 0f; for (int i = 0; i < bg.Length; i += 4) { float l = OverworldArt.Luma(bg[i], bg[i + 1], bg[i + 2]); lo = Mathf.Min(lo, l); hi = Mathf.Max(hi, l); }
+        Assert.Greater(lo, OverworldArt.DarkLuma - 0.1f, "背景不能比主层描边还暗"); Assert.Less(hi - lo, 0.3f, "背景低对比");
+        var skin = Read("Scripts/Gameplay/Step1/Step1ArtSkin.cs");
+        StringAssert.Contains("[DefaultExecutionOrder(-1000)]", skin, "必须在机关 Awake 记原色之前换图");
+        StringAssert.DoesNotContain("BoxCollider2D>().size =", skin, "H3：不改碰撞体");
+        StringAssert.DoesNotContain("col.size =", skin);
+        StringAssert.Contains("AddComponent<Step1ArtSkin>()", Read("Scripts/Editor/Step1PrankRoomBuilder.cs"));
+        Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 24); Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 32);
+        var t = ScriptableObject.CreateInstance<MarioMindTuningSO>(); Assert.IsTrue(t.artCharacters && t.artProps && t.artTiles && t.artBackground);
+        foreach (var f in new[] { "RushMarioMind.cs", "MarioMindDriver.cs", "SuspicionMeter.cs", "Step1Combo.cs" }) StringAssert.DoesNotContain("Step1ArtSkin", Read("Scripts/Gameplay/Step1/" + f), "H4：心智 / 连招层不碰美术");
+    }
 }

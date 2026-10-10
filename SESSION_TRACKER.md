@@ -91,14 +91,953 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 字段 | 值 |
 |------|-----|
-| **最新 Session** | Session 151（AI 博弈机制接入 — 热度/连锁/骗技能/强扫描） |
-| **日期** | 2026-05-17 |
-| **分支** | master |
-| **阶段** | Sprint 2.6 灰盒体验验证期 — AI 大脑接入博弈机制：Trickster 热度 Lockdown 逃跑 + 连锁追击，Mario 骗技能后退 + 强扫描条件判断。 |
-| **编译状态** | 🔄 本次修改 HeuristicBotInputProvider.cs（+168行），需用户本地 Unity 编译验证。 |
-| **阻塞** | 无 |
-| **交接说明** | S151 重塑 AI 大脑接入博弈机制：(1) Trickster 读取 HeatMeter，Lockdown 时强制解除附身反向逃跑；(2) Trickster 读取 PropComboTracker，连锁窗口内寻找不同类型锚点加速攻击；(3) Mario 遇 Telegraph 预警后退骗技能；(4) Mario 强扫描加入"附近有锚点"前置条件。新增 MarioIntent/TricksterIntent 字段实时反映 AI 意图。 |
+| **最新 Session** | Session 238（docs/step1/S238_CLEANUP_DONE.md：删旧工具 Ctrl+T / AI Arena / 旧探索 / 录像 / GameplayLoopConfig；F5 重开 → `Editor/PlayRetry.cs`；调参只剩 RushMarioTuning（+20 扫描/能量/附身，数据版本 28）；性格一个下拉 `marioPersonality`；旧文档 → docs/archive/；SpriteEffectFactory 3 个菜单挪进 美术 Art/，菜单顶层 14 → 10） |
+| **S208** | Session 208（起步帮手：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段草稿，生成即可玩）、8 个模式印章、起承转合分段框、节奏条（紧张/喘气）、转移点提示；网页 + Unity 工坊同规则 LevelBlueprint；第一次打开网页自动弹向导） |
+| **S207** | Session 207（大房间镜头：宽>64/高>16 自动"智能跟随"（死亡细胞式，C 切 4 种）+ 屏外红箭头 + 小地图；回合/自动检查时间按路线放宽（默认房间不变）；长廊远征样板 94×15；设计台移动工具（网页 V/工坊 M：拖动/框选/方向键/复制粘贴/删除）、吸管自动回原工具 + Ctrl+点击、显示勾选框分组说明、游戏一屏框） |
+| **S206** | Session 206（关卡库：网页多关卡+关卡包导出；Unity 工坊"关卡库 ▾"导入关卡包 → Assets/Levels/Library/名字.txt，未实现机制记 # Pending 实现后重导还原；搭建范围 BoundsIssues；提案状态 💡/✅/✔） |
+| **S205** | Session 205（设计台：跳跃辅助（绿=AI能跳/黄=临界）、上不去的格、导入 Tiled/LDtk/CSV/像素图、导出像素图与调色板） |
+| **S204** | Session 204（网页关卡设计台 tools/LevelStudioWeb：画关卡 + 实时预检/死局/时间线 + 新机制提案（宪法提醒）+ 删改清单 + 一键设计单交给 AI；工坊可导入 .studio.json） |
+| **S203** | Session 203（马里奥性格：冲冲/谨慎（绕开被坑点、绕不开跳、再不行原路）/贪财（跨层必抢道具）；开局头顶亮性格；自动检查轮流测三种；诱捕走廊加高路） |
+| **S202** | Session 202（完美连锁慢动作回放；StrategySim 炸弹困人模拟 + 构建时自动加固承重格（铆钉）；陷阱试探菜单 + 检查轨迹热力图；马里奥躲炸弹/抢道具） |
+| **S201** | Session 201（接续包：`docs/AI_CONTINUE_PACK/`——SKILL.md 原则与红线 + 按功能分册 + 一键搭建/验证/打补丁脚本；新对话先读它；换账号也能用：自带未上传补丁、bat 可拖入项目文件夹） |
+| **S200** | Session 200（以身入局：F 连锁编排/Shift+F 一键布置 + 预判落点自动接力；T 挑衅；绊线 R；马里奥学习层；诱捕走廊样板） |
+| **S199** | Session 199（油桶 U 连锁爆炸（火/炸弹/炮弹/桶点燃，共用 TricksterBomb.Blast）；铁笼 Q；诱饵 G（同视锥，近看识破，透视看穿）；警报随机事件（静止伪装也会被怀疑）；马里奥踢门） |
+| **S198** | Session 198（修来回跳（进展式卡住判定 + 头顶路点对准再跳）、贴墙粘住、塌桥只塌一格；普通地形可炸 Destructible（外圈/底层锁定）；炸弹伤双方；大炮 ←→↑↓ 瞄准 + 马里奥也能钻炮 + 冷却 30s；墙上通风口 ←→；绳套 Y；随机道具箱 ?（同箱反转）） |
+| **S197** | Session 197（修 H4 测试断言范围；修 B 键无反应（新旧输入都读）；修工坊进出 Play 后空白（缓存 NonSerialized）；修马里奥楼层寻路卡住（只规划 AI 真能跳的跳法 + 起跳点）；捣蛋者跳跃力 20；技能包：炸弹×3（B）、缩小×2（Z）、通风管 O（↓）、马里奥时间静止×1；毒池 w / 黏胶 g；M/Tab 图例；扩展调研） |
+| **S196** | Session 196（修 NewRegistryEntries 测试（J x n 未登记为 NotProbed）；箱庭：捷径门 | / 裂墙 % / 砸墙技能 B（现形、有声、有次数）/ 开局随机塌墙事件；工坊"箱庭总览"（纵览缩放、层身份、连接、环路、捷径省步数、建议）；手工"箱庭监狱"四层样板；监狱塔重做为每层主题 + 双通路 + 捷径竖井；结论：一座楼不转场，楼与楼之间转场） |
+| **S195** | Session 195（用户：暂时忽略"连玩 20 局"门槛。多层楼：LevelPathPlanner 楼层寻路（只在宝物/出口不同层时启用）、FloorStacker 监狱塔 2–11 层 + 加一层、高楼镜头自动框住两人、防卡死救援预算+剪枝） |
+| **S194** | Session 194（香蕉皮 n：可读滑行 2–5 格，计入连招；关卡工坊"连招路线"开关：同色弧线 = 一套可连机关，显示最长一套的机关数/种类数；两层监狱样板改为可连招布局） |
+| **S193** | Session 193（连招手感：顿帧/震屏/段位/递减硬直/换招加分；新机关弹簧板 J（浮空起手）+ 裂缝地板 x（可破坏地形，死局按永久打开检查）；恶作剧房间加地下室；关卡工坊"两层监狱"样板；纵向逃脱路线图文档） |
+| **S192** | Session 192（性能：关卡工坊拖动卡顿修复——画时快速检查 0.2ms、停笔 0.35s 后完整检查、按物理签名去重 32→8 组、死局分析剪枝、GUIStyle/颜色/行缓存、只在换格重画；游戏内视线/视锥改非分配射线、界面样式缓存） |
+| **S191** | Session 191（关卡工坊看得清：出生点改红/蓝、字色按对比度自动黑白；美术换图按元素贴法自动适配：平铺/等比放入/拉伸，接入原 SpriteAutoFit，单个换皮与主题换肤同一路径；美术检查菜单） |
+| **S190** | 关卡工坊快捷键改 Ctrl+Alt+W（原键与 Unity Generate Lighting 冲突） |
+| **S189** | Session 189（关卡工坊窗口 + 死局分析 + 运行时防卡死 + 塌桥渐显复查；修主题插槽测试） |
+| **更早 Session** | Session 188（修 S187 两个测试；元素说明书 ElementCatalog + 摆放检查 + V 键标签 + 元素图例；第 1 步构建时移除不用的旧系统） |
+| **上一 Session** | Session 187（大炮 K/k：一发炮弹伤害 + 打完人肉发射逃跑；场景摆件 c/b/d；受控随机布局 32 组合全可达；草丛起风否认空间；游乐园/公园/山上公园主题底子） |
+| **日期** | 2026-09-26 |
+| **分支** | genspark_ai_developer；PR #2 → master，尚未合并 |
+| **阶段** | 第 0 步已由用户在 Unity 确认（Console 无错、EditMode 全绿）。S180 实现第 1 步：菜单 `MarioTrickster → Step 1 → Build Prank Room` 生成 36×10 单屏房间；马里奥由 `RushMarioMind` 驱动（? → ! → !! → ?!），只凭 `MarioEyes` 视锥+距离+遮挡感知；捣蛋者 3 条命；默认整屏镜头（C 键切换）。 |
+| **编译状态** | S181 沙箱：全部运行时代码用 UnityEngine 2021.3 真实模块引用 + dotnet 编译通过（仅 InputSystem/UGUI 用桩）；Step1 Editor 构建器与 22 项测试用 UnityEditor 引用 + NUnit 编译通过；问卷逻辑实跑通过。**未经 Unity 实跑/物理。** |
+| **阻塞** | 需 Unity：跑 `Step1RushMarioTests`(16) + 旧测试；生成场景后不碰键盘看马里奥能否通关（H10）；然后 20 局试玩。 |
+| **交接说明** | 先读宪法，再读 `docs/step1/STEP1_PRANK_ROOM.md`。第 1 步未通过退出条件前不得进入第 2 步。小问题按用户要求攒着统一修。 |
 
+### [S239] 用户："不考虑任何宪法 只考虑游戏好玩的初衷对系统进行整合 玩的过程中已经重复的可以考虑删除其他考虑整合 基于此看是否删除"
+
+- docs/step1/S239_FUN_FIRST_MERGE.md（§2：每个旧系统对应现在哪个机制；§3：残留痕迹 / 越坑越警觉 2 个点子**等用户拍板**）。
+- 删 21 个重复旧系统（热度、警报导演、连锁追踪、重复叠加、路线预算、补偿、反揭露奖励、第 0 步锚点起疑层、旧 UGUI 界面 + 预制体），约 7000 行；房间 / 小镇里本来就不运行，玩法不变。
+- 视线检测一字不改搬到 `Gameplay/SightLine.cs`；删 3 个 Debug 开关、性格 comboPreference、事件 HeatTierChanged / TricksterRevealed；CrisisWarning 的 director 改成 source。
+- BuilderVersion 21 → 22（场景重建一次）；DataVersion 仍 28；PlayMode 34 → 33；Step0CoreLoopTests 删除。
+- **用户决定**：这些系统不按宪法第 4 步加回；新点子在现有系统上做。
+
+### [S238] 用户："D1 D2 D3 D4 M1 M2 M3 都做 做之前在从第一性原理看现在的项目是否这么做是最优解 然后开始执行"
+
+- docs/step1/S238_CLEANUP_DONE.md（§1 上次清单 4 处更正：VisualFeedbackBridge 保留、MemoryGuard 是活的、LevelStudioPlaySession 管 F5、GameplayTests 34 条保留）。
+- `GameplayMetrics` 改读 `MarioMindTuningSO`（20 个在用的；其余返回组件默认）；`ElementCatalog.Unexplained` 接替 MissingFromCatalog。
+- **永久规则**：只有一个调参文件；菜单顶层 10；旧文档只进 docs/archive/。
+
+### [S237] 用户："自我检查是否存在重复冗余的情况 因为足够多的重复也会让我难以使用 测试反复 增加放弃的成本 或者有点区别是否全局考虑项目可以考虑更高效的合并 包括可以调整数值的 是否可以整合还是删除 基于这些考虑从第一性原理出发继续升级 然后在开始页加"上次做到哪"：显示最近打开的关卡、最近一次体检结果。清理旧工具：需要你先确认哪些可以删  你可以做完整合 通俗像我介绍哪些你认为可以删并且为什么 哪些你觉得可以整合 为什么 通俗解释给我 我确认后在继续 也行  现在开始优化"
+
+- docs/step1/S237_DEDUP_AND_LAST_WORK.md（§2 删除候选 D1–D4、§3 整合候选 M1–M3，**等用户回编号**）。
+- 菜单：Step 1 / Run Tests / Open Last Test Report / 网页同步 → `检查与记录 Checks/`；Asset Import / Apply Art / Smart Slicer / Art Pipeline / Level Design / Overworld 美术 → `美术 Art/`；红线 3 个 → `安全网 Safety/`；▶ 试玩房间 / ▶ 试玩小镇 提到顶层。ExecuteMenuItem 调用跟着改了（sim 查不存在的菜单）。
+- 调参：`TuningGroups`（纯逻辑，sim 查每项恰好一组 + 有 Tooltip）+ `MarioMindTuningSOEditor`；补 26 个 Tooltip；字段名/默认值/数据版本都没动。
+- 修 bug：`BuildKey(tuning)` 替代只比 themePreset → 改任何数值场景都重建（以前约 38 个建场景时写入的数值改了不生效）。
+- 开始页 ⏱：`RecentWork.Push/Parse/Ago/HealthLine/TestLine/LastRoundLine`；关卡工坊 4 处 + OverworldBuilder.Save 调 `StartHereWindow.Touch`；`OverworldWorkshopWindow.OpenTown(name)`。
+- 永久规则见 S237 文档 §5。
+
+### [S236] 用户："梳理目前项目所有功能 并且再梳理过程中发现使用交互功能包括测试不方便的可以及时进行调整 我最终需要全局把握目前项目可以做到什么 怎么让我进行设计创作我怎么更好的利用这个项目 并最终发现需要改进的升级的地方继续升级同时不让后续冗余到功能做了 但是渐渐呗迭代遗忘在角落不知道有这个"
+
+- docs/step1/S236_FEATURE_MAP_AND_EASIER_TESTING.md；docs/FEATURE_MAP.md（自动生成）。
+- 新：`LevelDesign/FeatureMap.cs`（进 sim）、`Editor/StartHereWindow.cs`（菜单 📖 开始页 Ctrl+Alt+H，功能地图数量变了自动弹一次）、网页 pageMap / fmRender / FEATURE_MAP。
+- **永久规则**：新菜单 / 新游戏按键（Step1Keys.Down/Held）/ 网页新页签或 h3 面板 / docs/step1 新文档 → 必须在 FeatureMap.All 登记（或并进已有一项），并重新生成 docs/FEATURE_MAP.md；功能删了把那一项也删。FeatureMap 字符串里不许用英文双引号。
+- 交互修复：Step1PlaytestLog 问卷数字走 Step1Keys.Digit1to5；GameManager F9 → Step1QuickTest.NoLimits（TricksterKit / Decoy / Taunt）+ UsedThisRound → CSV mode=f9、ExitReport 排除；TricksterLives.SelfHitReason → Outcome.TricksterSelfHit；Trickster/MarioController 硬直分支 isKinematic 时零速度返回；MarioTimeStop 非 Playing 时解冻；TestHub 第三排按钮 + 体检"功能地图"段；工坊 📖；README 顶部指向开始页。
+
+### [S235] 用户："帮我确认是否实现之前的需求和功能 我在测试的时候发现捣蛋者掉出游戏范围之外就回不来了 血也没掉 马里奥还在继续进行 帮我修复这类问题和其他可能存在的衍生问题 和之前一样更新安装包"
+
+- docs/step1/S235_FALL_OUT_OF_ROOM.md。GitHub 开发分支 = S234，15 个 pending 补丁都已在上面；master 落后 96 提交。
+- 根因：KillZone 只认 PlayerHealth（捣蛋者没有）且只管往下；BodyUnstick 最短方向可能往外推；外圈允许 - C x c %；镜头不跟出房间。
+- 新文件：`Gameplay/Step1/Step1Bounds.cs`（IsOut/ClampInside/GuardRects/InGuard/BorderLeaks/Teleported/LivesLost，进 sim）、`Gameplay/Step1/Step1RoomGuard.cs`（构建器挂 Managers）。
+- 改：TricksterLives.FellOut + FellOutReason；Step1Text.Outcome.TricksterFellOut + FellOut* 文案 + Help；Step1StuckRescue.RescueNow；BodyUnstick.RoomSize；SnareTrap/IronCage/PranksterCannon 被传送走放人；Decoy 夹在房间里；LevelWorkshopModel + logic.js 外圈提醒；OverworldMap.Free/Unstick + OverworldTown.Unstick（unsticks 计数）。
+- 调参 v27 fallOutLivesLost=1；BuilderVersion 21。sim S235 门槛 + EditMode S235_FallOutOfRoom_GuardWalls_BackToSpawn_LoseLife。
+
+### [S234] 用户："台词可以自定义让我编辑修改 然后继续自我审计目前项目对照需求从第一性原理出发进行不少于10轮的自我迭代"
+
+- docs/step1/S234_MY_LINES_EDITOR.md（§2 15 轮审计表）。
+- 你的台词：`TownStory.UserResourceName = "MyTownStories"`、`Overlay`、`ParseOverlay / Merge / Diff / OverlayToJson / Load / NewId / WhoFor / WhenHeard`；`Rehearse(m,t,days,witness)`；`Show` 英文空不显示；`Validate` 加占位符 / 沉默 / 当场喊太长。游戏 `OverworldGame.LoadStories` 走 `TownStory.Load`，`ReloadStories()`，SubsystemRegistration 清表。
+- Unity：`Editor/TownStoryEditorWindow.cs`（Ctrl+Alt+L；搜 / 筛选 / 编辑卡 / 这句什么时候会说 / 恢复 / 关掉 / 删掉 / 新加；停笔 0.8 秒存；备份 MarioTricksterBackups/MyTownStories 最近 20 份；手改内置 → MoveHandEdits；Version 通知工坊重算）+ `MarioReactionEditor`（MyMarioReactions.json，只改字）。工坊 / 体检 / F8 包统一读 `Effective()`。
+- 马里奥头顶字：`MarioReaction.UserResourceName / ApplyUserLines / ApplyUserAgain / UserToJson / AgainZh/AgainEn`；`MarioReactionView.Reload`。
+- 网页：`overworld.js` tsParseOverlay/tsMerge/tsDiff/tsOverlayToJson/tsWhenHeard/tsShow；`app.js` 台词本重写（TS_MY、tsMyWrite 连上项目直接写 Assets/Resources/MyTownStories.json、syReadMyStories、S233 草稿自动换算）。
+- make_patch.sh：bat 上传前把 My*.json 作为用户自己的提交一起推。
+- sim S234 门槛（网页 92 行逐字 + 合并语义 + 沉默 + 占位符 + 仓库里没有 My*.json + 马里奥字只改字 + 接线）+ 4 个反向；EditMode +1（S234_MyTownStories_Overlay_And_MarioLines）。数值版本 26。
+
+### [S233] 用户："继续完成未完成的任务……（同 S232 需求全文）……最终交付"
+
+- 第五轮调研（后台子任务，来源见 S233 文档 §2）→ docs/step1/S233_WITNESS_NOTEBOOK_AUTHORING.md（§3 E1–E11）。
+- 已做：E1 当场喊（`TownStory.WitnessOn/Witness/NearestDoor/WitnessFacts`，`When.Witness`，12 句含 3 段 once 真心话；`OverworldTown.HitMario` 记 hitSerial/hitX/hitY/hitKind；`OverworldGame` 比对序号，3.5 秒，不盖真心话）。E2 笔记本（`Notebook/NotebookText/NeedHint`；N 键；`Step1Text.OverworldNotebookClose`；帮助 + 按键条）。E3 存档（`MemToJson/MemFromJson`、`Memory.totalDays/unlockDay/witnessed`；`OverworldGame.MemoryKey/LoadMemory/SaveMemory`；测试中心"忘掉居民记忆"）。E4 网页台词本（`owLinesRender`、`tsToJson` = C# ToJson 逐字、localStorage 草稿）。E5 `TownStory.Validate/FactKeys` = 网页 `tsValidate`（体检 / 小镇工坊 / 网页）。E6 `Overworld/IdeaDice.cs` = 网页 `idRoll`。E7 `TuningAudit.FromYaml/DiffFromDefault` = 网页 `tuFromYaml/tuDiff/tuApply`，连上文件夹自动读 `Assets/Resources/Step1/RushMarioTuning.asset`。
+- sim S233 门槛（网页 142 行逐字、一户一天一次、当场真心话门槛、存档往返、默认表 0 错 + 反向、导出 = 文件、骰子分布、小镇里真的触发、H4、接线）+ 3 个反向；S232 门槛"住户真心话要挣"放宽为 visits/defended/witnessed 任一。EditMode +1（OverworldTests.S233_…）。数值版本不变（26）。
+- 不做：E8 信号线、E9 多镇世界清单（冻结）；E10 好感点数（刻意不做，"刷"的失败案例）。下一步候选：E11 笔记本贴纸、补齐其余三户当场真心话。
+
+### [S232] 用户："结合之前所有的调研对项目还需要增加的内容……道具……随机性……关卡编辑……大一统关卡和大地图联动……陷阱机制联动……真诚故事npc呈现或者游戏过程中的演出恶搞带来的真情流露……网页版和unity内版本和控制台数值设定也能更加统一科学合理……第一性原理……统计学"
+
+- 第四轮调研 54 个新来源（日中韩法德）→ docs/step1/S232_STORIES_RANDOM_TUNING.md（§3 E1–E10）。
+- 已做：E1 `Overworld/TownStory.cs`（Pick：tier→条件数→最久没说→哈希；冷却 3 天；真心话 once、间隔 ≥3、一天 ≤1；PickFallback 兜底；Record/Next/Rehearse/Coverage/ProgressLine）+ `Assets/Resources/TownStories.json`（= Default，sim 逐字对照）；OverworldSession.RecordRoom/RecordMissed → TownStory.Record；OverworldGame 早上/回小镇/结算三处显示。E2 `OverworldMap.Resident`（# Resident: 门 | 名字 | 性格；关卡包 residents）+ 小镇工坊 ResidentPanel + 网页 owResRender。E3 `Overworld/OverworldPickupBag.cs`（5 个一袋，第 1 天全炸弹，早上公布）+ OverworldTown.Pickup。E4 `Gameplay/Step1/TuningAudit.cs` 21 条 + build.py 生成 TUNING/TUNING_RULES/TS_STORIES，logic.js/overworld.js 速度改读 TUNING；体检加"数值关系""小镇居民的话"两段。
+- sim S232 门槛（网页 448 行逐字、彩排节奏、洗牌袋分布、小镇里真捡到、H4、接线）+ 3 个反向；EditMode +1（OverworldTests.S232_…）。数值版本不变（26）。
+- 不做：E4b 网页读 .asset、E5 信号线、E6 元素矩阵、E7 世界清单（冻结）；E10 居民行动（刻意不做，Radiant AI 教训）。下一步候选：E8 居民笔记本。
+
+### [S231] 用户："在之前搜集探索的基础上 继续探索式针对目前项目的所有内容找网上所有涉及的内容……论文和itch.还有gdc……日本……语言不限英文……形成详细方案……执行完后继续去新的网站或者资料细节调查……统计学……自我审计……忽略我测试反馈直接执行优化升级"
+
+- 第三轮调研（新来源约 40 个，不重复前两轮）→ docs/step1/S231_RESEARCH_V3_PLAN.md（§3 E1–E9 执行表）。
+- 已做：E1 `MarioReaction.Line(b, nth)` + MarioReactionView 记本局第几次；E3 `Step1ExitReport.Median/A12/A12Size/CompareVersions/MinPhaseRounds`，体检显示中位数和改版对比；E4 `RarestKind/RarestLine/KindZh`，结算显示；E7 `OverworldArt.Audit` + 菜单"检查换上的像素图"。
+- sim S231 门槛 + 2 个反向测试；EditMode +1。数值版本不变（26）。
+- 不做：E2/E6/E9（新系统，冻结）、E5（要录像系统）、E8（受击第 1 帧姿势，要用户看画面）。
+
+### [S230] 用户："目前调研搜集的信息资源和我的项目与打补丁到GitHub的效果是否满足调研分析的效果和要求 是否还需要补充编码安装"
+
+- 逐条对照调研 → 代码（不看文档看代码）：只差"真人反应时间进体检"一环。`Step1ExitReport.ParseTown/TownMarkdown/TownColumns/BotReactMin/Max`；TestHub 体检加"小镇"段、F8 打包带 town_days*.csv。
+- sim S230 门槛 + 反向（删打包行 → 报红）；EditMode +1。不改玩法数值。
+- GitHub：origin/genspark_ai_developer = 5d89370（S220）；默认分支 master = 740bf1e（2026-05-19），落后开发分支 81 个提交——问用户要不要合并，不擅自动。
+
+### [S229] 用户："抛开我的测试和好不好玩 所有想法和调研反馈优化都做完后我在进行一两轮测试……不能把人困死 但是确实要被天灾击杀直接重启 相当于游戏胜利结算重开了 基于此继续迭代"
+
+- `OverworldTown.HitMario/HurtYouBy`：心掉光且 `overworldDeathEndsDay` → 记 marioDies/youDies，Tick 帧末 `Die()` 统一结算（同帧两人 = Both 平局）。`OverworldSession.Death/DeathCause/DeathByYou/Outcome()`；`DayWon` 他死 = 赢。
+- `OverworldGame`：结算 `Step1Text.OverworldDeathSummary`（死因 `KillerZh`、倒计时），R 或 `overworldDeathRestartSeconds`(6) 自动重开；倒下的人躺倒；`LogDay()` 写 `PlaytestLogs/town_days.csv`（`DayCsvHeader` 20 列）。
+- 反应时间：`TrackReaction`（预警在你脚下 → 第一次按方向，现实秒）→ `OverworldSession.Reactions`，给机器人手抖校准。
+- sim S229（胜负平 / 关掉=老规则 / 一直站雷云 20/20 会死但最快 13.8 s ≥7 s、每下先预警 / 挂机 60 天他 0 次被天灾打死 / 会躲 60 天你 0 次 / 反应时间 / 接线 + H4）；反向：删帧末结算 → 报红。S220/S221 老门槛改为关开关时测。EditMode +2，S221 测试关开关。补 Step1ExitReport.cs.meta。数值版本 26。
+- 用户规划：所有想法和调研做完再测一两轮 → 测试不是开工前提，继续按方案迭代。
+
+### [S228] 用户："忽略试玩，先搜集足够信息先做（钟楼 / 大炮联动 / 速度视野晕）……检查刚才以及前面所有的任务，针对性调研完成剩余以及有问题的任务"
+
+- 审计发现：`SuspicionMeter.Add` 后同帧 `Tick` 衰减 → 小镇大机关声音（35 = 阈值）永远到不了 '?'（S218 起就没生效）。修：一次性加值那帧不衰减；overworldNoiseSuspicion 35→50。小镇 '?' 时 `FaceToward(mind.Focus)`。
+- 调研定值：minOmenSeconds 0.4→0.45（Hick 二选一 ≈0.44 s），reactionDelay 0.12→0.2（视觉简单反应 ≈0.19 s），自己踩绳套 snareSelfSeconds=3（P4 死区）。速度比 / 视野 / 晕 对照 DbD、吃豆人、Shadow Tactics 后不改。
+- 钟楼 B（OverworldCatalog/Props/Art/网页）：Fire = Noise(半径 2×noiseRange, bell)；钟响后 4 秒内挨砸 → MarioWary 'B' → 不再停。星露大镇 (36,16)。
+- 轰出窗户：CannonBall.HitMario 事件 → OverworldRoomLink 记 RecordWindowFling → OverworldTown.WindowFlingStart（OverworldProps.WindowLanding：背离房子 6 格、走得回家）。
+- sim S228 门槛 + 3 处反向；S221 雷云测试改为 5–8 格挑最好；S224 字符串检查同步。EditMode +4。数值版本 25。
+
+### [S227] 用户："继续执行任务"
+
+- 剩余只有"要真人数据"的项 → 用户上传过的 fb.zip（16 局 09-26–27，已存 `docs/step1/data/step1_rounds_0926-0927.csv`）。
+- `Step1ExitReport`（纯逻辑，进 sim）：按列位置读新旧 CSV、去重、连玩判定（间隔 ≤30 分钟）、Wilson 区间、按各阶段证伪规则给下一步；TestHubWindow 体检加"第 1 步出口"，打包带上 step1_rounds*.csv。
+- 补漏记：`Step1PlaytestLog` 小镇房间 / 快速测试照样记一行（不弹问卷，mode=town/quick）；`PrankKindOfCombo` 连招种类算坑法；CSV 加 tuning_version、mode。
+- 用户数据：连玩最多 2 局、坑法 2 种（Cannon、Escape）、马里奥赢 14/16；全是旧版本 → 不调数值（理由见文档 §2）。
+- sim S227 门槛（真实 CSV + 造的达标/断开数据 + 表头一致；反向删列报红）；EditMode +1，旧 3 处断言同步。
+- 下一步：用户用新版本玩 5 局后点体检；有新 CSV 再按体检建议改（一次一个变量）。
+
+### [S226] 用户："因为之前的任务存在我测试才执行的而忽略的 自我对照项目检查是否存在很多遗漏内容 不考虑我测试补充建议需要添加升级的所有内容 并继续完成本次任务还没完成的"
+
+- 审计：`docs/step1/S226_SELF_AUDIT_AND_DEFERRED.md`（做了什么、仍不做什么及原因）。
+- 补漏：S222 承诺的房间马里奥统计门槛（sim；FakeUnity 去掉复制的枚举，改为编译 RushMarioMind/MarioPersonality + MarioMindDriver.PlanWaypoint 桩）。
+- E5 `MarioReaction.Punch`（25% 到顶，×1.25）；E9 `Step1Text.ControlsBarFor` + `Vent.AnyWithin` + 调参 contextKeyBar；E7 调参 roomGameSpeed（`Step1Screen.ApplyRoomSpeed`，限制用 `MarioMindTuningSO.ClampRoomSpeed`）；数值版本 24。
+- E6 交互矩阵 + E10 小镇可见度门槛；山镇/雷镇门 4 加山坡 (33,16)，原来 26 个山坡没有一个的泥冲得到他的路。
+- sim S226 三组 + EditMode 3 项；反向测试 3 处都报红。
+- 下一步：S225 方案剩下的只有需要真人数据的项（阶段 D 填表、手抖校准、速度/视野调参）；有反馈包/CSV 再做。仍冻结横向加系统。
+
+### [S225] 用户："继续探索式针对目前项目的所有内容找网上所有涉及的内容……论文、itch、GDC、权威独立游戏网站、大学、专家原则、日本演讲、其他语种、GitHub、Reddit、书……切碎也整体研究……用成功与失败经验批评……形成不需要再反复大修大改的细致规划执行方案……执行后再去新网站核实、统计学检查、详细自我审计"
+
+- 方案：`docs/step1/S225_RESEARCH_V2_EXECUTION_PLAN.md`（两轮资料表带链接、9 块对照批评、E1–E10 执行表、刻意不做、统计自查、自我审计、永久规则 5–7）。
+- E1 房间死区（P4）：sim 量 17 个房间（默认/全部样板/监狱塔/向导），开局后连续 ≥10 秒不经过机关的占比全 0%，最长空档 6.5 秒 → 进门槛。
+- E8 按了就有反应：L 的失败原因原来只发给被关掉的旧界面（GameUI/GlobalGameUICanvas）→ 第 1 步房间按 L 失败什么都不显示。新增 `Step1FailFeedback`（Step1Combo 运行时自动挂，只订阅 `OnAbilityFailed`/`OnDisguiseFailed` 并显示 `Step1Text.AbilityFailZh`）；P 在冷却/刚被发现/缩小时也提示（`DisguiseFailZh`）。不改任何按键规则。
+- E2 起疑说原因：`SuspicionCause`（只来自 MarioPercept，H4）+ `RushMarioMind.StrongestCause` + `MarioOrder.cause/causeTimes`；`Step1Text.CauseIntent` 6 种原因各一句，第 3 次起"又来？"。E3 小心："这儿坑过我…"。E4 卡住救援头顶"哎呀，脚滑了"（`MarioMindLabel.RaiseRescued`）。
+- sim S225 + EditMode 2 项；反向测试：删一条翻译 / 删自动挂载 → 报红。sim 桩 FakeUnity.cs 加 `SuspicionCause`（和 RushMarioMind 同步）。
+- 下一步：E6 交互矩阵审计 / E7 无障碍表 / E10 小镇系统可见度（都只写文档或 sim 统计）；E9 情境按键栏等你试玩说"键太多"再做。
+
+### [S224] 用户："跳过我试玩的部分继续完成该完成的 我的思路是有些我都没耐心试玩下去先做的更值得我玩在继续。所以根据之前的调研继续调研完成未完成任务"
+
+- 实测死区（宪法 P4）：小镇不按空格时一天 81% 是"连续 10 秒没事做"。→ 不碰键盘 1.5 秒自动快进（`overworldAutoFastIdleSeconds`，数值版本 23）+ 门口按一次 E 预约埋伏（`OverworldTown.ambushArmed`，他走近自动进门，规则仍是 AmbushReady）+ 房间开局 Enter 马上开始。死区 81% → 0%，会躲 60/60（Wilson 0.940）。
+- 总方案阶段 C：视锥灌注（`Step1Readability.FillReach`，房间 MarioVisionConeView + 小镇 VisionConeFill）；声音圈（`Step1Fx.SoundRing` + `Step1SoundRings` 运行时自动挂；小镇 `OverworldTown.sounds`，判定和圈共用 `Step1Readability.TownTauntRadius/TownNoiseRadius`）；"他差点发现你"（`NearMissLog`；小镇结算列最险 3 次；房间问卷 NearMiss 题给参考，不加题）。
+- sim S224 + EditMode 4 项；反向测试：关自动快进 → 报红。
+- 下一步：房间死区测量（房间 sim 还没有 P4）；有用户试玩数据后进阶段 D。
+
+### [S223] 用户："继续。并告诉我之前这些任务都完成了是么"
+
+- 按 S222 总方案阶段 B：马里奥中招三段式反应（愣住 → 动作 → 恢复），纯画面。`MarioReaction`（纯逻辑表 + 采样 + JSON 读写）+ `MarioReactionView`（只动 visualTransform，由 Step1Combo.ComboRegistered 驱动，运行时自动挂）+ 数据文件 `Assets/Resources/MarioReactions.json`（9 种坑）。MarioMindLabel 中招时头顶显示该坑固定台词。
+- 每局问卷加"有没有被逗笑"（Step.Laughed），CSV 加 laughed 列，表头变了旧文件自动改名。
+- sim S223：演戏 ≤ 原晕眩（反向测试 1.9 秒能抓到）、逐帧连续、回原样、连锁跳过愣住、数据文件 = 默认表、坏文件回退、组件禁用词。EditMode 新增 4 项，问卷 3 项测试随新步骤更新。
+- 下一步：用户玩 5 局答"笑了吗"→ ≥1 次进阶段 C（视锥填充 / 声音圈 / 一天结束列 3 个可疑时刻）；0 次先缩短 freeze/act。
+
+### [S222] 用户："继续探索式针对目前项目的所有内容找网上所有涉及的内容……以项目整体切碎去调研……形成详细方案 必须是不需要在反复大修大改的细致规划执行方案……执行完后继续去新的网站或者资料细节调查确认是否搜集足够科学合理结合统计学分析角度确认 并进行详细的自我审计"
+
+- 调研：项目切 9 块，约 60 个来源（Thief / Shadow Tactics / Mark of the Ninja / Invisible Inc / SpyParty / Alien Isolation / Hello Neighbor / Neighbours from Hell / 鹅鹅鹅 / Polaris Mechanical Comedy / Bergson / Levelhead / 马造 / Dreams / Zucconi / LDtk / Celeste / 樱井 / 19 特征论文 / NIST Wilson / rule of three …），二轮查 itch.io / GitHub / Reddit / NIST / arXiv。总方案 docs/step1/S222_RESEARCH_MASTERPLAN.md（阶段 A–E + 永久规则 + 统计自查 + 自我审计）。
+- 审计发现：机器人除 Chaos/Slow 外完全确定 → 旧"12/12"= 1 个样本。修：`OverworldBots.PlayDay(..., humanNoise)`（愣 0.15–0.6 秒 / 偶尔走神 / E 约每 3 帧按到）；sim 新增 S222 统计门槛：4 个样板镇 × 会躲 60 天 Wilson 下限 ≥ 0.935 + 不同用时 ≥ 5；不躲 60 天上限 ≤ 0.5。实测 60/60 ×4（14–30 种用时），不躲 0/60。
+- 被抓说原因：`OverworldMap.WhySeen`（只用 CanSee 同组输入，H4）+ `OverworldTown.seenWhy/caughtWhy`（记从平静变起疑的那一刻）+ `Step1Text.OverworldCaughtWhy`（视线里 / 路灯下 / 贴身 / 草晃了 / 伪装还在动 / 挑衅引来）。
+- 雷云最后 1.5 秒闪烁（结束也要预告）。进度表顶行从 S219 修到 S222。
+- 新测试 `CaughtReason_UsesSameSightInputs`、`Bots_HumanNoise_GivesIndependentDays_AndHiderStillWins`。自我审计：S210–S221 在第 1 步未通过时持续加系统（违反不得跳步）→ 方案阶段 B–D 冻结横向扩展。下一步：阶段 B 马里奥中招反应。
+
+### [S221] 用户："参考优秀类似角度形式的2d游戏优秀设计经验和案例进行自我全流程模拟测试检验 是否还存在需要改进的地方边检查变搜集资料校验 尊重第一性原理"
+
+- 探针全流程模拟（3 样板 × 5 机器人 × 4 天 + 40 种雷云场景）发现 3 个问题并修正：
+  ① 连控：保护期在晕的时候就过完了，结果你 1 颗心站在雷云里最长连续定身 7.1 秒、被连续击倒 → 保护期 = 晕的秒数 + 站起来后 `overworldHurtGraceSeconds`（1.5），期间全无敌（`GraceAfter`）；修后最长定身 3.0 秒，两次之间至少能动 1.9 秒。
+  ② 被劈过的他闪一步就穿过雷云（Q 对他完全没用）→ `StormBlocksRoute`：看见云挡路就在云外等（WAIT，最多 9 秒）；DodgeCell 把整朵云都算作危险。修后拖住他 +8.3 秒 / +9.6 秒，照样进门。
+  ③ 机器人从不按 Q → 捣蛋型来得及就去捡能量 `*`，满了按 Q，按完先跑出圈。
+- 调参 v22（grace 1.5）。新测试 `S221_NoStunLock_WaryMarioWaitsOutCloud_BotUsesQ`、sim 新增 S221。调研：DbD Health States、stun lock、起身无敌、吃豆人能量豆、Spy vs Spy、Stardew。详见 docs/step1/S221_FULL_FLOW_SIM_FIXES.md。
+
+### [S220] 用户："目前下拉菜单特别卡 拖把天没反应 然后突然拖下来了……闪电是否是范围内（关卡编辑的时候自己设置范围）随机同时霹几道闪电（可以设置至少几道 限制最多几道）……马里奥也是三条命 或者设置失去的获取生命的道具 或者拾取能量的道具 让捣蛋者能量满了有机会可以操控天气……副作用就是自然灾害可能同时影响到自己……道具陷进过于抽象……方便后续美术资产替换"
+
+- 防卡：小镇工坊拖动只 Touch（mapVersion++），松手 / 空闲 0.12 秒才 Recheck；OnFocus 走 delayCall；Describe / Preview / 红框 / 路线 / GUIStyle 按版本缓存；LevelLibrary.List / OverworldBuilder.List 按文件夹签名缓存，ResolveRoom 按 mtime 缓存，RoomProblem 按 RoomHash 缓存，TownFingerprint 缓存；WebSync 导入后 InvalidateCaches。网页：离屏底图，mousemove 只贴底图 + 悬停框，mouseup 才 owRender。
+- 雷区：`# Storm: x0,y0,x1,y1 | min | max [| always]`（最多 4 块，1–6 道）；OverworldStorm（Volley 可复现 xorshift，网页逐字一致）；工坊 ⛈ 工具（Z）+ 雷区面板；网页同款。
+- 心 3 颗 + 伤害表 OverworldCatalog.Harm；2.5 秒无敌、掉光晕 3 秒剩 1；`+` 补心、`*` 能量；Q 雷云（能量 3，原地 9 秒，会劈到自己）；带心进房间 OverworldRoomCarry。
+- 像素图标 OverworldArt（18 个，生成器 gen_art.py）；运行时 / 工坊 / 网页同一套；Resources/OverworldArt 同名覆盖 + OverworldArtImporter 点采样 + 菜单导出模板。
+- 调参 v21（8 个字段）。新测试 4 项。没做：房间贴图重画、山图标、洪水扣血。详见 docs/step1/S220_HEARTS_STORMZONES_CLOUD_NOLAG.md。
+
+### [S219] 用户："大炮是否能操作调整方向在角色不管是马里奥还是捣蛋者按键进入大炮后在发射前可以给出方向并标识出落点 是否还可以加入山脉地形 躲在山丘暗中不止陷进 或者山洞里 基于这些设想更新优化关卡所有关联联动……天气系统可以根据游戏目前的格局进行综合考虑添加 召唤闪电 或者酸雨 如果有山脉可能会触发泥石流山洪等灾害"
+
+- 纯逻辑 `OverworldProps`：DefaultAim / AimStep / AimLanding / AimOk、StepsField、Height、CaveExit、MudDir / MudLane / Muddable / MudSources、CheckMountains、DescribeMountains；`OverworldEvents`：Kind 加 Storm / Acid，Pool(map)（路灯 → 雷雨、≥2 山洞 → 酸雨），Wet，酸雨 ApplyTo 高草 → 草。网页 overworld.js 逐行移植，verify 生成 ow_mtn.json 对照 99 行。
+- `OverworldMap.LineOfSight`：中间格子比两个人都高 → 挡（山丘）；山丘走路 0.75；门口掩护也算山丘 / 山洞。巨炮没有靶心降为黄色提醒（能自己瞄）。
+- `OverworldTown`：Seat（你坐炮：aim 方向键、L 发射、E 下来、6 秒自动）、Ride（马里奥 PlanRide 每站一次 BFS，省 ≥10 格才坐、MarioWary 有 K 不坐；1.6 秒瞄准；TryTamper 拨歪 → 落地晕）、TryCave、闪电 FireLightning（路灯，仅雷雨）、泥石流 FireMud（湿天冲击 / 水塔淹到）、坐炮时 figureLooksLikeProp、转炮管 = figureMoving；Session.CannonAim 记住瞄准。
+- 画面：AimVisuals（绿 / 红圈 + 虚线弧 + 炮管转向）、山 / 山丘 / 洞口造型、闪电白光 + 闪屏、雨 / 雷雨 / 酸雨色调、坐炮时的按键条和瞄准读数。
+- 编辑器 + 网页：样板"星露山镇"、关系线加 瞄准方向 / 山洞配对 / 泥石流 / 路灯闪电；测试中心体检含星露山镇。
+- 调参 v20（5 个字段）。没做：山崩堵路、随机劈人、酸雨扣血、长按转炮、真物理。详见 docs/step1/S219_AIM_CANNON_MOUNTAINS_STORMS.md。
+
+### [S218] 用户："现在我想做大地图和房间内的关卡 我希望地图不是框选只有这么大 可以根据我的想法进行拓宽 但是方便我进行箱庭等思路设计 对于我新创建的道具和机关留足空间 同时大地图还有关卡内部的联动以及内部自身的联动都能有足够的联通……大炮 我希望可以比室内关卡做更加夸张变体适配 同时考虑更适合大地图的陷进机制增加 包括随机性确保涌现……必须参考足够多的gdc也好 github也好的成功失败经验规范进行制作 并且质疑的角度尊重第一性原理的"
+
+- 反馈包：体检 0 提醒、样板全可玩；没有 F8 截图、没写文字 → 本次按需求做新功能，没有 bug 要修。
+- 纯逻辑 `OverworldProps`（巨炮 Aim/MuzzleCells/Landing、滚石 Lane/PushDir、水塔 Flood、ChainTargets、CheckCounts/CheckReach、Describe、LongestChain）+ `OverworldEvents`（FNV+xorshift 天气，第 1 天晴，赶集日 ApplyTo）；网页 owProps*/owDayOf 逐行移植，verify 逐字对照 35 行。
+- `OverworldTown`：自己复制一份地图（套上 Session.Changed + 赶集日）；L = 最近的香蕉皮或大机关；Arm → fuse 1.2s → Fire（巨炮轰飞炮口里的人 + 炮弹飞行 0.9s，滚石 9 格/秒撞碎 c f，水塔淹 g）→ Impact 连锁（depth+1）+ 震活香蕉皮；Noise → percept.heardNoise（H2 只加 35）；DodgeCell（MarioWary + 看得见才躲，≤4 步）；Reload（Session.ReloadDoor）；雾天 Sight×0.6。
+- 联动：`OverworldSession` Day/Changed/MarioWary/CarriedDaze/ReloadDoor；`OverworldRoomLink` → `MarioMindDriver.AddStartDelay`（+字幕）。R = 第 N+1 天。
+- 画面：OverworldGame 大机关造型、预警脉冲 + 危险格闪红、滚石旋转、炮弹 / 人抛物线、冲击环 + 震屏、地面贴图即时改、天气公告 + 右上天气图标。
+- 编辑器：小镇工坊 样板 ▾（星露大镇）、⚡ 关系线、⚡ 大机关·连锁（点击定位）、🌦 天气 7 天预览、悬停门弹出房间缩略图；网页同款（owLinks / owProps / owWeather / owPeek）；测试中心体检含星露大镇。
+- 调参 v19（9 个 overworldBig*/Noise/Daze/Fog/Dodge 字段，默认块放在 UpgradeData 最后）；BuilderVersion 不变（房间结构未变）。
+- 没做：牛群 / 停电 / 钟楼（会撑破"一张表读懂"）；无真实物理；无隐藏保底随机。详见 docs/step1/S218_BIG_TOWN_PRANKS.md。
+
+### [S217] 用户："大地图编辑器存在问题 一个是不能往大世界拓展 还有就是运行的时候画面固定不动 不能控制马里奥捣蛋者 优化后我现在需要快速测试完整项目情况然后给出完整的新增修改意见 我的诉求是不能对我的完整测试构成很多反复操作的阻碍造成测试失败无法反馈升级……确保网页编辑关卡和unity内清晰易懂明确方便"
+
+- 根因（画面不动）：小镇说明面板只有 H 能关，开着时整个小镇停；键盘焦点留在工坊窗口；Step1Screen"任意键开始"/结算 R N/Esc/F5 只读旧 Input；timeScale 可能留 0；06:00–08:00 马里奥在家不动无提示。
+- 修：`Step1Keys.AnyDown` + 补 R N Y Space 方向键 F5 F8 F9 - =；OverworldGame 任意键关说明、unscaled dt、timeScale=1、地面单贴图、头顶名字、按键条、等出门提示、无焦点提示、`-`/`=` 镜头；`PlayFocus`（进 Play 切 Game 窗口）；SceneTransit 20 秒保险丝；KeyboardInputProvider 全局键走 Step1Keys。
+- 大世界：`OverworldMap.Resize`（往哪边扩拆哪边围栏、外圈封树、批注平移、lost 计数）+ 网页 `owResize`；MaxW/MaxH 96×64 → 192×128；小镇工坊"↔ 扩展"菜单 + 只画可见格 + ⤢；网页"↔ 扩展地图…" + 尺寸显示 + ⤢。
+- 测试：`TestHubWindow`（Ctrl+Alt+T；一键体检写 PlaytestLogs/HealthCheck.md、快速测试模式 `Step1QuickTest`、试玩入口、打包反馈 `TinyZip`）；`Step1Feedback`（F8 截图 + 情况、自动记 Error/Exception，PlaytestLogs/Feedback/）。
+- 没做：不改玩法数值/AI/机关；不做无缝多区域。版本号不变（无新调参、房间场景结构不变）。详见 docs/step1/S217_WORLD_AND_TEST_FLOW.md。
+
+### [S216] 用户："检查目前项目的机关机制还有技能道具特殊场景和角色是否合理的视觉效果 比如弹跳跳跃是否合理 等 大炮击中人的效果等等 还有人物收到伤害是否合理 整体考虑全部检查一遍 然后参考行业优秀做法……陷进联动视觉效果和联动效果也是合理符合视觉效果 不会让人觉得生硬突兀不自然"
+
+- 根本 bug：MarioController/TricksterController 硬直期只在 vy≤0 加重力 → 被弹飞匀速上飘（弹簧 9–11 格、炸弹横推 8 格、人肉炮 17 格）。改为 `Step1Feel.StunStep` 全程重力（launchGravity 40）+ 空中阻力 + 落地摩擦；`ApplyKnockbackStun(dur, untilLanded, slide)`，被弹上天落地才恢复（最多多等 1.5 秒）。
+- 画面：`Step1Fx`（纯画面，H4 马里奥不读，上限 90）；弹簧压弹回弹、炮口火光后坐、炮弹碎裂、爆炸冲击环=半径、受伤红白闪+星星+小跳、铁笼加速落、绳套缓动吊、裂地碎块、绊线崩断、连锁火花导火线、预警加速+平滑抖、震屏平滑噪声（Eiserloh）。
+- 调参 v18（放在 UpgradeData 最后，覆盖旧块的 springLaunchSpeed=15）；BuilderVersion 20。
+- 没做：不改判定/伤害/预警时长/AI；不加插件。详见 docs/step1/S216_GAME_FEEL.md。
+
+### [S215] 用户："因为涉及到关卡切换 以及整体资源调配道具机关 目前项目对全局把握或者方便设计的全局功能是否足够是否需要增加或者做减法"
+
+- 审计：缺"按马里奥顺序看一整天"的总览；真 bug：小镇房间最多 3+3=6 颗炸弹但只按 3 颗加固（地下监狱·四层 6 颗可困死）；菜单 42 项、小镇工坊两个入口。
+- 加：`Overworld/CampaignLedger`（C# + 网页 owLedger 逐字一致）→ 小镇工坊 / 网页大地图"📋 一天总览"；`Step1PrankRoomBuilder.ExtraBombs`（BuilderVersion 19）。
+- 减：14 项旧工具移到 `MarioTrickster/旧工具 (Legacy)/`（只搬不删）；删重复菜单；"🏠 关卡工坊"按钮改直接调用。
+- 没做：新总控台窗口、改样板小镇内容（只提醒：门 1 一次 8 种新机关、门 3/4 主角都是塌桥）。详见 docs/step1/S215_GLOBAL_LEDGER.md。
+
+### [S214] 用户："继续从第一性原理出发……确保网页编辑和unity内部编辑同步流畅性 包括方便关卡切换制作的按钮或者别的更好的方案 进行质疑自我迭代 但不要把优秀的改成落后的……"
+
+- 第一性原理：制作人从"有个点子"到"在游戏里玩到它"要几步？改之前：网页 导出 → 下载 → Unity 关卡库 ▾ → 导入 → 选文件 → 打开 → ▶（7 步、每次都要）；Unity 改了想回网页看 → 导出 .txt → 网页导入（又 4 步）。这是最大的摩擦，其他都是小事。
+- 调研：LDtk to Unity（https://github.com/Cammin/LDtkToUnity ）"外部编辑器一保存 Unity 自动重新导入"；Chrome File System Access API（https://developer.chrome.com/docs/capabilities/web-apis/file-system-access ）网页可在用户授权后直接读写本地文件夹、句柄存 IndexedDB 下次一键重连；GDC 2017 Robin-Yann Storm "Improving Tool Design Through Editor Triage"（https://www.youtube.com/watch?v=VRm3d0TqMq4 ）：先砍迭代回路上的步数。
+- 做了：
+  - Unity `Editor/WebSync.cs`（AssetPostprocessor）：Assets/Levels/Inbox/*.json|.txt 一出现就走原来的 LevelLibrary.ImportPack / OverworldBuilder.Import（同一条路），收完删掉；Play 中先不导；`Imported` 事件让打开着的关卡工坊/小镇工坊自动换成新版本（Ctrl+Z / ↶ 可退）；`mariotrickster-play` 文件 = 网页"▶ 在 Unity 试玩"（关卡 → 第 1 步房间开玩；小镇 → BuildAll 开玩）。
+  - 备份：LevelLibrary.Save / OverworldBuilder.Save 覆盖前把旧内容存到 Library/MarioTricksterHistory（不进 git），每名留 10 份；菜单 MarioTrickster/网页同步/。
+  - `LevelWorkshopModel.SameGrid / CarryPending`：Unity 存回关卡库时保留网页画的新机制（# Pending），那一格被画了别的才丢。
+  - 关卡工坊：◀ 当前关名 ▶（PageUp/PageDown，切走前自动存）、Ctrl+S 同名直接存（不弹窗）、libraryName 改 SerializeField（重新编译不丢）。小镇工坊：◀ ▶ / PageUp PageDown 切小镇、"🤖 模拟玩家玩一天"（S213 机器人跑你画的小镇，给出 ⚠ 建议）。
+  - 网页：顶栏"🔗 连接 Unity 项目"（选 MarioTrickster 那一层；Chrome/Edge）、"▶ 在 Unity 试玩"；改动停笔 1.2 秒写 Inbox（只写变了的）；窗口回到前台时读 Library/*.txt、Overworld/*.txt。冲突规则：第一次连接不一样 → 以 Unity 项目（进 git）为准、网页那份留"（网页旧版）"副本；连上后两边都改 → 留网页版本（Unity 覆盖前已备份）；网页删掉的不从 Unity 复活。PageUp/PageDown 切关卡/小镇。不支持文件夹的浏览器：导出的关卡包拖进 Inbox 同样自动导入。
+- 没做（避免矫枉过正）：没装 LDtk / Tiled 插件（我们的 ASCII 格式 + 网页已经覆盖，换格式会丢掉现有检查/模拟）；没做本地 WebSocket 服务器（要常驻进程、要防火墙，文件夹同步已够）；没改已有导入/导出按钮（离线/换电脑时仍然有用）。
+- 验证：sim S214 往返（网页关卡包含新机制字符 → Unity .txt → 网页 syLevelFromTxt 读回一模一样；Unity 再存不丢新机制；那格被画了别的才丢）；node 模拟文件夹跑同步流程（首次连接、只推变了的、Unity 改后拉回、不重复写）；测试 +2。未验证：真实 Chrome 授权流程、Unity 前台刷新时机。
+
+### [S213] 用户："自我审视目前项目进行优化升级以玩家视角进行模拟迭代"
+
+- 做法：把 OverworldGame 的规则整段搬进纯逻辑 `Overworld/OverworldTown`（游戏和 sim 跑同一份代码；提示用 Note 枚举，文字在驱动层翻）。`Overworld/OverworldBots`：Follower（跟箭头、站门口狂按 E）/ Hider（到门口 P 伪装等）/ Slow（出门愣 1.5 秒）/ Greedy（先捡道具箱）/ Prankster / Idle / Chaos（乱按），只用玩家看得见的信息；房间战斗不模拟（进门记"守住"占位）。
+- 模拟前发现：① 直奔门口按 E 任何时候都算埋伏 → 躲/伪装/香蕉皮全都没用（每种玩家 4/4 全胜）；② 反应慢的玩家 5 天被抓 21 次（出门那一刻两人同格，他面朝你）；③ 最后一扇门后还要干等他走回家（途中还会抓你）；④ 一天 ~120 秒，其中最长一次干等 26–33 秒。
+- 修：埋伏要他已出发且离门 ≤ `overworldAmbushSteps`=8 格（扫 3–10：≤6 时站着不躲一扇都埋伏不上，10 时不躲也全胜；8 = 不躲一半、会躲全胜），且他没在 '!'/'!!'/'?!'（Spotted）；门口提示"他还有 N 格"。出门清点 `overworldExitGraceSeconds`=2.5 秒（'…'，不看不听，面朝门）。最后一扇门有结果即结算。空格快进 ×4：只在他平静、你没被定身、他离埋伏范围还远时生效，屏幕上方显示。dataVersion 17。
+- 模拟后（每种 3 天）：Hider/Prankster 12/12 埋伏 0 被抓；Slow 12/12 被抓 1；站着不躲 6/12；贪道具 3/12 被抓 12（代价真实）；挂机一天会结束；乱按 100 天全部结束、最多被抓 2；会躲的玩家一天 120 秒 → 53 秒、最长干等 < 2 秒。进 verify（sim S213）+ 测试 +5。
+- 未验证：Unity 里的手感（8 格是否直观、快进观感）；房间内战斗未参与模拟。
+
+### [S212] 用户："装一个插件包可以接受装插件 我希望能平滑过渡 并且地图指引和关卡编辑网页和unity内都方便丝滑 参考github和reddit全网资料进行自我审计迭代"
+
+- 插件决定（用户选 B）：不装 mygamedevtools/scene-loader——4.1.2 起要 Unity 6，4.1.1 相比 S211 的淡出+异步加载提升很小，且 GameManager.RestartLevel 直接 SceneManager.LoadScene 会让它记错当前场景；只借它"盖住→加载→揭开"的流程。
+- 转场（SceneTransitPlan/SceneTransit）：smoothstep 缓入缓出；`Step(dt)` 动画阶段单帧封顶 1/30 秒（激活卡顿帧不再让淡入跳一截，等加载阶段仍按真实时间）；圆形 iris（从门口收拢 → `RevealAt` 在新场景的你身上展开，OnGUI 软边圆洞 + 四块黑）；声音跟着淡出淡入；黑屏里 `Resources.UnloadUnusedAssets`；多等一帧让镜头就位。
+- 自我审计修复：小镇镜头第一帧直接就位（以前从默认位置滑过来）、镜头跟随改成与帧率无关；town 用 `gameObject.scene.path`；房间里 F5 → `GameManager.RestartOverride` → OverworldRoomLink 平滑重开同一扇门（以前编辑器里 EditorRestartHandler 直接退出 Play，一天进度全丢；结果已记下后不许重开）。
+- 地图指引（纯逻辑 Overworld/OverworldGuide，进 sim）：EdgeArrow（屏幕边缘箭头，镜头后也画）、RaceTo（你几秒/他几秒 → 来得及/很紧/来不及/已进门，与检查里的 AmbushLead 一致）、MarioAt/Along（时间滑条）。小镇 HUD：赛跑提示条、门头倒计时、按住 Tab 面包屑、M 小地图、自绘三角箭头（默认字体不一定有 ➤）。
+- 小镇工坊：B/R/F/E/I 快捷键、Alt+点吸管、1–9 门、Ctrl+Z/Y 重做、Ctrl+S、F5 试玩、Ctrl+滚轮缩放、中键拖动、悬停格信息、矩形预览+尺寸、点问题定位闪烁、门行 ◎ 定位 / ✎ 在关卡工坊打开房间（`LevelWorkshopWindow.OpenRoom`）、⏱ 时间滑条、Ctrl+C/V 和网页互通、SessionState 草稿（重新编译不丢）。
+- 网页大地图页：同一套快捷键、吸管、重做、悬停、矩形预览、点问题定位、◎/✎（内置样板房间自动复制进关卡库）、时间滑条（owMarioAt 逐行移植）、Ctrl+C/V、文件拖进画布导入。
+- 测试 +4（OverworldTests），sim 加 S212（卡顿帧、边缘箭头、赛跑=提前量、时间滑条每分钟不在挡路格/不瞬移、与网页逐字一致）。未验证：Unity 里圆形转场观感、箭头/小地图位置、F5 平滑重开、工坊快捷键手感。
+
+### [S211] 用户："是否也对项目地图切换做了升级优化 参考github的优秀方案 我只要做好地图就能流畅切换载入地图"
+
+- 结论：S210 只用了同步 LoadScene（卡顿硬切、改房间要记得重建、按名字加载、旧场景残留）。参考 mygamedevtools/scene-loader（TransitionAsync）、Advanced Scene Manager（Loading Screen/Transitions）、vimsos/unity-scene-handling（异步+明确激活）、Eflatun.SceneReference（登记校验/路径引用）。
+- 纯逻辑 Overworld/SceneTransitPlan（淡出 0.25 → 黑屏 ≥0.35 且加载好才激活、最多等 10 秒 → 淡入 0.3；只激活一次；Busy 时拒绝新切换）。运行时 Overworld/Runtime/SceneTransit（DontDestroyOnLoad、LoadSceneAsync + allowSceneActivation=false、unscaled 计时、OnGUI 黑幕+标题卡）。OverworldGame/OverworldRoomLink 改用 SceneTransit.Go，切换中不吃按键；场景用完整路径。
+- OverworldBuilder [InitializeOnLoad]：TownFingerprint（小镇+每个房间哈希+BuilderVersion+主题）/IsStale；在 Town 场景按 ▶ 过期 → 停下、BuildAll（只重建变了的房间）、自动开始；删多余 Room_N；房间哈希含主题。小镇工坊显示场景状态。
+- 测试 +3，sim 加 S211 节奏检查。未验证：Unity 里黑幕观感、异步加载实际表现。
+
+### [S210] 用户："增加一种类似星露谷物语视角的关卡编辑；目前的关卡作为进入某个房间或地牢后的关卡；延续道具人物技能、需要新增的也做好；适配关卡编辑网页和 Unity 关卡编辑并有导入功能"
+
+- 调研：星露谷地图分层（Back/Buildings/Paths/Front/AlwaysFront，树冠在 Front 层会盖住走到它北边的人）+ Warp 门 + 一天 6:00–2:00；塞尔达 II（俯视大地图 + 横版区域）；潜行设计（视锥、掩体、警戒分级）。结论：大地图不做成第二套战斗，而是"抢时间 + 选埋伏点"的前奏——门里还是原来的横版房间，规则（H1–H10）不变。
+- 纯逻辑 Assets/Scripts/Overworld/：OverworldCatalog（15 种格子：草 . 路 = 房屋 W 树 t 水 w 栅栏 f 高草 " 木箱 c 泥 g 路灯 i 香蕉皮 n 道具箱 ? 门 1–9 家 M 出生 T）、OverworldMap（解析/导出/JSON、Dijkstra 寻路、视线、碰撞、日程 DaySchedule、检查 Check、AmbushLead）、OverworldWalker（真实身体 0.3 半径按路线走 + SimulateDay）、OverworldMind（和房间共用 SuspicionMeter：? → ! → !! → ?! → 回日程；追最多 8 秒；香蕉皮晕 1.5 秒）、OverworldSession（跨场景的一天）、OverworldPack（关卡包 overworlds + 内置样板"星露小镇"）。
+- 运行时：OverworldGame（运行时按文字生成小镇，y 排序、高草盖在人物上、视锥网格、夜晚 19:00 后视野 3.5 格、路灯 3 格内照亮、HUD 时钟/门状态/下一站；E 在门口：先到 = 埋伏 +1 炸弹，他进门后 6 秒内 = 迟到（他不等你），再晚 = 被偷）；OverworldRoomLink（房间结果写回、Enter/8 秒回小镇、迟到跳过开局等待、道具箱炸弹、起疑带进房间上限 '?'）。房间里不弹问卷、第二个房间起不再弹说明。
+- 编辑器：OverworldBuilder（菜单 MarioTrickster/Overworld/▶ Play Town：每扇门的房间先找关卡库同名、再找内置样板 → 各建一个场景加 OverworldRoomLink，按哈希缓存；小镇场景；登记 Build Settings）、OverworldWorkshopWindow（Ctrl+Alt+O；画笔/矩形/填充/橡皮、门时间+房间下拉、检查、马里奥的一天、红点路线、导入 .txt/.json 关卡包、导出）；关卡工坊工具条"🏘 小镇"；关卡库导入关卡包时小镇一起导入。Step1PrankRoomBuilder.RoomOverride。
+- 网页：新页"大地图"（overworld.js 逐行移植 C#；build.py 从 OverworldCatalog/OverworldPack/SampleRooms 生成数据；导出关卡包带 overworlds；导入小镇 .txt / 关卡包 / 大地图页下的 CSV 数字；夜晚视野预览；设计单附小镇）。verify 用 node 跑网页 owCheck（样板 + 拆桥反例）与 C# 逐字对照：一致。
+- 调参 dataVersion 15→16：overworld* 17 项（速度 3.4/5/追 4.6、4 分钟/秒、进屋 60 分钟、迟到窗 6 秒、视野 7/夜 3.5/55°、贴身 1.2、草 1.5、路灯 3、追 8 秒、滑倒 1.5 秒、香蕉皮距离 3、被抓定身 3 秒、挑衅 3 次）。
+- 测试 +10（OverworldTests）。沙盒：样板一天 18:51 到家、每扇门都能提前 22–25 秒埋伏，9 组速度/时钟组合都走完。未验证：Unity 里的场景切换、画面、手感。
+
+### [S209] 用户："捣蛋者为什么能跳到这粘在上面没落下来；马里奥到这里左右徘徊拿不到金币也去不了别的地方——通过这次测试发现的问题全方位优化升级"（截图：地下监狱·四层样板，最底层右端）
+
+- 根因 1（马里奥徘徊）：宝物 o(44,1) 在单向台面 --(42–43,2) **右边缘正下方**。AI 转向规则"离目标水平 ≤0.3 格就停"→ 他在台边对准了就停，身体（宽 0.8）还有一半在台上 → 掉不下去、原地抖；6 秒后卡住救援把他放到"最近的安全格"= 台面旁边 → 又走回来，循环。死局检查只看"理论上走得到"，所以没发现。
+- 修：`LevelPathPlanner.SteerX`（纯逻辑，游戏 AI 与沙盒共用）——目标在脚下更低处且站在地上 → 继续朝目标侧走下台边；空中不推。`Step1StuckRescue.RescueAlongRoute`：沿去目标的路线往前放（≥2 格、能到出口）。
+- 新检查 `LevelRouteFollower`（纯逻辑）：按 AI 真实走法（身体宽 0.8、同一条转向规则、同一套楼层路点）走 出生→宝物→出口。工坊完整检查加一条黄色提示；verify 跑 59 关（样板 5 + 监狱塔 30 + 向导 24）全部走完；旧规则复现卡住 31 关（包括地下监狱样板 + 所有监狱塔）→ 说明这是普遍问题，不只是这一关。
+- 根因 2（捣蛋者悬停）：① S198 的"贴墙不粘"判定放在方向键之前，随后方向键把朝墙速度又加回去 → 修复失效；② 伪装形态碰撞体 1.2 格、以中心放大 → 在墙边/地上变身会**长进墙里**，脚下检测把墙里方块的顶面当成地面 → 悬空。
+- 修：贴墙判定挪到 HandleDirection 之后；`DisguiseSystem.FeetAlignedOffsetY` 变大时脚底不动；`Core/BodyUnstick`（嵌进实心地形 → 每帧最多 0.5 格推出，单向台面/动态刚体不算）加到捣蛋者与马里奥的 FixedUpdate。
+- 测试 +4（SteerX / 59 关走一遍 + 旧规则复现 / 救援往前 / 推出墙 + 顺序）。不改游戏数值（dataVersion / BuilderVersion 不变，不用重建房间）。
+
+### [S208] 用户："S208 设计台升级：新建关卡向导（点子/主角机关/时长 → 起承转合 4 段框）、8 种模式一键摆放、节奏条、藏身处提示；先充分调研是不是最佳升级再开始"
+
+- 调研结论：方向对（空白画布是头号难题：Marinello GDC、Dreams/马里奥制造都用模板+起步教学）。调整两处：① 按 Morai Maker 研究（用户删掉 60% 的 AI 乱填内容、讨厌"随机"和"填掉故意留的空地"）→ 向导**确定性**、只在新建时铺一次、印章要人主动点，不自动往图里塞；② "藏身处提示"按本项目规则改名"转移点提示"（伪装着站着不动不会被怀疑，风险在走过去的路上），节奏去程+回程都算。
+- LevelDesign/LevelBlueprint.cs（纯逻辑）= 网页 logic.js 同规则：Patterns(8) / Stamp / Wizard(8 主角 × 20/30/40 秒 → 48/64/94 宽，确定性) / BeatBounds / Passes / Rhythm(紧张 ±1s，连续紧张 ≥8s / 连续没事 ≥10s 提醒) / CoverHints(5 格内无 b c U 1 2 / 隔墙)。
+- 网页：＋新关卡 = 向导弹窗（第一次打开自动弹）；印章工具 S + 左侧"模式印章"（悬停预览）；显示组加"起承转合""转移点提示"；右栏节奏条；关卡包存 beats、rules S208。
+- Unity 工坊：工具条"向导…""印章 ▾""起承转合"（分段 + 橙框 + 状态区节奏/转移点提示，复用策略模拟路线）。
+- verify.sh：node 生成 24 个向导关卡 → C# 逐字对照（网页≠Unity 0）+ 全部可玩 + 炸弹困不住；8 个印章单独盖章可玩。测试 +2。文档 docs/step1/S208_LEVEL_STARTER.md。
+
+### [S207] 用户："摆放的道具不能点击移动；吸管不明确；勾选框看不懂影响；关卡向前延伸能否像死亡细胞那样不局限在小框里（别破坏规则和连锁）；基于还没推送的 203–206 继续升级，完整交付"
+
+- 根因：AutoMode 只看高度，宽房间整屏缩成小框。新增 Step1CameraMode.SmartFollow（枚举末尾）+ 5 参 AutoMode（宽 >maxWholeRoomWidth 64 或高 >16 → bigRoomCamera）；SmartView/ClampToRoom/DeadZoneFollow 纯函数；C 键 4 种模式 + 提示。
+- Step1OffscreenMarkers（屏外红箭头 + ? ! !! ?!）、Step1MiniMap（右上角小地图）：玩家侧 HUD，H4 测试守住马里奥代码不读；自动检查/回放/帮助时不画。
+- StrategySim.RoundTimeLimit / HandsOffTimeout：构建时按路线秒数放宽（默认 20s → 150/70 不变）；HandsOffCheck.roomTimeoutSeconds。调参 dataVersion 15；BuilderVersion 18。
+- 128×48 上限保留：实测 186 宽模拟 31s 且加固失败 → 更长旅程以后做多房间连廊。
+- LongHallSample 94×15（一趟 ≈39s，可玩、加固通过）；工坊按钮 + build.py 名称。
+- 工坊/网页移动工具（SelectAt/MoveBlock/ClampMove/CopyBlock/PasteBlock/ClearBlock，网页 logic.js 同规则）；吸管回原工具 + 提示 + Ctrl+点击；"显示（只改画面）"分组 + 色块 + 说明；最坏情况横条且禁画；游戏一屏框（cameraPlan）；关卡包 rules S207。测试 +7。文档 docs/step1/S207_BIG_ROOMS_AND_MOVE_TOOL.md。
+
+### [S206] 用户："自己搭的图可能有上不去的格；搭建范围要界定清楚；搭很多关要能按名字保存、适配将来导入；新机制怎么确认新增、新增后怎么导入；给一个 S202 之后全部改动的完整 ZIP 和说明"
+
+- LevelDesign/MiniJson（极小 JSON 解析）+ LevelPack（Parse 关卡包/单关 studio.json，未登记字符 → '.' + pending 位置；ToText 元数据 # Name/Goal/Source/Note/Pending；NameOf/PendingOf/SafeFileName）。
+- Editor/LevelLibrary（Assets/Levels/Library/*.txt；ImportPack 报告 ✓/✗/⏳）+ LevelNameDialog（输入框）；工坊"关卡库 ▾"菜单；LevelStudioDocument 元数据白名单加 Name/Goal/Note/Pending/Source。
+- LevelWorkshopModel.BoundsIssues（12–128×6–48、外圈实心）接入 Check。
+- 网页：多关卡库（v2 存储、旧版迁移）、导出/导入关卡包（同名覆盖）、搭建范围提示、提案状态、设计单含全部关卡与状态排序；node/jsdom 验证 + C# 解析网页真实导出的关卡包。测试 +2。
+- 完整包：S202 之后全部改动（S203–S206）一个 ZIP。
+
+### [S205] 用户："人物能否跳上去设计时能辅助么；有什么好用的外部工具（Excalidraw、GitHub 工具），要最方便、能导入、换账号也能适配"
+
+- logic.js：jumpReach（LevelPathPlanner 保守一步 = AI 能走 / L2 一步 = 物理临界）、unreachableStands（塌桥等打开后也去不了的站位）、parseForeign（studio/Tiled JSON/LDtk .ldtk/数字 CSV/ASCII）、numbersToAscii + defaultMap（按 LDtk 值名猜）、imageToAscii（最近色）。build.py 让同色元素（K/k）错开。node：四样板 unreach=0、像素图往返 0 差异；jsdom 冒烟无报错。
+- 外部工具建议：LDtk（IntGrid + 超简导出 CSV）、Tiled（JSON/CSV，层格式选 CSV）、Piskel/Aseprite/画图（像素图）；Excalidraw 适合画楼层关系草图（发图给 AI 看，不能直接导入网格）。
+
+### [S204] 用户："在网站上设计关卡、构思新机制/删减旧东西，规划清楚后再来提完整关卡意见更新"
+
+- tools/LevelStudioWeb：shell.html（样式/结构）+ logic.js（移植 PlacementIssues / L2 可达 + 反向 BFS 死局 / 楼层寻路时间线）+ app.js（编辑器、提案、删改、设计单）+ build.py（从 C# 源码生成元素表与样板 → 单文件 index.html）。node 验证四样板与 Unity 一致、坑样板能报死局、加台阶后解除；jsdom 冒烟：提案→元素库→设计单无报错。
+- LevelWorkshopModel.GridFromStudioJson + 工坊导入 .json；测试 +1；接续包 check_string_asserts 跳过目录路径；新增分册 references/web-studio.md（收到设计单怎么处理）。
+
+### [S203] 用户："马里奥的不同性格（谨慎型绕开被坑过的地方，贪财型一定去抢道具）"
+
+- MarioPersonality（Roll 种子权重 / For 特质 / ShouldHop / DetourWaypoint）+ LevelDesign/DetourPlanner（AvoidCells 禁区、Detour 只认"换高度"的绕路）+ LevelPathPlanner.Path 带 avoid 重载。
+- RushMarioMind：Personality/Traits/ForcedPersonality/ShowingPersonality；WantsPickup（贪财跨层）；起疑 × suspicionScale；贪财放弃 5 秒。
+- MarioMindDriver：allRows 所有房间保留网格；谨慎型 DETOUR 路点 / HOP（HeuristicBot.JumpRequest）；贪财跨层 GRAB 走楼层寻路；速度 × Traits.speedScale；CycledPersonality 自动检查轮换；开局提示。
+- 头顶显示性格；HandsOff CSV/屏幕 + 试玩 CSV 加 personality；诱捕走廊高路。dataVersion 14；测试 +2。
+
+### [S202] 用户："连锁录像回放 + AI 充分优化 + 策略死局 + 策略模拟 + 调试关卡 AI 试探模拟升级"
+
+- ChainReplay：ShouldReplay/TrimIndex/Sample 纯逻辑；ChainPlan.PerfectChain 事件 + 超时结算；timeScale 0 播幽灵影子，Hitstop 让位；可跳过、冷却、H10 期间不播。
+- StrategySim（LevelDesign）：LevelPathPlanner.Moves/Settle 公开复用；贪心 beam 对手 FindBombTrap（承重格剪枝、油桶全炸变体）→ Reinforce 锁格；Analyze 给路线时间线/离路线机关/警告；Hash 指纹。构建器 MarkDestructibles(root, room, tuning) 写 Destructible.reinforcedCells（铆钉）。实测诱捕走廊/箱庭存在炸弹困人陷阱，加固后清零。
+- Step1TrapProbe + 菜单 Trap Probe；HandsOffCheck.ProbeMode、CSV mode/rescues/hurts、step1_track.txt（TrackText/ParseTrack）；工坊"策略模拟""检查轨迹"开关；Step1PrankRoomBuilderBridge 存房间文本。
+- AI：MarioPercept.dangerPos/dangerRadius/seesPickup/pickupPos（MarioEyes 同视锥）；RushMarioMind.DodgeTarget/WorthPickup/Dodging/GRAB 3 秒放弃；StuckRescue 躲闪/回放不计。
+- BuilderVersion 17；dataVersion 13；测试 +4；接续包 verify 体检加策略模拟（困人即失败）。
+
+### [S201] 用户："把项目原则等影响后续质量的做成接续包，下次新对话也能按功能选择使用"
+
+- 新增 `docs/AI_CONTINUE_PACK/`（同时以 `mariotrickster-continue.skill` 交付）：SKILL.md（开工三步、H1–H10 落地、11 条质量红线、工作循环、沟通方式）+ references（new-element / mario-ai / trickster-skill / level-design / bugfix / research / project-map / delivery）+ scripts（setup_sandbox.sh 从 NuGet 拉 Unity 2021.3.33 模块/UnityEditor 2020.2/NUnit 3.13.3 并生成 cc/cc2/sim 工程；verify.sh 四步；check_string_asserts.py；make_patch.sh 多补丁 + 幂等 bat + TREE IDENTICAL；sim/Check.cs 自动发现 *Sample）。
+- 在全新目录从零跑通：setup → verify（S199 与 S200 代码均全绿）→ make_patch（TREE IDENTICAL）。修复：nupkg 解压无读权限需 chmod。
+- AI_TAKEOVER_PROTOCOL.md 加 §1.5 指向接续包。
+
+### [S200] 用户："以身入局诱惑马里奥进入连锁陷阱，方便提前布置，调研后全方位升级，AI 跟上"
+
+- 调研：Deception IV（布置→引诱→陷阱接力；差评：时机难、Boss 透视）、CritPoints 分心工具（敲墙引诱、绊线、诱饵）。
+- ChainPlan（F / Shift+F）：Toggle/AutoOrder/ShouldFire/ShouldFireCannon 纯逻辑；L 触发编号机关或 Tripwire 启动；预判落点自动 OnTricksterActivate（保留预警）；LinkFired→MarioEyes.NotePropActivated，Clicked→NoteNoiseNear（代价）。
+- TauntAbility（T）：CanTaunt；MarioEyes.NoteTaunt → MarioPercept.heardTaunt → tauntSuspicion + Focus。
+- Tripwire 'R'：只对马里奥；绊 tripStunSeconds；启动连锁；计入连招（trip/cage/snare 也计入）。
+- 学习层：RushMarioMind.RememberHurt/NearHurtSpot/Cautious → 驱动层 cautiousSpeedScale；头顶"小心点"。
+- ComboRouteAnalyzer.IsChainPart（R/U）；LureSample 诱捕走廊；默认房间与箱庭加绊线。Registry 44；BuilderVersion 16；dataVersion 12；测试 98→100。
+
+### [S199] 用户："继续"（实现 S198 文档第 4 节前 5 项）
+
+- OilBarrel 'U'：实心；Ignite（FireTrap.IsFiring 火焰碰到 / 炮弹 / Blast 波及）→ oilFuseSeconds 后 TricksterBomb.Blast（统一爆炸规则，点燃范围内油桶 → 连锁，ChainTargets 纯逻辑）。
+- IronCage 'Q'：L 落下关正下方 3s（cageSeconds）自动放；可被炸开；头顶空 2 格摆放规则。
+- DecoyAbility（G，decoysPerRound 1，必须现形）+ Decoy：MarioEyes 用同一 CanSee 看诱饵；SeenThrough(≤ decoyRevealDistance 或透视) 识破并在该处起疑。
+- Step1HakoniwaEvents 警报：AlarmAt(seed, alarmChance, 25..70s)，持续 alarmSeconds；MarioPercept.alarm → 静止伪装按 alarmStillFactor 起疑。
+- MarioDoorKick：ShouldKick（错误一侧 + 目标在门后）→ doorKickSeconds 后 OneWayDoor.Open；门抖动。
+- Registry 43；BuilderVersion 15；调参 dataVersion 11。箱庭样板三层各一油桶挨着火、放风场一铁笼。测试 96→98。文档 docs/step1/S199_OIL_CAGE_DECOY_ALARM_KICK.md。
+
+### [S198] 用户：马里奥来回跳；炸弹要伤双方、要能破坏除机关/特殊地形外所有东西；红色是什么、为什么能粘墙；通风管左右；塌桥没反应；大炮调方向/弹数/马里奥也能钻/冷却 30s；猎人绳套；涌现/随机道具
+
+- 修复：Step1StuckRescue 改为"到目标距离 stuckSeconds 内未缩短 stuckProgressCells"判卡住（SecondsUntilStuck 纯逻辑）；MarioMindDriver 头顶楼层路点走 AuthoredRouteTarget（UseAuthoredSteering）；TricksterController 空中朝墙清水平速度（HitsWall）；CollapsingPlatform collapseWholeSpan（整桥联动）。
+- Destructible：构建器 MarkDestructibles 给 Ground_/Wall_/OneWayPlatform_ 挂上，外圈与 y=0 锁定；Blast 切段重建；RestoreAll 回合复原；SceneryProp.BlowUp/RestoreBlasted。炸弹：伤马里奥 bombDamageMario、伤自己 TricksterLives.HitBySelf(bombDamageSelf)。
+- PranksterCannon 重写：aimAngle + Nudge（伪装控制时方向键瞄准，Shift+方向 = 换目标）、炮管显示、人肉炮捣蛋者/马里奥都能用（MarioMayUse/WorthLaunching）、cannonLaunchCooldown 30、cannonLoadSeconds 0.6。
+- Vent：wallLeft/wallRight（构建器按网格判定），WantsEnter(down,left,right,wallL,wallR)。
+- SnareTrap 'Y'（10s，双方都中，L 上弦/放人，头顶空 2 格规则）；RandomPickups + PickupSpot '?'（每局亮 2 个，同箱给双方不同效果：炸弹/缩小/炮冷却/隐身 vs 时间静止/加速/护盾/透视）。Registry 41。
+- BuilderVersion 14；调参 dataVersion 10。测试 91→96。文档 docs/step1/S198_DESTRUCTION_CANNON_SNARE_PICKUPS.md。
+
+### [S197] 用户：H4 测试失败；马里奥卡住；阻挠者跳不上；试玩后工坊空白；想要图例；按 B 没反应；要炸弹×3、通风管、马里奥时间静止、阻挠者缩小；调研更多机关/毒池
+
+- 修复：测试只检查 MarioEyes.NoteNoise 段落（H4 真实含义）；Step1Keys 新旧输入都读（B/Z/M/Tab）；LevelWorkshopWindow 缓存全部 [NonSerialized] + 画布缓存空时重建；LevelPathPlanner JumpUpSide=2 + NextWaypoint(path, fromX) 先去起跳点；tricksterJumpPower 20（2.5 格）。
+- 删 WallSmashAbility，改 TricksterKit：B 炸弹（bombsPerRound 3、引信 1.5s、半径 1.6、晕 1s、现形才能放、爆炸声 hearingRange）；Z 缩小（2 次、5s、0.5 倍、1.25 速、不能伪装/触发/放炸弹、头顶不够不变回）。TricksterController：AbilitySpeedMultiplier / SetBodyScale / SetJumpPower；缩小时 L 被拒。
+- Vent 'O'（上→下左→右两两配对、↓ 进入、0.35s、冷却 3s、近处咣当声 NoteNoiseNear）；SlowTerrain 'w' 毒池（0.55 速、1.2s 晕 0.35s）/'g' 黏胶（0.45 速、跳 0.6）；摆放检查：毒池 ≤3 格、通风管成对。Registry 39。
+- MarioTimeStop：追人且看得见、7 格内（或刚挨坑）→ 预警 1s（蓝边 + 字幕）→ 冻结捣蛋者 2s；每回合 1 次、开局 15s 后、冷却 20s。MarioOrder.seesQuarry（H4：马里奥自己的感知）。
+- Step1MapLegend（M/Tab）：图例面板 + 场景标签。箱庭样板加 2 对通风管/毒池/黏胶。
+- BuilderVersion 13；调参 dataVersion 9。文档 docs/step1/S197_KIT_TERRAIN_FIXES.md。测试 86→91。
+
+### [S196] 用户：测试失败 + "监狱塔只是堆层数；想要艾尔登法环/黑暗之魂式箱庭；全部展现还是转场？要纵览视图、破坏墙体、随机涌现"
+
+- 修复：MechanismExplorationPlan.NotProbed 追加 JxN|%（显式不探测 + 原因），NewRegistryEntriesAreReportedAsUnsupportedNotSilentlyCounted 通过。
+- 调研：Level Design Book《Undead Burg》（主路 + 绕回支路、单向下落、捷径、可破坏物藏暗道）；PC Gamer / Team Cherry（真实空间、尽可能多的连接、预制房间随机拼接被放弃）。结论与设计见 docs/step1/S196_HAKONIWA_DESIGN.md。
+- 新元素：OneWayDoor '|'（开启侧=离出生点更远一侧，构建器用 HakoniwaAnalyzer.DoorOpensFromLeft 判定）、CrackedWall '%'（砸/炮弹/高速撞开）；Registry 36。死局 PersistentOpeners = "Cx|%"。
+- WallSmashAbility（B）：现形、每回合 2 次、冷却 6s、硬直 0.5s；CrackedWall.Smashed → MarioEyes.NoteNoise（14 格听力，隔墙可闻，走 sawRustle 通道）。Step1Hint 提示条。Step1HakoniwaEvents：每回合 35% 开局塌一面裂墙（种子复现）。
+- HakoniwaAnalyzer：楼层划分、身份、层间连接（楼梯口/台面/裂缝/裂墙/捷径门）、环路、路线步数与捷径省步数、建议。工坊"箱庭总览"开关 + 右侧面板 + 自动缩放；"样板：箱庭监狱"。
+- FloorStacker 重做：6 个主题楼层不重复、层间主楼梯口 + 另一侧裂墙/裂缝、左侧捷径竖井通顶层捷径门；物件避开保留列。2–11 层全部可玩、有环路、有省路捷径。
+- BuilderVersion 12；调参 dataVersion 8。测试 83→86。
+
+### [S195] 用户："暂时忽略连玩 20 局门槛，继续完成未完成的任务"
+
+- 取舍：宪法 §5 的"第 1 步退出条件"按用户明确指示暂时搁置；其余 H1–H10 硬约束不变。
+- LevelPathPlanner（纯逻辑）：网格 BFS（走/跳≤2/下落/单向台面穿过）；NextWaypoint = 第一次换高度的落点。MarioMindDriver 在 Running 状态且 NeedsPlanning（宝物/出口高差>2）时每 floorReplanSeconds 重算路点；其它状态（查看/追人）不改。构建器写 roomGrid。
+- FloorStacker：4 个手工楼层模板（层高 3，不放弹簧），楼梯口左右交替 + 正下方单向台面阶梯 + 洞口上方清空；宝物在底层远端、出口/出生点在顶层。2–11 层 × 10 种子全部通过 Check；寻路 110/110 成功，最坏 14ms。工坊"监狱塔…"菜单（含"上面加一层"）。
+- Step1RoomCamera.AutoMode：房间高 > maxWholeRoomHeight(16) → FrameBoth。Step1StuckRescue：开局预算 SafeCells + 剪枝（结果集合与旧算法逐格一致）。
+- BuilderVersion 11，调参 dataVersion 7 内新增 floorReplanSeconds / maxWholeRoomHeight。测试 81→83。
+
+### [S194] 用户："继续完成"（补完 S193 计划里剩下的两项）
+
+- 香蕉皮 n（BananaPeel，零代码扩展，Registry 34）：预警 0.4s，激活 1.2s 内踩上去朝前滑（速度 7 × 0.5s ≈ 3.5 格），失控 0.5s，计入连招（kind=slip）；数值在 RushMarioTuning。默认房间第二区 x=24 放一块。
+- ComboRouteAnalyzer（纯逻辑）+ 工坊"连招路线"开关：水平 ≤ comboRouteCells（默认 10）且高差 ≤3 的玩家机关连线，起手招 +3 格；连通组 = 一套连招；状态栏显示最长一套的机关数/种类数。默认房间：11 机关 29 条线、一套 7 种；两层监狱：一套 5 个 4 种。
+- 测试 79→81。
+
+### [S193] 用户："连锁不明显，没有格斗游戏连招的爽感；想加机制/陷阱/可破坏地形；背景可能是几层楼或地下一百层监狱"
+
+- 研究：hitstop/hitstun/juggle/递减（critpoints.net Stunning Detail）、连招长度/路线/多样性（bb010g Thoughts on combos）、Spelunky 可破坏地形、Hitman 分区与重玩。只借规则。
+- 连招手感（Step1ComboFeel 纯逻辑 + Step1Hitstop + Step1RoomCamera.Shake）：顿帧 0.05s 起每段 +0.03s 上限 0.16s；追加晕眩递减（×0.7/段）仍受 maxStunSeconds 上限；段位名与颜色；连招分（换招 +5、同招减半），CSV 新增 combo_score。H10 检查/帮助/暂停时不顿帧不震屏。
+- 新机关（零代码扩展，Registry +2 → 33）：J 弹簧板（预警 0.4s，把板上的马里奥弹高 ~5 格、空中 0.6s 不能动）；x 裂缝地板（预警 0.6s，整条相连裂缝一起碎、本回合不复原）。死局分析把 C 和 x 一起按"永久打开"做最坏情况。摆放检查：弹簧板上方至少空 4 格。
+- 恶作剧房间 v10：x=13 弹簧板；宝物前 x=39–41 裂缝地板 + 下方一格地下室（单向台面可跳回），所有随机组合通过死局检查。
+- 关卡工坊：工具条"样板：两层监狱"（地下拿宝 → 单向台面阶梯爬回地面，上层裂缝地板掉回下层）；测试保证可玩。
+- 文档 docs/step1/S193_COMBO_FEEL_AND_VERTICAL_ESCAPE.md：诊断、规则、候选机关池、角色能力、按宪法 §5 排期的纵向逃脱路线图（未实现部分明确标注）。
+- 测试 74→79。AI 不宣称"更好玩"，需第 3 层人类试玩判定。
+
+### [S192] 用户："编辑的时候很卡，拖动有延迟"
+
+- 实测根因（沙箱计时）：工坊每改一格就同步跑完整检查——32 个随机组合 × (L1 + 死局分析 ~115 次 BFS)，约 0.8–0.9 秒/格；另外每个格子每帧 new GUIStyle、每次鼠标移动都整窗重画。
+- 工坊：画的时候只跑 `LevelWorkshopModel.QuickCheck`（摆放规则，实测 0.17ms）；停笔 0.35 秒后由 `EditorApplication.update` 跑完整检查，期间显示"检查中"、试玩按钮暂不可点；完整检查按 `PhysicsSignature` 去重（草丛/火/装饰不影响物理，32→8 组），总耗时 ~0.35s 且只在停笔后跑一次。GUIStyle、格子颜色、字符串、网格行、最坏预览网格、调色板全部缓存；鼠标移动只在换格时重画；同一格重复拖动不重复记 Undo。
+- `LevelDeadlockAnalyzer`：严格成立的剪枝（B∈Reach(A) 且 A 到不了出口 ⇒ B 也到不了），落点计算复用同一份站位表。不改 L2 算法。
+- 游戏内每帧路径：`MarioSuspicionTracker.CanWitness` LinecastAll → 共享缓冲非分配 Linecast（判定与顺序无关，结果一致）；视锥 RaycastAll ×15/帧 → 非分配；`Step1Gui.Text` / 问卷按钮样式缓存（原每帧几十次 new GUIStyle）。
+- 测试 71→74（快速检查 <20ms、物理去重、每帧路径无分配 API）。
+
+### [S191] 用户："工坊有些白色看不清" + "换美术会不会反复调尺寸，能否融入原有适配"
+
+- 看不清根因：M/T 在 Registry 无 visualColor（默认白），工坊白底白字；亮黄/浅蓝底上白字对比度低。修：`ElementCatalog.EditorColor`（M 红、T 蓝，与场景一致）；`TextColorOn` 按 WCAG 对比度自动选黑/白字；元素名写在固定深色底上。测试保证所有元素字符对比度 ≥3。旧 Level Studio 画布同步。
+- 美术适配：原有 SpriteAutoFit（S32 视碰分离）只在地面/平台/墙换图时用；其它元素换图后按白盒 localScale 显示，非等比素材会变形，需要手调。修：`ElementCatalog.ArtFit`（平铺 Tile / 等比放入 Fit / 拉伸 Stretch / 无图），`AsciiLevelGenerator.ApplyTheme` 对每个元素调 `FitThemedSprite`：Tile→SpriteAutoFit.Tiled；Fit→新增 SpriteAutoFit.Contain（等比放入 Registry.visualScale 显示框，站地元素底边贴地）；Stretch→Scaled（显示框）。碰撞体不动。`AssetApplyToSelected` 冻结玩法盒分支对说明书元素走同一路径（`TryFitCatalogVisual`），角色保持原逻辑。
+- 修潜在 bug：SpriteAutoFit 的 `[RequireComponent(BoxCollider2D)]` 挂在 Visual 上会自动加多余碰撞体（草丛/大炮触发器变实心）。移除 Require（本来就读父级碰撞体），EnsureSpriteAutoFit 清理旧场景里 Visual 上的多余碰撞体。
+- `ArtReadinessCheck` 菜单：PPU=32、平铺类 Full Rect、等比类宽高比偏差 >35% 提示、空插槽列表。图例加"贴法 / 建议像素（PPU 32）"列。测试 67→71。
+
+### [S189] 用户：插槽测试红 + "封路把马里奥关住了怎么办" + 想要 Mario Maker 式方便搭建（详见 docs/LEVEL_WORKSHOP.md）
+
+- 修测试：LevelThemeProfile 补 ControllableBlocker / StateQueueTrap 插槽（S188 新测试发现的真实缺口）。
+- 被关住根因：塌桥"渐显"0.5 秒结束时直接打开碰撞体，没再查桥下；马里奥在渐显期间走进坑 → 被封。修：打开碰撞体前再查一次，有人退回已塌状态。另：默认房间坑深 1 格，静态上马里奥能自己出来（死局分析确认）。
+- `LevelReachabilityAnalyzer.ReachableFrom`（新 API，收集全部可达格；收集模式下额外做横向高墙阻挡判定，原 Analyze 行为不变，测试守护）。
+- `LevelDeadlockAnalyzer`（纯逻辑）：M→o→G 往返；塌桥塌掉（持续）后每个可能站位能否到出口 = 死局；封路墙升起（暂时）= 提示。构建器 Validate 纳入；32 变体 0 死局。
+- `Step1StuckRescue`：只在"赶路"状态判定（起疑/查看/找人不算），6 秒几乎不动 → 挪到最近"能到出口"的格，提示 + CSV `stuck_rescues`。H4：不读捣蛋者。
+- `LevelWorkshopWindow` + `LevelWorkshopModel`（Ctrl+Alt+W；S190 起，原 Ctrl+Shift+L 与 Unity Generate Lighting 冲突）：Mario Maker 式分类调色板（来自 ElementCatalog，第 1 步模式过滤）、画笔/矩形/橡皮/吸管、随机槽位 1/2/3、每次改动自动检查并在格子上标红黄、最坏情况预览、"作为第 1 步房间试玩"（Assets/Levels/Step1CustomRoom.txt，房间哈希变化自动重建）。LevelStudioDocument 接受槽位数字；宝物 o 画第二个 = 移动。
+- 调参数据 v6；构建器 v9；测试 56→66。
+
+### [S188] 用户：两个测试红 + "有些机关不知道是什么，自己摆容易摆错、影响换素材" + 做减法
+
+- S187 实测：H10 5/5（21.5–26.6s）；真人 1 局 31.4s，首次记到 Cannon 命中 1 次（Cannon:1 Escape:2，distinct 2），连招 1，被抓判"服气"，想再来 3。
+- 修测试：①`NewElementsAreRegisteredWithoutTouchingGeneratorCore` 把生成器文件头注释（字符表说明）当成代码 → 改为只查代码行（`CodeOnly`），并额外禁止 `SceneryProp`；②`SlowerMarioIsDataDrivenAndDefaultBotUnchanged` 断言写死了 S186 前的旧表达式 → 改为断言数据来源。另把全部 EditMode 源码断言与源码逐条比对（按测试方法分作用域）0 不符。
+- `ElementCatalog`（运行时程序集，纯数据）：每个字符的中英文名、角色、干什么、摆在哪、主题键、唯一/脚下实心/第 1 步可用/炮口方向；参考 LDtk 实体定义（https://ldtk.io/docs/general/editor-components/entities/）。测试保证与 Registry 一一对应、主题键 = elementName、所有非地形元素都有主题插槽。
+- `ElementCatalog.PlacementIssues`：脚下实心、唯一元素、炮口前 3 格留空、第 1 步禁用元素；`Step1PrankRoomBuilder.Validate` 调用（32 变体全过）。发现并修正宝物区炮口前第 3 格是随机箱子槽（x40→x39）。
+- `Step1ElementLabels`：游戏里按 V 显示每个元素中英文名（按物体名前缀 = 主题键查说明书，换图后仍正确）；Level Builder 调色板按钮悬停显示说明；`ElementLegendExporter` 菜单生成 `docs/ELEMENT_LEGEND.md`（已随包附一份）。
+- 减法：`StripUnusedLegacy` 构建时移除第 1 步不用的 GlobalGameUICanvas / SuspicionHUD / LootEscapeHUD / ResidueVisualHint / MarioSuspicionTracker（代码保留给其他场景；`CanWitness` 是静态方法仍可用）。
+- 构建器版本 8；测试 50→56。
+
+### [S187] 用户提新机制：大炮 + 场景摆件 + 随机涌现 + 主题底子（详见 docs/step1/S187_CANNON_SCENERY_RANDOM_THEME.md）
+
+- 大炮 `PranksterCannon`（K 右 / k 左，k 由 `CannonFacesLeft` 数据标记实现，零代码）：伪装按 L 开炮（每回合 `cannonShotsPerRound`=1），炮弹 `CannonBall` 命中马里奥扣 1 血 + 击退，走原受伤流程（晕、连招）；打完后不伪装站进炮口 → 0.35s 装填 → 40° 发射自己（`TricksterController.Launch` 复用击退 stun 通道）。`ControllablePropBase.ExtraControlCondition()` 新增虚方法（默认 true，旧行为不变）。
+- 场景摆件 `SceneryProp`：c 箱子（实心）/ b 草丛（触发器 + `SightBlocker` + `RustleOnPass`）/ d 装饰。`MarioSuspicionTracker.CanWitness` 与视锥显示遵守 `SightBlocker`（只会让马里奥看得更少，H4 安全方向；观察者在同一丛内不挡）。Level Builder 新增一行调色板；主题新增 Cannon/Crate/Bush/Decor 插槽。
+- 受控随机：`Step1Layout`（纯逻辑，槽位 1/2/3）+ `Step1LayoutVariants`（运行时每回合按种子激活候选，与测试共用 `Step1Layout.Pick`）；构建器 `ValidateAllVariants` 对全部 32 组合跑 L1/L2（沙箱实跑 0 错误全可达）。草丛起风 7–16s 随机晃（与人晃外观一致），马里奥看见晃动加起疑 `rustleSuspicion`=40；赶路回头看、每回合速度 ±8%，种子写 CSV `layout_seed`。
+- `ThemePresets`：Whitebox/AmusementPark/CityPark/MountainPark，只生成配色主题交给 `AsciiLevelGenerator.ApplyTheme`，Sprite 空插槽保留白盒；调参 `themePreset`（默认游乐园），换主题自动重建场景。
+- `MechanismExplorationPlan.NotProbed = "cbdKk"`：显式说明不进自动探针目录的原因（摆件无激活行为；大炮第 1 步专属，扩目录会改变全部既有探针种子）。
+- 调参数据版本 5；构建器版本 7；测试 41→50。沙箱：全部运行时 + Editor + EditMode 测试编译通过；布局/验证逻辑实跑通过。未经 Unity 实跑。
+
+### [S186] S184 实测 → 追逐更难甩（仍可逃）
+
+- S184 数据（只 2 局）：H10 5/5（22 秒/局）；真人 2 局马里奥胜 26–28 秒；"算准了"2/2、**"差点被发现"2/2（此前 0/5，首次出现）**；想再来 3/3；备注"从他身上跳过去脱离追捕了，很容易逃脱"。
+- 根因：追逐只追"最后所见位置"，捣蛋者从头顶跳到身后→出视锥→马里奥走到旧点就放弃；追逐速度同巡逻 0.55×9≈5 格/秒，捣蛋者 8 格/秒。
+- 改动：MarioEyes 在 CanSee 之后由两帧所见位置算 `figureVelocity`（H4 合规，不读真值）；跟丢时追 `lastSeen + lastSeenVelocity × min(跟丢时长, chasePredictSeconds=0.8)`（只推水平）；追逐时 `chaseSpeedScale`=0.8（≈7.2 格/秒，仍慢于 8，能甩但要跑）。数据版本 4，测试 39→41。
+
+### [S185] S183 实测 → 连招 + 反制更顺（S184 大房间尚未实测）
+
+- S183 数据：H10 5/5（15.6 秒/局）；真人 5 局马里奥全胜 15.6–25.9 秒，"算准了" 5/5 有、"差点被发现" 0/5、想再来 2–3、被抓 1 局判"服气"；pranks 列仅 Escape（火/墙从未记为命中）；备注"会跳跃但不太自然"。用户口述：希望陷阱能连招；单个陷阱反制马里奥不丝滑。
+- 根因（代码层）：Bot 在机关预警期每帧重掷 `DecisionValue`（前冲/后退）→ 前后抖；遇坑/障碍也走 `reactionDelay` 刹车 → 跳前顿一下；被烧后眩晕只让心智给"原地"目标，Bot 仍会跳/躲。
+- 改动（全部 opt-in，Bot 默认值保持旧行为）：`TrapCommitDistance`（每次预警只决定一次：近则冲、远则停，不后退）、`SkipReactionDelayForTerrain`、`HoldStill`（眩晕真站住）。
+- `Step1Combo`：坑到 = 被烧 / 被机关挡停 / 掉坑；4 秒内连续 = 连招，被烧时额外晕 0.6×(连招-1)，上限 3 秒；头顶弹"连招 x2!"；CSV 加 `max_combo`。伪装融入 1.5→0.8 秒（调参数据）。H4：连招层不读捣蛋者。
+- 调参 dataVersion 3；构建器版本 6；测试 35→39。
+
+### [S184] 用户问"地图太小、博弈空间不够？"→ 扩房间 + 遮挡
+
+- 评估：旧房间出口→宝物仅 28 格，马里奥原速约 3 秒跑完；整间房只有 3 个悬空单向台面，无任何挡视线的东西（单向台面按 H4 规则不挡视线），玩家无处可藏，被看见只能靠伪装。对照宪法 P3（放松/警惕/戒备区交替）、支柱 3（观察→布局→触发）和讨论稿 M22（安全点间隔 2–4 秒）。
+- 新房间 48×12：x16/x31 两道高墙只在地面留门洞（门洞=封路墙，关门截断整条路）；高墙分三区并挡视线；站立层两个 1 格箱子（x12、x40）挡低处视线；中区崩塌桥 + 坑；三把火分布三区。出口→宝物 42 格，按 0.55 速度单程约 8 秒。
+- 沙箱用项目自带 LevelStudioDocument / AsciiLevelValidator / LevelReachabilityAnalyzer 实跑（假 UnityEngine 壳）：L1 0 错误、L2 可达。
+- 标牌位置从模板 G/o 计算，不再写死坐标。H10 超时 45→70 秒（dataVersion 2）。测试 33→35。构建器版本 5。
+
+### [S183] 首轮真人试玩校准（第 3 层数据驱动，只改数据与两处机关开关）
+
+- 用户数据（5 局真人 + H10 5/5）：马里奥 5 局全胜、每局 9–16 秒；"算准了"4/5 有，"差点被发现"1/5；想再来 2/5；备注"移动太快来不及操作""机关触发了也不能阻止马里奥"；截图：马里奥被重生的崩塌桥封在坑里（违反 H9）。
+- 修 H9：`CollapsingPlatform.waitForClearBelow`（默认 false，其他场景不变）——桥下有马里奥/捣蛋者时推迟重生；`collapseOnStep`（默认 true）第 1 步设 false：桥只由玩家按 L 触发。
+- 调参（全部在 `RushMarioTuning` 数据，`dataVersion` 升级一次、不覆盖之后手调）：`marioSpeedScale` 0.55（Bot 横向输入倍率，Bot 默认 1 不影响其他场景）、`startDelaySeconds` 2→4（界面显示倒计时）、`seeTricksterPerSecond` 150→90（给躲藏反应时间）、`hurtStunSeconds` 1.2（被坑原地晕）、`blockerActiveSeconds` 3.5。
+- H7 注记：物理参数未改（只缩放 Bot 输入），跳跃高度不变；房间路线无需跨越间隙，BFS 可达性测试仍覆盖。需用户重跑 H10 确认 ≥95%。
+- 测试 27→33。构建器版本 4（旧场景自动重建）。
+
+### [S182] 用户反馈"信息太多、看不懂结算"→ 清爽中英界面（纯表现，不改玩法/数值）
+
+- 用户 S181 实测：H10 画面叠了 8 块文字（旧 HUD 热度/补偿、旧结算横幅 "Route cleared…"、拿宝提示、伪装调试行等），结算看不懂；只看到"一个人跑去拿金币又折返"。CSV 记录到第 1 局：被抓 2 次、答"看不懂他"。
+- `Step1Screen`：第 1 步房间隐藏 GlobalGameUICanvas / LootEscapeHUD / SuspicionHUD / 伪装调试行 / [Q] Scan 字样（新增 `showDebugStatus`、`showScanHints` 开关，默认 true 不影响其他场景）；捣蛋者头顶"你 YOU"；开局帮助页（中英、暂停、任意键开始，H 随时开），Esc 暂停提示。
+- `Step1Text`：所有可见文字中英对照集中一处；`Classify` 把 GameManager 原因翻成玩家结局（马里奥逃走 / 你被抓满 3 次 / 时间到你赢 / 马里奥被打倒你赢 / 卡住）。
+- `Step1PlaytestLog`：左上 3 行（命、时间、马里奥在干嘛）+ 底部 1 行按键；结算一次一个问题、可点按钮也可按键，答完才显示 N/R。
+- `Step1HandsOffCheck`：每局超时 `autoCheckRoundTimeoutSeconds`=45s 记"卡住"（以前卡住要等 150s），逐局 ✓通关/✗卡住+位置，最后合格/不合格。
+- `Step1Gui`：OS 中文字体（雅黑/黑体/苹方/Noto）+ 1080p 虚拟画布缩放。构建器版本 3（旧场景自动重建）。测试 22→27。
+
+### [S181] 第 1 步试玩工具（不改马里奥决策，不改数值）
+
+- 用户 S180 实测：`WallBlocksSightButOneWayPlatformDoesNot` 失败。根因：EditMode 测试跑在已打开的 Step1 场景里，房间墙在 x=0 挡住了原点处的测试视线。修测试夹具（远坐标 + 先断言空区），不改视线逻辑。
+- `Step1RoomReset`：每回合 `LevelElementRegistry.ResetAll()`（修：按 N 后上一局火焰 `tricksterOverride` 残留一直烧）；记录构建器版本，`▶ Play Prank Room` 发现旧场景自动重建。
+- `Step1HandsOffCheck` + 菜单 `Hands-off Check (H10)`：捣蛋者退场，自动连跑 `autoCheckRounds` 局，屏显 + `PlaytestLogs/step1_handsoff.csv`。只观察，源码测试禁止引用马里奥决策。
+- `Step1RoundSurvey`：宪法第 3 层每局问卷（算准了/差点被发现/被抓服气+原因标签/想再来/一句话）→ `PlaytestLogs/step1_rounds.csv`；`GameManager.BlockRoundOverKeys` 答完前屏蔽 R/N。
+- 调参新增 `autoCheckRounds/autoCheckTimeScale/autoCheckRoundGapSeconds`（数据文件，非字面常量）。
+
+### [S180] 第 1 步：恶作剧房间
+
+- 新增 `Assets/Scripts/Gameplay/Step1/`：`MarioMindTuningSO`（全部调参）、`SuspicionMeter`（H2：'?' ≥0.4 秒才可 '!'）、`RushMarioMind`（纯逻辑状态机，只吃 `MarioPercept`）、`MarioVision`/`MarioEyes`（H4：先 CanSee 再看外观，不读附身/伪装内部状态）、`MarioMindDriver`（接 HeuristicBot 移动；关闭 Bot 自带扫描，扫描只在 '!' 后发出）、`TricksterLives`（裁判：3 命/重生无敌）、`Step1RoomCamera`（整屏/同框/跟自己）、`MarioMindLabel`、`MarioVisionConeView`、`Step1PlaytestLog`（归因 + 1–5 评分 → `PlaytestLogs/` CSV，已 gitignore）。
+- `MarioSuspicionTracker.CanWitness`：单向台面不再挡视线（新增 `IsOneWayPlatform`）。
+- 房间：无地刺/摆锤/弹跳；火焰 coolOff=100000（平时安全，只有捣蛋者触发才喷）；崩塌桥旁留单向台面防止坑内封死。
+- 已知限制：马里奥追上台子依赖旧 Bot 跳跃启发式；被抓为直接传送。
+
+### [S179] 方向转向 + 设计宪法 + 第 0 步
+
+- 用户校准：开发期=用户本人 vs AI；单人挑战为主（玩家=捣蛋者，AI=马里奥），1v1 同屏暂缓；被识破→追逐；3 条命；阻止拿宝撤离即过关，恶作剧/连击计分。
+- H4 审计：马里奥决策代码本身不读附身真值；污染来自 `MarioSuspicionTracker`（附身无条件+10、隔墙出手+25/证据）及补偿/重复惩罚。已加目击门禁 `CanWitness`/`IsWitnessedByMario`，`requireMarioWitness=false` 可复原旧行为对照。残留照常生成（世界可见痕迹）。
+- 未做：视野扇形（第 1 步随性格做）；`HasNearbyAnchor` 读 `CanBePossessed`（低危，第 1 步换成视线）。
+- 第 0 步关闭：RouteBudgetService、InterferenceCompensationPolicy、RepeatInterferenceStack、CounterRevealReward、PropComboTracker、TricksterHeatMeter、HeatBreachHint、HeatSuspicionBridge、AlarmCrisisDirector。所有消费者已确认有 null 保护。
+
+### [S178] 用户体验否定优先：交付一段实际变化，不再用全绿回复单调
+
+**真实输入**：`20260923_155039_5ae358ba_feedback_6c0ab4c7.zip`，82904 bytes，SHA256 `67f2e3a62c7c8659a5a46519986fc1082df238478d285b6c3886744dd9829cab`。S177/Unity2022.3.31f1，639/639，12首轮+12确认、24唯一槽、同ASCII A/B；.bak不重复计数，无父包。24局Cleared/无运行错误/无损血。地表12局完整Out:upper+Return:upper且都有S176落阶输入，支持本批修复有效；地下12局lower去返，暗线请求/返程出手/记忆/换路仍0；地表暗线到达4，返程操控合计1。不得以通过率反驳“仍单调”。ZIP备注为空，但用户聊天里的负面体验就是有效反馈，不要求补跑旧包。
+
+**承认与纠偏**：S177确实研究了13项文字来源，却没有交付新的实时博弈；也没有依据声称已系统看过Reddit/YouTube。上轮审计补读2个Reddit正文/评论，视频工具分析Mark of the Ninja Design Club和Crawl Overview前6分钟；FEAR视频访问失败，仅读同作者正文。补充来源/边界写入已有研究方案，不倒算成S177成果。单变量用于验证结论，不能成为长期只修观测字段、不交付关卡与AI配套体验的理由。
+
+**已实现（新图专用，旧行为保留）**：
+1. `BuildJunctionDuel`/duelVersion3：48×12、实体土顶短环、两端共享真实地面分岔、两侧3级单向台阶、地下两F＋顶上一F，三点双向原生暗线；现有拿宝/撤离。不改伤害、物理、能量、扫描、预警或门禁。种子只有整体0/1/2平移，明确一个拓扑、三种平移，不宣传无限地图；本轮不自动派生连接变体。
+2. `JunctionNavigator`：Adaptive初始选短路；仅同源、当前可见的预警/实体形成18秒线性衰减风险，亲眼见到同源开放才清除，扫描bool不归因。比较作者路长/高差与风险；只在真实分岔或入口4格平地范围、已落地时请求退回分岔再绕顶，每行程最多改一次。空中/屋顶/洞室中途不瞬间换路，不跳路点；返程重新选，旧风险可过期。SafeRoute固定上路作为执行对照。没有一般图搜索，也未实现中央井任意中途改道。
+3. 新图对手完全绕开旧`base.UpdateTricksterBrain`：12格实体遮挡视线，0.12秒采样可见位置估计速度，2.5秒记忆；暗线旅行中不观察。攻击须当前可见、近新样本、接近方向、正常融入/门禁，另有0.18秒决定延迟。GroundChaser是提前守点无暗线；TunnelChaser是近距忍住并允许换口，两者同时有时机/权限区别，不能宣称单变量因果优势。
+4. 换口只从自己合法连接中按实际看见的位置/层差、旧位是否已用选择；保留可用伏击位，旧机关已用时可冒险提前准备，每局最多4次请求/间隔至少3秒。通过普通方向输入执行，可能迟到/被揭穿/失败；没有转移/强制激活调用。失去附身时普通移动回同层已知锚点重新伪装，不追踪隐藏玩家。没有直接读取玩家速度/未来路点/拿宝状态驱动新对手；通用Mario运动/扫描启发式仍保留，不声称全项目彻底拟人。
+5. 决策请求、实际回到分岔、完整路线、暗线请求/到达/驻留出手分开。`junctionChoices`最多4条、事件64条上限提示；新报告摘要包含这些证据，不以事件或成功次数判好玩。人类输入仍优先，无自动路线接管。
+6. 新玩法大按钮置首，旧S175同图A/B保留在“保留旧洞室实验”折叠内；新图6组首轮/最多6确认，60秒预算、全回归、独立批次无旧父版。观战是重新开局不是录像；顶部ZIP保持首位。
+
+**验证**：27新EditMode预计639+27=666；358模型全过，包含真实生产选路/视线记忆/换位选择逻辑及反馈契约。1002新seed静态L1、落点支撑/净空、原生方向连接和六槽检查，只有3个平移布局，不是物理测试。旧1000seed/洞室1002seed和S165–S177历史报告读回仍过；S177只读复盘为ReturnMemory，序列化前后不变、不补S178字段。临时在忽略副本撤掉落地限制、每程换路上限、可见性与记忆超时→352过6失败，恢复358过。老BuildDuel/BuildCavernDuel/BuildWallTacticsComparison/RouteNavigator/WallTactics逐方法保持不变。未执行Unity Editor，未认证跳跃、扫描打断、返程压力或乐趣。
+
+**下一份反馈真正要问**：是否看见“遇到公开线索→实际退回分岔→换接近路线”，对手是否能忍住或付代价换口，回程是否因新旧线索出现不同应对？若仍只跑/等墙/原路回，即使全绿也不算体验目标完成。失败原样回传，不要求重复跑到成功。
+
+### [S177] 先研究与反证，再让实际对局决定一个下一变量
+
+**用户请求**：参照类似项目的优秀关卡/对战，理解地道战与拟人策略AI，形成AI和关卡融合反馈方案，自我质疑迭代审计后执行并推送。不是要求部署网页或付费训练。
+
+**研究交付**：[地道战：关卡、角色AI与真实反馈共同设计方案](docs/TUNNEL_DUEL_DESIGN_PLAN.md)。已读取13项相关正文/摘要：Mark of the Ninja/Rain World开发者访谈、SpyParty/Crawl/Ultimate Chicken Horse官方玩法、两篇Derek Yu访谈、FEAR/Utility Theory/L4D的原讲稿或论文、AI and Games异形技术分析（标为二手）、POET摘要与PAIRED作者说明。分别标注来源事实、应用假设与禁止照搬项；不是全网穷尽、实机竞品试玩、研究论文复现或项目模型训练。没有引用商用图片、克隆代码、API调用或密钥需求。
+
+**方案收束**：
+1. 地道战核心是局部可读环路、有限信息、承诺/暴露/换位代价、可执行回应与带旧情报的返程，不是越复杂越好。三个未来白盒原型为双口洞室、中央井再接近、返程交叉；均明确尚未生成/投入实战。
+2. 拟议角色AI采用观察来源/时效/未知信念、少量合法行动及代价比较、决策惯性和失败重规划；先2–3动作，拒绝一次铺GOAP/效用/行为树/LLM大框架。现有Bot仍有已知位置启发式，不能仅凭局部墙感知称为彻底去全知。
+3. AI与地图共设计先保留同图同代码、首轮/确认、失败与旧版本，然后才用保留图/多对手检查迁移。POET/PAIRED只借鉴失败样本与可解对照思想，未实现其训练或理论保证。
+4. 自我质疑三稿：否决“更多地形/动作=好玩”、否决“先建共同学习大系统”、收束为方案+真实反馈可证伪复盘。新机制必须给出缺口、现有手段不足、双方代价/公开线索/反制和移除条件；不自动写机制。
+
+**已实施的最小代码**：
+- `DuelDesignCard`/`ReviewCavernDesign`在StudioExplorationRunner内只读分析完整一图或同图A/B洞室。每卡给出stage/title、相关首轮/确认数量与最多4条实际记录引用、oneChange、冻结变量、falsifier和真人问题。没有分数、胜者、自动任务或运行权限，不修改report/trial/scenario，不执行生成/对战。
+- 完整性和条件优先：canonical地图、唯一计划槽、计划确认、回归Passed且有通过数、源码/Unity/配置/预算、自动控制、同批navigationPolicy一致、正确wallPolicy与WallEvidenceIssues、独立起步与Passive干净、观测版本/有限数值。旧/混合/矛盾字段→Evidence，不借父版/演示补算。
+- 全批首轮与确认都看，不随UI选择A或B隐藏另一组：Evidence→Passive基础路线→受压停滞/回退→真实死亡反制→局部采样→未接管→输入未完成→返程记忆假设→返程空白→真人复盘。无干扰通路失败优先于“多造陷阱”；受压死亡不一律叫导航bug。16条墙记录上限不是完整覆盖，安全绕行不被强迫打架。
+- 扫描bool不提供源，去程墙线索+scan/退让+未记忆仅形成“需核对来源/时刻/入口位置”的假设，明确不得归因最近墙或强制返程换路。备注只改变真人复盘提示，不批准乐趣/新机制。
+- 新BuildSummary/ZIP包含卡片；UI顶部ZIP仍第一，随后只显示短卡，完整卡和研究文件入口放折叠区。导入旧报告可只读解释，原JSON/导入快照不重标；旧导出仍原字节流程。新批次toolRevision=S177，不改调度/确认数/变体上限。
+
+**自审与验证**：36新增纯EditMode，全部生产提取执行；335通过、165文件C#9 Editor/Player语法0错误、static-art/diff通过。S165–S175历史与长路径adapter、旧生成种子压力继续通过。原S175真实包新诊断为Navigation，相关无干扰首轮2+确认2，保留9回退通关/3停滞及全部原字段。临时移除Passive优先/回归Passed/墙证据校验产生330过5个预期失败，恢复335全过。UI源码顺序核对ZIP→短卡→可选演示→折叠→全文。ExplorationTrialObserver/MechanismExplorationPlan/ExplorationSceneBuilder/FakeWall/HeuristicBotInputProvider与080da46逐字相同；因此既未认证也未绕过S176落阶问题。沙盒无Unity Editor；预期639，实际以本地发现数为准。
+
+**最短交付路径**：完整固定PowerShell安全更新脚本→seed168“开始同图战术对照”→一次回归/12首轮/最多12确认→结果顶部完整ZIP。可直接当前版，不需先跑S176，也不需重传已审计S175。先判断基础地表路线是否恢复；仍失败则不扩实时策略。若路线成立，按源/时间补入口观察，再做一种记忆策略A/B；后续才到双口拓扑/可反制机制。研究方案不是阶段全部完成，更不证明游戏已变有趣。
+
+### [S176] 真实反馈先查通路：实体落阶普通输入与顶部ZIP出口
+
+**输入**：`20260923_144509_e8c45595_feedback_63dcfe7b.zip`，SHA256 `9406dadb71b7e2a341e51be82c977c24de7fc5221f7a80de7f819218ee9c35f4`。Unity2022.3.31f1，S175/Complete，582通过0失败；A/B同ASCII、seed168、连接0，12首轮+12确认=24实际记录，不是24张地图。ZIP的report.json.bak不是另一批，不重复计数。无父/基线、无人类试玩/备注、全部0运行错误/损血。
+
+**实战结论**：
+- 地表SafeRoute首轮A为2通关+1NoProgress，B为3通关；确认A和B各2通关+1NoProgress。9通关均因改走下层，只记Return:lower，Out:upper/Return:upper均0/12。不能用21总通关/24或582全绿认证地表，不能把B比A多一局通关归功于墙策略（SafeRoute两组都ObserveOnly）。
+- 地下Adaptive12局全通关并完成lower去返；新策略对两个主动对手首轮+确认共4次普通输入（242/244帧）及同源实体→重开→越过；原策略对应4局亦能重开后通过。无干扰双方各2局无墙机会正常。仅证明时序与输入，不证明诱骗、避伤、丰富乐趣或更强。
+- 地下12局暗线0、返程操控0、风险记忆0、返程改道0。扫描命中约x15，lower区域minX18，现有记忆门槛未接纳入口外事件；这是已定位的独立下一处问题，本轮不同时修改风险记忆/对手或新机制。
+- 表面反复停在岗台降阶前x24.89,y8.015附近；中心已靠近作者目标25,7时普通对齐策略会刹车，宽0.8的身体仍与实体块右缘24.5重叠。旧S+跳只可下穿单向平台，不能穿实体土；随后4秒导航回退，不是设计中的主动绕敌。其他停滞也可能有独立原因，不宣称一处修复包治。
+
+**最小修复**：
+1. 仅duelVersion2的非HumanMario启用`AuthoredRoutes+SolidStepExitV1`，A/B共同使用，旧图duel1不改；旧洞室重跑按当前代码执行并写新policy，旧JSON不重标。不改地图、作者目标、暗线、WallTactics、RouteNavigator、物理/伤害/门禁/冷却/扫描或计分规则。
+2. 已落地、实际有作者目标、目标在0.8水平范围且低0.4–1.5时，脚边短射线寻找真实静态轴对齐实体支撑（不是只查身体中心）。目标须在块外，计算整个身体离开边缘+0.08的局部aim；下方双脚必须有匹配真实落点，前方boxcast不能被实体挡住。排除机关、演员、运动刚体、斜面、trigger、effector/单向平台。只发普通方向键，不跳跃穿土、不改位置/速度/碰撞、不跳过目标。
+3. 每作者目标每行程最多累计1秒新输入，全局最多8秒；丢失支撑/重访不重置，同一目标返程独立但共享总预算。原4秒导航回退/两次换路和12秒无进展预算不动。暂停、真人、禁用、空中以及原反应/避险动作不被接管，墙/队列输入优先；扫描请求保留。
+4. 新字段记录navigationPolicy、solidStepInputFrames/Targets/Seconds与首次目标/aim事件，仅代表输入。实际落点仍须原grounded+坐标判定。旧数据缺字段显示‘未记录’，不是0次失败；报告不把请求当成功。
+5. 用户明确卡在结束界面：之前完整比较虽折叠，但DuelReportHighlights/CavernDesignSummary还展开在导出之前。现在结果状态后立即显示完整ZIP大按钮（包含A/B，无需分别选）、简短下一步说明；长摘要全部进入折叠区。观战改名‘可选/新开演示’，不再伪装成提交反馈的下一步；运行中禁导出，失败/中止记录仍可导出，导入只读保持。
+
+**验证**：新增21 EditMode=14Plan纯case+7Integration（4纯、2Unity物理查询、1UI源码顺序）；预计582+21=603，实际以本地发现数为准。沙盒299提取模型通过，165文件C#9双宏语法0错误、静态管线和diff通过；原S175由生产诊断/.NET JSON adapter回读，12+12/回退/停滞/墙输入/旧policy均原样保持。移除footprint宽度与预算约束出现3个预期失败，恢复后全过。逐方法核对BuildCavernDuel/BuildWallTacticsComparison/WallTactics/RouteNavigator与8a9080e相同；UI源顺序验证导出→可选演示→折叠→长摘要。没有Unity Editor，不能认证Physics2D夹具、导航恢复或玩家体验。
+
+**下一步**：不用补跑旧S175/旧三连接，也不用再传原ZIP。固定完整PowerShell脚本安全更新后，seed168点‘开始同图战术对照’，一次回归后A/B各6首轮/最多合计12确认，完成或失败点结果顶部‘导出本次完整反馈ZIP（含A/B，发给AI）’。这次只问地表是否真的去返、旧入口卡点是否消失/转移，以及新输入是否制造等待；先保留失败再决定下一变量，不能跨源码冒称同条件提高。
+
+### [S175] 三轮开发与自查：先让反馈能区分机会、输入和效果，再扩机制
+
+**请求与证据边界**：用户要求“自我迭代项目三轮”，以拟人操作利用陷阱、巧妙地图和丰富乐趣为目标。这里完成的是三轮代码/模型开发自查，不是三轮真实Unity对战。S174新洞室尚无用户报告；冻结其ASCII/暗线/作者路点，不在没有实战依据时再连续改三张图。最新真实成功仍为S173530/530的旧图单局，不能用来认证S175。
+
+1. **第一轮：拆开‘像人在玩’的证据链**。WallTactics/WallEpisode按实际源实例与Out/Return分开记录局部警告、实体、观察到重新开放、输入请求、真实越过、期间损血、视线丢失/预算结束。先见实体后见开放才能记重开；仅看到警告后经过，不补造重开或成功诱骗。一次源/行程只观察一个有界遭遇，4秒预算、最多16条；达到上限报告可能遗漏后续，不无限重复制造交手。ObserveOnly基线也采集相同证据但不接管输入，通行不归功于新策略。
+2. **第二轮：只添加一种可检验的机关利用**。新增wallTacticsVersion默认0，旧洞室行为不自动升级；1只给Adaptive洞室AI启用。局部6单位、同层1.5单位、无实体遮挡、可见Sprite且明确启用公开线索时，才观察假墙。近警告可有限退让（离起点约1.5单位限度）、实体时制动、实际开放后普通方向键穿越；需落地、前后短距有真实地形支撑，作者目标不能在上下台阶，原反应等待不被覆盖。暂停/禁用/真人闯关者不接管；扫描仍普通按键和原冷却。过期后交还原导航，不延长其卡住预算。演员身体既不是遮挡土层也不能充当安全落点。仍是规则启发式，不是LLM/人类隐藏意图推理；原对手/基础策略没有被宣称彻底去全知。
+3. **第二轮自查发现的可读性问题**：FakeWall逐帧透明度覆盖了基类预警色。新增只为洞室开启的公开显示：预警闪色、实体橙色、开放恢复原色；两组策略都开启，不能给新AI独享线索。感知器对未开启/无可见Sprite的墙拒绝读相位。不显示附身者身份、内部计时器或未来冷却，不改碰撞/生命周期/伤害/时长。该颜色与感知代理的实际可读性待Unity，不能把代码修正当玩家已看懂。
+4. **第三轮：同图单变量对照，而不是同时换地图和AI**。BuildWallTacticsComparison生成独立对象的A/B场景，ASCII/网络/seed/去返导航/原对手相同，A为S175同代码原输入策略加只读观察，B只启用地下Adaptive墙窗口输入；不是拿旧S174报告当A。两组各Adaptive/SafeRoute×Passive/GroundChaser/TunnelChaser，共12首轮；SafeRoute两组都ObserveOnly，供检查环境波动。确认仍有界，最多两图各6确认，不算独立地图。一次回归、一份报告/ZIP，禁止混入单局/旧父链/跳过回归；12个首轮唯一槽和计划确认齐备后才给比较。旧三连接变体上限仍2，连接子版保留策略版本，跨策略不冒称连接改善。
+5. **诊断与设计闭环**：没采到局部机会不等于场内没机关；有观察无输入查落地/台阶/反应/方向；有输入没真实跨越查视线丢失、窗口、预算/导航；同源重开后跨越只证时序，不证骗出了技能、避免损伤或好玩。保留死亡、损血、耗时、返程操控和首轮/确认差异；无自动胜者/乐趣分。报告完整比较折叠在原图试玩/ZIP大按钮之后，避免重演长明细遮住入口。读到有效动作后仍单调，再以真人意见驱动有代价/公开线索/反制的新机制，不先堆19种机关。
+6. **验证**：281生产提取模型通过。新增25 EditMode=23纯模型+2Unity真实渲染标记/距离/同层/实体遮挡/演员非遮挡夹具；已有3洞室生成夹具加强共同公开线索断言。预期全量582，仍以Unity发现数为准。1002洞室seed/3006方案的有限20几何、落点支撑/净空/default L1与旧调度压力保留；S165–S173旧/失败ZIP原样回读。临时撤除基线/落地/支撑/重开证据/时间预算保护出现6项预期失败，恢复后281全过；165文件C#9语法、静态美术、diff、UI动作先于对照全文等源码检查通过。沙盒无Unity，未运行引擎夹具、视觉或新战术物理对战。
+
+**最短下一步**：固定更新脚本（关Unity、独立stash、ff-only、仅恢复本次、备份不删）→ Ctrl+T/创作与试玩/对战创作 → seed168 → “开始同图战术对照（回归 → A/B各6组 → 一份反馈ZIP）”。预计582回归后12首轮及最多12确认；失败即保留并ZIP，成功亦只导出这一包。无需先跑S174、无需旧ZIP、无需合并、无需先跑两个连接变体。可在同一报告中看策略0/1原图演示；默认选1，真人反馈仍独立记录，不补自动槽。S175代码已推进三轮；实际下一次设计迭代必须等这份Unity反馈，不伪造三轮自对战结果。
+
+### [S174] 从工具修复转向有假设的洞室设计，不用全绿替代博弈
+
+**最新已验收输入**：`20260922_165525_2e9d8d67_feedback_ce3723e6.zip`，SHA256 `ac1555cd2127d04d28884332ab6ed34f570d5490eb8c0fb7c655409903425950`。S173/Unity2022.3.31f1/530通过0失败0跳过，原快照夹具通过；短目录import→S171连接0原图SafeRoute/TunnelChaser演示→ZIP已真实完成。20.55秒拿宝撤离，Out:upper/Return:upper，0运行错误/损血；3.47到达、5.06就绪、5.22操控、5.30扫描、5.61退让、8.33穿越；返程操控0。父/基线与前次合并ZIP字节相同，场景仅selectedMatchups改变，没有重新生成。不是新6组、不是真人输入/重启恢复或乐趣验收。
+
+**用户设计反馈**：地下感受不到，地表只有简单平台、陷阱单调；希望地图更有趣、AI有博弈，并由玩法缺口催生机制派生，完善自动反馈循环。此消息本身是有效主观设计输入，不再要求用户为补备注重复旧图。允许深入推进，但不能承诺新图已好玩。
+
+1. **新地图而非修饰旧平台**：新增BuildCavernDuel、duelVersion=2、独立duel2 ID。72–80格宽、16高，两段5/6层实体土顶形成洞室，中央七格开放井配真实单向落点与桥面，两侧台阶可回地表，两座实体岗台打破地表平直轮廓。中央井跳上/S+跳下穿是双方可用的普通物理路径，不是暗线传送。土层染色、地下暗色背景和井/岗台标识只影响视觉、不加碰撞或暴露对手状态。四个F假墙充当操控点和暗线出口，移除旧图的两个[封路器；不堆伤害陷阱、不改机关参数。
+2. **暗线选择**：四锚点跨两层，同一源不放同方向共线出口。0版地下长边，1版把它替换为左下→右上，2版换为右下→左上；其他连接和地图完全保留。沿用实际0.8秒转移、融入/能量/门禁、速度包络严格拦截和最多2次/8秒准备预算。当前对手仍原已知位置启发式，未改成隐匿信息推理、学习模型或必定反包；新几何是否真正让其赶上交手须实跑。
+3. **闯关者的新决策**：仅新图Adaptive启用本局公开风险记忆，且真人Mario不受作者路点控制。只有地下范围实际扫描命中或近距预警退让才记忆；不是读取隐藏附身状态/将来意图。完整完成地下去程，在拿宝侧端点落地后可选地表返程，最多1次，并占用原最多2次换路预算；未观察、未走完、空中、中途或预算耗尽都不改。SafeRoute仍固定地表两程作对照。中央井目前是物理可走/真人选择，不宣称AI已会中途经井动态绕敌；AI回程从两端作者路线选择，四秒停滞回退保护不变。
+4. **反馈不粉饰**：新cavernEvidenceVersion记录分层观察时长/操控、公开风险记忆、返程改道请求；原完整路线、3秒窗口、连续驻留、去返出手继续记录。改道请求不算走完，需实际Out:lower/Return:upper及地表驻留；地表对照仍需两程upper。首轮/确认缺路、缺字段、额外/真人污染、未完成计划确认都阻止连接迭代。新摘要先区分导航故障、地下无出手、去程有但返程空，再给具体下一处检查与机制提案方向；没有乐趣分、因果认证或自动道具代码。
+5. **一键反馈循环**：第1步新增“开始新地道实验（生成新图 → 全量回归 → 6组对战）”，强制新版本回归、seed可选、60秒同预算、独立基线linkParent=false。无需导入旧ZIP/加载草稿，旧报告仍在磁盘。6组=地下记忆策略/地表固定策略×无干扰/地面追击/暗线；必要时最多6确认，回归或运行故障仍停批。完成直接导出本批ZIP；新图主要演示入口优先地下去返选择，可看地表对照/真人并另存记录。连接变体必须完整真实对照后手动发起，同源码/配置/Unity/预算，仍最多两次；没有跨版本继承自动改善结论。
+6. **验证**：258项生产提取模型通过；新增27 EditMode（24纯模型、3Unity生成网络/真实落点支撑/视觉不增碰撞）。1002seed/3006方案默认L1、实际ASCII支撑与站立净空、6槽、canonical/版本/连接等检查通过，仅20不同几何，不冒充千张独立地图；中央井攀爬和路径跳跃未物理认证。保留旧1000seed和S165–S173反馈读回，包括失败S166/S172和成功S173，旧字段不改标。临时撤除公开记忆、完整去程、落地、换路上限、计划确认保护，6项预期失败；恢复后258全过。165文件C#9语法、静态美术、diff通过。沙盒无Unity，预期全量557、真实新图导航/渲染/战斗/乐趣仍待用户。
+7. **下一轮机制派生边界**：先问哪一处需要试探、绕路、出口暴露或返程干扰；若只等待，先调空间与机会，不用更多机关数量冒充设计。若真实对战与人类反馈共同指出机制缺口，再明确代价、公开线索和对手反制后实现。当前无自由挖土/地形破坏/新胜负规则/远程LLM API；不是开放式AI设计或已形成丰富博弈的宣言。
+
+**本地最短操作**：沿用固定更新脚本（先关Unity、只备份恢复本次stash、保留旧备份）→ Ctrl+T/创作与试玩/对战创作 → seed168 → 点“开始新地道实验” → 无需手动选上下路，等待557回归及6首轮/最多6确认 → 失败或完成都直接打包本批ZIP。可再看新报告“地下去程与返程选择”或亲自玩，关注是否真的进洞、线索能否读懂、换路有没有代价、返程是否仍空。首份新图结果出来前不强求再跑两连接变体，也不重复旧S170三版。
+
+### [S173] S172唯一失败：Windows长路径导致重命名后的快照不可读
+
+**输入**：`20260922_162550_89bcc382_feedback_1dcd575a.zip`，SHA256 `66ef8b45e9956f09310898ad9ea8836f8448d6763999717af36099d2394ce9f7`。S172 / Demonstration / seed168 / 连接1 / SafeRoute对TunnelChaser；Unity2022.3.31f1，全量524项实际523通过、1失败，0跳过，约120.6秒。状态Blocked、trials=0。parentReport在导入集合中，hash等于携带S171自动1的原始bytes；parent/baseline与前次合并ZIP对应文件逐字节相同。可确认导入与原图演示调度入口已走到回归，不能确认真实对战或重启恢复已成功。选择1而不是建议的0不是此次失败原因。
+
+1. **根因证据**：唯一失败`UnityImportWritesExactSnapshotsAndResolvesOnlyGeneratedLocalLinks`，在第227行ReadAllBytes(parent_report.json)抛DirectoryNotFoundException。此前report.json原字节断言成功。用户OutputRoot长124字符，旧最终report路径257、parent264、baseline266、marker263；临时目录比最终目录短7字符，允许写入/rename不代表旧Windows Mono文件API可读取最终长文件名。这是导入存储设计的兼容缺口，不仅是测试数据问题；marker不可访问还可能损害旧目录只读识别。沙盒无目标Windows Unity，诊断依据实际异常、精确长度和代码路径，不宣称已在该引擎复现修复。
+2. **修复**：集合目录由`import_<时间>_<完整GUID>`缩为`i_<完整GUID>`，staging为`.i_<完整GUID>`；节省21字符，仍保留完整GUID隔离和64位SHA256去重/父链，不截短hash。导入按报告自身时间排序，去掉目录时间不影响选择。按用户根路径，新parent243、baseline245、marker242字符。两套目录在任何写入之前检查全部报告文件及后续反馈ZIP路径，跨平台保守保证低于260；过长明确提示重新导入/必要时缩短项目根目录，不改系统长路径设置、不加扩展路径前缀或吞异常。
+3. **历史与失败保护**：LoadHistoricalReport、重启读档、本地父解析及ZIP导出也检查完整路径，避免读到report却因marker超长误判为可写。旧导入集合不自动搬迁或删除；重新导入原ZIP会产生短目录，原JSON和状态保持原样。过长根目录在CreateDirectory之前失败，当前报告/旧目录不改。回归失败仍停止后续对局，不放宽成功条件。新批revision=S173；未动Bot/地图/生成器/观察器/物理/伤害/冷却或变体上限。
+4. **测试**：原Unity快照夹具的report/parent原字节和本地父链断言全部保留，额外验证baseline原字节、marker可读、完整hash以及路径预算。新增6 EditMode：用户真实Windows路径/全GUID与hash、237/238/260字符边界、短staging不代表长destination安全、失败demo不补算对局。纯模型总234通过，预计本地全量530；Unity原失败测试修复待实机确认。提取生产磁盘writer/resolver搭配.NET JSON adapter在124字符root完成原字节读回、父链和ZIP再导入；160字符root写前拒绝且无目录残留。这是Linux/.NET磁盘验证，不冒称Windows Mono/JsonUtility测试。
+5. **反证及审计**：临时把路径拒绝阈值从260放到300，4项预期失败；恢复后234模型全过。最新失败ZIP原样保留S172/Blocked/523:1/0局/1未执行槽，旧S165–S171归档兼容；C#9 165文件、静态美术、diff、种子默认L1/调度及两路径预检先于写入源码检查通过。无需用重复父局扩样本，没有新的战斗或乐趣结论。
+
+**最短本地操作**：拉取S173 → 顶部重新导入之前的`ai_exploration.zip`（不要继续依赖旧长目录，也不用生成）→ 选S171/AI完整对照/连接0/12局（153239）→ 打开所选历史报告 → 原图地表观战，保留全量回归（预期530）。失败直接导出本批ZIP；通过后才会实际开局，结束再回传。无需完整6组/0→1→2；若仍提示根路径过长，再把项目放到较短目录，不删除旧报告。最新失败ZIP也可导入查看，但没有连接0自动12局，不能与原多批ZIP混淆。
+
+### [S172] 多批反馈去重审计；补齐无历史报告时的ZIP恢复入口
+
+**输入**：`ai_exploration.zip`，SHA256 `335fe236112726056d9337d3b6a7fb7b6dfdb04a0f261213eb68ce1587fb90a9`，30条目、声明解压1,132,617字节。四个主批次均S171、489通过/0失败、Complete、同源码指纹。`152534`是下层Adaptive演示1局，`152918`是地表SafeRoute演示1局，`153239`是连接0自动6首轮+6确认，`153943`是连接1自动6+6。共26条不同对局，不把重复父/基线JSON累加；两演示不补自动覆盖，也不是真人操作。运行错误为0，playerNotes及对局feedback为空。父链是演示0→演示0→自动0→自动1，后续baseline始终是最早演示，不能当作自动6组基线。
+
+1. **证据与当前目标**：地表演示/自动0观察到到达后出手；自动1仍到达但无转移后出手，下层暗线仍0，重复此前模式，不是新的优化成功。此前S170三版已完整，不因这份包缺2版再让用户补跑。当前优先解决报告找不到造成重复生成的问题，不盲改Bot或加机制。
+2. **未加载原因边界**：LastDirectoryKey包含Application.dataPath哈希并依赖本地保存目录；换项目路径/旧路径不在本机时不会自动加载。截图只证明没有加载报告，不能推断用户删除了数据。S171未提供手动导入是界面缺口，之前“直接点报告按钮”的指导有前提遗漏。
+3. **入口与只读导航**：生成步骤之前新增“导入反馈ZIP / 多批报告ZIP”，没有草稿/报告也可用。支持单批或多目录ZIP，按真实时间排序的下拉列出版本、中文模式、种子/连接/迭代进度、状态、局数；默认最新不等于最优。导入后只恢复报告，地图取JSON内原ASCII；直接使用已有原图观战/真人按钮。只读报告禁止Persist/AddFeedback，主/高级反馈保存按钮均禁用；新试玩深拷贝原图另建S172批次。重启按本地marker恢复只读且终止执行状态，旧Running/Blocked/verdict不改成新通过；坏报告不留在全局视图。Unity重启实机行为仍待验证。
+4. **安全和来源**：不ExtractToDirectory，不使用归档路径写文件，只读取report/parent_report/baseline_report JSON、summary.txt、TestReport.txt，忽略脚本、备份和归档内import_links。拒绝遍历/歧义/重复大小写路径；压缩输入64MiB、单文件8MiB、声明与实际解压64MiB、1024条目、128不同报告限制。严格UTF8/v3结构检查，安全scenario ID防止后续原图导出越界/Windows设备名；失败/未完成报告允许只读导入，不修结果。全部解析后才项目内staging写入、rename，失败只清本次staging。
+5. **父链与去重**：按原JSON字节SHA256去重，不按场景ID合并不同批次；原JSON字节不改。只使用ZIP同目录父/基线快照构造本地hash关系，拒绝同报告冲突父/基线以及父链环。永不跟随报告内旧电脑绝对路径；不信任外部marker。即使原parentReport为空，本地父快照仍可导航。单批ZIP只有直接父/基线时不补造更深链；重新导出/导入也不保证补齐未携带祖先。
+6. **验证**：228项提取生产模型通过，新增35 EditMode中34纯模型已执行、1项Unity JsonUtility与真实快照写入/本地父解析待本地，预期全量524。生产ReadFeedbackArchive/BuildFeedbackImportPlan搭配.NET JSON adapter实际读取合并ZIP（4份/26局/演示基线）、S170最终ZIP（3份/36局）及S165–S169旧ZIP；S166仍Blocked/385通过1失败/0局。该adapter不等于Unity JsonUtility验证。临时撤除场景ID、父/基线冲突、trial关卡引用保护产生8项预期失败，恢复后全过。165文件C#9语法、静态美术、diff、种子默认L1/调度、UI只读/入口顺序/reload源码检查通过；未运行Unity语义编译、IMGUI或真人输入。
+7. **严格范围**：不动Bot、观察器、生成器、地图/暗线连接、物理、伤害、冷却、迭代上限；不接远程LLM/API key。新源码指纹不同，S172重跑不能冒称S171同代码改善。
+
+**最短本地操作**：拉取开发分支 → Ctrl+T/创作与试玩/对战创作 → 顶部“导入反馈ZIP / 多批报告ZIP”选本次ai_exploration.zip → 下拉选S171/AI完整对照/连接0/12局（时间153239）并“打开所选历史报告（不运行测试）” → 第3步点原图地表观战或亲自玩。无需按生成/加载草稿/完整6组/连接变体。新试玩保留一次全量检查（预期524）；结束后写一句体验并ZIP。可关闭重开Unity确认历史仍在且不自动开始；若导入报错或回归失败，回传报错/ZIP，不绕过失败重刷矩阵。
+
+### [S171] 三版对照已齐，停止重复刷图，先把已出现的交手做成可读可玩的入口
+
+**两份最新输入**：`20260922_133943_735854a4_feedback_f0714a40.zip`（SHA256 `c9605af523ccc81feed616e5daa0d14d99f4ac9d6e0cc71ac0bf2dc0c48cfae7`）含S170变体0→1，初次未包含要求复验的2版，用户按按钮指导补交`20260922_135429_3d37d08e_feedback_ad12d727.zip`（SHA256 `3412a385cdd0ebdcacb512a70e6532080eccc6e70b3c82e34add38cd0e166243`）。后者父报告与前者child、baseline均字节相同，不重复计样本。最终0/1/2各12局，18首轮+18相关确认，均472/472、Unity2022.3.31f1、同源码/配置/60秒预算。36局全部Cleared、零运行错误/损血，地表与下路均真实去回完整，无缺失/重复槽；并非36张独立地图或乐趣验收。仍没有真人备注。
+
+1. **设计结论**：0与2版地表首轮/确认各有1次准备输入、原生到达、同出口3秒内出手，伴随扫描/退让/恢复穿越。2版首轮2.63出发、3.45到达、5.05就绪、5.21出手、5.22扫描、5.53退让、8.24穿越；恢复左侧直连后找回1版丢失的交手。1版从中点返程上地表约13.49到达、13.90玩家经过、15.09才就绪，没有出手；确认同样迟到。1版原报告“同条件不稳定”还涉及armedNearbySeconds约0.10→0阈值，不是又掉下地表，仍保留，不删除警告。没有证据判定2比0更好玩；保留2作为已恢复交手的试玩对象，不自动选胜者。
+2. **未完成的目标不掩盖**：下层TunnelChaser仍0暗线请求，普通地面出手与GroundChaser近似；地表返程操控受理0、仍缺第二轮有意义压力。所有stairRecoveryRequests为0，说明本批未触发跌落重走，模型/回归通过不等于实战恢复已测到。direction=0的驻留也不能当作已经证明玩家未经过。当前仍作者导航与已知位置启发式，非自主学习、开放式关卡优化或新胜负模式。
+3. **本轮不再盲改Bot**：已完成连接假设对照，不继续加次数/缩融入/改物理制造交手。用户截图显示逐局长表和父子全文把按钮挤到底部，必须问“哪个”。因此S171只改报告/工作台与回归，不动HeuristicBot、ExplorationTrialObserver、MechanismExplorationPlan、布局连接/伤害/物理/冷却/决策或两次变体上限。
+4. **动作优先界面**：报告简短下一步提示后直接显示大按钮“下一步：看报告原图地表对战”和“亲自玩报告原图（我当闯关者，自由选路）”；下层观战/P2对抗地表AI也直接绑定报告原图，不用加载草稿。新手可见Game焦点和普通键位说明。逐局首轮/确认、完整性、父子全文折叠，全部保留；变体未用完时连接试验按钮也在长明细之前，用完时明确停止。不同草稿不再暗示必须载入才能玩。单局返回按钮只承诺上一批，因为上一批也可能是单局。
+5. **报告原图与证据保护**：新增完整6组原图重测工具，JsonUtility深拷贝只清除selectedMatchups，不重新生成种子、不改变手工ASCII/路点/网络/variant/iteration/父来源。原图真人/演示仍独立保存并携带直接父报告；不能给自动6组充数。简短摘要分别解释未换位、请求未到达、到达后就绪迟到、3秒内出手和晚驻留出手；地表/下层、首轮/确认分开，返程普通操控不冒称暗线返程。完成上限先查完整性/失败路线，不因iteration2而把缺局提示成已完成。旧报告原字段/verdict不回写成S171通过。
+6. **验证**：194项生产提取模型通过；新增17 EditMode中16纯模型已跑，1项JsonUtility原图深拷贝需Unity，预计全量489。最新两ZIP与S165–S169原始反馈完整回读，摘要只读无变异；165文件C#9语法、静态美术、diff、unsafe lifecycle及UI源码顺序/报告原图参数检查通过。临时去掉下一步完整性保护后8项预期失败，恢复后194全通过；种子默认L1与调度压力保留。这不是新Unity语义编译、IMGUI渲染或真人输入成功证明。
+7. **API意向**：用户提供暂用DeepSeek、未来可能更换供应商；后续接入应配置化地址/模型/安全凭证。本轮没有接入远程LLM、调用付费API或写入API key，不把现有Bot说成已经由DeepSeek设计/思考。现在不为此扩建服务基础设施。
+
+**最短本地下一步**：拉取S171，保留一次新版本全量检查（预计489），在第3步直接点“下一步：看报告原图地表对战”；可再点原图真人入口并记一句真实感受。无需生成、加载草稿或重刷0→1→2。试玩按当前代码重跑不是旧录像；失败/结束后ZIP回传。下层暗线/地表返程的下一轮设计需具体选择与反制假设，不能用更多绿灯或多传一次替代。
+
+### [S170] 地表已跑，修正零转移退化与落阶后的原地跳
+
+**输入**：`20260921_232541_d9ac5065_feedback_59368ff1.zip`，SHA256 `c569b4d2596f850b33b8d18968cd6572046719cfcf2b6fc85106a991a117f5d2`。父报告S169 variant1/iteration1、子报告S169 variant2/iteration2，各6首轮+6确认，450/450、Unity2022.3.31f1、同源码/配置/60秒预算。baseline为S168 variant0/429回归，不是S169同代码基线。24局Cleared、0运行错误，但全部暗线请求/到达为0；没有真人备注。
+
+1. **不是地表漏选**：自动首轮均有SafeRoute×3对手，父子都实际完成Out:upper/Return:upper。工具条只影响单局演示/真人，不影响自动6组。子版末次SafeRoute/TunnelChaser确认约19.41秒通关，但实际Out:lower/Return:lower，7.85秒请求换路、此前x10.92跌落后反复原地跳。没有进入上层region，所以换路请求1、物理切层0并不矛盾；保留原不稳定结论，不补算地表。
+2. **即时拦截与准备分开**：S169最快速度包络仍用于严格即时拦截；不撤刹车帧保护。仅新duelVersion场景追加准备分支：观察已落地玩家相对当前锚点高/低超过1.5单位，沿同一层差方向寻找显式有效出口；玩家距当前锚点≤12，出口在实际水平运动前方2–20单位、与玩家高度差≤3。可以在落上较低台阶后提前布置，不等玩家已经到出口层。转移与融入合计超过6秒不作准备；这只是决策上限，不改实际耗时。每局最多2次准备请求，至少8秒间隔，失败请求也消耗预算。不读未来路点、策略名或拿宝阶段；是已知位置/落地状态启发式，不是视觉或隐藏意图推理。
+3. **不制造交手成功**：仍发送普通方向输入，保留门禁、能量、热度、揭穿取消、原生协程和generic Chaser的退出逻辑；没有额外驻留豁免或强制等待返程。当前同层近伏击不被准备分支抢走。请求日志区分严格预测/准备换层/旧启发式；新版本字段只记录准备请求，不冒充到达、就绪、出手或因果。原3秒指标与连续驻留均不变。下路持续无转移也可能仍出现，不能预先承诺此次已有有效博弈。
+4. **落阶窄修复**：只为新duelVersion开启。已落地且上路当前目标高于身体1.25单位时，最多2次倒退到本段之前高度不超过当前+1.05的作者落点，从较低台阶重新爬。空中不触发；不跳过失败高点、不改路点/碰撞/跳高、不伪造进度。用新证据版本单记重走请求，实际到达仍用原严格落点判定。若重走无效，原4秒停滞换路与最多两次换路仍保留；测试中的坐标输入不是Unity物理复现。
+5. **界面与报告**：说明6组自动含两路；显示全部首轮和确认的计划路线/实际完成路线/重走请求，地表覆盖单列首轮与确认，重复/真人不冒充自动覆盖。已知确认局地表失败阻止继续连接变体，不能用首轮成功盖掉。最新原图已iteration2，保持上限停下复盘，不无限换图。源码变更后先原图复测；不改ASCII、网络、默认物理、伤害、冷却、胜负目标或自动生成新道具。
+6. **验证与边界**：178生产提取模型通过，新增22 EditMode（21纯模型已运行，1实际组件待Unity）；预期全量472，以本机发现数为准。165文件C#9语法、静态美术、diff、生命周期调用审计通过；1000旧seed/1000新seed与3000变体默认L1/调度保留，不是物理跑图。最新ZIP原样回读，确认首轮地表3/3、子确认2/3、24局零暗线，S168基线不能同代码比较；S165/S166失败/S167/S168也未改标。临时模型撤除grounded约束、请求上限、重走逻辑后5项预期失败，恢复后178全通过。沙盒无Unity Editor，不宣称实际换层交战、导航稳定或乐趣完成。
+
+**最短本地复验**：保护本地修改并拉取开发分支 → Ctrl+T/创作与试玩/对战创作 → 将最新子报告原图载入草稿（不要按生成覆盖它） → 保留全量回归 → 运行完整6组。确认S170，预期472回归，自动含地表与必要确认。结束或失败直接ZIP；愿意时看报告原图地表对抗并记一句真实感受。当前图两次连接试验已用完，本轮不再点下一变体，也无需跑570局。
+
+### [S169] 最新反馈足够定位，优先修有效交手而非扩机制
+
+**输入**：`20260921_162801_a70ad725_feedback_e0dbc974.zip`，SHA256 `e128bbf7ad6106ae915b86cc0533d8eb85808097783ecdfa19de840400e02faa`。内含子报告、父报告、原始基线、ASCII、摘要和子批全量TestReport。父版v3_duel1_0_000000a8为6首轮+6确认，子版v3_duel1_1_000000a8_iteration1为6首轮；均S168/Automated/seed168/Complete/429通过0失败，同源码指纹/配置/Unity/60秒预算。baseline与parent字节相同，只算一个父样本。18次对局记录（含6次相关确认，不算独立采样）全部Cleared、0错误/损血/换路；没有真人标签或备注。足够做运行与策略诊断，不要求用户补跑已完整矩阵，不足以证明乐趣、跨种子泛化或所有机制完成。
+
+1. **可复核发现**：父版SafeRoute/TunnelChaser在2.35出发、3.16到达地表F、4.76重新Possessing、4.93出手，伴随扫描/退让/后摇穿越；首轮和确认均有此链，说明已有真实交手，不再称全是空跑。子版到上路需中继，5.15到达、5.29玩家接触、6.74重新就绪，没有出手；下路2.67到达、3.39玩家接触、4.22重新就绪，但8.07在同点返程时出手。三秒计数0不能抹去这个更晚事件，也不能从旧字段自动认证连续驻留。父版上路耗时20.17s、子版17.73s，更多到达/更快通关不表示更好玩。
+2. **时机修正**：代码审查发现S168用瞬时vx估算整个转移/融入/预警窗口；作者路点附近刹车后会再加速，短暂慢速可能错误授权。新创作Bot按实际速度、只读角色当前SO/本地速度上限及观察峰值中的最大值预测，方向仍来自实际移动；静止/无效配置不授权。不改物理或速度值，不预读未来路点/输入。原报告未记录请求帧速度，不能断言每次迟到都由这一项造成，所以新增输入边沿日志保存位置、实际/计划vx及三段时间；不再靠0.5秒意图采样恰好抓到按键。
+3. **到达与就绪分开**：保留原tunnelArrivals和controlsAfterTunnel三秒口径。新增独立版本的TunnelVisit（最多32条，超出明确计数），记录真实到达、跨至少两帧并满足时间/门禁/完全融入后的就绪、就绪时玩家是否已按到达方向越过、连续同锚点第一次出手/返程出手和驻留结束。换锚点、再出发、解除伪装、离开位置即结束，回到该锚点不能借旧到达计数。出手受理不是效果/因果/乐趣证明；新版本不从旧时间线补造这些字段。
+4. **避免误读完整性和改善**：工作台及导出摘要显示首轮/计划确认是否齐全、错误/重复/真人混入及有无用户备注，说明父/基线不重复算样本。完成但三秒出手全0不再给无保留“试玩候选”语气；长驻留返程另看。父子比较补去程/返程耗时、返程操控；子版失去父版既有交手时明确警示保留父版，不自动评乐趣优劣或淘汰。
+5. **继续设计而非循环堆东西**：报告区直接选择原图下层/地表主动演示，不依赖上方可能不同的草稿；仍为当前代码重跑而非录像。针对当前中继变体，下一步清楚说明“只把地表入口改回左侧、保留下层串联”，测试减少中转是否赶得上，不改ASCII/路点/伤害。仍两次有界试验，不伪装为开放式AI学习或自动发明道具。动态路线博弈与真人体验仍待验证。
+6. **验证**：157生产提取模型通过，新21案例中20纯模型已执行、1真实组件留给Unity。输入ZIP原样读取并通过完整性/准入/比较，父版上路1→子版0被提示，原始S168 verdict仍保留，新解读不回写旧文件。旧S165/S166/S167反馈、1000旧/1000新种子默认L1/端点/调度保留；165文件语法、静态管线和diff通过。临时Plan副本撤掉速度包络后4项预期失败，恢复后157通过。没有Unity Editor，不声称新观察器或交手效果实机通过。
+
+**最短本地复验**：拉取后在对战创作中将最新子报告原图载入当前草稿，保留seed168与全量回归，运行完整6组（预期450回归；有需要才同条件确认）。源代码已变，不能把S168旧批直接当同条件父版；先原图重测，然后用S169报告试下一连接方案。看报告原图的地表/下层对抗，标一句真实感受；失败或结束后导出ZIP，子报告自动携带父报告。无需重新跑所有种子/570局，也无需为主观反馈为空而重复旧矩阵。
+
+### [S168] 以对战关卡为中心，而不是继续给用户堆测试参数
+
+**输入与目标**：`20260921_152659_08392a00.zip`为S167自动报告，387/387、18首轮+6相关确认、24全Cleared、0错误，首轮暗线到达11次但到达后3秒同点出手受理0、实际换路0、损血0。`20260921_154143_a9903655.zip`为独立Demonstration，Adaptive vs Passive，约9.68秒，无主动对手。用户明确觉得“折返拿硬币没啥特别的”，要求直观界面、地上地下交互、围绕有趣的关卡生成与对战迭代，并从反馈提出道具机制。借鉴百战天虫的地形利用，不照搬回合炮击或宣称已支持挖土。
+
+1. **三步工作台**：Ctrl+T/创作与试玩默认“对战创作”，原手工画布与旧测试矩阵保留。生成种子图及静态网络预览→主动TunnelChaser演示/两方真人/完整6组→清楚的对照、反馈与连接变体。Passive明确标注“无干扰基线，对手不行动”，旧演示入口也提示。主面板翻译控制/进度/结果，技术内容折叠；不同草稿/旧报告明确区分。紫线只在作者预览，不加入人类实战透视。
+2. **有效种子而非换编号**：新增独立BuildDuel与duelVersion=1，不覆盖旧BuildTunnel或旧报告。任意32位整数种子，显式PRNG复现，改变48–60格宽度、阶梯起止、机关/出口位置及作者路点；物理几何保持下层短路与上层通道。1000seed实际得到322种不同几何，有限规则不承诺每个种子独特。仍以拿宝返程为目标，不把新界面说成新胜负模式；地下仍是原生暗线，不是任意开挖。
+3. **时机规划只作用于新关卡**：新Bot先检查连接、同层、移动方向以及“转移+实际融入配置+机关预警+0.35秒反应预算”是否赶得上，并保留当前即将发生的伏击，不为增加转移计数而离开。仍12单位局部距离和已知位置启发式，不是隐蔽意图推理。发送普通方向输入，门禁/能量/热度/协程不绕过。基类增加默认false的方向规划所有权，让新策略不被旧Chaser提前返回干扰；旧关卡行为保留。DisguiseSystem仅公开只读融入时间，不改参数。ETA仍为保守估计，不承诺命中或造成伤害。
+4. **先对战，后改图**：完整首轮2路线×3对手，唯一真实6槽、正常拿宝撤离、上路完成、独立起步、干净基线且无运行/回归故障，才允许一键试下一连接方案。确认局不能补首轮，真人/演示不能代替自动对照。保留ASCII、路点、物理、伤害与策略，只在3种预设连接方案间做一次变更；最多2次后停下。依据“有无到达后出手”记录诊断理由，**不是LLM开放式改图、自主学习或按乐趣进化**；当前不自动选择胜者。
+5. **父子记录和安全边界**：每次变体另存，父报告/原始基线保留。比较检查源码、Unity、物理/玩法配置、fixedDeltaTime、运行预算、种子、父ID和预期连接变更；不一致不报告改善。逐策略显示首轮结果、换路、到达后出手和损血，保留子版更差的结果。手工改ASCII、连接、通行时间、路点、起步不能被生成器静默覆盖。新的无关种子不继承上一报告为基线。新增trialLimitSeconds、iterationComparison及Scenario来源字段，旧数据不补造。
+6. **机制多样性保持设计驱动**：体验标签和自由文本记录机制提案；先说明单调点、期望选择、线索和反制，再由AI按用户反馈实现。没有增加武器伤害、随机塞19机制，也没有自动编写/启用新道具代码。主观喜好、真假试探、动态路线决策、多步埋伏与开放式生成仍是后续设计迭代，不因这一版有流程就算完成。
+7. **已执行验证**：137项生产源码提取模型通过；1000旧种子保持18槽，1000新种子/3000变体默认L1/端点/6槽通过，322种几何。新旧4份反馈原样读取，S167仍387/24及独立Passive演示，不改标S168成功。165文件语法、静态美术、diff通过。临时生成的报告模型副本撤除human/demo隔离后2项如期失败，恢复生产提取后137全通过。42新增EditMode中4项实际组件测试必须Unity；沙盒没有Unity Editor，不声称已运行新AI对战/界面。
+
+**本地最短路径**：保护本地修改并拉取开发分支 → Ctrl+T → 创作与试玩 → 对战创作 → seed168生成 → 保留全量检查，先点“让AI完整对照这张图”。预期429回归、6首轮+最多6确认。完成后加载报告原图为草稿，看主动对抗/玩一方；再返回完整对照报告试一个连接变体。演示报告本身不能授权迭代。任何失败直接ZIP回传，不扩到570局。下一轮评价重点是出口是否来得及出手、双方是否有可理解的选择，而非通关率。
+
+### [S167] 修复用户实测暴露的EditMode夹具错误
+
+**输入证据**：`20260921_151010_44495f45.zip`，SHA256 `27babeda101ba36a77562195783e8db0e32ec92e308102f59b53332b1e98ef71`。Unity2022.3.31f1，S166/TunnelDuel/seed166，386项中385通过、1失败、0跳过，约120.7秒；批次Blocked，18计划槽全部未执行。
+
+1. **根因和责任边界**：S166新增`TunnelInterceptUsesLinkedUsableExitsAndLocalDistanceBound`在第52行以`SendMessage("Awake")`初始化普通MonoBehaviour，触发Unity原生`ShouldRunBehaviour()`断言。是本轮测试夹具错误；同文件既有接触探针测试已明确警告该用法，先前沙盒纯模型排除了GameObject用例，所以未捕获此引擎错误。不能把语法/模型通过说成Unity全量通过。
+2. **微创修复**：按既有测试模式，用`typeof(PossessionAnchor)`反射调用唯一需要的`CacheControllableProp`，检查缓存确实引用同物体真实FakeWall及其可用性。不手动派发生命周期、不伪造私有缓存、不添加ExecuteAlways、不用LogAssert.Expect吞掉错误；运行时Awake、暗线协程、Bot逻辑、物理和玩法参数不改。
+3. **相邻边界**：保留未连接、有效连接、远距离、禁用物体断言，补充空来源、空/自身连接、反向预测不改善、12单位内含边界及超界、禁用组件、重新启用、缺失真实Prop和空连接表。新增1个纯报告契约：385/1必须进入恢复而不是Preparing，保留0记录/18未验证，不追加确认、不重标旧版本。
+4. **已确认与仍缺失**：用户报告中的三种实际网络绑定、方向输入延迟到达、揭穿取消、禁用取消均已通过。它们不是18局Bot地道对抗或真人体验的成功证据。保持回归失败即停止和原始报告，下一步先解除夹具阻塞再采集玩法数据，不扩局数或改难度。
+5. **沙盒验证**：100项生产源码模型通过；1000种子默认L1/端点/确定性/18槽压力通过；165文件C#9语法与静态管线通过。原样读取S166上传JSON，现有报告方法仍给出Blocked、385/1、0/18，旧S165仍369/21且不补暗线证据。Unity依赖的修复夹具仍只能本地验证；未用模拟组件冒充实机复现。
+
+**最短重测**：保护本地修改后拉取开发分支，开启新批次地道博弈/seed166/60秒/勾全量。确认报告版本S167；回归通过后让18首轮和必要确认自动继续。若再次Blocked，立即回传该批ZIP；若完成，先回传报告，再看单局AI演示并标记一两处真实体验。不要重复其他档位来绕过失败。
+
+### [S166] 地道博弈最小实验，而非继续扩建测试平台
+
+**输入证据**：`20260920_153427_ca0c9a9e.zip`，toolRevision=S165、seed154、369/369回归、21首轮全部Cleared、0运行错误；6个时序场景仅2种ASCII。用户目标是AI生成/演示/分析/修改，用户操作和提出机制想法后回传报告，不要求用户手工设计测试矩阵。
+
+1. **生成三种明确假设**：新增Scope.TunnelDuel（追加枚举，不改旧编号）。复用既有双明路和拿宝返程，产生串联暗线、上层出口、首尾直连三种拓扑；它们只有两种ASCII几何，不冒充三张独立随机地图。每图Adaptive/SafeRoute × Passive/GroundChaser/TunnelChaser = 6局，首轮18、最多一次18局确认。默认1.2秒普通起步等待与0.8秒原生目的锚点转移时间；不改物理、伤害、能量或扫描参数。1000种子只覆盖有限作者变体，不是1000种全新设计。
+2. **真正连接现有暗线**：Scenario保存坐标连接与设计问题，生成器将它们绑定到唯一真实PossessionAnchor，不用H水管冒充捣蛋者暗路。验证缺失端点、自环、重复、缺反向和目的时间冲突；重复绑定不叠边。首尾房不用同方向共线竞争边，避免原生方向选择永远选中较近中转点。画布小改可作为独立新变体跑6组；保留原作者路点和暗线坐标，移动端点会明确拒绝，不静默猜线。大幅改变台阶/路线尚不支持自动重规划，应回传由AI调整。
+3. **Bot普通输入**：GroundChaser保留地面追击但禁止方向换点；TunnelChaser根据12单位内角色位置/速度预测相邻可用出口，只发送普通方向键，不直接调SwitchTarget/传送/强制融入。到达/能量/门禁仍由原生系统处理。底层启发式仍读取场景角色位置；不是人类有限视野或自主学习。上路仍保留，不强迫上路遭伤来制造指标。
+4. **证据层级**：分别记录暗线请求、Underlining开始、已连接异点+实际位置+附身确认的到达、拿宝后到达，以及到达后3秒同锚点操控受理。最后一项只是时序关联，非因果/乐趣证明。0.5秒节流记录变化的Bot意图，最多160条，与100条事件时间线分开。暗线结果进入同条件确认签名。诊断只提示下一轮检查连接/门禁/出口时机或真人线索体验，不自动调难度、排名乐趣或删除失败。
+5. **真人与演示闭环**：报告案例可启动“看这一局AI演示”“我玩闯关者”“我玩捣蛋者”，均完整重建、只跑选定一局、另存子报告，不追加确认或补自动覆盖。人类沿用原键盘/手柄；真人P2跳跃不被Bot延长按住；真人不受12秒无进展提前终止，但有120秒预算及真实时钟上限。暂停保留；停止用面板按钮，重开另记一局。四个体验标记和自由文本写入报告，带时间/位置的标记只来自真实点击，不推断人类意图。当前阶段是实时演示，不是视频录制或逐帧回放。
+6. **低摩擦回传**：面板可一键ZIP，保存JSON、摘要、ASCII、回归报告（本批执行时）、原始自动基线与直接父报告；多个子记录不会覆写自动基线。返回上一批入口不续跑旧计划。记录Scripts源码SHA256、计划指纹与既有配置快照。历史报告新增字段保持未记录；未把旧369/21改标为本轮成功。子报告ZIP不递归收集所有历史试玩，其他需要的批次可分别打包。
+7. **原生暗线取消修补**：审查发现旧转移协程等待后仅检查target非空；揭穿/解除附身后仍可能迟到并重新绑定，组件禁用也未StopCoroutine。现在到达前复核真实Underlining/伪装/组件/目的可用状态；禁用时停止协程并恢复原可见性。不改正常转移时长和碰撞。三项PlayMode分别测试真实公开方向入口的延迟到达、揭穿取消、禁用取消；夹具建立已融入状态只是隔离生命周期，不算Bot对局成功。
+8. **已执行**：99项原样提取的Plan/报告C#模型通过；真实L1源码配默认Registry分类和PhysicsMetrics默认值适配，1000seed/3000计划无L1错误、端点合法、调度18槽且确定。输入ZIP原样回读仍S165/369/21且无暗线证据。165文件Roslyn C#9按Editor/Player目录边界零语法错误，静态美术管线/diff通过。临时故障副本删除“到达证据”和“真人不确认”保护后2项如期失败，恢复后全绿。最初验证脚本错误地按Player宏解析Editor文件，并混入需Unity类型的用例；已纠正提取边界，不修改生产代码来迁就适配器。99模型不等于完整Unity编译/回归；本轮新增14 EditMode、3 PlayMode尚需用户本地运行。
+
+**本地最短验收**：保护本地修改后pull开发分支 → Ctrl+T/创作与试玩/AI自动测试/地道博弈 → seed166、60秒、勾全量 → 等18首轮和必要确认。失败或Blocked立即ZIP回传。成功后取消“只看问题”筛选，选TunnelChaser案例先看演示，再分别操作一方；点体验标记或写一句感受，停止后打包反馈ZIP。不要先扩大到570局。此次是第一轮可试玩实验，不宣称已经实现自动寻找好玩关卡或最终发行验收。
+
+### [S165] 从用户S163报告出发：可解释选择，而非全绿数字
+
+**输入证据**：`20260918_170337_0c9bfb77.zip`，SHA256 `1b356352bb42599e05149f7e70487c1b314e8cbf4b70a4bdd656fad67de7f6d1`。报告版本S163，seed154，6个时序场景（只有2种独立布局），21首轮、0确认、350/350回归通过、0运行错误。20次扫描中3次发现伪装、17次未发现；miss不必然等于无效果，封路缩短需另验。Adaptive队列三时序均零损血，SafeRoute绕行完整；Runner timing2受伤后重入得到无伤片段，不是整次遭遇无伤。Chaser对下路返程有操控，对上路零操控可为合法绕行，不应该强迫上路交战。
+
+1. **第一性原理**：本项目的价值在“目标推进→可观察线索→双方选择→可理解的代价与恢复”，不在测试条目或工具数量。保留等待、抢行、绕路三种选择；不降伤害、不扩无敌、不改碰撞/物理/路线或胜利条件来制造更好数字。对抗机会与通关是不同验收层级，真人自然度/紧张感/重玩意愿仍未验证。
+2. **继承S164而非重复覆盖**：远程`da2612b`已把共享角色引用准备移到Tick开头，使Mario等待时对手仍能决策；`1c86175`已记录起步帧及整次遭遇。两项此前未更新Tracker且无新增回归，本轮保留并补上双向退回/重入/返程、绕行/出生在区内、起步等待及缓存失效用例。旧S163四条延迟Chaser记录没有独立起步证据，不重新解释为纯单边延迟实验。
+3. **扫描节约**：GuidedBot的Adaptive与SafeRoute启用局部证据策略：扫描冷却就绪，且扫描半径内同层、无遮挡的玩家高证据锚点或公开封路Telegraph，才发送普通Q输入。检查在反应/等待/后退早返回之前，封路预警期间仍可反制；不读取Trickster真实位置/附身来保证命中。空锚点不再自动盲扫，旧Runner/Scout/Explorer和普通AI Arena人格行为保持原样。候选对象沿用场景缓存，线索检查最多每0.1秒一次；回合失效清理新增缓存。新报告保存scanPolicy，旧报告保持未记录。
+4. **验收收紧而非重写历史**：可见提示与无伤结果必须来自同一机关；queueEvidenceVersion>=2使用整次遭遇，不能借重入片段洗去先前伤害。缺独立起步帧会进入体验缺口，Passive出现非中立输入或准备事件不作为干净基线。NaN/Infinity/负时长和零时长不能成为试玩候选；无效速度/距离/窗口不能授权穿越。
+5. **报告完整性**：按场景×双方策略×首轮/计划确认逐槽核对，不以记录总数替代覆盖。缺失/未试玩/重复槽位不可整批验收；配对必须唯一、符合原场景起步计划、同策略扫描版本一致、拿宝/撤离时间有限且落在实际回合内，不用确认局补齐。Passive-only队列房零操控是设计基线，不再提示必须有主动对抗。所有原记录、ASCII、toolRevision和配置保持不变。
+6. **已执行验证**：86模型全通过；其中原样读取本ZIP验证21条未改变、四条旧延迟Chaser缺独立证据、两条零延迟返程对照仍可报告。1000seed检查6000个时序场景、21000首轮槽及作者落地坐标模型，不是6000张独立地图或真实物理。临时故障副本撤掉同实例/起步/时长/去重保护后8项按预期失败，恢复生产副本后86项再次通过。Roslyn按Unity Editor目录边界检查165/107文件零语法错误，静态美术管线与git diff检查通过。模型提取最初漏了参数化属性和一个夹具返程字段，已纠正后全量重跑；不把中间失败隐瞒为首跑通过。
+7. **Unity待验**：19个新增EditMode案例中16个纯模型已在沙盒执行，3个场景用例（双起步时序、局部扫描/遮挡/冷却）需Unity；四个既有PlayMode队列跑图增加“Passive场景零无依据扫描”和“整次遭遇无伤”断言。真实扫描/封路效果、旧S164引用修补及新版21局必须本地重跑。旧350项通过只证明输入版本S163；本轮不声称所有历史机制与主观体验已完成。
+
+**最短验收路径**：只跑反制专项/154/45秒/先全量，失败即停止并回传ZIP；成功后关注独立起步帧、扫描策略与真实结果、完整遭遇以及上路合法绕行。S162遗留B/Baiter局部策略和其他15项未规划机制不由本次报告验收，继续保留待办，不扩批刷种子。
+
+### [S163] 自动反制专项：可观察线索 → 普通输入决策 → 真实结果 → 成对比较
+
+**输入基线**：S162四份原报告为`20260918_144228_b764ca2b.zip`、`20260918_145658_415c5f12.zip`、`20260918_161310_63c5ca23.zip`、`20260918_162330_075b379d.zip`。均328/328，合计219条记录全Cleared、0运行错误（186首轮+33相关确认）。S-/ -X已由30秒超时变为约4秒真实通关；锤头物理/致命帧回归通过。两批Experience共54首轮，上路去返完整；seed154第二房5次扣血，时间线靠近公开队列机关，但旧版没有来源事件，不能补造归因。两seed仅第二房部分位置变化，另外两房ASCII相同，不能宣称广泛独立地图验证。
+
+1. **第一性原理边界**：自动化能检查线索是否局部可见、AI是否等待、是否完整穿越、是否受伤、对手是否增加返程耗时；不能等同人类读懂、自然度、紧张感或重玩意愿。到期/侧接触/同侧退回/上路绕过都不计队列完整穿越，受伤穿越不计无伤。安全绕行是合法选择，不强制上路撞机关。
+2. **公开信息**：StateQueueTrap复用现有TextMesh显示Current/Next、0.1秒精度倒计时和横向范围；AI只读同精度公开快照，受4.5单位距离、1.5单位高度、实体遮挡及标签Renderer开关约束。这是局部可见性代理，不是屏幕像素/人类阅读证明。通用Idle不等于安全；自动队列与操控状态分别解释。攻击周期、伤害/碰撞/击退参数保持不变。
+3. **独立Adaptive策略**：仅新专项启用；按可见窗口、实际观察到的地面速度、角色宽度估算通过时间并保留0.2秒余量。不够就停在范围外，过近则普通输入退开；足够才请求穿越，实际成败由观察器判定。既有作者导航仍有有限停滞换路与全局时间预算；不传送、不强制机关、不改无敌，不读取隐藏队列/未来随机数。原Runner/Scout/SafeRoute与Explorer预算保留，未声称自主学习或满足任意关卡。
+4. **21局专项计划**：新增Scope.Counterplay（追加枚举，旧索引不变）。第二房3种策略Runner/Adaptive/SafeRoute × Passive静止对手 × 3起步时序=9局；拿宝房Adaptive/SafeRoute × Passive/Chaser × 3时序=12局。时序为0/0.6/1.2秒Mario普通中立输入，对手和世界照常运行；相同房间ASCII和作者路线，不能当独立新布局。Passive保留实体，不发送移动/附身/能力输入。配对共享决策seed，但后续随机调用仍可能因不同轨迹分叉，不声称严格因果隔离。
+5. **证据与报告**：保存每实例可见提示采样、状态变化、等待输入、完整同层穿越、穿越期间生命下降；入区同帧损血也不能算无伤。新增队列ActualDamage源事件只在真实生命下降时发出，保留源/状态/位置/提示年龄/决策上下文，与全局生命变化分开。记录拿宝/撤离时刻和拿宝后换点/操控；旧版字段未记录，不重写旧标签/调度。报告仅比较首轮，确认局不补齐或挑最好成绩；失败/未运行/缺目标事件/Passive污染/实际起步与计划偏差>=0.05秒均不计算改善。完整输入帧的起步超时如实记录，不夹成计划值。返程只用loot→escape时长，不用整局时长冒充追击效果。
+6. **验收契约**：新专项Adaptive第二房要求可见线索和真实无伤同层穿越；走上路要求完整Out:upper而非碰队列；Chaser返程要求拿宝后真实换点，去程换点不代替。报告展示与静止对手的返程耗时差，但不把有换点或正时间差自动宣称参与感/压迫成功。最多6图一次确认、最多21局；旧Experience继续27局和旧规则，不静默扩批。
+7. **验证**：新增16 EditMode（14纯Plan+2集成）与6 PlayMode（公开标签/遮挡、真实来源伤害/无敌、三种起步时序普通输入无伤穿越、完整上路）。沙盒175主模型+2 HUD=177通过，含原样提取返程报告契约、4份S162 ZIP回读和600张专项计划静态/坐标一致性；原压力模型保留。人工故障副本移除visible/safe条件与同帧损血保护，4个用例预期失败、4个对照通过；生产复跑通过。没有Unity Editor，六项物理回归和全部新对局须本地运行，不能预先宣称全部会通过。
+
+**本地最短路径**：更新后只启动“反制专项 / seed154 / 45秒 / 先全量”。回归失败则停批导出ZIP；通过后自动21首轮及必要的一轮确认。报告重点是Adaptive是否有真实无伤穿越、受伤前提示与决策、上下路时间/生命差、Chaser拿宝后的换点/操控及返程时间差。用户无需逐局手述；人类主观项继续标未验证。上一批B顶部落点覆盖和Baiter局部错失时机尚未本轮改动，不声称全部历史待办已解决。
+
+### [S162] 从实际受阻案例改探索策略，不拿预算到期冒充通过
+
+**用户输入**：`20260918_125224_3252f3d9.zip` 与 `20260918_125952_31bedc30.zip`，均S161。Smoke首轮18+确认15全通关；Mechanisms首轮114（108/4/2）+确认18（15/3/0）。Cautious、Runner首轮各38/38；Explorer32通关、4死亡、2超时。P首轮9份记录均无根接触，旧探针未覆盖运行时锤头，不能据此判断未碰锤头。旧确认选中4张死亡图和X/F，却漏掉S-/ -X两张真正超时图。
+
+1. **有界访问**：Explorer按类型选x最靠前的一个代表，不再给8块同类辅助单向平台各分4秒；总访问最多8秒且不超过单局一半，单目标最多4秒，到期恢复普通目标导航。built仍记录全部根实例，代表观察不是全部实例验收。B/o只接受实际效果，F/[需Active后Recovery，P需真实锤头接触；H保留普通S输入机会到期，不用contact假称传送成功。其他类型只以最低接触结束访问，不证明机制行为正确。
+2. **有限确认**：NoProgress/TimedOut优先，其次RunnerStopped，最后纯覆盖缺口；最多6图、一次确认、不递归。真实S161原报告送入新选择函数时，S-与-X排前两项；这是调度反事实，不是两局新版Unity已经成功。
+3. **被动锤头记录**：运行时给现有PendulumHammerTrigger挂幂等接触转发器，不新增/修改碰撞器和伤害；child作为实际source，观察器按Root归一，不增加built。P接近/目标位置用真实HammerPosition。保留致命物理步内的接触，避免损血回调先结束局时漏记；不接纳后续物理步事件。旧P报告movingPartEvidenceVersion=0显示未记录。
+4. **真实生命变化**：仅累计PlayerHealth.OnHealthChanged的下降，回血/重置上升不算伤害；接触次数和扣血事件独立，明确不归因机关。观察器Dispose对称退订。报告、面板、Stage7已同步；新证据版本参与确认层级比较。旧报告标签/原调度/失败记录不回写。
+5. **回归代码**：新增15个EditMode案例（13纯Plan、2集成）；4个PlayMode案例覆盖锤头真实触发、幂等/禁用/双方区分/正常无敌窗口、致命接触与健康订阅生命周期，以及原seed的S-和-X各一局普通输入到真实Goal。两张导航回归隔离对手、不删机关、不改人物物理，不能代表双方对抗已验。碰撞夹具固定摆锤/角色只是隔离回调验收，不用于AI通关。
+6. **已执行**：156主模型+2 HUD=158通过，含上述13个Plan案例、一个原样提取报告契约和两份新ZIP回读。保留1000seed/3000房/54000调度槽/66000坐标及10000下穿周期模型；新增各预算10000 Tick停止验证。旧S161确认函数在超时优先契约和真实Mechanisms回读中按预期失败（3用例：1 Smoke对照通过、2预期失败）。Editor165/Player104语法及静态通过。源码比对确认作者Build/BuildExperience及几何未改，人物/陷阱/Packages/ProjectSettings未改。沙盒模型最初提取误带State字段，已修正临时提取边界后全量重跑；非生产编译错误。
+
+**本地下一步**：先快速+全量；失败立即回传ZIP，不重复跑第二份同样全量。成功后跑全部19机制邻接，重点S-/ -X与f^、^]、~@、@P及P图：确认是否仍超时/死亡、真实锤头接触与实际扣血、预算结束后目标推进。允许主动探索死亡和观察缺口，不以全绿为目标。再跑Experience确认原作者上路/拿宝返程、准备/扫描/恢复选择没有退化；最终仍需两方真人判断信息可读性与乐趣。
+
+### [S161] 两份新报告的共同阻塞与保存布局预检
+
+**用户输入**：`20260918_123333_72878210.zip`（Smoke，6张计划）与`20260918_123705_01df1874.zip`（Mechanisms，38张计划），均S160、298通过/1失败/0跳过，Blocked、trials为空。唯一失败同为`EveryMechanismProbeBuildsRealRegisteredComponents("P")`；生成器L1日志说(12,6)平台高于最近地面5格、不可达。回归失败停批正确工作。用户没有继续Experience是正确的；之后任何回归失败都先停止，不需要再开第二个范围重复同一全量失败。
+
+1. **已定位根因**：Registry的P具有真实实体安装点，所以isSolid=true有物理依据；但高台检查把每个暴露实体顶面都当成必须可达的安全落点。P在y=6是摆锤悬挂点，玩法要求躲避下方锤头而非登上安装点。L2发现底层可走并不能普遍推翻L1；本轮修正的是高台检测目标语义，不以L2结果直接压掉L1错误。
+2. **修复**：CheckHighPlatforms接收Registry的hazardChars，实体危险安装点不作为必须跳上的安全落点，并输出需要运行时检查危险净空的info。保留P的isSolid/isHazard、实际碰撞、锤长/摆动/伤害和独立出生危险检查；不移动P、不改生成测试、不加LogAssert.Expect或ignoreFailingMessages、不放宽跳跃高度。
+3. **额外预检发现**：把两份上传的原始布局逐一送入真实L1代码后，发现Mechanisms的`v3_022_0002a923`（B<）还会误报3处IMPASSABLE gap。底层实心地板中有一格永久传送带，旧HasNearbyFloorBelow只认可#/=，漏掉<，把上路间隔当无底深渊。只补<作为永久下层支撑；C/X/-/>等会消失、可穿过或移动的支撑不因此获豁免。保留深落差警告，不声称平台厚度、净空、返程或危险安全已经由静态检查证明。
+4. **新增10个Unity EditMode用例**：完整/片段模式下P安装点不误报（2）；相同坐标替成普通=高台仍必须报错；P近出生点仍危险警告（1）；100seed×19单机制L1预检（1）；<替成./C/X/-/>不能被认证为永久地板（5）；seed153全部38单项/邻接布局生成前L1检查（1）。原19项真实生成组件测试保留，其中P仍需本地完整运行。
+5. **已执行验证**：140主模型+2 HUD=142通过，含新增10个实际Plan测试与2份新ZIP直接回读；44张保存布局均无L1 errors，原S160标签、298/1和0试玩保持不变。1000seed/3000房/54000调度槽/66000落点坐标、10000下穿周期模型继续通过。临时副本使用git show 0c11bca旧验证器，9个针对用例全部按预期失败，现版本复跑通过。Roslyn Editor165/Player104零语法错误，静态检查通过；仍不是Unity语义编译或物理试玩。
+6. **来自本次真实Unity的确认**：S160三个下穿恢复用例、地刺多高度、诱敌决策、其余18机制生成均通过；S50上路约8.27秒、拿宝往返约15.40秒通过。它们是专项回归，不是本批双方AI体验局，不能据此认定扫描/Baiter实际对抗有效。
+
+**下一步**：拉取S161，先快速机制验证/153/30秒/勾全量。若失败，直接回传本批ZIP；若全部通过并完成快速跑图，再全部19机制邻接/153/30秒（114首轮+最多18确认），最后Experience/153/45秒（27首轮+最多27确认）。同代码同配置的后两批可不重复全量回归。未运行或只观察不足的机制继续列待验，绝不自动补成功。
+
+### [S160] 三轮第一性原理自查：有效选择先于通关数字
+
+**证据基线**：`20260917_165422_616deed6.zip`：S159、Smoke、267回归全通过，首轮18+确认12；`20260917_170326_53aceb26.zip`：Experience、首轮27+确认18。本批Experience未再请求回归（Not requested/0/0），不是另一次267通过。两批75局全Cleared、无运行错误，但Smoke仅X/F/o及组合/B，不能代表全部19机制实测。三轮指本次源码、决策模型与设计自查，不是三轮真实Unity或真人试玩。
+
+#### 第一轮：规则与恢复是否可靠
+
+- **假设**：失败必须由当前局规则解释，不能来自上一次下穿遗留或机关离开作者放置高度。
+- **发现/修复**：OneWay原来每请求开一协程，旧协程会提前恢复后一次下穿；Reset停止协程却不释放IgnoreCollision。现在每碰撞对单独续期，只拥有起初未忽略的关系，Reset/OnDisable恢复并保留基类注销；不全局关闭平台，不接管外部预先忽略的关系。若其他系统在本组件持有期间又独立取得相同忽略关系，Physics2D没有引用计数，仍需跨系统所有权约定。
+- **发现/修复**：SpikeTrap直接向targetY=0/-0.8移动，会把地刺从作者楼层拉向绝对高度。改成initialLocalPos.y+偏移，同时修缩回碰撞关闭判定；不加伤害、不改伸缩速度。此前手工把extendedY当绝对高度配置的场景需检查Inspector，字段现在明确是偏移。
+- **验证**：生产方法原样抽取到有限协程/碰撞对适配，5项下穿模型含10000轮续期重置；3项真实地刺计算片段覆盖-3/1/5高度。用git show 38d0980替换临时副本，8项全部按预期失败；现实现全部通过。另已写3个PlayMode下穿用例和1个地刺多高度用例，真实Unity尚未执行。未把适配器当成Physics2D。
+
+#### 第二轮：双方是否有准备、出手与反制机会
+
+- **假设**：扫描在对手完全就绪前成功，本身也是有效交互；诱敌应提前准备，而不是等玩家贴脸才开始整段反应。
+- **证据**：Scout前两房每局scan=1、armedNearby=0，但旧Observer只订阅OnScanPerformed；ScanAbility的OnScanResult(true)没有进入报告。因此旧reveals=0不能证明没有揭穿。Baiter在第二/第三房有就绪窗口却大多controlAccepted=0，近身2格后才启动约0.34~0.64秒反应可能错过窗口，尚不是已证明的唯一原因。
+- **修改**：Observer对称订阅/退订OnScanResult，新增版本化命中/未命中字段；真实命中不再被“就绪秒数=0”简单判成完全无交互。旧报告缺字段只标未知，不从施放数补造命中。命中仍不证明避免伤害或因果反制。
+- **修改**：Baiter同高度、6格内正在接近时可开始准备，2格外即使准备完也不出手；真实进入2格内才请求普通L，仍经过原门禁/能量/冷却。退出准备区、远离、换层或热度/融入条件失效就取消准备。保留原反应延迟，不提高攻击力、不强制附身；5项实际决策函数模型覆盖提前准备、严守距离、退让/换层/范围取消与重新反应。
+- **边界**：这证明决策条件，不证明实际关卡攻击已有效、双方平衡或玩家看得懂。Bot原本读取场景位置，不是模拟人类有限视野。下一份Experience需核对真实扫描命中、controlAccepted、时间线和后摇穿越。
+
+#### 第三轮：信息、选择、节奏与测试结论是否可信
+
+- **保留**：S159完整上路、返程、普通方向键换点已有真实证据，不拆上路、不堆强制危险来制造操控次数。现报告中短路通常约4.6秒，上路约7.9秒；拿宝上路约14.6秒。这只是该seed/配置/策略的成本，不是人类最优时间或乐趣分数。
+- **机会/反馈**：生成房提示提前说明短路暴露、上路跳跃成本、Q要考虑冷却、拿宝后重新选回程路线；无碰撞、不给隐藏锚点答案。新增的是已有准备、等待、扫描和绕行选择的可用性/可读性，不是新增未经验证机关。人工文字与相机遮挡仍需本地看。
+- **验收科学性**：19机制逐项列行为要求；B/o最低探针需Mario发射/拿宝事件，F/`[`需Active与Recovery采样，其余被动/自主机制以Mario接触作为最低观察，不逼传送带/检查点发操控事件。所有状态都明确“行为验收仍待专项测试”；接触不是正确，phase采样不是碰撞恢复，受理不是实际效果。旧混合activations保留但不冒充新runnerEffects。
+- **样本与覆盖**：报告按机制分别列first-pass与confirmation，不再混池累计；列出本批未规划的目录项；对照签名包含扫描结果版本、实际效果和阶段。确认仍最多6图一轮、不递归、不删失败。UI能取消筛选查看已达到最低观察但仍需专项验收的机制。
+- **自查修正**：19生成测试使用真实Generator和Registry，而非只查ASCII；复核时发现FlyingEnemy条目还要求原生Rigidbody2D，已把测试查询从MonoBehaviour改为Component，避免测试自己漏掉原生组件。未更改生成器迁就断言。
+
+#### 全19机制审查矩阵（源码检查与行为验收严格分开）
+
+所有行均新增真实生成契约用例，尚待Unity执行；每行的具体行为要求也会写入新summary和UI。下表不是“19/19机制通过表”。
+
+| 机制 | 已核查入口与语义 | 本轮结果 / 仍需真实专项验证 |
+|---|---|---|
+| B | 顶部碰撞→冻结→发射；控制倍率；Reset中止协程 | 原S159弹射/侧碰已通过；中断冻结者的局部重置仍需专门验收，未改变核心弹射流程 |
+| C | 顶碰/远程崩塌、Stable恢复位置和碰撞 | 真实搭乘脱离、崩塌后恢复待验 |
+| - | effector、自定义探测、定向下穿 | 修续期/取消恢复；原跳穿/上路通过，新生命周期Unity待验 |
+| F | 默认trigger、Active实体、结束恢复 | 受理与阶段分层；实际堵路/恢复碰撞仍待验 |
+| < | 顶部riders、SetPlatformVelocity、退出/Reset清集合 | 不再追求不存在的操控事件；速度残留、禁用再启用待验 |
+| X | 从下方碰撞破坏、Reset恢复视觉/碰撞 | 不再误用为伏击攻击；上下/侧向破坏边界待验 |
+| o | Collectible与LootObjective不同；真实收集/撤离事件 | 原拿宝往返已实测；普通收集物销毁与重新生成另验 |
+| H | S键进出、目标/冷却、Teleporting状态清理 | 双向输入、传送中断解除移动限制待验；不是接触即传送成功 |
+| > | 原生Rigidbody2D搭乘速度注入、端点与Overrides | 往返搭乘、离开/禁用与重建待验；不假设统一OnLevelReset |
+| ^ | 伸缩/操控独立周期、CanDealSpikeDamage | 修作者高度；伤害/无敌/后摇窗口与新高度Unity待验 |
+| ~ | Warmup/Firing/CoolOff、0.5秒伤害节流、控制覆盖 | 持续碰撞和后摇安全待验，操控阶段不代表自主周期完整 |
+| P | 独立锤头trigger、角速度控制与恢复 | 锤头真实接触、摆幅及恢复倍率待验，锚点接近不能充数 |
+| [ | 扫描预警缩短、RouteBudget、实体挤出与恢复 | 需组合检查扫描/预算拒绝/出口，Active采样不证明封路成功 |
+| ] | 公开Left/Right/Safe、强制跳状态代价/Recovery | 自主攻击不走普通Active入口；安全窗口和跳状态代价待验 |
+| E | 顶部弹跳与侧伤、死亡协程、Reset刚体/生命 | 死亡中途重置与重建一致性待验 |
+| e | 顶部踩踏/侧碰伤害、销毁 | 保留单一伤害入口，不额外挂DamageDealer；重新生成待验 |
+| @ | BaseHazard去重、Exit允许再次处理、无敌健康门禁 | 入场时无敌/持续停留/退出再入的伤害语义待验，不把触发当伤害 |
+| f | 飞行、非trigger碰撞、死亡协程、原生刚体 | 补原生组件生成断言；中途重置与销毁协程竞争待验 |
+| S | 激活改变出生引用、幂等、Reset颜色 | 跨回合与完整场景重建的检查点语义待验 |
+
+**未隐瞒的生命周期边界**：GameManager.ResetRound仅遍历ResetUses，不等价于完整场景重建；B冻结、H移动限制、E/f死亡协程、已销毁收集物等不能靠这个入口统一恢复。自动批次和编辑器F5/R已有完整重入，不使用ResetRound冒充隔离。本轮不在缺少物理反馈时重构全部回合状态机；上述风险保留待办，不能据267旧回归或新生成契约宣布消失。
+
+**本轮执行结果**：128主模型+2 HUD=130通过；新ZIP直接回读保留S159、267/0与0/0、30/45、首轮18/27，验证9个上路和3个返程，不伪造旧扫描命中。1000seed/3000房/54000调度槽/66000坐标落点压力通过（不是AI物理），10000下穿周期适配通过；旧源码8项预期失败与现实现重跑通过均保留。Roslyn Editor165/Player104零语法错误；静态检查通过；历史模型字段警告和Python转义警告仍在。`.utmp/*s160*`为ignored工具/日志，交付另附验证ZIP，不提交SDK或生成场景。
+
+**本地继续测试顺序**：
+1. 关闭Unity，在原仓库保护本地修改，按需stash -u→pull --ff-only origin genspark_ai_developer→只恢复本次stash；不重新初始化、不reset --hard。
+2. Ctrl+T→创作与试玩→机制回归，快速/153/30秒，勾全量EditMode+PlayMode。任何失败/Blocked先回传TestReport及本批ZIP，不取消回归绕过。
+3. 上一步通过后选“全部19机制+邻接组合”/153/30秒，114首轮、最多18确认；同版本同配置可取消重复全量回归。回传报告，即使有未接触或未达阶段也不代表机关已坏，要定位生成、Bot接近和专项行为层级。暂不跑570局全两两。
+4. 新建Experience/153/45秒，27首轮、最多27确认；同条件不重复全量回归。重点看scan hits/misses、Baiter受理与后摇、SafeRoute完整Out/Return、Chaser请求/成功。若稳定，再选154作独立布局敏感性测试，不混入153确认统计。
+5. 从报告选房分别试玩Mario和Trickster：是否在承诺路线前看懂成本、看到预警后能否解释反制、失败能否说清原因；同房换边后再判断等待是否无聊、是否有再次尝试的策略。没有真人反馈不加“沉浸感通过”标签。无对手配对基线和更广参数覆盖仍属后续科学性增强，不是本轮已经执行。
+
+### [S159] 第一批实测唯一失败：测试出生点不在预期位置
+
+**输入**：`S158_Mechanism_seed153.zip`，toolRevision=S158，Smoke，256通过/1失败/0跳过；首轮18与确认12共30局全部Cleared，无运行错误。首轮Mario真实B弹射5次，未出现新的卡死脱困。唯一失败 `S50_AutoRunE2ETests.Mario_SolidCeilingStillBlocksOrdinaryJump`：期望头顶最高<=1.58，实际5.7689991。
+
+1. **根因定位**：AsciiLevelGenerator.CreateVisualMarker生成`MarioSpawn_x_y`；S50/S51测试却只找`MarioSpawnPoint`，漏掉真实标记后默默回退(1,2)，再加0.5形成(1,2.5)。低顶实心块占y=1.5..2.5，这个初始身体处于屋顶附近/内部，后续被物理解穿透到上方后跳跃并非“从下面撞穿”。沙盒可直接证明出生前置条件错误，具体解穿透过程没有引擎复现。另即使只修名称，默认+0.5也会让低顶场景初始身体重叠天花板，必须同时修正该测试的初始抬升。
+2. **修复范围**：S50/S51必须找到唯一`MarioSpawn_`标记（兼容精确旧名MarioSpawnPoint），缺失/重复立即断言，不生成默认替代标记；GameManager/LevelManager均接同一真实标记。通常保持原0.5起始抬升，低顶fixture明确用0，Trickster低顶出生也设y=1。起跳前验证生成天花板覆盖整个身体、头顶在下面、落在y=0.5地板；Mario必须实际消费一次跳跃，按物理步采样。原1.58最高头顶断言未放宽，未跳过用例，不改任何人物控制器、速度、重力或B规则。
+3. **防再次误测**：S50/S51各新增地面/高处真实出生与RoundReset引用验收（UnityTest先让旧对象延迟销毁），以及缺少标记拒绝默认坐标。正确出生会影响之前使用回退位置的TAS起跑与上路测试，因此需要全量重跑；没有为了保绿调整录像输入帧。
+4. **调度与用户反馈**：CompleteRegressionStage保存真实通过/失败计数；失败或0通过记录进入Restoring，保留TestReport.txt，恢复后Blocked，不创建AI试玩/确认记录。取消仍按原流程恢复并标Aborted。未勾回归或显式旧图重测保持原语义。UI提示失败停批，Stage7验收标签同步；新Start标S159，读旧报告不改S158/Complete历史。
+5. **已执行验证**：111模型全通过（109+2）；新验证包括从两套实际SetupPlayableEnvironment原样提取的标记查找/坐标表达式，使用有限Transform/Vector3适配执行；正确坐标、缺失/重复拒绝、低顶几何前置条件、原报告256/1不能被30通关掩盖，及4个实际停批方法契约。用git show a60c570的旧片段替换临时副本，低顶前置测试正确失败：初始头顶2.94999981，不小于实心顶下沿1.5；生产代码未回退。1000种子/3000房/54000槽/66000落点坐标压力再次通过，Roslyn Editor165/Player104和静态检查通过；历史模型字段/脚本转义警告仍在。日志与结果在ignored `.utmp/*s159*`，随本轮另附验证ZIP。
+6. **用户已验证但需保留边界**：S158报告中，双方跳穿单向平台、Mario下穿、Trickster实心顶、双方EditMode探测、B三种反应配置均通过；上路去程8.278秒、拿宝返程15.717秒也通过。这些来自真实Unity，但上路/E2E的旧起点漏匹配需要新基线重测，不等于完整体验房双方对抗已验收。
+
+**本地下一步**：关闭Unity、保护本地修改，在原genspark_ai_developer执行pull --ff-only；快速机制验证/153/30秒/勾选全量EditMode与PlayMode。若Blocked或回归失败，直接压缩本批报告回传，不取消勾选绕过；通过后保存第一份ZIP，再新建Experience/153/45秒（同版本同配置可不重复全量回归），回传第二份ZIP。
+
+### [S158] 通关稳定之后，验收真实选择与对抗
+
+**输入证据**：`20260917_150212_ea3bfa92.zip`（Smoke：首轮18、确认12，30全通关）与 `20260917_151219_9416ec62.zip`（Experience：首轮27、确认27，54全通关），Unity2022.3.31f1，两份各239回归通过。Experience所有局只记录lower；SafeRoute首轮9局全部请求退路；首轮29次附身、0次不同锚点转移记录。0记录也可能受观察器漏报影响，不等于已证明从无转移。
+
+1. **实际规则一致性**：Mario/Trickster的自定义ceiling探测原先未过滤PlatformEffector2D，和从下穿过的规则矛盾。两者现在复用OneWayPlatform.HasBlockingSurface，遍历所有命中，排除trigger/自身/同刚体/定向IgnoreCollision，横向单向平台不作为上行天花板，也不让上升中的角色提前grounded。保留实心天花板；finally恢复查询开关；使用可增长复用List避免每物理帧分配/固定容量漏检。未改速度、跳力、重力、B侧碰规则。
+2. **路线真实执行**：作者路点不用旧左右wiggle，采用速度感知普通水平输入；到达必须grounded、水平误差<0.45、高度误差<0.25。完整路线按全部路点顺序到达记Out/Return；失败换路仍最多两次，跳过下路入口不得记完整下路。原反向脱困不干扰作者落点，失败交由有界换路/无进展预算。无宝物场景不读取遗留持宝状态来反转路线。
+3. **体验房v3**：左右台阶间隔两格、每阶一格升高，补齐双向落点；保留连续上路作为真正可避战的替代路线。X是可破坏砖而非伏击攻击，本轮改用已有`[`封路（预警可扫描缩短）、`F`挡路与第二房的`]`公开状态队列。Trickster生于首锚点旁，给正常1.5秒融入留准备距离；第二锚点在附近支持原生方向键换点。不使用强制附身/瞬移/InstantBlend，不新增伤害。加入无碰撞的路线/目标TextMesh提示；旧v1/v2按原ASCII重播，不套新布局提示。
+4. **对抗与观测**：Chaser在Mario越过锚点后用普通方向按键尝试换点，记录请求不冒充成功，仍受原范围/门禁/冷却；失败可解除附身走位。观察器同时监听OnAnchorChanged和OnStateChanged，修复同状态换点漏报，并对同锚点去重。新增近距同高度附身就绪时间、操控受理、完整路线证据；这些不证明伤害避免或乐趣。SafeRoute绕过机关不再被要求接触全部机关。
+5. **报告不掩盖失败**：即使Cleared，安全上路去/返程未完成、冲刺/侦察无近距就绪窗口、Chaser拿宝房无不同锚点成功仍显示体验缺口，进入有限确认和UI案例筛选。首轮汇总与确认分开，缺操控受理单独提示。旧报告缺少新字段明确标未记录，不补造成功；新Start写toolRevision=S158，旧报告仍S157。
+6. **自我压力测试已执行**：1000种子（含int边界）、3000房结构/平台支撑/台阶高度，54000调度槽，66000次去返程坐标落点输入，120万次静止失败输入检验两次换路上限。该坐标oracle不模拟Bot或物理。另对原ZIP直接反序列化与诊断：原239/30/54结果、ASCII和S157标签保持不变，54条体验记录显示缺测。临时副本恢复旧0.8容差且移除grounded门槛，新测试按预期失败（Expected0/But1）；生产模型95/95、HUD2/2重新通过。原样提取/真实源码模型只验证列明部分，不等于完整Unity编译。结果在ignored `.utmp/model/s158-results.xml`、`.utmp/hudmodel/s158-results.xml`、`.utmp/s158mutation/mutation-results.xml`，交付另附验证ZIP。
+7. **已写入、未执行的Unity验收**：双方单向/实心ceiling探测、后置实心命中/trigger/定向下穿；双方普通按键跳穿并落顶、Mario S+Jump下穿；使用真实生成器及生产GuidedBot的完整上路与拿宝返程（隔离对手机关，必须真实Mario胜利、不得退回lower充数）。PlayModeTests保留player程序集边界，编辑器路线测试用反射读取真实作者数据，不复制路线假实现。
+
+**下一轮本地步骤**：关闭Unity，在原项目按需stash -u → pull --ff-only → 成功后恢复本次stash；不要重新初始化或reset --hard。先机制回归/seed153/30秒/勾全量回归，任何失败先回传；通过后新建Experience/seed153/45秒/首轮27局（最多再27确认）。重点看SafeRoute `Out:upper` 与拿宝房 `Return:upper`、近距就绪与受理、Chaser换点请求/实际成功及时间线。分别试玩Mario/Trickster，验证提示可读、预警来得及反应、失误可理解、上路代价值得选择。不要求固定胜率，也不把97模型或全Cleared视为乐趣已验收。
+
+
+### [S157] 薄平台卡点与分阶段验收
+
+**输入证据**：`20260917_142131_c5d7e99a.zip`，Unity2022.3.31f1，scope=Smoke。227回归全部通过，首步10x/无输入跳跃/重置/低台阶已真实通过；33局含15确认，27通关/6无进展，0运行错误。XF/Fo共12条记录全部通关；oB的6条全部卡在最远x约21.09，每局6次脱困、Mario累计38次接触B但0弹射激活。体验房尚未运行，空routes不能当作体验观察器失效。
+
+1. **问题定位**：B默认碰撞体厚度0.3，中心y=1时上下界约0.85/1.15；原脚边射线约y=0.665从其下方穿过，但Mario身体会撞到侧边。胸口单射线也不能覆盖所有薄平台。B本身只受理顶部落下；本轮不修改B碰撞法线门槛、冻结/弹射协程、速度或重力。
+2. **正常按键修复**：双方水平避障共用身体高度BoxCast，收缩底边以排除脚下地面，过滤自身/同刚体/trigger和允许侧向进入的单向平台，不改全局Physics2D查询标志。Mario起跳遇B时短时对齐其碰撞体中心，按实际水平速度刹车；至多1.5秒，进入真实kinematic冻结或目标失效时释放，之后1秒冷却。对齐期不触发反向脱困误判；没有传送、强制弹射或改变输入门禁。
+3. **测试与证据**：新增左右身体探测契约（旧脚边射线漏检、薄块可检、地板/trigger/单向侧面排除），5项转向/刹车/镜像契约，三种反应配置的PlayMode“确实收到Mario发射事件且通关”，以及“真实抵住侧边但没有弹射”的守卫。B测试保持上传图的台阶、上层与净空，移除宝物目标以隔离接近动作；实际oB拿宝撤离仍由Smoke验证。报告区分bounceLandingAttempts与runnerBounceLaunches，后者只由目标为Mario的真实发射事件增加，附身操控/碰撞接触不充数。
+4. **避免跑错模式**：按钮明确为“开始机制回归”或“开始体验探索：3类房间×9种策略搭配”；启动前显示scope/预算，运行中和报告按实际场景标注路径，Smoke明确提示未运行体验房。新报告记录toolRevision=S157；旧报告不补写新版本标签。保留原计划、预算、确认、保存/恢复场景和旧ASCII重测机制。
+5. **本地已执行**：87项主模型与2项HUD，共89通过；新增本地执行内容是原样提取的转向函数/5项测试及报告路径/弹射证据契约，未模拟BoxCast或完整Bot物理。Roslyn C#9 Editor165/Player104、syntax_check、static_art_pipeline_check、git diff --check通过。模型适配有历史未使用字段警告，syntax_check有历史Python转义警告，不等于Unity错误。
+
+**本地验收顺序**：关闭Unity并备份，原仓库stash -u（有改动时）→ pull --ff-only → 成功后恢复本次stash；不要重新初始化Git或reset --hard。先seed153/30秒/快速机制回归并勾全量回归，重点看新增B测试与oB实际弹射/通关；保存报告目录后切Experience/30秒，确认27局首轮（最多再27局确认），运行三体验房与九搭配，再分别试玩双方。任何新增回归失败先回传，不以“27局完成”替代通过。
+
+### [S156] 从空跑修复转向可观察的路线取舍
+
+**输入证据**：`20260917_133432_812db1bf.zip`，Unity2022.3.31f1；211/212回归通过，唯一失败为首步10x跳跃事件0次。33局含15局确认，0运行错误；XF/Fo停在x约26.09，oB在x约21.09且B上方净空不足。此前HUD阻塞已解除，不再把全部问题归因于启动。
+
+1. **跳跃根因与边界**：双方 `_timeJumpWasPressed` 默认0被开局缓冲窗口误认为真实按键，消费后再次写0也可能重新生效。空缓冲改为负无穷，重置同时清时间戳/旧落地状态；真实时间0按键仍有效。原首步10x严格断言保留，新增双方逻辑契约、无输入落地、重置及Bot低台阶PlayMode测试。原样提取HandleJump/ExecuteJump后，旧代码双方均在无输入时产生正跳速，修复通过；尚不能宣称用户那项物理失败已由Unity证实解决。
+2. **几何与基础动作**：v2机制图下路入口/出口改为单向台阶，上层抬高并为B切出净空，不删机制或调人物物理。脚边射线替代漏检低台阶的胸口射线；地面反应延迟先刹车，不继续撞上障碍；P2跳跃保持后释放，S下穿状态逐帧清理。连续永久下层地面不再被当作无底宽坑，深落差仍报需要验证落点/危险/返程的警告，真宽坑测试保留。
+3. **双路径**：原Smoke/Mechanisms/Pairwise预算保留；新增Experience三房间：短路或爬高绕行、两段伏击与缺口上路、右端拿宝后回左端撤离。带有限seed位置变化，不是任意复杂地图生成。角色站立目标用碰撞体尺寸计算，实际路线区与平台高度对齐；画布仅含ASCII，完整语义通过报告“亲自试玩”入口重建。
+4. **独立双方策略**：Mario抢进度/侦察/绕路，Trickster提前伏击/诱敌近身再出手/经过后换点追击，3×3交叉搭配。扫描可在等待中请求；附身要检查高度；走不到的锚点暂时避开；均走原输入/资源门禁，不传送、不强制命中。体验Bot使用作者路点，停滞后至多两次换路请求，只有实际接近路点才记录进度；不是训练学习，也不是未知地图全自动寻路。
+5. **诚实反馈**：不再硬编码goalX=37，按真实Loot/Goal/Escape组件与持宝阶段计算进展。报告分开记录换路请求、实际路线区域进入/切换、路点访问、脱困尝试、预警期间实际退让、Recovery期间近身穿越、成功附身不同锚点。位置采样不能证明反制因果、完整路线通行或乐趣，UI明确边界；确认比较也包含路线与行为覆盖变化。每图预算、确认索引、重测和原场景保护共用按场景计算的策略表；体验27局+最多27局，只有一轮确认。
+6. **已执行验证**：主模型81/81（实际Plan/Registry/Validator/Input等源码，报告方法重新原样提取，另含双方跳跃方法模型）；HUD2/2，合计83项。旧跳跃时间戳变异检查按预期2项失败。Roslyn C#9 Editor165/Player104、syntax_check、static_art_pipeline_check、git diff --check通过。模型适配有未使用字段警告；无Unity引擎编译、真实碰撞或新Bot对局结果。新增Unity测试留给本地批次执行。
+
+**本地最短验收**：关闭Unity，保护本地配置/场景后pull --ff-only；先以seed153跑机制回归，关注首步跳跃、低台阶和组合图卡点；再切体验探索跑27局首轮，比较九种搭配的实际路线、退让/后摇证据及拿宝返程。最后自己分别试玩双方，判断预警是否可读、绕行是否值得、失败原因是否清楚。不要只看通关率。
+
+### [S155] 最新报告：解决剩余 HUD 启动阻塞
+
+**输入证据**：`20260917_131816_788a7604.zip`，Unity2022.3.31f1，seed153，回归209通过/1失败。唯一失败为 `CameraControllerTests.GlobalHUD_BuildsTextWithBuiltinFont_WithoutLegacyOnGUI`；两局StartupFailed均指向 `GlobalGameUICanvas.BuildHierarchy:230`，日志明确报“同一GameObject只能包含一个Graphic”。批次正确标为Blocked，剩余16局未执行；仍不能判断玩法平衡。
+
+1. **根因修复**：`AbilityFailText` 已有Text时再AddComponent<Image>被UGUI拒绝，返回null后访问color导致异常。改为 `AbilityFailPanel(Image) → AbilityFailText(Text)`，保留原位置、尺寸与文字内边距，背景缓存为字段；不捕获吞错，不停用HUD来绕过。
+2. **反馈完整性**：统一由背景父节点控制显隐，启动无空背景；文字与背景同步淡出，到期一起隐藏；再次失败时显示新原因并恢复透明度，空消息不显示。双方都保持raycastTarget=false，不拦截交互；沿用unscaledDeltaTime，暂停期间也能正常消退。Stage7验收路牌同步。
+3. **回归加强**：原字体测试继续保留并检查所有后续面板、UI字段绑定、每对象一个Graphic、无射线拦截及重复构建不重复节点。新增EditMode提示显示/半透明/到期/复用/空消息契约，新增PlayMode真实Awake/Start/Update与暂停消退测试，测试恢复timeScale并清理自己创建的日志Sink。
+4. **已执行验证**：71项模型通过：原69项复跑通过；原样提取生产HUD构建/反馈方法及两项仓库EditMode测试，用有限UGUI适配强制“每对象一个Graphic”后2项通过。将HUD换回09e2d94，两项均复现BuildHierarchy空引用。模型不验证字体渲染、引擎生命周期、事件总线或Unity真实组件实现；新增PlayMode未执行。Roslyn C#9 Editor165/Player104、syntax_check、static_art_pipeline_check、git diff --check通过。
+5. **范围约束**：不改玩家物理、AI输入、关卡平衡、ProjectSettings、Packages或用户场景。保留S154故障停批与有限同条件复测；先取得有效对局，后续再按预警可读性、路线选择、后摇反制与失败解释优化体验。
+
+**下一步**：用户已完成Git接入，原项目保存并关闭Unity，必要时stash -u保存本地文件，pull --ff-only成功后恢复stash（冲突时停止）。检查最新提交，再以seed153运行一键流程；优先看HUD回归是否通过、有效试玩是否大于0，最后亲自确认提示显隐与暂停表现。不得把本轮模型通过写成Unity全量通过。
+
+### [S154] 用户报告落地：先获得可信反馈，再优化沉浸体验
+
+**输入证据**：`20260917_115532_20ed8e12.zip`，Unity 2022.3.31f1，seed=153。196 个回归通过、6 个失败；18 局全部在 `GlobalGameUICanvas.ConfigureCanvas` 因 `Arial.ttf` 异常启动失败，耗时/接触/激活全零。报告的 Complete 仅指调度完成，不能据此调整玩法平衡。
+
+1. **启动修复**：Unity 2022.2+ 使用 `LegacyRuntime.ttf`，旧版本保留 Arial 条件分支。旧 IMGUI fallback 测试改为真实 UGUI 文本/字体/Overlay 契约，不恢复已退役 HUD。
+2. **6 个失败逐项处理**：单状态素材仅在真实角色目标上启用状态动画，孤立 hero_idle 保持循环预览；EditMode 接触测试改为反射调用，避免非 ExecuteAlways 行为的 SendMessage 引擎断言；机关测试严格验证 Telegraph → Active → Recovery → Cooldown → Idle，并检查仅 Active 有伤害、其余阶段不可重复操控（Idle 除外）。未删除 Recovery 反制窗口。
+3. **跳坑回放根因**：原 direct TAS 在 Update 推帧、物理却10倍执行；同时旧80步起跳在默认9单位/秒下已走过坑。direct AutomatedInputProvider 现在按 FixedUpdate 先读取分发再 Tick，输入早于控制器，双方在物理步消费跳跃请求；录像和 S50 起跳提前到27步。夹具先中立输入、确认落地，死亡即结束等待，胜利必须收到 Mario winner，不能用任意 RoundOver 充数。没有改人物速度/重力/碰撞参数。新增 Unity 10x 时钟与首步跳跃契约。
+4. **旧模式边界**：此次校正的是直接注入 AutomatedInputProvider 的自动回归；旧 Hybrid/Arena TAS 和 InputRecorder 仍按渲染帧驱动，不是10倍物理基准。不得把旧录制数据视作确定性跨帧率回放。本地须特别复测正常键盘/双方 AI、跳跃缓冲与弹跳冻结，确认输入执行顺序无手感回归。
+5. **静态误报**：一格下方存在连续地面时，不再把高低台之间的空气误判成13格深坑。只取消此类 abyss-width 诊断，不宣称净空/危险/动态路线通过；真实无底宽坑仍必须报错。
+6. **有限自循环反馈**：首轮跑完后，自动从受阻/无进展/覆盖或激活未证实的有效试玩中去重选最多6张，按原种子原三画像再确认一次。保留首轮与第二轮、结束原因和事件时间线；结果改变标为“不稳定，不是已修复”。不会无穷递归、自动改难度、强制通关或删除难例。首次接近/接触/激活也算探索进展，避免只追水平距离。无独立激活事件的机制仍可能显示未证实，不能当作机制故障。
+7. **故障优先**：连续两次相同启动/构建/运行基础故障即停批恢复原场景，未执行计划保留未验证。报告/UI 分开显示调度状态、证据结论、有效试玩数、合并故障；批次间物理或玩法配置改变时停止，不覆盖用户调参。人为停止、预算及原场景保护保留。
+8. **已执行**：69 项 NUnit 模型检查（65 项仓库文档/计划/分类/验证器/输入序列测试，2 项提取的报告契约，上传 JSON 故障策略与真实 InputManager 方法调度各1项）；实际 C# 源码 + Unity API 适配，报告纯方法原样提取，非引擎模拟。将分类器/验证器/InputManager 换回6790c29旧源码可复现3项失败，修复源码69项通过。Roslyn Editor165/Player104、syntax_check、static_art_pipeline_check、git diff --check通过。
+
+**下一轮最短验收**：按项目版本 Unity 2022.3.61f1 打开（本次反馈来自31f1，字体分支兼容两者）→ 一键开始 seed153 → 检查回归失败数、有效试玩是否大于0、首轮/有限确认对照、停止和原场景恢复。再亲自体验候选，关注“看懂预警—选择路线或扫描—利用后摇反制—明确理解失败—快速再试”；在取得真实对局前，不扩堆机制或用通过率代替乐趣。
+
+### [S153] 自动探索、机制组合与诚实覆盖
+
+本轮由用户明确要求 AI 承担测试与随机搭建，属于设计目标驱动的按需实现。核心仍是降低创作成本、找出不可理解的失败与空等，而不是用 AI 胜率假装证明乐趣。
+
+1. **一键无人值守**：Level Studio 的新面板默认先调用 `TestReportRunner.RunAllTestsUnattended`，不在 EditMode/PlayMode 两阶段之间弹出完成对话框；随后进入场景生成和双 AI 批次。完整报告复制进同一输出目录；失败数单独保留，调度 Complete 不等于测试通过。
+2. **有约束的随机语法**：`MechanismExplorationPlan` v1 使用显式 PRNG，覆盖当前 Registry 的 19 个机制字符（结构字符不算机制）。固定安全出生区、共同挑战区域、结束前喘息区；双机制场景带上层备选路线。平台轨迹用既有 Override 元数据，隐藏通道自动配置出口，含 o 的案例用既有拿宝/撤离后处理。没有宣称静态结构等于物理可达。
+3. **三档计划**：Smoke 6 场景 / 18 局；Mechanisms 19 单项 + 19 邻接组合 / 114 局；Pairwise 19 单项 + 171 无序对 / 570 局。每图使用 Cautious、Runner、Explorer 三种双方画像。覆盖的是同房共现与实际观察证据，不是所有顺序、参数或时序组合；新增未知 Registry 字符会明确列出未纳入项。
+4. **AI 正常操作**：复用 HeuristicBotInputProvider。种子决策使用独立随机流；普通 AI 未设置种子时保留原随机行为。候选对象按类型缓存、每秒更新，避免每帧多次全场扫描；失效对象使用时过滤。Explorer 只通过短时目标引导和 S 输入尝试通道，不能传送角色、强制机关成功或绕过能量/冷却。
+5. **分层证据**：生成实例数 / 接近 / 闯关者接触 / 捣蛋者接触 / 实际激活 / 观察到的阶段分开计数。接触探针不增加碰撞或刚体。机关操控回调、弹跳发射、拿宝回调等才计为相应激活；无独立激活事件的机制不会伪造证据。同时记录扫描、附身、连锁、热度、危机、揭穿、撤离、路线降级/恢复/护栏事件。
+6. **可靠边界**：每局独立新场景 + 完整 Play 生命周期，不使用不完整 ResetRound。启动前要求保存原场景，保存被拒绝则不开始；原场景书签显式序列化，完成/停止后恢复。单局游戏预算、12 秒无净进展、真实时间看门狗、启动超时、输入被接管、脚本重编译和运行时异常分开记录。NoProgress/TimedOut 不是无解判定。磁盘或恢复失败不会无限循环。
+7. **输出与复测**：`reports/ai_exploration/<UTC批次>/summary.txt` + `report.json` + 布局 `.txt`；可筛选问题/覆盖不足案例，自动重测三种画像，或人工试玩保留完整通道/拿宝场景语义。普通画布只导入布局，不声称还原所有后处理配置。报告保留引擎版本、fixedDeltaTime、物理与玩法 SO JSON；复测使用当前配置，未自动回写快照。退出编辑器不自动续跑，最近报告入口可恢复。
+8. **已执行验证**：49 项模型 NUnit 测试通过，其中完整枚举 171 种组合覆盖，并在三个不同种子下检查全部 190 场景的矩形、标记、出生缓冲、喘息区与请求机制不丢失；165/104 文件通过 Roslyn C#9 Editor/Player 语法检查；项目 syntax_check、static_art_pipeline_check、git diff --check 通过。
+9. **未执行验证**：没有 Unity Editor，不能声称已跑完 18/114/570 局、4 项新的引擎侧契约测试、真实全量 Test Runner 或真人沉浸性评估。建议本地先用默认 18 局验证从开始到恢复的闭环，再扩大覆盖。报告里零激活、无进展、AI 操作失败或结构警告都必须保留，不能包装为“全方位已通过”。
+
+**用户只需做的事**：拉取完整项目 → 用 Unity 2022.3.61f1 打开 → Ctrl+T 启动默认批次 → 在结果面板亲自试玩候选/失败图。自动化承担摆图、切换角色、跑局、保存证据；若有问题，整批报告文件夹打包即可继续定位。
+
+### [S152] 体验优先重构与验证边界
+
+**第一性原则**：乐趣来自“目标清楚、能做选择、反馈可理解、很快有机会改进”。创作者需要安全试错与作品所有权；游玩者需要公平可读的挑战与自主停止。此次优先减少操作阻力，不添加签到、随机奖励或强制自动连局。
+
+1. **可视化成为默认入口**：`TestConsoleWindow.CreationFlow` 使用现有 Registry 的色块画布与元素库；左键拖画、右键/Shift 擦除、Alt 吸取、整笔 Undo。角色与终点标记是移动而非复制。最大 128×48，支持向右/向上扩画布，底部世界坐标不移动。原高级工作台和美术管线保留。
+2. **保护源稿与场景**：`customAsciiTemplate` 加 SerializeField，按项目路径隔离的 EditorPrefs 自动恢复草稿，提供 .txt 导入导出。草稿不是云端存档；想随 Git 保存，须导出到仓库并提交。生成用独立新场景；原场景的保存选择由用户决定，绝不后台覆盖。画布与手工场景是两种明确的来源，不做不可靠的双向自动同步。
+3. **三个短房间**：初次跳跃 / 读懂陷阱 / 双路博弈，均为 32×9，包含 M/T/G、出生缓冲和单一测试目标。布局结构与标记已测；并未经过 Unity 物理可达性或真人乐趣验收。
+4. **试玩闭环**：选择人类闯关 / 人类捣蛋 / 本地双人；复用 HybridInputProvider，F1/F2 仍可接管。SessionState 跨 Domain Reload 保存本版的尝试、通过、受阻、未完成、耗时、结束坐标和最快通过。主动退出不计失败；新画布或不同角色模式单独统计。结束位置不等于精确死因；作弊/中途接管的数据不是认证成绩。
+5. **安全重试而非假复位**：编辑器 F5/R 使用独立的 LevelStudioPlaySession 回调，完整退出再进入 Play，恢复未保存场景和被 Destroy 的金币/敌人。不用不完整的 ResetRound 冒充完整重试。需要启用 Reload Scene；工具只提示，不修改项目设置。N 保留原来的下一回合语义，不保证恢复所有可销毁物。正式构建使用场景路径重载，无法加载时明确告警。
+6. **游玩反馈**：GameManager 提供实际游玩耗时（暂停不计时）、结束原因与坐标；UGUI 结算展示时间与下一次尝试建议，取消持续闪烁的重开提示。Stage 7 路牌已同步。没有改变角色物理参数、碰撞尺寸、附身规则或美术资产。
+7. **兼容修复**：生成器跳过 MainRoute/ShadowRoute/TrapRoles/Budget/TestGoal 元数据行，避免把设计注释生成成地形；Override 行原处理保留，画布编辑保留元数据。
+8. **已执行**：25 项 LevelStudioDocumentTests 在真实 C# 文档代码 + 默认 Registry 代码上通过（.NET/NUnitLite；Unity 类型、Resources 与碰撞尺寸是适配占位，不验证引擎）；`syntax_check.py` 157 文件零错误；Roslyn C#9 按 Editor/Player 编译范围语法检查零错误；`Tools/static_art_pipeline_check.py` 通过；`git diff --check` 通过。
+9. **尚未执行**：Unity 全项目语义编译、真实 EditMode/PlayMode Test Runner、窗口布局/Undo/焦点/未保存场景往返/三种人机模式/域重载开关组合，以及双人可玩性与关卡节奏。下一轮应先测这些，而不是继续堆机制。
+
+**参考与采用的部分**：
+- Nintendo 官方 Mario Maker 2 工具建议（常用元素与机制组合）：https://play.nintendo.com/news-tips/tips-tricks/super-mario-maker-2-tips-tricks/
+- Ultimate Chicken Horse 开发者的建造—游玩循环案例：https://www.cleverendeavourgames.com/blog/2019/8/19/ultimate-mario-maker-chicken-horse
+- Celeste 关卡工具与迭代过程的 GDC 设计分享：https://www.gdcvault.com/play/1024307/Level-Design-Workshop-Designing-Celeste
+
+**本地验收路径**：Unity 2022.3.61f1 → Ctrl+T → 初次跳跃 → 画一段地面并 Undo/Redo → 导出/导入 → 搭建并试玩 → F5（测试未保存的场景）→ 返回修改 → 检查报告和草稿 → 修改一格再试玩，确认新版本单独计数。再测试双路博弈的两种人机角色，最后跑全部 EditMode/PlayMode 测试。
 
 ### [S151] 最新知识沉淀
 1. **Trickster Lockdown 逃跑**：读取 `TricksterHeatMeter.CurrentTier`，当热度达到 `Lockdown` 时强制 `p2DisguiseDown=true` 解除附身，并以 Mario 反方向全速逃跑 + 跳跃，持续到热度降为非 Lockdown。Intent="[Fleeing! High Heat]"。
@@ -433,6 +1372,16 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 ## 2. 回归验证清单
 
+**S178待本地复验**：27新增EditMode，预计全量666；358沙盒模型不能替代Unity。重点为新双口图六组、分岔退回与正常上路去返、真实遮挡/扫描打断/换口到达与重新就绪、返程选择、人类接管、ZIP入口。S177已实际639/639、24局，S176地表12局完整去返已观察；S177用户仍觉得单调。旧失败保留，不能回填或用全绿判乐趣。
+
+**S165 待Unity重跑**：19个新增EditMode案例、4个加强后的PlayMode队列测试，以及独立起步/缓存失效、局部扫描/遮挡/冷却、完整遭遇/配对/缺失槽位。86沙盒模型不是Unity通过。用户本ZIP已确认S163的350/350和21条全通关，但S164/S165没有真实Unity报告，不得借用旧通过数。
+
+**S154 待 Unity 重跑**：受影响项为 HUD 字体与旧 UI 契约、素材单状态预览、接触探针、机关五阶段/伤害窗口、S50/S51 跳坑与10x固定步首帧跳跃、普通键盘/双方AI/弹跳手感、L1深坑误报、18局首轮+最多18局确认、重复启动异常停批、配置变更保护、取消与场景恢复。用户旧报告196/202通过不代表修复后结果；沙盒69模型通过不替代本项。
+
+**S153 待 Unity 回归**：新增 MechanismExplorationPlanTests（24 案例，已在模型适配环境执行）与 ExplorationIntegrationContractTests（4 案例，待 Unity）。验证无人值守回归无中途弹窗、批次18局推进/停止/恢复、代码重编译中断、文件写入失败、双方控制与分层覆盖、报告重开与场景复现；再扩大到114/570局。
+
+**S152 待本地回归**：新增 LevelStudioDocumentTests（25 个案例）与 GameplayTests 中反馈稳定性、暂停计时、EditorRetryBridge 三项；重点复测测试 7 胜负 UI、测试 8 暂停、Ctrl+T、草稿 Undo/导入导出、独立预览场景、F5/R 和高级工具。沙盒模型测试通过不替代 Unity Test Runner。
+
 > 用户测试时逐项快速验证。AI 修复代码后只需在此标记受影响项。
 >
 > **S74 说明**：本次为美术教程蒸馏落库（テレコム《アニメーション・バイブル》），**未改动运行时代码**；下表状态保持不变。新增30条规则主要影响未来美术资产生产。核心影响：動画16条(振り向き立体意識/各種歩き・走りバリエーション/カメラワーク)はsprite sheetアニメーション生産に直結、透過光法則はTrickster幽霊形態に直結、マルチプレーンカメラはUnity Parallaxに直结、画面動はボス戦VFXに直結。冲突仲裁0条：全規則既有と補完関係。
@@ -499,6 +1448,35 @@ grep -rn 'Instantiate' Assets/Scripts/ | grep -v 'Awake\|Start\|Build\|Create\|S
 
 | 优先级 | 描述 | 状态 |
 |--------|------|------|
+| **最高** | **S187 验收**：H10 仍 5/5；试大炮两种用法、草丛藏身、随机布局；"想再来"是否上升。 | 沙箱全量编译 + 32 布局可达实跑；未经 Unity |
+| 已完成 | **S184 验收**：H10 在新房间仍 5/5；真人 5 局看"有地方藏/来得及布局/机关有效"，"想再来"是否从 2 上升。 | 沙箱编译 + 关卡 L1/L2 实跑通过；未经 Unity |
+| **已完成** | **S179 第 0 步**：用户确认 Console 无错、EditMode 全绿、基础动作正常。 | 镜头跟马里奥问题已在 S180 用整屏镜头处理 |
+| **降级** | **S178双口可玩遭遇本地验证**：seed168，新大按钮/全回归/6首轮/最多6确认/顶部ZIP。 | 358模型过，27新EditMode预计666；实际退回分岔、换口/忍住与返程回应待Unity，不是原洞室同条件A/B |
+| **已审计、体验未满足** | **S177639/639、24局**：地表12局完整上路去返，S176落阶有效；地下暗线/记忆/返程出手/改道0。 | 用户明确“没啥变化、来来回回这些”，不以全绿反驳；不用重跑S177 |
+| **已完成方案/非玩法验收** | **S177研究与自审**：13来源、3候选遭遇草案、有限信息/行动契约/共同迭代阶段；只读可证伪设计卡已接新ZIP。 | S178只实现其中一个紧凑双口原型及有源风险/可见对手；中央井任意换路、共同RL或自动机制仍未做 |
+| **已审计** | **S175首份洞室A/B**：582/582，24唯一对局、无运行错误；地表9回退通关+3停滞，完整上路0/12；地下12通关但返程空。 | 新策略4次输入+重开穿越，旧策略对应4次也能穿越，未证优越/乐趣；入口外scan未被记忆，不同时修。无真人备注 |
+| **已确认** | **S173本地通过**：530/530、原快照夹具通过、短路径导入连接0原图地表演示完成，父/基线字节不变。 | 20.55秒、到达/就绪/出手/扫描/退让/穿越链已出现；返程操控0。用户反馈仍单调，已驱动S174设计，不用全绿反驳 |
+| **已定位** | **S172唯一失败反馈**：524项523过1失败，Blocked/0局；导入后已选择连接1地表demo。 | report257字符可读、parent264字符读失败；旧staging较短不能保证final文件可读。父/基线原字节保留，不算新增对局 |
+| **已确认** | **S171多批反馈**：489/489、2演示+2自动共26局，重复父快照去重、自动0/1完整。 | 非真人，备注空；最早演示是携带基线，不能算自动对照。S170三版完整无需再补 |
+| **已确认** | **S168反馈完整**：429/429，父6+6、子6，父/原始基线相同；父上路3秒出手1、子0。 | 无误操作证据；足够诊断，真人反馈空和单种子局限单列，不要求重复补跑 |
+| **高** | **真实设计迭代**：根据是否赶得上出手、是否只等待、路线选择与人类感受，决定下一处地图或机制改动。 | 当前只是有限3连接方案、最多2步，非开放式学习；拿宝返程不变，动态博弈/新道具仍需设计与验证 |
+| **已确认** | **S167最新反馈**：387/387、24自动局全Cleared；11次首轮暗线到达、转移后出手0；独立演示为Passive。 | 测试阻塞解除；用户感受“没啥特别的”作为真实设计反馈，不用全绿反驳 |
+| **已确认** | **S165用户最新反馈**：369/369回归、21首轮全Cleared、无运行错误；两ASCII的时序对照。 | 来自20260920反馈ZIP，不是S166验收；其他15机制和真人体验不由本批认证 |
+| **已确认** | **S163 输入报告**：350/350回归、21首轮全Cleared、零运行错误，Adaptive三时序无伤、上路可绕行。 | 不是S165通过；旧四条延迟Chaser缺独立起步证据，禁止补造或隐去 |
+| **高** | **S165 体验边界**：检查新扫描策略能否在封路预警中真实获益、遇短窗口/遮挡是否仍可等待或绕行。 | 公共提示是可见性代理；零操控绕行不是失败，真人自然度/紧张感/重玩价值仍未证明 |
+| **高** | **S162遗留 B/Baiter 局部策略**：oB、B<探索弹射覆盖下降；RiskOrDetour对Baiter就绪后未受理。 | 有报告证据，未在S163扩大范围调整；保持窗口与伤害，不把缺口改成通过 |
+| **已确认** | **S162路线和探针基线**：四批328/328，219条全Cleared、0错误；S-/ -X约4秒通关，Experience两seed上路/往返完整。 | 用户真实Unity反馈；seed154第二房5次伤害旧报告未归因 |
+| **已确认** | **S161 静态语义阻塞解除**：P高台、B<下层支撑与全量。 | 用户最新两批309/309、Smoke33全通关；Mechanisms132为123通关/7死亡/2超时，0运行错误 |
+| **高** | **S160 局部重置生命周期风险**：B冻结、H移动限制、E/f死亡协程、移动平台/传送带禁用、检查点跨回合与已销毁对象；不把ResetUses等同场景恢复。 | 已审查并列出边界，未完成专项物理修复/验收；自动批次继续使用完整场景重入 |
+| **高** | **S160 真人与独立布局反馈**：分别试玩双方，判断信息/代价/预警/恢复；稳定后seed154、必要时无对手配对基线，不拿确认局扩样本。 | 待真实反馈；不以Cleared或最低观察层级判定乐趣 |
+| **已确认** | **S159 出生装配与停批基线**：真实出生、低顶、TAS、上路往返。 | 用户267/267通过，Smoke30与Experience45全通关；上路去返和实际换点已出现 |
+| **最高** | **S154 报告根因修复与有限确认**：修复启动、测试契约与TAS时钟；故障停批，最多6张问题图同条件复测一次。 | 已编码；69项模型检查通过，待Unity完整重跑 |
+| **最高** | **S154 下一轮真实玩法证据**：先确认有效试玩数，再查看覆盖/激活/复测不稳定和真人反制体验。 | 旧批次18局均未启动，不能用于平衡；等待修复后报告 |
+
+| **最高** | **S152 核心创作闭环**：可视化画布、源稿保护、三个起步房间、选择角色试玩、结果位置反馈与安全重试。 | 已编码并推送 PR #2；等待 Unity 实机验收 |
+| **最高** | **S152 真实体验验收**：跑新增测试和全量回归；分别由创作者和两方玩家验证首次开玩时间、修改到试玩耗时、失败解释是否明确、是否愿意主动再试。 | 待本地执行；不以代码数量或游玩时长代替乐趣 |
+| **高** | **下一轮优化由实测驱动**：先测 Unity 重入延迟与关卡公平性，再决定检查点轻量重试、片段拖拼、双向场景编辑、音画反馈、正式作品发布与真人平衡调整。 | 尚未实施；不能将本轮称为全产品完成 |
+
 | **高** | **Context-Aware Visualizer 智能降噪**：Show Gameplay Boxes 开启时未选中对象 Alpha=0.1，真实选中对象才高亮；Jump Arc 仅在选中 Mario/BouncyPlatform 时完整渲染，降低 Scene 视图噪音。 | ✅ 已完成（S146，待用户 Unity Scene 视图验证） |
 | **最高** | **四段白盒验证灰盒**：基于原型 B `[`、原型 C `]` 与既有拿宝撤离/扫描危机服务，新增 `S2_Validation_1_Demo` → `S2_Validation_4_Combat`，用于按“演示→干扰→反制→实战”验证完整游戏循环。 | ✅ 已完成（S145，待用户 Unity 生成体验） |
 | **最高** | **整体玩法循环测试关卡一键生成**：按 Commit 0–6 设计循环新增 `MarioTrickster/Build Gameplay Loop Test Scene`，用于一次性验证路线预算、证据反制、连锁热度、拿宝撤离、扫描危机、Q 揭穿和终点闭环。 | 🔄 待用户生成并整体验证（S141） |

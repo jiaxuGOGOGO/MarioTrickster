@@ -28,6 +28,8 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider2D))]
 public class HiddenPassage : ControllableLevelElement
 {
+    public override bool ArmOnPress => false; // S241：按下就该马上生效（瞄准 / 自动 / 开路），不预约
+    protected override bool RefundOnMiss => false; // S241：挡路 / 改地形 / 一次性，不按"打没打中"退还
     [Header("=== 通道设置 ===")]
     [Tooltip("传送目标位置（另一个HiddenPassage或空Transform）")]
     [SerializeField] private Transform exitPoint;

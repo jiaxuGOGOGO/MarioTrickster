@@ -12,7 +12,7 @@ public class SpriteEffectFactoryWindow : EditorWindow
     // =========================================================================
     // 菜单入口
     // =========================================================================
-    [MenuItem("MarioTrickster/Sprite Effect Factory %#e", false, 300)]
+    [MenuItem("MarioTrickster/美术 Art/特效工厂 Sprite Effect Factory %#e", false, 300)]
     public static void ShowWindow()
     {
         var win = GetWindow<SpriteEffectFactoryWindow>("效果工厂");

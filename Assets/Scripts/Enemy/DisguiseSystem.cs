@@ -51,19 +51,11 @@ public class DisguiseSystem : MonoBehaviour
     private bool isFullyBlended; // 是否完全融入场景
     private Vector3 lastPosition;
 
-    // ── Test Console 调试开关（仅 Editor/Development Build 可用）──
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-    /// <summary>
-    /// Instant Blend：开启后伪装后立即进入 IsFullyBlended 状态，无需等待 1.5s 静止。
-    /// 默认 false，仅由 TestConsoleWindow 在运行时设置，
-    /// 每次 Play 自动重置为 false，不影响自动化测试。
-    /// </summary>
-    [System.NonSerialized] public bool DebugInstantBlend = false;
-#endif
 
     // 公共属性
     public bool IsDisguised => isDisguised;
     public bool IsFullyBlended => isFullyBlended;
+    public float BlendInSeconds => Mathf.Max(0f, blendInTime); // Read-only timing for ordinary-input planning.
     public DisguiseData CurrentDisguise => availableDisguises.Count > 0 ? availableDisguises[currentDisguiseIndex] : null;
     public float CooldownRemaining => cooldownTimer;
     public float CooldownProgress => disguiseCooldown > 0 ? 1f - (cooldownTimer / disguiseCooldown) : 1f;
@@ -114,17 +106,6 @@ public class DisguiseSystem : MonoBehaviour
         // 静止融入检测
         if (isDisguised)
         {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
-            // [AI防坑警告] 秒速融入拦截：仅在调试开关开启时立即融入，默认关闭，不影响自动化测试
-            if (DebugInstantBlend && !isFullyBlended)
-            {
-                stillTimer = blendInTime;
-                isFullyBlended = true;
-                SetBlendedVisual(true);
-                lastPosition = transform.position;
-                return; // 跳过正常的静止检测流程
-            }
-#endif
             float moved = Vector3.Distance(transform.position, lastPosition);
             if (moved < 0.01f)
             {
@@ -148,6 +129,9 @@ public class DisguiseSystem : MonoBehaviour
             lastPosition = transform.position;
         }
     }
+
+    /// <summary>S209 纯逻辑：换成 newHeight 的碰撞体后，让底边仍在原来的位置所需的 offset.y。</summary>
+    public static float FeetAlignedOffsetY(float oldOffsetY, float oldHeight, float newHeight) => oldOffsetY - oldHeight * 0.5f + newHeight * 0.5f;
 
     #region 公共方法
 
@@ -209,15 +193,33 @@ public class DisguiseSystem : MonoBehaviour
         isFullyBlended = false;
         lastPosition = transform.position;
 
+        ApplyLook(data);
+
+        // 变身特效
+        SpawnVFX();
+
+        OnDisguiseChanged?.Invoke(true);
+    }
+
+    /// <summary>S242：把外观 / 碰撞体换成 data（变身时和"伪装中换形态"共用）。先还原到原始尺寸再套用，换几次都不会越变越大。</summary>
+    private void ApplyLook(DisguiseData data)
+    {
+        boxCollider.size = originalColliderSize;
+        boxCollider.offset = originalColliderOffset;
+        visualTransform.localScale = originalVisualScale;
+
         // 切换外观
         spriteRenderer.sprite = data.disguiseSprite;
-        spriteRenderer.color = Color.white; // 确保颜色正常
+        spriteRenderer.color = data.tint.a > 0f ? data.tint : Color.white; // S242：照抄房间里那个东西的颜色（tint 透明 = 白色，旧数据不变）
 
         // 调整碰撞体
         if (data.customColliderSize != Vector2.zero)
         {
             boxCollider.size = data.customColliderSize;
             boxCollider.offset = data.customColliderOffset;
+            // S209：变大时脚底不动（往上长，不往地里/墙里长）——原来以中心放大，1.2 格的身体会嵌进地面和旁边的墙
+            if (data.customColliderOffset == Vector2.zero)
+                boxCollider.offset = new Vector2(originalColliderOffset.x, FeetAlignedOffsetY(originalColliderOffset.y, originalColliderSize.y, data.customColliderSize.y));
         }
 
         // S37: 视碰分离 — 视觉缩放操作 visualTransform，物理碰撞体同步修改 size/offset
@@ -234,11 +236,6 @@ public class DisguiseSystem : MonoBehaviour
                     originalColliderSize.y * data.customScale.y);
             }
         }
-
-        // 变身特效
-        SpawnVFX();
-
-        OnDisguiseChanged?.Invoke(true);
     }
 
     /// <summary>解除变身</summary>
@@ -274,20 +271,48 @@ public class DisguiseSystem : MonoBehaviour
     }
 
     /// <summary>选择下一个伪装形态</summary>
-    public void NextDisguise()
+    public void NextDisguise() => Select((currentDisguiseIndex + 1) % Mathf.Max(1, availableDisguises.Count));
+
+    /// <summary>选择上一个伪装形态</summary>
+    public void PreviousDisguise() => Select(currentDisguiseIndex - 1 < 0 ? availableDisguises.Count - 1 : currentDisguiseIndex - 1);
+
+    // ── S242：伪装装备栏（TricksterLoadout 运行时换成"这个房间里的东西"） ─────────────
+    public int DisguiseCount => availableDisguises.Count;
+    public int CurrentIndex => currentDisguiseIndex;
+    public DisguiseData DisguiseAt(int i) => i >= 0 && i < availableDisguises.Count ? availableDisguises[i] : null;
+    /// <summary>上一次"伪装中换了形态"的时间（Time.time）。没换过 = 很久以前。</summary>
+    public float ShapeChangedAt { get; private set; } = -999f;
+
+    /// <summary>整套换掉（装备栏）。伪装中换 = 立刻变成新的当前形态。</summary>
+    public void SetDisguises(List<DisguiseData> list, int select = 0)
     {
-        if (availableDisguises.Count == 0) return;
-        currentDisguiseIndex = (currentDisguiseIndex + 1) % availableDisguises.Count;
+        if (list == null || list.Count == 0) return;
+        availableDisguises = new List<DisguiseData>(list);
+        currentDisguiseIndex = Mathf.Clamp(select, 0, availableDisguises.Count - 1);
+        if (isDisguised) Reshape();
         OnDisguiseSelected?.Invoke(availableDisguises[currentDisguiseIndex]);
     }
 
-    /// <summary>选择上一个伪装形态</summary>
-    public void PreviousDisguise()
+    /// <summary>选第 i 个。伪装中也能换（S242：一瞬间变样——他正看着就会起疑，见 ShapeChangedAt）。</summary>
+    public void Select(int i)
     {
         if (availableDisguises.Count == 0) return;
-        currentDisguiseIndex--;
-        if (currentDisguiseIndex < 0) currentDisguiseIndex = availableDisguises.Count - 1;
+        i = Mathf.Clamp(i, 0, availableDisguises.Count - 1);
+        if (i == currentDisguiseIndex && availableDisguises[i] != null) { OnDisguiseSelected?.Invoke(availableDisguises[i]); return; }
+        currentDisguiseIndex = i;
+        if (isDisguised) Reshape();
         OnDisguiseSelected?.Invoke(availableDisguises[currentDisguiseIndex]);
+    }
+
+    private void Reshape()
+    {
+        var data = availableDisguises[currentDisguiseIndex];
+        if (data == null || data.disguiseSprite == null) return;
+        ApplyLook(data);
+        stillTimer = 0f;
+        if (isFullyBlended) { isFullyBlended = false; SetBlendedVisual(false); }
+        ShapeChangedAt = Time.time;
+        SpawnVFX();
     }
 
     #endregion
@@ -341,6 +366,12 @@ public class DisguiseData
 
     [Header("伪装类型")]
     public DisguiseType type = DisguiseType.Static;
+
+    [Header("S242：颜色 / 来源")]
+    [Tooltip("变身后的颜色（透明 = 白色，即原图颜色）。装备栏照抄房间里那个东西的颜色")]
+    public Color tint = new Color(0f, 0f, 0f, 0f);
+    [Tooltip("这个形态是房间里的哪个字符（装备栏用；空 = 旧的固定形态）")]
+    public char sourceChar = '\0';
 }
 
 /// <summary>伪装类型枚举</summary>

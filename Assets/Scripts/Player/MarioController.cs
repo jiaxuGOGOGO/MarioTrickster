@@ -168,7 +168,8 @@ public class MarioController : MonoBehaviour
     private bool _bufferedJumpUsable;
     private bool _endedJumpEarly;
     private bool _coyoteUsable;
-    private float _timeJumpWasPressed;
+    // No press exists at time zero. Zero is a valid press time, not an empty buffer.
+    private float _timeJumpWasPressed = float.NegativeInfinity;
 
     private bool HasBufferedJump => _bufferedJumpUsable && _time < _timeJumpWasPressed + JumpBuffer;
     private bool CanUseCoyote    => _coyoteUsable && !_grounded && _time < _timeLeftGrounded + CoyoteTime;
@@ -176,6 +177,7 @@ public class MarioController : MonoBehaviour
     // ── 击退 stun 状态 (Session 16: B023) ─────────────────
     private bool _isKnockbackStunned;
     private float _knockbackStunTimer;
+    private bool _stunUntilLanded, _stunSlide; // S216
 
     // ── Session 22: 两段式弹射状态机 ──────────────────────
     // [AI防坑警告] 这是两段式弹射的核心状态机，绝对不要改回 bounceStunTimer 单计时器方案！
@@ -210,11 +212,13 @@ public class MarioController : MonoBehaviour
 
     // ── 公共属性 ──────────────────────────────────────────
     public bool IsGrounded    => _grounded;
+    public bool IsStunned     => _isKnockbackStunned; // S216
     public bool IsMoving      => Mathf.Abs(_frameVelocity.x) > 0.1f;
     public bool IsFacingRight => isFacingRight;
     public Vector2 Velocity   => _frameVelocity;
     public float Speed        => Mathf.Abs(_frameVelocity.x);
     public float VerticalSpeed => _frameVelocity.y;
+    public float HorizontalSpeedLimit => MaxSpeed; // Read-only, respects the current SO/local movement configuration.
 
     // S39: 暴露跳跃键按住状态，供 BouncyPlatform 在 comedyDelay 结束时查询
     // 用于按键驱动大跳（Super Bounce）：冻结期按住 Space → 1.4x 弹射力
@@ -308,13 +312,13 @@ public class MarioController : MonoBehaviour
     {
         _time += Time.deltaTime;
 
-        // 击退 stun 倒计时
+        // 击退 stun 倒计时（S216：被弹上天的要等落地才恢复控制，最多多等 LaunchFeel.landGrace 秒）
         if (_isKnockbackStunned)
         {
             _knockbackStunTimer -= Time.deltaTime;
-            if (_knockbackStunTimer <= 0f)
+            if (Step1Feel.StunOver(_knockbackStunTimer, _stunUntilLanded, _grounded, LaunchFeel.landGrace))
             {
-                _isKnockbackStunned = false;
+                _isKnockbackStunned = false; _stunUntilLanded = false; _stunSlide = false;
             }
         }
 
@@ -343,7 +347,23 @@ public class MarioController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        // ── 击退 stun 分支：不覆盖 rb.velocity，让 AddForce 击退力自然衰减 ──
+        // Direct fixed-step TAS can deliver a jump between rendered Updates.
+        // Consume the same buffered request here, before collision/jump evaluation.
+        if (jumpPressedThisFrame)
+        {
+            if (!_isPreparingBounce)
+            {
+                _jumpToConsume = true;
+                _timeJumpWasPressed = _time;
+            }
+            jumpPressedThisFrame = false;
+        }
+        // ── 击退 stun 分支：不覆盖 rb.velocity，让击退速度按抛物线自然走完 ──
+        // S216：以前只有往下掉才有重力 → 被弹簧/炸弹/大炮弄飞时匀速往上飘（弹簧 11 格撞天花板、炸弹推 8 格）。
+        // 现在全程有重力（LaunchFeel.gravity）+ 空中阻力 + 落地摩擦，并检测落地/撞头（落地会压扁、出尘土）。
+        // S236：身体被冻住（马里奥停时间 / 弹跳台蓄力 → isKinematic）时不写速度。以前硬直分支照样每帧写重力速度，
+        // 冻住的身体会慢慢"沉"进地板（2 秒约 3 格），解冻后掉到房间外面（S235 掉出房间的根因之一）。
+        if (rb.isKinematic && _isKnockbackStunned) { _frameVelocity = Vector2.zero; rb.velocity = Vector2.zero; return; }
         if (_isKnockbackStunned)
         {
             _lastPlatformVelocity = Vector2.zero;
@@ -351,12 +371,10 @@ public class MarioController : MonoBehaviour
             _platformVelocity = Vector2.zero;
 
             _frameVelocity = rb.velocity;
-
-            if (_frameVelocity.y <= 0f)
-            {
-                _frameVelocity.y = Mathf.MoveTowards(
-                    _frameVelocity.y, -MaxFallSpeed, FallAcceleration * Time.fixedDeltaTime);
-            }
+            if (!rb.isKinematic) CheckCollisions();
+            _frameVelocity = Step1Feel.StunStep(_frameVelocity, _grounded, Time.fixedDeltaTime,
+                LaunchFeel.gravity, MaxFallSpeed, LaunchFeel.airDrag, LaunchFeel.groundFriction, _stunSlide);
+            if (_grounded && _frameVelocity.y <= 0f) _frameVelocity.y = GroundingForce;
 
             rb.velocity = _frameVelocity;
             return;
@@ -379,6 +397,9 @@ public class MarioController : MonoBehaviour
             return;
         }
 
+        // S209：嵌进墙里先推出来（与捣蛋者同一条规则）
+        if (!rb.isKinematic) BodyUnstick.Resolve(rb, boxCollider, groundLayer);
+
         // 1. 从 rb 读回速度，并减去上一帧注入的平台速度
         _frameVelocity = rb.velocity - _lastPlatformVelocity;
 
@@ -393,6 +414,9 @@ public class MarioController : MonoBehaviour
 
         // 4. 水平移动（Session 22: 飞行期使用动能保留逻辑）
         HandleDirection();
+        // S241：贴墙不粘（用户截图：马里奥空中贴在红墙上下不来、一直循环）。和捣蛋者 S209 同一条规则：方向键之后再判断。
+        if (!_grounded && Mathf.Abs(_frameVelocity.x) > 0.01f)
+            _frameVelocity.x = BodyUnstick.AirWallSlide(_frameVelocity.x, _grounded, BodyUnstick.HitsWall(boxCollider, groundLayer, _frameVelocity.x > 0f ? Vector2.right : Vector2.left));
 
         // 5. 重力
         HandleGravity();
@@ -419,20 +443,10 @@ public class MarioController : MonoBehaviour
 
     private void CheckCollisions()
     {
-        bool prev = Physics2D.queriesStartInColliders;
-        Physics2D.queriesStartInColliders = false;
-
-        bool groundHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.down, GrounderDistance, groundLayer);
-
-        bool ceilingHit = Physics2D.BoxCast(
-            boxCollider.bounds.center,
-            new Vector2(boxCollider.bounds.size.x * 0.9f, boxCollider.bounds.size.y),
-            0f, Vector2.up, GrounderDistance, groundLayer);
-
-        Physics2D.queriesStartInColliders = prev;
+        bool groundHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.down,
+            GrounderDistance, groundLayer, _frameVelocity.y);
+        bool ceilingHit = OneWayPlatform.HasBlockingSurface(boxCollider, Vector2.up,
+            GrounderDistance, groundLayer, _frameVelocity.y);
 
         if (ceilingHit)
         {
@@ -456,6 +470,7 @@ public class MarioController : MonoBehaviour
             _isBouncing = false;
 
             // S36: 落地压扁形变（仅当下落速度超过阈值时触发，避免小跳也压扁）
+            if (Mathf.Abs(_frameVelocity.y) > 8f) Step1Fx.Dust((Vector2)transform.position + Vector2.down * 0.5f, Mathf.Clamp(Mathf.Abs(_frameVelocity.y) / 16f, 0.6f, 1.6f)); // S216：重落地扬尘
             if (Mathf.Abs(_frameVelocity.y) > 3f)
             {
                 _landSquashActive = true;
@@ -497,7 +512,7 @@ public class MarioController : MonoBehaviour
     private void ExecuteJump()
     {
         _endedJumpEarly = false;
-        _timeJumpWasPressed = 0;
+        _timeJumpWasPressed = float.NegativeInfinity;
         _bufferedJumpUsable = false;
         _coyoteUsable = false;
         _frameVelocity.y = JumpPower;
@@ -649,8 +664,13 @@ public class MarioController : MonoBehaviour
     /// 外部调用：触发击退 stun，暂停控制器速度覆盖。
     /// DamageDealer 在 AddForce 之后调用此方法，确保击退力不被覆盖。
     /// </summary>
-    public void ApplyKnockbackStun(float duration = -1f)
+    public void ApplyKnockbackStun(float duration = -1f) => ApplyKnockbackStun(duration, false, false);
+
+    /// <summary>S216：untilLanded = 被弹上天的（弹簧/炸飞/人肉炮），计时到了还在空中就等落地；slide = 落地不刹车（香蕉皮）。</summary>
+    public void ApplyKnockbackStun(float duration, bool untilLanded, bool slide)
     {
+        _stunUntilLanded = untilLanded; _stunSlide = slide;
+        if (untilLanded) _grounded = false;
         // 击退优先级最高：解除弹射状态
         _isPreparingBounce = false;
         _isBouncing = false;
@@ -988,8 +1008,12 @@ public class MarioController : MonoBehaviour
         // 4. 重置击退状态
         _isKnockbackStunned = false;
         _knockbackStunTimer = 0f;
+        _stunUntilLanded = false; _stunSlide = false;
 
         // 5. 重置跳跃状态
+        _timeJumpWasPressed = float.NegativeInfinity;
+        _timeLeftGrounded = float.NegativeInfinity;
+        _grounded = false;
         _jumpToConsume = false;
         _bufferedJumpUsable = false;
         _endedJumpEarly = false;

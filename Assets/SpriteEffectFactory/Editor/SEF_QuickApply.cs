@@ -19,7 +19,7 @@ using System.Linq;
 /// </summary>
 public class SEF_QuickApply : EditorWindow
 {
-    [MenuItem("MarioTrickster/SEF Quick Apply %#q", false, 301)]
+    [MenuItem("MarioTrickster/美术 Art/特效快速套用 SEF Quick Apply %#q", false, 301)]
     public static void ShowWindow()
     {
         var win = GetWindow<SEF_QuickApply>("效果快速应用");

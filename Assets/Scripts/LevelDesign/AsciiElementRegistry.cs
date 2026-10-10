@@ -175,7 +175,7 @@ public class AsciiElementRegistry : ScriptableObject
     /// 内置默认 entries 的数量（26 个元素）。
     /// 用于 GetDefault 中的完整性校验。
     /// </summary>
-    private const int BUILTIN_ENTRY_COUNT = 26;
+    private const int BUILTIN_ENTRY_COUNT = 50; // S245: +z Z a r（素材槽）; S187: +K k c b d; S193: +J x n; S196: +| %; S197: +O w g; S198: +Y ?; S199: +U Q; S200: +R; S241: +i v
 
     /// <summary>
     /// 获取默认 Registry 实例。
@@ -422,6 +422,182 @@ public class AsciiElementRegistry : ScriptableObject
                 componentTypeNames = new[] { "Checkpoint" }, visualColor = new Color(0.20f, 0.80f, 0.90f), visualScale = new Vector2(0.5f, 1.2f),
                 customColliderSize = PhysicsMetrics.CHECKPOINT_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
                 sortingOrder = 5, isTrigger = true
+            },
+            // ── S187：恶作剧大炮（玩家机关）+ 场景摆件（不可操控，只负责阻挡/遮挡/装饰）──
+            new AsciiElementEntry
+            {
+                asciiChar = 'K', elementName = "Cannon", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "PranksterCannon" }, visualColor = new Color(0.20f, 0.22f, 0.28f), visualScale = new Vector2(0.9f, 0.8f),
+                customColliderSize = PhysicsMetrics.CANNON_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 6, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'k', elementName = "Cannon", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "CannonFacesLeft", "PranksterCannon" }, visualColor = new Color(0.20f, 0.22f, 0.28f), visualScale = new Vector2(0.9f, 0.8f),
+                customColliderSize = PhysicsMetrics.CANNON_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 6, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'c', elementName = "Crate", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SceneryProp" }, visualColor = new Color(0.62f, 0.44f, 0.24f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.CRATE_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 2, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'b', elementName = "Bush", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SightBlocker", "RustleOnPass", "SceneryProp" }, visualColor = new Color(0.22f, 0.55f, 0.25f, 0.85f), visualScale = new Vector2(1.1f, 1.2f),
+                customColliderSize = PhysicsMetrics.BUSH_COLLIDER_SIZE, customColliderOffset = PhysicsMetrics.BUSH_COLLIDER_OFFSET,
+                sortingOrder = 12, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'd', elementName = "Decor", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SceneryProp" }, visualColor = new Color(0.85f, 0.75f, 0.95f, 0.8f), visualScale = new Vector2(0.6f, 1.4f),
+                customColliderSize = PhysicsMetrics.DECOR_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = true
+            },
+            // S193：弹簧板（浮空追击起手）+ 裂缝地板（可破坏地形，打通楼层）。平时都是实心可站。
+            new AsciiElementEntry
+            {
+                asciiChar = 'J', elementName = "SpringPad", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SpringPad" }, visualColor = new Color(0.30f, 0.90f, 0.55f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 2, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'x', elementName = "CrackFloor", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "CrackFloor" }, visualColor = new Color(0.70f, 0.58f, 0.42f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = false, isDynamicTraversal = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'n', elementName = "BananaPeel", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "BananaPeel" }, visualColor = new Color(1.00f, 0.90f, 0.25f), visualScale = new Vector2(0.8f, 0.3f),
+                customColliderSize = new Vector2(0.8f, 0.5f), customColliderOffset = new Vector2(0f, -0.25f),
+                sortingOrder = 3, isTrigger = true
+            },
+            // S196：箱庭元素——单向捷径门 '|'（只能从一侧打开）、裂墙 '%'（可砸开/炮弹/高速撞开）。都按"墙"参与可达性（最坏情况）。
+            new AsciiElementEntry
+            {
+                asciiChar = '|', elementName = "OneWayDoor", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "OneWayDoor" }, visualColor = new Color(0.55f, 0.35f, 0.20f), visualScale = new Vector2(0.6f, 1f),
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 2, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '%', elementName = "CrackedWall", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "CrackedWall" }, visualColor = new Color(0.62f, 0.55f, 0.50f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 1, isTrigger = false
+            },
+            // S197：通风管（捣蛋者专用转移）、毒池 / 黏胶（限制行动、不致死）。都可站、不是实心、不算危险 → 可达性不变。
+            new AsciiElementEntry
+            {
+                asciiChar = 'O', elementName = "Vent", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "Vent" }, visualColor = new Color(0.45f, 0.50f, 0.58f), visualScale = new Vector2(0.9f, 0.35f),
+                customColliderSize = new Vector2(0.9f, 0.9f), customColliderOffset = Vector2.zero,
+                sortingOrder = 2, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'w', elementName = "PoisonPool", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SlowTerrain", "PoisonMarker" }, visualColor = new Color(0.55f, 0.85f, 0.25f, 0.8f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'g', elementName = "Glue", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SlowTerrain" }, visualColor = new Color(0.85f, 0.55f, 0.95f, 0.75f), visualScale = new Vector2(1f, 0.25f),
+                customColliderSize = new Vector2(1f, 0.6f), customColliderOffset = new Vector2(0f, -0.2f),
+                sortingOrder = 3, isTrigger = true
+            },
+            // S198：猎人绳套（被动陷阱，双方都会中）、随机道具点
+            new AsciiElementEntry
+            {
+                asciiChar = 'Y', elementName = "SnareTrap", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SnareTrap" }, visualColor = new Color(0.80f, 0.70f, 0.45f), visualScale = new Vector2(0.8f, 0.15f),
+                customColliderSize = new Vector2(0.7f, 0.5f), customColliderOffset = new Vector2(0f, -0.25f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = '?', elementName = "PickupSpot", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "PickupSpot" }, visualColor = new Color(1.00f, 0.80f, 0.20f), visualScale = new Vector2(0.6f, 0.6f),
+                customColliderSize = new Vector2(0.8f, 0.8f), customColliderOffset = Vector2.zero,
+                sortingOrder = 6, isTrigger = true
+            },
+            // S199：油桶（连锁爆炸，实心可站）、铁笼（L 落下关人 3 秒）
+            new AsciiElementEntry
+            {
+                asciiChar = 'U', elementName = "OilBarrel", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "OilBarrel" }, visualColor = new Color(0.75f, 0.25f, 0.15f), visualScale = new Vector2(0.8f, 0.9f),
+                customColliderSize = new Vector2(0.8f, 0.9f), customColliderOffset = new Vector2(0f, -0.05f),
+                sortingOrder = 4, isTrigger = false
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'R', elementName = "Tripwire", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "Tripwire" }, visualColor = new Color(0.85f, 0.85f, 0.80f), visualScale = new Vector2(1f, 0.12f),
+                customColliderSize = new Vector2(0.9f, 0.4f), customColliderOffset = new Vector2(0f, -0.3f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'Q', elementName = "IronCage", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "IronCage" }, visualColor = new Color(0.55f, 0.60f, 0.68f, 0.85f), visualScale = new Vector2(0.9f, 0.9f),
+                customColliderSize = new Vector2(0.9f, 1f), customColliderOffset = Vector2.zero,
+                sortingOrder = 7, isTrigger = true
+            },
+            // S241：灯 'i'（夜里的光源，按 L 灭灯）+ 草地 'v'（实心地面，遁地时土包看不见）
+            new AsciiElementEntry
+            {
+                asciiChar = 'i', elementName = "RoomLamp", isSolid = false, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "RoomLamp" }, visualColor = new Color(1.00f, 0.88f, 0.45f), visualScale = new Vector2(0.5f, 0.8f),
+                customColliderSize = new Vector2(0.6f, 0.8f), customColliderOffset = Vector2.zero,
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'v', elementName = "GrassGround", isSolid = true, isHazard = false, jumpBoost = 0f,
+                componentTypeNames = new[] { "SceneryProp" }, visualColor = new Color(0.36f, 0.62f, 0.30f), visualScale = Vector2.one,
+                customColliderSize = PhysicsMetrics.BLOCK_COLLIDER_SIZE, customColliderOffset = Vector2.zero,
+                sortingOrder = 0, isTrigger = false
+            },
+            // S245：4 个素材槽 z Z a r（毒池掉半格 / 荆棘掉一格 / 回血泉 / 蛛网减速——默认；换图和互动在素材包里改）
+            new AsciiElementEntry
+            {
+                asciiChar = 'z', elementName = "ArtSlot1", isSolid = false, isHazard = false, jumpBoost = 0f, // S245：素材槽 1——长相和互动由素材包决定
+                componentTypeNames = new[] { "ArtKitZone" }, visualColor = new Color(0.55f, 0.85f, 0.25f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'Z', elementName = "ArtSlot2", isSolid = false, isHazard = false, jumpBoost = 0f, // S245：素材槽 2——长相和互动由素材包决定
+                componentTypeNames = new[] { "ArtKitZone" }, visualColor = new Color(0.45f, 0.65f, 0.3f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'a', elementName = "ArtSlot3", isSolid = false, isHazard = false, jumpBoost = 0f, // S245：素材槽 3——长相和互动由素材包决定
+                componentTypeNames = new[] { "ArtKitZone" }, visualColor = new Color(0.45f, 0.75f, 1.0f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
+            },
+            new AsciiElementEntry
+            {
+                asciiChar = 'r', elementName = "ArtSlot4", isSolid = false, isHazard = false, jumpBoost = 0f, // S245：素材槽 4——长相和互动由素材包决定
+                componentTypeNames = new[] { "ArtKitZone" }, visualColor = new Color(0.85f, 0.85f, 0.9f), visualScale = new Vector2(1f, 0.5f),
+                customColliderSize = new Vector2(1f, 0.8f), customColliderOffset = new Vector2(0f, -0.1f),
+                sortingOrder = 3, isTrigger = true
             },
         };
         registry.BuildCache();

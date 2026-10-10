@@ -24,10 +24,19 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider2D))]
 public class CollapsingPlatform : ControllableLevelElement
 {
+    protected override bool RefundOnMiss => false; // S241：挡路 / 改地形 / 一次性，不按"打没打中"退还
     [Header("=== 崩塌设置 ===")]
     [SerializeField] private float collapseDelay = 1f;
     [SerializeField] private float respawnDelay = 5f;
     [SerializeField] private bool canRespawn = true;
+    [Tooltip("S183：踩上去是否自动崩塌。关掉后只有捣蛋者按 L 才会塌（第 1 步：机关只由玩家触发）")]
+    [SerializeField] private bool collapseOnStep = true;
+    [Tooltip("S183（H9 防卡死）：重生前检查桥下是否有人；有人就推迟重生，避免把人封在坑里")]
+    [SerializeField] private bool waitForClearBelow = false;
+    [Tooltip("桥下检查深度（格）")]
+    [SerializeField] private float clearBelowDepth = 2f;
+    [Tooltip("桥下检查向左右各扩展多少格（覆盖整个坑，避免部分桥面先重生把人堵住）")]
+    [SerializeField] private float clearBelowMarginX = 0f;
 
     [Header("=== 震动设置 ===")]
     [SerializeField] private float shakeIntensity = 0.05f;
@@ -103,7 +112,9 @@ public class CollapsingPlatform : ControllableLevelElement
                     collapseTimer -= Time.deltaTime;
                     if (collapseTimer <= 0f)
                     {
-                        Respawn();
+                        // [AI防坑警告] S182 用户实测：桥重生把马里奥封在坑里（H9）。有人在桥下时推迟重生。
+                        if (waitForClearBelow && IsSomeoneBelow()) collapseTimer = RespawnRecheckSeconds;
+                        else Respawn();
                     }
                 }
                 break;
@@ -118,6 +129,14 @@ public class CollapsingPlatform : ControllableLevelElement
                 }
                 if (collapseTimer <= 0f)
                 {
+                    // S189（H9）：渐显的 0.5 秒里可能有人走进桥下；碰撞体真正打开前再查一次，有人就退回"已塌"继续等。
+                    if (waitForClearBelow && IsSomeoneBelow())
+                    {
+                        state = CollapseState.Collapsed;
+                        collapseTimer = RespawnRecheckSeconds;
+                        if (sr != null) sr.color = new Color(initialColor.r, initialColor.g, initialColor.b, 0f);
+                        break;
+                    }
                     state = CollapseState.Stable;
                     if (sr != null) sr.color = initialColor;
                     boxCollider.enabled = true;
@@ -133,7 +152,7 @@ public class CollapsingPlatform : ControllableLevelElement
         // Session 17: 不再限制只有 Mario 才能触发
         // 任何有 Rigidbody2D 的对象从上方踩踏都能触发崩塌
         ContactPoint2D contact = collision.GetContact(0);
-        if (contact.normal.y < -0.5f && collision.gameObject.GetComponent<Rigidbody2D>() != null)
+        if (collapseOnStep && contact.normal.y < -0.5f && collision.gameObject.GetComponent<Rigidbody2D>() != null)
         {
             StartShaking();
         }
@@ -163,6 +182,32 @@ public class CollapsingPlatform : ControllableLevelElement
         Debug.Log($"[CollapsingPlatform] {gameObject.name} 已崩塌");
     }
 
+    private const float RespawnRecheckSeconds = 0.25f;
+
+    /// <summary>纯计算：桥面（中心 center、尺寸 size）下方需要清空的检查区域。</summary>
+    public static void ClearBelowArea(Vector2 center, Vector2 size, float depth, float marginX, out Vector2 areaCenter, out Vector2 areaSize)
+    {
+        depth = Mathf.Max(0f, depth);
+        marginX = Mathf.Max(0f, marginX);
+        areaSize = new Vector2(size.x + marginX * 2f, size.y + depth);
+        areaCenter = new Vector2(center.x, center.y + size.y * 0.5f - areaSize.y * 0.5f);
+    }
+
+    private bool IsSomeoneBelow()
+    {
+        // 崩塌后碰撞体被禁用，bounds 为空，改用 transform + size 计算。
+        Vector2 size = Vector2.Scale(boxCollider.size, new Vector2(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.y)));
+        Vector2 center = transform.TransformPoint(boxCollider.offset);
+        ClearBelowArea(center, size, clearBelowDepth, clearBelowMarginX, out Vector2 areaCenter, out Vector2 areaSize);
+        foreach (var hit in Physics2D.OverlapBoxAll(areaCenter, areaSize, 0f))
+        {
+            if (hit == null || hit.attachedRigidbody == null) continue;
+            if (hit.attachedRigidbody.bodyType != RigidbodyType2D.Dynamic) continue;
+            if (hit.GetComponentInParent<MarioController>() != null || hit.GetComponentInParent<TricksterController>() != null) return true;
+        }
+        return false;
+    }
+
     private void Respawn()
     {
         state = CollapseState.Respawning;
@@ -179,7 +224,35 @@ public class CollapsingPlatform : ControllableLevelElement
     protected override void OnTelegraphStart() { }
     protected override void OnTelegraphEnd() { }
 
+    // S198：一座桥由多格组成（每格一个物体）。原来按 L 只塌离你最近的那一格，旁边几格照样托住马里奥
+    // → 看起来"塌桥没反应"。改为：按 L 时同一行相连的整座桥一起塌（与裂缝地板同规则）。
+    private static readonly System.Collections.Generic.List<CollapsingPlatform> bridges = new System.Collections.Generic.List<CollapsingPlatform>();
+    [Tooltip("S198：按 L 时是否让同一行相连的整座桥一起塌（第 1 步开启）")]
+    [SerializeField] private bool collapseWholeSpan = false;
+    public void SetCollapseWholeSpan(bool on) => collapseWholeSpan = on;
+
+    protected override void OnEnable() { base.OnEnable(); if (!bridges.Contains(this)) bridges.Add(this); }
+    protected override void OnDisable() { base.OnDisable(); bridges.Remove(this); }
+
+    /// <summary>纯逻辑：与 start 同一行、相邻（间距 ≤ 1.05 格）连成一片的桥格下标。</summary>
+    public static System.Collections.Generic.List<int> Span(System.Collections.Generic.IList<Vector2> cells, int start) => CrackFloor.ContiguousLine(cells, start);
+
     protected override void OnActivate(Vector2 direction)
+    {
+        if (collapseWholeSpan)
+        {
+            var cells = new System.Collections.Generic.List<Vector2>(bridges.Count);
+            foreach (var b in bridges) cells.Add(b.stablePosition + (b.transform.parent != null ? b.transform.parent.position : Vector3.zero));
+            int self = bridges.IndexOf(this);
+            if (self >= 0)
+                foreach (int i in Span(cells, self))
+                    if (bridges[i] != this) bridges[i].ForceCollapse();
+        }
+        ForceCollapse();
+    }
+
+    /// <summary>S198：立即塌（整座桥联动用）。</summary>
+    public void ForceCollapse()
     {
         if (state == CollapseState.Stable)
         {

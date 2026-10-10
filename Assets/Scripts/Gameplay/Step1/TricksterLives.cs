@@ -1,0 +1,145 @@
+using System;
+using UnityEngine;
+
+/// <summary>
+/// 设计宪法第 1 步规则：捣蛋者 3 条命；被马里奥抓到 = 掉 1 条命并回出生点；3 条命用完 = 马里奥赢。
+/// 这是"裁判规则"，不是马里奥的感知：可以读双方真实位置，但马里奥心智只有在"看见本体且贴身"时才会请求抓捕。
+/// </summary>
+public class TricksterLives : MonoBehaviour
+{
+    [SerializeField] private MarioMindTuningSO tuning;
+    [SerializeField] private TricksterController trickster;
+    [SerializeField] private Transform respawnPoint;
+
+    private float invulnerable;
+    private GameManager subscribedManager;
+
+    public int Lives { get; private set; }
+    public int MaxLives => tuning != null ? tuning.startingLives : 3;
+    public int TimesCaught { get; private set; }
+    public bool IsInvulnerable => invulnerable > 0f;
+    public event Action<int> LivesChanged;
+
+    private void Awake()
+    {
+        if (tuning == null) tuning = MarioMindTuningSO.LoadOrDefault();
+        Lives = MaxLives;
+    }
+
+    private void Start()
+    {
+        if (trickster == null) trickster = FindObjectOfType<TricksterController>();
+        if (respawnPoint == null)
+        {
+            var level = FindObjectOfType<LevelManager>();
+            if (level != null) respawnPoint = level.TricksterSpawn;
+        }
+        subscribedManager = GameManager.Instance;
+        if (subscribedManager != null) subscribedManager.OnRoundStart += ResetLives;
+        ResetLives();
+    }
+
+    private void OnDestroy()
+    {
+        if (subscribedManager != null) subscribedManager.OnRoundStart -= ResetLives;
+    }
+
+    private void Update()
+    {
+        if (invulnerable > 0f) invulnerable -= Time.deltaTime;
+    }
+
+    public void Configure(MarioMindTuningSO t, TricksterController figure, Transform spawn)
+    {
+        tuning = t; trickster = figure; respawnPoint = spawn; Lives = MaxLives;
+    }
+
+    public void ResetLives()
+    {
+        Lives = MaxLives; TimesCaught = 0; invulnerable = 0f;
+        LivesChanged?.Invoke(Lives);
+    }
+
+    /// <summary>S220：从小镇带进来的命（小镇里的心）。夹在 1..MaxLives，不算"被抓"。</summary>
+    public void SetLives(int n)
+    {
+        Lives = Mathf.Clamp(n, 1, MaxLives);
+        LivesChanged?.Invoke(Lives);
+    }
+
+    /// <summary>S198：被自己的炸弹等炸到：掉 n 条命（无敌期内不掉），命没了本局马里奥赢。原地不传送（不是被抓）。</summary>
+    public bool HitBySelf(int n)
+    {
+        if (trickster == null || invulnerable > 0f || Lives <= 0 || n <= 0) return false;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.CurrentState != GameState.Playing) return false;
+        Lives = Mathf.Max(0, Lives - n);
+        LivesChanged?.Invoke(Lives);
+        invulnerable = tuning.respawnInvulnerableSeconds;
+        if (Lives <= 0 && gm != null) gm.EndRound("Mario", SelfHitReason);
+        return true;
+    }
+
+    /// <summary>S245：素材槽（毒池 / 荆棘…）持续掉血：和 HitBySelf 一样掉 n 条命，但结算写"被房间磨光"（不是"被自己的机关炸光"）。</summary>
+    public bool HitByZone(int n)
+    {
+        if (trickster == null || invulnerable > 0f || Lives <= 0 || n <= 0) return false;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.CurrentState != GameState.Playing) return false;
+        Lives = Mathf.Max(0, Lives - n);
+        LivesChanged?.Invoke(Lives);
+        invulnerable = Mathf.Min(tuning.respawnInvulnerableSeconds, 0.3f); // 持续伤害：短无敌，不然半格 / 1.2 秒永远扣不到
+        if (Lives <= 0 && gm != null) gm.EndRound("Mario", HazardReason);
+        return true;
+    }
+    /// <summary>S245：素材槽持续伤害掉光命（Step1Text.Classify 认这个前缀）。</summary>
+    public const string HazardReason = "Trickster was worn down by the room.";
+
+    /// <summary>S235 本局结束原因（Step1Text.Classify 认这个前缀）。</summary>
+    public const string FellOutReason = "Trickster fell out of the room.";
+    /// <summary>S236：被自己的炸弹 / 油桶等炸光命（以前结算标题错写成"马里奥带着宝物逃走了"）。</summary>
+    public const string SelfHitReason = "Trickster blew themselves up.";
+
+    /// <summary>
+    /// S235：你掉出房间（被炮/炸弹轰出去、被挤出外墙、从会塌的外圈掉下去）→ 回出生点 + 掉 n 条命（无敌期内不掉，也照样回出生点）。
+    /// 命没了 = 本局马里奥赢（结算写"你掉出房间"）。以前：底下的深渊只认马里奥，你掉出去就一直在外面，血不掉、马里奥照样跑（用户实测）。
+    /// 返回实际掉了几条命。
+    /// </summary>
+    public int FellOut(int n)
+    {
+        if (trickster == null || Lives <= 0) return 0;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.CurrentState != GameState.Playing) return 0;
+        int lost = Step1Bounds.LivesLost(Lives, n, invulnerable > 0f);
+        if (lost > 0) { Lives -= lost; LivesChanged?.Invoke(Lives); }
+        if (Lives <= 0) { if (gm != null) gm.EndRound("Mario", FellOutReason); return lost; }
+        if (respawnPoint != null) trickster.transform.position = respawnPoint.position;
+        var rb = trickster.GetComponent<Rigidbody2D>();
+        if (rb != null) { if (respawnPoint != null) rb.position = respawnPoint.position; rb.velocity = Vector2.zero; }
+        if (Application.isPlaying) trickster.ResetForNewRound(); // 现形、清速度、解除硬直（和被抓一样）
+        invulnerable = tuning.respawnInvulnerableSeconds;
+        return lost;
+    }
+
+    /// <summary>裁判：马里奥在 catchRadius 内且捣蛋者不在无敌期 → 抓到。</summary>
+    public bool TryCatch(Vector2 marioPosition)
+    {
+        if (trickster == null || invulnerable > 0f || Lives <= 0) return false;
+        var gm = GameManager.Instance;
+        if (gm != null && gm.CurrentState != GameState.Playing) return false;
+        if (Vector2.Distance(marioPosition, trickster.transform.position) > tuning.catchRadius) return false;
+
+        Lives--; TimesCaught++;
+        LivesChanged?.Invoke(Lives);
+        if (Lives <= 0)
+        {
+            if (gm != null) gm.EndRound("Mario", $"Trickster caught {MaxLives} times.");
+            return true;
+        }
+        if (respawnPoint != null) trickster.transform.position = respawnPoint.position;
+        // 被抓 = 现形 + 回出生点（ResetForNewRound 会解除伪装）；编辑器测试中控制器未初始化，跳过。
+        if (Application.isPlaying) trickster.ResetForNewRound();
+        invulnerable = tuning.respawnInvulnerableSeconds;
+        return true;
+    }
+}

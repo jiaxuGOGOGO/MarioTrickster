@@ -17,12 +17,17 @@ using UnityEngine;
 [RequireComponent(typeof(BoxCollider2D))]
 public class FakeWall : ControllableLevelElement
 {
+    public override bool ArmOnPress => false; // S241：按下就该马上生效（瞄准 / 自动 / 开路），不预约
+    protected override bool RefundOnMiss => false; // S241：挡路 / 改地形 / 一次性，不按"打没打中"退还
     [Header("=== 伪装墙设置 ===")]
     [Tooltip("玩家穿过时的透明度")]
     [SerializeField] private float revealAlpha = 0.3f;
 
     [Tooltip("透明度过渡速度")]
     [SerializeField] private float fadeSpeed = 3f;
+
+    [SerializeField] private bool showPublicWallCue;
+    public bool ShowPublicWallCue { get => showPublicWallCue; set => showPublicWallCue = value; }
 
     // 组件
     private BoxCollider2D boxCollider;
@@ -66,7 +71,13 @@ public class FakeWall : ControllableLevelElement
 
         if (sr != null)
         {
-            sr.color = new Color(baseColor.r, baseColor.g, baseColor.b, currentAlpha);
+            // Opt-in cave presentation: the old fade assignment otherwise erases base windup tint.
+            // Public phase only, never possession identity, remaining time or a hidden cooldown.
+            Color tint = baseColor;
+            if (showPublicWallCue && currentState == PropControlState.Telegraph)
+                tint = Color.Lerp(baseColor, telegraphColor, 0.65f + 0.35f * Mathf.Abs(Mathf.Sin(Time.time * telegraphFlashRate)));
+            else if (showPublicWallCue && tricksterSolidified) tint = new Color(0.85f, 0.32f, 0.15f);
+            sr.color = new Color(tint.r, tint.g, tint.b, currentAlpha);
         }
     }
 

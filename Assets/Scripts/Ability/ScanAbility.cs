@@ -55,6 +55,9 @@ public class ScanAbility : MonoBehaviour
     [SerializeField] private float flashFrequency = 6f;
     [Tooltip("暴露标记颜色")]
     [SerializeField] private Color revealColor = new Color(1f, 0.2f, 0.2f, 0.8f);
+    [Tooltip("S182：显示 [Q] Scan 就绪提示和扫描结果文字（第 1 步房间关掉，界面更干净；扫描波纹照常显示）")]
+    [SerializeField] private bool showScanHints = true;
+    public void SetShowScanHints(bool value) => showScanHints = value;
 
     // 状态
     private float cooldownTimer;
@@ -84,7 +87,7 @@ public class ScanAbility : MonoBehaviour
     private GUIStyle cachedMarkerStyle;
     private GUIStyle cachedResultStyle;
 
-    // GameplayLoopConfigSO Facade 读取：SO 存在时实时读取，缺失时回退本组件默认值
+    // S238：从唯一的调参文件 RushMarioTuning 读（GameplayMetrics），找不到才用本组件默认值
     private float ScanRadiusValue => GameplayMetrics.ScanRadius(scanRadius);
     private float ScanCooldownValue => GameplayMetrics.ScanCooldown(scanCooldown);
     private float RevealDurationValue => GameplayMetrics.ScanRevealDuration(revealDuration);
@@ -355,7 +358,7 @@ public class ScanAbility : MonoBehaviour
         else
         {
             // 就绪提示（使用缓存样式）
-            GUI.Label(new Rect(x - 10, y - 2, barWidth + 20, 14), "[Q] Scan", cachedReadyStyle);
+            if (showScanHints) GUI.Label(new Rect(x - 10, y - 2, barWidth + 20, 14), "[Q] Scan", cachedReadyStyle);
         }
 
         // 脉冲效果绘制
@@ -373,7 +376,7 @@ public class ScanAbility : MonoBehaviour
         // 扫描结果文字提示（在 Mario 下方显示，与道具操控失败提示区分）
         if (scanResultTimer > 0f)
         {
-            DrawScanResultText();
+            if (showScanHints) DrawScanResultText();
         }
     }
 

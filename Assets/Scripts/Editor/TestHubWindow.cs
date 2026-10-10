@@ -1,0 +1,336 @@
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using UnityEditor;
+using UnityEngine;
+
+/// <summary>
+/// S217：测试中心（Ctrl+Alt+T）。用户诉求："快速测试完整项目，不要被一堆反复操作卡住，测完能把反馈交给 AI 升级"。
+/// 一个窗口放齐：① 一键体检（不用进 Play：所有关卡、所有小镇、机器人玩一天、场景新旧、测试报告）
+/// ② 快速测试模式开关（不弹说明、不弹问卷）③ 试玩入口 ④ F8 反馈数量 + 打包反馈（zip：截图、说明、错误、体检、测试报告、试玩记录）。
+/// 只读 / 只写 PlaytestLogs（不进 git），不改任何关卡和玩法。
+/// </summary>
+public sealed class TestHubWindow : EditorWindow
+{
+    private Vector2 scroll;
+    private string report = "";
+    private int errors, warns;
+    private string note = "";
+
+    public static string LogsRoot => Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder);
+    public static string HealthPath => Path.Combine(LogsRoot, "HealthCheck.md");
+
+    [MenuItem("MarioTrickster/测试中心 Test Hub %&t", false, 3)]
+    public static void Open()
+    {
+        var w = GetWindow<TestHubWindow>("测试中心");
+        w.minSize = new Vector2(520, 480);
+        if (w.report.Length == 0 && File.Exists(HealthPath)) w.report = File.ReadAllText(HealthPath);
+    }
+
+    private void OnGUI()
+    {
+        EditorGUILayout.LabelField("测试中心：按顺序点 ①②③ 就是一次完整测试", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("① 一键体检（几秒，不用进 Play）→ ② 试玩（小镇 / 房间，按 F8 随手截图记反馈）→ ③ 打包反馈，把 zip 发给 AI。\n" +
+                                "反复试一个坑：开 ⚡ 快速测试，进房间按 F9 = 技能无限（不算进出口）。\n" +
+                                "游戏里按键没反应：先用鼠标点一下 Game 画面（现在进 Play 会自动切到 Game 窗口）。", MessageType.Info);
+
+        EditorGUILayout.Space();
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            bool q = Step1QuickTest.On;
+            bool nq = EditorGUILayout.ToggleLeft(new GUIContent("⚡ 快速测试模式（不弹玩法说明、房间结束不弹 5 道问卷）", "反复测试时开着；想认真记每局感受时关掉"), q);
+            if (nq != q) Step1QuickTest.On = nq;
+        }
+
+        EditorGUILayout.Space();
+        using (new EditorGUI.DisabledScope(EditorApplication.isPlaying))
+        {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUI.backgroundColor = new Color(0.6f, 0.9f, 1f);
+                if (GUILayout.Button("① 一键体检", GUILayout.Height(34))) RunHealthCheck();
+                GUI.backgroundColor = new Color(0.5f, 1f, 0.5f);
+                if (GUILayout.Button("② ▶ 试玩小镇", GUILayout.Height(34))) EditorApplication.delayCall += OverworldBuilder.PlayMenu;
+                GUI.backgroundColor = Color.white;
+                if (GUILayout.Button("② ▶ 试玩房间", GUILayout.Height(34))) EditorApplication.delayCall += Step1PrankRoomBuilder.PlayMenu;
+                GUI.backgroundColor = new Color(1f, 0.85f, 0.4f);
+                if (GUILayout.Button($"③ 打包反馈（{Step1Feedback.Count()} 张截图）", GUILayout.Height(34))) Pack();
+                GUI.backgroundColor = Color.white;
+            }
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("🏘 小镇工坊")) OverworldWorkshopWindow.Open();
+                if (GUILayout.Button("🏠 关卡工坊")) LevelWorkshopWindow.Open();
+                if (GUILayout.Button(new GUIContent("🧪 跑 EditMode 测试", "结果写进 TestReport.txt，打包反馈会带上"))) TestReportRunner.RunEditModeTests();
+                if (GUILayout.Button(new GUIContent("🧹 忘掉居民记忆", "S233：居民记得你来往了几次、听过哪些真心话（跨次保留）。点这里 = 从头再认识一遍"))) { PlayerPrefs.DeleteKey(OverworldGame.MemoryKey); PlayerPrefs.Save(); TownStory.Reset(); ShowNotification(new GUIContent("居民记忆已清空")); }
+                if (GUILayout.Button(new GUIContent("🧹 清空小镇存档", "S245：删掉自动档 + 3 个手动存档位（下次进小镇不再问继续哪一个）"))) { TownSaveStore.ClearAll(); ShowNotification(new GUIContent("小镇存档已清空")); }
+                if (GUILayout.Button("📂 打开记录文件夹")) { Directory.CreateDirectory(LogsRoot); EditorUtility.RevealInFinder(LogsRoot); }
+            }
+            // S236：以前只在菜单深处的自动检查 + 开始页 + 网页，都放到这里（一处找齐）
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button(new GUIContent("📖 开始页（全部功能）", "Ctrl+Alt+H：项目能做什么、在哪打开、创作时怎么用"))) StartHereWindow.Open();
+                if (GUILayout.Button(new GUIContent("🤖 马里奥自己跑", "你不操作，连跑几局看马里奥能不能自己拿宝回家（宪法 H10，要 ≥95%）"))) EditorApplication.delayCall += Step1PrankRoomBuilder.HandsOffMenu;
+                if (GUILayout.Button(new GUIContent("🎯 陷阱试探", "AI 捣蛋者替你在马里奥走到时触发每个机关：会不会把他坑死 / 卡住。跑完开关卡工坊「检查轨迹」看"))) EditorApplication.delayCall += Step1PrankRoomBuilder.TrapProbeMenu;
+                if (GUILayout.Button(new GUIContent("🌐 网页设计台", "打开 tools/LevelStudioWeb/index.html"))) StartHereWindow.OpenWeb();
+            }
+        }
+        if (EditorApplication.isPlaying) EditorGUILayout.HelpBox("正在试玩：按 F8 记反馈（截图 + 当时情况）。停止 Play 后再打包。", MessageType.None);
+
+        EditorGUILayout.Space();
+        note = EditorGUILayout.TextField(new GUIContent("给 AI 的一句话（可不写）", "会写进反馈包的最前面"), note);
+
+        EditorGUILayout.Space();
+        if (report.Length > 0)
+        {
+            EditorGUILayout.LabelField(errors > 0 ? $"体检：{errors} 个必须改、{warns} 个提醒" : $"体检：✓ 没有必须改的（{warns} 个提醒）", EditorStyles.boldLabel);
+            scroll = EditorGUILayout.BeginScrollView(scroll);
+            EditorGUILayout.TextArea(report, EditorStyles.wordWrappedLabel);
+            EditorGUILayout.EndScrollView();
+        }
+    }
+
+    /// <summary>不进 Play 的全项目体检。结果显示在窗口里并写 PlaytestLogs/HealthCheck.md。</summary>
+    public void RunHealthCheck()
+    {
+        errors = warns = 0;
+        var sb = new StringBuilder($"# 体检报告 {System.DateTime.Now:yyyy-MM-dd HH:mm}\n");
+        void Err(string s) { errors++; sb.AppendLine("✗ " + s); }
+        void Warn(string s) { warns++; sb.AppendLine("⚠ " + s); }
+        void Ok(string s) => sb.AppendLine("✓ " + s);
+        try
+        {
+            EditorUtility.DisplayProgressBar("体检", "横版房间", 0.1f);
+            var t = Step1PrankRoomBuilder.EnsureTuningAsset();
+            sb.AppendLine($"\n## 版本\n调参数据 v{t.dataVersion}（代码 v{MarioMindTuningSO.CurrentDataVersion}） · 房间构建器 v{Step1PrankRoomBuilder.BuilderVersion} · 快速测试模式 {(Step1QuickTest.On ? "开" : "关")}");
+            if (t.dataVersion < MarioMindTuningSO.CurrentDataVersion) Warn("调参资产还是旧版本（进一次 Play 会自动升级）");
+
+            sb.AppendLine("\n## 横版房间（默认 + 样板 + 关卡库）");
+            var reg = AsciiElementRegistry.GetDefault();
+            var rooms = new List<(string name, string[] rows)> { (LevelWorkshopModel.DefaultRoomName, Step1PrankRoomBuilder.Room) };
+            rooms.AddRange(LevelWorkshopModel.SampleRooms);
+            foreach (var e in LevelLibrary.List())
+            {
+                var rows = File.ReadAllText(e.path).Replace("\r", "").Split('\n').Where(l => l.Length > 0 && !l.StartsWith("#")).ToArray();
+                rooms.Add((e.name + (e.pending.Count > 0 ? $"（有 {e.pending.Count} 种网页新机制还没实现）" : ""), rows));
+            }
+            foreach (var (name, rows) in rooms)
+            {
+                var c = LevelWorkshopModel.Check(rows, true, reg.IsSolid);
+                if (c.Playable) Ok($"{name}：{c.Headline}"); else Err($"{name}：{c.Headline}（关卡工坊里打开看红格）");
+            }
+
+            EditorUtility.DisplayProgressBar("体检", "小镇", 0.5f);
+            sb.AppendLine("\n## 小镇大地图");
+            var towns = OverworldBuilder.List().Select(x => (x.name, File.ReadAllText(x.path))).ToList();
+            if (!towns.Any(x => x.name == OverworldPack.SampleName)) towns.Insert(0, (OverworldPack.SampleName + "（内置样板）", OverworldPack.SampleText));
+            if (!towns.Any(x => x.name == OverworldPack.BigSampleName)) towns.Insert(1, (OverworldPack.BigSampleName + "（内置样板）", OverworldPack.BigSampleText));
+            if (!towns.Any(x => x.name == OverworldPack.MountainSampleName)) towns.Insert(2, (OverworldPack.MountainSampleName + "（内置样板）", OverworldPack.MountainSampleText));
+            if (!towns.Any(x => x.name == OverworldPack.StormSampleName)) towns.Insert(3, (OverworldPack.StormSampleName + "（内置样板）", OverworldPack.StormSampleText));
+            var rules = OverworldBuilder.RulesFromTuning();
+            foreach (var (name, text) in towns)
+            {
+                var m = OverworldMap.Parse(text);
+                var r = OverworldMap.Check(m, rules, OverworldBuilder.RoomProblem);
+                if (!r.Playable) { Err($"{name}（{m.W}×{m.H}）：{r.Headline}"); foreach (var i in r.issues.Where(i => i.sev == OverworldMap.Sev.Error).Take(4)) sb.AppendLine("    • " + i); continue; }
+                var day = OverworldWalker.SimulateDay(m, rules);
+                if (!day.ok) { Err($"{name}：没人捣乱时一天走不完 —— {day.summary}"); continue; }
+                int doors = r.schedule.stops.Count;
+                var hider = OverworldBots.PlayDay(OverworldMap.Parse(text), t, OverworldBots.Kind.Hider, true, 1);
+                var stand = OverworldBots.PlayDay(OverworldMap.Parse(text), t, OverworldBots.Kind.Follower, true, 1);
+                OverworldSession.ResetStatics();
+                Ok($"{name}（{m.W}×{m.H}，{doors} 扇门）：{r.Headline}｜一天约 {hider.realSeconds:0} 秒（快进后）｜会躲的机器人埋伏 {hider.ambush}/{doors}，站着不躲 {stand.ambush}/{doors}");
+                if (hider.ambush < doors) Warn($"{name}：会躲的玩家也有门埋伏不上（缺藏身处或时间太紧）");
+                if (!hider.dayEnded || !stand.dayEnded) Err($"{name}：机器人玩家的一天没结束（H9）");
+            }
+            string cur = OverworldBuilder.CurrentText;
+            sb.AppendLine(OverworldBuilder.IsStale(cur) ? "· 小镇场景需要重建（点 ▶ 试玩小镇会自动做，不用管）" : "· 小镇场景已是最新");
+
+            // S232：数值之间的关系（网页设计台同一张表）+ 小镇居民台词（覆盖 / 彩排 14 天 / 读文件有没有出错）
+            sb.AppendLine("\n## 数值关系（TuningAudit，S232）");
+            foreach (var r in TuningAudit.Check(t)) { if (r.ok) continue; Warn($"{r.rule}（现在 {r.detail}）：{r.why}"); }
+            if (TuningAudit.Check(t).All(r => r.ok)) Ok($"数值之间的 {TuningAudit.Rules.Length} 条关系都对");
+            sb.AppendLine("\n## 小镇居民的话（TownStories.json，S232）");
+            var stories = TownStoryEditorWindow.Effective(out string storyErr); // S234：内置 + 你的台词
+            if (!File.Exists(TownStoryEditorWindow.BuiltPath)) Warn("找不到 Assets/Resources/TownStories.json（游戏里用内置台词）");
+            if (!string.IsNullOrEmpty(storyErr)) Warn("台词文件有一处写错了：" + storyErr + "（这一句被跳过，其余照常）"); else Ok($"读到 {stories.Length} 句台词");
+            { var ov = TownStory.ParseOverlay(TownStoryEditorWindow.UserJson(), TownStoryEditorWindow.BuiltIn(out _), out _); sb.AppendLine(ov.lines.Count + ov.off.Count == 0 ? "· 你的台词：还没改过（Ctrl+Alt+L 打开台词编辑器）" : $"· 你的台词 MyTownStories.json：改过 / 新加 {ov.lines.Count} 句、关掉 {ov.off.Count} 句"); }
+            foreach (var l in TownStory.Coverage(stories)) { if (l.Contains("⚠")) Warn(l); else sb.AppendLine("· " + l); }
+            var sample = OverworldMap.Parse(OverworldPack.SampleText); var reh = TownStory.Rehearse(sample, stories, 14);
+            sb.AppendLine("· " + OverworldPack.SampleName + " " + TownStory.RehearsalSummary(reh, 14));
+            if (reh.repeats3 > 0) Warn($"彩排里 3 天内听到同一句 {reh.repeats3} 次：加几句台词，或把 coolDays 调大");
+            foreach (var v in TownStory.Validate(stories)) { if (v.StartsWith("✗") || v.StartsWith("⚠")) Warn(v); } // S233：写台词的检查（条件写错 = 永远不说）
+            if (PlayerPrefs.HasKey(OverworldGame.MemoryKey)) { var mm = TownStory.MemFromJson(PlayerPrefs.GetString(OverworldGame.MemoryKey)); var pr = TownStory.SincereProgress(stories, mm); sb.AppendLine($"· 居民记忆（存档）：累计 {mm.totalDays} 天，真心话 {pr.got}/{pr.total} 段"); }
+            // S233：你在 Inspector 里手动改过的数值（网页连上项目文件夹后也读同一个文件）
+            var tunPath = "Assets/Resources/" + MarioMindTuningSO.ResourcePath + ".asset";
+            if (File.Exists(tunPath)) { var diff = TuningAudit.DiffFromDefault(CreateInstance<MarioMindTuningSO>(), TuningAudit.FromYaml(File.ReadAllText(tunPath))); sb.AppendLine(diff.Count == 0 ? "· 调参文件 = 全部默认值" : $"· 你手动改过 {diff.Count} 个数值：" + string.Join("；", diff.Take(12))); }
+
+            sb.AppendLine("\n## 功能地图（S236，Ctrl+Alt+H 开始页）");
+            { int miss = 0; foreach (var f in FeatureMap.All) { var path = Path.Combine(Application.dataPath, "Scripts", f.anchorFile); if (!File.Exists(path) || !File.ReadAllText(path).Contains(f.anchorText)) { miss++; Warn($"功能地图「{f.name}」找不到它的代码了（{f.anchorFile}）——功能被删了就把这一项也删掉"); } }
+              if (miss == 0) Ok($"{FeatureMap.All.Length} 项功能都在（{FeatureMap.Areas.Length} 个区，「我想…」{FeatureMap.Goals.Length} 条）"); }
+
+            sb.AppendLine("\n## 第 1 步出口（从你的试玩记录自动算）");
+            sb.Append(Step1ExitReport.Markdown(Step1ExitReport.ParseAll(Directory.Exists(LogsRoot)
+                ? Directory.GetFiles(LogsRoot, "step1_rounds*.csv").Select(File.ReadAllText) : new string[0])));
+
+            sb.AppendLine("\n## 小镇（从 town_days.csv 自动算，S230）");
+            sb.Append(Step1ExitReport.TownMarkdown(Step1ExitReport.ParseTown(Directory.Exists(LogsRoot)
+                ? Directory.GetFiles(LogsRoot, "town_days*.csv").Select(File.ReadAllText) : new string[0])));
+
+            sb.AppendLine("\n## 上次测试");
+            if (File.Exists(TestReportRunner.LastReportFile))
+            {
+                var first = File.ReadAllLines(TestReportRunner.LastReportFile).Take(12).Where(l => l.Contains("Pass") || l.Contains("Fail") || l.Contains("通过") || l.Contains("失败"));
+                sb.AppendLine(string.Join("\n", first.Take(4)));
+                sb.AppendLine($"（{File.GetLastWriteTime(TestReportRunner.LastReportFile):MM-dd HH:mm} 跑的；点 🧪 重跑）");
+            }
+            else sb.AppendLine("还没跑过：点 🧪 跑 EditMode 测试（约 1–3 分钟）");
+            sb.AppendLine($"\n## 反馈\n已记 {Step1Feedback.Count()} 张 F8 截图" + (File.Exists(Path.Combine(Step1Feedback.Root, Step1Feedback.LogName)) ? "，feedback.md 里有说明/自动记下的错误" : ""));
+        }
+        catch (System.Exception e) { Err("体检自己出错了：" + e.Message); Debug.LogException(e); }
+        finally { EditorUtility.ClearProgressBar(); }
+        sb.Insert(sb.ToString().IndexOf('\n') + 1, errors > 0 ? $"\n**{errors} 个必须改，{warns} 个提醒**\n" : $"\n**✓ 没有必须改的（{warns} 个提醒）**\n");
+        report = sb.ToString();
+        Directory.CreateDirectory(LogsRoot);
+        File.WriteAllText(HealthPath, report);
+        Repaint();
+    }
+
+    /// <summary>把 Feedback 文件夹 + 体检 + TestReport + 试玩记录打成一个 zip（PlaytestLogs/反馈包_日期.zip）。
+    /// S242：① 首页自动总结（每类问题几次 + 最该先看的 3 条）② 环境信息（Unity / 系统 / 显卡 / 分辨率 / 调参版本）
+    /// ③ Unity 日志里的错误行（最多 80KB）④ 按大小预算挑文件（默认 8MB；必带的先放，截图新的优先，超了丢最旧的并写明丢了哪些）
+    /// ⑤ 文字文件压缩（Deflate），JPG 原样存。</summary>
+    private void Pack()
+    {
+        if (report.Length == 0) RunHealthCheck();
+        string stage = Path.Combine(LogsRoot, "_pack");
+        try
+        {
+            if (Directory.Exists(stage)) Directory.Delete(stage, true);
+            Directory.CreateDirectory(stage);
+            var tuning = MarioMindTuningSO.LoadOrDefault();
+            long budget = (long)(Mathf.Max(1f, tuning != null ? tuning.feedbackPackMB : 8f) * 1024 * 1024);
+            var items = new List<(string src, string name, int priority, long order)>();
+            void Copy(string src, string name, int pri = 1, long order = 0) { if (File.Exists(src)) items.Add((src, name, pri, order)); } // S242：先登记，按大小预算挑完再真的复制
+            Copy(HealthPath, "HealthCheck.md", 0);
+            Copy(TestReportRunner.LastReportFile, "TestReport.txt");
+            Copy(TownStoryEditorWindow.UserPath, "MyTownStories.json"); Copy(MarioReactionEditor.UserPath, "MyMarioReactions.json"); // S234：你写的台词（AI 照你的语气补）
+            if (Directory.Exists(LogsRoot)) foreach (var f in Directory.GetFiles(LogsRoot, "step1_rounds*.csv").Concat(Directory.GetFiles(LogsRoot, "town_days*.csv"))) Copy(f, Path.GetFileName(f), 1, File.GetLastWriteTime(f).Ticks); // S227 / S230
+            if (Directory.Exists(Step1Feedback.Root))
+                foreach (var f in Directory.GetFiles(Step1Feedback.Root))
+                {
+                    string n = Path.GetFileName(f), ext = Path.GetExtension(f).ToLowerInvariant();
+                    int pri = n == Step1Feedback.LogName || n == Step1Feedback.EventsName ? 0 : ext == ".md" ? 1 : 2; // 说明 / 事件表必带；黑匣子文字其次；截图最后
+                    Copy(f, n, pri, File.GetLastWriteTime(f).Ticks);
+                }
+            var picked = Step1BlackBox.Budget(items.Select(x => new Step1BlackBox.FileItem { name = x.name, bytes = new FileInfo(x.src).Length, priority = x.priority, order = x.order }), budget);
+            foreach (var k in picked.keep) { var it = items.First(x => x.name == k.name); File.Copy(it.src, Path.Combine(stage, it.name), true); }
+
+            // Unity 日志里的错误行（编辑器 Editor.log；最多 80KB）
+            string logTail = "";
+            try
+            {
+                string lp = Application.consoleLogPath;
+                if (!string.IsNullOrEmpty(lp) && File.Exists(lp))
+                {
+                    using (var fs = new FileStream(lp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        long start = System.Math.Max(0L, fs.Length - 4L * 1024 * 1024); fs.Seek(start, SeekOrigin.Begin);
+                        using (var sr = new StreamReader(fs)) logTail = Step1BlackBox.TailErrors(sr.ReadToEnd().Replace("\r", "").Split('\n'), 80 * 1024);
+                    }
+                }
+            }
+            catch (System.Exception e) { logTail = "（读 Unity 日志失败：" + e.Message + "）"; }
+            if (logTail.Length > 0) File.WriteAllText(Path.Combine(stage, "UnityLog_errors.txt"), logTail);
+
+            // 自动总结
+            var events = new List<(Step1BlackBox.Kind, string, string, string)>();
+            string ev = Path.Combine(Step1Feedback.Root, Step1Feedback.EventsName);
+            if (File.Exists(ev))
+                foreach (var line in File.ReadAllLines(ev))
+                {
+                    var c = line.Split('\t'); if (c.Length < 4) continue;
+                    if (System.Enum.TryParse<Step1BlackBox.Kind>(c[0], out var kind)) events.Add((kind, c[1], c[2], c[3]));
+                }
+            var sb = new StringBuilder();
+            sb.AppendLine("# MarioTrickster 试玩反馈包").AppendLine().AppendLine(note.Length > 0 ? note : "（没写）").AppendLine();
+            sb.AppendLine(Step1BlackBox.Summary(events));
+            sb.AppendLine("## 环境");
+            sb.AppendLine($"- Unity {Application.unityVersion} · {SystemInfo.operatingSystem} · {SystemInfo.graphicsDeviceName} · 内存 {SystemInfo.systemMemorySize}MB · 屏幕 {Screen.currentResolution.width}×{Screen.currentResolution.height}");
+            sb.AppendLine($"- 调参数据版本 {(tuning != null ? tuning.dataVersion : 0)}（代码 {MarioMindTuningSO.CurrentDataVersion}）· 打包时间 {System.DateTime.Now:yyyy-MM-dd HH:mm}");
+            sb.AppendLine();
+            sb.AppendLine("## 里面有什么");
+            sb.AppendLine("- feedback.md：每条记录的总述；events.tsv：一行一条（类型 / 时间 / 文件 / 一句话）");
+            sb.AppendLine("- blackbox_NNN.md：那一刻前 25 秒的位置 / 速度 / 状态 / 按键表 + 出事前发生了什么 + 房间快照（M = 马里奥，T = 你）");
+            sb.AppendLine("- feedback_NNN.jpg：缩小的截图；UnityLog_errors.txt：Unity 日志里的错误行");
+            sb.AppendLine("- HealthCheck.md 体检、TestReport.txt、step1_rounds.csv、town_days.csv、MyTownStories.json / MyMarioReactions.json（有的话）");
+            long kept = picked.keep.Sum(k => k.bytes);
+            sb.AppendLine().AppendLine($"大小：放进 {picked.keep.Count} 个文件 {kept / 1024}KB（上限 {budget / 1024 / 1024}MB）");
+            if (picked.dropped.Count > 0) sb.AppendLine($"超出上限没放进去的（最旧的先丢）：{string.Join("、", picked.dropped.Select(d => d.name))}");
+            File.WriteAllText(Path.Combine(stage, "00_给AI的话.md"), sb.ToString());
+
+            string zip = Path.Combine(LogsRoot, $"反馈包_{System.DateTime.Now:MMdd_HHmm}.zip");
+            if (File.Exists(zip)) File.Delete(zip);
+            TinyZip.Write(zip, Directory.GetFiles(stage));
+            Directory.Delete(stage, true);
+            EditorUtility.RevealInFinder(zip);
+            if (EditorUtility.DisplayDialog("反馈包", $"已打包（{new FileInfo(zip).Length / 1024}KB）：\n" + zip + "\n\n把它发给 AI 就行。要清空已发过的截图吗（下次从第 1 条开始）？", "清空", "保留"))
+                if (Directory.Exists(Step1Feedback.Root)) Directory.Delete(Step1Feedback.Root, true);
+        }
+        catch (System.Exception e) { EditorUtility.DisplayDialog("反馈包", "打包失败：" + e.Message, "好"); }
+    }
+}
+
+/// <summary>S217：最小 zip 写入（UTF-8 文件名）。S242：文字文件用 Deflate 压缩（System.IO.Compression.DeflateStream 是 .NET Standard 2.1 自带的），JPG / PNG 原样存。</summary>
+public static class TinyZip
+{
+    private static uint[] table;
+    public static uint Crc(byte[] d)
+    {
+        if (table == null) { table = new uint[256]; for (uint i = 0; i < 256; i++) { uint c = i; for (int k = 0; k < 8; k++) c = (c & 1) != 0 ? 0xEDB88320u ^ (c >> 1) : c >> 1; table[i] = c; } }
+        uint crc = 0xFFFFFFFFu; foreach (byte b in d) crc = table[(crc ^ b) & 0xFF] ^ (crc >> 8); return crc ^ 0xFFFFFFFFu;
+    }
+
+    public static bool Compressible(string path)
+    {
+        string e = Path.GetExtension(path).ToLowerInvariant();
+        return e == ".md" || e == ".txt" || e == ".csv" || e == ".tsv" || e == ".json" || e == ".log";
+    }
+
+    public static byte[] Deflate(byte[] data)
+    {
+        using (var ms = new MemoryStream())
+        {
+            using (var d = new System.IO.Compression.DeflateStream(ms, System.IO.Compression.CompressionLevel.Optimal, true)) d.Write(data, 0, data.Length);
+            return ms.ToArray();
+        }
+    }
+
+    public static void Write(string zipPath, IEnumerable<string> files)
+    {
+        using (var fs = File.Create(zipPath))
+        using (var w = new BinaryWriter(fs))
+        {
+            var central = new List<(byte[] name, uint crc, int size, int packed, ushort method, uint offset)>();
+            foreach (var f in files)
+            {
+                byte[] data = File.ReadAllBytes(f), name = Encoding.UTF8.GetBytes(Path.GetFileName(f)); uint crc = Crc(data), off = (uint)fs.Position;
+                byte[] packed = Compressible(f) ? Deflate(data) : null; // S242：文字文件压缩（csv / md / txt 通常缩到 1/5），图片原样
+                ushort method = (ushort)(packed != null && packed.Length < data.Length ? 8 : 0); byte[] body = method == 8 ? packed : data;
+                w.Write(0x04034b50u); w.Write((ushort)20); w.Write((ushort)0x0800); w.Write(method); w.Write((ushort)0); w.Write((ushort)0x21);
+                w.Write(crc); w.Write(body.Length); w.Write(data.Length); w.Write((ushort)name.Length); w.Write((ushort)0); w.Write(name); w.Write(body);
+                central.Add((name, crc, data.Length, body.Length, method, off));
+            }
+            uint cdStart = (uint)fs.Position;
+            foreach (var c in central)
+            {
+                w.Write(0x02014b50u); w.Write((ushort)20); w.Write((ushort)20); w.Write((ushort)0x0800); w.Write(c.method); w.Write((ushort)0); w.Write((ushort)0x21);
+                w.Write(c.crc); w.Write(c.packed); w.Write(c.size); w.Write((ushort)c.name.Length); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)0); w.Write(0u); w.Write(c.offset); w.Write(c.name);
+            }
+            uint cdSize = (uint)fs.Position - cdStart;
+            w.Write(0x06054b50u); w.Write((ushort)0); w.Write((ushort)0); w.Write((ushort)central.Count); w.Write((ushort)central.Count); w.Write(cdSize); w.Write(cdStart); w.Write((ushort)0);
+        }
+    }
+}

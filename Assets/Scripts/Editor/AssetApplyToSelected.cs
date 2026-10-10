@@ -33,7 +33,7 @@ using System.Threading.Tasks;
 /// </summary>
 public class AssetApplyToSelected : EditorWindow
 {
-    [MenuItem("MarioTrickster/Apply Art to Selected %#a", false, 201)]
+    [MenuItem("MarioTrickster/美术 Art/套用到选中物体 Apply Art to Selected %#a", false, 201)]
     public static void ShowWindow()
     {
         var win = GetWindow<AssetApplyToSelected>("应用素材到选中物体");
@@ -785,8 +785,7 @@ public class AssetApplyToSelected : EditorWindow
             || HasComponentNamed(target, "ControllableLevelElement")
             || HasComponentNamed(target, "BaseHazard")
             || HasComponentNamed(target, "LootObjective")
-            || HasComponentNamed(target, "EscapeGate")
-            || HasComponentNamed(target, "AlarmCrisisDirector");
+            || HasComponentNamed(target, "EscapeGate");
     }
 
     private FrozenGameplayBoxSnapshot CaptureRootGameplayBox(GameObject target)
@@ -904,6 +903,14 @@ public class AssetApplyToSelected : EditorWindow
 
         Vector2 spriteSize = sr.sprite.bounds.size;
         if (spriteSize.x <= 0.0001f || spriteSize.y <= 0.0001f) return;
+
+        // S191：关卡元素（名称前缀在元素说明书里）统一走主题换肤同一套贴法（平铺/等比放入/拉伸），
+        // 单个换皮与整套主题换肤结果一致，美术不用来回调尺寸。角色等其它实体保持原有拉伸适配。
+        if (AsciiLevelGenerator.TryFitCatalogVisual(target, sr))
+        {
+            Debug.Log($"[AssetApplyToSelected] Visual 已按元素说明书贴法适配: target={target.name}");
+            return;
+        }
 
         Vector2 boxSize = snapshot.colSize;
         if (boxSize.x <= 0.0001f || boxSize.y <= 0.0001f) return;

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "reactions": [
+    {"kind": "hurt", "freeze": 0.20, "act": 0.70, "recover": 0.30, "pose": "Flail", "zh": "哎哟！", "en": "OUCH!"},
+    {"kind": "trip", "freeze": 0.08, "act": 0.30, "recover": 0.15, "pose": "Tumble", "zh": "绊倒了！", "en": "WHOA!"},
+    {"kind": "slip", "freeze": 0.10, "act": 0.35, "recover": 0.25, "pose": "Slip", "zh": "滑——！", "en": "SLIP!"},
+    {"kind": "launch", "freeze": 0.10, "act": 0.45, "recover": 0.20, "pose": "Spin", "zh": "飞了——！", "en": "WHEEE!"},
+    {"kind": "cage", "freeze": 0.25, "act": 1.80, "recover": 0.40, "pose": "Rattle", "zh": "放我出去！", "en": "LET ME OUT!"},
+    {"kind": "snare", "freeze": 0.20, "act": 2.00, "recover": 0.40, "pose": "Dangle", "zh": "倒挂了！", "en": "HEY!"},
+    {"kind": "drop", "freeze": 0.00, "act": 0.40, "recover": 0.20, "pose": "Surprise", "zh": "掉下去了！", "en": "UH-OH!"},
+    {"kind": "pit", "freeze": 0.00, "act": 0.50, "recover": 0.20, "pose": "Look", "zh": "坑？！", "en": "A PIT?!"},
+    {"kind": "stop", "freeze": 0.00, "act": 0.60, "recover": 0.20, "pose": "Stomp", "zh": "过不去！", "en": "BLOCKED!"}
+  ]
+}

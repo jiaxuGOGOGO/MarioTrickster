@@ -100,7 +100,7 @@ public static class TA_AssetValidator
     // ═══════════════════════════════════════════════════
     // 防御塔 2：一键合规巡检
     // ═══════════════════════════════════════════════════
-    [MenuItem("MarioTrickster/Art Pipeline/一键合规巡检 (校验全工程 PPU-Filter-Pivot)")]
+    [MenuItem("MarioTrickster/美术 Art/工具 Pipeline/一键合规巡检 (校验全工程 PPU-Filter-Pivot)")]
     public static void RunFullAudit()
     {
         Debug.Log("<color=yellow>══════════════════════════════════════</color>");
@@ -236,7 +236,7 @@ public static class TA_AssetValidator
     // ═══════════════════════════════════════════════════
     // 防御塔 3：一键修复 Pivot
     // ═══════════════════════════════════════════════════
-    [MenuItem("MarioTrickster/Art Pipeline/一键修复 Pivot (根据目录自动修正)")]
+    [MenuItem("MarioTrickster/美术 Art/工具 Pipeline/一键修复 Pivot (根据目录自动修正)")]
     public static void FixAllPivots()
     {
         Debug.Log("<color=yellow>══════════════════════════════════════</color>");
@@ -344,7 +344,7 @@ public static class TA_AssetValidator
     /// 一键扫描当前场景中所有核心对象的 BoxCollider2D，
     /// 将被意外篡改的碰撞盒强制恢复到 PhysicsMetrics 定义的真理值。
     /// </summary>
-    [MenuItem("MarioTrickster/Art Pipeline/Validate Physics Boxes (Anti-Corruption)")]
+    [MenuItem("MarioTrickster/美术 Art/工具 Pipeline/Validate Physics Boxes (Anti-Corruption)")]
     public static void ValidateCorePhysicsBoxes()
     {
         Debug.Log("<color=yellow>══════════════════════════════════════</color>");

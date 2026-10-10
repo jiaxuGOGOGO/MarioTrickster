@@ -46,6 +46,46 @@ public class OneWayPlatform : LevelElementBase
     private BoxCollider2D boxCollider;
     private PlatformEffector2D effector;
 
+    private static readonly System.Collections.Generic.List<RaycastHit2D> surfaceHits =
+        new System.Collections.Generic.List<RaycastHit2D>(16);
+
+    // Controller casts do not inherit PlatformEffector2D or per-pair IgnoreCollision rules.
+    // Keep both players consistent: query all hits so a passable hit cannot hide a solid one.
+    public static bool HasBlockingSurface(Collider2D body, Vector2 direction, float distance,
+        LayerMask mask, float verticalVelocity)
+    {
+        bool previous = Physics2D.queriesStartInColliders;
+        try
+        {
+            Physics2D.queriesStartInColliders = false;
+            var bounds = body.bounds;
+            var filter = new ContactFilter2D { useTriggers = false };
+            filter.SetLayerMask(mask);
+            surfaceHits.Clear();
+            Physics2D.BoxCast(bounds.center, new Vector2(bounds.size.x * 0.9f, bounds.size.y),
+                0f, direction, filter, surfaceHits, distance);
+            foreach (var hit in surfaceHits)
+            {
+                var other = hit.collider;
+                if (other == null || other == body || other.isTrigger ||
+                    (body.attachedRigidbody != null && other.attachedRigidbody == body.attachedRigidbody) ||
+                    Physics2D.GetIgnoreCollision(body, other) || Vector2.Dot(hit.normal, direction) > -0.5f)
+                    continue;
+                var platform = other.GetComponent<PlatformEffector2D>();
+                if (other.usedByEffector && platform != null && platform.enabled && platform.useOneWay)
+                {
+                    // Authored one-way platforms are horizontal. Never truncate an upward jump,
+                    // nor re-ground the player while rising through or dropping through the deck.
+                    if (direction.y > 0f || verticalVelocity > 0f || bounds.min.y < other.bounds.max.y - 0.05f)
+                        continue;
+                }
+                return true;
+            }
+            return false;
+        }
+        finally { surfaceHits.Clear(); Physics2D.queriesStartInColliders = previous; }
+    }
+
     private void Awake()
     {
         elementName = "单向平台";
@@ -69,43 +109,54 @@ public class OneWayPlatform : LevelElementBase
     ///       平台对其他所有实体（敌人、Trickster 等）保持坚固
     /// </summary>
     /// <param name="playerCollider">触发下落的玩家碰撞体</param>
+    // Only own pairs that were colliding before our request. Do not clear another system's ignore.
+    private readonly System.Collections.Generic.Dictionary<Collider2D, Coroutine> drops =
+        new System.Collections.Generic.Dictionary<Collider2D, Coroutine>();
+
     public void AllowDropThrough(Collider2D playerCollider)
     {
-        if (playerCollider == null || boxCollider == null) return;
-        StartCoroutine(DropThroughRoutine(playerCollider));
+        if (!isActiveAndEnabled || playerCollider == null || boxCollider == null ||
+            !playerCollider.enabled || !playerCollider.gameObject.activeInHierarchy || !boxCollider.enabled) return;
+        if (drops.TryGetValue(playerCollider, out var previous)) StopCoroutine(previous);
+        else if (Physics2D.GetIgnoreCollision(playerCollider, boxCollider)) return;
+        Physics2D.IgnoreCollision(playerCollider, boxCollider, true);
+        drops[playerCollider] = StartCoroutine(DropThroughRoutine(playerCollider));
     }
 
-    /// <summary>
-    /// 定向忽略碰撞协程：
-    /// 1. 开启 Mario↔平台 的碰撞忽略
-    /// 2. 等待足够时间让玩家穿过碰撞体
-    /// 3. 恢复碰撞（否则 Mario 再也踩不上这块板）
-    /// </summary>
     private IEnumerator DropThroughRoutine(Collider2D playerCollider)
     {
-        // 开启定向穿透：物理引擎只忽略这两个碰撞体之间的碰撞
-        Physics2D.IgnoreCollision(playerCollider, boxCollider, true);
-
-        // 等待足够时间让玩家彻底掉出碰撞体厚度
         yield return new WaitForSeconds(dropThroughDuration);
+        RestorePair(playerCollider);
+        drops.Remove(playerCollider);
+    }
 
-        // 安全验证并恢复碰撞
+    private void RestorePair(Collider2D playerCollider)
+    {
         if (playerCollider != null && boxCollider != null)
-        {
             Physics2D.IgnoreCollision(playerCollider, boxCollider, false);
+    }
+
+    private void CancelDrops()
+    {
+        // [AI防坑警告] 停协程不会恢复 IgnoreCollision；重复请求要续期，重置/禁用要释放本组件拥有的关系。
+        foreach (var drop in drops)
+        {
+            StopCoroutine(drop.Value);
+            RestorePair(drop.Key);
         }
+        drops.Clear();
+    }
+
+    protected override void OnDisable()
+    {
+        CancelDrops();
+        base.OnDisable();
     }
 
     public override void OnLevelReset()
     {
-        // 停止所有协程，确保不会有残留的忽略状态
-        StopAllCoroutines();
-
-        // 恢复碰撞体状态（以防协程被中断时碰撞仍被忽略）
-        if (boxCollider != null)
-        {
-            boxCollider.enabled = true; // 确保碰撞体启用
-        }
+        if (boxCollider != null) boxCollider.enabled = true;
+        CancelDrops();
     }
 
     private void OnDrawGizmos()

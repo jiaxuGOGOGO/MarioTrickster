@@ -89,50 +89,9 @@ public static class GameplayEventBus
         }
     }
 
-    public sealed class TricksterRevealedPayload
-    {
-        public readonly GameObject source;
-        public readonly TricksterController trickster;
-        public readonly Vector3 worldPosition;
-        public readonly float evidence;
-        public readonly string reason;
-
-        public TricksterRevealedPayload(GameObject source, TricksterController trickster, Vector3 worldPosition, float evidence, string reason)
-        {
-            this.source = source;
-            this.trickster = trickster;
-            this.worldPosition = worldPosition;
-            this.evidence = evidence;
-            this.reason = reason;
-        }
-    }
-
-    public sealed class HeatTierChangedPayload
-    {
-        public readonly TricksterHeatMeter heatMeter;
-        public readonly TricksterHeatMeter.HeatTier newTier;
-        public readonly TricksterHeatMeter.HeatTier oldTier;
-        public readonly float heat;
-        public readonly float normalizedHeat;
-
-        public HeatTierChangedPayload(
-            TricksterHeatMeter heatMeter,
-            TricksterHeatMeter.HeatTier newTier,
-            TricksterHeatMeter.HeatTier oldTier,
-            float heat,
-            float normalizedHeat)
-        {
-            this.heatMeter = heatMeter;
-            this.newTier = newTier;
-            this.oldTier = oldTier;
-            this.heat = heat;
-            this.normalizedHeat = normalizedHeat;
-        }
-    }
-
     public sealed class CrisisWarningPayload
     {
-        public readonly AlarmCrisisDirector director;
+        public readonly GameObject source;
         public readonly Vector3 worldPosition;
         public readonly float duration;
         public readonly float radius;
@@ -141,7 +100,7 @@ public static class GameplayEventBus
         public readonly string warningType;
 
         public CrisisWarningPayload(
-            AlarmCrisisDirector director,
+            GameObject source,
             Vector3 worldPosition,
             float duration,
             float radius,
@@ -149,7 +108,7 @@ public static class GameplayEventBus
             float shakeMagnitude,
             string warningType)
         {
-            this.director = director;
+            this.source = source;
             this.worldPosition = worldPosition;
             this.duration = duration;
             this.radius = radius;
@@ -164,7 +123,6 @@ public static class GameplayEventBus
         public readonly PossessionAnchor anchor;
         public readonly GameObject target;
         public readonly Vector3 worldPosition;
-        public readonly TricksterHeatMeter.HeatTier heatTier;
         public readonly float residue;
         public readonly float suspicion;
         public readonly float intensity;
@@ -174,7 +132,6 @@ public static class GameplayEventBus
             PossessionAnchor anchor,
             GameObject target,
             Vector3 worldPosition,
-            TricksterHeatMeter.HeatTier heatTier,
             float residue,
             float suspicion,
             float intensity,
@@ -183,7 +140,6 @@ public static class GameplayEventBus
             this.anchor = anchor;
             this.target = target;
             this.worldPosition = worldPosition;
-            this.heatTier = heatTier;
             this.residue = residue;
             this.suspicion = suspicion;
             this.intensity = intensity;
@@ -198,8 +154,6 @@ public static class GameplayEventBus
 
     public static event Action<TrapTriggeredPayload> OnTrapTriggered;
     public static event Action<BouncyPlatformLaunchedPayload> OnBouncyPlatformLaunched;
-    public static event Action<TricksterRevealedPayload> OnTricksterRevealed;
-    public static event Action<HeatTierChangedPayload> OnHeatTierChanged;
     public static event Action<CrisisWarningPayload> OnCrisisWarning;
     public static event Action<ResidueSpottedPayload> OnResidueSpotted;
 
@@ -254,23 +208,8 @@ public static class GameplayEventBus
             shakeMagnitude));
     }
 
-    public static void SendTricksterRevealed(GameObject source, TricksterController trickster, Vector3 worldPosition, float evidence, string reason = null)
-    {
-        OnTricksterRevealed?.Invoke(new TricksterRevealedPayload(source, trickster, worldPosition, evidence, reason));
-    }
-
-    public static void SendHeatTierChanged(
-        TricksterHeatMeter heatMeter,
-        TricksterHeatMeter.HeatTier newTier,
-        TricksterHeatMeter.HeatTier oldTier,
-        float heat,
-        float normalizedHeat)
-    {
-        OnHeatTierChanged?.Invoke(new HeatTierChangedPayload(heatMeter, newTier, oldTier, heat, normalizedHeat));
-    }
-
     public static void SendCrisisWarning(
-        AlarmCrisisDirector director,
+        GameObject source,
         Vector3 worldPosition,
         float duration,
         float radius,
@@ -279,7 +218,7 @@ public static class GameplayEventBus
         string warningType = null)
     {
         OnCrisisWarning?.Invoke(new CrisisWarningPayload(
-            director,
+            source,
             worldPosition,
             duration,
             radius,
@@ -292,7 +231,6 @@ public static class GameplayEventBus
         PossessionAnchor anchor,
         GameObject target,
         Vector3 worldPosition,
-        TricksterHeatMeter.HeatTier heatTier,
         float residue,
         float suspicion,
         float intensity,
@@ -302,7 +240,6 @@ public static class GameplayEventBus
             anchor,
             target,
             worldPosition,
-            heatTier,
             residue,
             suspicion,
             Mathf.Clamp01(intensity),
@@ -314,8 +251,6 @@ public static class GameplayEventBus
     {
         OnTrapTriggered = null;
         OnBouncyPlatformLaunched = null;
-        OnTricksterRevealed = null;
-        OnHeatTierChanged = null;
         OnCrisisWarning = null;
         OnResidueSpotted = null;
     }

@@ -57,7 +57,4 @@ public class BotPersonaConfigSO : ScriptableObject
     [Range(0f, 1f)]
     public float ambushAggression = 0.5f;
 
-    [Tooltip("为了达成连击而冒高风险的倾向。0=稳妥单杀，1=追求华丽连击。")]
-    [Range(0f, 1f)]
-    public float comboPreference = 0.5f;
 }

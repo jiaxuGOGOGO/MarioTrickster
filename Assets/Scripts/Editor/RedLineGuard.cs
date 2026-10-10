@@ -71,7 +71,7 @@ public static class RedLineGuard
     // 菜单入口
     // =========================================================================
 
-    [MenuItem("MarioTrickster/红线巡检 (Red Line Check)", false, 2000)]
+    [MenuItem("MarioTrickster/安全网 Safety/红线巡检 Red Line Check", false, 2000)]
     public static void MenuRunFullCheck()
     {
         int issues = RunFullCheck(autoRepair: false);
@@ -85,7 +85,7 @@ public static class RedLineGuard
         }
     }
 
-    [MenuItem("MarioTrickster/红线自动修复 (Red Line Auto-Fix)", false, 2001)]
+    [MenuItem("MarioTrickster/安全网 Safety/红线自动修复 Red Line Auto-Fix", false, 2001)]
     public static void MenuRunAutoFix()
     {
         int issues = RunFullCheck(autoRepair: true);
@@ -99,17 +99,17 @@ public static class RedLineGuard
         }
     }
 
-    [MenuItem("MarioTrickster/红线防护设置/启用自动修复", false, 2010)]
+    [MenuItem("MarioTrickster/安全网 Safety/启用红线自动修复", false, 2010)]
     private static void ToggleAutoRepair()
     {
         AutoRepairEnabled = !AutoRepairEnabled;
         Debug.Log($"{LOG_PREFIX} 自动修复已{(AutoRepairEnabled ? "启用" : "禁用")}");
     }
 
-    [MenuItem("MarioTrickster/红线防护设置/启用自动修复", true)]
+    [MenuItem("MarioTrickster/安全网 Safety/启用红线自动修复", true)]
     private static bool ToggleAutoRepairValidate()
     {
-        Menu.SetChecked("MarioTrickster/红线防护设置/启用自动修复", AutoRepairEnabled);
+        Menu.SetChecked("MarioTrickster/安全网 Safety/启用红线自动修复", AutoRepairEnabled);
         return true;
     }
 
@@ -225,7 +225,7 @@ public static class RedLineGuard
                     Debug.LogError($"{LOG_PREFIX} ❌ {charName} 碰撞体违规: {objPath}\n" +
                                    $"  当前 size: ({col.size.x:F3}, {col.size.y:F3}), 标准: ({stdWidth}, {stdHeight})\n" +
                                    $"  当前 offset.y: {col.offset.y:F3}, 标准: {stdOffsetY}\n" +
-                                   $"  使用 MarioTrickster → 红线自动修复 可一键修正。");
+                                   $"  使用 MarioTrickster → 安全网 Safety → 红线自动修复 可一键修正。");
                 }
             }
         }
@@ -360,7 +360,7 @@ public static class RedLineGuard
                 {
                     Debug.LogError($"{LOG_PREFIX} ❌ 角色 Visual 偏移违规(会导致悬空): {objPath}\n" +
                                    $"  当前 Visual.localPosition.y: {visual.localPosition.y:F3}, 标准: {expectedY}\n" +
-                                   $"  使用 MarioTrickster → 红线自动修复 可一键修正。");
+                                   $"  使用 MarioTrickster → 安全网 Safety → 红线自动修复 可一键修正。");
                 }
             }
         }

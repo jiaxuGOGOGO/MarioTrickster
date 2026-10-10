@@ -15,7 +15,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
    bash "$SK/scripts/setup_sandbox.sh"      # 之后：bash "$SK/scripts/verify.sh"、bash "$SK/scripts/make_patch.sh SXXX"
    ```
    产物：`/home/user/workspace/{repo,unityref,cc,cc2/full,sim}`。找不到技能目录时：仓库里 `docs/AI_CONTINUE_PACK/` 有同一套文件（双保险）。
-2. **读现状**：`repo/SESSION_TRACKER.md` 顶部"最新 Session"行 + 最后一个 `### [SXXX] 用户：` 条目；`git -C repo log --oneline -5`。
+2. **读现状**：先读 `repo/docs/AI_CONTINUE_PACK/HANDOFF_STATE.md`，再读 `repo/SESSION_TRACKER.md` 顶部"最新 Session"行 + 最后一个 `### [SXXX] 用户：` 条目；最后执行 `git -C repo status --short --branch` 与 `git -C repo log --oneline -5`。Git HEAD 与工作树才是最终事实来源。
    - GitHub 分支 `genspark_ai_developer` 可能**落后**于上次交付（用户还没双击 bat 上传）。若 tracker 写的最新 Session 在 git log 里找不到 → 让用户先跑上次的 `apply_SXXX.bat` 并选 Y 上传，**或**把用户重新上传的 zip 里的 `.patch` 用 `git am` 打到本地再继续。
 3. **按任务类型读分册**（只读需要的）：
 
@@ -40,6 +40,7 @@ description: 继续开发 Unity 游戏 MarioTrickster（第 1 步恶作剧房间
 ## 0.5 换账号 / 全新对话也能接上（不依赖任何账号记忆）
 
 - 本包**自给自足**：不需要旧账号的历史对话、记忆或 AI Drive。仓库是公开的（`https://github.com/jiaxuGOGOGO/MarioTrickster`），任何账号都能克隆。
+- 新电脑先读 `NEW_DEVICE_NEW_ACCOUNT.md` 并运行 `scripts/bootstrap_windows.ps1`；它会检查 Git、分支、Unity 版本和项目版本，不依赖旧电脑的路径或任何 Manus 账号设置。
 - 用户如果**没有把技能加进新账号**，而是直接把 `mariotrickster-continue.skill`（zip）发进对话：`gsk download` 下来 → `unzip` 到 `~/.opencode/skills/` 或工作区 → 读里面的 `SKILL.md`，照做即可。
 - `scripts/pending/*.patch` = 打包时**还没上传到 GitHub** 的改动。`setup_sandbox.sh` 会自动检查：GitHub 上缺哪个就补哪个（已有的跳过）。所以哪怕用户换了账号、忘了跑 bat，进度也不会丢。补完后在汇报里提醒用户"上次的补丁还没上传，这次的 bat 会一起带上"。
 - 上传 GitHub 是用户**自己电脑上的 git 账号**在做（bat 里选 Y），和 Genspark 账号无关。如果用户换了 GitHub 账号、推不上去：让他在仓库设置里把新账号加为协作者，或 fork 后告诉你新地址（改 `setup_sandbox.sh` 与 `make_patch.sh` 里的仓库地址）。

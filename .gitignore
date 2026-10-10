@@ -126,6 +126,7 @@ tmp_output/
 temp/
 __pycache__/
 *.pyc
+/.handoff/
 
 # ComfyUI 工作目录产物
 output/

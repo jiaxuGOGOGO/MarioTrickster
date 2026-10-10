@@ -2480,7 +2480,7 @@ public class Step1RushMarioTests
     public void S240_CannonSeat_FlyFarther_ReEnter()
     {
         var t = Tuning();
-        Assert.AreEqual(29, MarioMindTuningSO.CurrentDataVersion);
+        Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 29, "S240 的大炮调参升级不能被后续版本回退");
         Assert.Greater(t.tricksterCannonSpeed, 18.5f, "捣蛋者坐炮比以前飞得远");
         Assert.Less(t.tricksterCannonCooldown, 5f, "落地很快就能再进 = 反复进");
         Assert.AreEqual(30f, t.cannonLaunchCooldown, 0.01f, "马里奥钻炮冷却不变");

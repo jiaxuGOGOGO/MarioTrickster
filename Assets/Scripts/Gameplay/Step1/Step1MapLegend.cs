@@ -14,30 +14,13 @@ public class Step1MapLegend : MonoBehaviour
     private readonly List<(Transform t, string text, Color c)> tags = new List<(Transform, string, Color)>();
     private float rescan;
 
-    public static readonly (char ch, string use)[] Entries =
-    {
-        ('#', "地面：挡路，<b>炸弹能炸</b>（最外圈/最底层除外）"), ('W', "墙：挡路挡视线，<b>炸弹能炸</b>（外圈围墙除外）"), ('%', "裂墙：<b>炸弹能炸开</b>"),
-        ('x', "裂缝地板：按 L 踩塌 / 炸弹炸开"), ('|', "捷径门：只能从一侧推开"), ('-', "单向台面：能从下面跳上去"),
-        ('C', "塌桥：按 L 让它塌"), ('c', "箱子：挡路挡视线，<b>炸弹能炸掉</b>"), ('b', "草丛：能躲"),
-        ('O', "通风管：按 ↓ 钻到配对的管口"), ('w', "毒池：减速 + 晕"), ('g', "黏胶：减速、跳不高"),
-        ('R', "绊线：他踩到 → 启动你的连锁"), ('U', "油桶：被点燃会爆炸（连锁）"), ('Q', "铁笼：按 L 落下关人 3 秒"),
-        ('Y', "绳套：谁踩谁被吊 10 秒"), ('?', "道具箱：谁先碰归谁"), ('K', "大炮：←→↑↓ 瞄准，L 开炮；没弹可钻进去"),
-        ('J', "弹簧板：按 L 弹飞他"), ('n', "香蕉皮：按 L 让他滑"), ('~', "火：按 L 喷火"), ('[', "封路墙：按 L 升墙"),
-        ('i', "灯：夜里照亮一圈；按 L 灭 8 秒"), ('v', "草地：能遁地，<b>土包看不见</b>"),
-        ('z', "素材槽 1：默认毒池，掉半格心"), ('Z', "素材槽 2：默认荆棘，掉一格心"), ('a', "素材槽 3：默认回血泉"), ('r', "素材槽 4：默认蛛网，减速"), // S245
-    };
+    /// <summary>S247：图例条目来自 ElementLook（唯一来源）。</summary>
+    public static readonly (char ch, string use)[] Entries = ElementLook.LegendEntries();
 
     /// <summary>S241：图例分三组（用户："图例太密集，大脑过载"）——先看"我能按 L 的"，再看"能躲 / 能钻的"，最后"挡路 / 地形"。</summary>
     public enum Group { Prank, Hide, Terrain }
-    public static Group GroupOf(char ch)
-    {
-        switch (ch)
-        {
-            case '~': case '[': case 'C': case 'J': case 'n': case 'x': case 'Q': case 'K': case 'i': case 'R': return Group.Prank;
-            case 'b': case 'O': case 'v': case 'c': case '?': case 'Y': case 'U': return Group.Hide;
-            default: return Group.Terrain;
-        }
-    }
+    /// <summary>S247：分组 = 三色（以前和作战图颜色各写各的：油桶、绳套红色却列在"躲"里）。</summary>
+    public static Group GroupOf(char ch) => (Group)ElementLook.GroupIndex(ch);
     public static string GroupTitle(Group g) => g == Group.Prank ? "能按 L 的机关" : g == Group.Hide ? "能躲 · 能钻 · 能捡" : "挡路 · 地形";
 
     /// <summary>S241 纯逻辑：这个房间的图例 = 只列房间里真的有的字符，按组排好（没有的不列）。</summary>

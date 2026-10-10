@@ -133,6 +133,11 @@ public class Step1ArtSkin : MonoBehaviour
 
     private void SkinTiles(Transform root)
     {
+        // S247：按房间字符画判断每条地面头顶是露天 / 有楼板 / 被埋住，并区分室内外——草只长在户外露天的地面上。
+        var rows = Step1PrankRoomBuilderBridge.CurrentRoom;
+        bool outdoor = WorldArt.Outdoor(tuning.artBackdrop, tuning.themePreset, rows);
+        var registry = AsciiElementRegistry.GetDefault();
+        System.Func<char, bool> isSolid = c => { var e = registry != null ? registry.GetEntry(c) : null; return e != null ? e.isSolid : (c == '#' || c == '=' || c == 'W'); };
         var solid = new HashSet<Vector2Int>();
         foreach (Transform ch in root)
         {
@@ -151,7 +156,9 @@ public class Step1ArtSkin : MonoBehaviour
             int w = col != null ? Mathf.Max(1, Mathf.RoundToInt(col.size.x)) : 1;
             int x0 = Mathf.RoundToInt(ch.position.x - (w - 1) * 0.5f), y = Mathf.RoundToInt(ch.position.y);
             bool air = false; for (int i = 0; i < w; i++) if (!solid.Contains(new Vector2Int(x0 + i, y + 1))) air = true;
-            string key = Step1Art.TileFor(ch.name, air);
+            string key = rows != null
+                ? Step1Art.TileFor(ch.name, Step1Art.StripCover(rows, x0, w, y, isSolid), outdoor)
+                : Step1Art.TileFor(ch.name, air); // 找不到房间字符画（旧场景）= 旧规则
             if (key == null) continue;
             var sp = Get(key, false); if (sp == null) continue;
             // 平铺：Tiled 模式下 size = 世界尺寸、localScale 必须是 1（Destructible 炸开时按 localScale 切块 → 切块也用同一张图平铺）
@@ -172,12 +179,14 @@ public class Step1ArtSkin : MonoBehaviour
 
     private void SkinProps(Transform root)
     {
+        bool outdoor = WorldArt.Outdoor(tuning.artBackdrop, tuning.themePreset, Step1PrankRoomBuilderBridge.CurrentRoom); // S247：室内草地 v 画成稻草垫
         foreach (Transform ch in root)
         {
             string key = Step1ElementLabels.KeyOf(ch.name);
             if (Step1Art.IsTerrain(ch.name)) continue;
             string art = Step1Art.Icons.ContainsKey(key) || WorldArt.Elements.ContainsKey(key) || ArtKitRules.SlotIndex(key) >= 0 || ArtKit.SpriteOf(key) != null ? key : null; // S245：+11 个工坊元素 + 素材槽 + 素材包里的任何名字
             if (art == null) continue;
+            if (ArtKit.SpriteOf(art) == null) art = Step1Art.PropArtFor(art, outdoor); // 素材包里自己配了图 = 尊重它
             var vis = ch.Find("Visual"); if (vis == null) continue;
             var sr = vis.GetComponent<SpriteRenderer>();
             if (sr == null || sr.sprite == null || !Step1PropIcons.IsWhiteBox((int)sr.sprite.rect.width, (int)sr.sprite.rect.height)) continue;

@@ -37,59 +37,14 @@ public static class Step1Glance
         }
     }
 
-    public static Tint TintOf(char ch)
-    {
-        switch (ch)
-        {
-            case '~': case '[': case 'C': case 'J': case 'n': case 'x': case 'Q': case 'K': case 'k': case 'i': case 'R': case 'U': case 'Y': return Tint.Prank;
-            case 'b': case 'O': case 'v': case 'c': case '%': case '|': return Tint.Hide;
-            case 'o': case 'G': case '?': return Tint.Goal;
-            default: return Tint.Neutral;
-        }
-    }
+    /// <summary>S247：三色 / 动词 / 怎么用 统一读 ElementLook（唯一来源，网页设计台和关卡工坊也读它）。</summary>
+    public static Tint TintOf(char ch) => ElementLook.TintOf(ch);
 
     /// <summary>每个东西 2–4 个字的动词（"按 L 干什么" / "拿它干什么"），代替以前一整句的说明。</summary>
-    public static string Verb(char ch)
-    {
-        switch (ch)
-        {
-            case '~': return "喷火";
-            case '[': return "升墙";
-            case 'C': return "塌桥";
-            case 'J': return "弹飞";
-            case 'n': return "滑倒";
-            case 'x': return "踩塌";
-            case 'Q': return "关笼";
-            case 'K': case 'k': return "开炮";
-            case 'i': return "灭灯";
-            case 'R': return "绊线";
-            case 'U': return "会炸";
-            case 'Y': return "吊人";
-            case 'b': return "躲";
-            case 'O': return "钻管";
-            case 'v': return "遁地";
-            case 'c': return "可炸";
-            case '%': return "可炸";
-            case '|': return "单向";
-            case '?': return "道具";
-            case 'w': return "毒";
-            case 'z': case 'Z': case 'a': case 'r': return "素材"; // S245：素材槽（效果看素材包）
-            case 'g': return "黏";
-            default: return "";
-        }
-    }
+    public static string Verb(char ch) => ElementLook.Verb(ch);
 
     /// <summary>说明卡第二行：怎么用（按什么键），一句话。</summary>
-    public static string HowTo(char ch)
-    {
-        switch (TintOf(ch))
-        {
-            case Tint.Prank: return ch == 'U' ? "被火 / 炸弹 / 炮点着就炸，连锁" : ch == 'Y' ? "谁踩谁被吊，你也小心" : "伪装在旁边按 L（早按会预约）";
-            case Tint.Hide: return ch == 'O' ? "站在管口按 ↓ 钻到另一头" : ch == 'v' ? "站上去按 U 遁地" : ch == 'b' ? "走进去他就看不见你" : ch == '|' ? "只能从一侧推开" : "炸弹能炸开 · 能躲在后面";
-            case Tint.Goal: return ch == '?' ? "谁先碰到归谁" : "马里奥要去的地方";
-            default: return ch == 'w' || ch == 'g' ? "踩上去会变慢" : "";
-        }
-    }
+    public static string HowTo(char ch) => ElementLook.HowTo(ch);
 
     /// <summary>马里奥头顶的意图图标（只来自他的心智状态 + 是否拿着宝物）。</summary>
     public enum Intent { Loot, Exit, Curious, Chase, Search, Stunned }

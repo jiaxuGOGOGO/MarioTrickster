@@ -942,6 +942,25 @@ public static class Step1Art
             "eeSSSSSSeSSSSSSe",
             "kkeeeeeekkeeeeek",
         } },
+        // S247：室内的"草地 v"= 稻草垫（和 GrassGround 同轮廓、同大小，只换成干草色）
+        { "HayGround", new[] {
+            "................",
+            "................",
+            "................",
+            ".xxxxxxxxxxxxxx.",
+            ".xyyYyyyYyyyYyx.",
+            ".xYyyoyYyyoyyYx.",
+            ".xyYyyYyyYyyYyx.",
+            ".xkYkkYkkkYkkkx.",
+            ".xNNNkNkNNNkNNx.",
+            ".xnNNnnNNnnNnnx.",
+            ".xnNNnnnNnnNNnx.",
+            ".xNnnnNnnnnNNnx.",
+            ".xNNNnnnnNNnnNx.",
+            ".xnNNnnNnnnnNNx.",
+            ".xkNNNNNNNNkNNx.",
+            ".xxxxxxxxxxxxxx.",
+        } },
     };
     public static readonly float[][] BackgroundPalette =
     {
@@ -1099,5 +1118,75 @@ public static class Step1Art
     {
         string n = objectName ?? "";
         return n.StartsWith("Ground_") || n.StartsWith("Wall_") || n.StartsWith("Platform_") || n.StartsWith("OneWayPlatform_");
+    }
+
+    // ═════════ S247：地表要符合真实空间（草只长在露天、看得见天的地面上）═════════
+    /// <summary>S247：一块地面上方是什么。Open = 露天（往上一直到房间顶都没有遮挡）；Roofed = 上面有楼板 / 天花板 / 单向板；Buried = 紧贴着上面就是实心块（埋在地里，看不见表面）。</summary>
+    public enum Cover { Open, Roofed, Buried }
+
+    /// <summary>S247：从物体名 "{元素}_{x}_{y}_w{宽}" 读出起点格和宽度（Wall_3_4 这类没有宽度 = 1）。</summary>
+    public static bool TryParseCells(string objectName, out int x0, out int y, out int width)
+    {
+        x0 = 0; y = 0; width = 1;
+        if (string.IsNullOrEmpty(objectName)) return false;
+        var p = objectName.Split('_');
+        if (p.Length < 3 || !int.TryParse(p[1], out x0) || !int.TryParse(p[2], out y)) return false;
+        if (p.Length >= 4 && p[3].Length > 1 && p[3][0] == 'w' && int.TryParse(p[3].Substring(1), out int w)) width = w < 1 ? 1 : w;
+        return true;
+    }
+
+    /// <summary>S247：rows = 房间字符画（第 0 行在最上面），(x, yWorld) = 世界格（0 = 最下面一行）。solid 判断某个字符是不是实心块（箱子、草地 v、裂地等都算）。
+    /// 单向板 '-' 不实心但会挡天（楼上的木板下面不会长草）。</summary>
+    public static Cover CoverAt(string[] rows, int x, int yWorld, System.Func<char, bool> solid)
+    {
+        if (rows == null || rows.Length == 0 || solid == null) return Cover.Open;
+        int h = rows.Length, row = h - 1 - yWorld;
+        char At(int r) => r < 0 || r >= h || x < 0 || x >= rows[r].Length ? '.' : rows[r][x];
+        if (solid(At(row - 1))) return Cover.Buried;
+        for (int r = row - 2; r >= 0; r--) { char c = At(r); if (c == '-' || solid(c)) return Cover.Roofed; }
+        return Cover.Open;
+    }
+
+    /// <summary>S247：一整条合并地面（一张平铺图）按多数格决定：一半以上埋着 = 埋着；否则露天格不少于有顶格 = 露天。
+    /// 以前只要有 1 格上面不是"地面/墙"就整条画草 → 箱子、草地 v、裂地下面的那一层也长出一条草。</summary>
+    public static Cover StripCover(string[] rows, int x0, int width, int yWorld, System.Func<char, bool> solid)
+    {
+        int open = 0, roofed = 0, buried = 0;
+        for (int i = 0; i < width; i++)
+        {
+            var c = CoverAt(rows, x0 + i, yWorld, solid);
+            if (c == Cover.Open) open++; else if (c == Cover.Roofed) roofed++; else buried++;
+        }
+        if (buried * 2 > width) return Cover.Buried;
+        return open >= roofed ? Cover.Open : Cover.Roofed;
+    }
+
+    /// <summary>S247：地形块用哪张图（符合实际版）。草皮 GroundTop 只给"户外 + 露天"的地面；室内地面 = 石板 StoneTop；户外但头顶有楼板 = 裸土 GroundFill；埋在下面 = 土 GroundFill。
+    /// 墙 / 单向板与以前相同。</summary>
+    public static string TileFor(string objectName, Cover cover, bool outdoor)
+    {
+        string n = objectName ?? "";
+        if (n.StartsWith("Wall_")) return "Wall";
+        if (n.StartsWith("OneWayPlatform_")) return "Platform";
+        if (!(n.StartsWith("Ground_") || n.StartsWith("Platform_"))) return null;
+        if (cover == Cover.Buried) return "GroundFill";
+        if (!outdoor) return "StoneTop";
+        return cover == Cover.Open ? "GroundTop" : "GroundFill";
+    }
+
+    /// <summary>S247：草地 v（遁地不露土包）在室内画成"稻草垫"HayGround——功能不变（仍是软地、仍和普通地面看得出区别），只是屋里不长草。</summary>
+    public static string PropArtFor(string key, bool outdoor) => key == "GrassGround" && !outdoor ? "HayGround" : key;
+
+    /// <summary>S247：雨从房间顶往下落，碰到第一块实心块或单向板就停（世界 y = 那块的上表面）。返回 &gt;= 房间高度 - 0.5 = 这一列顶上就被挡住（屋里不下雨）。</summary>
+    public static float RainStopY(string[] rows, int x, System.Func<char, bool> solid)
+    {
+        if (rows == null || rows.Length == 0 || solid == null) return -0.5f;
+        int h = rows.Length;
+        for (int r = 0; r < h; r++)
+        {
+            char c = x < 0 || x >= rows[r].Length ? '.' : rows[r][x];
+            if (c == '-' || solid(c)) return (h - 1 - r) + 0.5f;
+        }
+        return -0.5f;
     }
 }

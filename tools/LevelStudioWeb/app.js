@@ -100,6 +100,24 @@ function recheck(now) {
 // ── 画布 ─────────────────────────────────────────────
 const cv = $('#cv'), ctx = cv.getContext('2d');
 function colorOf(c) { if (c === '.') return [0.11, 0.1, 0.17]; if (SLOT_CHARS[c]) return [0.45, 0.4, 0.6]; const e = W.info.get(c); return e ? e.rgb : [0.8, 0.1, 0.8]; }
+// S247：房间格子画像素图标（ElementLook，和 Unity 关卡工坊、游戏里同一套图），底边一条三色；勾"显示字母"才画字母
+const TINT_CSS = { Prank: '#ff5a4e', Hide: '#5ab4ff', Goal: '#ffd84a' };
+const RIC = {};
+function roomIcon(key) {
+  if (!key || typeof ROOM_ICONS === 'undefined' || !ROOM_ICONS[key]) return null;
+  if (RIC[key]) return RIC[key];
+  const rows = ROOM_ICONS[key], n = rows.length, c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d');
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const ch = rows[y][x], col = OW_ART.pal[ch]; if (ch === '.' || !col) continue; g.fillStyle = `rgb(${col.map(v => Math.round(v * 255)).join(',')})`; g.fillRect(x, y, 1, 1); }
+  return RIC[key] = c;
+}
+const RICU = {};
+function roomIconUrl(key) { if (!key) return null; if (RICU[key]) return RICU[key]; const cv = roomIcon(key); return RICU[key] = cv ? cv.toDataURL() : null; }
+function drawCellArt(c, rgb, px, py, z) {
+  const e = W.info.get(c), ic = !S.letters && e && e.i ? roomIcon(e.i) : null;
+  if (ic && z >= 10) { ctx.imageSmoothingEnabled = false; ctx.drawImage(ic, px + 1, py + 1, z - 3, z - 3); }
+  else if (!'#W='.includes(c) && z >= 12) { ctx.fillStyle = textOn(rgb); ctx.fillText(c, px + z / 2, py + z / 2 + 1); }
+  if (e && TINT_CSS[e.t] && z >= 12) { ctx.fillStyle = TINT_CSS[e.t]; ctx.fillRect(px + 1, py + z - 3, z - 3, 2); }
+}
 function draw() {
   const z = S.zoom, w = Wd(), h = H(), dpr = window.devicePixelRatio || 1;
   cv.width = w * z * dpr; cv.height = h * z * dpr; cv.style.width = w * z + 'px'; cv.style.height = h * z + 'px';
@@ -112,7 +130,7 @@ function draw() {
     if (c === '.') { ctx.fillStyle = 'rgba(255,255,255,.035)'; ctx.fillRect(px + z / 2 - 1, py + z / 2 - 1, 2, 2); continue; }
     const e = W.info.get(c);
     if (e && e.proposal) { ctx.strokeStyle = '#ffc83d'; ctx.setLineDash([3, 2]); ctx.strokeRect(px + 1.5, py + 1.5, z - 4, z - 4); ctx.setLineDash([]); }
-    if (!'#W='.includes(c) && z >= 12) { ctx.fillStyle = textOn(rgb); ctx.fillText(c, px + z / 2, py + z / 2 + 1); }
+    drawCellArt(c, rgb, px, py, z);
   }
   if (R && S.ov.dead) {
     ctx.strokeStyle = 'rgba(255,90,78,.85)'; ctx.lineWidth = 1.5;
@@ -184,7 +202,7 @@ function draw() {
     ctx.globalAlpha = 0.75;
     for (let row = 0; row < h; row++) for (let x = 0; x < w; x++) if (prev[row][x] !== S.grid[row][x]) {
       const c = prev[row][x], rgb = colorOf(c); ctx.fillStyle = rgbCss(rgb); ctx.fillRect(x * z, row * z, z - 1, z - 1);
-      if (!'#W=.'.includes(c) && z >= 12) { ctx.fillStyle = textOn(rgb); ctx.fillText(c, x * z + z / 2, row * z + z / 2 + 1); }
+      if (c !== '.') drawCellArt(c, rgb, x * z, row * z, z);
     }
     ctx.globalAlpha = 1; const pw = p.rows[0].length, top = hover[1] + p.stand;
     ctx.strokeStyle = '#ffc83d'; ctx.setLineDash([4, 3]); ctx.lineWidth = 2; ctx.strokeRect(hover[0] * z, (h - 1 - top) * z, pw * z, p.rows.length * z); ctx.setLineDash([]); ctx.lineWidth = 1;
@@ -300,8 +318,9 @@ function renderPalette() {
     for (const e of groups[r]) {
       n++;
       const b = document.createElement('button'); b.className = 'chip' + (e.proposal ? ' prop' : '') + (S.cuts[e.c] ? ' off' : '');
-      b.setAttribute('aria-pressed', S.brush === e.c); b.title = `${e.zh} ${e.en}\n${e.w}`;
-      b.innerHTML = `<span class="sw" style="background:${rgbCss(e.rgb)};color:${textOn(e.rgb)}">${e.c === '.' ? '·' : e.c}</span><span class="nm">${e.zh}</span>`;
+      b.setAttribute('aria-pressed', S.brush === e.c); b.title = `${e.c} ${e.zh} ${e.en}${e.v ? ' · ' + e.v : ''}\n${e.w}`;
+      const iu = e.i ? roomIconUrl(e.i) : null; if (TINT_CSS[e.t]) b.style.borderLeft = `3px solid ${TINT_CSS[e.t]}`;
+      b.innerHTML = `<span class="sw" style="background:${rgbCss(e.rgb)};color:${textOn(e.rgb)}">${iu ? `<img src="${iu}" alt="${e.c}" style="width:20px;height:20px;image-rendering:pixelated">` : (e.c === '.' ? '·' : e.c)}</span><span class="nm">${e.zh}${e.v ? ` <small style="color:${TINT_CSS[e.t] || 'var(--dim)'}">${e.v}</small>` : ''}</span>`;
       b.onclick = () => setBrush(e.c); pal.appendChild(b);
     }
     box.appendChild(pal);
@@ -310,7 +329,7 @@ function renderPalette() {
 }
 function renderBrush() {
   const e = W.info.get(S.brush);
-  $('#brushInfo').innerHTML = e ? `<b>${e.c === '.' ? '·' : e.c} ${e.zh}</b> ${e.en}<br>${e.w}<br><span style="color:var(--chalk)">怎么放：</span>${e.p || '—'}${e.s ? '<br>⚠ 脚下要实心' : ''}${e.u ? '<br>⚠ 整张图只能有 1 个' : ''}` : '—';
+  $('#brushInfo').innerHTML = e ? `<b>${e.c === '.' ? '·' : e.c} ${e.zh}</b> ${e.en}${e.v ? ` · <b style="color:${TINT_CSS[e.t] || 'inherit'}">${e.v}</b>` : ''}<br>${e.h ? `<span style="color:var(--chalk)">怎么用：</span>${e.h}<br>` : ''}${e.w}<br><span style="color:var(--chalk)">怎么放：</span>${e.p || '—'}${e.s ? '<br>⚠ 脚下要实心' : ''}${e.u ? '<br>⚠ 整张图只能有 1 个' : ''}` : '—';
 }
 
 // ── 右侧：结果 ───────────────────────────────────────
@@ -555,6 +574,7 @@ for (const [id, k] of [['ovRoute', 'route'], ['ovDead', 'dead'], ['ovWorst', 'wo
 $('#zoom').oninput = e => { S.zoom = +e.target.value; draw(); };
 $('#palSearch').oninput = renderPalette;
 $('#showAll').onchange = e => { S.showAll = e.target.checked; renderPalette(); };
+if ($('#showLetters')) { $('#showLetters').onchange = e => { S.letters = e.target.checked; draw(); }; }
 const sel = $('#sampleSel'); for (const n of Object.keys(SAMPLES)) sel.add(new Option(n, n));
 function addLevel(name, grid) { storeCurrent(); CUR = newId(); LIB.push({ id: CUR, name, goal: '', grid, notes: [] }); S.beats = null; openLevel(CUR, true); syncInputs(); fitZoom(); recheck(true); renderNotes(); }
 function uniqueName(base) { let n = base, i = 2; while (LIB.some(l => l.name === n)) n = `${base} ${i++}`; return n; }

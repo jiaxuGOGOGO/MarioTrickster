@@ -148,10 +148,21 @@ public class Step1Lighting : MonoBehaviour
     }
 
     // ── 雨丝（纯画面）──────────────────────────────
+    // S247：雨只落在露天的列，碰到第一层地面 / 楼板 / 单向板就停（以前穿过天花板和楼层、在地底 y=0.6 溅水花）。屋里（顶上全是墙）= 不画雨，雨天规则（脚步被雨声盖住）照旧。
+    private float[] rainStop; private List<int> rainCols;
+    private void BuildRainColumns()
+    {
+        rainCols = new List<int>(); rainStop = new float[Mathf.Max(0, w)];
+        var registry = AsciiElementRegistry.GetDefault();
+        System.Func<char, bool> solid = c => { var e = registry != null ? registry.GetEntry(c) : null; return e != null ? e.isSolid : (c == '#' || c == '=' || c == 'W'); };
+        for (int x = 0; x < w; x++) { rainStop[x] = Step1Art.RainStopY(grid, x, solid); if (rainStop[x] < h - 1f) rainCols.Add(x); }
+    }
+    private int RainColumn() => rainCols[Random.Range(0, rainCols.Count)];
     private void UpdateRain()
     {
         bool on = Rain && w > 0 && LaunchFeel.fx && !Step1HandsOffCheck.IsRunning;
-        int want = on ? Mathf.Clamp(w * 2, 20, 120) : 0;
+        if (on && rainCols == null) BuildRainColumns();
+        int want = on && rainCols.Count > 0 ? Mathf.Clamp(rainCols.Count * 2, 10, 120) : 0;
         while (drops.Count < want)
         {
             var d = new GameObject("S241_Rain");
@@ -160,15 +171,17 @@ public class Step1Lighting : MonoBehaviour
             d.transform.localScale = new Vector3(0.05f, 0.45f, 1f);
             var rain = tuning.artSkillFx ? Step1ArtSkin.Get("FxRain", false) : null; // S245：像素雨丝（落地溅水花见下）
             if (rain != null) { sr.sprite = rain; sr.color = new Color(1f, 1f, 1f, 0.75f); d.transform.localScale = Vector3.one * 0.6f; }
-            d.transform.position = new Vector3(Random.Range(0f, w), Random.Range(0f, h), -1f);
+            int col = RainColumn();
+            d.transform.position = new Vector3(col, Random.Range(rainStop[col], h), -1f);
             drops.Add(d.transform);
         }
         while (drops.Count > want) { var d = drops[drops.Count - 1]; drops.RemoveAt(drops.Count - 1); if (d != null) Destroy(d.gameObject); }
         foreach (var d in drops)
         {
             if (d == null) continue;
-            var p = d.position; p.y -= 14f * Time.deltaTime; p.x -= 2f * Time.deltaTime;
-            if (p.y < -1f) { if (tuning.artSkillFx && LaunchFeel.fx && Random.value < 0.25f) Splash(new Vector2(p.x, 0.6f)); p.y = h; p.x = Random.Range(0f, w); }
+            var p = d.position; p.y -= 14f * Time.deltaTime; // 竖直落：一列一个落点，不会斜着钻进墙里
+            int cx = Mathf.Clamp(Mathf.RoundToInt(p.x), 0, w - 1);
+            if (p.y < rainStop[cx]) { if (tuning.artSkillFx && LaunchFeel.fx && Random.value < 0.25f) Splash(new Vector2(p.x, rainStop[cx] + 0.1f)); p.y = h; p.x = RainColumn(); }
             d.position = p;
         }
     }

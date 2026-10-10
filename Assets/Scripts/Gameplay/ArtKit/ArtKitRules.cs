@@ -148,7 +148,7 @@ public static class ArtKitRules
         if (key.StartsWith("Deco")) return "房间装饰";
         if (key.StartsWith("Fx")) return "天气 · 技能特效";
         if (key.Length > 1 && key[0] == 'T' && char.IsUpper(key[1]) && key != "Tripwire") return "小镇";
-        if (key == "GroundTop" || key == "GroundFill" || key == "Wall" || key == "Platform" || key == "StoneTop" || key == "MossWall") return "地形图块";
+        if (key == "GroundTop" || key == "GroundFill" || key == "Wall" || key == "Platform" || key == "StoneTop" || key == "MossWall" || key == "HayGround") return "地形图块";
         return "房间元素";
     }
 

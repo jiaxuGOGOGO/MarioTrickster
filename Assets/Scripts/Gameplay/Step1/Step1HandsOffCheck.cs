@@ -58,9 +58,10 @@ public class Step1HandsOffCheck : MonoBehaviour
         PlayerPrefs.DeleteKey(ProbeKey);
         PlayerPrefs.Save();
         // 在所有 Start 之前让捣蛋者退场：马里奥的眼睛/裁判都找不到它，等于"玩家完全不操作、也不在场"。
-        // S202 陷阱试探模式：捣蛋者留在场上，由 Step1TrapProbe 接管（只按 L 触发路线上的机关，不伪装、不移动）。
+        // S202 陷阱试探也必须退场：Step1TrapProbe 挂在马里奥身上，直接按相同预判触发机关；
+        // 若把可见的捣蛋者留在路线旁，结果会被“马里奥追到人”主导，不能回答机关本身会不会把他坑死或卡住。
         var figure = FindObjectOfType<TricksterController>();
-        if (figure != null && !ProbeMode) figure.gameObject.SetActive(false);
+        if (figure != null) figure.gameObject.SetActive(false);
     }
 
     private void Start()
@@ -217,7 +218,7 @@ public class Step1HandsOffCheck : MonoBehaviour
         {
             sb.AppendLine("<b>陷阱试探：机关连起来坑他，会不会把他坑死/卡死</b>");
             sb.AppendLine("<b>Trap probe: can chained traps kill or trap Mario?</b>");
-            sb.AppendLine("<color=#BBBBBB>AI 捣蛋者只在他走到时按 L（不伪装、不移动）；目标：他仍然能通关，只是更慢  Probe presses L when he arrives</color>");
+            sb.AppendLine("<color=#BBBBBB>测试替身只在他走到时按 L；你的角色已移出房间，避免抓人干扰机关结果  Probe presses L; player is removed</color>");
         }
         else
         {

@@ -411,7 +411,16 @@ public class LevelWorkshopWindow : EditorWindow
                 var c = t.color; c.a = 1f;
                 EditorGUI.DrawRect(inner, c);
                 DrawOutline(inner, new Color(0f, 0f, 0f, 0.6f), 1f);
-                Glyph(inner, t.ch.ToString(), c);
+                var tex = IconTex(t.ch);
+                if (tex != null)
+                {
+                    // S247：图标在左（一眼认），字符在右（写 ASCII 时对得上），底边一条三色（红 坑他 / 蓝 躲·钻 / 黄 目标）
+                    GUI.DrawTexture(new Rect(inner.x + 2, inner.y + 1, 18, 18), tex, ScaleMode.ScaleToFit);
+                    Glyph(new Rect(inner.x + 22, inner.y, inner.width - 22, inner.height), t.ch.ToString(), c);
+                }
+                else Glyph(inner, t.ch.ToString(), c);
+                var tint = ElementLook.TintOf(t.ch);
+                if (tint != Step1Glance.Tint.Neutral) EditorGUI.DrawRect(new Rect(inner.x, inner.yMax - 2, inner.width, 2), Step1Glance.ColorOf(tint));
                 // 名称永远写在深色底上（不随元素颜色变），任何颜色都看得清
                 GUI.Label(new Rect(r.x, r.y + 23, r.width, 22), new GUIContent(t.name, t.tip), selected ? nameSelected : nameNormal);
                 if (GUI.Button(r, new GUIContent("", t.tip), GUIStyle.none))
@@ -436,8 +445,29 @@ public class LevelWorkshopWindow : EditorWindow
     /// <summary>画布格子的字：字符串与黑白判断都缓存（原来每格每帧新建 GUIStyle + 字符串）。</summary>
     private void GlyphFor(Rect r, char ch, Color bg)
     {
+        var tex = IconTex(ch);
+        if (tex != null) { GUI.DrawTexture(new Rect(r.x + 1, r.y + 1, r.width - 2, r.height - 2), tex, ScaleMode.ScaleToFit); return; } // S247：画布画图标，不画字母
         if (!darkGlyph.TryGetValue(ch, out bool dark)) darkGlyph[ch] = dark = ElementCatalog.TextColorOn(bg).r < 0.5f;
         GUI.Label(r, ch < 128 ? glyphText[ch] : ch.ToString(), dark ? glyphDark : glyphLight);
+    }
+
+    /// <summary>S247：元素图标贴图（ElementLook 唯一来源，和游戏里、网页设计台同一套像素图）。没有图标 = null → 退回字母。</summary>
+    private readonly Dictionary<char, Texture2D> iconTex = new Dictionary<char, Texture2D>();
+    private Texture2D IconTex(char ch)
+    {
+        if (iconTex.TryGetValue(ch, out var t) && (t != null || ElementLook.Icon(ch) == null)) return t; // 贴图被销毁（换场景）→ 重建
+        Texture2D made = null;
+        var px = ElementLook.IconPixels(ch);
+        if (px != null)
+        {
+            int n = (int)Math.Round(Math.Sqrt(px.Length / 4));
+            made = new Texture2D(n, n, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
+            var cols = new Color[n * n];
+            for (int i = 0; i < cols.Length; i++) cols[i] = new Color(px[i * 4], px[i * 4 + 1], px[i * 4 + 2], px[i * 4 + 3]);
+            made.SetPixels(cols); made.Apply();
+        }
+        iconTex[ch] = made;
+        return made;
     }
 
     private static string ArtHint(ElementCatalog.Info i)

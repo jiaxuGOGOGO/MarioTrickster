@@ -1163,6 +1163,8 @@ public static class WorldArt
                 bool onFloor = SolidCh(At(x, yt + 1));
                 bool high = AirCh(At(x, yt + 1)) && AirCh(At(x, yt + 2));
                 if (!onFloor && !high) continue;
+                // S247：户外没有背墙——挂旗 / 蛛网必须挂在头顶或旁边的实心块上，不能飘在天上（室内有背墙，画 / 窗照旧）。
+                if (outdoor && !onFloor && !(SolidCh(At(x, yt - 1)) || SolidCh(At(x - 1, yt)) || SolidCh(At(x + 1, yt)))) continue;
                 uint hv = H(x, yt, seed);
                 if ((hv % 1000) / 1000f > density * 3f) continue; // 撒得开一点（不是从左上角挤满）
                 bool near = false; foreach (var d in list) if (System.Math.Abs(d.x - x) < 3 && System.Math.Abs(d.y - (h - 1 - yt)) < 3) { near = true; break; }

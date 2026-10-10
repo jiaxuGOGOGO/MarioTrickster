@@ -73,6 +73,27 @@ for m in re.finditer(r'\{ "(\w+)", new\[\] \{(.*?)\} \}', wa[ti_:tj_], re.S):
 for k in ('Hero0', 'Imp0'):
     m = re.search(r'\{ "' + k + r'", new\[\] \{(.*?)\} \}', s1, re.S); ow_town[k] = re.findall(r'"([^"]+)"', m.group(1))
 ow_art = dict(pal=ow_pal, tile=ow_tileic, icons=ow_icons, town=ow_town)
+# S247：元素长相（ElementLook.cs：三色 / 动词 / 怎么用 / 图标名，和 Unity 同一张表）+ 房间图标像素（Step1Art 优先 → Step1Icons → OverworldArt，和 ElementLook.IconPixels 同顺序）
+look_src = rd('LevelDesign/ElementLook.cs')
+press_l = re.search(r'PressL = "([^"]*)"', look_src).group(1)
+looks = {}
+for m in re.finditer(r"L\('(.)', Step1Glance\.Tint\.(\w+), \"([^\"]*)\", (PressL|\"[^\"]*\"), (null|\"(?:[^\"\\]|\\.)*\"), (null|\"\w+\")\)", look_src):
+    how = press_l if m.group(4) == 'PressL' else m.group(4)[1:-1]
+    looks[m.group(1)] = dict(t=m.group(2), v=m.group(3), h=how, i=None if m.group(6) == 'null' else m.group(6)[1:-1])
+def icon_rows(src):
+    out = {}
+    for m in re.finditer(r'\{ "(\w+)", new\[\] \{(.*?)\} \}', src, re.S):
+        rows = re.findall(r'"([^"]+)"', m.group(2))
+        if len(rows) == 16 and all(len(r) == 16 for r in rows): out.setdefault(m.group(1), rows)
+    return out
+icon_srcs = [icon_rows(s1), icon_rows(rd('Gameplay/Step1/Step1Icons.cs')), icon_rows(art)]
+room_icons = {}
+for lk in looks.values():
+    n = lk['i']
+    if n and n not in room_icons:
+        for src in icon_srcs:
+            if n in src: room_icons[n] = src[n]; break
+missing_icons = sorted({lk['i'] for lk in looks.values() if lk['i'] and lk['i'] not in room_icons})
 room_names = [re.search(r'DefaultRoomName = "([^"]+)"', wm).group(1)] + re.findall(r'\("([^"]+)", \w+Sample\)', wm)
 sample_room = {n: names.get(f, f) for n, f in re.findall(r'\("([^"]+)", (\w+Sample)\)', wm)}
 sample_room[room_names[0]] = '默认恶作剧房间'
@@ -94,6 +115,10 @@ ta = rd('Gameplay/Step1/TuningAudit.cs'); ti = ta.index('public static readonly 
 tu_rules = [x.encode('utf-8').decode('unicode_escape').encode('latin-1').decode('utf-8') for x in re.findall(r'"((?:[^"\\]|\\.)*)",', ta[ti:tj])]
 data += 'const TUNING_RULES=' + json.dumps(tu_rules, ensure_ascii=False) + ';\n'
 data += 'const TS_STORIES=' + json.dumps(stories, ensure_ascii=False, separators=(',', ':')) + ';\nconst TUNING=' + json.dumps(tun, ensure_ascii=False, separators=(',', ':')) + ';\n'
+for e in els:
+    lk = looks.get(e['c'])
+    if lk: e.update(lk)
+data += 'const ROOM_ICONS=' + json.dumps(room_icons, separators=(',', ':')) + ';\n'
 data += 'const ELEMENTS=' + json.dumps(els, ensure_ascii=False, separators=(',', ':')) + ';\nconst SAMPLES=' + json.dumps(samples, ensure_ascii=False, separators=(',', ':')) + ';\n'
 # S236：功能地图（FeatureMap.cs，和 Unity 开始页同一份）
 fm = rd('LevelDesign/FeatureMap.cs')
@@ -113,4 +138,5 @@ html = open(os.path.join(HERE, 'shell.html'), encoding='utf-8').read()
 ow = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'overworld.js'), encoding='utf-8').read())
 html = html.replace('/*DATA*/', data).replace('/*LOGIC*/', logic + '\n' + ow).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read())
 open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(html)
-print(f'index.html: {len(fm_all)} 项功能地图, {len(stories)} 句居民台词, {len(tun)} 个调参值, {len(els)} 个元素, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(ow_harm)} 条伤害说明, {len(ow_icons)} 个像素图标, {len(ow_town)} 张小镇图块, {len(html)//1024} KB')
+print(f'index.html: {len(fm_all)} 项功能地图, {len(stories)} 句居民台词, {len(tun)} 个调参值, {len(els)} 个元素（{len(looks)} 个有长相）, {len(room_icons)} 个房间图标, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(ow_harm)} 条伤害说明, {len(ow_icons)} 个像素图标, {len(ow_town)} 张小镇图块, {len(html)//1024} KB')
+if missing_icons: print('⚠ 找不到像素图的图标名：' + ', '.join(missing_icons))

@@ -118,9 +118,12 @@ public sealed class Step1Feedback : MonoBehaviour
             string shot = $"feedback_{n:000}.jpg";
             string md = $"blackbox_{n:000}.md";
             if (box != null) File.WriteAllText(Path.Combine(Root, md), box.Dump(new Step1BlackBox.Report { n = n, kind = kind, when = when, scene = scene, note = note, context = ctx }), Encoding.UTF8);
-            StartCoroutine(Shoot(Path.Combine(Root, shot)));
+            // TestReportRunner 也会在编辑器状态写入错误。编辑器没有可抓的 Game 画面，
+            // 不要再调用 CaptureScreenshotAsTexture 产生第二条无关错误；黑匣子仍会保留。
+            if (Application.isPlaying) StartCoroutine(Shoot(Path.Combine(Root, shot)));
             string say = note ?? (kind == Step1BlackBox.Kind.Manual ? "（F8 后 3 秒内按 1–4 打标签；或在测试中心补一句）" : "");
-            Append($"\n## 记录 {n:000} · {Step1BlackBox.KindZh(kind)}  {when}\n- 截图：{shot}\n- 黑匣子：{md}（最近 {tuning.blackBoxSeconds:0} 秒的位置 / 状态 / 按键 + 出事前发生了什么）\n- 场景：{scene}\n- 情况：{ctx}\n- 说明：{say}\n");
+            string imageNote = Application.isPlaying ? shot : "（编辑器状态：无游戏画面，未截图）";
+            Append($"\n## 记录 {n:000} · {Step1BlackBox.KindZh(kind)}  {when}\n- 截图：{imageNote}\n- 黑匣子：{md}（最近 {tuning.blackBoxSeconds:0} 秒的位置 / 状态 / 按键 + 出事前发生了什么）\n- 场景：{scene}\n- 情况：{ctx}\n- 说明：{say}\n");
             AppendEvent(kind, n, note ?? ctx);
             if (kind == Step1BlackBox.Kind.Manual) { Toast(Step1Text.FeedbackSaved(n)); tagFor = n; tagUntil = Time.unscaledTime + TagWindow; }
         }

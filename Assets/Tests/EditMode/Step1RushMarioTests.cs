@@ -1637,7 +1637,7 @@ public class Step1RushMarioTests
         Assert.AreEqual(5, v2[3002]);
         Assert.IsTrue(stuck.Contains(7001), "卡住点也记下");
         StringAssert.Contains("mode,rescues,hurts", Read("Scripts/Gameplay/Step1/Step1HandsOffCheck.cs"), "CSV 多了模式/救援/被坑次数");
-        StringAssert.Contains("figure != null && !ProbeMode", Read("Scripts/Gameplay/Step1/Step1HandsOffCheck.cs"), "试探模式捣蛋者留在场上");
+        StringAssert.Contains("if (figure != null) figure.gameObject.SetActive(false);", Read("Scripts/Gameplay/Step1/Step1HandsOffCheck.cs"), "试探模式也移出可见玩家，避免抓人掩盖机关结果");
     }
 
     [Test]
@@ -2745,6 +2745,33 @@ public class Step1RushMarioTests
     }
 
     // ── S243：AI 生成的像素美术（角色 / 机关 / 地形 / 背景），只换外观 ─────────────────────
+    // ── S247：元素长相唯一来源（ElementLook）：游戏 / Unity 关卡工坊 / 网页设计台读同一张表，图例分组 = 三色 ──
+    [Test]
+    public void S247_ElementLook_SingleSourceIconsAndConsistentGroups()
+    {
+        var gaps = ElementLook.Gaps();
+        Assert.IsEmpty(gaps, string.Join("\n", gaps));
+        foreach (var (ch, _) in Step1MapLegend.Entries)
+        {
+            var expect = Step1Glance.TintOf(ch) == Step1Glance.Tint.Prank ? Step1MapLegend.Group.Prank
+                : Step1Glance.TintOf(ch) == Step1Glance.Tint.Neutral ? Step1MapLegend.Group.Terrain : Step1MapLegend.Group.Hide;
+            Assert.AreEqual(expect, Step1MapLegend.GroupOf(ch), ch + "：图例分组必须和作战图颜色一致");
+        }
+        Assert.AreEqual(Step1MapLegend.Group.Prank, Step1MapLegend.GroupOf('U'), "油桶是红色（会炸）→ 列在'按 L / 坑他'里");
+        Assert.AreEqual(Step1Glance.ColorOf(Step1Glance.Tint.Prank), Step1Glance.ColorOf(Step1Glance.TintOf('~')));
+        Assert.AreEqual(256 * 4, ElementLook.IconPixels('~').Length, "图标 16×16");
+        Assert.IsNull(ElementLook.IconPixels('#'), "地形块画颜色，不盖图标");
+        StringAssert.Contains("ElementLook.TintOf", Read("Scripts/Gameplay/Step1/Step1Glance.cs"), "作战图不再自己写 switch");
+        StringAssert.Contains("ElementLook.LegendEntries", Read("Scripts/Gameplay/Step1/Step1MapLegend.cs"));
+        StringAssert.Contains("ElementLook.IconPixels", Read("Scripts/Editor/LevelWorkshopWindow.cs"), "Unity 关卡工坊画图标");
+        string web = File.ReadAllText(Path.Combine(Application.dataPath, "..", "Tools", "LevelStudioWeb", "build.py"));
+        StringAssert.Contains("LevelDesign/ElementLook.cs", web, "网页设计台读同一张表");
+        string builder = Read("Scripts/Editor/Step1PrankRoomBuilder.cs");
+        StringAssert.DoesNotContain("出口 EXIT", builder, "路牌不再写中英文字");
+        StringAssert.Contains("Step1SignIcon", builder);
+        Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 26, "路牌改了 → 旧场景自动重建");
+    }
+
     [Test]
     public void S243_ArtSkin_PixelArtPassesAuditAndKeepsPhysics()
     {
@@ -2772,6 +2799,65 @@ public class Step1RushMarioTests
         Assert.GreaterOrEqual(Step1PrankRoomBuilder.BuilderVersion, 24); Assert.GreaterOrEqual(MarioMindTuningSO.CurrentDataVersion, 32);
         var t = ScriptableObject.CreateInstance<MarioMindTuningSO>(); Assert.IsTrue(t.artCharacters && t.artProps && t.artTiles && t.artBackground);
         foreach (var f in new[] { "RushMarioMind.cs", "MarioMindDriver.cs", "SuspicionMeter.cs", "Step1Combo.cs" }) StringAssert.DoesNotContain("Step1ArtSkin", Read("Scripts/Gameplay/Step1/" + f), "H4：心智 / 连招层不碰美术");
+    }
+
+    [Test]
+    public void S247_Realistic_Surfaces_Grass_Rain_And_Hangings()
+    {
+        var registry = AsciiElementRegistry.GetDefault();
+        System.Func<char, bool> solid = c => { var e = registry.GetEntry(c); return e != null && e.isSolid; };
+        Assert.IsTrue(solid('#') && solid('v') && solid('W'), "地面 / 草地 v / 墙都是实心");
+
+        // 室内多层：楼上楼下的地面都有顶 → 石板，不长草；被压住的那层 = 土
+        string[] tower = { "WWWWWWWW", "W......W", "W.####.W", "W......W", "W######W", "WWWWWWWW" };
+        Assert.AreEqual(Step1Art.Cover.Roofed, Step1Art.CoverAt(tower, 2, 3, solid));
+        Assert.AreEqual(Step1Art.Cover.Roofed, Step1Art.CoverAt(tower, 2, 1, solid));
+        Assert.AreEqual(Step1Art.Cover.Buried, Step1Art.CoverAt(tower, 2, 0, solid));
+        foreach (var c in new[] { Step1Art.Cover.Open, Step1Art.Cover.Roofed }) Assert.AreEqual("StoneTop", Step1Art.TileFor("Ground_1_1_w6", c, false), "室内地面不长草");
+        Assert.AreEqual("GroundFill", Step1Art.TileFor("Ground_1_1_w6", Step1Art.Cover.Buried, false));
+
+        // 户外：露天 = 草；单向板 / 楼板下面 = 裸土；被草地 v 压住的下一层 = 土（以前会整条长草）
+        string[] park = { "........", "...--...", "........", "##vv####", "########" };
+        Assert.AreEqual(Step1Art.Cover.Open, Step1Art.CoverAt(park, 0, 1, solid));
+        Assert.AreEqual(Step1Art.Cover.Roofed, Step1Art.CoverAt(park, 3, 1, solid));
+        Assert.AreEqual(Step1Art.Cover.Buried, Step1Art.CoverAt(park, 2, 0, solid));
+        Assert.AreEqual(Step1Art.Cover.Buried, Step1Art.StripCover(park, 0, 8, 0, solid));
+        Assert.AreEqual("GroundTop", Step1Art.TileFor("Ground_0_1_w2", Step1Art.Cover.Open, true));
+        Assert.AreEqual("GroundFill", Step1Art.TileFor("Ground_0_1_w2", Step1Art.Cover.Roofed, true));
+        Assert.AreEqual("Wall", Step1Art.TileFor("Wall_0_0", Step1Art.Cover.Open, true)); Assert.AreEqual("Platform", Step1Art.TileFor("OneWayPlatform_3_3_w2", Step1Art.Cover.Open, true));
+
+        // 默认恶作剧房间（室内）：草地 v 下面那一整条地面是"埋着"，任何地面都不会画草
+        var room = Step1PrankRoomBuilder.Room;
+        Assert.IsFalse(WorldArt.Outdoor(0, null, room), "默认房间是室内");
+        Assert.AreEqual(Step1Art.Cover.Buried, Step1Art.StripCover(room, 1, 21, 1, solid), "草地 v 下面的土层不再长出一条草");
+        Assert.AreEqual("HayGround", Step1Art.PropArtFor("GrassGround", false), "室内草地 v = 稻草垫");
+        Assert.AreEqual("GrassGround", Step1Art.PropArtFor("GrassGround", true));
+        Assert.IsTrue(Step1Art.Tiles.ContainsKey("HayGround"));
+        CollectionAssert.IsEmpty(OverworldArt.Audit(Step1Art.Rgba(Step1Art.Tiles["HayGround"]), 16), "稻草垫像素图合规");
+        Assert.AreNotEqual(Step1Art.Rgba(Step1Art.Tiles["HayGround"]), Step1Art.Rgba(Step1Art.Icons["GrassGround"]), "稻草垫和草地看得出区别");
+
+        // 物体名 → 格子
+        Assert.IsTrue(Step1Art.TryParseCells("Ground_3_7_w5", out int x0, out int y0, out int w0)); Assert.AreEqual(3, x0); Assert.AreEqual(7, y0); Assert.AreEqual(5, w0);
+        Assert.IsTrue(Step1Art.TryParseCells("Wall_3_4", out _, out _, out int w1)); Assert.AreEqual(1, w1);
+
+        // 雨：屋里（顶上是墙）不下；户外落在第一层表面（地面 / 单向板），不穿进地底
+        for (int x = 0; x < tower[0].Length; x++) Assert.GreaterOrEqual(Step1Art.RainStopY(tower, x, solid), tower.Length - 1f, "屋里不下雨");
+        Assert.AreEqual(1.5f, Step1Art.RainStopY(park, 0, solid), 1e-4);
+        Assert.AreEqual(3.5f, Step1Art.RainStopY(park, 3, solid), 1e-4, "雨落在单向板上");
+
+        // 户外挂饰（挂旗 / 蛛网）必须挂在实心块上，不飘在天上
+        string[] field = { "..........................", "..........................", "..........................", "..........................", "..........................", "##########################" };
+        bool S(char c) => c == '#' || c == '=' || c == 'W' || c == 'v' || c == 'X' || c == 'F';
+        int hh = field.Length;
+        foreach (var d in WorldArt.Dressing(field, 7, 1f, true))
+        {
+            int yt = hh - 1 - d.y; char below = yt + 1 < hh ? field[yt + 1][d.x] : 'W';
+            if (S(below)) continue;
+            bool hung = (yt - 1 >= 0 && S(field[yt - 1][d.x])) || (d.x > 0 && S(field[yt][d.x - 1])) || (d.x + 1 < field[yt].Length && S(field[yt][d.x + 1]));
+            Assert.IsTrue(hung, "户外挂饰飘在空中：" + d.key + " @" + d.x + "," + d.y);
+        }
+        StringAssert.Contains("StripCover(", Read("Scripts/Gameplay/Step1/Step1ArtSkin.cs"), "运行时换图用新的遮挡规则");
+        StringAssert.Contains("RainStopY(", Read("Scripts/Gameplay/Step1/Step1Lighting.cs"));
     }
 
     [Test]

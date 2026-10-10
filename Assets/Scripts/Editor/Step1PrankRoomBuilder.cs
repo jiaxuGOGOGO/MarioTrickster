@@ -50,7 +50,7 @@ public static class Step1PrankRoomBuilder
     /// S216 = 20：弹簧板弹速按新调参（15，被弹飞全程有重力）写进场景 → 旧房间自动重建。
     /// S235 = 21：房间守卫 Step1RoomGuard（外圈外面看不见的墙 + 掉出房间回出生点掉 1 命 + 推出墙只往里推）→ 旧房间（含小镇房间）自动重建。
     /// S239 = 22：删掉旧的锚点起疑/热度/警报/连击/旧 UGUI 等重复系统（场景里不再装它们）→ 旧房间自动重建一次。
-    public const int BuilderVersion = 25; // S241：+灯 i / 草地 v；S243：+美术皮肤（Step1ArtSkin）；S244：+暂停菜单 Step1PauseMenu / 节奏提示 Step1Rhythm
+    public const int BuilderVersion = 26; // S247：路牌改图标（Step1SignIcon）; // S241：+灯 i / 草地 v；S243：+美术皮肤（Step1ArtSkin）；S244：+暂停菜单 Step1PauseMenu / 节奏提示 Step1Rhythm
     /// <summary>
 
     // 行 0 在最上面；世界 y = 高度 - 1 - 行号；地面为 y0..y2，站立层 y3。
@@ -675,9 +675,10 @@ public static class Step1PrankRoomBuilder
     private static void AddSigns(GameObject root, string[] room)
     {
         // S182：只留两块方向牌（中英），玩法说明改为开局帮助页（H 键）。S184：位置从模板里的 G / o 算出，不写死坐标。
+        // S247：路牌不写字了 = 出口 / 宝物图标 + 箭头（和马里奥头顶意图气泡同一套图标），场景里少两行中英文。
         Vector2 exit = CellOf(room, 'G'), loot = CellOf(room, 'o');
-        AddSign(root, exit + new Vector2(1f, SignHeightAboveMarker), "\u2190 出口 EXIT", 0.06f);
-        AddSign(root, loot + new Vector2(-1f, SignHeightAboveMarker), "宝物 LOOT \u2192", 0.06f);
+        AddSign(root, exit + new Vector2(1f, SignHeightAboveMarker), "\u2190", 0.08f, "BadgeExit", 0.75f);
+        AddSign(root, loot + new Vector2(-1f, SignHeightAboveMarker), "\u2192", 0.08f, "BadgeLoot", -0.75f);
     }
 
     private const float SignHeightAboveMarker = 2.6f;
@@ -695,7 +696,7 @@ public static class Step1PrankRoomBuilder
         throw new InvalidOperationException("Room has no '" + c + "'");
     }
 
-    private static void AddSign(GameObject root, Vector2 position, string text, float size)
+    private static void AddSign(GameObject root, Vector2 position, string text, float size, string icon = null, float iconOffsetX = 0f)
     {
         var sign = new GameObject("Step1_Sign");
         sign.transform.SetParent(root.transform);
@@ -704,5 +705,6 @@ public static class Step1PrankRoomBuilder
         label.text = text; label.fontSize = 48; label.characterSize = size;
         label.anchor = TextAnchor.MiddleCenter; label.alignment = TextAlignment.Center;
         label.color = new Color(1f, 1f, 1f, 0.8f);
+        if (icon != null) { var si = sign.AddComponent<Step1SignIcon>(); si.iconKey = icon; si.offsetX = iconOffsetX; }
     }
 }

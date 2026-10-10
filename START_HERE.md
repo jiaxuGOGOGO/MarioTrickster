@@ -24,6 +24,12 @@ SUCCESS: Project checkpoint is saved to GitHub.
 
 看到 `STOPPED` 时不要慌：工具没有推送任何内容，只需按窗口中列出的单一问题处理后再双击一次。
 
+新写的脚本（`Assets/Scripts`、`Assets/Tests` 下的 `.cs`）和网页设计台文件会**自动**一起存档；Unity 自己生成的房间场景和调参文件会自动跳过（打开 Unity 时会重建），不用管。
+
+## 摆关卡时看图标，不看字母
+
+Unity 关卡工坊和网页设计台都直接画像素图标：**红 = 坑他，蓝 = 藏身，金 = 目标，灰 = 地形**。想对照 ASCII 字母时，在网页设计台勾选“画布显示字母”。
+
 ## 换电脑 / 换 Manus 账号
 
 1. 从 GitHub 克隆 `genspark_ai_developer`；

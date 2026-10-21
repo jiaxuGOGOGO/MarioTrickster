@@ -1,0 +1,395 @@
+{
+  "type": "mariotrickster-worldpark",
+  "v": 1,
+  "id": "world_main",
+  "name": "幕间乐园",
+  "premise": "陌生会场组成的原创乐园：每场有可观察规则、不同目标和承担后果的分支；不强制统一守宝、花色或签证数值。示例提供软失败路径，作者可改成终止旅程。",
+  "entryVenue": "venue_town",
+  "venues": [
+    {
+      "id": "venue_town",
+      "name": "第一会场：雾灯小镇",
+      "setting": "斜俯视二维会场",
+      "role": "player",
+      "suit": "原创调查",
+      "difficulty": 1,
+      "rules": "调查不是必做任务，你可以猜测或寻找证据。最终只能选择一扇出口门；依据公开证据辨认通行门。选择前会确认。这里没有旧守宝日程，也没有自动重开一天。",
+      "entry": "intro",
+      "nodes": [
+        {
+          "id": "intro",
+          "kind": "story",
+          "name": "无名入场",
+          "text": "你和另一个身影被送入陌生小镇。入口在身后关闭，远处两座灯箱一亮一暗。身份与幕后原因暂时没有解释；你能先选择往哪里调查。",
+          "next": "investigate"
+        },
+        {
+          "id": "investigate",
+          "kind": "explore",
+          "name": "调查与出口抉择",
+          "text": "西门灯箱熄灭，东门灯箱亮着。残损告示就在南侧路边。镜头远近只改变取景；靠近、看得见并调查才得到线索。",
+          "mapText": "# Overworld: 雾灯小镇\n# Goal: 进入陌生会场，调查公开证据，再决定从哪个门离开\ntttttttttttttttttttttttttttttttt\nt..............................t\nt.....WWWWW....=.....WWWWW.....t\nt.....WWWWW....=.....WWWWW.....t\nt.....WWWWW....=.....WWWWW.....t\nt.....WWWWW....=.....WWWWW.....t\nt..............=.w.............t\nt..............=.=.............t\nt......i.......=.w......i......t\nt....WWWWWW....=.w..WWWWWW.....t\nt....WWWWWW....=.w..WWWWWW.....t\nt....WWWWWW....=.w..WWWWWW.....t\nt....WWWWWW....=.w..WWWWWW.....t\nt....WWWWWW....=.w..WWWWWW.....t\nt....WWWWWW....=.w..WWWWWW.....t\nt..............=.=.............t\nt..............=.w.............t\nt..............=...............t\nt.============================.t\nt...T..........=...............t\nt..............=...............t\nt..............=...............t\nt..............................t\ntttttttttttttttttttttttttttttttt",
+          "timeout": 0,
+          "points": [
+            {
+              "id": "notice",
+              "kind": "clue",
+              "label": "残损告示",
+              "x": 8,
+              "y": 5,
+              "clue": "notice",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "maintenance",
+              "kind": "clue",
+              "label": "维修记录",
+              "x": 15,
+              "y": 17,
+              "clue": "maintenance",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "plate",
+              "kind": "clue",
+              "label": "西门铭牌",
+              "x": 4,
+              "y": 17,
+              "clue": "plate",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "west",
+              "kind": "exit",
+              "label": "西侧门",
+              "x": 3,
+              "y": 20,
+              "clue": "",
+              "requires": [],
+              "outcome": "win"
+            },
+            {
+              "id": "east",
+              "kind": "exit",
+              "label": "东侧门",
+              "x": 28,
+              "y": 20,
+              "clue": "",
+              "requires": [],
+              "outcome": "lose"
+            }
+          ],
+          "onWin": "reveal_win",
+          "onLose": "reveal_lose"
+        },
+        {
+          "id": "reveal_win",
+          "kind": "reveal",
+          "name": "灯光不是门",
+          "text": "你穿过西门。此时广播解释：灯线与门的位置是两种不同的事实。已调查过的证据可以在这里重新解释；未调查过的记录不会被伪造成你的记忆。",
+          "next": "clear_end"
+        },
+        {
+          "id": "reveal_lose",
+          "kind": "reveal",
+          "name": "选择的后果",
+          "text": "东门关闭，活动判定未通过。广播说明：灯线曾被交换，通行门仍在西侧。这次失败作为世界事实保留，不能通过后续剧情重写。记录层的另一条通道开放；这里的原创软后果不冒充漫画原作死亡规则。",
+          "next": "fail_end"
+        },
+        {
+          "id": "clear_end",
+          "kind": "ending",
+          "name": "第一会场通过",
+          "text": "第一会场只是一处入口。检修回廊已经开放：下一次不是再辨认一扇真假门，而是在公开时限内选择去程与回路。",
+          "result": "clear"
+        },
+        {
+          "id": "fail_end",
+          "kind": "ending",
+          "name": "第一会场未通过",
+          "text": "本场未通过。你可以进入记录层看旅程留下的事实；此路径不会把第一会场变成通过，也不是原作人物复活设定。",
+          "result": "fail"
+        }
+      ],
+      "clues": [
+        {
+          "id": "notice",
+          "name": "残损告示",
+          "trigger": "interact",
+          "foundAt": "investigate",
+          "revealAt": "reveal_win",
+          "hint": "“通行门亮灯。禁入门熄灯。”告示下方还有一行：灯箱归维修组管理。",
+          "truth": "告示指灯箱的正常状态，不保证眼前电路未被改动。"
+        },
+        {
+          "id": "maintenance",
+          "name": "维修记录",
+          "trigger": "interact",
+          "foundAt": "investigate",
+          "revealAt": "reveal_win",
+          "hint": "维修单：昨天东、西两门灯线互换。门的位置与门牌没有更换。",
+          "truth": "用当前灯的亮灭直接判断门，会得到相反结论；应回看铭牌。"
+        },
+        {
+          "id": "plate",
+          "name": "西门铭牌",
+          "trigger": "interact",
+          "foundAt": "investigate",
+          "revealAt": "reveal_win",
+          "hint": "旧门牌：西侧通行门；东侧禁入门。牌面没有新漆或拆装痕迹。",
+          "truth": "西门仍是通行门。线路交换改变了表现，没有改变门的真实身份。"
+        }
+      ]
+    },
+    {
+      "id": "venue_gallery",
+      "name": "第二会场：检修回廊",
+      "setting": "有横向回路的二维俯视空间",
+      "role": "player",
+      "suit": "路径与时间",
+      "difficulty": 2,
+      "rules": "进入后开始90秒倒计时，暂停会停表。目标：到北侧取回检修单，再从南侧验收出口离开。南侧出口只核验是否带着检修单。北侧观景出口可离场，但不算完成检修。没有跳跃或守宝，也不靠隐藏规则判负。",
+      "entry": "arrival",
+      "nodes": [
+        {
+          "id": "arrival",
+          "kind": "story",
+          "name": "第二次入场",
+          "text": "你走进回廊。广播没有让你一直向前：“取单后回到验收出口。”开局的出口看似太近，但距离近不代表目标已完成。90秒仅在点进入会场后计时。",
+          "next": "survey"
+        },
+        {
+          "id": "survey",
+          "kind": "explore",
+          "name": "取单与返回",
+          "text": "检修单在北侧；隔断两端各留回路。可以先规划路线，也可以边走边看。南側验收出口留在出生区附近，北侧观景出口不是验收口。",
+          "mapText": "# Overworld: 检修回廊\n# Goal: 按公开规则调查并选择路线\ntttttttttttttttttttttttttttt\nt..........................t\nt..........................t\nt..........................t\nt............WWWWWW........t\nt............WWWWWW........t\nt............WWWWWW........t\nt..........................t\nt..........................t\nt..........................t\nt.......WWWWWWWWWWW........t\nt.......WWWWWWWWWWW........t\nt.......WWWWWWWWWWW........t\nt..........................t\nt..T.......................t\nt..........................t\nt..........................t\ntttttttttttttttttttttttttttt",
+          "timeout": 90,
+          "points": [
+            {
+              "id": "work_order",
+              "label": "检修单",
+              "x": 24,
+              "y": 14,
+              "kind": "clue",
+              "clue": "work_order",
+              "outcome": "",
+              "requires": []
+            },
+            {
+              "id": "route_board",
+              "label": "路线牌",
+              "x": 4,
+              "y": 10,
+              "kind": "clue",
+              "clue": "route_board",
+              "outcome": "",
+              "requires": []
+            },
+            {
+              "id": "return_gate",
+              "label": "南侧验收出口",
+              "x": 4,
+              "y": 3,
+              "kind": "exit",
+              "clue": "",
+              "outcome": "win",
+              "requires": [
+                "work_order"
+              ]
+            },
+            {
+              "id": "view_gate",
+              "label": "北侧观景出口",
+              "x": 3,
+              "y": 15,
+              "kind": "exit",
+              "clue": "",
+              "outcome": "lose",
+              "requires": []
+            }
+          ],
+          "onWin": "done",
+          "onLose": "late"
+        },
+        {
+          "id": "done",
+          "kind": "reveal",
+          "name": "回路完成",
+          "text": "验收出口确认检修单。开局就在旁边的出口，正是返回目标；本场考的是往返路线与时间分配，不是越往前越接近胜利。",
+          "next": "clear_end"
+        },
+        {
+          "id": "late",
+          "kind": "reveal",
+          "name": "未完成检修",
+          "text": "公开的任务条件没有满足：可能是时间耗尽，或从观景口离开。该活动未完成的事实保留；记录层可以继续访问，但不是补发本场胜利。",
+          "next": "fail_end"
+        },
+        {
+          "id": "clear_end",
+          "kind": "ending",
+          "name": "检修通过",
+          "text": "检修通过，世界记录层开放。你已体验两种不同目标：辨認证据与完成往返回路。它们仍共用探索适配器，并不是已经实现所有花色玩法。",
+          "result": "clear"
+        },
+        {
+          "id": "fail_end",
+          "kind": "ending",
+          "name": "检修未通过",
+          "text": "未通过记录已留下。记录层没有让你通过，本场结果仍是fail。",
+          "result": "fail"
+        }
+      ],
+      "clues": [
+        {
+          "id": "work_order",
+          "name": "检修单",
+          "trigger": "interact",
+          "foundAt": "survey",
+          "revealAt": "done",
+          "hint": "纸面验收编号与南侧标牌一致。纸上写着“请交回南侧验收出口”。",
+          "truth": "拿到检修单不是终点；交回才完成任务。"
+        },
+        {
+          "id": "route_board",
+          "name": "路线牌",
+          "trigger": "interact",
+          "foundAt": "survey",
+          "revealAt": "done",
+          "hint": "隔断两端均有通道；北侧写“观景出口”，南侧写“验收出口”。",
+          "truth": "两处可离场的门承担不同功能，公开任务决定哪种离场算达成。"
+        }
+      ]
+    },
+    {
+      "id": "venue_archive",
+      "name": "世界节点：旅程记录层",
+      "setting": "可以回看证据和后果的小型公共层",
+      "role": "player",
+      "suit": "世界节点",
+      "difficulty": 0,
+      "rules": "此处没有倒计时和守宝。调查档案并选择记录出口离开。完成记录只产生recorded标签，不改前面任何clear/fail事实。此样例允许软失败进入记录层，作者可删除fail链接改成彻底终止。",
+      "entry": "arrival",
+      "nodes": [
+        {
+          "id": "arrival",
+          "kind": "story",
+          "name": "记录层开放",
+          "text": "一处旅程可以有多个不同会场，也可以有休息、整理与选择后续路径的公共节点。这里没有幕后全知的角色替你解释没看过的线索；笔记只展示你实际发现的内容。",
+          "next": "record"
+        },
+        {
+          "id": "record",
+          "kind": "explore",
+          "name": "调查留下的记录",
+          "text": "档案柜与展板可以近身调查。此节点展示“世界结果标签不限胜负”，并不宣称已模拟NPC社会或漫画完整世界。",
+          "mapText": "# Overworld: 旅程记录层\n# Goal: 按公开规则调查并选择路线\ntttttttttttttttttt\nt................t\nt................t\nt................t\nt.......WWW......t\nt.......WWW......t\nt.......WWW......t\nt................t\nt..T.............t\nt................t\nt................t\ntttttttttttttttttt",
+          "timeout": 0,
+          "points": [
+            {
+              "id": "ledger",
+              "label": "旅程档案柜",
+              "x": 4,
+              "y": 8,
+              "kind": "clue",
+              "clue": "ledger",
+              "outcome": "",
+              "requires": []
+            },
+            {
+              "id": "author_note",
+              "label": "空白会场展板",
+              "x": 13,
+              "y": 8,
+              "kind": "clue",
+              "clue": "author_note",
+              "outcome": "",
+              "requires": []
+            },
+            {
+              "id": "leave",
+              "label": "记录出口",
+              "x": 14,
+              "y": 3,
+              "kind": "exit",
+              "clue": "",
+              "outcome": "win",
+              "requires": []
+            }
+          ],
+          "onWin": "explain",
+          "onLose": "interrupted"
+        },
+        {
+          "id": "explain",
+          "kind": "reveal",
+          "name": "记录不是改判",
+          "text": "recorded表示你已离开记录层。前面局部事件与会场结果仍保留自己的真实标签；世界不是只有总胜负一个数值。",
+          "next": "recorded_end"
+        },
+        {
+          "id": "interrupted",
+          "kind": "reveal",
+          "name": "记录中断",
+          "text": "此示例没有失败出口，保留失败分支供作者扩展，不自动制造一次失败。",
+          "next": "unfinished_end"
+        },
+        {
+          "id": "recorded_end",
+          "kind": "ending",
+          "name": "旅程记录完成",
+          "text": "本轮可继续从安全检查点回来，也可在工坊增加下一个会场。当前完成的是多会场创作与进度底座，不是完整商业游戏。",
+          "result": "recorded"
+        },
+        {
+          "id": "unfinished_end",
+          "kind": "ending",
+          "name": "记录未完成",
+          "text": "记录层尚未完成，不改写上游结果。",
+          "result": "unfinished"
+        }
+      ],
+      "clues": [
+        {
+          "id": "ledger",
+          "name": "旅程档案柜",
+          "trigger": "interact",
+          "foundAt": "record",
+          "revealAt": "explain",
+          "hint": "档案分栏：局部活动、会场结果、可前往会场。三栏不是同一件事。",
+          "truth": "记录层的结束状态不会替换第一会场的成功或失败。"
+        },
+        {
+          "id": "author_note",
+          "name": "空白会场展板",
+          "trigger": "interact",
+          "foundAt": "record",
+          "revealAt": "explain",
+          "hint": "展板留给作者：可以自定义结局标签与标签对应的下一场入口。",
+          "truth": "下一处创意由公开规则、现场行动和可读后果组成，而不是要求所有会场沿用守宝。"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "from": "venue_town",
+      "to": "venue_gallery",
+      "requires": "clear"
+    },
+    {
+      "from": "venue_town",
+      "to": "venue_archive",
+      "requires": "fail"
+    },
+    {
+      "from": "venue_gallery",
+      "to": "venue_archive",
+      "requires": "any"
+    }
+  ]
+}

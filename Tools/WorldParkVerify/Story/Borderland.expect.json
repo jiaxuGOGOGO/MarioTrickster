@@ -1,0 +1,34 @@
+{
+  "说明": "剧情带入模拟的作者预期。personas 定义模拟玩家的人格与策略（chase 是遇到“鬼”时的应对：ignore 无视、flee 只会跑、evade 边躲边找）；expect 写你希望出现的结果（venue+result 是单会场挑战；journeyEnd 是全程旅程终点）。改了世界包或这里后运行：dotnet run --project Tools/WorldParkVerify/Story/WorldParkStory.csproj",
+  "pack": "Assets/Resources/WorldPark/Borderland.worldpark.json",
+  "minDistinctJourneyEnds": 3,
+  "personas": [
+    { "id": "mang", "name": "莽", "bio": "冲动型：不读完规则就行动，贪图眼前的分数", "explore": "rush", "chase": "ignore", "beauty": "naive", "mark": "majority", "split": "greedy", "route": ["v_number", "v_mark"] },
+    { "id": "zhen", "name": "真", "bio": "轻信型：觉得显眼的东西是陷阱，但相信别人说的话", "explore": "intuitive", "chase": "ignore", "beauty": "reasoner", "mark": "first", "split": "trust", "route": ["v_mark", "v_number"] },
+    { "id": "shen", "name": "慎", "bio": "谨慎型：先调查再行动，以牙还牙；被追只会拼命跑", "explore": "careful", "chase": "flee", "beauty": "reasoner", "mark": "informed", "split": "mirror", "route": ["v_mark", "v_number"] },
+    { "id": "si", "name": "思", "bio": "深思型：推演别人的推演，只看行为不看承诺；盯着鬼的视野走", "explore": "careful", "chase": "evade", "beauty": "deep", "mark": "informed", "split": "deep", "route": ["v_number", "v_mark"] },
+    { "id": "sui", "name": "随", "bio": "观察型：先调查，跟着局势调整；会躲会等", "explore": "careful", "chase": "evade", "beauty": "adaptive", "mark": "informed", "split": "deep", "route": ["v_chase", "v_mark", "v_number"] }
+  ],
+  "expect": [
+    { "persona": "mang", "venue": "v_doors", "result": "dead", "why": "冲向写着“出口”的大门是字面陷阱" },
+    { "persona": "zhen", "venue": "v_doors", "result": "dead", "why": "只凭直觉避开显眼的门也不够，必须看证据" },
+    { "persona": "shen", "venue": "v_doors", "result": "clear", "why": "调查到测温贴密码才能打开检修门" },
+    { "persona": "mang", "venue": "v_number", "result": "dead", "why": "写直觉数字 50 必死" },
+    { "persona": "si", "venue": "v_number", "result": "clear", "why": "推演到深层并跟随目标下降者通关" },
+    { "persona": "zhen", "venue": "v_mark", "result": "dead", "why": "第一轮的真话是饵" },
+    { "persona": "mang", "venue": "v_mark", "result": "dead", "why": "说谎者坐在前面，平票时听多数会被带偏" },
+    { "persona": "shen", "venue": "v_mark", "result": "clear", "why": "公开记录足以识破说谎者" },
+    { "persona": "mang", "venue": "v_chase", "result": "dead", "why": "最短的走廊就是鬼的巡逻线，迎面撞上" },
+    { "persona": "zhen", "venue": "v_chase", "result": "dead", "why": "无视鬼的人在一格宽的走廊里无处可躲" },
+    { "persona": "si", "venue": "v_chase", "result": "clear", "why": "读公告板、绕操场、躲进草里等鬼转身" },
+    { "persona": "sui", "venue": "v_chase", "result": "clear", "why": "边躲边找的人能活着碰到旗" },
+    { "persona": "zhen", "venue": "v_split", "result": "dead", "why": "承诺是免费的" },
+    { "persona": "mang", "venue": "v_split", "result": "dead", "why": "一直偷会被防备，分数不够" },
+    { "persona": "shen", "venue": "v_split", "result": "dead", "why": "以牙还牙看不穿最后一轮背叛" },
+    { "persona": "si", "venue": "v_split", "result": "clear", "why": "吃一次亏后防备说谎者，并看穿最后一轮" },
+    { "persona": "si", "venue": "v_final", "result": "leave", "why": "读完名单和签证的人才能选择离开" },
+    { "persona": "mang", "journeyEnd": "♣3 三扇门 / 出局" },
+    { "persona": "shen", "journeyEnd": "♥9 分还是偷 / 出局", "why": "差一轮就到终点的遗憾" },
+    { "persona": "si", "journeyEnd": "K 主办者的房间 / 离开" }
+  ]
+}

@@ -1,0 +1,819 @@
+{
+  "type": "mariotrickster-worldpark",
+  "v": 1,
+  "id": "borderland_v1",
+  "name": "空白之城",
+  "premise": "你在一座空无一人的城里醒来。手机只剩一条通知：“游戏即将开始。签证三天后到期；不参加游戏的人，签证到期时出局。”城里没有人解释为什么。唯一的规则是：进了会场就不能离开，直到游戏结束。",
+  "entryVenue": "v_doors",
+  "venues": [
+    {
+      "id": "v_doors",
+      "name": "♣3 三扇门",
+      "setting": "无人车站的候车大厅（斜俯视探索）",
+      "role": "player",
+      "suit": "♣ 协作与观察",
+      "difficulty": 3,
+      "rules": "限时 35 秒。大厅有三扇门，只有一扇通往外面。规则板上的每一句话都是真的。超时视为失败。",
+      "entry": "arrival",
+      "nodes": [
+        {
+          "id": "arrival",
+          "kind": "story",
+          "name": "霓虹亮起",
+          "text": "车站的霓虹灯一盏盏亮起，拼出一张扑克牌：梅花 3。广播用很温和的声音说：“欢迎参加第一场游戏。”身后的玻璃门落了锁。大厅正中央，“出口”两个字的灯箱亮得刺眼。",
+          "next": "hall"
+        },
+        {
+          "id": "hall",
+          "kind": "explore",
+          "name": "候车大厅",
+          "text": "计时开始。写着“出口”的大门就在正前方；左上角有一扇侧门，右上角有一扇贴着封条的检修门。规则板立在你脚边。",
+          "mapText": "# Overworld: 无人车站·候车大厅\n# Goal: 35 秒内找到唯一通往外面的门\ntttttttttttttttttttttttttt\nt........................t\nt........................t\nt...WWW..........WWW.....t\nt...WWW..........WWW.....t\nt........................t\nt........................t\nt........................t\nt.....WWWW.....WWWW......t\nt.....WWWW.....WWWW......t\nt........................t\nt........................t\nt...........T............t\ntttttttttttttttttttttttttt",
+          "timeout": 35,
+          "points": [
+            {
+              "id": "rule_board",
+              "kind": "clue",
+              "label": "规则板",
+              "x": 14,
+              "y": 2,
+              "clue": "rule_board",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "scorch",
+              "kind": "clue",
+              "label": "大门前的焦痕",
+              "x": 11,
+              "y": 7,
+              "clue": "scorch",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "handle_tag",
+              "kind": "clue",
+              "label": "检修门旁的测温贴",
+              "x": 22,
+              "y": 6,
+              "clue": "handle_tag",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "main_door",
+              "kind": "exit",
+              "label": "大门（写着“出口”）",
+              "x": 12,
+              "y": 8,
+              "clue": "",
+              "requires": [],
+              "outcome": "lose"
+            },
+            {
+              "id": "side_door",
+              "kind": "exit",
+              "label": "侧门",
+              "x": 1,
+              "y": 12,
+              "clue": "",
+              "requires": [],
+              "outcome": "lose"
+            },
+            {
+              "id": "service_door",
+              "kind": "exit",
+              "label": "检修门（密码锁）",
+              "x": 24,
+              "y": 10,
+              "clue": "",
+              "requires": [
+                "handle_tag"
+              ],
+              "outcome": "win"
+            }
+          ],
+          "onWin": "out_alive",
+          "onLose": "caught"
+        },
+        {
+          "id": "out_alive",
+          "kind": "reveal",
+          "name": "冷的门",
+          "text": "检修门后是一段向下的楼梯，冷风从楼梯尽头吹上来。广播说：“恭喜通关。”你回头看了一眼那块亮着“出口”的灯箱——它从头到尾都没有说谎，只是没有说它通向哪里。",
+          "next": "clear_end"
+        },
+        {
+          "id": "caught",
+          "kind": "reveal",
+          "name": "字面的出口",
+          "text": "门开了，门后是一面墙，墙上写着两个字：“出口”。规则板上第一句话一直在那里：写着“出口”的门后面没有出口。",
+          "next": "dead_end"
+        },
+        {
+          "id": "clear_end",
+          "kind": "ending",
+          "name": "第一场通关",
+          "text": "手机震了一下：“签证延长 3 天。”车站外，城里另外三块霓虹亮了：方块、红心与黑桃。你可以选择下一场去哪里。",
+          "result": "clear"
+        },
+        {
+          "id": "dead_end",
+          "kind": "ending",
+          "name": "出局",
+          "text": "红光从头顶落下。视野变成一整片白，然后什么都没有了。这座城不给第二次机会：这次旅程到此结束。",
+          "result": "dead"
+        }
+      ],
+      "clues": [
+        {
+          "id": "rule_board",
+          "name": "规则板",
+          "trigger": "interact",
+          "foundAt": "hall",
+          "revealAt": "caught",
+          "hint": "规则板：①写着“出口”的门后面没有出口。②生路的门把手是冷的。③检修门的密码就在它附近。",
+          "truth": "规则全部是真话。致命的不是规则，而是“出口”两个字给人的安全感。"
+        },
+        {
+          "id": "scorch",
+          "name": "大门前的焦痕",
+          "trigger": "interact",
+          "foundAt": "hall",
+          "revealAt": "caught",
+          "hint": "大门前的地砖上有一圈焦黑的痕迹，边缘整整齐齐，像是被什么从上方精确地烧过。",
+          "truth": "上一个相信“出口”的人就站在这里。"
+        },
+        {
+          "id": "handle_tag",
+          "name": "检修门旁的测温贴",
+          "trigger": "interact",
+          "foundAt": "hall",
+          "revealAt": "out_alive",
+          "hint": "测温贴显示蓝色：检修门把手是冷的。贴纸背面写着四位数字：0310。",
+          "truth": "冷的把手对应规则②；0310 打开了检修门的密码锁。"
+        }
+      ]
+    },
+    {
+      "id": "v_number",
+      "name": "♦5 数字猜心",
+      "setting": "废弃证券交易所的大屏幕前（多人博弈）",
+      "role": "player",
+      "suit": "♦ 智力",
+      "difficulty": 5,
+      "rules": "六个人，每轮同时写下 0 到 100 的整数。全体平均数乘以 0.8 得到目标，最接近目标的人这一轮不扣命，其他人扣一条。每人三条命，命归零出局。有人出局后，每轮会追加一条新规则；只剩两个人时，会宣布最后的决斗规则。",
+      "entry": "arrival",
+      "nodes": [
+        {
+          "id": "arrival",
+          "kind": "story",
+          "name": "交易大厅",
+          "text": "大屏幕滚动着一行字：方块 5。另外五个人已经坐在终端前：总是先开口的阿久，认真记笔记的白石，一言不发的苇，不停观察别人的渡，以及总和渡写得差不多的鸣。没有人知道别人会写什么——但每个人都在猜别人会怎么猜。",
+          "next": "bid"
+        },
+        {
+          "id": "bid",
+          "kind": "game",
+          "name": "写下数字",
+          "text": "终端亮起。第一轮开始。",
+          "onWin": "read_minds",
+          "onLose": "misread",
+          "game": {
+            "mode": "beauty",
+            "rounds": 8,
+            "lives": 3,
+            "ratio": 80,
+            "goal": 0,
+            "seed": 7,
+            "escalate": 1,
+            "seats": [
+              {
+                "id": "me",
+                "name": "你",
+                "persona": "player"
+              },
+              {
+                "id": "jiu",
+                "name": "阿久",
+                "persona": "naive"
+              },
+              {
+                "id": "bai",
+                "name": "白石",
+                "persona": "reasoner"
+              },
+              {
+                "id": "wei",
+                "name": "苇",
+                "persona": "deep"
+              },
+              {
+                "id": "du",
+                "name": "渡",
+                "persona": "adaptive"
+              },
+              {
+                "id": "ming",
+                "name": "鸣",
+                "persona": "adaptive"
+              }
+            ]
+          }
+        },
+        {
+          "id": "read_minds",
+          "kind": "reveal",
+          "name": "读法的读法",
+          "text": "你赢下的不是数字，是一层一层往下推的耐心：别人以为平均是 50，就写 40；想到这一层的人写 32；再往下，所有人都会被推向 0。追加的规则惩罚“想到一起”的人：跟着上一轮目标写的人，会和同样这么想的人写成同一个数。想得和别人一样，也是一种危险。",
+          "next": "clear_end"
+        },
+        {
+          "id": "misread",
+          "kind": "reveal",
+          "name": "平均数的陷阱",
+          "text": "你写下的是“你以为的平均”，可目标是“所有人以为的平均再打八折”。每个人都在往下推，只有你停在了原地。",
+          "next": "dead_end"
+        },
+        {
+          "id": "clear_end",
+          "kind": "ending",
+          "name": "方块 5 通关",
+          "text": "手机震动：“签证延长 5 天。”远处，红心 9 的霓虹在桥下亮着。",
+          "result": "clear"
+        },
+        {
+          "id": "dead_end",
+          "kind": "ending",
+          "name": "出局",
+          "text": "红光从头顶落下。视野变成一整片白，然后什么都没有了。这座城不给第二次机会：这次旅程到此结束。",
+          "result": "dead"
+        }
+      ],
+      "clues": [
+        {
+          "id": "screen",
+          "name": "大屏幕的空栏",
+          "trigger": "stage",
+          "foundAt": "arrival",
+          "revealAt": "read_minds",
+          "hint": "大屏幕最下方有一行小字：“追加规则不会提前公布。”旁边是一个空着的规则栏，留了三格。",
+          "truth": "三格空栏，是给“最聪明的写法”准备的：同数字无效、命中惩罚、0 对 100。每出现一条新规则，上一轮最安全的写法就会变成最危险的写法。你每一轮都重新读了规则。"
+        },
+        {
+          "id": "ledger",
+          "name": "白石的笔记本",
+          "trigger": "stage",
+          "foundAt": "arrival",
+          "revealAt": "misread",
+          "hint": "白石的笔记本摊开着，第一页写着：50 → 40 → 32 → 25.6 ……后面的数字越写越小。",
+          "truth": "那不是草稿。白石在算“别人会往下推几层”，而你只算了一层。"
+        }
+      ]
+    },
+    {
+      "id": "v_mark",
+      "name": "♥7 看不见的标记",
+      "setting": "地下停车场（多人博弈）",
+      "role": "player",
+      "suit": "♥ 心理",
+      "difficulty": 7,
+      "rules": "每个人的项圈上都有一个花色（♠♥♦♣），自己看不见，别人看得见。每轮开始花色会重新随机。你只能听别人告诉你；每轮必须宣告自己的花色，说错就出局。每轮结束，所有人的真实花色和所有证词都会公开。共四轮。",
+      "entry": "arrival",
+      "nodes": [
+        {
+          "id": "arrival",
+          "kind": "story",
+          "name": "项圈",
+          "text": "停车场的灯一排排亮起，墙上喷着红心 7。六个人围成一圈，每个人脖子上都多了一个轻轻震动的项圈。穿灰外套的狐和戴耳钉的鸦并肩站着，朝你笑得很友善。阿久、白石和苇站在对面。广播说：“请告诉彼此真相——或者别告诉。”",
+          "next": "collars"
+        },
+        {
+          "id": "collars",
+          "kind": "game",
+          "name": "宣告花色",
+          "text": "第一轮。所有人看着彼此的项圈，开始说话。",
+          "onWin": "saw_through",
+          "onLose": "trusted",
+          "game": {
+            "mode": "mark",
+            "rounds": 4,
+            "lives": 1,
+            "ratio": 0,
+            "goal": 0,
+            "seed": 11,
+            "escalate": 0,
+            "seats": [
+              {
+                "id": "fox",
+                "name": "狐",
+                "persona": "liar"
+              },
+              {
+                "id": "crow",
+                "name": "鸦",
+                "persona": "liar"
+              },
+              {
+                "id": "me",
+                "name": "你",
+                "persona": "player"
+              },
+              {
+                "id": "jiu",
+                "name": "阿久",
+                "persona": "naive"
+              },
+              {
+                "id": "bai",
+                "name": "白石",
+                "persona": "loyal"
+              },
+              {
+                "id": "wei",
+                "name": "苇",
+                "persona": "reasoner"
+              }
+            ]
+          }
+        },
+        {
+          "id": "saw_through",
+          "kind": "reveal",
+          "name": "公开记录",
+          "text": "第一轮里，狐和鸦对你说的是真话——同一轮，他们对别人撒了谎，公开记录上写得清清楚楚。你从那一刻起不再听他们的。红心的游戏从来不考你看见了什么，而是考你记住了谁在什么时候撒谎。",
+          "next": "clear_end"
+        },
+        {
+          "id": "trusted",
+          "kind": "reveal",
+          "name": "第一轮的真话",
+          "text": "狐和鸦第一轮对你说了真话，你记住了这份“诚实”。可公开记录里，他们在同一轮对别人撒了谎。真话只是饵。",
+          "next": "dead_end"
+        },
+        {
+          "id": "clear_end",
+          "kind": "ending",
+          "name": "红心 7 通关",
+          "text": "手机震动：“签证延长 7 天。”狐朝你挥了挥手：“下一场见。”",
+          "result": "clear"
+        },
+        {
+          "id": "dead_end",
+          "kind": "ending",
+          "name": "出局",
+          "text": "红光从头顶落下。视野变成一整片白，然后什么都没有了。这座城不给第二次机会：这次旅程到此结束。",
+          "result": "dead"
+        }
+      ],
+      "clues": [
+        {
+          "id": "collar_light",
+          "name": "项圈侧面的小灯",
+          "trigger": "stage",
+          "foundAt": "arrival",
+          "revealAt": "saw_through",
+          "hint": "每个项圈侧面都有一盏小灯。狐和鸦的灯是暗的，其他人的灯一闪一闪。",
+          "truth": "灯暗着的项圈不会因为答错而触发——狐和鸦是主办方安排的“荷官”，他们永远知道自己的花色。第一轮的真话，是为了让你之后相信谎话。"
+        },
+        {
+          "id": "broadcast",
+          "name": "广播的措辞",
+          "trigger": "stage",
+          "foundAt": "arrival",
+          "revealAt": "trusted",
+          "hint": "广播只说了一句：“请告诉彼此真相——或者别告诉。”没有说“每一轮”。",
+          "truth": "真话和谎话可以出现在不同的轮次。第一轮对你说真话证明不了什么；能看出谁在说谎的，只有公开记录里同一轮他对别人说了什么。"
+        }
+      ]
+    },
+    {
+      "id": "v_chase",
+      "name": "♠5 鬼抓人",
+      "setting": "夜间废弃小学（斜俯视追逐）",
+      "role": "player",
+      "suit": "♠ 体力",
+      "difficulty": 5,
+      "rules": "限时 45 秒。被鬼碰到就出局；碰到体育馆里阵地的旗即通关。鬼只看得见它面前扇形范围里的东西，看见你就会追。站在高草里不动的人，鬼贴身之前看不见；在草里走动，草会晃。超时视为失败。",
+      "entry": "arrival",
+      "nodes": [
+        {
+          "id": "arrival",
+          "kind": "story",
+          "name": "放学后的操场",
+          "text": "操场上空的霓虹亮起：黑桃 5。教学楼的窗户全黑着，喇叭里传出儿童节目一样欢快的声音：“来玩鬼抓人吧！”走廊尽头和操场中央各站着一个戴白色面具的人，一动不动，像是在等铃声。",
+          "next": "school"
+        },
+        {
+          "id": "school",
+          "kind": "explore",
+          "name": "夜间废弃小学",
+          "text": "铃声响了，计时开始。阵地在东南角的体育馆里。出生点旁边立着一块公告板；南边那条走廊笔直通向体育馆，北边是空旷的操场。两个面具人开始走动。",
+          "mapText": "# Overworld: 夜间废弃小学\n# Goal: 45 秒内碰到体育馆里阵地的旗；被鬼碰到出局\ntttttttttttttttttttttttttttttt\nt...\"\"\"\"\"\"\"\"\"\"\"....\"\"\"\"......t\nt...\"\"\"\"\"\"\"\"\"\"\"....\"\"\"\"......t\nt...........c......\"\"\"\"......t\nt\"\"\"...............\"\"\"\"......t\nt\"\"\"....WWWWWWWW.........\"\"\".t\nt\"\"\"....WWWWWWWW.......c.\"\"\".t\nt\"\"\"....WWWWWWWW.c.......\"\"\".t\nt\"\"\"....WWWWWWWW.............t\nt\"\"\".................WWW.WWWWt\nt....................W......Wt\nt..c................cW......Wt\nt.........\"\"\"\".......W......Wt\nt.........\"\"\"\".......W......Wt\nt...WWWWWWWWWWWWWWWWWW......Wt\nt.T.........................Wt\ntttttttttttttttttttttttttttttt",
+          "timeout": 45,
+          "points": [
+            {
+              "id": "notice",
+              "kind": "clue",
+              "label": "公告板",
+              "x": 1,
+              "y": 2,
+              "clue": "notice",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "badge",
+              "kind": "clue",
+              "label": "草丛里的工作证",
+              "x": 2,
+              "y": 12,
+              "clue": "badge",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "base",
+              "kind": "exit",
+              "label": "阵地的旗",
+              "x": 25,
+              "y": 4,
+              "clue": "",
+              "requires": [],
+              "outcome": "win"
+            },
+            {
+              "id": "oni_hall",
+              "kind": "chaser",
+              "label": "走廊的鬼",
+              "x": 16,
+              "y": 1,
+              "clue": "",
+              "requires": [],
+              "outcome": "",
+              "speed": 34,
+              "sight": 7,
+              "route": [
+                "9,1",
+                "20,1"
+              ]
+            },
+            {
+              "id": "oni_yard",
+              "kind": "chaser",
+              "label": "操场的鬼",
+              "x": 12,
+              "y": 6,
+              "clue": "",
+              "requires": [],
+              "outcome": "",
+              "speed": 34,
+              "sight": 7,
+              "route": [
+                "18,6",
+                "18,13",
+                "6,13",
+                "6,6"
+              ]
+            }
+          ],
+          "onWin": "safe",
+          "onLose": "caught"
+        },
+        {
+          "id": "safe",
+          "kind": "reveal",
+          "name": "阵地",
+          "text": "你的手碰到旗杆的那一刻，喇叭里响起一阵掌声。几乎同时，走廊那边传来一声你在车站听过的嗡响，然后一切都安静了。",
+          "next": "clear_end"
+        },
+        {
+          "id": "caught",
+          "kind": "reveal",
+          "name": "白色面具",
+          "text": "一只冰凉的手搭上了你的肩膀。面具后面传来的声音比你还要害怕：“对不起……我只剩今天了。”",
+          "next": "dead_end"
+        },
+        {
+          "id": "clear_end",
+          "kind": "ending",
+          "name": "黑桃 5 通关",
+          "text": "手机震动：“签证延长 5 天。”体育馆的后门打开了，门外是桥下的旧剧场，红心 9 的霓虹在那里亮着。",
+          "result": "clear"
+        },
+        {
+          "id": "dead_end",
+          "kind": "ending",
+          "name": "出局",
+          "text": "红光从头顶落下。视野变成一整片白，然后什么都没有了。这座城不给第二次机会：这次旅程到此结束。",
+          "result": "dead"
+        }
+      ],
+      "clues": [
+        {
+          "id": "notice",
+          "name": "公告板",
+          "trigger": "interact",
+          "foundAt": "school",
+          "revealAt": "caught",
+          "hint": "公告板：①被鬼碰到就出局。②阵地是东南角体育馆里的那面旗。③鬼只看得见面前的东西。④在高草里不动，鬼走到身边之前都看不见你。",
+          "truth": "每一条都是真的。只是它没有告诉你：最短的那条走廊，正是鬼的巡逻路线。"
+        },
+        {
+          "id": "badge",
+          "name": "草丛里的工作证",
+          "trigger": "interact",
+          "foundAt": "school",
+          "revealAt": "safe",
+          "hint": "草丛里有一张被踩脏的工作证：照片上的人戴着同样的白色面具，背面印着：“参加者　签证剩余 0 天”。",
+          "truth": "鬼也是参加者：抓不到人，他就会在游戏结束时出局。你碰到旗的那一刻，就是他出局的那一刻。"
+        }
+      ]
+    },
+    {
+      "id": "v_split",
+      "name": "♥9 分还是偷",
+      "setting": "桥下的旧剧场（多人博弈）",
+      "role": "player",
+      "suit": "♥ 心理",
+      "difficulty": 9,
+      "rules": "六轮，每轮你和一位对手同时选“分”或“偷”。双方都分：各得 1 分。一方偷、一方分：偷的人得 2 分，分的人失去一条命。双方都偷：什么都得不到。每人两条命。六轮结束时你需要至少 3 分。最后一轮之后，再也没有人记得你做过什么。",
+      "entry": "arrival",
+      "nodes": [
+        {
+          "id": "arrival",
+          "kind": "story",
+          "name": "旧剧场",
+          "text": "舞台上摆着一张桌子、两把椅子。对手会轮流坐到你对面：狐又出现了，还是那副友善的笑；照镜子一样模仿别人的镜；以及从数字游戏里活下来的苇。每轮开始前，对手都会先说一句话。话是免费的。",
+          "next": "table"
+        },
+        {
+          "id": "table",
+          "kind": "game",
+          "name": "桌前",
+          "text": "第一位对手坐下了。",
+          "onWin": "last_round",
+          "onLose": "betrayed",
+          "game": {
+            "mode": "split",
+            "rounds": 6,
+            "lives": 2,
+            "ratio": 0,
+            "goal": 3,
+            "seed": 3,
+            "escalate": 0,
+            "seats": [
+              {
+                "id": "me",
+                "name": "你",
+                "persona": "player"
+              },
+              {
+                "id": "fox",
+                "name": "狐",
+                "persona": "liar"
+              },
+              {
+                "id": "mirror",
+                "name": "镜",
+                "persona": "mirror"
+              },
+              {
+                "id": "wei",
+                "name": "苇",
+                "persona": "deep"
+              }
+            ]
+          }
+        },
+        {
+          "id": "last_round",
+          "kind": "reveal",
+          "name": "没有明天的一轮",
+          "text": "狐的承诺每一次都一样，所以它一文不值；镜只会还给你你给过它的东西；而苇在最后一轮背叛，因为最后一轮之后不再有报复。你吃过一次亏，然后在没有明天的那一轮保护了自己。",
+          "next": "clear_end"
+        },
+        {
+          "id": "betrayed",
+          "kind": "reveal",
+          "name": "承诺是免费的",
+          "text": "每一句“我会选分”都不用付出代价。你相信了不该相信的人，或者在最后一轮忘了：当明天不存在时，信任也就不存在了。",
+          "next": "dead_end"
+        },
+        {
+          "id": "clear_end",
+          "kind": "ending",
+          "name": "红心 9 通关",
+          "text": "剧场的灯熄灭，舞台下方打开一扇你从没见过的门。门上画着一张没有花色的牌：K。",
+          "result": "clear"
+        },
+        {
+          "id": "dead_end",
+          "kind": "ending",
+          "name": "出局",
+          "text": "红光从头顶落下。视野变成一整片白，然后什么都没有了。这座城不给第二次机会：这次旅程到此结束。",
+          "result": "dead"
+        }
+      ],
+      "clues": [
+        {
+          "id": "program",
+          "name": "座位上的节目单",
+          "trigger": "stage",
+          "foundAt": "arrival",
+          "revealAt": "last_round",
+          "hint": "座位上放着一张节目单：第一幕到第五幕都有标题，第六幕只写着“谢幕”。",
+          "truth": "第六幕没有剧情，也就没有之后。苇知道这一点，所以把背叛留到了谢幕。节目单上那两个字，就是他的计划。"
+        },
+        {
+          "id": "promise",
+          "name": "狐的口头禅",
+          "trigger": "stage",
+          "foundAt": "arrival",
+          "revealAt": "betrayed",
+          "hint": "狐凑到你耳边：“这里的人都很守信用，尤其是我。”",
+          "truth": "狐每一句承诺都一模一样，因为承诺不需要成本。能看出一个人会怎么选的，是他上一轮做了什么，而不是他说了什么。"
+        }
+      ]
+    },
+    {
+      "id": "v_final",
+      "name": "K 主办者的房间",
+      "setting": "城中心钟楼的控制室（斜俯视探索）",
+      "role": "player",
+      "suit": "人头牌",
+      "difficulty": 13,
+      "rules": "这里没有计时，也没有人会伤害你。你只需要做一个决定：留下，或者离开。",
+      "entry": "arrival",
+      "nodes": [
+        {
+          "id": "arrival",
+          "kind": "story",
+          "name": "控制室",
+          "text": "钟楼顶层是一间控制室。几十块屏幕播放着城里每一个会场；狐和鸦坐在操作台前，看见你进来，像老朋友一样点了点头。正中间有一把空椅子。",
+          "next": "room"
+        },
+        {
+          "id": "room",
+          "kind": "explore",
+          "name": "钟楼控制室",
+          "text": "离你最近的是那把空椅子。房间深处有一道发着白光的门。屏幕、文件柜和一张桌子散落在房间里。",
+          "mapText": "# Overworld: 主办者的房间\n# Goal: 决定留下还是离开\ntttttttttttttttttttt\nt..................t\nt..WWWW....WWWW....t\nt..WWWW....WWWW....t\nt..................t\nt..................t\nt.....WWWWWWWW.....t\nt..................t\nt..................t\nt..................t\nt........T.........t\ntttttttttttttttttttt",
+          "timeout": 0,
+          "points": [
+            {
+              "id": "roster",
+              "kind": "clue",
+              "label": "两份名单",
+              "x": 2,
+              "y": 10,
+              "clue": "roster",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "monitor",
+              "kind": "clue",
+              "label": "监视屏",
+              "x": 17,
+              "y": 7,
+              "clue": "monitor",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "visa",
+              "kind": "clue",
+              "label": "空白签证",
+              "x": 9,
+              "y": 6,
+              "clue": "visa",
+              "requires": [],
+              "outcome": ""
+            },
+            {
+              "id": "chair",
+              "kind": "exit",
+              "label": "留下：坐上空椅子",
+              "x": 9,
+              "y": 4,
+              "clue": "",
+              "requires": [],
+              "outcome": "lose"
+            },
+            {
+              "id": "light",
+              "kind": "exit",
+              "label": "离开：走进白光",
+              "x": 17,
+              "y": 10,
+              "clue": "",
+              "requires": [
+                "roster",
+                "visa"
+              ],
+              "outcome": "win"
+            }
+          ],
+          "onWin": "truth_leave",
+          "onLose": "truth_stay"
+        },
+        {
+          "id": "truth_leave",
+          "kind": "reveal",
+          "name": "主办者也是玩家",
+          "text": "名单上的名字你认识：狐、鸦，还有更早的许多人——他们都曾是玩家。这座城的游戏不是惩罚，是筛选：通关的人可以留下来出题，或者带着记忆离开。你在空白签证上写下了自己的名字。",
+          "next": "leave_end"
+        },
+        {
+          "id": "truth_stay",
+          "kind": "reveal",
+          "name": "空椅子",
+          "text": "你坐下的那一刻，屏幕上出现了一个新的会场，参加者名单里写着一个陌生人的名字。狐递给你一支笔：“轮到你出题了。”",
+          "next": "stay_end"
+        },
+        {
+          "id": "leave_end",
+          "kind": "ending",
+          "name": "离开",
+          "text": "白光很暖。你在医院的病床上醒来，窗外有车声。手机里有一条未读通知，发送时间是三天前：“游戏即将开始。”",
+          "result": "leave"
+        },
+        {
+          "id": "stay_end",
+          "kind": "ending",
+          "name": "留下",
+          "text": "你成了主办者。下一位醒来的人，会在空无一人的城里看到你写的第一条规则。",
+          "result": "stay"
+        }
+      ],
+      "clues": [
+        {
+          "id": "roster",
+          "name": "两份名单",
+          "trigger": "interact",
+          "foundAt": "room",
+          "revealAt": "truth_leave",
+          "hint": "文件柜里有两份名单：一份是“参加者”，一份是“主办者”。狐和鸦的名字同时出现在两份名单上，旁边标着他们通关的日期。",
+          "truth": "主办者全部来自通关的玩家。"
+        },
+        {
+          "id": "monitor",
+          "name": "监视屏",
+          "trigger": "interact",
+          "foundAt": "room",
+          "revealAt": "truth_leave",
+          "hint": "一块屏幕停在车站大厅：一个新来的人正盯着“出口”两个字的灯箱。",
+          "truth": "游戏会一直继续，与你是否留下无关。"
+        },
+        {
+          "id": "visa",
+          "name": "空白签证",
+          "trigger": "interact",
+          "foundAt": "room",
+          "revealAt": "truth_leave",
+          "hint": "桌上放着一张空白签证，持有人一栏空着，有效期一栏写着：“永久”。",
+          "truth": "签证不是奖励，是离开的许可。"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "from": "v_doors",
+      "to": "v_number",
+      "requires": "clear"
+    },
+    {
+      "from": "v_doors",
+      "to": "v_mark",
+      "requires": "clear"
+    },
+    {
+      "from": "v_doors",
+      "to": "v_chase",
+      "requires": "clear"
+    },
+    {
+      "from": "v_number",
+      "to": "v_split",
+      "requires": "clear"
+    },
+    {
+      "from": "v_mark",
+      "to": "v_split",
+      "requires": "clear"
+    },
+    {
+      "from": "v_chase",
+      "to": "v_split",
+      "requires": "clear"
+    },
+    {
+      "from": "v_split",
+      "to": "v_final",
+      "requires": "clear"
+    }
+  ]
+}

@@ -14,7 +14,7 @@ public static class ElementLegendExporter
 {
     public const string OutputPath = "docs/ELEMENT_LEGEND.md";
 
-    [MenuItem("MarioTrickster/美术 Art/导出元素图例 Element Legend", false, 200)]
+    [MenuItem("MarioTrickster/世界工坊 World Workshop/美术/导出元素图例 Element Legend", false, 200)]
     public static void ExportMenu()
     {
         string path = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", OutputPath);

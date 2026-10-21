@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\Assets\Scripts\WorldPark\WorldParkProgress.cs" Link="WorldParkProgress.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="..\Shared\HarnessSupport.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\LevelDesign\FeatureMap.cs" Link="FeatureMap.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\LevelDesign\MiniJson.cs" Link="MiniJson.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\WorldPark\WorldParkPack.cs" Link="WorldParkPack.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\WorldPark\BorderlandGame.cs" Link="BorderlandGame.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\WorldPark\WorldParkExplore.cs" Link="WorldParkExplore.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\Overworld\OverworldMap.cs" Link="OverworldMap.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\Overworld\OverworldCatalog.cs" Link="OverworldCatalog.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\Overworld\OverworldProps.cs" Link="OverworldProps.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\Overworld\OverworldStorm.cs" Link="OverworldStorm.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\WorldPark\WorldParkStageCues.cs" Link="WorldParkStageCues.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\WorldPark\WorldParkSceneModel.cs" Link="WorldParkSceneModel.cs" />
+    <Compile Include="..\..\..\Assets\Scripts\WorldPark\WorldParkTableModel.cs" Link="WorldParkTableModel.cs" />
+  </ItemGroup>
+</Project>

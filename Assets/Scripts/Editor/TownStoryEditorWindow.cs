@@ -16,7 +16,7 @@ public sealed class TownStoryEditorWindow : EditorWindow
     public const string UserPath = "Assets/Resources/" + TownStory.UserResourceName + ".json";
     public const string BackupDir = "MarioTricksterBackups/MyTownStories"; // 项目文件夹里、Assets 外面（不会被打进游戏）
 
-    [MenuItem("MarioTrickster/台词编辑器 Lines %&l", false, 4)]
+    [MenuItem("MarioTrickster/世界工坊 World Workshop/对话/存量台词 Lines %&l", false, 4)]
     public static void Open() { var w = GetWindow<TownStoryEditorWindow>("台词编辑器"); w.minSize = new Vector2(620, 420); w.Reload(); }
 
     // ── 读写（编辑器里所有地方都用这两个：工坊、体检、这个窗口）──

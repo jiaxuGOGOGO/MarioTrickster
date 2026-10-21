@@ -18,7 +18,7 @@ public static class ArtReadinessCheck
 
     public struct Item { public string key, zh, status; public bool ok, empty; }
 
-    [MenuItem("MarioTrickster/美术 Art/主题美术检查 Check Theme Art", false, 201)]
+    [MenuItem("MarioTrickster/世界工坊 World Workshop/美术/主题美术检查 Check Theme Art", false, 201)]
     public static void Menu()
     {
         var theme = Selection.activeObject as LevelThemeProfile;

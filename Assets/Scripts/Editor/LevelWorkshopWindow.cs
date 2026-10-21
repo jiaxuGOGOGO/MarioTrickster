@@ -125,7 +125,7 @@ public class LevelWorkshopWindow : EditorWindow
     [NonSerialized] private IList<string> shownCache;
     [NonSerialized] private string shownKey;
 
-    [MenuItem("MarioTrickster/Level Workshop (关卡工坊) %&w", false, 1)]
+    [MenuItem("MarioTrickster/世界工坊 World Workshop/横版片段/编辑几何 Level Workshop %&w", false, 1)]
     public static void Open()
     {
         var w = GetWindow<LevelWorkshopWindow>("关卡工坊");

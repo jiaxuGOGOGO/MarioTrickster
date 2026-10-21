@@ -555,6 +555,9 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   const p = t.dataset.page; $('#pageDesign').style.display = p === 'design' ? '' : 'none';
   $('#pageMech').classList.toggle('on', p === 'mech'); $('#pageHandoff').classList.toggle('on', p === 'handoff'); $('#pageOverworld').classList.toggle('on', p === 'overworld');
   $('#pageMap').classList.toggle('on', p === 'map'); if (p === 'map') fmRender(); // S236 功能地图
+  $('#pageWorldPark').classList.toggle('on', p === 'worldpark');
+  for (const id of ['btnSync', 'btnPlayUnity', 'btnImport', 'btnExport']) $('#' + id).style.display = p === 'worldpark' ? 'none' : '';
+  if (p === 'worldpark') wpRender();
   if (p === 'overworld') owRender();
   if (p === 'handoff') $('#handoffText').textContent = handoff();
   if (p === 'mech') { renderPropList(); renderCuts(); renderLaws(); }
@@ -564,6 +567,7 @@ $('#btnUndo').onclick = () => { if (!undo.length) return; redo.push(JSON.stringi
 $('#btnRedo').onclick = () => { if (!redo.length) return; undo.push(JSON.stringify(S.grid)); S.grid = JSON.parse(redo.pop()); syncInputs(); recheck(true); };
 window.addEventListener('keydown', e => {
   if (e.target.matches('input,textarea,select')) return;
+  if ($('#pageWorldPark').classList.contains('on')) return; // 世界创作不消费旧地图的画笔/撤销快捷键。
   if ($('#pageOverworld').classList.contains('on')) { owKey(e); return; } // S212：大地图页有自己的快捷键（和 Unity 小镇工坊一样）
   if (S.tool === 'move' && moveKey(e)) { e.preventDefault(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $('#btnUndo').click(); }
@@ -620,7 +624,7 @@ load();
 if (!S.grid.length) { CUR = newId(); S.grid = SAMPLES['诱捕走廊'].slice(); S.name = '诱捕走廊（改）'; LIB = [{ id: CUR, name: S.name, goal: '', grid: S.grid.slice(), notes: [] }]; S.firstRun = true; }
 W = makeWorld(S.proposals); syncInputs(); fitZoom(); renderAll(); setTool('brush'); renderStamps();
 // S208：第一次打开（浏览器里还没有任何关卡）→ 直接弹出向导，不让人对着空白画布发呆
-if (S.firstRun) setTimeout(openWizard, 300);
+// S249：世界主入口不再自动弹出横版守宝向导；子工具内仍可主动使用向导。
 
 // ── S210 大地图（星露谷视角小镇）─────────────────────────
 const LSOW = 'mariotrickster.studio.overworld.v1';
@@ -1255,3 +1259,5 @@ function fmRender() {
   $('#fmList').innerHTML = h;
 }
 $('#fmSearch').oninput = fmRender; $('#fmTier').onchange = fmRender;
+
+// S249：世界主流程是默认作者入口；地图与横版为子工具。

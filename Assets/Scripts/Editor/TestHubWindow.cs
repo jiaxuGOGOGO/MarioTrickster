@@ -21,7 +21,7 @@ public sealed class TestHubWindow : EditorWindow
     public static string LogsRoot => Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder);
     public static string HealthPath => Path.Combine(LogsRoot, "HealthCheck.md");
 
-    [MenuItem("MarioTrickster/测试中心 Test Hub %&t", false, 3)]
+    [MenuItem("MarioTrickster/测试与诊断/测试中心 Test Hub %&t", false, 3)]
     public static void Open()
     {
         var w = GetWindow<TestHubWindow>("测试中心");

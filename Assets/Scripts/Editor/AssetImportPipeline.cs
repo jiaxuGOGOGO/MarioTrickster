@@ -31,7 +31,7 @@ public class AssetImportPipeline : EditorWindow
     // =========================================================================
     // 菜单入口
     // =========================================================================
-    [MenuItem("MarioTrickster/美术 Art/素材导入 Asset Import Pipeline %#i", false, 200)]
+    [MenuItem("MarioTrickster/世界工坊 World Workshop/美术/素材导入 Asset Import Pipeline %#i", false, 200)]
     public static void ShowWindow()
     {
         var win = GetWindow<AssetImportPipeline>("素材导入管线");

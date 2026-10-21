@@ -149,3 +149,16 @@ desktop.ini
 # S214：网页同步收件箱（Unity 收完就删）
 /Assets/Levels/Inbox/
 /Assets/Levels/Inbox.meta
+
+# Local task intermediates, private tool records and this task's deliverables
+/.work/
+/.manus/
+/outputs/borderland-audit-20261019/
+/outputs/borderland-manga-concept-20261019/
+/outputs/park-upgrade-20261019/
+# S254: every task deliverable folder (reports, backups) stays local; AGENTS.md says outputs/ is not in Git
+/outputs/
+# S254: WorldParkWindow keeps the previous MyWorld.worldpark.json here before overwriting (Unity skips dot folders)
+/Assets/Resources/WorldPark/.history/
+# S254: the WorldPark verification harnesses are hand-written .NET projects (not Unity-generated); keep them in Git
+!/Tools/WorldParkVerify/**/*.csproj

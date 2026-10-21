@@ -12,6 +12,8 @@ public sealed class OverworldWorkshopWindow : EditorWindow
 {
     private enum Tool { Brush, Rect, Fill, Erase, Pick, Storm }
     private OverworldMap.Map map;
+    private bool worldGeometry;
+    private System.Action<string> applyWorldMap;
     public OverworldMap.Map CurrentMap => map; // S234：台词编辑器在"当前小镇"上彩排
     private char brush = '=';
     private Tool tool = Tool.Brush;
@@ -29,7 +31,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
     private Rect canvasView;                                    // 画布可见区域（滚动定位用）
     private const string DraftKey = "MarioTrickster.Overworld.WorkshopDraft";
 
-    [MenuItem("MarioTrickster/Town Workshop (小镇工坊) %&o", false, 2)]
+    [MenuItem("MarioTrickster/世界工坊 World Workshop/地图空间/编辑几何 Town Workshop %&o", false, 2)]
     public static void Open()
     {
         var w = GetWindow<OverworldWorkshopWindow>("小镇工坊");
@@ -37,6 +39,21 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         if (w.map == null) w.Load(DraftOrCurrent(), "打开");
     }
 
+    public static void EditExplore(string text,System.Action<string> apply)
+    {
+        // 独立工具窗口实例保护另一个地图窗口未保存的草稿，不建立第二套主模式。
+        var w=CreateInstance<OverworldWorkshopWindow>(); w.worldGeometry=true;w.applyWorldMap=apply;
+        w.titleContent=new GUIContent("会场地图几何");w.minSize=new Vector2(980,550);w.Load(text,"编辑当前探索地图（原小镇数据不改写）");w.Show();
+    }
+    private void SaveMap()
+    {
+        if (worldGeometry)
+        {
+            if (applyWorldMap==null) { status="绑定已失效，请从世界工坊重新打开；可先导出这张地图保存改动。";return; }
+            applyWorldMap(OverworldMap.ToText(map));status="已回写当前会场草稿；世界包需在世界工坊显式导出。";
+        }
+        else status="已保存到 "+OverworldBuilder.Save(map);
+    }
     /// <summary>S237：开始页「接着做」——打开小镇工坊并载入这张小镇（找不到就只打开工坊）。</summary>
     public static bool OpenTown(string name)
     {
@@ -59,7 +76,13 @@ public sealed class OverworldWorkshopWindow : EditorWindow
     }
 
     private void Snapshot() { redo.Clear(); undo.Push(OverworldMap.ToText(map)); if (undo.Count > 60) { var a = undo.ToArray().Take(60).Reverse(); undo.Clear(); foreach (var s in a) undo.Push(s); } }
-    private void Recheck() { pendingRecheck = false; storyC = null; SyncDoors(); report = OverworldMap.Check(map, OverworldBuilder.RulesFromTuning(), OverworldBuilder.RoomProblem); string t = OverworldMap.ToText(map); scenesStale = OverworldBuilder.IsStale(t); SessionState.SetString(DraftKey, t); mapVersion++; Repaint(); }
+    private void Recheck()
+    {
+        pendingRecheck=false;storyC=null;
+        if (worldGeometry) { report=null;scenesStale=false; }
+        else { SyncDoors();report=OverworldMap.Check(map,OverworldBuilder.RulesFromTuning(),OverworldBuilder.RoomProblem);scenesStale=OverworldBuilder.IsStale(OverworldMap.ToText(map));SessionState.SetString(DraftKey,OverworldMap.ToText(map)); }
+        mapVersion++;Repaint();
+    }
 
     // ═════ S220：防卡——画一格只改格子 + 重画；检查（读房间、验变体、算路线）等鼠标松开或停 0.12 秒再做 ═════
     // 以前：每拖过一格就把整张小镇检查一遍 + 读盘 → "拖半天没反应，然后突然拖下来"。
@@ -111,9 +134,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
 
     private void PlayTown()
     {
-        OverworldBuilder.Save(map);
-        if (OverworldBuilder.BuildAll(OverworldMap.ToText(map), out string rep)) EditorApplication.isPlaying = true;
-        else EditorUtility.DisplayDialog("小镇", rep, "好");
+        if (!WorldParkBuilder.TryRun(WorldParkMainline.MapPreview(OverworldMap.ToText(map)),out string rep)) EditorUtility.DisplayDialog("世界地图",rep,"好");
     }
 
     /// <summary>S212：快捷键（和网页设计台一样）。B 画笔 R 矩形 F 填充 E 橡皮 I 吸管；1–9 门；Ctrl+Z/Y 撤销重做；Ctrl+S 保存；F5 试玩；Ctrl+C/V 和网页互相复制。</summary>
@@ -124,7 +145,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         bool ctrl = e.control || e.command;
         if (ctrl && e.keyCode == KeyCode.Z) { if (e.shift) Redo(); else Undo(); e.Use(); return; }
         if (ctrl && e.keyCode == KeyCode.Y) { Redo(); e.Use(); return; }
-        if (ctrl && e.keyCode == KeyCode.S) { status = "已保存到 " + OverworldBuilder.Save(map); e.Use(); return; }
+        if (ctrl && e.keyCode == KeyCode.S) { SaveMap(); e.Use(); return; }
         if (ctrl && e.keyCode == KeyCode.C) { EditorGUIUtility.systemCopyBuffer = OverworldMap.ToText(map); status = "已复制整张小镇（网页'大地图'页 Ctrl+V 就能贴进去）"; e.Use(); return; }
         if (ctrl && e.keyCode == KeyCode.V) { PasteTown(); e.Use(); return; }
         if (e.keyCode == KeyCode.F5) { PlayTown(); e.Use(); return; }
@@ -271,7 +292,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         EditorGUILayout.BeginHorizontal();
         Palette();
         Canvas();
-        SidePanel();
+        if (worldGeometry) GeometryPanel(); else SidePanel();
         EditorGUILayout.EndHorizontal();
         EditorGUILayout.LabelField(HoverText() + (status.Length > 0 ? "　｜　" + status : ""), EditorStyles.miniLabel);
     }
@@ -291,7 +312,8 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         if (GUILayout.Button("新建", EditorStyles.toolbarButton, GUILayout.Width(40)))
         {
             var rows = OverworldMap.NewMap(40, 24);
-            Load($"# Overworld: 新小镇\n# Goal: \n{string.Join("\n", rows)}\n", "新建 40×24（已放好家 M 和出生点 T）");
+            var chars=rows.Select(r=>r.ToCharArray()).ToArray();chars[chars.Length-3][2]='T';
+            Load($"# Overworld: 新会场\n# Goal: \n{string.Join("\n", chars.Select(r=>new string(r)))}\n", "新建会场地图（已放T出生点）");
         }
         if (GUILayout.Button(new GUIContent("样板 ▾", "内置样板：星露小镇（4 户人家）/ 星露大镇（72×40，巨炮 滚石 水塔 + 3 连锁）/ 星露山镇（山脉 + 山洞 + 雷雨 + 泥石流）"), EditorStyles.toolbarDropDown, GUILayout.Width(52)))
         {
@@ -315,7 +337,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         // S214：◀ ▶ 切换小镇（PageUp / PageDown），切走前自动存
         if (GUILayout.Button(new GUIContent("◀", "上一张小镇（PageUp）"), EditorStyles.toolbarButton, GUILayout.Width(22))) StepTown(-1);
         if (GUILayout.Button(new GUIContent("▶", "下一张小镇（PageDown）"), EditorStyles.toolbarButton, GUILayout.Width(22))) StepTown(1);
-        if (GUILayout.Button("保存", EditorStyles.toolbarButton, GUILayout.Width(40))) status = "已保存到 " + OverworldBuilder.Save(map);
+        if (GUILayout.Button("保存", EditorStyles.toolbarButton, GUILayout.Width(40))) SaveMap();
         if (GUILayout.Button(new GUIContent("导入", "小镇 .txt / 网页工作室的关卡包 .json（里面的房间一起进关卡库）"), EditorStyles.toolbarButton, GUILayout.Width(40)))
         {
             string p = EditorUtility.OpenFilePanel("导入小镇或关卡包", "", "txt,json");
@@ -347,7 +369,7 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         if (GUILayout.Button(new GUIContent("🧪 测试中心", "一键体检全项目 / 快速测试模式 / 打包反馈（Ctrl+Alt+T）"), EditorStyles.toolbarButton, GUILayout.Width(80))) TestHubWindow.Open();
         if (GUILayout.Button(new GUIContent("📖", "开始页（Ctrl+Alt+H）：全部功能在哪、创作时怎么用"), EditorStyles.toolbarButton, GUILayout.Width(26))) StartHereWindow.Open();
         GUI.backgroundColor = report != null && report.Playable ? new Color(0.5f, 1f, 0.5f) : Color.white;
-        if (GUILayout.Button(new GUIContent("▶ 试玩小镇", "F5"), EditorStyles.toolbarButton, GUILayout.Width(80))) PlayTown();
+        if (GUILayout.Button(new GUIContent("▶ 预览空间", "F5"), EditorStyles.toolbarButton, GUILayout.Width(80))) PlayTown();
         GUI.backgroundColor = Color.white;
         EditorGUILayout.EndHorizontal();
     }
@@ -693,6 +715,18 @@ public sealed class OverworldWorkshopWindow : EditorWindow
         }
     }
 
+    private void GeometryPanel()
+    {
+        EditorGUILayout.BeginVertical(GUILayout.Width(290));
+        EditorGUILayout.LabelField("会场空间（无旧日程约束）",EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("出生点T、地形与通行在这里画；线索/出口位置与判定在世界工坊编辑。保存只回写当前会场草稿，不改用户小镇文件。",MessageType.Info);
+        if (GUILayout.Button("应用地图到当前会场",GUILayout.Height(32))) SaveMap();
+        if (GUILayout.Button("空间试玩（不判定剧情）")) PlayTown();
+        var probe=WorldParkMainline.MapPreview(OverworldMap.ToText(map));
+        foreach(var issue in WorldParkPack.Validate(probe)) EditorGUILayout.HelpBox(issue.text,issue.severity=="error"?MessageType.Error:MessageType.Warning);
+        EditorGUILayout.HelpBox("旧小镇大机关目前在探索中只表现为地形/装饰；不假装雷云、日程或捣蛋技能已迁移。",MessageType.None);
+        EditorGUILayout.EndVertical();
+    }
     private void SidePanel()
     {
         side = EditorGUILayout.BeginScrollView(side, GUILayout.Width(330));

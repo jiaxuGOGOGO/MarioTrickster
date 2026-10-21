@@ -134,9 +134,20 @@ fm_goals = [dict(title=un(a), ids=b.split(' '), steps=un(c)) for a, b, c in re.f
 data += 'const FEATURE_MAP=' + json.dumps(dict(areas=fm_list('Areas ='), tiers=fm_list('Tiers ='), all=fm_all, goals=fm_goals), ensure_ascii=False, separators=(',', ':')) + ';\n'
 logic = open(os.path.join(HERE, 'logic.js'), encoding='utf-8').read()
 logic = re.sub(r"if \(typeof module[^\n]*\n?", '', logic)
+# S251：网页内置示例 = 主世界“空白之城”（Borderland）；旧“幕间乐园”Demo 只作格式样例与回归用例。
+world_sample = json.load(open(os.path.join(HERE, '..', '..', 'Assets', 'Resources', 'WorldPark', 'Borderland.worldpark.json'), encoding='utf-8-sig'))
+data += 'const WORLD_PARK_SAMPLE=' + json.dumps(world_sample, ensure_ascii=False, separators=(',', ':')).replace('<', '\\u003c') + ';\n'
+# S251：弥留之国式博弈内核必须先于 worldpark.js 内联（worldpark.js 直接引用全局 BorderlandGame）。
+bl = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'borderland.js'), encoding='utf-8').read())
+wp = bl + '\n' + re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'worldpark.js'), encoding='utf-8').read())
+# S253：网页试玩——探索内核 / 演出纯逻辑 / 试玩画面（都依赖 WorldPark 与 BorderlandGame，必须排在 worldpark.js 之后）
+for _f in ('explore.js', 'venue-check.js', 'play-model.js', 'play.js'):  # S254：venue-check.js 会场体检（依赖 explore.js）
+    wp += '\n' + re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, _f), encoding='utf-8').read())
+wp_app = open(os.path.join(HERE, 'worldpark-app.js'), encoding='utf-8').read()
+wp_spatial = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'worldpark-spatial.js'), encoding='utf-8').read())
 html = open(os.path.join(HERE, 'shell.html'), encoding='utf-8').read()
 ow = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'overworld.js'), encoding='utf-8').read())
-html = html.replace('/*DATA*/', data).replace('/*LOGIC*/', logic + '\n' + ow).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read())
+html = html.replace('/*WORLD_PARK_SPATIAL*/', wp_spatial).replace('/*DATA*/', data).replace('/*LOGIC*/', logic + '\n' + ow + '\n' + wp).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read() + '\n' + wp_app)
 open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(html)
 print(f'index.html: {len(fm_all)} 项功能地图, {len(stories)} 句居民台词, {len(tun)} 个调参值, {len(els)} 个元素（{len(looks)} 个有长相）, {len(room_icons)} 个房间图标, {len(samples)} 个样板, {len(ow_tiles)} 种小镇格子, {len(ow_harm)} 条伤害说明, {len(ow_icons)} 个像素图标, {len(ow_town)} 张小镇图块, {len(html)//1024} KB')
 if missing_icons: print('⚠ 找不到像素图的图标名：' + ', '.join(missing_icons))

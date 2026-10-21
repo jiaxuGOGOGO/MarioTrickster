@@ -189,7 +189,7 @@ public static class Step1PrankRoomBuilder
     public static string RoomAscii => string.Join("\n", ResolvedRoom(0));
     public static string RoomAsciiFor(int seed) => string.Join("\n", ResolvedRoom(seed));
 
-    [MenuItem("MarioTrickster/检查与记录 Checks/重建房间场景 Build Room", false, 141)]
+    [MenuItem("MarioTrickster/测试与诊断/检查/重建房间场景 Build Room", false, 141)]
     public static void BuildMenu()
     {
         if (EditorApplication.isPlaying) { EditorUtility.DisplayDialog("Step 1", "Stop Play Mode first.", "OK"); return; }
@@ -203,7 +203,7 @@ public static class Step1PrankRoomBuilder
         EditorUtility.DisplayDialog("Step 1", "Prank room built:\n" + ScenePath + "\n\nPress Play. Keys: arrows move, P disguise, L trigger, C camera.", "OK");
     }
 
-    [MenuItem("MarioTrickster/检查与记录 Checks/打开房间场景 Open Room", false, 142)]
+    [MenuItem("MarioTrickster/测试与诊断/检查/打开房间场景 Open Room", false, 142)]
     public static void OpenMenu()
     {
         if (!File.Exists(ScenePath)) { BuildMenu(); return; }
@@ -211,7 +211,7 @@ public static class Step1PrankRoomBuilder
     }
 
     /// <summary>S181 一键试玩：没有场景或场景是旧版本 → 自动重建；然后直接进入 Play。</summary>
-    [MenuItem("MarioTrickster/▶ 试玩房间 Play Room", false, 20)]
+    [MenuItem("MarioTrickster/世界工坊 World Workshop/横版片段/预览当前片段 Play Room", false, 20)]
     public static void PlayMenu()
     {
         if (!PrepareScene()) return;
@@ -221,7 +221,7 @@ public static class Step1PrankRoomBuilder
     }
 
     /// <summary>S181 宪法 H10：自动连跑几局、捣蛋者退场，看马里奥能否自己拿宝回家。结果显示在屏幕上并写 CSV。</summary>
-    [MenuItem("MarioTrickster/检查与记录 Checks/🤖 马里奥自己跑 Hands-off (H10)", false, 100)]
+    [MenuItem("MarioTrickster/测试与诊断/检查/🤖 马里奥自己跑 Hands-off (H10)", false, 100)]
     public static void HandsOffMenu()
     {
         if (!PrepareScene()) return;
@@ -232,7 +232,7 @@ public static class Step1PrankRoomBuilder
     }
 
     /// <summary>S202：陷阱试探——AI 捣蛋者在马里奥走到时触发每个机关，看连起来会不会把他坑死/卡住。</summary>
-    [MenuItem("MarioTrickster/检查与记录 Checks/🎯 陷阱试探 Trap Probe", false, 101)]
+    [MenuItem("MarioTrickster/测试与诊断/检查/🎯 陷阱试探 Trap Probe", false, 101)]
     public static void TrapProbeMenu()
     {
         if (!PrepareScene()) return;
@@ -242,7 +242,7 @@ public static class Step1PrankRoomBuilder
         EditorApplication.isPlaying = true;
     }
 
-    [MenuItem("MarioTrickster/检查与记录 Checks/📂 试玩记录文件夹", false, 140)]
+    [MenuItem("MarioTrickster/测试与诊断/检查/📂 试玩记录文件夹", false, 140)]
     public static void OpenLogsMenu()
     {
         string folder = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", Step1PlaytestLog.LogFolder);

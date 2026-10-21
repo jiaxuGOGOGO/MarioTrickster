@@ -176,6 +176,7 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 .owdoor input,.owdoor select{background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;min-width:0}
 .owiss{font-size:12.5px;margin:3px 0;padding:5px 8px;border-radius:6px;background:var(--ink);border-left:3px solid var(--dim)}
 .owiss.Error{border-color:var(--bad)}.owiss.Warn{border-color:var(--warn)}.owiss.Info{border-color:var(--trick)}
+.owiss.Good{border-color:var(--ok)}.wpchk-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.wpchk-head b{font-size:14px}
 .owbar>*{flex:0 0 auto}.owbar .spacer{flex:1}
 .owsched{font:12px/1.6 var(--mono);color:var(--dim)}
 .owres{display:grid;grid-template-columns:44px 1fr 96px;gap:6px;align-items:center;margin:4px 0}.owres input,.owres select{background:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px 6px;min-width:0}
@@ -185,6 +186,25 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 @media (max-width:760px){main{grid-template-columns:1fr}aside{border-right:0}.grid2{grid-template-columns:1fr}.brand span{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
   .owpre{white-space:pre-wrap;font-size:12px;margin:4px 0}.tsl{border-top:1px solid #0002;padding:4px 2px;cursor:pointer;font-size:12.5px}.tsl.on{background:#ffd70033}.tsed textarea.f,.tsed input.f{width:100%}.tslist{max-height:320px;overflow:auto;border:1px solid #0002;border-radius:6px;margin:4px 0}
+/* S248：世界创作是另一种数据，不套用地图网格或旧同步按钮。 */
+header{flex-wrap:wrap}.tabs{flex-wrap:wrap}
+.wp-layout{display:grid;grid-template-columns:240px minmax(320px,1fr) 360px;gap:18px;align-items:start}
+.wp-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.wp-toolbar .hint{flex:1 1 340px}
+.wp-item{width:100%;white-space:normal;text-align:left;margin:4px 0}.wp-item b,.wp-item small{display:block}.wp-item small{color:var(--dim);margin-top:4px}
+.wp-item[aria-current=true],.wp-node[aria-current=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+.wp-nodes{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.wp-node{flex:1 1 160px;max-width:230px;min-width:145px;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;text-align:left}
+.wp-node b,.wp-node code,.wp-node small{display:block;margin-top:6px}.wp-node small,.wp-node code{color:var(--dim);font-size:12px}.wp-node.reveal{border-top:3px solid var(--loot)}.wp-node.room{border-top:3px solid var(--trick)}.wp-node.explore{border-top:3px solid #76d6c3}.wp-node.concept{border-top:3px dashed var(--warn)}
+	.wp-link{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:8px}.wp-link select{flex:1 1 120px;width:auto}
+	.wp-player{white-space:pre-wrap;line-height:1.7;min-height:110px}.wp-trace{overflow-wrap:anywhere;font:12px/1.8 var(--mono);color:var(--dim);margin-top:10px}.wp-raw{width:100%;min-height:200px;font:12px/1.6 var(--mono);margin-top:12px}
+	/* S250：探索点位共用 node.mapText / node.points；画布滚动即平移，不会改地图。 */
+	.wp-spatial{margin:14px 0 10px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--slab)}
+	.wp-spatial-toolbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:7px;border-bottom:1px solid var(--line);background:var(--slab2)}
+	.wp-spatial-mode{display:inline-flex;gap:3px;flex-wrap:wrap}.wp-spatial-mode button[aria-pressed=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset;color:var(--chalk)}
+	.wp-spatial button:disabled{opacity:.45;cursor:not-allowed}.wp-spatial-zoom{display:inline-flex;align-items:center;gap:5px;color:var(--dim);font-size:12px}.wp-spatial-zoom input{width:72px;accent-color:var(--loot)}
+	.wp-spatial-viewport{max-height:420px;overflow:auto;background:radial-gradient(circle at 1px 1px,#2a2440 1px,transparent 1.2px) 0 0/18px 18px;padding:10px}
+	.wp-spatial canvas{margin:0;border-radius:4px;cursor:crosshair;touch-action:none}.wp-spatial-status{display:flex;gap:12px;justify-content:space-between;padding:6px 8px;border-top:1px solid var(--line);font:11.5px/1.45 var(--mono);color:var(--dim)}.wp-spatial-status span:first-child{min-width:0;overflow-wrap:anywhere}.wp-spatial-status span:last-child{white-space:nowrap;text-align:right}
+	@media(max-width:1400px){.wp-layout{grid-template-columns:230px 1fr}.wp-inspector{grid-column:1/-1}}
+	@media(max-width:780px){.wp-layout{grid-template-columns:1fr}.wp-inspector{grid-column:auto}.page{padding:18px}.wp-node{max-width:none}.brand{white-space:normal}.tabs{margin:0}.wp-spatial-status{display:block}.wp-spatial-status span:last-child{display:block;text-align:left;margin-top:3px}}
 </style>
 </head>
 <body>
@@ -192,13 +212,15 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
 <header>
   <div class="brand"><b><i>Mario</i><u>Trickster</u></b><span>关卡设计台 · 在这里想清楚，再交给 AI 实现</span></div>
   <nav class="tabs" role="tablist">
-    <button class="tab" role="tab" aria-selected="true" data-page="design">画关卡</button>
-    <button class="tab" role="tab" aria-selected="false" data-page="overworld" title="S210：星露谷视角的小镇，门连到横版房间">大地图</button>
+    <button class="tab" role="tab" aria-selected="true" data-page="design">子创作：横版房间</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="overworld" title="世界工坊的子工具：星露谷视角小镇，门连到横版房间">子创作：小镇地图</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="worldpark" title="主创作入口：世界、会场、探索、分支与线索">世界工坊</button>
     <button class="tab" role="tab" aria-selected="false" data-page="mech">新机制提案</button>
     <button class="tab" role="tab" aria-selected="false" data-page="handoff">交给 AI</button>
     <button class="tab" role="tab" aria-selected="false" data-page="map" title="S236：项目能做什么、在哪打开、创作时怎么用（和 Unity 开始页 Ctrl+Alt+H 同一份）">功能地图</button>
   </nav>
   <div class="spacer"></div>
+  <button class="btn small gold" id="btnPlayWeb" title="S253：在浏览器里真正玩一遍世界工坊里的当前世界（规则与 Unity 同语义：现场探索、鬼、博弈、反转、结局）。直接打开 index.html#play 会玩内置主世界“空白之城”">▶ 网页试玩</button>
   <button class="btn small" id="btnSync" title="S214：连接 Unity 项目文件夹（选 MarioTrickster 那一层）。之后这里一改，切到 Unity 自动导入；Unity 里 Ctrl+S 存了，切回这里自动拿到。需要 Chrome / Edge">🔗 连接 Unity 项目</button>
   <button class="btn small gold" id="btnPlayUnity" hidden title="把当前这一关（在大地图页 = 当前小镇）发给 Unity，切到 Unity 就自动开始试玩">▶ 在 Unity 试玩</button>
   <button class="btn small" id="btnImport" title="支持：本设计台 .json、Unity 工坊 .txt、Tiled 导出的 .json/.csv、LDtk 的 .ldtk/.csv、像素图 .png（1 像素 = 1 格）">导入（多种格式）</button>
@@ -441,6 +463,65 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
   <div id="fmList"></div>
 </section>
 
+<section class="page" id="pageWorldPark" aria-label="世界工坊创作">
+  <h2>世界工坊</h2>
+  <p class="lead"><b style="color:var(--chalk)">主创作入口：</b>世界 → 会场 → 阶段 → 现场探索 / 房间。地图与横版房间是子创作工具；分类、背景、线索和出口抉择都由你定义，不必套用旧小镇的门、日程或守宝数量。</p>
+  <div class="wp-toolbar">
+    <button class="btn" id="wpSample">载入内置示例</button>
+    <button class="btn" id="wpImport">导入世界包</button>
+    <button class="btn gold" id="wpExport">导出 .worldpark.json</button>
+    <button class="btn gold" id="wpPlayWeb" title="S253：全屏试玩当前世界：走位、躲鬼、调查、博弈、看反转">▶ 网页试玩这个世界</button><button class="btn" id="wpStart">从世界入口彩排</button>
+    <button class="btn" id="wpSyncUnity" title="S254：选一次 Unity 项目文件夹，之后每次改动自动写进 Assets/Resources/WorldPark/MyWorld.worldpark.json；Unity 世界工坊会自动载入（Unity 草稿有未保存改动时只提示）">🔗 写进 Unity 项目</button>
+    <input type="file" id="wpFile" accept=".json" hidden>
+    <p class="hint" id="wpNotice" role="status"></p>
+  </div>
+  <div class="wp-layout">
+    <div class="card">
+      <h3>世界与会场</h3>
+      <div id="wpWorldFields"></div>
+      <div class="wp-toolbar"><button class="btn small" id="wpAddVenue">添加空白会场</button><button class="btn small" id="wpCloneVenue">复制当前会场</button></div>
+      <div class="wp-toolbar" style="margin-top:0"><select class="f" id="wpTemplate" aria-label="会场模板" style="flex:1 1 160px;margin:0"></select><button class="btn small" id="wpFromTemplate" title="S254：把主世界里一个做好的会场（地图、鬼、线索、反转、博弈参数）复制成你的新会场，再改">＋ 用模板新建</button></div>
+      <div id="wpVenueList"></div>
+      <button class="btn small" id="wpDeleteVenue">删除当前会场</button>
+      <p class="hint">草稿独立存于此浏览器，不覆盖旧关卡/小镇。世界包只保存流程与房间名称；分享时还需导出引用房间的关卡包。</p>
+    </div>
+    <div>
+      <div class="card">
+        <h3>会场设定与阶段分支</h3>
+        <div class="wp-toolbar" style="margin-top:0"><button class="btn small gold" id="wpPlayVenue" title="S254：从这个会场的入口开始全屏试玩（不用先通过前面的会场）">▶ 只玩这个会场</button><span class="hint">改完立刻试：不用从世界入口一路打过来。</span></div>
+        <div id="wpVenueFields"></div>
+        <div class="wp-toolbar"><button class="btn small" id="wpAddNode">添加阶段</button><button class="btn small" id="wpDeleteNode">删除选中阶段</button></div>
+        <div class="wp-nodes" id="wpNodes"></div>
+        <h3>会场之间的入口</h3>
+        <div id="wpLinks"></div>
+        <button class="btn small" id="wpAddLink">添加会场链接</button>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="wpchk-head"><h3 style="margin:0">会场体检</h3><b id="wpVenueCheckTitle"></b></div>
+        <p class="hint">用和试玩同一套规则真实算出来的设计建议：能不能通关、限时紧不紧、鬼有没有威胁、有没有反转、博弈是不是无脑就能赢。红 = 玩不了，黄 = 体验风险，绿 = 符合预期。最终仍以“▶ 只玩这个会场”亲手试和剧情带入模拟为准。</p>
+        <div id="wpVenueCheck"></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>玩家视角阶段彩排（不是物理游戏）</h3>
+        <div class="wp-player" id="wpPlayer" role="status"></div>
+        <div class="wp-toolbar" id="wpPlayerActions"></div>
+        <div class="wp-trace" id="wpTrace"></div>
+        <p class="hint"><b>阶段彩排不模拟物理游戏。</b>在 explore 中，手动“观察”只是模拟交互，不会因进入阶段自动 found；随后由作者选择活动胜利/失败。实际距离、碰撞、视线、倒计时和结果均由 Unity 决定。改动草稿会清空彩排。</p>
+      </div>
+    </div>
+    <div class="card wp-inspector">
+      <h3>当前阶段</h3><div id="wpNodeFields"></div><div id="wpExploreTools"></div>
+      <h3>线索：先观察，再重新解释</h3>
+      <label class="f" for="wpClueSelect">编辑哪条线索</label><select class="f" id="wpClueSelect"></select>
+      <div class="wp-toolbar"><button class="btn small" id="wpAddClue">添加线索</button><button class="btn small" id="wpDeleteClue">删除线索</button></div>
+      <div id="wpClueFields"></div>
+      <h3>结构预检</h3><b id="wpCheckTitle"></b><p class="hint" id="wpCheckInfo"></p><div id="wpIssues"></div>
+      <details><summary>高级：查看 / 编辑世界JSON</summary><label class="f" for="wpJson">世界包文本（修改后需应用）</label><textarea class="f wp-raw" id="wpJson" spellcheck="false"></textarea><button class="btn small" id="wpApplyJson">检查并应用JSON</button></details>
+      <p class="hint">送到 Unity：点顶部“🔗 写进 Unity 项目”选一次项目文件夹（Chrome / Edge），之后每次改动自动写进 Assets/Resources/WorldPark/MyWorld.worldpark.json，Unity 世界工坊在草稿没改动时自动载入、有改动时只提示（不会替换你在 Unity 里没保存的改动）。不能连文件夹时：导出 .worldpark.json，在 Unity 世界工坊点“导入…”。</p>
+    </div>
+  </div>
+</section>
+
 <section class="page" id="pageHandoff">
   <h2>交给 AI</h2>
   <p class="lead"><b style="color:var(--chalk)">两样东西一起给 AI：</b>设计单（文字，说清要做什么）+ 关卡包 .json（所有关卡数据）。新账号也一样：把接续包 .skill、设计单、关卡包三个一起发过去。<br>把这里生成的"设计单"整段复制，发给 Genspark 里的 AI（说一句"按这份设计单更新 MarioTrickster"）。它会：把关卡加成工坊样板、把新机制按项目规则实现、处理删改，最后跑完整检查并给你升级包。也可以下载成文件发过去。</p>
@@ -475,8 +556,9 @@ input[type=color].f{height:38px;padding:3px;cursor:pointer}
   <label class="toggle" style="margin-top:10px"><input type="checkbox" id="mapFrame" checked> 外面自动补一圈墙和底层地面</label>
   <div class="row" style="margin-top:14px"><button class="btn gold" id="mapOk">导入</button><button class="btn" id="mapCancel">取消</button></div>
 </dialog>
-<script>/*DATA*/</script>
-<script>/*LOGIC*/</script>
-<script>/*APP*/</script>
+	<script>/*DATA*/</script>
+	<script>/*LOGIC*/</script>
+	<script>/*WORLD_PARK_SPATIAL*/</script>
+	<script>/*APP*/</script>
 </body>
 </html>

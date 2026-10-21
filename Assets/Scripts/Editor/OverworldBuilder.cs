@@ -194,11 +194,10 @@ public static class OverworldBuilder
         problemCache[key] = why; return why;
     }
 
-    [MenuItem("MarioTrickster/▶ 试玩小镇 Play Town", false, 21)]
+    [MenuItem("MarioTrickster/世界工坊 World Workshop/地图空间/预览当前地图 Play Map", false, 21)]
     public static void PlayMenu()
     {
-        if (!BuildAll(CurrentText, out string report)) { EditorUtility.DisplayDialog("小镇", report, "好"); return; }
-        EditorApplication.isPlaying = true;
+        WorldParkMainline.PreviewCurrentMap();
     }
 
     public static void OpenWorkshop() => OverworldWorkshopWindow.Open();

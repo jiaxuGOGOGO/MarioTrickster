@@ -12,11 +12,12 @@ $ExpectedBranch = 'genspark_ai_developer'
 $GitArgs = @('-c', "safe.directory=$RepoRoot")
 $PackRoot = Join-Path $RepoRoot 'docs\AI_CONTINUE_PACK'
 $CheckpointFile = Join-Path $PackRoot 'LATEST_CHECKPOINT.md'
-$QuickStartFiles = @('SAVE_MARIOTRICKSTER.cmd', 'CHECK_MARIOTRICKSTER.cmd', 'OPEN_MARIOTRICKSTER_UNITY.cmd', 'START_HERE.md', 'CONTINUE_WITH_MANUS.txt')
+$QuickStartFiles = @('SAVE_MARIOTRICKSTER.cmd', 'CHECK_MARIOTRICKSTER.cmd', 'OPEN_MARIOTRICKSTER_UNITY.cmd', 'START_HERE.md', 'CONTINUE_WITH_MANUS.txt', 'AGENTS.md', 'BUILD_WINDOWS_GAME.cmd', 'RUN_UNITY_TESTS.cmd')
 # New source files are saved automatically (with their .meta, so script GUIDs stay stable on every computer).
-$AutoSourcePatterns = @('^Assets/Scripts/.+\.cs$', '^Assets/Tests/.+\.cs$', '^tools/LevelStudioWeb/[^/]+\.(js|py|html|md)$')
+# S254: also the WorldPark verification harnesses and every session note docs/step1/S2xx_*.md.
+$AutoSourcePatterns = @('^Assets/Scripts/.+\.cs$', '^Assets/Tests/.+\.cs$', '^tools/LevelStudioWeb/[^/]+\.(js|py|html|md)$', '^Assets/Resources/WorldPark/[^/]+\.worldpark\.json$', '^Assets/(Scripts|Resources)/WorldPark\.meta$', '^docs/step1/S2\d\d_[A-Za-z0-9_]+\.md$', '^Tools/WorldParkVerify/.+\.(cs|cjs|js|ps1|json|props|csproj|md)$')
 # Files Unity rebuilds by itself when the project opens (BuilderVersion / tuning defaults). Never committed.
-$GeneratedPatterns = @('^Assets/Scenes/Step1_PrankRoom\.unity$', '^Assets/Resources/Step1/', '^Assets/Resources/Step1\.meta$')
+$GeneratedPatterns = @('^Assets/Scenes/Step1_PrankRoom\.unity$', '^Assets/Resources/Step1/', '^Assets/Resources/Step1\.meta$', '^Assets/Scenes/WorldPark/', '^Assets/Scenes/WorldPark\.meta$')
 
 function Invoke-Git {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
@@ -61,7 +62,7 @@ try {
     $generated = @($untrackedBefore | Where-Object { Test-AnyMatch $_ $GeneratedPatterns })
     $newSource = @($untrackedBefore | Where-Object { (Test-AnyMatch $_ $AutoSourcePatterns) })
     $newSourceMeta = @($newSource | ForEach-Object { "$_.meta" } | Where-Object { $_ -in $untrackedBefore })
-    $metaCount = @($untrackedBefore | Where-Object { $_ -match '\.meta$' -and $_ -notin $newSourceMeta -and -not (Test-AnyMatch $_ $GeneratedPatterns) }).Count
+    $metaCount = @($untrackedBefore | Where-Object { $_ -match '\.meta$' -and $_ -notin $newSource -and $_ -notin $newSourceMeta -and -not (Test-AnyMatch $_ $GeneratedPatterns) }).Count
     $otherUntracked = @($untrackedBefore | Where-Object { $_ -notmatch '\.meta$' -and $_ -notmatch '^docs/AI_CONTINUE_PACK/' -and $_ -notin $QuickStartFiles -and $_ -notin $newSource -and $_ -notin $generated })
 
     Write-Host "Repository: $RepoRoot"

@@ -26,7 +26,7 @@ public class ArtKitWindow : EditorWindow
     private readonly Dictionary<string, bool> fold = new Dictionary<string, bool>();
     private readonly Dictionary<string, Texture2D> preview = new Dictionary<string, Texture2D>();
 
-    [MenuItem("MarioTrickster/美术 Art/🎨 素材包 换图 + 互动", false, 39)]
+    [MenuItem("MarioTrickster/世界工坊 World Workshop/美术/🎨 素材包 换图 + 互动", false, 39)]
     public static void Open()
     {
         var w = GetWindow<ArtKitWindow>("🎨 素材包");

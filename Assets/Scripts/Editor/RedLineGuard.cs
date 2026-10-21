@@ -71,7 +71,7 @@ public static class RedLineGuard
     // 菜单入口
     // =========================================================================
 
-    [MenuItem("MarioTrickster/安全网 Safety/红线巡检 Red Line Check", false, 2000)]
+    [MenuItem("MarioTrickster/测试与诊断/安全/红线巡检 Red Line Check", false, 2000)]
     public static void MenuRunFullCheck()
     {
         int issues = RunFullCheck(autoRepair: false);
@@ -85,7 +85,7 @@ public static class RedLineGuard
         }
     }
 
-    [MenuItem("MarioTrickster/安全网 Safety/红线自动修复 Red Line Auto-Fix", false, 2001)]
+    [MenuItem("MarioTrickster/测试与诊断/安全/红线自动修复 Red Line Auto-Fix", false, 2001)]
     public static void MenuRunAutoFix()
     {
         int issues = RunFullCheck(autoRepair: true);
@@ -99,17 +99,17 @@ public static class RedLineGuard
         }
     }
 
-    [MenuItem("MarioTrickster/安全网 Safety/启用红线自动修复", false, 2010)]
+    [MenuItem("MarioTrickster/测试与诊断/安全/启用红线自动修复", false, 2010)]
     private static void ToggleAutoRepair()
     {
         AutoRepairEnabled = !AutoRepairEnabled;
         Debug.Log($"{LOG_PREFIX} 自动修复已{(AutoRepairEnabled ? "启用" : "禁用")}");
     }
 
-    [MenuItem("MarioTrickster/安全网 Safety/启用红线自动修复", true)]
+    [MenuItem("MarioTrickster/测试与诊断/安全/启用红线自动修复", true)]
     private static bool ToggleAutoRepairValidate()
     {
-        Menu.SetChecked("MarioTrickster/安全网 Safety/启用红线自动修复", AutoRepairEnabled);
+        Menu.SetChecked("MarioTrickster/测试与诊断/安全/启用红线自动修复", AutoRepairEnabled);
         return true;
     }
 

@@ -14,7 +14,7 @@ public sealed class StartHereWindow : EditorWindow
     private Vector2 scroll;
     private string search = "";
     private string tier = "全部";
-    private bool showGoals = true, showRecent = true, showLast = true;
+    private bool showGoals = true, showRecent = true, showLast = false, showParts;
     public const string RecentKey = "MarioTrickster.StartHere.Recent";
 
     /// <summary>S237：记下「刚才在做哪一关 / 哪个小镇」（工坊打开、切换、保存时调用）。</summary>
@@ -42,28 +42,25 @@ public sealed class StartHereWindow : EditorWindow
 
     private void OnGUI()
     {
-        EditorGUILayout.LabelField($"MarioTrickster 能做什么（{FeatureMap.All.Length} 项，和网页设计台「功能地图」同一份）", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("世界乐园：创作与体验", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("主视角是二维斜俯视探索。横版只作为挑战片段；地图、片段与台词都服务同一世界流程。",MessageType.None);
         using (new EditorGUILayout.HorizontalScope())
         {
-            GUI.backgroundColor = new Color(0.6f, 0.9f, 1f);
-            if (GUILayout.Button("🧪 测试中心", GUILayout.Height(26))) TestHubWindow.Open();
-            GUI.backgroundColor = new Color(0.5f, 1f, 0.5f);
-            if (GUILayout.Button("▶ 试玩房间", GUILayout.Height(26))) EditorApplication.delayCall += Step1PrankRoomBuilder.PlayMenu;
-            if (GUILayout.Button("▶ 试玩小镇", GUILayout.Height(26))) EditorApplication.delayCall += OverworldBuilder.PlayMenu;
-            GUI.backgroundColor = Color.white;
-            if (GUILayout.Button("🏠 关卡工坊", GUILayout.Height(26))) LevelWorkshopWindow.Open();
-            if (GUILayout.Button("🏘 小镇工坊", GUILayout.Height(26))) OverworldWorkshopWindow.Open();
-            if (GUILayout.Button("✎ 台词", GUILayout.Height(26))) TownStoryEditorWindow.Open();
-            if (GUILayout.Button("🌐 网页", GUILayout.Height(26))) OpenWeb();
+            if (GUILayout.Button("开始世界",GUILayout.Height(32))) EditorApplication.delayCall+=WorldParkBuilder.PlayMain;
+            if (GUILayout.Button(new GUIContent("继续旅程","从当前世界版本最近的安全检查点继续；没有检查点时会说明原因"),GUILayout.Height(32))) EditorApplication.delayCall+=WorldParkWindow.ContinueCurrent;
+            if (GUILayout.Button("世界工坊",GUILayout.Height(32))) WorldParkWindow.Open();
+            if (GUILayout.Button("网页创作",GUILayout.Height(32))) OpenWeb();
+            if (GUILayout.Button("测试与诊断",GUILayout.Height(32))) TestHubWindow.Open();
         }
+        // S254：网页设计台写进来的「我的世界」会被“开始世界”优先使用；一键打包成 Windows 游戏。
         using (new EditorGUILayout.HorizontalScope())
         {
-            search = EditorGUILayout.TextField("🔍 搜", search);
-            var tiers = new[] { "全部" }.Concat(FeatureMap.Tiers).ToArray();
-            int ti = Mathf.Max(0, System.Array.IndexOf(tiers, tier));
-            tier = tiers[GUILayout.Toolbar(ti, tiers, GUILayout.Width(330))];
+            bool mine = System.IO.File.Exists(WorldParkWindow.MyWorldFullPath);
+            GUILayout.Label(mine ? "我的世界：已有（网页“🔗 写进 Unity 项目”或世界工坊“保存为我的世界”）——开始世界会优先用它" : "我的世界：还没有——开始世界用主世界「空白之城」", EditorStyles.wordWrappedMiniLabel);
+            if (GUILayout.Button(new GUIContent("构建 Windows 版", "把当前世界打包成双击就能玩的 exe：Builds/Windows/"), GUILayout.Width(120), GUILayout.Height(22))) EditorApplication.delayCall += WorldParkWindow.BuildWindowsCurrent;
         }
-
+        search=EditorGUILayout.TextField("查找创作能力",search);
+        showParts=EditorGUILayout.ToggleLeft("展开横版片段与存量工具（不是平行主模式）",showParts);
         scroll = EditorGUILayout.BeginScrollView(scroll);
         bool filtering = search.Trim().Length > 0 || tier != "全部";
         if (!filtering)
@@ -73,7 +70,7 @@ public sealed class StartHereWindow : EditorWindow
             EditorGUILayout.Space();
             showGoals = EditorGUILayout.Foldout(showGoals, "我想…（按目标走，点名字打开）", true, EditorStyles.foldoutHeader);
             if (showGoals)
-                foreach (var g in FeatureMap.Goals)
+                foreach (var g in FeatureMap.Goals.Where(g => showParts || g.ids.Contains("ws.world")))
                 {
                     EditorGUILayout.LabelField("▸ " + g.title, EditorStyles.boldLabel);
                     EditorGUILayout.LabelField(g.steps, EditorStyles.wordWrappedMiniLabel);
@@ -90,10 +87,10 @@ public sealed class StartHereWindow : EditorWindow
                 }
             EditorGUILayout.Space();
             showRecent = EditorGUILayout.Foldout(showRecent, "🆕 最近新增", true, EditorStyles.foldoutHeader);
-            if (showRecent) foreach (var f in FeatureMap.Recent(6)) Row(f, true);
+            if (showRecent) foreach (var f in FeatureMap.Recent(6).Where(f => showParts || f.id.StartsWith("world.") || f.id=="ws.world" || f.id=="web.world")) Row(f, true);
         }
 
-        var hits = FeatureMap.Search(search).Where(f => tier == "全部" || f.tier == tier).ToList();
+        var hits = FeatureMap.Search(search).Where(f => (tier == "全部" || f.tier == tier) && (filtering || showParts || f.id.StartsWith("world.") || f.id=="ws.world" || f.id=="web.world")).ToList();
         if (filtering) EditorGUILayout.LabelField($"找到 {hits.Count} 项", EditorStyles.miniBoldLabel);
         foreach (var area in FeatureMap.Areas)
         {

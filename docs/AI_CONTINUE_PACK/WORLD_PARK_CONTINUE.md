@@ -163,7 +163,7 @@ dotnet run --project Tools\WorldParkVerify\Snapshot\WorldParkSnapshot.csproj -- 
 
 ## 9. 已知风险与限制
 
-1. **提交状态以 `AGENTS.md`“当前状态”为准**（S254 按用户 17:12 要求推送 GitHub）。不要做丢弃工作副本的 Git 操作。以后要上 GitHub 时，请用户双击 `SAVE_MARIOTRICKSTER.cmd`（它会列出需审阅的新文件），或经用户同意后提交。Git 里同时有大写 `Tools/`（3 个旧 Python 脚本 + S254 起的 `Tools/WorldParkVerify/`）和小写 `tools/LevelStudioWeb/` 两种写法（磁盘上都是 `Tools/`，Windows 不区分大小写，没有影响；GitHub 网页上会显示成两个目录）。往网页设计台加新文件时用 `tools/LevelStudioWeb/...` 路径 `git add`，保持同一目录。
+1. **提交状态以 `AGENTS.md`“当前状态”为准**（S254 已把 S248–S254 本地提交为 `211e7e9`；本机命令环境连不上 github.com，推送留给用户双击 `SAVE_MARIOTRICKSTER.cmd`，`git status -sb` 显示 ahead 就是还没推上去）。不要做丢弃工作副本的 Git 操作。以后要上 GitHub 时，请用户双击 `SAVE_MARIOTRICKSTER.cmd`（它会列出需审阅的新文件），或经用户同意后提交。Git 里同时有大写 `Tools/`（3 个旧 Python 脚本 + S254 起的 `Tools/WorldParkVerify/`）和小写 `tools/LevelStudioWeb/` 两种写法（磁盘上都是 `Tools/`，Windows 不区分大小写，没有影响；GitHub 网页上会显示成两个目录）。往网页设计台加新文件时用 `tools/LevelStudioWeb/...` 路径 `git add`，保持同一目录。
 2. 工作副本里约 123 个 Unity 早期自动生成的旧 `.meta` 未经审计，存档工具会提示，不要混进世界改动的提交。
 3. Unity 批处理被许可证校验阻挡（2026-10-20 15:05 再试仍是 “No valid Unity Editor license found”）；S248–S253 的 Unity 原生测试与实机都未执行。解除办法：用户在 Unity Hub 登录 → 偏好设置 → 许可证 → 添加 → 免费个人版。
 4. 世界包的网页 ↔ Unity 同步只走「我的世界」一个文件（S254）；世界包引用的房间/地图仍走旧的关卡同步（Inbox）或另行携带（世界分享打包是 P5）。网页“写进 Unity 项目”需要浏览器文件夹授权（Chrome / Edge），无法自动化测试。

@@ -192,6 +192,22 @@ header{flex-wrap:wrap}.tabs{flex-wrap:wrap}
 .wp-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.wp-toolbar .hint{flex:1 1 340px}
 .wp-item{width:100%;white-space:normal;text-align:left;margin:4px 0}.wp-item b,.wp-item small{display:block}.wp-item small{color:var(--dim);margin-top:4px}
 .wp-item[aria-current=true],.wp-node[aria-current=true]{border-color:var(--loot);box-shadow:0 0 0 1px var(--loot) inset}
+/* S256 安全网 */
+.wp-safety{position:sticky;top:0;z-index:6;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#1d1829;border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin:0 0 14px;box-shadow:0 10px 24px -18px #000}
+.wp-safety .btn:disabled{opacity:.45;cursor:default}
+.wp-safety .wp-last{flex:1 1 300px;font-size:12.5px;color:var(--dim);line-height:1.5}.wp-safety .wp-last b{color:var(--chalk)}
+.wp-imp{color:var(--ok)}.wp-imp-bad{color:var(--bad);font-weight:700}
+.wp-histbox{position:relative}.wp-histbox>summary{list-style:none;display:inline-flex;align-items:center}.wp-histbox>summary::-webkit-details-marker{display:none}
+#wpHistList{position:absolute;left:0;top:calc(100% + 6px);width:min(620px,86vw);max-height:380px;overflow:auto;background:var(--slab);border:1px solid var(--line);border-radius:10px;padding:8px 10px;z-index:30;box-shadow:0 24px 60px -20px #000}
+.wp-hist-row{display:flex;gap:10px;align-items:center;border-top:1px solid var(--line);padding:6px 0;font-size:12.5px}.wp-hist-row:first-child{border-top:0}.wp-hist-row span{flex:1}.wp-hist-row small{color:var(--dim);font-variant-numeric:tabular-nums}
+.wp-advtoggle{font-size:12px;color:var(--dim);display:flex;gap:5px;align-items:center;cursor:pointer;white-space:nowrap}
+#pageWorldPark:not(.wp-show-adv) .wp-adv{display:none}
+.wp-origin{background:var(--slab2);border:1px dashed var(--warn);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:12.5px;line-height:1.55}.wp-origin ul{margin:4px 0 8px 18px;padding:0}
+p.wp-origin-ok{color:var(--ok)}
+.wp-block{border:1px solid var(--bad);background:#2a1620;border-radius:10px;padding:10px 12px;margin:8px 0;font-size:13px;line-height:1.55}.wp-block.ok{border-color:var(--ok);background:#14281f}
+.wp-issue-btns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 3px}
+.wp-flash{outline:2px solid var(--loot);outline-offset:4px;border-radius:8px}
+.wp-toast{position:fixed;right:22px;bottom:22px;z-index:9000;max-width:min(600px,92vw);display:none;gap:8px;align-items:center;background:#241d33;color:var(--chalk);border:1px solid var(--loot);border-radius:12px;padding:10px 12px;box-shadow:0 20px 60px -10px #000;font-size:13px;line-height:1.5}.wp-toast.on{display:flex}.wp-toast span{flex:1}
 .wp-nodes{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.wp-node{flex:1 1 160px;max-width:230px;min-width:145px;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;text-align:left}
 .wp-node b,.wp-node code,.wp-node small{display:block;margin-top:6px}.wp-node small,.wp-node code{color:var(--dim);font-size:12px}.wp-node.reveal{border-top:3px solid var(--loot)}.wp-node.room{border-top:3px solid var(--trick)}.wp-node.explore{border-top:3px solid #76d6c3}.wp-node.concept{border-top:3px dashed var(--warn)}
 	.wp-link{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:8px}.wp-link select{flex:1 1 120px;width:auto}
@@ -465,7 +481,7 @@ header{flex-wrap:wrap}.tabs{flex-wrap:wrap}
 
 <section class="page" id="pageWorldPark" aria-label="世界工坊创作">
   <h2>世界工坊</h2>
-  <p class="lead"><b style="color:var(--chalk)">主创作入口：</b>世界 → 会场 → 阶段 → 现场探索 / 房间。地图与横版房间是子创作工具；分类、背景、线索和出口抉择都由你定义，不必套用旧小镇的门、日程或守宝数量。</p>
+  <p class="lead"><b style="color:var(--chalk)">怎么用：</b>左栏选会场 → 中栏点一个阶段 → 右栏改它的文字、地图和点位 → 点“▶ 只玩这个会场”马上试。看不懂某个格子，读 docs/guide/WORLD_WORKSHOP_GUIDE.md（带截图逐格讲解）。</p>
   <div class="wp-toolbar">
     <button class="btn" id="wpSample">载入内置示例</button>
     <button class="btn" id="wpImport">导入世界包</button>
@@ -475,6 +491,14 @@ header{flex-wrap:wrap}.tabs{flex-wrap:wrap}
     <input type="file" id="wpFile" accept=".json" hidden>
     <p class="hint" id="wpNotice" role="status"></p>
   </div>
+  <!-- S256 安全条：撤销 / 重做 / 改动记录 / 刚才改了什么、影响了什么 / 显示高级格子 -->
+  <div class="wp-safety" id="wpSafety" role="region" aria-label="撤销与改动记录">
+    <button class="btn small" id="wpUndo" title="Ctrl+Z">↶ 撤销</button>
+    <button class="btn small" id="wpRedo" title="Ctrl+Y 或 Ctrl+Shift+Z">↷ 重做</button>
+    <details class="wp-histbox" id="wpHistBox"><summary class="btn small">🕘 改动记录<span id="wpHistCount"></span></summary><div id="wpHistList"></div></details>
+    <span class="wp-last" id="wpLast"></span>
+    <label class="wp-advtoggle" title="显示编号（ID）、玩家角色、整张替换地图这类平时用不到的格子"><input type="checkbox" id="wpAdvToggle"> 显示高级格子</label>
+  </div>
   <div class="wp-layout">
     <div class="card">
       <h3>世界与会场</h3>
@@ -483,12 +507,13 @@ header{flex-wrap:wrap}.tabs{flex-wrap:wrap}
       <div class="wp-toolbar" style="margin-top:0"><select class="f" id="wpTemplate" aria-label="会场模板" style="flex:1 1 160px;margin:0"></select><button class="btn small" id="wpFromTemplate" title="S254：把主世界里一个做好的会场（地图、鬼、线索、反转、博弈参数）复制成你的新会场，再改">＋ 用模板新建</button></div>
       <div id="wpVenueList"></div>
       <button class="btn small" id="wpDeleteVenue">删除当前会场</button>
-      <p class="hint">草稿独立存于此浏览器，不覆盖旧关卡/小镇。世界包只保存流程与房间名称；分享时还需导出引用房间的关卡包。</p>
+      <p class="hint">草稿自动存在这个浏览器里，不会改动旧关卡、小镇或 Unity 项目。换电脑或分享时点上方“导出 .worldpark.json”。</p>
     </div>
     <div>
       <div class="card">
         <h3>会场设定与阶段分支</h3>
         <div class="wp-toolbar" style="margin-top:0"><button class="btn small gold" id="wpPlayVenue" title="S254：从这个会场的入口开始全屏试玩（不用先通过前面的会场）">▶ 只玩这个会场</button><span class="hint">改完立刻试：不用从世界入口一路打过来。</span></div>
+        <div id="wpPlayBlock" role="status"></div><div id="wpOrigin"></div>
         <div id="wpVenueFields"></div>
         <div class="wp-toolbar"><button class="btn small" id="wpAddNode">添加阶段</button><button class="btn small" id="wpDeleteNode">删除选中阶段</button></div>
         <div class="wp-nodes" id="wpNodes"></div>
@@ -506,11 +531,11 @@ header{flex-wrap:wrap}.tabs{flex-wrap:wrap}
         <div class="wp-player" id="wpPlayer" role="status"></div>
         <div class="wp-toolbar" id="wpPlayerActions"></div>
         <div class="wp-trace" id="wpTrace"></div>
-        <p class="hint"><b>阶段彩排不模拟物理游戏。</b>在 explore 中，手动“观察”只是模拟交互，不会因进入阶段自动 found；随后由作者选择活动胜利/失败。实际距离、碰撞、视线、倒计时和结果均由 Unity 决定。改动草稿会清空彩排。</p>
+        <p class="hint"><b>阶段彩排不模拟物理游戏。</b>在 explore 中，手动“观察”只是模拟交互，不会因进入阶段自动 found；随后由作者选择活动胜利/失败。要真的走、躲鬼、计时，请用“▶ 只玩这个会场”。改动草稿会清空彩排。</p>
       </div>
     </div>
     <div class="card wp-inspector">
-      <h3>当前阶段</h3><div id="wpNodeFields"></div><div id="wpExploreTools"></div>
+      <h3>当前阶段</h3><div id="wpNodeOrigin"></div><div id="wpNodeFields"></div><div id="wpExploreTools"></div>
       <h3>线索：先观察，再重新解释</h3>
       <label class="f" for="wpClueSelect">编辑哪条线索</label><select class="f" id="wpClueSelect"></select>
       <div class="wp-toolbar"><button class="btn small" id="wpAddClue">添加线索</button><button class="btn small" id="wpDeleteClue">删除线索</button></div>

@@ -204,6 +204,48 @@ process.on('exit', () => { try { proc.kill(); } catch (e) { } });
     if (venueSeen !== 'v_chase_my') fail('只玩这个会场没有从该会场开始：' + venueSeen);
     await sleep(1200); await shot('创作_只玩这个会场');
     await evaluate("WPPlay.close(); true");
+    // ── S256：安全网（世界页）：误点“整张替换地图”→ 结构预检说人话 → 只玩被拦并就地说明 → 一键挪点 → Ctrl+Z 撤销 → 只恢复这个阶段 → Ctrl+Z / Ctrl+Y ──
+    const ctrl = async (code, shift) => { const k = code.slice(3).toLowerCase(), vk = k.toUpperCase().charCodeAt(0), m = 2 | (shift ? 8 : 0); await send('Input.dispatchKeyEvent', { type: 'keyDown', code, key: k, windowsVirtualKeyCode: vk, modifiers: m }); await send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: k, windowsVirtualKeyCode: vk, modifiers: m }); };
+    const sd = await evaluate(`(() => { window.confirm = () => true; const vi = WPUI.pack.venues.findIndex(v => v.id === 'v_final'); if (vi < 0) return { err: '主世界里没有 v_final' }; WPUI.vi = vi; WPUI.ni = WPUI.pack.venues[vi].nodes.findIndex(n => n.id === 'room'); WPUI.pi = 0; wpRender();
+      window.__orig = wpN().mapText; const origin0 = document.getElementById('wpOrigin').textContent;
+      wpAdvSet(true); const btn = document.getElementById('wpCopyTown'); if (!btn) return { err: '没有“用小镇页的地图整张替换”按钮' }; btn.click(); wpAdvSet(false);
+      document.getElementById('wpIssues').scrollIntoView({ block: 'center' });
+      return { origin0, changed: wpN().mapText !== window.__orig, errs: WPUI.errCount, issues: document.getElementById('wpIssues').textContent, last: document.getElementById('wpLast').textContent, origin1: document.getElementById('wpOrigin').textContent, fix: !!document.querySelector('#wpIssues [data-wp-issue-fix]') }; })()`);
+    if (sd.err) fail('安全网：' + sd.err);
+    else {
+      if (!/完全一样/.test(sd.origin0)) fail('安全网：未改动的主世界会场没有显示“和内置原版完全一样”：' + sd.origin0.slice(0, 80));
+      if (!sd.changed || sd.errs < 1) fail('安全网：整张替换地图后没有出现必须修的问题（' + sd.errs + '）');
+      if (!/必须修 · K 主办者的房间 · 钟楼控制室/.test(sd.issues) || !/怎么修/.test(sd.issues)) fail('安全网：结构预检没有写清在哪、怎么修：' + sd.issues.slice(0, 120));
+      if (!sd.fix) fail('安全网：结构预检没有“把点挪到最近的空地”按钮');
+      if (!/用小镇地图替换/.test(sd.last) || !/必须修的问题 0 → /.test(sd.last)) fail('安全网：安全条没有说清刚才改了什么、影响了什么：' + sd.last.slice(0, 120));
+      if (!/改了 \d+ 处/.test(sd.origin1)) fail('安全网：和原版对比没有列出改动');
+      await sleep(250); await shot('安全网_结构预检说人话');
+      const se = await evaluate(`(() => { document.getElementById('wpPlayVenue').click(); const pb = document.getElementById('wpPlayBlock'); pb.scrollIntoView({ block: 'center' }); return { open: WPPlay.isOpen(), block: pb.textContent, toast: (document.getElementById('wpToast') || {}).textContent || '' }; })()`);
+      if (se.open) fail('安全网：有必须修的问题时“只玩这个会场”仍然打开了试玩');
+      if (!/还不能玩「K 主办者的房间」/.test(se.block) || !/还不能玩/.test(se.toast)) fail('安全网：只玩被拦时按钮下方 / 浮动提示没有说明原因：' + se.block.slice(0, 80));
+      await sleep(250); await shot('安全网_只玩被拦就地说明');
+      const sf = await evaluate(`(() => { const b = document.querySelector('#wpPlayBlock [data-wp-issue-fix]'); if (!b) return { err: '按钮下方的说明里没有一键挪点按钮' }; b.click(); document.getElementById('wpSpatialHost').scrollIntoView({ block: 'center' }); return { errs: WPUI.errCount, bad: WPHistory.badPoints(WorldParkSpatial, wpN()).length, block: document.getElementById('wpPlayBlock').textContent, toast: document.getElementById('wpToast').textContent }; })()`);
+      if (sf.err) fail('安全网：' + sf.err);
+      else if (sf.errs !== 0 || sf.bad !== 0) fail(`安全网：一键挪点后仍有问题（必须修 ${sf.errs}，坏点 ${sf.bad}）`);
+      else if (!/可以点 ▶/.test(sf.block) || !/挪到最近的空地/.test(sf.toast)) fail('安全网：修好后没有提示“可以玩了” / 挪了哪些点：' + sf.block.slice(0, 60));
+      await sleep(250); await shot('安全网_一键挪点后');
+      await evaluate("document.activeElement && document.activeElement.blur && document.activeElement.blur(); true");
+      await ctrl('KeyZ'); await sleep(150);
+      const sg = await evaluate(`(() => ({ errs: WPUI.errCount, toast: document.getElementById('wpToast').textContent, venue: wpV().id, node: wpN().id }))()`);
+      if (sg.errs < 1 || !/已撤销：一键挪点/.test(sg.toast) || sg.venue !== 'v_final' || sg.node !== 'room') fail('安全网：Ctrl+Z 没有撤销一键挪点或没回到原处：' + JSON.stringify(sg));
+      const sh = await evaluate(`(() => { const b = document.getElementById('wpRestoreNode'); if (!b) return { err: '没有“只恢复这个阶段”按钮' }; b.click(); return { same: wpN().mapText === window.__orig, errs: WPUI.errCount, origin: document.getElementById('wpOrigin').textContent }; })()`);
+      if (sh.err) fail('安全网：' + sh.err);
+      else if (!sh.same || sh.errs !== 0 || !/完全一样/.test(sh.origin)) fail('安全网：只恢复这个阶段后地图没回到原版：' + JSON.stringify(sh).slice(0, 160));
+      await ctrl('KeyZ'); await sleep(120); const su = await evaluate('wpN().mapText === window.__orig');
+      await ctrl('KeyY'); await sleep(120); const sr = await evaluate('wpN().mapText === window.__orig');
+      if (su || !sr) fail('安全网：Ctrl+Z / Ctrl+Y 没有正确撤销 / 重做“恢复原版”');
+      await sleep(900);
+      const si = await evaluate(`(() => { const box = document.getElementById('wpHistBox'); box.open = true; document.getElementById('wpSafety').scrollIntoView({ block: 'start' }); return { rows: document.querySelectorAll('#wpHistList .wp-hist-row').length, saved: !!localStorage.getItem(WPLS + '.history'), first: (document.querySelector('#wpHistList .wp-hist-row span') || {}).textContent || '' }; })()`);
+      if (si.rows < 3 || !si.saved) fail('安全网：改动记录没有列出 / 没有存进浏览器：' + JSON.stringify(si));
+      await sleep(250); await shot('安全网_改动记录');
+      await evaluate("document.getElementById('wpHistBox').open = false; true");
+      lines.splice(lines.length - 1, 0, `安全网：整张替换地图 → 必须修 ${sd.errs} 处（人话 + 修复按钮）· 只玩被拦并就地说明 · 一键挪点 → 0 处 · Ctrl+Z 撤销 · 只恢复这个阶段 = 原版 · Ctrl+Z/Ctrl+Y · 改动记录 ${si.rows} 条（最新：${si.first}）`);
+    }
     lines.splice(lines.length - 1, 0, `创作流程：入口会场体检 ${a.items} 条（${a.title}）· 模板 ${a.tpl} 个 · 用模板新建 → ${b.id}（${c.title}）· 只玩这个会场 → 从 ${venueSeen} 开始`);
     console.log(lines.join('\n'));
   } catch (e) {

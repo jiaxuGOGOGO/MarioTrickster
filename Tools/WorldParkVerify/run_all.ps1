@@ -67,8 +67,9 @@ Step 'S251剧情带入模拟'      { dotnet run --project (Join-Path $kit 'Story
 
 # 4. 网页设计台
 Step '网页点位画布'          { node (Join-Path $repo 'Tools\LevelStudioWeb\worldpark-spatial.test.js') } 'passed'
+Step '网页安全网'            { node (Join-Path $repo 'Tools\LevelStudioWeb\worldpark-history.test.js') } 'assertions passed'
 Step '网页博弈彩排冒烟'      { node (Join-Path $kit 'web-game-smoke.cjs') } 'web game smoke PASS'
-Step '网页世界脚本语法'      { foreach ($f in 'borderland.js', 'worldpark.js', 'explore.js', 'venue-check.js', 'play-model.js', 'play.js', 'worldpark-app.js', 'worldpark-spatial.js', 'app.js') { node --check (Join-Path $repo "Tools\LevelStudioWeb\$f"); if ($LASTEXITCODE) { break } }; if (!$LASTEXITCODE) { 'syntax ok' } } 'syntax ok'
+Step '网页世界脚本语法'      { foreach ($f in 'borderland.js', 'worldpark.js', 'explore.js', 'venue-check.js', 'play-model.js', 'play.js', 'worldpark-history.js', 'worldpark-app.js', 'worldpark-spatial.js', 'app.js') { node --check (Join-Path $repo "Tools\LevelStudioWeb\$f"); if ($LASTEXITCODE) { break } }; if (!$LASTEXITCODE) { 'syntax ok' } } 'syntax ok'
 $py = Find-Python
 if ($SkipWebBuild) { Skip '网页设计台重建' '按参数跳过' }
 elseif (!$py) { Skip '网页设计台重建' '找不到 Python（装 Python 3.12+ 或放便携版到 .work\tools\python-3.12.10）' }

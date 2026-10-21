@@ -15,7 +15,7 @@ const sample = JSON.parse(fs.readFileSync(path.join(root, 'Assets', 'Resources',
 vm.runInContext('const WORLD_PARK_SAMPLE=' + JSON.stringify(sample) + ';', ctx);
 // 地形表：浏览器里由 build.py 内联为 OW_TILES；这里用 Node 版探索内核读出同一张表再注入。
 vm.runInContext('const OW_TILES=' + JSON.stringify(require(path.join(root, 'Tools', 'LevelStudioWeb', 'explore.js')).TILES()) + ';', ctx);
-for (const f of ['borderland.js', 'worldpark.js', 'explore.js', 'venue-check.js', 'worldpark-app.js']) vm.runInContext(web(f), ctx, { filename: f });
+for (const f of ['borderland.js', 'worldpark.js', 'explore.js', 'venue-check.js', 'worldpark-history.js', 'worldpark-app.js']) vm.runInContext(web(f), ctx, { filename: f });
 const run = code => vm.runInContext(code, ctx);
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 // S254 会场体检面板：当前会场（入口 ♣3）应给出红 0 的体检结果。

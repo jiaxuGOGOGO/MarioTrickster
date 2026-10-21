@@ -141,7 +141,7 @@ data += 'const WORLD_PARK_SAMPLE=' + json.dumps(world_sample, ensure_ascii=False
 bl = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'borderland.js'), encoding='utf-8').read())
 wp = bl + '\n' + re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'worldpark.js'), encoding='utf-8').read())
 # S253：网页试玩——探索内核 / 演出纯逻辑 / 试玩画面（都依赖 WorldPark 与 BorderlandGame，必须排在 worldpark.js 之后）
-for _f in ('explore.js', 'venue-check.js', 'play-model.js', 'play.js'):  # S254：venue-check.js 会场体检（依赖 explore.js）
+for _f in ('explore.js', 'venue-check.js', 'play-model.js', 'play.js', 'worldpark-history.js'):  # S254：venue-check.js 会场体检（依赖 explore.js）；S256：worldpark-history.js 安全网纯逻辑
     wp += '\n' + re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, _f), encoding='utf-8').read())
 wp_app = open(os.path.join(HERE, 'worldpark-app.js'), encoding='utf-8').read()
 wp_spatial = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'worldpark-spatial.js'), encoding='utf-8').read())

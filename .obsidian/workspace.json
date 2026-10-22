@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "同步口令cmd.md",
+                "file": "docs/guide/WORLD_WORKSHOP_GUIDE.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "同步口令cmd"
+              "title": "WORLD_WORKSHOP_GUIDE"
             }
           }
         ]
@@ -41,7 +41,9 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical",
-                "autoReveal": false
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
               },
               "icon": "lucide-folder-closed",
               "title": "文件列表"
@@ -185,6 +187,16 @@
   },
   "active": "488b697290428a6c",
   "lastOpenFiles": [
+    "docs/step1/S256_WORKSHOP_SAFETY_NET.md",
+    "docs/guide/img/g20_safety_issue.jpg",
+    "docs/guide/img/g22_fixed.jpg",
+    "docs/guide/img/g23_history.jpg",
+    "docs/guide/img/g21_play_block.jpg",
+    "Tools/LevelStudioWeb/worldpark-history.test.js",
+    "Tools/LevelStudioWeb/worldpark-history.js",
+    "docs/guide/PROJECT_COURSE.md",
+    "START_HERE.md",
+    "SESSION_TRACKER.md",
     "同步口令cmd.md"
   ]
 }

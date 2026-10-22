@@ -31,9 +31,6 @@ public class LootObjective : MonoBehaviour
     [Tooltip("收集后是否隐藏物体")]
     [SerializeField] private bool hideOnCollect = true;
 
-    [Tooltip("收集后给 Trickster 增加的热度（Mario 拿到宝后 Trickster 压力增大）")]
-    [SerializeField] private float heatOnCollect = 10f;
-
     [Tooltip("是否输出调试日志")]
     [SerializeField] private bool showDebugInfo = true;
 
@@ -44,7 +41,6 @@ public class LootObjective : MonoBehaviour
 
     private bool isCollected;
     private SpriteRenderer spriteRenderer;
-    private TricksterHeatMeter heatMeter;
 
     #endregion
 
@@ -84,7 +80,6 @@ public class LootObjective : MonoBehaviour
     {
         IsLootCarried = false;
         isCollected = false;
-        heatMeter = FindObjectOfType<TricksterHeatMeter>();
 
         if (GameManager.Instance != null)
         {
@@ -123,12 +118,6 @@ public class LootObjective : MonoBehaviour
         if (hideOnCollect && spriteRenderer != null)
         {
             spriteRenderer.enabled = false;
-        }
-
-        // 给 Trickster 增加热度压力
-        if (heatMeter != null && heatOnCollect > 0f)
-        {
-            heatMeter.AddHeat(heatOnCollect);
         }
 
         if (showDebugInfo)

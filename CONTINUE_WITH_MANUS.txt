@@ -1,0 +1,18 @@
+继续开发 GitHub 仓库 jiaxuGOGOGO/MarioTrickster 的 genspark_ai_developer 分支。
+
+这是一个已在新电脑本地克隆的 Unity 项目。请不要依赖任何旧 Manus 账号、旧电脑、聊天记录或隐含记忆。
+
+开工前必须依次读取：
+1. START_HERE.md
+2. docs/AI_CONTINUE_PACK/HANDOFF_STATE.md
+3. docs/AI_CONTINUE_PACK/LATEST_CHECKPOINT.md（如果存在）
+4. SESSION_TRACKER.md 的当前状态与最新相关 Session
+5. docs/AI_CONTINUE_PACK/SKILL.md，以及与本次任务对应的 references 分册
+
+然后必须执行并汇报：
+- git status --short --branch
+- git log -1 --oneline
+- 最近 TestReport.txt 的测试摘要
+- 当前未完成事项、已知风险和下一步验证方式
+
+以 Git HEAD 与仓库文件为最终事实来源。不得拉取或依赖已废弃的 MarioTrickster-Art 子模块。实施任何改动前，先说明将改哪些文件、如何验证；每次可迁移的阶段完成后，运行 SAVE_MARIOTRICKSTER.cmd 或等价的 save_checkpoint.ps1 -Mode Save -Push。

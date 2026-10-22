@@ -37,6 +37,7 @@ public class SpikeTrap : ControllableLevelElement
     [SerializeField] private float transitionSpeed = 8f;
 
     [Header("=== 视觉设置 ===")]
+    [Tooltip("相对作者放置位置的伸出偏移，不是关卡绝对高度")]
     [SerializeField] private float extendedY = 0f;
     [SerializeField] private float retractedY = -0.8f;
 
@@ -108,11 +109,12 @@ public class SpikeTrap : ControllableLevelElement
 
         // 平滑移动
         Vector3 pos = transform.localPosition;
-        pos.y = Mathf.MoveTowards(pos.y, targetY, transitionSpeed * Time.deltaTime);
+        // [AI防坑警告] 伸缩值是相对偏移；绝不能把任意楼层的地刺拉回关卡 y=0。
+        pos.y = Mathf.MoveTowards(pos.y, initialLocalPos.y + targetY, transitionSpeed * Time.deltaTime);
         transform.localPosition = pos;
 
         // 碰撞器状态
-        boxCollider.enabled = isExtended || Mathf.Abs(transform.localPosition.y - retractedY) > 0.1f;
+        boxCollider.enabled = isExtended || Mathf.Abs(transform.localPosition.y - (initialLocalPos.y + retractedY)) > 0.1f;
     }
 
     private void OnTriggerEnter2D(Collider2D other) { if (CanDealSpikeDamage()) TryDamage(other); }

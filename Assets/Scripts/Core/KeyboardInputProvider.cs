@@ -194,9 +194,10 @@ public class KeyboardInputProvider : IInputProvider
     // 全局输入
     // ═══════════════════════════════════════════════════════════
 
-    public bool GetPauseDown()             => Input.GetKeyDown(KeyCode.Escape);
-    public bool GetRestartDown()           => Input.GetKeyDown(KeyCode.F5);
-    public bool GetNoCooldownToggleDown()  => Input.GetKeyDown(KeyCode.F9);
-    public bool GetRestartRoundDown()      => Input.GetKeyDown(KeyCode.R);
-    public bool GetNextRoundDown()         => Input.GetKeyDown(KeyCode.N);
+    // S217：全局键也两套输入都读（Step1Keys）——有的机器旧 Input 读不到，结算后按 R/N、Esc、F5 没反应 → 测试卡住
+    public bool GetPauseDown()             => Step1Keys.Down(KeyCode.Escape);
+    public bool GetRestartDown()           => Step1Keys.Down(KeyCode.F5);
+    public bool GetNoCooldownToggleDown()  => Step1Keys.Down(KeyCode.F9);
+    public bool GetRestartRoundDown()      => Step1Keys.Down(KeyCode.R);
+    public bool GetNextRoundDown()         => Step1Keys.Down(KeyCode.N);
 }

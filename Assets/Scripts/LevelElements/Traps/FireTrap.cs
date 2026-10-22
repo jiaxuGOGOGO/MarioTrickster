@@ -143,6 +143,10 @@ public class FireTrap : ControllableLevelElement
         }
     }
 
+    /// <summary>S199：正在喷火（油桶会被点燃）。</summary>
+    public bool IsFiring => fireState == FireState.Firing;
+    public Bounds FlameBounds => fireCollider != null ? fireCollider.bounds : new Bounds(transform.position, Vector3.zero);
+
     private void SetFiring(bool fire)
     {
         if (fire)

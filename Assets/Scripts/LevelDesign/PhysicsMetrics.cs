@@ -196,6 +196,19 @@ public static class PhysicsMetrics
     /// <summary>可操控危险物碰撞体</summary>
     public static readonly Vector2 CONTROLLABLE_HAZARD_COLLIDER_SIZE = new Vector2(1f, 0.5f);
 
+    /// <summary>S187 大炮炮身（触发器：不挡路，捣蛋者可钻入；1×1 格）</summary>
+    public static readonly Vector2 CANNON_COLLIDER_SIZE = new Vector2(1f, 1f);
+
+    /// <summary>S187 箱子（实心 1×1，挡路挡视线；与地面方块同尺寸以便 ASCII 拼接）</summary>
+    public static readonly Vector2 CRATE_COLLIDER_SIZE = Vector2.one;
+
+    /// <summary>S187 草丛（触发器 1×1.2：人可穿过，挡视线；略高于角色，站进去就能藏住）</summary>
+    public static readonly Vector2 BUSH_COLLIDER_SIZE = new Vector2(1f, 1.2f);
+    public static readonly Vector2 BUSH_COLLIDER_OFFSET = new Vector2(0f, 0.1f);
+
+    /// <summary>S187 纯装饰（小触发器，不挡路不挡视线，只为有个可选中的 Root）</summary>
+    public static readonly Vector2 DECOR_COLLIDER_SIZE = new Vector2(0.5f, 0.5f);
+
     /// <summary>可破坏方块碰撞体</summary>
     public static readonly Vector2 BREAKABLE_BLOCK_COLLIDER_SIZE = Vector2.one;
 

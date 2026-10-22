@@ -44,8 +44,12 @@ public static class KnockbackHelper
             knockDirX = diff >= 0 ? 1f : -1f;
         }
 
-        return new Vector2(knockDirX * horizontalForce, verticalForce);
+        // S216：受伤小跳。以前向上 2（硬直期没重力 → 平着飘 2 格；修好重力后 2 几乎看不出来）→ 至少 LaunchFeel.hurtLift
+        return new Vector2(knockDirX * horizontalForce, HurtLift(verticalForce, LaunchFeel.hurtLift));
     }
+
+    /// <summary>S216 纯逻辑：受伤向上速度 = max(陷阱自己的, 全局受伤小跳)。</summary>
+    public static float HurtLift(float trapUp, float minLift) => Mathf.Max(trapUp, minLift);
 
     /// <summary>
     /// 通知目标控制器进入 knockback stun（防止帧速度架构覆盖击退力）

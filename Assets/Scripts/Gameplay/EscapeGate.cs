@@ -8,12 +8,11 @@ using UnityEngine;
 ///   - Mario 触碰 EscapeGate 时检查 LootObjective.IsLootCarried。
 ///   - 已拿目标 → 调用 GameManager.EndRound("Mario")。
 ///   - 未拿目标 → 显示提示"还没拿目标物"，不通关。
-///   - 可选：Trickster 在 Alert/Lockdown 时可短暂"封锁"出口（增加通过延迟）。
 ///   - 回合重置时恢复为可用状态。
 ///
 /// 关卡设计意义：
 ///   - 与 LootObjective 配合形成"进入→拿宝→撤离"的路径结构。
-///   - Trickster 在 Mario 返程时更想连续出手（热度自然升高）。
+///   - Trickster 在 Mario 返程时更想连续出手。
 ///   - Mario 产生"继续赶路 vs 停下来查可疑物 vs 绕路撤离"的判断。
 ///
 /// 非职责：
@@ -26,13 +25,7 @@ public class EscapeGate : MonoBehaviour
     // ─────────────────────────────────────────────────────
     #region 配置
 
-    [Header("=== Commit 5 撤离门 ===")]
-    [Tooltip("Alert 档时通过延迟（秒）— 模拟出口短暂封锁")]
-    [SerializeField] private float alertPassDelay = 0.5f;
-
-    [Tooltip("Lockdown 档时通过延迟（秒）")]
-    [SerializeField] private float lockdownPassDelay = 1.5f;
-
+    [Header("=== 撤离门 ===")]
     [Tooltip("未拿目标时的提示持续时间")]
     [SerializeField] private float hintDuration = 2f;
 
@@ -45,13 +38,9 @@ public class EscapeGate : MonoBehaviour
     #region 运行时状态
 
     private bool isActive = true;
-    private float passDelayTimer;
     private bool marioInGate;
     private float hintTimer;
     private string hintMessage;
-
-    // 引用
-    private TricksterHeatMeter heatMeter;
 
     #endregion
 
@@ -63,17 +52,6 @@ public class EscapeGate : MonoBehaviour
 
     /// <summary>Mario 尝试撤离但未携带目标物时触发</summary>
     public static event Action OnEscapeDenied;
-
-    /// <summary>出口被封锁/解封时触发（isLocked）</summary>
-    public static event Action<bool> OnGateLockChanged;
-
-    #endregion
-
-    // ─────────────────────────────────────────────────────
-    #region 公共属性
-
-    public bool IsGateLocked => passDelayTimer > 0f;
-    public float PassDelayRemaining => passDelayTimer;
 
     #endregion
 
@@ -88,8 +66,6 @@ public class EscapeGate : MonoBehaviour
 
     private void Start()
     {
-        heatMeter = FindObjectOfType<TricksterHeatMeter>();
-
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnRoundStart += HandleRoundStart;
@@ -106,22 +82,6 @@ public class EscapeGate : MonoBehaviour
 
     private void Update()
     {
-        // 通过延迟倒计时
-        if (passDelayTimer > 0f)
-        {
-            passDelayTimer -= Time.deltaTime;
-            if (passDelayTimer <= 0f)
-            {
-                OnGateLockChanged?.Invoke(false);
-
-                // 如果 Mario 仍在门内且有目标物，立即通关
-                if (marioInGate && LootObjective.IsLootCarried)
-                {
-                    TriggerEscape();
-                }
-            }
-        }
-
         // 提示倒计时
         if (hintTimer > 0f)
         {
@@ -144,7 +104,7 @@ public class EscapeGate : MonoBehaviour
         if (!isActive) return;
         if (!IsMario(other)) return;
 
-        if (LootObjective.IsLootCarried && passDelayTimer <= 0f && marioInGate)
+        if (LootObjective.IsLootCarried && marioInGate)
         {
             TriggerEscape();
         }
@@ -178,23 +138,6 @@ public class EscapeGate : MonoBehaviour
             return;
         }
 
-        // 检查热度封锁延迟
-        float delay = GetPassDelay();
-        if (delay > 0f)
-        {
-            passDelayTimer = delay;
-            hintMessage = $"Gate locked! Wait {delay:F1}s...";
-            hintTimer = delay + 0.5f;
-
-            if (showDebugInfo)
-            {
-                Debug.Log($"[EscapeGate] Gate locked for {delay:F1}s due to heat tier.");
-            }
-
-            OnGateLockChanged?.Invoke(true);
-            return;
-        }
-
         // 直接通关
         TriggerEscape();
     }
@@ -217,25 +160,9 @@ public class EscapeGate : MonoBehaviour
         }
     }
 
-    private float GetPassDelay()
-    {
-        if (heatMeter == null) return 0f;
-
-        switch (heatMeter.CurrentTier)
-        {
-            case TricksterHeatMeter.HeatTier.Alert:
-                return alertPassDelay;
-            case TricksterHeatMeter.HeatTier.Lockdown:
-                return lockdownPassDelay;
-            default:
-                return 0f;
-        }
-    }
-
     private void HandleRoundStart()
     {
         isActive = true;
-        passDelayTimer = 0f;
         marioInGate = false;
         hintTimer = 0f;
     }
@@ -287,9 +214,7 @@ public class EscapeGate : MonoBehaviour
         GUI.DrawTexture(rect, Texture2D.whiteTexture);
 
         // 文字
-        GUI.color = IsGateLocked ?
-            new Color(1f, 0.3f, 0.3f, alpha) :
-            new Color(1f, 0.8f, 0.2f, alpha);
+        GUI.color = new Color(1f, 0.8f, 0.2f, alpha);
         GUI.Label(rect, hintMessage, style);
 
         GUI.color = Color.white;

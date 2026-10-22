@@ -27,7 +27,7 @@ public class KillZone : BaseHazard
     // [AI防坑警告] fallbackY 是 Update 兜底检测的 Y 阈值。
     // 当角色低于此 Y 值时直接判定死亡，不依赖 Trigger 碰撞。
     // 默认 -15 足够低，不会误杀正常游戏中的角色。
-    // TestConsoleWindow 创建 KillZone 时会自动设置此值为 KillZone.position.y - 5。
+    // 场景构建器创建 KillZone 时会自动设置此值为 KillZone.position.y - 5。
     [SerializeField] private float fallbackY = -15f;
 
     // P2: 缓存 PlayerHealth 引用，避免每帧 FindObjectsOfType
@@ -38,7 +38,7 @@ public class KillZone : BaseHazard
     // 此集合仅用于 Update fallback 路径，两者互不干扰
     private readonly HashSet<PlayerHealth> killedByFallback = new HashSet<PlayerHealth>();
 
-    /// <summary>设置 Y 坐标兜底阈值（由 TestConsoleWindow / TestSceneBuilder 调用）</summary>
+    /// <summary>设置 Y 坐标兜底阈值（由场景构建器调用）</summary>
     public void SetFallbackY(float y) { fallbackY = y; }
 
     private void Awake()

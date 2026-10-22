@@ -109,8 +109,9 @@ public class AutomatedInputProvider : IInputProvider
     }
 
     /// <summary>
-    /// 每帧由 InputManager 调用，推进帧计数器。
-    /// 必须在读取输入之前调用。
+    /// Direct TAS: called once per physics step AFTER dispatching the current input.
+    /// Read before Tick so duration=1 and first-segment edge events are preserved.
+    /// Legacy Hybrid/Arena playback remains render-frame based; it is not an accelerated TAS benchmark.
     /// </summary>
     public void Tick()
     {

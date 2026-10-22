@@ -68,7 +68,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     protected SpriteRenderer spriteRenderer;
     protected Color originalColor;
     private Vector3 originalLocalPosition;
-    protected MarioSuspicionTracker suspicionTracker;
+    private float _telegraphPhase; // S216
 
     // Session 20: 高亮状态
     private bool _isHighlighted;
@@ -86,7 +86,6 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
             originalColor = spriteRenderer.color;
         }
         remainingUses = maxUses;
-        suspicionTracker = FindObjectOfType<MarioSuspicionTracker>();
     }
 
     protected virtual void Update()
@@ -107,6 +106,15 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
                 break;
         }
 
+        // S240：本回合已经用光（裂缝已碎、铁笼已落、次数用完）→ 变灰，不再被选中；回合重置后自动变回原色
+        bool spent = SpentThisRound && GreySpentEnabled && GreyWhenSpent;
+        if (spent != _greyed && spriteRenderer != null)
+        {
+            _greyed = spent;
+            spriteRenderer.color = spent ? SpentTint(originalColor) : originalColor;
+        }
+        if (_greyed) return;
+
         // Session 20: 高亮脉冲效果（仅在 Idle 状态下显示，避免与预警闪烁冲突）
         if (_isHighlighted && currentState == PropControlState.Idle && spriteRenderer != null)
         {
@@ -121,8 +129,62 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     {
         if (currentState != PropControlState.Idle) return false;
         if (maxUses >= 0 && remainingUses <= 0) return false;
-        return true;
+        return ExtraControlCondition();
     }
+
+    // ── S240：用过的机关 ─────────────────────────────
+    private bool _greyed;
+    private static int s_greyFlag = -1;
+    private static bool GreySpentEnabled
+    {
+        get { if (s_greyFlag < 0) { var t = MarioMindTuningSO.LoadOrDefault(); s_greyFlag = t == null || t.greySpentProps ? 1 : 0; } return s_greyFlag == 1; }
+    }
+
+    /// <summary>S240 纯逻辑：本回合永久用光了吗（冷却中不算——等一会儿还能用）。</summary>
+    public static bool IsSpent(PropControlState state, int maxUses, int remaining, bool extraOk) =>
+        state == PropControlState.Exhausted || (maxUses >= 0 && remaining <= 0 && state != PropControlState.Telegraph && state != PropControlState.Active && state != PropControlState.Recovery && state != PropControlState.Cooldown) ||
+        (!extraOk && state == PropControlState.Idle);
+
+    /// <summary>S240：本回合已经用光（选中、连线、连锁编号都跳过它）。</summary>
+    public bool SpentThisRound => IsSpent(currentState, maxUses, remainingUses, ExtraControlCondition());
+
+    /// <summary>S240：用光后要不要变灰（大炮不变灰：炮弹打完你还能坐进去飞）。</summary>
+    protected virtual bool GreyWhenSpent => true;
+
+    /// <summary>S240 纯逻辑：灰掉的颜色（去饱和 + 变暗，透明度不变）。</summary>
+    public static Color SpentTint(Color c)
+    {
+        float g = (c.r * 0.3f + c.g * 0.59f + c.b * 0.11f) * 0.55f;
+        return new Color(g, g, g, c.a * 0.85f);
+    }
+
+    /// <summary>S240 纯逻辑：选目标的优先级（越小越优先）。能用 = 0，冷却 / 正在动 = 1，用光 = -1（不选）。</summary>
+    public static int SelectRank(bool spent, bool ready) => spent ? -1 : ready ? 0 : 1;
+    public int SelectRankNow => SelectRank(SpentThisRound, CanBeControlled());
+
+    /// <summary>
+    /// S187：子类额外的"能否被操控"条件（默认 true = 旧行为不变）。
+    /// 例：大炮没炮弹时不能开炮（改为人肉发射）。
+    /// </summary>
+    protected virtual bool ExtraControlCondition() => true;
+
+    // ── S241：机关容错（早按 = 预约，没打中 = 退一半）─────────────
+    /// <summary>S241：按 L 时他还没走到 → 先预约、等他走进预判区才发动（TricksterAbilitySystem 管）。
+    /// 大炮（要瞄准）、绳套（自动）、灯（立即灭）、暗道这类"按下就该马上生效"的返回 false。</summary>
+    public virtual bool ArmOnPress => true;
+    /// <summary>S241：发动了一下都没坑到他 → 冷却减半、次数退还。挡路 / 改地形 / 一次性的机关不退（它们本来就不是用来"打中"的）。</summary>
+    protected virtual bool RefundOnMiss => true;
+    /// <summary>S241：没打中退还了（参数 = 哪个机关）。TricksterAbilitySystem 收到后把你的操控次数和能量也还给你。</summary>
+    public static event System.Action<ControllablePropBase> MissRefunded;
+    private float _firedAt = float.NegativeInfinity;
+    private static int s_refundFlag = -1;
+    private static bool RefundEnabled
+    {
+        get { if (s_refundFlag < 0) { var t = MarioMindTuningSO.LoadOrDefault(); s_refundFlag = t == null || t.refundOnMiss ? 1 : 0; } return s_refundFlag == 1; }
+    }
+    /// <summary>S241 纯逻辑：没打中时冷却剩多少、次数变成多少（不超过上限）。</summary>
+    public static (float cooldown, int remaining) MissRefund(float cooldown, int remaining, int maxUses) =>
+        (cooldown * 0.5f, maxUses >= 0 ? Mathf.Min(maxUses, remaining + 1) : remaining);
 
     public virtual void OnTricksterActivate(Vector2 direction)
     {
@@ -160,7 +222,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
     public void SetHighlight(bool isSelected)
     {
         _isHighlighted = isSelected;
-        if (!isSelected && spriteRenderer != null && currentState == PropControlState.Idle)
+        if (!isSelected && spriteRenderer != null && currentState == PropControlState.Idle && !_greyed)
         {
             // 取消高亮时恢复原色
             spriteRenderer.color = originalColor;
@@ -190,6 +252,7 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         {
             remainingUses--;
         }
+        _firedAt = Time.time; // S241：记下发动时间，进冷却时看这段时间里有没有坑到他
 
         OnTelegraphStart();
     }
@@ -201,16 +264,20 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         // 预警视觉效果：闪烁
         if (spriteRenderer != null)
         {
-            float flash = Mathf.Sin(Time.time * telegraphFlashRate * Mathf.PI * 2f);
+            // S216：越接近发动闪得越急（anticipation）；用累积相位，变频时不会跳帧
+            float progress = telegraphDuration > 0f ? 1f - Mathf.Clamp01(stateTimer / telegraphDuration) : 1f;
+            _telegraphPhase += Time.deltaTime * Step1Feel.TelegraphRate(telegraphFlashRate, progress) * Mathf.PI * 2f;
+            float flash = Mathf.Sin(_telegraphPhase);
             spriteRenderer.color = Color.Lerp(originalColor, telegraphColor, (flash + 1f) * 0.5f);
         }
 
         // 预警视觉效果：震动
         if (telegraphShake)
         {
-            float shakeX = Random.Range(-telegraphShakeIntensity, telegraphShakeIntensity);
-            float shakeY = Random.Range(-telegraphShakeIntensity, telegraphShakeIntensity);
-            transform.localPosition = originalLocalPosition + new Vector3(shakeX, shakeY, 0f);
+            // S216：平滑抖动、幅度随进度变大（以前每帧随机跳 = 看着"抽搐"）
+            float progress = telegraphDuration > 0f ? 1f - Mathf.Clamp01(stateTimer / telegraphDuration) : 1f;
+            Vector2 sh = Step1Feel.TelegraphShake(Time.time, progress, telegraphShakeIntensity);
+            transform.localPosition = originalLocalPosition + new Vector3(sh.x, sh.y, 0f);
         }
 
         // 预警结束 → 进入激活
@@ -255,8 +322,6 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         currentState = PropControlState.Recovery;
         stateTimer = recoveryDuration;
 
-        ApplyRecoveryCounterplayCost();
-
         if (stateTimer <= 0f)
         {
             EnterCooldown();
@@ -273,29 +338,18 @@ public abstract class ControllablePropBase : MonoBehaviour, IControllableProp
         }
     }
 
-    private void ApplyRecoveryCounterplayCost()
-    {
-        PossessionAnchor anchor = GetComponent<PossessionAnchor>();
-        if (anchor == null) return;
-
-        if (suspicionTracker == null)
-        {
-            suspicionTracker = FindObjectOfType<MarioSuspicionTracker>();
-        }
-        if (suspicionTracker == null) return;
-
-        AnchorSuspicionData data = suspicionTracker.GetOrCreateData(anchor);
-        if (data == null) return;
-
-        data.AddSuspicion(AnchorSuspicionData.MaxSuspicion);
-        data.AddEvidence(AnchorSuspicionData.MaxEvidence);
-        data.MarkUsed();
-    }
-
     private void EnterCooldown()
     {
         currentState = PropControlState.Cooldown;
         stateTimer = cooldownDuration;
+        // S241：一下都没坑到 → 冷却减半、次数退还（挫败感太强的老问题：按早按晚一次就浪费）
+        if (RefundOnMiss && RefundEnabled && !float.IsNegativeInfinity(_firedAt) && Step1Stealth.Missed(_firedAt, Step1Combo.LastHitTime, Time.time))
+        {
+            var r = MissRefund(stateTimer, remainingUses, maxUses);
+            stateTimer = r.cooldown; remainingUses = r.remaining;
+            MissRefunded?.Invoke(this);
+        }
+        _firedAt = float.NegativeInfinity;
     }
 
     private void UpdateCooldown()

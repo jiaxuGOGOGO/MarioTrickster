@@ -7,12 +7,14 @@ using UnityEngine;
 /// Trickster 的操控不再直接触发攻击，而是强行跳过当前队列状态；这种打乱规律的下注
 /// 会给当前锚点追加高 Suspicion / Evidence / Heat，并让机关进入较长 Recovery 破绽期。
 ///
-/// S53 薄层原则：只复用 ControllableLevelElement 状态、TextMesh、MarioSuspicionTracker
-/// 与 TricksterHeatMeter，不引入复杂特效或新系统。
+/// S53 薄层原则：只复用 ControllableLevelElement 状态与 TextMesh，不引入复杂特效或新系统。
+/// （S239：旧起疑追踪器 / 热度已删，强制跳过的代价只剩更长的恢复时间。）
 /// </summary>
 [RequireComponent(typeof(BoxCollider2D))]
 public class StateQueueTrap : ControllableLevelElement
 {
+    public override bool ArmOnPress => false; // S241：按下就该马上生效（瞄准 / 自动 / 开路），不预约
+    protected override bool RefundOnMiss => false; // S241：挡路 / 改地形 / 一次性，不按"打没打中"退还
     private enum QueueTrapState
     {
         LeftAttack,
@@ -60,15 +62,6 @@ public class StateQueueTrap : ControllableLevelElement
     [Tooltip("Trickster 强行跳状态后，机关进入的长 Recovery 破绽期。")]
     [SerializeField] private float forcedSkipRecoveryDuration = 3.2f;
 
-    [Tooltip("强行跳状态追加给锚点的可疑度。")]
-    [SerializeField] private float forcedSkipSuspicionPenalty = 90f;
-
-    [Tooltip("强行跳状态追加给锚点的证据层数。")]
-    [SerializeField] private int forcedSkipEvidencePenalty = 3;
-
-    [Tooltip("强行跳状态追加给 Trickster 的热度。")]
-    [SerializeField] private float forcedSkipHeatPenalty = 45f;
-
     [Header("=== 视觉颜色 ===")]
     [SerializeField] private Color leftAttackColor = new Color(1f, 0.35f, 0.25f, 0.95f);
     [SerializeField] private Color rightAttackColor = new Color(1f, 0.55f, 0.20f, 0.95f);
@@ -88,8 +81,43 @@ public class StateQueueTrap : ControllableLevelElement
 
     private BoxCollider2D boxCollider;
     private SpriteRenderer sr;
-    private TricksterHeatMeter heatMeter;
     // 使用基类 ControllablePropBase.originalColor (protected)，不再重复声明
+
+    // The bot reads the same state/countdown/reach that the world label displays.
+    // This is not the generic possession lifecycle: Idle can still be an attack.
+    public struct PublicCue
+    {
+        public string current, next;
+        public float remaining, halfWidth, halfHeight;
+        public bool safe;
+    }
+    public PublicCue ReadPublicCue()
+    {
+        bool recovery = currentState == PropControlState.Recovery;
+        bool suspended = recovery || currentState == PropControlState.Cooldown || currentState == PropControlState.Exhausted;
+        return new PublicCue {
+            current = suspended ? currentState.ToString() : GetStateLabel(CurrentQueueState),
+            next = suspended ? GetStateLabel(CurrentQueueState) : GetStateLabel(NextQueueState),
+            remaining = Mathf.Floor(Mathf.Max(0f, suspended ? stateTimer : queueTimer) * 10f) / 10f, // Same tenth-second precision as the label.
+            halfWidth = Mathf.Abs(attackOffset) + attackBoxSize.x * 0.5f,
+            halfHeight = attackBoxSize.y * 0.5f,
+            safe = suspended || CurrentQueueState == QueueTrapState.SafePause
+        };
+    }
+    public bool TryReadPublicCue(Vector2 viewer, out PublicCue cue)
+    {
+        cue = default;
+        if (!isActiveAndEnabled || stateText == null || !stateText.gameObject.activeInHierarchy ||
+            stateText.GetComponent<Renderer>() == null || !stateText.GetComponent<Renderer>().enabled ||
+            Vector2.Distance(viewer, transform.position) > 4.5f || Mathf.Abs(viewer.y - transform.position.y) > 1.5f) return false;
+        foreach (var hit in Physics2D.LinecastAll(viewer, transform.position))
+            if (hit.collider != null && !hit.collider.isTrigger && hit.collider.gameObject != gameObject &&
+                hit.collider.GetComponentInParent<MarioController>() == null &&
+                hit.collider.GetComponentInParent<TricksterController>() == null) return false;
+        cue = ReadPublicCue();
+        return true;
+    }
+    public static event System.Action<StateQueueTrap, MarioController, int, PublicCue> ActualDamage;
 
     private QueueTrapState CurrentQueueState => queue[currentQueueIndex];
     private QueueTrapState NextQueueState => queue[(currentQueueIndex + 1) % queue.Length];
@@ -107,8 +135,6 @@ public class StateQueueTrap : ControllableLevelElement
         sr = GetComponentInChildren<SpriteRenderer>();
         originalColor = sr != null ? sr.color : Color.white;
 
-        // suspicionTracker 已由 base.Awake() 初始化（ControllablePropBase.protected）
-        heatMeter = FindObjectOfType<TricksterHeatMeter>();
 
         if (boxCollider != null)
         {
@@ -161,7 +187,6 @@ public class StateQueueTrap : ControllableLevelElement
         }
 
         AdvanceQueueState();
-        ApplyForcedSkipPenalty();
         EnterForcedRecovery();
     }
 
@@ -254,7 +279,11 @@ public class StateQueueTrap : ControllableLevelElement
             PlayerHealth health = mario.GetComponent<PlayerHealth>();
             if (health == null || health.IsInvincible) continue;
 
+            int before = health.CurrentHealth;
+            var cue = ReadPublicCue();
             health.TakeDamage(attackDamage);
+            int lost = before - health.CurrentHealth;
+            if (lost > 0) ActualDamage?.Invoke(this, mario, lost, cue);
             ApplyKnockback(mario, hit);
             break;
         }
@@ -275,35 +304,6 @@ public class StateQueueTrap : ControllableLevelElement
         rb.velocity = Vector2.zero;
         rb.AddForce(knockback, ForceMode2D.Impulse);
         KnockbackHelper.NotifyKnockbackStun(hit);
-    }
-
-    private void ApplyForcedSkipPenalty()
-    {
-        PossessionAnchor anchor = GetComponent<PossessionAnchor>();
-
-        if (suspicionTracker == null)
-        {
-            suspicionTracker = FindObjectOfType<MarioSuspicionTracker>();
-        }
-
-        if (suspicionTracker != null && anchor != null)
-        {
-            suspicionTracker.ApplySuspicionEvidencePenalty(
-                anchor,
-                forcedSkipSuspicionPenalty,
-                forcedSkipEvidencePenalty,
-                "StateQueueTrapForceSkip");
-        }
-
-        if (heatMeter == null)
-        {
-            heatMeter = FindObjectOfType<TricksterHeatMeter>();
-        }
-
-        if (heatMeter != null)
-        {
-            heatMeter.AddHeat(forcedSkipHeatPenalty);
-        }
     }
 
     private void EnterForcedRecovery()
@@ -340,8 +340,8 @@ public class StateQueueTrap : ControllableLevelElement
     {
         if (stateText == null) return;
 
-        stateText.text = "Current: " + GetStateLabel(CurrentQueueState) + "\n" +
-                         "Next: " + GetStateLabel(NextQueueState);
+        var cue = ReadPublicCue();
+        stateText.text = $"Current: {cue.current} ({cue.remaining:F1}s)\nNext: {cue.next}\nReach: +/-{cue.halfWidth:F2}";
     }
 
     private string GetStateLabel(QueueTrapState state)

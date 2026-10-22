@@ -1,0 +1,17 @@
+timestamp,round,winner,reason,seconds,trickster_lives_left,times_caught,omens,alerts,pranks,distinct_kinds,calculated_moment,near_miss_moment,caught_verdict,want_again_1to5,note
+2026-09-26 22:37:39,1,Mario,Route cleared. Try a new timing or an alternate route.,10.7,1,2,2,2,Escape:2,1,no,no,unfair:couldnt_read_him,1,
+2026-09-26 23:46:38,1,Mario,Route cleared. Try a new timing or an alternate route.,9.2,2,1,2,1,Escape:1,1,no,no,unfair:gave_myself_away,3,
+2026-09-26 23:47:25,2,Mario,Route cleared. Try a new timing or an alternate route.,16.3,3,0,1,1,Escape:1,1,yes,yes,,2,移动太快了 来不及操作什么
+2026-09-26 23:47:57,3,Mario,Route cleared. Try a new timing or an alternate route.,9.7,3,0,1,0,,0,yes,no,,2,机关出发了也不能阻止马里奥行动
+2026-09-26 23:48:16,4,Mario,Route cleared. Try a new timing or an alternate route.,9.6,3,0,0,0,,0,yes,no,,2,
+2026-09-26 23:48:58,5,Mario,Route cleared. Try a new timing or an alternate route.,9.1,2,1,1,1,Escape:1,1,yes,no,unfair:gave_myself_away,2,
+2026-09-27 01:01:05,1,Mario,Route cleared. Try a new timing or an alternate route.,16.4,3,0,1,0,,0,yes,no,,3,会跳跃 但是不太自然
+2026-09-27 01:01:29,2,Mario,Route cleared. Try a new timing or an alternate route.,15.6,3,0,0,0,,0,yes,no,,2,
+2026-09-27 01:02:10,3,Mario,Route cleared. Try a new timing or an alternate route.,23.4,1,2,4,2,Escape:2,1,yes,no,fair,2,
+2026-09-27 01:02:34,4,Mario,Route cleared. Try a new timing or an alternate route.,16.9,3,0,1,0,,0,yes,no,,2,
+2026-09-27 01:03:08,5,Mario,Route cleared. Try a new timing or an alternate route.,25.9,3,0,3,0,,0,yes,no,,2,
+2026-09-27 01:17:42,1,Mario,Route cleared. Try a new timing or an alternate route.,27.7,3,0,2,0,,0,yes,yes,,3,
+2026-09-27 01:18:37,2,Mario,Route cleared. Try a new timing or an alternate route.,26.0,3,0,2,1,Escape:1,1,yes,yes,,3,从他身上跳过去 脱离追捕了 很容易逃脱
+2026-09-27 10:30:59,1,Mario,Route cleared. Try a new timing or an alternate route.,31.4,2,1,3,2,Cannon:1 Escape:2,2,yes,no,fair,3,,1,-1801414759
+2026-09-27 18:59:45,1,Trickster,Time ran out. Try a shorter route or a longer timer.,150.0,3,0,6,0,,0,no,no,,3,,1,-1283298602,16,10
+2026-09-27 19:03:30,2,Trickster,Time ran out. Try a shorter route or a longer timer.,150.0,1,2,3,4,Escape:2,1,no,no,unfair:couldnt_read_him,3,,1,-1280211954,16,10

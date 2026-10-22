@@ -1,0 +1,50 @@
+# S245: art245/art.json -> Assets/Scripts/Overworld/WorldArt.cs (pure data + coverage logic, compiled in sim)
+import json
+d=json.load(open('/home/user/workspace/art245/art.json'))
+L=[];w=L.append
+w('// 自动生成：tools_s245/gen_world.py（S245 AI 生成美术 → 16×16 字符画）。改图：改下面的字符画，或把同名 PNG 放进 Assets/Resources/Step1Art/<Key>.png 覆盖（小镇格子也认 Resources/OverworldArt/<Key>.png）。')
+w('using System.Collections.Generic;')
+w('')
+w('/// <summary>')
+w('/// S245：用户「美术素材是否覆盖全面 包括天气特效和各自的技能及道具场景以及是否支持在自定义搭建的时候的充分拓展 地上小镇大地图的情景 远处的山脉 还有进入房间内的装饰道具」。')
+w('/// 自检：小镇的草 / 路 / 房子 / 树 / 水 / 山 都还是色块；天气只有一层全屏染色；炸弹 / 炮弹 / 遁地土包是黑方块，挑衅只有一行字；装饰只有一个陶罐；11 种工坊元素（摆锤、锯片、移动平台…）还是白盒；没有远山。')
+w('/// 这里补齐：小镇 16 块（俯视 3/4 角度，像星露谷）、房间装饰 12 件（老宅：画 / 书架 / 烛台 / 盆栽 / 座钟 / 拱窗 / 地毯 / 挂旗 / 盔甲 / 木桶 / 吊灯 / 蛛网）、')
+w('/// 天气与技能 12 个（雨 / 水花 / 酸雨 / 落叶 / 雾 / 雪 / 炸弹 / 炮弹 / 挑衅气泡 / 土包 / 钩爪 / 雷云）、工坊元素 11 个、远山 + 近丘两条视差长图。')
+w('/// 全部是 GPT Image 2 生成的原创图（洋红底 → 切格 → 先吸调色板再按格投票缩到 16×16 → 补深色描边），用 OverworldArt.Audit 过审，并且让 AI 在"不给提示"的情况下逐个说出是什么（tools_s245/review*.json）。')
+w('/// 参考：星露谷天气 = 雨 / 风（落叶）/ 雷雨 / 雪 / 绿雨，每种都有自己的画面 https://stardewvalleywiki.com/Weather ；')
+w('/// 平台游戏的素材包通常按"地形块 + 道具 + 背景层"分（例：124 件村庄道具 + 草地图块 + 树）https://cainos.itch.io/pixel-art-platformer-village-props 。')
+w('/// 只换外观：碰撞体、判定、玩法一律不动（H3）；背景装饰压暗、不加碰撞体、不挡机关（H6：主层的东西才显眼）。')
+w('/// </summary>')
+w('public static class WorldArt')
+w('{')
+w('    public const int Size = 16;')
+def block(name,dic,doc):
+    w(f'    /// <summary>{doc}</summary>')
+    w(f'    public static readonly Dictionary<string, string[]> {name} = new Dictionary<string, string[]>')
+    w('    {')
+    for k,rows in dic.items():
+        w(f'        {{ "{k}", new[] {{')
+        for r in rows: w(f'            "{r}",')
+        w('        } },')
+    w('    };')
+block('Town',d['town'],'小镇格子（俯视）：TGrass 草 / TPath 石子路 / TRoof 屋顶 / TWall 墙面（带窗和门）/ TTree 树 / TWater 水 / TFence 栅栏 / TTallGrass 高草 / TMud 泥地 / TMountain 山 / THill 山丘 / TCave 山洞 / TDoor 房间门 / THome 马里奥的家 / TSpawn 你的出生帐篷 / TSign 路牌。前 6 个（草 / 路 / 屋顶 / 墙 / 水 / 泥）是满格地面，能无缝平铺。')
+block('Decor',d['decor'],'房间装饰（老宅）：墙上挂的（画 / 拱窗 / 挂旗 / 座钟 / 书架 / 蛛网 / 吊灯）和地上放的（烛台 / 盆栽 / 地毯 / 盔甲 / 木桶）。')
+fx=dict(d['fx']); fx['FxDrop']=d['fixes']['FxDrop']; fx['FxCannonball']=d['fixes']['FxCannonball2']
+block('Fx',fx,'天气与技能：FxRain 雨丝（原图，第二版太细被弃用） / FxDrop 水滴 / FxSplash 水花 / FxAcid 酸雨 / FxLeaf 落叶（大风）/ FxFog 雾团 / FxSnow 雪花（备用：自定义天气）/ FxBomb 炸弹 / FxCannonball 炮弹 / FxTaunt 挑衅气泡 / FxMound 遁地土包 / FxHook 钩爪（摆荡锚点）/ FxStormCloud 雷云。')
+el=dict(d['elems']); el['FakeWall']=d['fixes']['FakeWall']
+block('Elements',el,'工坊元素（第 1 步默认房间不用，但自己搭关卡能放）：摆锤 / 锯片 / 队列机关 / 弹跳台 / 移动平台 / 传送带 / 可破坏方块 / 假墙 / 暗道入口 / 弹跳怪 / 飞行怪。')
+w('    /// <summary>远处视差长图：Far = 远山（蓝灰、雪顶）、Near = 近处的绿丘 + 小树 + 远处小村。每个字符 = 自己调色板的下标，. = 透明。宽 160 像素 = 10 格，横向循环平铺。</summary>')
+for n in ('far','near'):
+    s=d['strips'][n]; pal=[p for p in s['pal']]
+    nm='FarPalette' if n=='far' else 'NearPalette'
+    w(f'    public static readonly float[][] {nm} =')
+    w('    {')
+    for p in pal: w(f'        new[] {{ {p[0]}f, {p[1]}f, {p[2]}f }},')
+    w('    };')
+    w(f'    public static readonly string[] {"FarStrip" if n=="far" else "NearStrip"} =')
+    w('    {')
+    for r in s['rows']: w(f'        "{r}",')
+    w('    };')
+L.append(open('/home/user/workspace/tools_s245/worldart_tail.cs').read())
+open('/home/user/workspace/repo/Assets/Scripts/Overworld/WorldArt.cs','w').write('\n'.join(L)+'\n')
+print(len(L))

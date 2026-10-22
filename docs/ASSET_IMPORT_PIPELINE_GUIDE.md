@@ -43,7 +43,7 @@
 
 | 入口 | 快捷键或菜单 | 用途 |
 | --- | --- | --- |
-| Asset Import Pipeline | `MarioTrickster → Asset Import Pipeline` 或 `Ctrl+Shift+I` | 从外部图片生成项目内 Object / Prefab。 |
+| Asset Import Pipeline | `MarioTrickster → 美术 Art → 素材导入` 或 `Ctrl+Shift+I` | 从外部图片生成项目内 Object / Prefab。 |
 | Apply Art To Selected | `Ctrl+Shift+A` | 给已有白盒对象换皮，支持散帧、Sprite Sheet、状态动画、SEF、AI 后台识别切片和手动 cell size / rows / columns 切片。 |
 | SEF Quick Apply | `MarioTrickster → SEF Quick Apply` 或 `Ctrl+Shift+Q` | 给选中物体快速套视觉效果预设，并保存 Prefab。 |
 | Planner Production Assistant | `Ctrl+T → Art & Effects Hub → 策划生产助手` | 对素材包做语义巡检、给出建议命名，经弹窗确认后批量改名，Theme 自动填槽，复制新机制请求模板。 |
@@ -92,7 +92,7 @@ python Tools/ai_smart_slicer.py commercial_pack.png
 
 > **Auto 模式智能推断**：当素材应用到没有 `ImportedAssetMarker` 的对象时（如原始 Mario 白盒），系统会检查目标对象是否有 `MarioController`、`TricksterController` 等角色组件，自动使用 BottomCenter。角色、敌人这类底部对齐素材现在会进一步扫描每帧不透明像素边界，把 Pivot 放在“可见脚底”而不是透明画布底边；因此即使原图下方有透明留白，也不会再出现换皮后脚底悬空的问题。
 
-> **事后修正**：如果导入后发现 Pivot 不对，可以使用 `MarioTrickster → Art Pipeline → Pivot 修正工具` 单独修正，支持单个物体、单张贴图或批量文件夹。所有操作支持 Ctrl+Z 撤销。
+> **事后修正**：如果导入后发现 Pivot 不对，可以使用 `MarioTrickster → 美术 Art → 工具 Pipeline → Pivot 修正工具` 单独修正，支持单个物体、单张贴图或批量文件夹。所有操作支持 Ctrl+Z 撤销。
 
 ---
 

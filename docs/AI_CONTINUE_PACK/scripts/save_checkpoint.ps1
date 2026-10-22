@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet('Status', 'Save', 'Export')]
     [string]$Mode = 'Status',
@@ -16,7 +16,7 @@ $QuickStartFiles = @('SAVE_MARIOTRICKSTER.cmd', 'CHECK_MARIOTRICKSTER.cmd', 'OPE
 # New source files are saved automatically (with their .meta, so script GUIDs stay stable on every computer).
 # S254: also the WorldPark verification harnesses and every session note docs/step1/S2xx_*.md.
 # S255: also the author guides under docs/guide (Markdown + screenshots).
-$AutoSourcePatterns = @('^Assets/Scripts/.+\.cs$', '^Assets/Tests/.+\.cs$', '^tools/LevelStudioWeb/[^/]+\.(js|py|html|md)$', '^Assets/Resources/WorldPark/[^/]+\.worldpark\.json$', '^Assets/(Scripts|Resources)/WorldPark\.meta$', '^docs/step1/S2\d\d_[A-Za-z0-9_]+\.md$', '^Tools/WorldParkVerify/.+\.(cs|cjs|js|ps1|json|props|csproj|md)$', '^docs/guide/[A-Za-z0-9_]+\.md$', '^docs/guide/img/[A-Za-z0-9_]+\.(png|jpg)$')
+$AutoSourcePatterns = @('^Assets/Scripts/.+\.cs$', '^Assets/Tests/.+\.cs$', '^tools/LevelStudioWeb/[^/]+\.(js|py|html|css|md)$', '^Assets/Resources/WorldPark/[^/]+\.worldpark\.json$', '^Assets/(Scripts|Resources)/WorldPark\.meta$', '^docs/step1/S2\d\d_[A-Za-z0-9_]+\.md$', '^Tools/WorldParkVerify/.+\.(cs|cjs|js|ps1|json|props|csproj|md)$', '^docs/guide/[A-Za-z0-9_]+\.md$', '^docs/guide/img/[A-Za-z0-9_]+\.(png|jpg)$')
 # Files Unity rebuilds by itself when the project opens (BuilderVersion / tuning defaults). Never committed.
 $GeneratedPatterns = @('^Assets/Scenes/Step1_PrankRoom\.unity$', '^Assets/Resources/Step1/', '^Assets/Resources/Step1\.meta$', '^Assets/Scenes/WorldPark/', '^Assets/Scenes/WorldPark\.meta$')
 

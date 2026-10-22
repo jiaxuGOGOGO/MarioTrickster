@@ -18,6 +18,8 @@ public sealed class WorldParkWindow : EditorWindow
     public const string MyWorldAssetPath = "Assets/Resources/WorldPark/MyWorld.worldpark.json";
     private const string MyWorldBackupPath = "Assets/Resources/WorldPark/.history/MyWorld.previous.worldpark.json"; // 以“.”开头的目录 Unity 不导入、不进构建
     private static readonly string[] BuiltInWorlds = { "Resources/WorldPark/Borderland.worldpark.json", "Resources/WorldPark/Demo.worldpark.json" };
+    [NonSerialized] private WorldParkPack.Node mapUndoNode; // S258：最近一次“从当前小镇复制地图文本”替换掉的阶段
+    [NonSerialized] private string mapUndoText;
     private static readonly string[] GameModeLabels = { "beauty 数字猜心", "mark 看不见的标记", "split 分还是偷" };
     private static readonly string[] PersonaLabels = { "player 玩家本人", "naive 直觉型", "reasoner 推一层", "deep 深推", "adaptive 跟随者", "liar 说谎者", "loyal 老实人", "mirror 以牙还牙" };
 
@@ -489,11 +491,26 @@ public sealed class WorldParkWindow : EditorWindow
             var target=node;
             OverworldWorkshopWindow.EditExplore(node.mapText,value=> { target.mapText=value;Check();rehearsal="地图已修改，请重新检查点位/彩排。";Repaint(); });
         }
-        if (GUILayout.Button("从当前小镇复制地图文本", GUILayout.Width(176)))
+        // S258：与网页 S256 同样的保护——整张替换前先确认，并保留替换前的地图供一键换回。
+        if (GUILayout.Button("从当前小镇复制地图文本", GUILayout.Width(176))
+            && EditorUtility.DisplayDialog("整张替换这一阶段的地图？", "会用当前小镇地图整张替换探索阶段“" + (node.id ?? "") + "”的地图。\n点位不会跟着移动，可能落进墙里；原小镇不会被改写。\n替换后可以点“换回替换前的地图”。", "替换", "取消"))
         {
+            mapUndoNode = node;
+            mapUndoText = node.mapText ?? "";
             var mapWindow=Resources.FindObjectsOfTypeAll<OverworldWorkshopWindow>().FirstOrDefault(w=>w.CurrentMap!=null);
             node.mapText = mapWindow!=null ? OverworldMap.ToText(mapWindow.CurrentMap) : OverworldBuilder.CurrentText ?? "";
-            status = "已把当前小镇地图复制到探索节点“" + (node.id ?? "") + "”；原小镇没有被改写。";
+            status = "已把当前小镇地图复制到探索节点“" + (node.id ?? "") + "”；原小镇没有被改写。点“换回替换前的地图”可恢复。";
+            Check();
+            GUIUtility.ExitGUI();
+        }
+        if (mapUndoNode == node && GUILayout.Button("换回替换前的地图", GUILayout.Width(140)))
+        {
+            node.mapText = mapUndoText ?? "";
+            mapUndoNode = null;
+            mapUndoText = null;
+            status = "已换回替换前的地图。";
+            Check();
+            GUIUtility.ExitGUI();
         }
         EditorGUILayout.EndHorizontal();
         node.mapText = EditorGUILayout.TextArea(node.mapText ?? "", GUILayout.MinHeight(130));

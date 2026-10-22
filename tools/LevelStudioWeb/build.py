@@ -144,8 +144,12 @@ wp = bl + '\n' + re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HE
 for _f in ('explore.js', 'venue-check.js', 'play-model.js', 'play.js', 'worldpark-history.js'):  # S254：venue-check.js 会场体检（依赖 explore.js）；S256：worldpark-history.js 安全网纯逻辑
     wp += '\n' + re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, _f), encoding='utf-8').read())
 wp_app = open(os.path.join(HERE, 'worldpark-app.js'), encoding='utf-8').read()
+wp_app += '\n' + re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'worldpark-cockpit.js'), encoding='utf-8').read())
+wp_app += '\n' + re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'worldpark-gameform.js'), encoding='utf-8').read())  # S258：博弈参数表单纯逻辑
 wp_spatial = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'worldpark-spatial.js'), encoding='utf-8').read())
+wp_spatial += '\n' + re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'worldpark-map.js'), encoding='utf-8').read())
 html = open(os.path.join(HERE, 'shell.html'), encoding='utf-8').read()
+html = html.replace('/*COCKPIT_CSS*/', open(os.path.join(HERE, 'cockpit.css'), encoding='utf-8').read())
 ow = re.sub(r"if \(typeof module[^\n]*\n?", '', open(os.path.join(HERE, 'overworld.js'), encoding='utf-8').read())
 html = html.replace('/*WORLD_PARK_SPATIAL*/', wp_spatial).replace('/*DATA*/', data).replace('/*LOGIC*/', logic + '\n' + ow + '\n' + wp).replace('/*APP*/', open(os.path.join(HERE, 'app.js'), encoding='utf-8').read() + '\n' + wp_app)
 open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(html)

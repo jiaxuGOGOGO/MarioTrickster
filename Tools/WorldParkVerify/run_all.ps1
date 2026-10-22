@@ -67,9 +67,12 @@ Step 'S251剧情带入模拟'      { dotnet run --project (Join-Path $kit 'Story
 
 # 4. 网页设计台
 Step '网页点位画布'          { node (Join-Path $repo 'Tools\LevelStudioWeb\worldpark-spatial.test.js') } 'passed'
+Step '网页地图可视化编辑'    { node (Join-Path $repo 'Tools\LevelStudioWeb\worldpark-map.test.js') } 'assertions passed'
+Step '网页驾驶舱模型'        { node (Join-Path $repo 'Tools\LevelStudioWeb\worldpark-cockpit.test.js') } 'assertions passed'
+Step '网页博弈参数表单'        { node (Join-Path $repo 'Tools\LevelStudioWeb\worldpark-gameform.test.js') } 'assertions passed'
 Step '网页安全网'            { node (Join-Path $repo 'Tools\LevelStudioWeb\worldpark-history.test.js') } 'assertions passed'
 Step '网页博弈彩排冒烟'      { node (Join-Path $kit 'web-game-smoke.cjs') } 'web game smoke PASS'
-Step '网页世界脚本语法'      { foreach ($f in 'borderland.js', 'worldpark.js', 'explore.js', 'venue-check.js', 'play-model.js', 'play.js', 'worldpark-history.js', 'worldpark-app.js', 'worldpark-spatial.js', 'app.js') { node --check (Join-Path $repo "Tools\LevelStudioWeb\$f"); if ($LASTEXITCODE) { break } }; if (!$LASTEXITCODE) { 'syntax ok' } } 'syntax ok'
+Step '网页世界脚本语法'      { foreach ($f in 'borderland.js', 'worldpark.js', 'explore.js', 'venue-check.js', 'play-model.js', 'play.js', 'worldpark-history.js', 'worldpark-app.js', 'worldpark-spatial.js', 'worldpark-map.js', 'worldpark-cockpit.js', 'app.js') { node --check (Join-Path $repo "Tools\LevelStudioWeb\$f"); if ($LASTEXITCODE) { break } }; if (!$LASTEXITCODE) { 'syntax ok' } } 'syntax ok'
 $py = Find-Python
 if ($SkipWebBuild) { Skip '网页设计台重建' '按参数跳过' }
 elseif (!$py) { Skip '网页设计台重建' '找不到 Python（装 Python 3.12+ 或放便携版到 .work\tools\python-3.12.10）' }
@@ -86,6 +89,11 @@ else {
 $smokeOut = (& node (Join-Path $kit 'web-play-smoke.cjs') 2>&1 | ForEach-Object { "$_" }) -join "`n"; $smokeCode = $LASTEXITCODE
 if ($smokeOut -match '网页试玩冒烟: SKIP（(.*)）') { Skip 'S253真实浏览器试玩' $Matches[1] }
 else { Step 'S253真实浏览器试玩' { $smokeOut; $global:LASTEXITCODE = $smokeCode } '错误: 0' }
+
+# S257：隔离配置中的驾驶舱导航与地图子创作实测
+$ckOut = (& node (Join-Path $kit 'cockpit-smoke.cjs') 2>&1 | ForEach-Object { "$_" }) -join "`n"; $ckCode = $LASTEXITCODE
+if ($ckOut -match '驾驶舱浏览器: SKIP（(.*)）') { Skip 'S257真实浏览器驾驶舱' $Matches[1] }
+else { Step 'S257真实浏览器驾驶舱' { $ckOut; $global:LASTEXITCODE = $ckCode } '驾驶舱浏览器: PASS' }
 
 # 5. 功能地图文档与 C# 唯一来源一致（只比较，不改文件）
 Step '功能地图文档同步' {

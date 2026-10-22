@@ -556,7 +556,8 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   $('#pageMech').classList.toggle('on', p === 'mech'); $('#pageHandoff').classList.toggle('on', p === 'handoff'); $('#pageOverworld').classList.toggle('on', p === 'overworld');
   $('#pageMap').classList.toggle('on', p === 'map'); if (p === 'map') fmRender(); // S236 功能地图
   $('#pageWorldPark').classList.toggle('on', p === 'worldpark');
-  for (const id of ['btnSync', 'btnPlayUnity', 'btnImport', 'btnExport']) $('#' + id).style.display = p === 'worldpark' ? 'none' : '';
+  document.getElementById('pageCockpit')?.classList.toggle('on', p === 'cockpit');
+  for (const id of ['btnSync', 'btnPlayUnity', 'btnImport', 'btnExport']) $('#' + id).style.display = ['worldpark','cockpit'].includes(p) ? 'none' : '';
   if (p === 'worldpark') wpRender();
   if (p === 'overworld') owRender();
   if (p === 'handoff') $('#handoffText').textContent = handoff();
@@ -567,6 +568,7 @@ $('#btnUndo').onclick = () => { if (!undo.length) return; redo.push(JSON.stringi
 $('#btnRedo').onclick = () => { if (!redo.length) return; undo.push(JSON.stringify(S.grid)); S.grid = JSON.parse(redo.pop()); syncInputs(); recheck(true); };
 window.addEventListener('keydown', e => {
   if (e.target.matches('input,textarea,select')) return;
+  if (document.querySelector('dialog[open]') || document.getElementById('pageCockpit')?.classList.contains('on')) return; // 子编辑窗口 / 驾驶舱不改旧房间。
   if ($('#pageWorldPark').classList.contains('on')) return; // 世界创作不消费旧地图的画笔/撤销快捷键。
   if ($('#pageOverworld').classList.contains('on')) { owKey(e); return; } // S212：大地图页有自己的快捷键（和 Unity 小镇工坊一样）
   if (S.tool === 'move' && moveKey(e)) { e.preventDefault(); return; }

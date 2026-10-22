@@ -54,6 +54,24 @@ const WorldParkSpatial = (() => {
   }
 
   function canPlace(text, x, y) { return placement(mapShape(text), x, y); }
+  // S258：鬼的巡逻格。格式 "x,y" 与 WorldPark.chaserCell / explore.js 相同；上限与 explore.js MaxChaserRoute（32）相同。
+  const MAX_ROUTE = 32;
+  function routeCellOf(raw) {
+    if (typeof WorldPark !== 'undefined' && WorldPark.chaserCell) return WorldPark.chaserCell(raw);
+    const m = /^\s*(-?\d+)\s*[,，]\s*(-?\d+)\s*$/.exec(String(raw ?? ''));
+    return m ? { x:Number(m[1]), y:Number(m[2]) } : null;
+  }
+  // 点到已有巡逻格 = 去掉它；点到新格 = 按放置规则检查后加到末尾。返回新数组，不改原数组。
+  function routeToggle(shape, route, x, y) {
+    const list = Array.isArray(route) ? route.slice() : [];
+    const at = list.findIndex(raw => { const c = routeCellOf(raw); return !!c && c.x === x && c.y === y; });
+    if (at >= 0) { list.splice(at, 1); return { ok:true, removed:true, route:list, reason:'' }; }
+    const verdict = placement(shape, x, y);
+    if (!verdict.ok) return { ok:false, removed:false, route:list, reason:verdict.reason };
+    if (list.length >= MAX_ROUTE) return { ok:false, removed:false, route:list, reason:`一只鬼最多 ${MAX_ROUTE} 个巡逻格。` };
+    list.push(`${x},${y}`);
+    return { ok:true, removed:false, route:list, reason:'' };
+  }
 
   function tileColor(tile) {
     if (tile === 'T') return '#4f8cff';
@@ -102,7 +120,15 @@ const WorldParkSpatial = (() => {
     }
 
     arm(mode) {
-      if (!['select', 'clue', 'exit', 'chaser'].includes(mode)) return;
+      if (!['select', 'clue', 'exit', 'chaser', 'route'].includes(mode)) return;
+      if (mode === 'route') {
+        const p = (this.opts.points || [])[this.selectedIndex()];
+        if (!p || p.kind !== 'chaser') { this.mode = 'select'; this.message = '先点选一只鬼（红色“鬼”字），再点“✎ 鬼的路线”。'; this.updateChrome(); return; }
+        this.mode = 'route';
+        this.message = `画「${p.label || p.id}」的路线：依次点可通行格，鬼按顺序循环巡逻；再点一次已有的格就去掉它。`;
+        this.updateChrome();
+        return;
+      }
       this.mode = mode;
       this.message = mode === 'select' ? '选择模式：点击标记选择，拖动标记移动。' : `放置模式：点击可通行格新增${mode === 'clue' ? '调查点' : mode === 'chaser' ? '追逐者（鬼）' : '出口'}。`;
       this.updateChrome();
@@ -167,7 +193,8 @@ const WorldParkSpatial = (() => {
             <button class="btn small" type="button" data-wps-mode="select" title="点击选择已有标记；拖动标记移动">选择 / 移动</button>
             <button class="btn small" type="button" data-wps-mode="clue" title="点击可通行格新建调查点及同阶段 interact 线索">＋ 调查点</button>
             <button class="btn small" type="button" data-wps-mode="exit" title="点击可通行格新建出口">＋ 出口</button>
-            <button class="btn small" type="button" data-wps-mode="chaser" title="点击可通行格放置追逐者（鬼）；巡逻格在下方表单里写">＋ 追逐者</button>
+            <button class="btn small" type="button" data-wps-mode="chaser" title="点击可通行格放置追逐者（鬼）">＋ 追逐者</button>
+            <button class="btn small" type="button" data-wps-mode="route" title="先选中一只鬼，再在图上依次点它的巡逻格；再点一次已有的格可去掉">✎ 鬼的路线</button>
           </span>
           <button class="btn small" type="button" data-wps-action="undo">撤销</button>
           <button class="btn small" type="button" data-wps-action="redo">重做</button>
@@ -268,9 +295,20 @@ const WorldParkSpatial = (() => {
       const color = chaser ? '#ff5a64' : point.kind === 'exit' ? '#ffc83d' : '#76d6c3';
       if (chaser && Array.isArray(point.route)) {
         // 巡逻格：红色小方块 + 序号；格式解析与 C#/网页规则共用 chaserCell。
-        const cellOf = typeof WorldPark !== 'undefined' && WorldPark.chaserCell ? WorldPark.chaserCell : null;
+        const inside = c => c && c.x >= 0 && c.y >= 0 && c.x < preview.width && c.y < preview.height;
+        const cells = point.route.map(routeCellOf).filter(inside);
+        if (cells.length) {
+          // S258：把巡逻顺序画成连线（鬼 → 第 1 格 → … → 最后一格，虚线回到第 1 格表示循环）。
+          const px = c => (c.x + .5) * cell, py = c => (preview.height - c.y - .5) * cell;
+          ctx.save();
+          ctx.strokeStyle = selected ? 'rgba(255,90,100,.85)' : 'rgba(255,90,100,.35)';
+          ctx.lineWidth = selected ? 2.5 : 1.5;
+          ctx.beginPath(); ctx.moveTo(x, y); cells.forEach(c => ctx.lineTo(px(c), py(c))); ctx.stroke();
+          if (cells.length > 1) { ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(px(cells[cells.length - 1]), py(cells[cells.length - 1])); ctx.lineTo(px(cells[0]), py(cells[0])); ctx.stroke(); }
+          ctx.restore();
+        }
         point.route.forEach((raw, r) => {
-          const c = cellOf ? cellOf(raw) : null;
+          const c = routeCellOf(raw);
           if (!c || c.x < 0 || c.y < 0 || c.x >= preview.width || c.y >= preview.height) return;
           const rx = (c.x + .5) * cell, ry = (preview.height - c.y - .5) * cell, d = Math.max(4, cell * .3);
           ctx.fillStyle = selected ? 'rgba(255,90,100,.9)' : 'rgba(255,90,100,.45)';
@@ -324,7 +362,7 @@ const WorldParkSpatial = (() => {
       if (!cell) return;
       event.preventDefault();
       this.canvas.setPointerCapture?.(event.pointerId);
-      const pointIndex = this.pointAt(cell);
+      const pointIndex = this.mode === 'route' ? -1 : this.pointAt(cell); // 画路线时不拖动点位
       this.drag = { pointerId:event.pointerId, start:cell, pointIndex, before:this.snapshot(), moved:false, invalid:'' };
       this.hover = cell;
       this.updateChrome();
@@ -361,6 +399,8 @@ const WorldParkSpatial = (() => {
           this.opts.onCommit?.({ type:'move', index:drag.pointIndex });
         } else if (drag.invalid) this.message = `没有移动：${drag.invalid}`;
         else this.choose(drag.pointIndex);
+      } else if (this.mode === 'route') {
+        this.toggleRoute(cell, drag.before);
       } else if (this.mode === 'select') {
         this.message = '这里没有点位。要新建，请选择“＋ 调查点”或“＋ 出口”，再点击可通行格。';
       } else {
@@ -375,6 +415,17 @@ const WorldParkSpatial = (() => {
       this.opts.onSelect?.(index);
     }
 
+    toggleRoute(cell, before) {
+      const index = this.selectedIndex(), point = (this.opts.points || [])[index];
+      if (!point || point.kind !== 'chaser') { this.mode = 'select'; this.message = '先点选一只鬼，再画路线。'; return; }
+      const result = routeToggle(this.shape, point.route, cell.x, cell.y);
+      if (!result.ok) { this.message = `路线没有改变：${result.reason}`; return; }
+      point.route = result.route;
+      this.record(before, index);
+      this.message = result.removed ? `已从路线去掉 (${cell.x}, ${cell.y})；现在 ${result.route.length} 个巡逻格。` : `已加入第 ${result.route.length} 个巡逻格 (${cell.x}, ${cell.y})。`;
+      this.opts.onCommit?.({ type:'route', index });
+    }
+
     create(kind, cell, before) {
       const index = this.opts.onCreate?.(kind, cell.x, cell.y);
       if (!Number.isInteger(index) || index < 0) {
@@ -382,7 +433,7 @@ const WorldParkSpatial = (() => {
         return;
       }
       this.record(before, index);
-      this.message = `已新建${kind === 'clue' ? '调查点及同阶段 interact 线索' : kind === 'chaser' ? '追逐者（鬼），请在下方表单写巡逻格' : '出口'}：(${cell.x}, ${cell.y})。`;
+      this.message = `已新建${kind === 'clue' ? '调查点及同阶段 interact 线索' : kind === 'chaser' ? '追逐者（鬼）；点“✎ 鬼的路线”在图上点它的巡逻格' : '出口'}：(${cell.x}, ${cell.y})。`;
       this.opts.onSelect?.(index);
     }
 
@@ -433,6 +484,6 @@ const WorldParkSpatial = (() => {
     }
   }
 
-  return Object.freeze({ MIN_WIDTH, MIN_HEIGHT, MAX_WIDTH, MAX_HEIGHT, mapShape, canPlace, placement, Editor });
+  return Object.freeze({ MIN_WIDTH, MIN_HEIGHT, MAX_WIDTH, MAX_HEIGHT, mapShape, canPlace, placement, Editor, routeToggle, MAX_ROUTE });
 })();
 if (typeof module !== 'undefined') module.exports = WorldParkSpatial;

@@ -221,16 +221,18 @@ p.wp-origin-ok{color:var(--ok)}
 	.wp-spatial canvas{margin:0;border-radius:4px;cursor:crosshair;touch-action:none}.wp-spatial-status{display:flex;gap:12px;justify-content:space-between;padding:6px 8px;border-top:1px solid var(--line);font:11.5px/1.45 var(--mono);color:var(--dim)}.wp-spatial-status span:first-child{min-width:0;overflow-wrap:anywhere}.wp-spatial-status span:last-child{white-space:nowrap;text-align:right}
 	@media(max-width:1400px){.wp-layout{grid-template-columns:230px 1fr}.wp-inspector{grid-column:1/-1}}
 	@media(max-width:780px){.wp-layout{grid-template-columns:1fr}.wp-inspector{grid-column:auto}.page{padding:18px}.wp-node{max-width:none}.brand{white-space:normal}.tabs{margin:0}.wp-spatial-status{display:block}.wp-spatial-status span:last-child{display:block;text-align:left;margin-top:3px}}
+/*COCKPIT_CSS*/
 </style>
 </head>
 <body>
 <div class="app">
 <header>
   <div class="brand"><b><i>Mario</i><u>Trickster</u></b><span>关卡设计台 · 在这里想清楚，再交给 AI 实现</span></div>
-  <nav class="tabs" role="tablist">
+  <nav class="tabs" role="tablist" aria-label="创作导航">
+    <button class="tab" role="tab" aria-selected="false" data-page="cockpit" title="图标导航：选会场、画图、试玩、理解子创作联动">◫ 驾驶舱</button>
+    <button class="tab" role="tab" aria-selected="false" data-page="worldpark" title="主创作入口：世界、会场、探索、分支与线索">世界工坊</button>
     <button class="tab" role="tab" aria-selected="true" data-page="design">子创作：横版房间</button>
     <button class="tab" role="tab" aria-selected="false" data-page="overworld" title="世界工坊的子工具：星露谷视角小镇，门连到横版房间">子创作：小镇地图</button>
-    <button class="tab" role="tab" aria-selected="false" data-page="worldpark" title="主创作入口：世界、会场、探索、分支与线索">世界工坊</button>
     <button class="tab" role="tab" aria-selected="false" data-page="mech">新机制提案</button>
     <button class="tab" role="tab" aria-selected="false" data-page="handoff">交给 AI</button>
     <button class="tab" role="tab" aria-selected="false" data-page="map" title="S236：项目能做什么、在哪打开、创作时怎么用（和 Unity 开始页 Ctrl+Alt+H 同一份）">功能地图</button>
@@ -244,6 +246,17 @@ p.wp-origin-ok{color:var(--ok)}
   <input type="file" id="fileIn" accept=".json,.txt,.csv,.ldtk,.tmj,.png,.gif,.bmp" hidden>
 </header>
 
+<div class="wc-dock" id="wcDock" aria-label="快捷驾驶导航">
+  <button class="btn small" data-wc-dock="cockpit">◫ 驾驶舱</button>
+  <span class="wc-dock-context" id="wcDockContext"></span>
+  <button class="btn small" data-wc-dock="map">✎ 会场地图</button>
+  <button class="btn small" data-wc-dock="world">◇ 世界工坊</button>
+  <button class="btn small" data-wc-dock="check">✓ 检查</button>
+  <button class="btn small" data-wc-dock="export">↓ 导出世界</button>
+  <button class="btn small gold" data-wc-dock="return" id="wcRoomReturn" hidden>↶ 应用房间引用并返回</button>
+  <span class="wc-child-note" id="wcChildNote" hidden></span>
+</div>
+<section class="page" id="pageCockpit" aria-label="综合创作驾驶舱"><div id="wcHost"></div></section>
 <main id="pageDesign">
   <aside>
     <h3>我的关卡 <span id="libCount"></span></h3>
@@ -481,7 +494,7 @@ p.wp-origin-ok{color:var(--ok)}
 
 <section class="page" id="pageWorldPark" aria-label="世界工坊创作">
   <h2>世界工坊</h2>
-  <p class="lead"><b style="color:var(--chalk)">怎么用：</b>左栏选会场 → 中栏点一个阶段 → 右栏改它的文字、地图和点位 → 点“▶ 只玩这个会场”马上试。看不懂某个格子，读 docs/guide/WORLD_WORKSHOP_GUIDE.md（带截图逐格讲解）。</p>
+  <p class="lead">选会场 → 点阶段 → 改内容 → ▶ 试玩。找入口用顶部“◫ 驾驶舱”。</p>
   <div class="wp-toolbar">
     <button class="btn" id="wpSample">载入内置示例</button>
     <button class="btn" id="wpImport">导入世界包</button>
@@ -563,6 +576,8 @@ p.wp-origin-ok{color:var(--ok)}
 </section>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<dialog class="wc-modal" id="wcMapDialog" aria-labelledby="wcMapTitle"><h2 id="wcMapTitle">画会场地图</h2><div id="wcMapEditor"></div></dialog>
+<dialog class="wc-modal" id="wcHelpDialog" aria-label="送到 Windows 正式游戏"><div id="wcHelpBody"></div></dialog>
 <dialog id="wizDlg" class="wiz" aria-labelledby="wizTitle">
   <h2 id="wizTitle">新建关卡：三步起一个能玩的草稿</h2>
   <p class="hint" style="margin:0">做法来自任天堂的"起承转合"：一关只练一个点子，分 4 段摆。生成后已经能玩，你只改最别扭的地方。</p>
